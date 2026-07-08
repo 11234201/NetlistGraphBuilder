@@ -4,6 +4,7 @@ export function layoutGraph(graph, options = {}) {
   const xSpacing = options.xSpacing || 230;
   const ySpacing = options.ySpacing || 88;
   const margin = options.margin || 48;
+  const topWireSpace = options.topWireSpace || 72;
   const levels = assignLevels(graph);
   const buckets = new Map();
 
@@ -25,7 +26,8 @@ export function layoutGraph(graph, options = {}) {
       positionedNodes.push({
         ...node,
         x: margin + level * xSpacing,
-        y: margin + index * ySpacing,
+        y: topWireSpace + margin + index * ySpacing,
+        level,
         width: size.width,
         height: size.height,
         ports: buildNodePorts(node, size)
@@ -34,25 +36,18 @@ export function layoutGraph(graph, options = {}) {
   }
 
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
-  const positionedEdges = graph.edges.map((edge) => {
+  const positionedEdges = graph.edges.map((edge, index) => {
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
     const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
-    const midX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
+    const points = routeEdge(source, target, sourcePoint, targetPoint, index, margin);
+    const labelPoint = getLabelPoint(points);
 
     return {
       ...edge,
-      points: [
-        sourcePoint,
-        { x: midX, y: sourcePoint.y },
-        { x: midX, y: targetPoint.y },
-        targetPoint
-      ],
-      labelPoint: {
-        x: midX + 4,
-        y: (sourcePoint.y + targetPoint.y) / 2 - 4
-      }
+      points,
+      labelPoint
     };
   });
 
@@ -64,6 +59,64 @@ export function layoutGraph(graph, options = {}) {
     edges: positionedEdges,
     width: bounds.width + margin,
     height: bounds.height + margin
+  };
+}
+
+function routeEdge(source, target, sourcePoint, targetPoint, index, margin) {
+  const sourceLevel = source.level ?? 0;
+  const targetLevel = target.level ?? sourceLevel + 1;
+  const levelDistance = targetLevel - sourceLevel;
+
+  if (levelDistance <= 1) {
+    const laneX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
+    return compactPoints([
+      sourcePoint,
+      { x: laneX, y: sourcePoint.y },
+      { x: laneX, y: targetPoint.y },
+      targetPoint
+    ]);
+  }
+
+  const sourceLaneX = sourcePoint.x + 18 + (index % 4) * 7;
+  const targetLaneX = targetPoint.x - 26 - (index % 5) * 8;
+  if (targetLaneX <= sourceLaneX + 24) {
+    const laneX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
+    return compactPoints([
+      sourcePoint,
+      { x: laneX, y: sourcePoint.y },
+      { x: laneX, y: targetPoint.y },
+      targetPoint
+    ]);
+  }
+
+  const topLaneY = margin / 2 + (index % 5) * 10;
+  return compactPoints([
+    sourcePoint,
+    { x: sourceLaneX, y: sourcePoint.y },
+    { x: sourceLaneX, y: topLaneY },
+    { x: targetLaneX, y: topLaneY },
+    { x: targetLaneX, y: targetPoint.y },
+    targetPoint
+  ]);
+}
+
+function compactPoints(points) {
+  return points.filter((point, index) => {
+    if (index === 0) {
+      return true;
+    }
+    const previous = points[index - 1];
+    return point.x !== previous.x || point.y !== previous.y;
+  });
+}
+
+function getLabelPoint(points) {
+  const middleIndex = Math.floor((points.length - 1) / 2);
+  const start = points[middleIndex];
+  const end = points[middleIndex + 1] || start;
+  return {
+    x: (start.x + end.x) / 2 + 4,
+    y: (start.y + end.y) / 2 - 4
   };
 }
 

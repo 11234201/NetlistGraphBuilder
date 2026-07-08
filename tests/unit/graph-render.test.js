@@ -61,6 +61,20 @@ test("cell input edges connect to distinct pin positions", async () => {
   assert.equal(nandOutput.points[0].x, nandNode.x + nandNode.width + 10);
 });
 
+test("long skip-level input edges route through top wire lanes", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0]);
+  const laidOut = layoutGraph(graph);
+  const longEdge = laidOut.edges.find(
+    (edge) => edge.net === "sco_897" && edge.target === "cell:l_resyn3_u_gen_1395"
+  );
+  const minNodeY = Math.min(...laidOut.nodes.map((node) => node.y));
+
+  assert.ok(longEdge.points.some((point) => point.y < minNodeY));
+  assert.equal(longEdge.points.at(-1).y, 84 + 72);
+});
+
 test("unknown cells render as blackboxes", () => {
   const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .Z(y)); endmodule";
   const design = parseVerilog(source);
