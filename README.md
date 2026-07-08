@@ -12,6 +12,18 @@
 - 用交互图帮助分析结构，而不是只生成静态图片。
 - 长期支持 module 对比、cone 追踪、层级折叠和可选 `.lib` 增强。
 
+## 当前状态
+
+阶段 1 最小原型已经具备：
+
+- structural Verilog fixture 解析。
+- module 选择。
+- 无 `.lib` cell/pin 启发式推断。
+- 简单 left-to-right layered layout。
+- SVG schematic 渲染。
+- 鼠标滚轮缩放、拖拽平移、fit to view。
+- 文件导入。
+
 ## 目录
 
 ```text
@@ -31,10 +43,39 @@ vendor/               离线 vendored 第三方前端库
 tools/                开发、检查、打包脚本
 ```
 
+## 运行
+
+```powershell
+node tools/serve.mjs
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:4173/
+```
+
+当前版本没有外部运行依赖。页面默认加载内置示例网表，也可以通过工具栏打开 `.v`、`.sv` 或 `.txt` 文件。
+
+## 测试
+
+```powershell
+node --test tests/unit/*.test.js
+```
+
+测试覆盖：
+
+- escaped identifier tokenizer。
+- fixture module 解析。
+- assign 解析。
+- 常见 cell type 推断。
+- graph 构建。
+- SVG smoke render。
+
 ## 开发前置规则
 
 1. 写业务代码前，先通读 `docs/PLAN.md`。
-2. 涉及 UI 或图形交互时，同时通读 `docs/DESIGN_SPEC.md`。
-3. 引入或更新项目专用工作流时，按 `docs/SKILLS_AND_RULES.md` 写入。
-4. 每个阶段只实现当前阶段明确列出的功能，避免提前引入重依赖。
-
+2. 再读当前阶段的细化方案，例如 `docs/STAGE_1_PLAN.md`。
+3. 涉及 UI 或图形交互时，同时通读 `docs/DESIGN_SPEC.md`。
+4. 引入或更新项目专用工作流时，按 `docs/SKILLS_AND_RULES.md` 写入。
+5. 每个阶段只实现当前阶段明确列出的功能，避免提前引入重依赖。

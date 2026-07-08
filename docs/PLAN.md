@@ -1,4 +1,4 @@
-# 长期计划
+﻿# 长期计划
 
 ## 产品定位
 
@@ -35,6 +35,15 @@ Structural Verilog
 - 不为了画完整大 module 而牺牲 cone 浏览体验。
 
 ## 核心能力路线图
+
+每个阶段都必须有独立的细化方案 Markdown。总计划只描述路线和阶段边界，阶段内的任务拆分、完成标准、验证计划写入对应文件：
+
+- 阶段 0：`docs/STAGE_0_PLAN.md`
+- 阶段 1：`docs/STAGE_1_PLAN.md`
+- 阶段 2：`docs/STAGE_2_PLAN.md`
+- 阶段 3：`docs/STAGE_3_PLAN.md`
+- 阶段 4：`docs/STAGE_4_PLAN.md`
+- 阶段 5：`docs/STAGE_5_PLAN.md`
 
 ### 阶段 0：项目准备
 
@@ -208,9 +217,10 @@ Structural Verilog
 正式写代码前，至少通读：
 
 1. 本文件。
-2. `docs/ARCHITECTURE.md`。
-3. 若涉及界面、交互或视觉，通读 `docs/DESIGN_SPEC.md`。
-4. 若涉及流程、工具、提示词或 agent 行为，通读 `docs/SKILLS_AND_RULES.md`。
+2. 当前阶段对应的细化方案，例如 `docs/STAGE_1_PLAN.md`。
+3. `docs/ARCHITECTURE.md`。
+4. 若涉及界面、交互或视觉，通读 `docs/DESIGN_SPEC.md`。
+5. 若涉及流程、工具、提示词或 agent 行为，通读 `docs/SKILLS_AND_RULES.md`。
 
 读完后再进入实现；实现时只做当前阶段范围内的事情。
 

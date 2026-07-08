@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Netlist Graph Builder</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">NGB</span>
+          <span class="brand-title">Netlist Graph Builder</span>
+        </div>
+        <label class="file-button" title="打开 structural Verilog 网表">
+          <input id="fileInput" type="file" accept=".v,.sv,.txt">
+          打开网表
+        </label>
+        <label class="toolbar-field">
+          <span>Module</span>
+          <select id="moduleSelect"></select>
+        </label>
+        <button id="fitButton" class="icon-button" type="button" title="适配视图">Fit</button>
+      </header>
+
+      <section class="workspace">
+        <aside class="side-panel">
+          <section class="panel-section">
+            <h2>Design</h2>
+            <dl id="designStats" class="stats-list"></dl>
+          </section>
+          <section class="panel-section">
+            <h2>Selection</h2>
+            <div id="selectionDetails" class="details-empty">未选择对象</div>
+          </section>
+          <section class="panel-section">
+            <h2>Diagnostics</h2>
+            <ul id="diagnosticsList" class="diagnostics-list"></ul>
+          </section>
+        </aside>
+
+        <section id="canvas" class="canvas" aria-label="schematic canvas">
+          <div id="schematicMount" class="schematic-mount"></div>
+        </section>
+      </section>
+
+      <footer id="statusBar" class="status-bar">Ready</footer>
+    </main>
+
+    <script type="module" src="./src/app/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,296 @@
+﻿:root {
+  color-scheme: light;
+  --bg: #eef1f4;
+  --panel: #f9fafb;
+  --panel-strong: #ffffff;
+  --line: #cfd6df;
+  --text: #17202a;
+  --muted: #687789;
+  --accent: #1f7a8c;
+  --accent-strong: #14596a;
+  --warn: #a15c00;
+  --gate: #fdfefe;
+  --gate-line: #334155;
+  --wire: #64748b;
+  --selected: #c2410c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 960px;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 14px;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: 52px 1fr 28px;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  font-weight: 650;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  border: 1px solid #2f6f73;
+  background: #e7f3f4;
+  color: #164e54;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.brand-title {
+  white-space: nowrap;
+}
+
+.file-button,
+.icon-button,
+.toolbar-field select {
+  height: 34px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.file-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.file-button:hover,
+.icon-button:hover,
+.toolbar-field select:hover {
+  border-color: var(--accent);
+}
+
+.file-button input {
+  display: none;
+}
+
+.toolbar-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.toolbar-field select {
+  width: 360px;
+  padding: 0 10px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 0;
+}
+
+.side-panel {
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.panel-section {
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-section h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #263241;
+}
+
+.stats-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 12px;
+  margin: 0;
+}
+
+.stats-list dt {
+  color: var(--muted);
+}
+
+.stats-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.details-empty,
+.details-block {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.details-block code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.diagnostics-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--warn);
+}
+
+.canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(#d9dee5 1px, transparent 1px),
+    linear-gradient(90deg, #d9dee5 1px, transparent 1px),
+    #f4f6f8;
+  background-size: 24px 24px;
+  cursor: grab;
+}
+
+.canvas.is-panning {
+  cursor: grabbing;
+}
+
+.schematic-mount {
+  width: 100%;
+  height: 100%;
+}
+
+.schematic-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.wire {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 1.6;
+}
+
+.wire-label {
+  font-size: 11px;
+  fill: #475569;
+  paint-order: stroke;
+  stroke: #f8fafc;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.node text {
+  pointer-events: none;
+}
+
+.node-shape {
+  fill: var(--gate);
+  stroke: var(--gate-line);
+  stroke-width: 1.4;
+}
+
+.node.input .node-shape {
+  fill: #e7f3f4;
+  stroke: #1f7a8c;
+}
+
+.node.output .node-shape {
+  fill: #fff7e6;
+  stroke: #b7791f;
+}
+
+.node.constant .node-shape,
+.node.implicit .node-shape {
+  fill: #f1f5f9;
+  stroke: #64748b;
+  stroke-dasharray: 4 3;
+}
+
+.node.blackbox .node-shape {
+  fill: #f8fafc;
+  stroke: #475569;
+  stroke-dasharray: 6 3;
+}
+
+.node.assign .node-shape {
+  fill: #edf7ed;
+  stroke: #2f855a;
+}
+
+.gate-kind {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #111827;
+}
+
+.node-label {
+  font-size: 11px;
+  fill: #475569;
+}
+
+.pin-bubble {
+  fill: #ffffff;
+  stroke: #111827;
+  stroke-width: 1.3;
+}
+
+.node.is-selected .node-shape {
+  stroke: var(--selected);
+  stroke-width: 2.6;
+}
+
+.wire.is-selected {
+  stroke: var(--selected);
+  stroke-width: 2.6;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--muted);
+  font-size: 12px;
+}
