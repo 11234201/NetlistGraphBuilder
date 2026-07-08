@@ -97,6 +97,73 @@ test("unknown cells render as blackboxes", () => {
   assert.match(svg, /class="node blackbox cell"/);
 });
 
+test("svg marks crossing wires with bridges", () => {
+  const svg = renderSchematicSvg({
+    moduleDisplayName: "crossing",
+    width: 220,
+    height: 180,
+    nodes: [],
+    edges: [
+      {
+        id: "edge:h",
+        net: "h",
+        label: "h",
+        points: [
+          { x: 20, y: 80 },
+          { x: 180, y: 80 }
+        ],
+        labelPoint: { x: 90, y: 72 }
+      },
+      {
+        id: "edge:v",
+        net: "v",
+        label: "v",
+        points: [
+          { x: 100, y: 30 },
+          { x: 100, y: 140 }
+        ],
+        labelPoint: { x: 104, y: 82 }
+      }
+    ]
+  });
+
+  assert.match(svg, /wire-bridge-cutout/);
+  assert.match(svg, /wire-bridge/);
+});
+
+test("same-net crossings do not render bridges", () => {
+  const svg = renderSchematicSvg({
+    moduleDisplayName: "junction",
+    width: 220,
+    height: 180,
+    nodes: [],
+    edges: [
+      {
+        id: "edge:h",
+        net: "n",
+        label: "n",
+        points: [
+          { x: 20, y: 80 },
+          { x: 180, y: 80 }
+        ],
+        labelPoint: { x: 90, y: 72 }
+      },
+      {
+        id: "edge:v",
+        net: "n",
+        label: "n",
+        points: [
+          { x: 100, y: 30 },
+          { x: 100, y: 140 }
+        ],
+        labelPoint: { x: 104, y: 82 }
+      }
+    ]
+  });
+
+  assert.doesNotMatch(svg, /wire-bridge-cutout/);
+});
+
 function minGap(values) {
   const sorted = values.toSorted((left, right) => left - right);
   let gap = Number.POSITIVE_INFINITY;

@@ -24,9 +24,10 @@ export function layoutGraph(graph, options = {}) {
 
   const positionedNodes = [];
   const levelKeys = [...buckets.keys()].sort((a, b) => a - b);
+  orderBucketsByTopology(buckets, levelKeys, graph.edges);
 
   for (const level of levelKeys) {
-    const nodes = buckets.get(level).sort(compareNodes);
+    const nodes = buckets.get(level);
     for (const [index, node] of nodes.entries()) {
       const size = measureNode(node);
       positionedNodes.push({
@@ -195,6 +196,60 @@ function computeLevelBounds(nodes) {
     bounds.set(level, current);
   }
   return bounds;
+}
+
+function orderBucketsByTopology(buckets, levelKeys, edges) {
+  const orders = new Map();
+  for (const level of levelKeys) {
+    const nodes = buckets.get(level).sort(compareNodes);
+    buckets.set(level, nodes);
+    nodes.forEach((node, index) => orders.set(node.id, index));
+  }
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    for (const level of levelKeys.slice(1)) {
+      sortLevelByNeighbors(buckets, orders, edges, level, "incoming");
+    }
+    for (const level of levelKeys.slice(0, -1).toReversed()) {
+      sortLevelByNeighbors(buckets, orders, edges, level, "outgoing");
+    }
+  }
+}
+
+function sortLevelByNeighbors(buckets, orders, edges, level, direction) {
+  const nodes = buckets.get(level);
+  if (!nodes || nodes.length <= 1) {
+    return;
+  }
+
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const neighborRanks = new Map(nodes.map((node) => [node.id, []]));
+
+  for (const edge of edges) {
+    if (direction === "incoming" && nodeIds.has(edge.target) && orders.has(edge.source)) {
+      neighborRanks.get(edge.target).push(orders.get(edge.source));
+    } else if (direction === "outgoing" && nodeIds.has(edge.source) && orders.has(edge.target)) {
+      neighborRanks.get(edge.source).push(orders.get(edge.target));
+    }
+  }
+
+  nodes.sort((left, right) => {
+    const leftRank = averageRank(neighborRanks.get(left.id), orders.get(left.id));
+    const rightRank = averageRank(neighborRanks.get(right.id), orders.get(right.id));
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+    return compareNodes(left, right);
+  });
+
+  nodes.forEach((node, index) => orders.set(node.id, index));
+}
+
+function averageRank(values, fallback) {
+  if (!values || values.length === 0) {
+    return fallback ?? 0;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function assignLevels(graph) {

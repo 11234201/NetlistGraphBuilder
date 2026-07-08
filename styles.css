@@ -211,6 +211,19 @@ input {
   stroke-width: 1.6;
 }
 
+.wire-bridge {
+  fill: none;
+  stroke: var(--wire);
+  stroke-width: 1.6;
+}
+
+.wire-bridge-cutout {
+  fill: none;
+  stroke: #f4f6f8;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
 .wire-label {
   font-size: 11px;
   fill: #475569;
