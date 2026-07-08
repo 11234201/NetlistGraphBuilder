@@ -1,0 +1,16 @@
+# Local accidental/system artifacts.
+%SystemDrive%/
+
+# Dependencies and build outputs.
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs and editor state.
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
