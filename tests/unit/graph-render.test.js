@@ -66,13 +66,24 @@ test("long skip-level input edges route through top wire lanes", async () => {
   const design = parseVerilog(source);
   const graph = buildSchematicGraph(design.modules[0]);
   const laidOut = layoutGraph(graph);
-  const longEdge = laidOut.edges.find(
-    (edge) => edge.net === "sco_897" && edge.target === "cell:l_resyn3_u_gen_1395"
+  const longEdges = laidOut.edges.filter(
+    (edge) =>
+      edge.points.some((point) => point.y < Math.min(...laidOut.nodes.map((node) => node.y))) &&
+      edge.points.length > 4
   );
   const minNodeY = Math.min(...laidOut.nodes.map((node) => node.y));
+  const topLaneYs = new Set(longEdges.map((edge) => Math.min(...edge.points.map((point) => point.y))));
+  const sourceLaneXs = new Set(longEdges.map((edge) => edge.points[1].x));
+  const targetLaneXs = new Set(longEdges.map((edge) => edge.points.at(-2).x));
 
-  assert.ok(longEdge.points.some((point) => point.y < minNodeY));
-  assert.equal(longEdge.points.at(-1).y, 84 + 72);
+  assert.ok(longEdges.length >= 2);
+  assert.equal(topLaneYs.size, longEdges.length);
+  assert.equal(sourceLaneXs.size, longEdges.length);
+  assert.equal(targetLaneXs.size, longEdges.length);
+  assert.ok(minGap([...topLaneYs]) >= 16);
+  assert.ok(minGap([...sourceLaneXs]) >= 18);
+  assert.ok(minGap([...targetLaneXs]) >= 18);
+  assert.ok(longEdges.every((edge) => edge.points.some((point) => point.y < minNodeY)));
 });
 
 test("unknown cells render as blackboxes", () => {
@@ -85,3 +96,12 @@ test("unknown cells render as blackboxes", () => {
   assert.ok(graph.nodes.some((node) => node.gateKind === "blackbox"));
   assert.match(svg, /class="node blackbox cell"/);
 });
+
+function minGap(values) {
+  const sorted = values.toSorted((left, right) => left - right);
+  let gap = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < sorted.length; index += 1) {
+    gap = Math.min(gap, sorted[index] - sorted[index - 1]);
+  }
+  return gap;
+}
