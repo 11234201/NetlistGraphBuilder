@@ -116,6 +116,25 @@ input {
   padding: 0 10px;
 }
 
+.wire-spacing-field {
+  gap: 7px;
+}
+
+.wire-spacing-field input {
+  width: 120px;
+  accent-color: var(--accent);
+}
+
+.wire-spacing-field output {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: 300px 1fr;

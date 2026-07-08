@@ -9,12 +9,17 @@ const state = {
   currentModule: null,
   graph: null,
   transform: { x: 0, y: 0, scale: 1 },
-  selectedNodeId: null
+  selectedNodeId: null,
+  layoutOptions: {
+    wireLanePitch: 18
+  }
 };
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
+  wireSpacingInput: document.querySelector("#wireSpacingInput"),
+  wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
   canvas: document.querySelector("#canvas"),
   mount: document.querySelector("#schematicMount"),
@@ -28,6 +33,7 @@ elements.fileInput.addEventListener("change", handleFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
+elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
@@ -80,15 +86,41 @@ function selectModule(moduleName) {
   }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
-  state.graph = layoutGraph(buildSchematicGraph(module));
+  renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
-  elements.mount.innerHTML = renderSchematicSvg(state.graph);
-  bindSchematicEvents();
   renderStats();
   renderDiagnostics();
   renderSelection(null);
   applyTransform();
+}
+
+function renderCurrentModuleGraph() {
+  state.graph = layoutGraph(buildSchematicGraph(state.currentModule), {
+    wireLanePitch: state.layoutOptions.wireLanePitch
+  });
+  elements.mount.innerHTML = renderSchematicSvg(state.graph);
+  bindSchematicEvents();
+}
+
+function handleWireSpacingChange(event) {
+  const value = Number(event.target.value);
+  state.layoutOptions.wireLanePitch = clamp(value, 8, 40);
+  elements.wireSpacingValue.value = String(state.layoutOptions.wireLanePitch);
+  if (!state.currentModule) {
+    return;
+  }
+
+  const previousTransform = { ...state.transform };
+  renderCurrentModuleGraph();
+  state.transform = previousTransform;
+  renderStats();
+  renderDiagnostics();
+  const selectedNode = state.selectedNodeId;
+  state.selectedNodeId = null;
+  setSelectedNode(selectedNode);
+  applyTransform();
+  setStatus(`Wire spacing: ${state.layoutOptions.wireLanePitch}px`);
 }
 
 function bindSchematicEvents() {

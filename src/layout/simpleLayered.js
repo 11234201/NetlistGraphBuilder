@@ -1,17 +1,27 @@
 import { inferPinDirection, isInvertingOutputGate } from "../infer/defaultCellRules.js";
 
-const WIRE_LANE_PITCH = 18;
-const TOP_WIRE_LANE_PITCH = 16;
+export const DEFAULT_WIRE_LANE_PITCH = 18;
+export const DEFAULT_TOP_WIRE_LANE_PITCH = 16;
 
 export function layoutGraph(graph, options = {}) {
   const ySpacing = options.ySpacing || 88;
   const margin = options.margin || 48;
+  const wireLanePitch = clamp(
+    Number(options.wireLanePitch) || DEFAULT_WIRE_LANE_PITCH,
+    8,
+    48
+  );
+  const topWireLanePitch = clamp(
+    Number(options.topWireLanePitch) || Math.max(8, wireLanePitch - 2),
+    8,
+    48
+  );
   const levels = assignLevels(graph);
   const routePlan = planRouting(graph, levels);
   const xSpacing =
-    options.xSpacing || Math.max(320, 260 + routePlan.maxSideLanes * WIRE_LANE_PITCH);
+    options.xSpacing || Math.max(320, 260 + routePlan.maxSideLanes * wireLanePitch);
   const topWireSpace =
-    options.topWireSpace || Math.max(80, 48 + routePlan.longLaneCount * TOP_WIRE_LANE_PITCH);
+    options.topWireSpace || Math.max(80, 48 + routePlan.longLaneCount * topWireLanePitch);
   const buckets = new Map();
 
   for (const node of graph.nodes) {
@@ -56,6 +66,8 @@ export function layoutGraph(graph, options = {}) {
       targetPoint,
       routePlan.edges.get(edge.id),
       levelBounds,
+      wireLanePitch,
+      topWireLanePitch,
       margin
     );
     const labelPoint = getLabelPoint(points);
@@ -123,7 +135,17 @@ function planRouting(graph, levels) {
   };
 }
 
-function routeEdge(source, target, sourcePoint, targetPoint, edgePlan, levelBounds, margin) {
+function routeEdge(
+  source,
+  target,
+  sourcePoint,
+  targetPoint,
+  edgePlan,
+  levelBounds,
+  wireLanePitch,
+  topWireLanePitch,
+  margin
+) {
   const sourceLevel = source.level ?? 0;
   const targetLevel = target.level ?? sourceLevel + 1;
   const levelDistance = targetLevel - sourceLevel;
@@ -131,7 +153,7 @@ function routeEdge(source, target, sourcePoint, targetPoint, edgePlan, levelBoun
   const targetBounds = levelBounds.get(targetLevel) || { left: target.x };
 
   if (levelDistance <= 1) {
-    const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * WIRE_LANE_PITCH;
+    const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * wireLanePitch;
     return compactPoints([
       sourcePoint,
       { x: laneX, y: sourcePoint.y },
@@ -140,8 +162,8 @@ function routeEdge(source, target, sourcePoint, targetPoint, edgePlan, levelBoun
     ]);
   }
 
-  const sourceLaneX = sourceBounds.right + 20 + (edgePlan?.sourceLane || 0) * WIRE_LANE_PITCH;
-  const targetLaneX = targetBounds.left - 24 - (edgePlan?.targetLane || 0) * WIRE_LANE_PITCH;
+  const sourceLaneX = sourceBounds.right + 20 + (edgePlan?.sourceLane || 0) * wireLanePitch;
+  const targetLaneX = targetBounds.left - 24 - (edgePlan?.targetLane || 0) * wireLanePitch;
   if (targetLaneX <= sourceLaneX + 24) {
     const laneX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
     return compactPoints([
@@ -152,7 +174,7 @@ function routeEdge(source, target, sourcePoint, targetPoint, edgePlan, levelBoun
     ]);
   }
 
-  const topLaneY = margin / 2 + (edgePlan?.topLane || 0) * TOP_WIRE_LANE_PITCH;
+  const topLaneY = margin / 2 + (edgePlan?.topLane || 0) * topWireLanePitch;
   return compactPoints([
     sourcePoint,
     { x: sourceLaneX, y: sourcePoint.y },

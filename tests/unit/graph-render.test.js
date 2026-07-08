@@ -2,7 +2,11 @@
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { inferCellKind } from "../../src/infer/defaultCellRules.js";
-import { layoutGraph } from "../../src/layout/simpleLayered.js";
+import {
+  DEFAULT_TOP_WIRE_LANE_PITCH,
+  DEFAULT_WIRE_LANE_PITCH,
+  layoutGraph
+} from "../../src/layout/simpleLayered.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
@@ -80,10 +84,22 @@ test("long skip-level input edges route through top wire lanes", async () => {
   assert.equal(topLaneYs.size, longEdges.length);
   assert.equal(sourceLaneXs.size, longEdges.length);
   assert.equal(targetLaneXs.size, longEdges.length);
-  assert.ok(minGap([...topLaneYs]) >= 16);
-  assert.ok(minGap([...sourceLaneXs]) >= 18);
-  assert.ok(minGap([...targetLaneXs]) >= 18);
+  assert.ok(minGap([...topLaneYs]) >= DEFAULT_TOP_WIRE_LANE_PITCH);
+  assert.ok(minGap([...sourceLaneXs]) >= DEFAULT_WIRE_LANE_PITCH);
+  assert.ok(minGap([...targetLaneXs]) >= DEFAULT_WIRE_LANE_PITCH);
   assert.ok(longEdges.every((edge) => edge.points.some((point) => point.y < minNodeY)));
+});
+
+test("wire lane spacing is configurable", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0]);
+  const tight = layoutGraph(graph, { wireLanePitch: 10 });
+  const loose = layoutGraph(graph, { wireLanePitch: 28 });
+
+  assert.ok(minLongSourceLaneGap(tight) >= 10);
+  assert.ok(minLongSourceLaneGap(loose) >= 28);
+  assert.ok(loose.width > tight.width);
 });
 
 test("unknown cells render as blackboxes", () => {
@@ -171,4 +187,12 @@ function minGap(values) {
     gap = Math.min(gap, sorted[index] - sorted[index - 1]);
   }
   return gap;
+}
+
+function minLongSourceLaneGap(graph) {
+  const minNodeY = Math.min(...graph.nodes.map((node) => node.y));
+  const laneXs = graph.edges
+    .filter((edge) => edge.points.some((point) => point.y < minNodeY) && edge.points.length > 4)
+    .map((edge) => edge.points[1].x);
+  return minGap(laneXs);
 }
