@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   --bg: #eef1f4;
   --panel: #f9fafb;
@@ -273,6 +273,17 @@ input {
   fill: #ffffff;
   stroke: #111827;
   stroke-width: 1.3;
+}
+
+.pin-dot {
+  fill: #ffffff;
+  stroke: #334155;
+  stroke-width: 1.2;
+}
+
+.pin-label {
+  font-size: 9px;
+  fill: #64748b;
 }
 
 .node.is-selected .node-shape {

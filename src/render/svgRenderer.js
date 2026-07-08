@@ -1,4 +1,4 @@
-﻿import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
+import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 
 export function renderSchematicSvg(graph) {
   const width = Math.max(640, Math.ceil(graph.width || 640));
@@ -72,16 +72,31 @@ function renderGateNode(node) {
   const width = round(node.width);
   const height = round(node.height);
   const gateKind = node.gateKind || "blackbox";
-  const bubble = isInvertingOutputGate(gateKind)
-    ? `<circle class="pin-bubble" cx="${x + width + 5}" cy="${y + height / 2}" r="5"></circle>`
-    : "";
+  const ports = renderGatePorts(node, x, y, width, gateKind);
 
   return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
-    ${bubble}
+    ${ports}
     <text class="gate-kind" x="${x + width / 2}" y="${y + 22}" text-anchor="middle">${escapeHtml(node.title || gateKind.toUpperCase())}</text>
     <text class="node-label" x="${x + width / 2}" y="${y + 42}" text-anchor="middle">${escapeHtml(node.label)}</text>
   </g>`;
+}
+
+function renderGatePorts(node, x, y, width, gateKind) {
+  return (node.ports || [])
+    .map((port) => {
+      const px = round(x + port.x);
+      const py = round(y + port.y);
+      const isOutput = port.direction === "output";
+      const labelX = isOutput ? px - 6 : px + 6;
+      const anchor = isOutput ? "end" : "start";
+      const marker = isOutput && isInvertingOutputGate(gateKind)
+        ? `<circle class="pin-bubble" cx="${round(x + width + 5)}" cy="${py}" r="5"></circle>`
+        : `<circle class="pin-dot" cx="${px}" cy="${py}" r="2.4"></circle>`;
+
+      return `${marker}<text class="pin-label" x="${labelX}" y="${py + 3}" text-anchor="${anchor}">${escapeHtml(port.pin)}</text>`;
+    })
+    .join("");
 }
 
 function escapeHtml(value) {

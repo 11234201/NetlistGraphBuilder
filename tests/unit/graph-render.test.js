@@ -46,6 +46,21 @@ test("all fixture modules can be converted to renderable graphs", async () => {
   }
 });
 
+test("cell input edges connect to distinct pin positions", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0]);
+  const laidOut = layoutGraph(graph);
+  const nandInputs = laidOut.edges.filter((edge) => edge.target === "cell:l_resyn3_u_gen_1395");
+  const targetYs = new Set(nandInputs.map((edge) => edge.points.at(-1).y));
+  const nandOutput = laidOut.edges.find((edge) => edge.source === "cell:l_resyn3_u_gen_1395");
+  const nandNode = laidOut.nodes.find((node) => node.id === "cell:l_resyn3_u_gen_1395");
+
+  assert.equal(nandInputs.length, 3);
+  assert.equal(targetYs.size, 3);
+  assert.equal(nandOutput.points[0].x, nandNode.x + nandNode.width + 10);
+});
+
 test("unknown cells render as blackboxes", () => {
   const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .Z(y)); endmodule";
   const design = parseVerilog(source);
