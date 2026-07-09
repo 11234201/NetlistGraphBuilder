@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { inferCellKind } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
+import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import {
   DEFAULT_TOP_WIRE_LANE_PITCH,
   DEFAULT_WIRE_LANE_PITCH,
@@ -184,9 +185,31 @@ test("moved input to the right of a target cell routes around the cell body", ()
   const targetPoint = edge.points.at(-1);
   const previousPoint = edge.points.at(-2);
 
-  assert.equal(edge.routeKind, "top-lane");
+  assert.ok(["top-lane", "obstacle-lane"].includes(edge.routeKind));
   assert.equal(targetPoint.x, adjustedTarget.x);
   assert.ok(previousPoint.x < targetPoint.x);
+});
+
+test("adjusted layout routes every wire around non-endpoint cells", () => {
+  const graph = createRoutingTestGraph();
+  const base = layoutGraph(graph);
+  const source = base.nodes.find((node) => node.id === "input:a");
+  const middle = base.nodes.find((node) => node.id === "cell:u0");
+  const target = base.nodes.find((node) => node.id === "cell:u1");
+  const adjusted = layoutGraph(graph, {
+    nodePositions: {
+      [middle.id]: {
+        x: source.x + 260,
+        y: 0
+      },
+      [target.id]: {
+        x: target.x,
+        y: target.y + 96
+      }
+    }
+  });
+
+  assert.equal(edgesCrossingNonEndpoints(adjusted).length, 0);
 });
 
 test("long misaligned skip-level pins can still use top lanes", () => {
@@ -261,6 +284,117 @@ test("layout node position overrides reroute connected edges", async () => {
   assert.ok(adjustedInputEdge.points.at(-1).y >= adjustedNode.y);
 });
 
+test("layout node size overrides redistribute pins and reroute edges", () => {
+  const graph = createRoutingTestGraph();
+  const base = layoutGraph(graph);
+  const adjusted = layoutGraph(graph, {
+    nodeSizes: {
+      "cell:u1": {
+        width: 160,
+        height: 144
+      }
+    }
+  });
+  const baseTarget = base.nodes.find((item) => item.id === "cell:u1");
+  const adjustedTarget = adjusted.nodes.find((item) => item.id === "cell:u1");
+  const baseInputPin = baseTarget.ports.find((port) => port.pin === "A");
+  const adjustedInputPin = adjustedTarget.ports.find((port) => port.pin === "A");
+  const edge = adjusted.edges.find((item) => item.target === "cell:u1");
+
+  assert.equal(adjustedTarget.width, 160);
+  assert.equal(adjustedTarget.height, 144);
+  assert.ok(adjustedInputPin.y > baseInputPin.y);
+  assert.equal(edge.points.at(-1).y, adjustedTarget.y + adjustedInputPin.y);
+});
+
+test("cell pins use one port-unit spacing by default", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0]);
+  const laidOut = layoutGraph(graph);
+  const cell = laidOut.nodes.find((item) => item.id === "cell:l_resyn3_u_gen_1395");
+  const inputYs = cell.ports
+    .filter((port) => port.direction === "input")
+    .map((port) => port.y)
+    .toSorted((left, right) => left - right);
+
+  assert.ok(inputYs.length >= 3);
+  assert.ok(minGap(inputYs) >= 36);
+});
+
+test("single-fanout inputs can localize near consuming cell pins", () => {
+  const graph = createLocalityTestGraph();
+  const laidOut = layoutGraph(graph, { localizeSingleFanoutInputs: true });
+  const target = laidOut.nodes.find((item) => item.id === "cell:u0");
+  const inputs = laidOut.nodes.filter((item) => item.kind === "input");
+  const inputEdges = laidOut.edges.filter((edge) => edge.target === target.id);
+
+  assert.ok(inputs.every((input) => input.x > 48));
+  assert.ok(inputs.every((input) => input.x < target.x));
+  assert.ok(inputEdges.every((edge) => edge.points[0].y === edge.points.at(-1).y));
+});
+
+test("golden-style default layout avoids input-cell overlap and straightens cell links", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0]);
+  const laidOut = layoutGraph(graph, {
+    cellPinPitch: 36,
+    alignCellLinks: true,
+    localizeSingleFanoutInputs: true
+  });
+  const drivenEdges = laidOut.edges.filter((edge) => {
+    const sourceNode = laidOut.nodes.find((node) => node.id === edge.source);
+    const targetNode = laidOut.nodes.find((node) => node.id === edge.target);
+    return sourceNode?.kind === "cell" && (targetNode?.kind === "cell" || targetNode?.kind === "output");
+  });
+
+  assert.equal(overlappingNodes(laidOut).length, 0);
+  assert.ok(drivenEdges.length > 0);
+  assert.ok(drivenEdges.every((edge) => edge.routeKind === "direct"));
+});
+
+test("branch-aware lanes approach the flex golden layout", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) => item.name.endsWith("_Flex"));
+  const graph = buildSchematicGraph(module);
+  const laidOut = layoutGraph(graph, {
+    layoutPolicy: DEFAULT_LAYOUT_POLICY
+  });
+  const nodeById = new Map(laidOut.nodes.map((node) => [node.id, node]));
+  const nonDirectEdges = laidOut.edges.filter((edge) => edge.routeKind !== "direct");
+
+  assert.equal(nodeById.get("cell:l_resyn1_u_gen_1").y, 80);
+  assert.equal(nodeById.get("cell:remap37_u0").y, 80);
+  assert.equal(nodeById.get("cell:remap37_u1").y, 62);
+  assert.equal(nodeById.get("cell:l_resyn1_u_gen_0").y, 308);
+  assert.equal(nodeById.get("cell:l_resyn1_u_gen_3").y, 308);
+  assert.equal(nodeById.get("cell:l_resyn1_u_gen_5").y, 272);
+  assert.equal(nodeById.get("assign:sco_891:sco_925").y, 333);
+  assert.equal(nodeById.get("output:sco_891").y, 344);
+  assert.deepEqual(nonDirectEdges.map((edge) => edge.label), ["sco_928"]);
+});
+
+test("legacy layout options remain compatible with layout policy", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) => item.name.endsWith("_Flex"));
+  const graph = buildSchematicGraph(module);
+  const policyLayout = layoutGraph(graph, { layoutPolicy: DEFAULT_LAYOUT_POLICY });
+  const legacyLayout = layoutGraph(graph, {
+    cellPinPitch: 36,
+    alignCellLinks: true,
+    branchAwareLanes: true,
+    localizeSingleFanoutInputs: true
+  });
+
+  assert.deepEqual(
+    legacyLayout.nodes.map((node) => [node.id, node.x, node.y, node.width, node.height]),
+    policyLayout.nodes.map((node) => [node.id, node.x, node.y, node.width, node.height])
+  );
+});
+
 test("layout golden records moved nodes and diff summary", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
@@ -276,6 +410,7 @@ test("layout golden records moved nodes and diff summary", async () => {
   assert.equal(golden.kind, "netlist-layout-golden");
   assert.equal(golden.layoutOptions.wireLanePitch, 18);
   assert.ok(golden.nodes.some((item) => item.id === node.id && item.x === node.x + 20));
+  assert.ok(golden.nodes.every((item) => Number.isFinite(item.width) && Number.isFinite(item.height)));
   assert.equal(diff.movedNodeCount, 1);
   assert.equal(diff.maxMove, 22.4);
 });
@@ -440,6 +575,72 @@ function createRoutingTestGraph() {
   };
 }
 
+function createLocalityTestGraph() {
+  return {
+    moduleName: "locality_test",
+    moduleDisplayName: "locality_test",
+    diagnostics: [],
+    stats: {
+      ports: 2,
+      nets: 2,
+      cells: 1,
+      assigns: 0
+    },
+    nodes: [
+      {
+        id: "input:a",
+        kind: "input",
+        label: "a",
+        title: "INPUT",
+        order: 0
+      },
+      {
+        id: "input:b",
+        kind: "input",
+        label: "b",
+        title: "INPUT",
+        order: 1
+      },
+      {
+        id: "cell:u0",
+        kind: "cell",
+        gateKind: "and",
+        inferenceSource: "rule",
+        label: "u0",
+        title: "AND",
+        subtitle: "AND",
+        ref: {
+          pins: [
+            { pin: "A1", pinDisplayName: "A1" },
+            { pin: "A2", pinDisplayName: "A2" },
+            { pin: "Z", pinDisplayName: "Z" }
+          ]
+        }
+      }
+    ],
+    edges: [
+      {
+        id: "edge:a",
+        source: "input:a",
+        target: "cell:u0",
+        net: "a",
+        label: "a",
+        sourcePin: "a",
+        targetPin: "A1"
+      },
+      {
+        id: "edge:b",
+        source: "input:b",
+        target: "cell:u0",
+        net: "b",
+        label: "b",
+        sourcePin: "b",
+        targetPin: "A2"
+      }
+    ]
+  };
+}
+
 function minGap(values) {
   const sorted = values.toSorted((left, right) => left - right);
   let gap = Number.POSITIVE_INFINITY;
@@ -455,4 +656,67 @@ function minLongSourceLaneGap(graph) {
     .filter((edge) => edge.points.some((point) => point.y < minNodeY) && edge.points.length > 4)
     .map((edge) => edge.points[1].x);
   return minGap(laneXs);
+}
+
+function edgesCrossingNonEndpoints(graph) {
+  const crossings = [];
+  for (const edge of graph.edges) {
+    for (let index = 0; index < edge.points.length - 1; index += 1) {
+      const start = edge.points[index];
+      const end = edge.points[index + 1];
+      for (const node of graph.nodes) {
+        if (node.id === edge.source || node.id === edge.target) {
+          continue;
+        }
+        if (segmentIntersectsNode(start, end, node)) {
+          crossings.push({ edgeId: edge.id, nodeId: node.id });
+        }
+      }
+    }
+  }
+  return crossings;
+}
+
+function overlappingNodes(graph) {
+  const overlaps = [];
+  for (let leftIndex = 0; leftIndex < graph.nodes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < graph.nodes.length; rightIndex += 1) {
+      const left = graph.nodes[leftIndex];
+      const right = graph.nodes[rightIndex];
+      if (nodesOverlap(left, right)) {
+        overlaps.push({ leftId: left.id, rightId: right.id });
+      }
+    }
+  }
+  return overlaps;
+}
+
+function nodesOverlap(left, right) {
+  return (
+    left.x < right.x + right.width &&
+    left.x + left.width > right.x &&
+    left.y < right.y + right.height &&
+    left.y + left.height > right.y
+  );
+}
+
+function segmentIntersectsNode(start, end, node) {
+  const padding = 8;
+  const box = {
+    left: node.x - padding,
+    right: node.x + node.width + padding,
+    top: node.y - padding,
+    bottom: node.y + node.height + padding
+  };
+  if (start.y === end.y) {
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    return start.y >= box.top && start.y <= box.bottom && x2 > box.left && x1 < box.right;
+  }
+  if (start.x === end.x) {
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+    return start.x >= box.left && start.x <= box.right && y2 > box.top && y1 < box.bottom;
+  }
+  return false;
 }

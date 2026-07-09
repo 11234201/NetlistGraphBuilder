@@ -109,6 +109,16 @@ wire routing 策略属于 layout 层，不放到 render 层。layout 输出的 e
 
 adjust 模式的 snap 计算属于 UI/layout 边界：UI 负责把 pointer movement 转成候选节点位置，layout helper 负责根据 grid 和相连 pin 关系给出吸附后的坐标。snap 结果仍保存为普通 node position override。
 
+Layout policy:
+
+- `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
+- `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
+- The policy separates spacing from feature switches:
+  - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
+  - features: driven-link alignment, branch-aware lanes, localized single-fanout inputs.
+- `simpleLayered` accepts `layoutPolicy` as the preferred API and keeps legacy options for compatibility.
+- Policy passes should be topology-based, not instance-name-based. They may use pin order and node kinds, but must not depend on fixture-specific cell names.
+
 ### `src/render/`
 
 负责把 positioned graph 变成 SVG。

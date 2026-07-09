@@ -10,7 +10,9 @@ export function createLayoutGolden(graph, options = {}) {
       kind: node.kind,
       label: node.label,
       x: round(node.x),
-      y: round(node.y)
+      y: round(node.y),
+      width: round(node.width),
+      height: round(node.height)
     })),
     svgSnapshot: options.svgSnapshot || null
   };

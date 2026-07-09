@@ -200,6 +200,43 @@ input {
   font-family: Consolas, "Courier New", monospace;
 }
 
+.size-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.size-controls label {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.size-controls input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.mini-button {
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mini-button:hover {
+  border-color: var(--accent);
+}
+
 .diagnostics-list {
   margin: 0;
   padding-left: 18px;

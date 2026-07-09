@@ -1,6 +1,7 @@
 ﻿import { parseVerilog } from "../parser/verilogParser.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
+import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
@@ -14,10 +15,9 @@ const state = {
   transform: { x: 0, y: 0, scale: 1 },
   selectedNodeId: null,
   nodePositions: new Map(),
+  nodeSizes: new Map(),
   calibrationMode: false,
-  layoutOptions: {
-    wireLanePitch: 18
-  }
+  layoutPolicy: cloneLayoutPolicy(DEFAULT_LAYOUT_POLICY)
 };
 
 const elements = {
@@ -66,6 +66,7 @@ function loadDesign(source, label) {
     state.design = parseVerilog(source);
     state.selectedNodeId = null;
     state.nodePositions = new Map();
+    state.nodeSizes = new Map();
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -107,6 +108,7 @@ function selectModule(moduleName) {
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
   state.nodePositions = new Map();
+  state.nodeSizes = new Map();
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -118,13 +120,12 @@ function selectModule(moduleName) {
 
 function renderCurrentModuleGraph() {
   const sourceGraph = buildSchematicGraph(state.currentModule);
-  const layoutOptions = {
-    wireLanePitch: state.layoutOptions.wireLanePitch
-  };
+  const layoutOptions = { layoutPolicy: state.layoutPolicy };
   state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
   state.graph = layoutGraph(sourceGraph, {
     ...layoutOptions,
-    nodePositions: state.nodePositions
+    nodePositions: state.nodePositions,
+    nodeSizes: state.nodeSizes
   });
   elements.mount.innerHTML = renderSchematicSvg(state.graph);
   bindSchematicEvents();
@@ -133,8 +134,8 @@ function renderCurrentModuleGraph() {
 
 function handleWireSpacingChange(event) {
   const value = Number(event.target.value);
-  state.layoutOptions.wireLanePitch = clamp(value, 8, 40);
-  elements.wireSpacingValue.value = String(state.layoutOptions.wireLanePitch);
+  state.layoutPolicy.spacing.wireLanePitch = clamp(value, 8, 40);
+  elements.wireSpacingValue.value = String(state.layoutPolicy.spacing.wireLanePitch);
   if (!state.currentModule) {
     return;
   }
@@ -148,7 +149,7 @@ function handleWireSpacingChange(event) {
   state.selectedNodeId = null;
   setSelectedNode(selectedNode);
   applyTransform();
-  setStatus(`Wire spacing: ${state.layoutOptions.wireLanePitch}px`);
+  setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
 }
 
 function bindSchematicEvents() {
@@ -205,7 +206,8 @@ function renderSelection(node) {
     ["Cell type", node.subtitle || "-"],
     ["Inference", node.inferenceSource || "-"]
   ];
-  elements.details.innerHTML = statsRows(lines);
+  elements.details.innerHTML = `${statsRows(lines)}${renderNodeSizeControls(node)}`;
+  bindNodeSizeControls(node);
 }
 
 function renderDiagnostics() {
@@ -233,6 +235,82 @@ function statsRows(rows) {
   return rows
     .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(value)}</code></dd>`)
     .join("");
+}
+
+function renderNodeSizeControls(node) {
+  if (!state.calibrationMode) {
+    return "";
+  }
+
+  const width = Math.round(node.width);
+  const height = Math.round(node.height);
+  return `<div class="size-controls" aria-label="Node size controls">
+    <label>
+      <span>Width</span>
+      <input id="nodeWidthInput" type="number" min="24" max="420" step="1" value="${width}">
+    </label>
+    <label>
+      <span>Height</span>
+      <input id="nodeHeightInput" type="number" min="12" max="260" step="1" value="${height}">
+    </label>
+    <button id="resetNodeSizeButton" class="mini-button" type="button">Reset size</button>
+  </div>`;
+}
+
+function bindNodeSizeControls(node) {
+  if (!state.calibrationMode) {
+    return;
+  }
+
+  const widthInput = elements.details.querySelector("#nodeWidthInput");
+  const heightInput = elements.details.querySelector("#nodeHeightInput");
+  const resetButton = elements.details.querySelector("#resetNodeSizeButton");
+  widthInput?.addEventListener("input", () => {
+    updateNodeSize(node.id, {
+      width: widthInput.value,
+      height: heightInput?.value ?? node.height
+    });
+  });
+  heightInput?.addEventListener("input", () => {
+    updateNodeSize(node.id, {
+      width: widthInput?.value ?? node.width,
+      height: heightInput.value
+    });
+  });
+  resetButton?.addEventListener("click", () => {
+    state.nodeSizes.delete(node.id);
+    rerenderPreservingView(node.id);
+    setStatus(`${node.label}: size reset`);
+  });
+}
+
+function updateNodeSize(nodeId, size) {
+  const node = state.graph?.nodes.find((item) => item.id === nodeId);
+  if (!node) {
+    return;
+  }
+
+  const nextSize = {
+    width: clamp(Number(size.width), 24, 420),
+    height: clamp(Number(size.height), 12, 260)
+  };
+  const previous = state.nodeSizes.get(nodeId);
+  if (previous?.width === nextSize.width && previous?.height === nextSize.height) {
+    return;
+  }
+
+  state.nodeSizes.set(nodeId, nextSize);
+  rerenderPreservingView(nodeId);
+  setStatus(`${node.label}: width=${nextSize.width}, height=${nextSize.height}`);
+}
+
+function rerenderPreservingView(selectedNodeId) {
+  const previousTransform = { ...state.transform };
+  renderCurrentModuleGraph();
+  state.transform = previousTransform;
+  state.selectedNodeId = null;
+  setSelectedNode(selectedNodeId);
+  applyTransform();
 }
 
 function handleWheel(event) {
@@ -368,12 +446,13 @@ function toggleCalibrationMode() {
 }
 
 function resetLayoutOverrides() {
-  if (state.nodePositions.size === 0) {
+  if (state.nodePositions.size === 0 && state.nodeSizes.size === 0) {
     return;
   }
 
   const selectedNode = state.selectedNodeId;
   state.nodePositions = new Map();
+  state.nodeSizes = new Map();
   renderCurrentModuleGraph();
   setSelectedNode(selectedNode);
   applyTransform();
@@ -387,7 +466,9 @@ function saveLayoutGolden() {
 
   const diff = compareLayoutGraphs(state.autoGraph, state.graph);
   const golden = createLayoutGolden(state.graph, {
-    layoutOptions: state.layoutOptions,
+    layoutOptions: {
+      layoutPolicy: state.layoutPolicy
+    },
     svgSnapshot: renderSchematicSvg(state.graph)
   });
   downloadJson(
@@ -405,7 +486,8 @@ function updateCalibrationControls() {
   elements.adjustLayoutButton.classList.toggle("is-active", state.calibrationMode);
   elements.adjustLayoutButton.setAttribute("aria-pressed", String(state.calibrationMode));
   elements.saveGoldenButton.disabled = !state.graph;
-  elements.resetLayoutButton.disabled = state.nodePositions.size === 0;
+  elements.resetLayoutButton.disabled = state.nodePositions.size === 0 && state.nodeSizes.size === 0;
+  renderSelection(state.graph?.nodes.find((item) => item.id === state.selectedNodeId) || null);
 }
 
 function applyTransform() {
@@ -485,4 +567,12 @@ function downloadJson(value, fileName) {
 
 function sanitizeFileName(value) {
   return String(value).replace(/[^A-Za-z0-9_.-]+/g, "_");
+}
+
+function cloneLayoutPolicy(policy) {
+  return {
+    name: policy.name,
+    spacing: { ...policy.spacing },
+    features: { ...policy.features }
+  };
 }

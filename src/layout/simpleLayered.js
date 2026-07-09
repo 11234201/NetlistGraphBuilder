@@ -1,13 +1,19 @@
 import { inferPinDirection, isInvertingOutputGate } from "../infer/defaultCellRules.js";
+import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 
 export const DEFAULT_WIRE_LANE_PITCH = 18;
 export const DEFAULT_TOP_WIRE_LANE_PITCH = 16;
+export const DEFAULT_PIN_NODE_HEIGHT = 36;
+export const DEFAULT_CELL_PIN_PITCH = DEFAULT_PIN_NODE_HEIGHT;
+export { DEFAULT_LAYOUT_POLICY };
 
 export function layoutGraph(graph, options = {}) {
-  const ySpacing = options.ySpacing || 88;
-  const margin = options.margin || 48;
+  const policy = normalizeLayoutPolicy(options.layoutPolicy, options);
+  const ySpacing = policy.spacing.y;
+  const margin = policy.spacing.margin;
+  const cellPinPitch = clamp(Number(policy.spacing.cellPinPitch) || DEFAULT_CELL_PIN_PITCH, 18, 72);
   const wireLanePitch = clamp(
-    Number(options.wireLanePitch) || DEFAULT_WIRE_LANE_PITCH,
+    Number(policy.spacing.wireLanePitch) || DEFAULT_WIRE_LANE_PITCH,
     8,
     48
   );
@@ -39,7 +45,7 @@ export function layoutGraph(graph, options = {}) {
   for (const level of levelKeys) {
     const nodes = buckets.get(level);
     for (const [index, node] of nodes.entries()) {
-      const size = measureNode(node);
+      const size = applyNodeSizeOverride(measureNode(node, cellPinPitch), options.nodeSizes, node.id);
       positionedNodes.push({
         ...node,
         x: margin + level * xSpacing,
@@ -47,11 +53,26 @@ export function layoutGraph(graph, options = {}) {
         level,
         width: size.width,
         height: size.height,
-        ports: buildNodePorts(node, size)
+        ports: buildNodePorts(node, size, cellPinPitch)
       });
     }
   }
 
+  if (policy.features.branchAwareLanes) {
+    applyBranchAwareLanes(
+      positionedNodes,
+      graph.edges,
+      levelKeys,
+      policy.spacing.branchTopY,
+      policy.spacing.branchLanePitch
+    );
+  }
+  if (policy.features.alignDrivenLinks) {
+    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys);
+  }
+  if (policy.features.localizeSingleFanoutInputs) {
+    applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
+  }
   applyNodePositionOverrides(positionedNodes, options.nodePositions);
 
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
@@ -114,6 +135,236 @@ function applyNodePositionOverrides(nodes, nodePositions) {
       node.y = y;
     }
   }
+}
+
+function applyNodeSizeOverride(size, nodeSizes, nodeId) {
+  const override = getNodeSizeOverride(nodeSizes, nodeId);
+  if (!override) {
+    return size;
+  }
+
+  const width = Number(override.width);
+  const height = Number(override.height);
+  return {
+    width: Number.isFinite(width) ? clamp(width, 24, 420) : size.width,
+    height: Number.isFinite(height) ? clamp(height, 12, 260) : size.height
+  };
+}
+
+function getNodeSizeOverride(nodeSizes, nodeId) {
+  if (!nodeSizes) {
+    return null;
+  }
+  if (nodeSizes instanceof Map) {
+    return nodeSizes.get(nodeId);
+  }
+  if (Array.isArray(nodeSizes)) {
+    return nodeSizes.find((item) => item?.id === nodeId);
+  }
+  if (typeof nodeSizes === "object") {
+    return Object.hasOwn(nodeSizes, nodeId) ? nodeSizes[nodeId] : null;
+  }
+  return null;
+}
+
+function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const incomingByTarget = groupEdges(edges, "target");
+  const laneById = new Map();
+  const upperLane = 0;
+  const lowerLane = 1;
+
+  for (const target of nodes) {
+    if (target.kind !== "cell") {
+      continue;
+    }
+    const incomingCellEdges = (incomingByTarget.get(target.id) || []).filter(
+      (edge) => nodeById.get(edge.source)?.kind === "cell"
+    );
+    const inputPorts = getInputPorts(target);
+    if (incomingCellEdges.length < 2 || inputPorts.length < 3) {
+      continue;
+    }
+
+    let targetLane = upperLane;
+    for (const edge of incomingCellEdges) {
+      const pinIndex = getInputPortIndex(target, edge.targetPin);
+      const lane = pinIndex >= Math.floor(inputPorts.length / 2) ? lowerLane : upperLane;
+      targetLane = Math.max(targetLane, lane);
+      markUpstreamLane(edge.source, lane, laneById, incomingByTarget);
+    }
+    laneById.set(target.id, targetLane);
+  }
+
+  if (laneById.size === 0) {
+    return;
+  }
+
+  const laneY = new Map([
+    [upperLane, topY],
+    [lowerLane, topY + lanePitch]
+  ]);
+  for (const level of levelKeys) {
+    for (const node of nodes.filter((item) => item.level === level).sort(compareNodes)) {
+      const lane = laneById.get(node.id);
+      if (lane === undefined || !isLanePositionedNode(node)) {
+        continue;
+      }
+      const incomingSameLane = (incomingByTarget.get(node.id) || []).some(
+        (edge) => laneById.get(edge.source) === lane && isLanePositionedNode(nodeById.get(edge.source))
+      );
+      if (!incomingSameLane) {
+        node.y = laneY.get(lane) ?? node.y;
+      }
+    }
+  }
+}
+
+function markUpstreamLane(nodeId, lane, laneById, incomingByTarget) {
+  const previousLane = laneById.get(nodeId);
+  if (previousLane !== undefined && previousLane <= lane) {
+    return;
+  }
+  laneById.set(nodeId, lane);
+  for (const edge of incomingByTarget.get(nodeId) || []) {
+    markUpstreamLane(edge.source, lane, laneById, incomingByTarget);
+  }
+}
+
+function groupEdges(edges, key) {
+  const groups = new Map();
+  for (const edge of edges) {
+    const id = edge[key];
+    if (!groups.has(id)) {
+      groups.set(id, []);
+    }
+    groups.get(id).push(edge);
+  }
+  return groups;
+}
+
+function isLanePositionedNode(node) {
+  return node.kind === "cell" || node.kind === "assign" || node.kind === "output";
+}
+
+function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const incomingByTarget = new Map();
+  for (const edge of edges) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!isAlignableDriver(source) || !isAlignableDrivenTarget(target)) {
+      continue;
+    }
+    if (!incomingByTarget.has(target.id)) {
+      incomingByTarget.set(target.id, []);
+    }
+    incomingByTarget.get(target.id).push(edge);
+  }
+
+  for (const level of levelKeys) {
+    const levelNodes = nodes
+      .filter((node) => node.level === level && isAlignableDrivenTarget(node))
+      .sort(compareNodes);
+    for (const target of levelNodes) {
+      const edge = chooseAlignmentEdge(incomingByTarget.get(target.id), nodeById);
+      if (!edge) {
+        continue;
+      }
+      const source = nodeById.get(edge.source);
+      const sourcePort = getPort(source, edge.sourcePin, "source");
+      const targetPort = getPort(target, edge.targetPin, "target");
+      const sourceY = source.y + (sourcePort?.y ?? source.height / 2);
+      const targetPinOffsetY = targetPort?.y ?? target.height / 2;
+      target.y = round(sourceY - targetPinOffsetY);
+    }
+  }
+}
+
+function isAlignableDrivenTarget(node) {
+  return node?.kind === "cell" || node?.kind === "assign" || node?.kind === "output";
+}
+
+function isAlignableDriver(node) {
+  return node?.kind === "cell" || node?.kind === "assign";
+}
+
+function chooseAlignmentEdge(edges, nodeById) {
+  if (!edges || edges.length === 0) {
+    return null;
+  }
+  if (edges.length > 1) {
+    return edges.toSorted((left, right) => {
+      const leftTarget = nodeById.get(left.target);
+      const rightTarget = nodeById.get(right.target);
+      const leftIndex = getInputPortIndex(leftTarget, left.targetPin);
+      const rightIndex = getInputPortIndex(rightTarget, right.targetPin);
+      if (leftIndex !== rightIndex) {
+        return rightIndex - leftIndex;
+      }
+      return String(left.targetPin || "").localeCompare(String(right.targetPin || ""));
+    })[0];
+  }
+  return edges
+    .toSorted((left, right) => {
+      const leftSource = nodeById.get(left.source);
+      const rightSource = nodeById.get(right.source);
+      if ((leftSource?.level ?? 0) !== (rightSource?.level ?? 0)) {
+        return (rightSource?.level ?? 0) - (leftSource?.level ?? 0);
+      }
+      return String(left.targetPin || "").localeCompare(String(right.targetPin || ""));
+    })[0];
+}
+
+function getInputPorts(node) {
+  return (node?.ports || []).filter((port) => port.direction === "input");
+}
+
+function getInputPortIndex(node, pin) {
+  const ports = getInputPorts(node);
+  const index = ports.findIndex((port) => port.pin === pin);
+  return index >= 0 ? index : 0;
+}
+
+function applySingleFanoutInputLocality(nodes, edges, margin) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const outgoingBySource = new Map();
+  for (const edge of edges) {
+    if (!outgoingBySource.has(edge.source)) {
+      outgoingBySource.set(edge.source, []);
+    }
+    outgoingBySource.get(edge.source).push(edge);
+  }
+
+  for (const node of nodes) {
+    if (!isExternalSourceNode(node)) {
+      continue;
+    }
+    const outgoing = outgoingBySource.get(node.id) || [];
+    if (outgoing.length !== 1) {
+      continue;
+    }
+
+    const edge = outgoing[0];
+    const target = nodeById.get(edge.target);
+    if (!target || target.kind !== "cell") {
+      continue;
+    }
+
+    const sourcePort = getPort(node, edge.sourcePin, "source");
+    const targetPort = getPort(target, edge.targetPin, "target");
+    const targetInputIndex = target.ports
+      .filter((port) => port.direction === "input")
+      .findIndex((port) => port.pin === targetPort?.pin);
+    const gap = 24;
+    node.x = Math.max(margin, target.x - node.width - gap);
+    node.y = round(target.y + (targetPort?.y ?? target.height / 2) - (sourcePort?.y ?? node.height / 2));
+    node.order = targetInputIndex >= 0 ? targetInputIndex : node.order;
+  }
+}
+
+function isExternalSourceNode(node) {
+  return node.kind === "input" || node.kind === "implicit" || node.kind === "constant";
 }
 
 function getNodePositionOverride(nodePositions, nodeId) {
@@ -243,7 +494,7 @@ function routeEdge(
   }
 
   const topLaneY = margin / 2 + (edgePlan?.topLane || 0) * topWireLanePitch;
-  return route("top-lane", [
+  const topRoute = route("top-lane", [
     sourcePoint,
     { x: sourceLaneX, y: sourcePoint.y },
     { x: sourceLaneX, y: topLaneY },
@@ -251,6 +502,20 @@ function routeEdge(
     { x: targetLaneX, y: targetPoint.y },
     targetPoint
   ]);
+  if (isRouteUsable(topRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+    return topRoute;
+  }
+
+  return findObstacleAvoidingRoute(
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    topLaneY,
+    margin,
+    topWireLanePitch
+  );
 }
 
 function route(kind, points) {
@@ -266,6 +531,95 @@ function isRouteUsable(points, nodes, source, target, sourcePoint, targetPoint) 
     exitsSourceWithoutCrossingBody(points, source, sourcePoint) &&
     entersTargetWithoutCrossingBody(points, target, targetPoint)
   );
+}
+
+function findObstacleAvoidingRoute(
+  source,
+  target,
+  sourcePoint,
+  targetPoint,
+  nodes,
+  preferredLaneY,
+  margin,
+  lanePitch
+) {
+  const clearance = 24;
+  const baseSourceLaneX = getEscapeLaneX(source, sourcePoint, "source", clearance);
+  const baseTargetLaneX = getEscapeLaneX(target, targetPoint, "target", clearance);
+  const yCandidates = getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clearance);
+
+  for (const laneY of yCandidates) {
+    const sourceLaneX = findClearVerticalLaneX(baseSourceLaneX, sourcePoint.y, laneY, nodes, source, target);
+    const targetLaneX = findClearVerticalLaneX(baseTargetLaneX, targetPoint.y, laneY, nodes, source, target);
+    const candidate = route("obstacle-lane", [
+      sourcePoint,
+      { x: sourceLaneX, y: sourcePoint.y },
+      { x: sourceLaneX, y: laneY },
+      { x: targetLaneX, y: laneY },
+      { x: targetLaneX, y: targetPoint.y },
+      targetPoint
+    ]);
+    if (isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return candidate;
+    }
+  }
+
+  return route("obstacle-lane", [
+    sourcePoint,
+    { x: baseSourceLaneX, y: sourcePoint.y },
+    { x: baseSourceLaneX, y: yCandidates[0] ?? preferredLaneY },
+    { x: baseTargetLaneX, y: yCandidates[0] ?? preferredLaneY },
+    { x: baseTargetLaneX, y: targetPoint.y },
+    targetPoint
+  ]);
+}
+
+function getEscapeLaneX(node, point, role, clearance) {
+  const leftDistance = Math.abs(point.x - node.x);
+  const rightDistance = Math.abs(point.x - (node.x + node.width));
+  if (role === "source") {
+    return rightDistance <= leftDistance ? node.x + node.width + clearance : node.x - clearance;
+  }
+  return leftDistance <= rightDistance ? node.x - clearance : node.x + node.width + clearance;
+}
+
+function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clearance) {
+  const boxes = nodes.map((node) => ({
+    top: node.y - clearance,
+    bottom: node.y + node.height + clearance
+  }));
+  const minTop = Math.min(...boxes.map((box) => box.top));
+  const maxBottom = Math.max(...boxes.map((box) => box.bottom));
+  const candidates = [preferredLaneY];
+
+  for (let index = 0; index < Math.max(4, nodes.length); index += 1) {
+    candidates.push(minTop - margin - index * lanePitch);
+    candidates.push(maxBottom + margin + index * lanePitch);
+  }
+
+  const sortedBoxes = boxes.toSorted((left, right) => left.top - right.top);
+  for (let index = 1; index < sortedBoxes.length; index += 1) {
+    const previous = sortedBoxes[index - 1];
+    const next = sortedBoxes[index];
+    if (next.top - previous.bottom >= clearance * 2) {
+      candidates.push((previous.bottom + next.top) / 2);
+    }
+  }
+
+  return uniqueRounded(candidates).sort(
+    (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY)
+  );
+}
+
+function findClearVerticalLaneX(preferredX, y1, y2, nodes, source, target) {
+  const offsets = [0, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
+  for (const offset of offsets) {
+    const x = preferredX + offset;
+    if (!segmentHitsObstacle({ x, y: y1 }, { x, y: y2 }, nodes, source, target)) {
+      return x;
+    }
+  }
+  return preferredX;
 }
 
 function isRouteClear(points, nodes, source, target) {
@@ -337,6 +691,10 @@ function verticalSegmentIntersectsBox(start, end, box) {
   const y1 = Math.min(start.y, end.y);
   const y2 = Math.max(start.y, end.y);
   return start.x >= box.left && start.x <= box.right && y2 > box.top && y1 < box.bottom;
+}
+
+function uniqueRounded(values) {
+  return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))];
 }
 
 function compactPoints(points) {
@@ -489,7 +847,7 @@ function compareNodes(left, right) {
   return `${left.kind}:${left.label}`.localeCompare(`${right.kind}:${right.label}`);
 }
 
-function measureNode(node) {
+function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
   const labelLength = Math.max(
     String(node.label || "").length,
     String(node.subtitle || "").length,
@@ -498,13 +856,15 @@ function measureNode(node) {
   const width = clamp(labelLength * 7 + 42, node.kind === "cell" ? 128 : 92, 220);
   const pinCount = getMaxPinCount(node);
   const height =
-    node.kind === "cell" || node.kind === "assign"
-      ? Math.max(58, 18 + pinCount * 18)
-      : 36;
+    node.kind === "cell"
+      ? Math.max(58, cellPinPitch * (pinCount + 1))
+      : node.kind === "assign"
+        ? 58
+        : DEFAULT_PIN_NODE_HEIGHT;
   return { width, height };
 }
 
-function buildNodePorts(node, size) {
+function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
   if (node.kind === "input" || node.kind === "implicit" || node.kind === "constant") {
     return [
       {
@@ -554,13 +914,28 @@ function buildNodePorts(node, size) {
     }
   }
 
-  placePorts(inputPins, size.height);
-  placePorts(outputPins, size.height);
+  placePorts(inputPins, size.height, cellPinPitch);
+  placePorts(outputPins, size.height, cellPinPitch);
   return [...inputPins, ...outputPins];
 }
 
-function placePorts(ports, height) {
+function placePorts(ports, height, preferredPitch) {
   if (ports.length === 0) {
+    return;
+  }
+
+  if (ports.length === 1) {
+    ports[0].y = height / 2;
+    return;
+  }
+
+  const pitch = Number(preferredPitch) || height / (ports.length + 1);
+  const span = pitch * (ports.length - 1);
+  if (span <= height - pitch) {
+    const firstY = (height - span) / 2;
+    ports.forEach((port, index) => {
+      port.y = firstY + pitch * index;
+    });
     return;
   }
 
@@ -572,10 +947,7 @@ function placePorts(ports, height) {
 
 function getConnectionPoint(node, pin, role) {
   const preferredDirection = role === "source" ? "output" : "input";
-  const port =
-    node.ports?.find((candidate) => candidate.pin === pin && candidate.direction === preferredDirection) ||
-    node.ports?.find((candidate) => candidate.direction === preferredDirection) ||
-    node.ports?.[0];
+  const port = getPort(node, pin, role);
 
   const x = node.x + (port?.x ?? (role === "source" ? node.width : 0));
   const y = node.y + (port?.y ?? node.height / 2);
@@ -588,6 +960,15 @@ function getConnectionPoint(node, pin, role) {
       : 0;
 
   return { x: x + bubbleOffset, y };
+}
+
+function getPort(node, pin, role) {
+  const preferredDirection = role === "source" ? "output" : "input";
+  return (
+    node.ports?.find((candidate) => candidate.pin === pin && candidate.direction === preferredDirection) ||
+    node.ports?.find((candidate) => candidate.direction === preferredDirection) ||
+    node.ports?.[0]
+  );
 }
 
 function getMaxPinCount(node) {
@@ -622,4 +1003,8 @@ function computeBounds(nodes) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function round(value) {
+  return Math.round(value * 1000) / 1000;
 }
