@@ -1,15 +1,20 @@
 ﻿import { parseVerilog } from "../parser/verilogParser.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
+import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
+import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 
 const state = {
   design: null,
   currentModule: null,
+  autoGraph: null,
   graph: null,
   transform: { x: 0, y: 0, scale: 1 },
   selectedNodeId: null,
+  nodePositions: new Map(),
+  calibrationMode: false,
   layoutOptions: {
     wireLanePitch: 18
   }
@@ -21,6 +26,9 @@ const elements = {
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
+  adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
+  saveGoldenButton: document.querySelector("#saveGoldenButton"),
+  resetLayoutButton: document.querySelector("#resetLayoutButton"),
   canvas: document.querySelector("#canvas"),
   mount: document.querySelector("#schematicMount"),
   stats: document.querySelector("#designStats"),
@@ -35,10 +43,14 @@ elements.moduleSelect.addEventListener("change", () => {
 });
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
+elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
+elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
+elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
 
 loadDesign(sampleNetlist, "built-in sample");
+updateCalibrationControls();
 
 async function handleFileChange(event) {
   const file = event.target.files?.[0];
@@ -53,17 +65,25 @@ function loadDesign(source, label) {
   try {
     state.design = parseVerilog(source);
     state.selectedNodeId = null;
+    state.nodePositions = new Map();
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
       selectModule(firstModule.name);
       setStatus(`Loaded ${label}: ${state.design.modules.length} module(s)`);
     } else {
+      state.currentModule = null;
+      state.autoGraph = null;
+      state.graph = null;
       elements.mount.innerHTML = "";
+      updateCalibrationControls();
       setStatus(`Loaded ${label}: no modules found`);
     }
   } catch (error) {
+    state.autoGraph = null;
+    state.graph = null;
     elements.mount.innerHTML = "";
+    updateCalibrationControls();
     setStatus(`Parse failed: ${error.message}`);
     throw error;
   }
@@ -86,6 +106,7 @@ function selectModule(moduleName) {
   }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
+  state.nodePositions = new Map();
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -96,11 +117,18 @@ function selectModule(moduleName) {
 }
 
 function renderCurrentModuleGraph() {
-  state.graph = layoutGraph(buildSchematicGraph(state.currentModule), {
+  const sourceGraph = buildSchematicGraph(state.currentModule);
+  const layoutOptions = {
     wireLanePitch: state.layoutOptions.wireLanePitch
+  };
+  state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
+  state.graph = layoutGraph(sourceGraph, {
+    ...layoutOptions,
+    nodePositions: state.nodePositions
   });
   elements.mount.innerHTML = renderSchematicSvg(state.graph);
   bindSchematicEvents();
+  updateCalibrationControls();
 }
 
 function handleWireSpacingChange(event) {
@@ -230,6 +258,12 @@ function handlePointerDown(event) {
     return;
   }
 
+  const nodeElement = event.target.closest("[data-node-id]");
+  if (state.calibrationMode && nodeElement) {
+    startNodeDrag(event, nodeElement.dataset.nodeId);
+    return;
+  }
+
   elements.canvas.setPointerCapture(event.pointerId);
   elements.canvas.classList.add("is-panning");
   const start = {
@@ -260,9 +294,118 @@ function handlePointerDown(event) {
   elements.canvas.addEventListener("pointercancel", up);
 }
 
+function startNodeDrag(event, nodeId) {
+  const node = state.graph?.nodes.find((item) => item.id === nodeId);
+  if (!node) {
+    return;
+  }
+
+  event.preventDefault();
+  elements.canvas.setPointerCapture(event.pointerId);
+  elements.canvas.classList.add("is-node-dragging");
+  setSelectedNode(nodeId);
+
+  const startPoint = eventPointToContent(event);
+  const startPosition = { x: node.x, y: node.y };
+  let moved = false;
+
+  const move = (moveEvent) => {
+    const point = eventPointToContent(moveEvent);
+    if (!point || !startPoint) {
+      return;
+    }
+
+    const candidatePosition = {
+      x: round(Math.max(16, startPosition.x + point.x - startPoint.x)),
+      y: round(Math.max(16, startPosition.y + point.y - startPoint.y))
+    };
+    const snapResult = snapNodePosition(state.graph, nodeId, candidatePosition);
+    const nextPosition = {
+      x: round(Math.max(16, snapResult.position.x)),
+      y: round(Math.max(16, snapResult.position.y))
+    };
+    const previous = state.nodePositions.get(nodeId);
+    if (previous?.x === nextPosition.x && previous?.y === nextPosition.y) {
+      return;
+    }
+
+    moved = true;
+    state.nodePositions.set(nodeId, nextPosition);
+    renderCurrentModuleGraph();
+    setSelectedNode(nodeId);
+    applyTransform();
+    if (snapResult.snap) {
+      setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
+    } else {
+      setStatus(`${node.label}: x=${nextPosition.x}, y=${nextPosition.y}`);
+    }
+  };
+
+  const up = () => {
+    elements.canvas.classList.remove("is-node-dragging");
+    elements.canvas.removeEventListener("pointermove", move);
+    elements.canvas.removeEventListener("pointerup", up);
+    elements.canvas.removeEventListener("pointercancel", up);
+    if (moved) {
+      setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
+    }
+  };
+
+  elements.canvas.addEventListener("pointermove", move);
+  elements.canvas.addEventListener("pointerup", up);
+  elements.canvas.addEventListener("pointercancel", up);
+}
+
 function fitToView() {
   state.transform = { x: 0, y: 0, scale: 1 };
   applyTransform();
+}
+
+function toggleCalibrationMode() {
+  state.calibrationMode = !state.calibrationMode;
+  updateCalibrationControls();
+  setStatus(state.calibrationMode ? "Layout calibration mode enabled" : "Layout calibration mode disabled");
+}
+
+function resetLayoutOverrides() {
+  if (state.nodePositions.size === 0) {
+    return;
+  }
+
+  const selectedNode = state.selectedNodeId;
+  state.nodePositions = new Map();
+  renderCurrentModuleGraph();
+  setSelectedNode(selectedNode);
+  applyTransform();
+  setStatus("Layout overrides cleared");
+}
+
+function saveLayoutGolden() {
+  if (!state.graph || !state.currentModule) {
+    return;
+  }
+
+  const diff = compareLayoutGraphs(state.autoGraph, state.graph);
+  const golden = createLayoutGolden(state.graph, {
+    layoutOptions: state.layoutOptions,
+    svgSnapshot: renderSchematicSvg(state.graph)
+  });
+  downloadJson(
+    {
+      ...golden,
+      diff
+    },
+    `layout-golden-${sanitizeFileName(state.currentModule.name)}.json`
+  );
+  setStatus(`Saved layout golden: ${diff.movedNodeCount} moved node(s), max move ${diff.maxMove}px`);
+}
+
+function updateCalibrationControls() {
+  elements.canvas.classList.toggle("is-calibrating", state.calibrationMode);
+  elements.adjustLayoutButton.classList.toggle("is-active", state.calibrationMode);
+  elements.adjustLayoutButton.setAttribute("aria-pressed", String(state.calibrationMode));
+  elements.saveGoldenButton.disabled = !state.graph;
+  elements.resetLayoutButton.disabled = state.nodePositions.size === 0;
 }
 
 function applyTransform() {
@@ -281,6 +424,20 @@ function eventPointToSvg(svg, event) {
     x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
     y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
   };
+}
+
+function eventPointToContent(event) {
+  const svg = getSvg();
+  const content = elements.mount.querySelector("#schematicContent");
+  const matrix = content?.getScreenCTM();
+  if (!svg || !matrix) {
+    return null;
+  }
+
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  return point.matrixTransform(matrix.inverse());
 }
 
 function getSvg() {
@@ -312,4 +469,20 @@ function clamp(value, min, max) {
 
 function round(value) {
   return Math.round(value * 1000) / 1000;
+}
+
+function downloadJson(value, fileName) {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function sanitizeFileName(value) {
+  return String(value).replace(/[^A-Za-z0-9_.-]+/g, "_");
 }

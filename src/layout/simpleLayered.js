@@ -52,6 +52,8 @@ export function layoutGraph(graph, options = {}) {
     }
   }
 
+  applyNodePositionOverrides(positionedNodes, options.nodePositions);
+
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
   const levelBounds = computeLevelBounds(positionedNodes);
   const positionedEdges = graph.edges.map((edge) => {
@@ -59,23 +61,26 @@ export function layoutGraph(graph, options = {}) {
     const target = nodeById.get(edge.target);
     const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
     const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
-    const points = routeEdge(
+    const route = routeEdge(
       source,
       target,
       sourcePoint,
       targetPoint,
       routePlan.edges.get(edge.id),
       levelBounds,
+      positionedNodes,
       wireLanePitch,
       topWireLanePitch,
       margin
     );
-    const labelPoint = getLabelPoint(points);
+    const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
 
     return {
       ...edge,
-      points,
-      labelPoint
+      points: route.points,
+      routeKind: route.kind,
+      labelPoint: label.point,
+      labelAnchor: label.anchor
     };
   });
 
@@ -88,6 +93,40 @@ export function layoutGraph(graph, options = {}) {
     width: bounds.width + margin,
     height: bounds.height + margin
   };
+}
+
+function applyNodePositionOverrides(nodes, nodePositions) {
+  if (!nodePositions) {
+    return;
+  }
+
+  for (const node of nodes) {
+    const override = getNodePositionOverride(nodePositions, node.id);
+    if (!override) {
+      continue;
+    }
+    const x = Number(override.x);
+    const y = Number(override.y);
+    if (Number.isFinite(x)) {
+      node.x = x;
+    }
+    if (Number.isFinite(y)) {
+      node.y = y;
+    }
+  }
+}
+
+function getNodePositionOverride(nodePositions, nodeId) {
+  if (nodePositions instanceof Map) {
+    return nodePositions.get(nodeId);
+  }
+  if (Array.isArray(nodePositions)) {
+    return nodePositions.find((item) => item?.id === nodeId);
+  }
+  if (typeof nodePositions === "object") {
+    return Object.hasOwn(nodePositions, nodeId) ? nodePositions[nodeId] : null;
+  }
+  return null;
 }
 
 function planRouting(graph, levels) {
@@ -142,6 +181,7 @@ function routeEdge(
   targetPoint,
   edgePlan,
   levelBounds,
+  nodes,
   wireLanePitch,
   topWireLanePitch,
   margin
@@ -151,31 +191,59 @@ function routeEdge(
   const levelDistance = targetLevel - sourceLevel;
   const sourceBounds = levelBounds.get(sourceLevel) || { right: source.x + source.width };
   const targetBounds = levelBounds.get(targetLevel) || { left: target.x };
+  const horizontalGap = targetPoint.x - sourcePoint.x;
+  const yDelta = Math.abs(targetPoint.y - sourcePoint.y);
 
-  if (levelDistance <= 1) {
-    const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * wireLanePitch;
-    return compactPoints([
+  if (horizontalGap > 0 && yDelta <= 4) {
+    const directRoute = route("direct", [sourcePoint, targetPoint]);
+    if (isRouteUsable(directRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return directRoute;
+    }
+  }
+
+  if (horizontalGap > 64 && yDelta <= 32) {
+    const laneX = sourcePoint.x + Math.max(32, horizontalGap / 2);
+    const localRoute = route("local-dogleg", [
       sourcePoint,
       { x: laneX, y: sourcePoint.y },
       { x: laneX, y: targetPoint.y },
       targetPoint
     ]);
+    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return localRoute;
+    }
+  }
+
+  if (levelDistance <= 1) {
+    const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * wireLanePitch;
+    const channelRoute = route("channel", [
+      sourcePoint,
+      { x: laneX, y: sourcePoint.y },
+      { x: laneX, y: targetPoint.y },
+      targetPoint
+    ]);
+    if (isRouteUsable(channelRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return channelRoute;
+    }
   }
 
   const sourceLaneX = sourceBounds.right + 20 + (edgePlan?.sourceLane || 0) * wireLanePitch;
   const targetLaneX = targetBounds.left - 24 - (edgePlan?.targetLane || 0) * wireLanePitch;
   if (targetLaneX <= sourceLaneX + 24) {
     const laneX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
-    return compactPoints([
+    const localRoute = route("local-dogleg", [
       sourcePoint,
       { x: laneX, y: sourcePoint.y },
       { x: laneX, y: targetPoint.y },
       targetPoint
     ]);
+    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return localRoute;
+    }
   }
 
   const topLaneY = margin / 2 + (edgePlan?.topLane || 0) * topWireLanePitch;
-  return compactPoints([
+  return route("top-lane", [
     sourcePoint,
     { x: sourceLaneX, y: sourcePoint.y },
     { x: sourceLaneX, y: topLaneY },
@@ -183,6 +251,92 @@ function routeEdge(
     { x: targetLaneX, y: targetPoint.y },
     targetPoint
   ]);
+}
+
+function route(kind, points) {
+  return {
+    kind,
+    points: compactPoints(points)
+  };
+}
+
+function isRouteUsable(points, nodes, source, target, sourcePoint, targetPoint) {
+  return (
+    isRouteClear(points, nodes, source, target) &&
+    exitsSourceWithoutCrossingBody(points, source, sourcePoint) &&
+    entersTargetWithoutCrossingBody(points, target, targetPoint)
+  );
+}
+
+function isRouteClear(points, nodes, source, target) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    if (segmentHitsObstacle(points[index], points[index + 1], nodes, source, target)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function exitsSourceWithoutCrossingBody(points, source, sourcePoint) {
+  if (points.length < 2) {
+    return true;
+  }
+  const next = points[1];
+  if (sourcePoint.x >= source.x + source.width - 1 && next.x < sourcePoint.x) {
+    return false;
+  }
+  if (sourcePoint.x <= source.x + 1 && next.x > sourcePoint.x) {
+    return false;
+  }
+  return true;
+}
+
+function entersTargetWithoutCrossingBody(points, target, targetPoint) {
+  if (points.length < 2) {
+    return true;
+  }
+  const previous = points[points.length - 2];
+  if (targetPoint.x <= target.x + 1 && previous.x > targetPoint.x) {
+    return false;
+  }
+  if (targetPoint.x >= target.x + target.width - 1 && previous.x < targetPoint.x) {
+    return false;
+  }
+  return true;
+}
+
+function segmentHitsObstacle(start, end, nodes, source, target) {
+  const padding = 8;
+  for (const node of nodes) {
+    if (node.id === source.id || node.id === target.id) {
+      continue;
+    }
+    const box = {
+      left: node.x - padding,
+      right: node.x + node.width + padding,
+      top: node.y - padding,
+      bottom: node.y + node.height + padding
+    };
+    if (start.y === end.y && horizontalSegmentIntersectsBox(start, end, box)) {
+      return true;
+    }
+    if (start.x === end.x && verticalSegmentIntersectsBox(start, end, box)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function horizontalSegmentIntersectsBox(start, end, box) {
+  const x1 = Math.min(start.x, end.x);
+  const x2 = Math.max(start.x, end.x);
+  return start.y >= box.top && start.y <= box.bottom && x2 > box.left && x1 < box.right;
+}
+
+function verticalSegmentIntersectsBox(start, end, box) {
+  const y1 = Math.min(start.y, end.y);
+  const y2 = Math.max(start.y, end.y);
+  return start.x >= box.left && start.x <= box.right && y2 > box.top && y1 < box.bottom;
 }
 
 function compactPoints(points) {
@@ -195,14 +349,29 @@ function compactPoints(points) {
   });
 }
 
-function getLabelPoint(points) {
-  const middleIndex = Math.floor((points.length - 1) / 2);
-  const start = points[middleIndex];
-  const end = points[middleIndex + 1] || start;
+function getLabelPlacement(edge, source, target, sourcePoint, targetPoint) {
+  const labelWidth = estimateLabelWidth(edge.label);
+  if (target.kind === "cell" || target.kind === "assign" || target.kind === "output") {
+    return {
+      point: {
+        x: targetPoint.x - labelWidth - 8,
+        y: targetPoint.y - 6
+      },
+      anchor: "start"
+    };
+  }
+
   return {
-    x: (start.x + end.x) / 2 + 4,
-    y: (start.y + end.y) / 2 - 4
+    point: {
+      x: sourcePoint.x + 8,
+      y: sourcePoint.y - 6
+    },
+    anchor: "start"
   };
+}
+
+function estimateLabelWidth(label) {
+  return Math.min(96, Math.max(28, String(label || "").length * 6));
 }
 
 function computeLevelBounds(nodes) {

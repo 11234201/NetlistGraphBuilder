@@ -45,6 +45,36 @@ Structural Verilog
 - 阶段 4：`docs/STAGE_4_PLAN.md`
 - 阶段 5：`docs/STAGE_5_PLAN.md`
 
+## 需求拆解与完成状态
+
+状态口径：
+
+- 已完成：仓库中已有可运行实现或文档交付物。
+- 进行中：当前优先处理，允许拆出更细任务。
+- 计划中：已进入路线图，但尚未实现。
+- 暂缓：明确不在当前阶段处理。
+
+| ID | 阶段 | 需求 | 主要交付物 | 状态 | 细化文档 |
+| --- | --- | --- | --- | --- | --- |
+| R0-1 | 阶段 0 | 项目准备 | 仓库、目录、README、计划、架构、设计规范、示例 fixture | 已完成 | `docs/STAGE_0_PLAN.md` |
+| R1-1 | 阶段 1 | Structural Verilog parser 与 Netlist IR | module/port/wire/assign/cell/escaped identifier 解析 | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-2 | 阶段 1 | 无 `.lib` cell/pin 推断 | gate kind、pin direction、inference source | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-3 | 阶段 1 | Graph extraction 与简单布局 | PI/PO/cell/assign graph、left-to-right layered layout、正交连线 | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-4 | 阶段 1 | SVG schematic 与基础交互 | SVG 渲染、module selector、文件导入、缩放、平移、fit | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R2-1 | 阶段 2 | 搜索与对象索引 | net/port/instance/cell type 搜索、定位、高亮 | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-2 | 阶段 2 | 对象选择与属性面板增强 | gate/net 详情、pin/net 关系、driver/load 信息 | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-3 | 阶段 2 | Fanin/Fanout 分析与 cone view | immediate/transitive/depth-limited cone | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-4 | 阶段 2 | Assign/Alias 规范化 | alias 折叠、显示切换、buf-like assign 处理 | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-5 | 阶段 2 | 图中关键元信息 | cell type、instance、output net、fanout count | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-6 | 阶段 2 | 导出 SVG | 当前 module/cone 视图离线 SVG 导出 | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-7 | 阶段 2 | 手动布局校准与临时 golden | 节点拖动、保存 layout golden、对比自动布局与 golden 差异 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-8 | 阶段 2 | Wire 可读性修正 | 局部优先 routing、pin 附近 net label、adjust snap 对齐 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R3-1 | 阶段 3 | Module compare view | 左右 module 选择、并排 schematic、同步缩放平移 | 计划中 | `docs/STAGE_3_PLAN.md` |
+| R3-2 | 阶段 3 | 对比高亮与统计 | 同名 port/net/cell、结构差异区域、cell/depth/fanout 统计 | 计划中 | `docs/STAGE_3_PLAN.md` |
+| R4-1 | 阶段 4 | 大图布局与性能 | LayoutProvider、ELK.js fallback/provider、progressive render | 计划中 | `docs/STAGE_4_PLAN.md` |
+| R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 计划中 | `docs/STAGE_4_PLAN.md` |
+| R5-1 | 阶段 5 | 可选 Liberty 增强 | `.lib` 子集解析、pin direction 覆盖、function 辅助、fallback 诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
+
 ### 阶段 0：项目准备
 
 目标：建立仓库、计划、规范、目录骨架和示例输入。
@@ -132,12 +162,22 @@ Structural Verilog
   - output net
   - fanout count
 - 增加导出 SVG。
+- 增加手动布局校准：
+  - 用户可进入临时调整模式，自由拖动每个 schematic 节点。
+  - 保存当前节点位置作为临时 layout golden。
+  - 对比自动布局与 layout golden 的差异，沉淀为后续布局修改方案。
+- 修正 wire 可读性：
+  - 相近 pin 优先局部直连或短 dogleg，顶部 lane 只作为长跨层 fallback。
+  - net label 默认贴近 cell/port pin，而不是放在长线中段。
+  - 调整模式增加 grid snap 和 pin-y alignment snap，降低手动对齐成本。
 
 完成标准：
 
 - 用户可以从一个 output 快速追到所有 primary input。
 - 用户可以限制只看前后 N 层。
 - 搜索定位后视图自动居中。
+- 用户可以手动调整一张图并保存 golden，用于说明期望布局。
+- 常见局部连线不被强制绕到顶部，net 名称靠近接口且调整时容易吸附成直线。
 
 ### 阶段 3：对比视图
 

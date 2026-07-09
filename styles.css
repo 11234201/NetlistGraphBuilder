@@ -100,6 +100,17 @@ input {
   border-color: var(--accent);
 }
 
+.icon-button.is-active {
+  border-color: var(--accent);
+  background: #dff1f3;
+  color: var(--accent-strong);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .file-button input {
   display: none;
 }
@@ -210,6 +221,19 @@ input {
 
 .canvas.is-panning {
   cursor: grabbing;
+}
+
+.canvas.is-calibrating {
+  cursor: default;
+}
+
+.canvas.is-calibrating .node {
+  cursor: move;
+}
+
+.canvas.is-node-dragging,
+.canvas.is-node-dragging .node {
+  cursor: move;
 }
 
 .schematic-mount {

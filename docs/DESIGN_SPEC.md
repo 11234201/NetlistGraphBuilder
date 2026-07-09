@@ -28,6 +28,8 @@
 - 支持 fit to view。
 - 支持选中对象后居中。
 - 支持导出当前图为 SVG。
+- 支持布局校准模式：该模式下拖动单个 schematic 节点，普通查看模式下拖拽仍表示平移。
+- 布局校准模式应支持网格吸附和相连 pin 的 y 方向吸附，方便把 wire 调成水平或短折线。
 
 ### 搜索
 
@@ -69,8 +71,9 @@
 - gate 输入 pin 默认在左，输出 pin 默认在右。
 - 对 NAND/NOR/INV/XNOR 等反相输出显示 bubble。
 - unknown cell 使用矩形 blackbox，显示 cell type 和 instance。
-- net label 默认只在必要位置显示，避免图面拥挤。
+- net label 默认贴近相关 pin，优先靠近 target cell input pin；避免漂在长 wire 的中间位置。
 - fanout 较大时允许折叠为 hub。
+- wire routing 优先局部直连和短 dogleg，只有长跨层或局部冲突明显时才使用顶部 lane。
 
 ## 可访问性和可读性
 
@@ -78,4 +81,3 @@
 - 缩放后文字仍应可读。
 - 高亮不能只依赖颜色，必要时加粗线宽或改变边框。
 - 所有图标按钮必须有 tooltip。
-
