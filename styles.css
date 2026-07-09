@@ -208,21 +208,66 @@ input {
   border-top: 1px solid var(--line);
 }
 
-.size-controls label {
+.adjust-section {
   display: grid;
-  grid-template-columns: 54px 1fr;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.adjust-section h3 {
+  margin: 0;
+  color: #263241;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.size-controls label,
+.property-controls label,
+.pin-direction-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
   align-items: center;
   gap: 8px;
   color: var(--muted);
 }
 
-.size-controls input {
+.size-controls input,
+.property-controls input,
+.pin-direction-row select {
   width: 100%;
   height: 30px;
   padding: 0 8px;
   border: 1px solid var(--line);
   background: var(--panel-strong);
   color: var(--text);
+}
+
+.timing-list {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.timing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.timing-table th,
+.timing-table td {
+  padding: 3px 4px;
+  border-bottom: 1px solid #e5eaf0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-table th:first-child,
+.timing-table td:first-child {
+  text-align: left;
 }
 
 .mini-button {
@@ -346,6 +391,14 @@ input {
   stroke-dasharray: 6 3;
 }
 
+.node.timing-annotated .node-shape {
+  stroke: #2563eb;
+}
+
+.node.timing-critical .node-shape {
+  stroke: #b91c1c;
+}
+
 .node.assign .node-shape {
   fill: #edf7ed;
   stroke: #2f855a;
@@ -374,9 +427,30 @@ input {
   stroke-width: 1.2;
 }
 
+.pin-dot.pin-timing,
+.pin-bubble.pin-timing {
+  stroke: #2563eb;
+}
+
+.pin-dot.pin-critical,
+.pin-bubble.pin-critical {
+  fill: #fee2e2;
+  stroke: #b91c1c;
+}
+
 .pin-label {
   font-size: 9px;
   fill: #64748b;
+}
+
+.timing-badge {
+  font-size: 9px;
+  font-weight: 700;
+  fill: #b91c1c;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 .node.is-selected .node-shape {

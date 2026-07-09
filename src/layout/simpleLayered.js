@@ -899,9 +899,10 @@ function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
   const inputPins = [];
   const outputPins = [];
   for (const pin of node.ref?.pins || []) {
-    const direction = inferPinDirection(pin.pin).direction;
+    const pinName = pin.pinDisplayName || pin.pin;
+    const direction = getNodePinDirection(node, pinName, pin.pin);
     const port = {
-      pin: pin.pinDisplayName || pin.pin,
+      pin: pinName,
       direction,
       side: direction === "output" ? "right" : "left",
       x: direction === "output" ? size.width : 0,
@@ -982,13 +983,21 @@ function getMaxPinCount(node) {
   let inputs = 0;
   let outputs = 0;
   for (const pin of node.ref?.pins || []) {
-    if (inferPinDirection(pin.pin).direction === "output") {
+    if (getNodePinDirection(node, pin.pinDisplayName || pin.pin, pin.pin) === "output") {
       outputs += 1;
     } else {
       inputs += 1;
     }
   }
   return Math.max(inputs, outputs, 1);
+}
+
+function getNodePinDirection(node, displayName, rawName) {
+  return (
+    node.pinDirections?.[displayName]?.direction ||
+    node.pinDirections?.[rawName]?.direction ||
+    inferPinDirection(rawName).direction
+  );
 }
 
 function computeBounds(nodes) {

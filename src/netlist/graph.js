@@ -1,7 +1,8 @@
 ﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
 import { getNetDisplayName, getPortDisplayName } from "./model.js";
 
-export function buildSchematicGraph(module) {
+export function buildSchematicGraph(module, options = {}) {
+  const overrides = normalizeGraphOverrides(options.overrides);
   const graph = {
     moduleName: module.name,
     moduleDisplayName: module.displayName,
@@ -45,6 +46,7 @@ export function buildSchematicGraph(module) {
         order,
         ref: port
       });
+      applyNodePropertyOverrides(node, overrides);
       drivers.set(port.name, {
         nodeId: node.id,
         pin: port.displayName,
@@ -61,6 +63,7 @@ export function buildSchematicGraph(module) {
         order,
         ref: port
       });
+      applyNodePropertyOverrides(node, overrides);
       addLoad(port.name, {
         nodeId: node.id,
         pin: port.displayName,
@@ -71,6 +74,7 @@ export function buildSchematicGraph(module) {
 
   for (const cell of module.cells) {
     const cellKind = inferCellKind(cell.type);
+    const pinDirections = getCellPinDirections(cell, overrides);
     const node = addNode({
       id: makeId("cell", cell.instance),
       kind: "cell",
@@ -79,14 +83,16 @@ export function buildSchematicGraph(module) {
       label: cell.instanceDisplayName || cell.instance,
       title: cellKind.kind.toUpperCase(),
       subtitle: cell.typeDisplayName || cell.type,
+      pinDirections,
       ref: cell
     });
+    applyNodePropertyOverrides(node, overrides);
 
     for (const pin of cell.pins) {
       if (!pin.net) {
         continue;
       }
-      const pinDirection = inferPinDirection(pin.pin);
+      const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] || inferPinDirection(pin.pin);
       if (pinDirection.direction === "output") {
         drivers.set(pin.net, {
           nodeId: node.id,
@@ -114,6 +120,7 @@ export function buildSchematicGraph(module) {
       subtitle: "assign",
       ref: assign
     });
+    applyNodePropertyOverrides(node, overrides);
 
     addLoad(assign.rhs, {
       nodeId: node.id,
@@ -128,7 +135,7 @@ export function buildSchematicGraph(module) {
   }
 
   for (const [net, netLoads] of loads.entries()) {
-    const driver = drivers.get(net) || createImplicitDriver(module, graph, addNode, net);
+    const driver = drivers.get(net) || createImplicitDriver(module, graph, addNode, net, overrides);
     for (const load of netLoads) {
       if (driver.nodeId === load.nodeId) {
         continue;
@@ -148,7 +155,52 @@ export function buildSchematicGraph(module) {
   return graph;
 }
 
-function createImplicitDriver(module, graph, addNode, net) {
+function getCellPinDirections(cell, overrides) {
+  const directions = {};
+  const cellOverrides = overrides.cellPinDirections[cell.instance] || {};
+  for (const pin of cell.pins) {
+    const displayName = pin.pinDisplayName || pin.pin;
+    const overrideDirection = normalizePinDirection(cellOverrides[pin.pin] ?? cellOverrides[displayName]);
+    if (overrideDirection) {
+      directions[displayName] = {
+        direction: overrideDirection,
+        source: "override"
+      };
+    } else {
+      directions[displayName] = inferPinDirection(pin.pin);
+    }
+  }
+  return directions;
+}
+
+function applyNodePropertyOverrides(node, overrides) {
+  const propertyOverride = overrides.nodeProperties[node.id];
+  if (!propertyOverride) {
+    return;
+  }
+
+  for (const key of ["label", "title", "subtitle", "gateKind", "inferenceSource"]) {
+    if (propertyOverride[key] !== undefined && propertyOverride[key] !== "") {
+      node[key] = String(propertyOverride[key]);
+    }
+  }
+}
+
+function normalizeGraphOverrides(overrides) {
+  return {
+    nodeProperties: overrides?.nodeProperties || {},
+    cellPinDirections: overrides?.cellPinDirections || {}
+  };
+}
+
+function normalizePinDirection(value) {
+  if (value === "input" || value === "output") {
+    return value;
+  }
+  return null;
+}
+
+function createImplicitDriver(module, graph, addNode, net, overrides) {
   const constant = isConstantNet(net);
   const kind = constant ? "constant" : "implicit";
   const node = addNode({
@@ -159,6 +211,7 @@ function createImplicitDriver(module, graph, addNode, net) {
     order: -1,
     ref: { name: net, displayName: getNetDisplayName(module, net) }
   });
+  applyNodePropertyOverrides(node, overrides);
 
   if (!constant) {
     graph.diagnostics.push({

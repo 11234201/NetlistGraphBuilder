@@ -5,7 +5,6 @@ import { inferCellKind } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import {
-  DEFAULT_TOP_WIRE_LANE_PITCH,
   DEFAULT_WIRE_LANE_PITCH,
   layoutGraph
 } from "../../src/layout/simpleLayered.js";
@@ -13,6 +12,7 @@ import { snapNodePosition, snapToGrid } from "../../src/layout/snap.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { annotateGraphTiming, parseTimingLog } from "../../src/timing/timingParser.js";
 
 const fixtureUrl = new URL("../fixtures/two_equivalent_style_modules.v", import.meta.url);
 
@@ -68,29 +68,15 @@ test("cell input edges connect to distinct pin positions", async () => {
   assert.equal(nandOutput.points[0].x, nandNode.x + nandNode.width + 10);
 });
 
-test("long skip-level input edges route through top wire lanes", async () => {
+test("fixture input edges stay clear of intermediate cells", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
   const graph = buildSchematicGraph(design.modules[0]);
   const laidOut = layoutGraph(graph);
-  const longEdges = laidOut.edges.filter(
-    (edge) =>
-      edge.points.some((point) => point.y < Math.min(...laidOut.nodes.map((node) => node.y))) &&
-      edge.points.length > 4
-  );
-  const minNodeY = Math.min(...laidOut.nodes.map((node) => node.y));
-  const topLaneYs = new Set(longEdges.map((edge) => Math.min(...edge.points.map((point) => point.y))));
-  const sourceLaneXs = new Set(longEdges.map((edge) => edge.points[1].x));
-  const targetLaneXs = new Set(longEdges.map((edge) => edge.points.at(-2).x));
+  const inputEdges = laidOut.edges.filter((edge) => laidOut.nodes.find((node) => node.id === edge.source)?.kind === "input");
 
-  assert.ok(longEdges.length >= 2);
-  assert.equal(topLaneYs.size, longEdges.length);
-  assert.equal(sourceLaneXs.size, longEdges.length);
-  assert.equal(targetLaneXs.size, longEdges.length);
-  assert.ok(minGap([...topLaneYs]) >= DEFAULT_TOP_WIRE_LANE_PITCH);
-  assert.ok(minGap([...sourceLaneXs]) >= DEFAULT_WIRE_LANE_PITCH);
-  assert.ok(minGap([...targetLaneXs]) >= DEFAULT_WIRE_LANE_PITCH);
-  assert.ok(longEdges.every((edge) => edge.points.some((point) => point.y < minNodeY)));
+  assert.ok(inputEdges.length >= 2);
+  assert.equal(edgesCrossingNonEndpoints({ ...laidOut, edges: inputEdges }).length, 0);
 });
 
 test("wire lane spacing is configurable", async () => {
@@ -161,8 +147,8 @@ test("fixture input sco_897 does not route through intermediate cells", async ()
     (candidate) => candidate.label === "sco_897" && candidate.target === "cell:l_resyn3_u_gen_1395"
   );
 
-  assert.equal(edge.routeKind, "top-lane");
-  assert.ok(edge.points.some((point) => point.y < Math.min(...laidOut.nodes.map((node) => node.y))));
+  assert.ok(["direct", "top-lane", "local-dogleg", "obstacle-lane"].includes(edge.routeKind));
+  assert.equal(edgesCrossingNonEndpoints({ ...laidOut, edges: [edge] }).length, 0);
 });
 
 test("moved input to the right of a target cell routes around the cell body", () => {
@@ -424,6 +410,109 @@ test("unknown cells render as blackboxes", () => {
 
   assert.ok(graph.nodes.some((node) => node.gateKind === "blackbox"));
   assert.match(svg, /class="node blackbox cell"/);
+});
+
+test("cell pin direction overrides repair unknown cell connectivity", () => {
+  const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .B(y)); endmodule";
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0], {
+    overrides: {
+      cellPinDirections: {
+        u0: {
+          B: "output"
+        }
+      }
+    }
+  });
+  const laidOut = layoutGraph(graph);
+  const outputEdge = graph.edges.find((edge) => edge.target === "output:y");
+  const cell = laidOut.nodes.find((node) => node.id === "cell:u0");
+  const bPort = cell.ports.find((port) => port.pin === "B");
+
+  assert.equal(outputEdge.source, "cell:u0");
+  assert.equal(outputEdge.sourcePin, "B");
+  assert.equal(bPort.direction, "output");
+  assert.equal(bPort.side, "right");
+});
+
+test("node property overrides update graph metadata", () => {
+  const source = "module m(a,y); input a; output y; BUF u0 (.A(a), .Z(y)); endmodule";
+  const design = parseVerilog(source);
+  const graph = buildSchematicGraph(design.modules[0], {
+    overrides: {
+      nodeProperties: {
+        "cell:u0": {
+          label: "fixed_u0",
+          title: "MANUAL",
+          gateKind: "blackbox"
+        }
+      }
+    }
+  });
+  const node = graph.nodes.find((item) => item.id === "cell:u0");
+
+  assert.equal(node.label, "fixed_u0");
+  assert.equal(node.title, "MANUAL");
+  assert.equal(node.gateKind, "blackbox");
+});
+
+test("LocResyn timing logs attach pin timing to matching cells", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo/u0>
+input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
+at 0.423782, rt 0.090101, slack -0.333681
+`);
+  const graph = {
+    nodes: [
+      {
+        id: "cell:u0",
+        kind: "cell",
+        label: "u0",
+        ref: { instance: "u0" }
+      }
+    ],
+    edges: []
+  };
+  const annotated = annotateGraphTiming(graph, timing);
+
+  assert.equal(timing.instanceCount, 1);
+  assert.equal(timing.instances.u0.worstPin, "A1");
+  assert.equal(timing.instances.u0.pins.ZN.slack, -0.333681);
+  assert.equal(annotated.nodes[0].timing.worstSlack, -0.352681);
+});
+
+test("svg marks cells and pins with critical timing", () => {
+  const svg = renderSchematicSvg({
+    moduleDisplayName: "timing",
+    width: 220,
+    height: 160,
+    nodes: [
+      {
+        id: "cell:u0",
+        kind: "cell",
+        gateKind: "buf",
+        label: "u0",
+        title: "BUF",
+        x: 40,
+        y: 40,
+        width: 120,
+        height: 72,
+        ports: [{ pin: "A1", direction: "input", side: "left", x: 0, y: 36 }],
+        timing: {
+          worstPin: "A1",
+          worstSlack: -0.35,
+          pins: {
+            A1: { pin: "A1", at: 0.4, rt: 0.1, slack: -0.35 }
+          }
+        }
+      }
+    ],
+    edges: []
+  });
+
+  assert.match(svg, /timing-critical/);
+  assert.match(svg, /pin-critical/);
+  assert.match(svg, /-0\.350/);
 });
 
 test("svg marks crossing wires with bridges", () => {

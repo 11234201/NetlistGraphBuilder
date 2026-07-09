@@ -5,6 +5,7 @@ import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
+import { annotateGraphTiming, parseTimingLog } from "../timing/timingParser.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 
 const state = {
@@ -16,12 +17,15 @@ const state = {
   selectedNodeId: null,
   nodePositions: new Map(),
   nodeSizes: new Map(),
+  graphOverrides: createEmptyGraphOverrides(),
+  timing: null,
   calibrationMode: false,
   layoutPolicy: cloneLayoutPolicy(DEFAULT_LAYOUT_POLICY)
 };
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
+  timingInput: document.querySelector("#timingInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
@@ -38,6 +42,7 @@ const elements = {
 };
 
 elements.fileInput.addEventListener("change", handleFileChange);
+elements.timingInput.addEventListener("change", handleTimingFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
@@ -61,12 +66,28 @@ async function handleFileChange(event) {
   loadDesign(text, file.name);
 }
 
+async function handleTimingFileChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  const text = await file.text();
+  state.timing = parseTimingLog(text);
+  if (state.currentModule) {
+    rerenderPreservingView(state.selectedNodeId);
+    renderStats();
+  }
+  setStatus(`Loaded timing ${file.name}: ${state.timing.instanceCount} instance(s)`);
+}
+
 function loadDesign(source, label) {
   try {
     state.design = parseVerilog(source);
     state.selectedNodeId = null;
     state.nodePositions = new Map();
     state.nodeSizes = new Map();
+    state.graphOverrides = createEmptyGraphOverrides();
+    state.timing = null;
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -109,6 +130,7 @@ function selectModule(moduleName) {
   elements.moduleSelect.value = module.name;
   state.nodePositions = new Map();
   state.nodeSizes = new Map();
+  state.graphOverrides = createEmptyGraphOverrides();
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -119,7 +141,10 @@ function selectModule(moduleName) {
 }
 
 function renderCurrentModuleGraph() {
-  const sourceGraph = buildSchematicGraph(state.currentModule);
+  const sourceGraph = annotateGraphTiming(
+    buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
+    state.timing
+  );
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
   state.graph = layoutGraph(sourceGraph, {
@@ -186,6 +211,7 @@ function renderStats() {
     ["Nets", graph.stats.nets],
     ["Cells", graph.stats.cells],
     ["Assigns", graph.stats.assigns],
+    ["Timing inst", state.timing?.instanceCount || 0],
     ["Graph nodes", graph.nodes.length],
     ["Graph edges", graph.edges.length]
   ]);
@@ -206,8 +232,10 @@ function renderSelection(node) {
     ["Cell type", node.subtitle || "-"],
     ["Inference", node.inferenceSource || "-"]
   ];
-  elements.details.innerHTML = `${statsRows(lines)}${renderNodeSizeControls(node)}`;
+  elements.details.innerHTML = `${statsRows(lines)}${renderTimingDetails(node)}${renderAdjustControls(node)}`;
   bindNodeSizeControls(node);
+  bindNodePropertyControls(node);
+  bindPinDirectionControls(node);
 }
 
 function renderDiagnostics() {
@@ -237,14 +265,43 @@ function statsRows(rows) {
     .join("");
 }
 
-function renderNodeSizeControls(node) {
+function renderTimingDetails(node) {
+  if (!node.timing) {
+    return "";
+  }
+
+  const rows = Object.values(node.timing.pins)
+    .sort((left, right) => left.pin.localeCompare(right.pin))
+    .map(
+      (pin) =>
+        `<tr><td>${escapeHtml(pin.pin)}</td><td>${formatNumber(pin.at)}</td><td>${formatNumber(pin.rt)}</td><td>${formatNumber(pin.slack)}</td></tr>`
+    )
+    .join("");
+  return `<div class="timing-list">
+    <dl class="stats-list">${statsRows([
+      ["Worst pin", node.timing.worstPin || "-"],
+      ["Worst slack", formatNumber(node.timing.worstSlack)]
+    ])}</dl>
+    <table class="timing-table">
+      <thead><tr><th>Pin</th><th>AT</th><th>RT</th><th>Slack</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderAdjustControls(node) {
   if (!state.calibrationMode) {
     return "";
   }
 
+  return `${renderNodeSizeControls(node)}${renderNodePropertyControls(node)}${renderPinDirectionControls(node)}`;
+}
+
+function renderNodeSizeControls(node) {
   const width = Math.round(node.width);
   const height = Math.round(node.height);
-  return `<div class="size-controls" aria-label="Node size controls">
+  return `<div class="adjust-section size-controls" aria-label="Node size controls">
+    <h3>Size</h3>
     <label>
       <span>Width</span>
       <input id="nodeWidthInput" type="number" min="24" max="420" step="1" value="${width}">
@@ -254,6 +311,53 @@ function renderNodeSizeControls(node) {
       <input id="nodeHeightInput" type="number" min="12" max="260" step="1" value="${height}">
     </label>
     <button id="resetNodeSizeButton" class="mini-button" type="button">Reset size</button>
+  </div>`;
+}
+
+function renderNodePropertyControls(node) {
+  const values = {
+    label: node.label || "",
+    title: node.title || "",
+    subtitle: node.subtitle || "",
+    gateKind: node.gateKind || "",
+    inferenceSource: node.inferenceSource || ""
+  };
+  return `<div class="adjust-section property-controls" aria-label="Node property controls">
+    <h3>Properties</h3>
+    ${Object.entries(values)
+      .map(
+        ([key, value]) => `<label>
+          <span>${escapeHtml(key)}</span>
+          <input data-node-property="${escapeHtml(key)}" value="${escapeHtml(value)}">
+        </label>`
+      )
+      .join("")}
+    <button id="resetNodePropertiesButton" class="mini-button" type="button">Reset properties</button>
+  </div>`;
+}
+
+function renderPinDirectionControls(node) {
+  if (node.kind !== "cell") {
+    return "";
+  }
+
+  const rows = (node.ref?.pins || [])
+    .map((pin) => {
+      const pinName = pin.pinDisplayName || pin.pin;
+      const direction = node.pinDirections?.[pinName]?.direction || "input";
+      return `<label class="pin-direction-row">
+        <span>${escapeHtml(pinName)}</span>
+        <select data-cell-pin="${escapeHtml(pin.pin)}" data-cell-pin-label="${escapeHtml(pinName)}">
+          <option value="input"${direction === "input" ? " selected" : ""}>input</option>
+          <option value="output"${direction === "output" ? " selected" : ""}>output</option>
+        </select>
+      </label>`;
+    })
+    .join("");
+  return `<div class="adjust-section pin-direction-controls" aria-label="Pin direction controls">
+    <h3>Pin directions</h3>
+    ${rows}
+    <button id="resetPinDirectionsButton" class="mini-button" type="button">Reset pin directions</button>
   </div>`;
 }
 
@@ -284,6 +388,45 @@ function bindNodeSizeControls(node) {
   });
 }
 
+function bindNodePropertyControls(node) {
+  if (!state.calibrationMode) {
+    return;
+  }
+
+  for (const input of elements.details.querySelectorAll("[data-node-property]")) {
+    input.addEventListener("change", () => {
+      updateNodeProperty(node.id, input.dataset.nodeProperty, input.value);
+    });
+  }
+
+  elements.details.querySelector("#resetNodePropertiesButton")?.addEventListener("click", () => {
+    delete state.graphOverrides.nodeProperties[node.id];
+    rerenderPreservingView(node.id);
+    setStatus(`${node.label}: properties reset`);
+  });
+}
+
+function bindPinDirectionControls(node) {
+  if (!state.calibrationMode || node.kind !== "cell") {
+    return;
+  }
+
+  for (const select of elements.details.querySelectorAll("[data-cell-pin]")) {
+    select.addEventListener("change", () => {
+      updateCellPinDirection(node, select.dataset.cellPin, select.value);
+    });
+  }
+
+  elements.details.querySelector("#resetPinDirectionsButton")?.addEventListener("click", () => {
+    const instance = getNodeInstance(node);
+    if (instance) {
+      delete state.graphOverrides.cellPinDirections[instance];
+    }
+    rerenderPreservingView(node.id);
+    setStatus(`${node.label}: pin directions reset`);
+  });
+}
+
 function updateNodeSize(nodeId, size) {
   const node = state.graph?.nodes.find((item) => item.id === nodeId);
   if (!node) {
@@ -302,6 +445,40 @@ function updateNodeSize(nodeId, size) {
   state.nodeSizes.set(nodeId, nextSize);
   rerenderPreservingView(nodeId);
   setStatus(`${node.label}: width=${nextSize.width}, height=${nextSize.height}`);
+}
+
+function updateNodeProperty(nodeId, property, value) {
+  const node = state.graph?.nodes.find((item) => item.id === nodeId);
+  if (!node || !isEditableNodeProperty(property)) {
+    return;
+  }
+  const trimmed = String(value ?? "").trim();
+  if (!state.graphOverrides.nodeProperties[nodeId]) {
+    state.graphOverrides.nodeProperties[nodeId] = {};
+  }
+  if (trimmed === "") {
+    delete state.graphOverrides.nodeProperties[nodeId][property];
+  } else {
+    state.graphOverrides.nodeProperties[nodeId][property] = trimmed;
+  }
+  if (Object.keys(state.graphOverrides.nodeProperties[nodeId]).length === 0) {
+    delete state.graphOverrides.nodeProperties[nodeId];
+  }
+  rerenderPreservingView(nodeId);
+  setStatus(`${node.label}: ${property} updated`);
+}
+
+function updateCellPinDirection(node, pinName, direction) {
+  const instance = getNodeInstance(node);
+  if (!instance || (direction !== "input" && direction !== "output")) {
+    return;
+  }
+  if (!state.graphOverrides.cellPinDirections[instance]) {
+    state.graphOverrides.cellPinDirections[instance] = {};
+  }
+  state.graphOverrides.cellPinDirections[instance][pinName] = direction;
+  rerenderPreservingView(node.id);
+  setStatus(`${node.label}.${pinName}: ${direction}`);
 }
 
 function rerenderPreservingView(selectedNodeId) {
@@ -446,17 +623,18 @@ function toggleCalibrationMode() {
 }
 
 function resetLayoutOverrides() {
-  if (state.nodePositions.size === 0 && state.nodeSizes.size === 0) {
+  if (state.nodePositions.size === 0 && state.nodeSizes.size === 0 && countGraphOverrides() === 0) {
     return;
   }
 
   const selectedNode = state.selectedNodeId;
   state.nodePositions = new Map();
   state.nodeSizes = new Map();
+  state.graphOverrides = createEmptyGraphOverrides();
   renderCurrentModuleGraph();
   setSelectedNode(selectedNode);
   applyTransform();
-  setStatus("Layout overrides cleared");
+  setStatus("Adjust overrides cleared");
 }
 
 function saveLayoutGolden() {
@@ -467,7 +645,8 @@ function saveLayoutGolden() {
   const diff = compareLayoutGraphs(state.autoGraph, state.graph);
   const golden = createLayoutGolden(state.graph, {
     layoutOptions: {
-      layoutPolicy: state.layoutPolicy
+      layoutPolicy: state.layoutPolicy,
+      graphOverrides: state.graphOverrides
     },
     svgSnapshot: renderSchematicSvg(state.graph)
   });
@@ -486,7 +665,8 @@ function updateCalibrationControls() {
   elements.adjustLayoutButton.classList.toggle("is-active", state.calibrationMode);
   elements.adjustLayoutButton.setAttribute("aria-pressed", String(state.calibrationMode));
   elements.saveGoldenButton.disabled = !state.graph;
-  elements.resetLayoutButton.disabled = state.nodePositions.size === 0 && state.nodeSizes.size === 0;
+  elements.resetLayoutButton.disabled =
+    state.nodePositions.size === 0 && state.nodeSizes.size === 0 && countGraphOverrides() === 0;
   renderSelection(state.graph?.nodes.find((item) => item.id === state.selectedNodeId) || null);
 }
 
@@ -528,6 +708,35 @@ function getSvg() {
 
 function setStatus(message) {
   elements.status.textContent = message;
+}
+
+function isEditableNodeProperty(property) {
+  return ["label", "title", "subtitle", "gateKind", "inferenceSource"].includes(property);
+}
+
+function getNodeInstance(node) {
+  return node.ref?.instance || (node.id.startsWith("cell:") ? node.id.slice("cell:".length) : null);
+}
+
+function countGraphOverrides() {
+  return (
+    Object.keys(state.graphOverrides.nodeProperties).length +
+    Object.keys(state.graphOverrides.cellPinDirections).length
+  );
+}
+
+function createEmptyGraphOverrides() {
+  return {
+    nodeProperties: {},
+    cellPinDirections: {}
+  };
+}
+
+function formatNumber(value) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+  return Number(value).toFixed(3);
 }
 
 function escapeHtml(value) {
