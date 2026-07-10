@@ -531,9 +531,10 @@ input {
 
 .wire-hit-area {
   fill: none;
-  stroke: transparent;
+  stroke: #000;
+  stroke-opacity: 0;
   stroke-width: 14;
-  pointer-events: stroke;
+  pointer-events: all;
   cursor: pointer;
 }
 

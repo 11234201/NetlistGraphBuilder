@@ -177,7 +177,6 @@ function renderCurrentModuleGraph() {
     nodeSizes: state.nodeSizes
   });
   elements.mount.innerHTML = renderSchematicSvg(state.graph);
-  bindSchematicEvents();
   updateCalibrationControls();
 }
 
@@ -199,23 +198,6 @@ function handleWireSpacingChange(event) {
   setSelectedNode(selectedNode);
   applyTransform();
   setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
-}
-
-function bindSchematicEvents() {
-  const svg = getSvg();
-  svg?.addEventListener("click", (event) => {
-    const node = event.target.closest("[data-node-id]");
-    if (node) {
-      setSelectedNode(node.dataset.nodeId);
-      return;
-    }
-    const edge = event.target.closest("[data-edge-id]");
-    if (edge) {
-      setSelectedNet(edge.dataset.net);
-      return;
-    }
-    setSelectedNode(null);
-  });
 }
 
 function setSelectedNode(nodeId) {
@@ -607,6 +589,18 @@ function handlePointerDown(event) {
     startNodeDrag(event, nodeElement.dataset.nodeId);
     return;
   }
+  if (nodeElement) {
+    setSelectedNode(nodeElement.dataset.nodeId);
+    return;
+  }
+
+  const edgeElement = event.target.closest("[data-edge-id]");
+  if (edgeElement) {
+    setSelectedNet(edgeElement.dataset.net);
+    return;
+  }
+
+  setSelectedNode(null);
 
   elements.canvas.setPointerCapture(event.pointerId);
   elements.canvas.classList.add("is-panning");
