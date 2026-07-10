@@ -479,6 +479,7 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.equal(timing.instances.u0.worstPin, "A1");
   assert.equal(timing.instances.u0.pins.ZN.slack, -0.333681);
   assert.equal(annotated.nodes[0].timing.worstSlack, -0.352681);
+  assert.equal(annotated.nodes[0].timing.badge.label, "A1 slack -0.353");
 });
 
 test("LocResyn timing parser accepts angle-bracket pin names", () => {
@@ -491,6 +492,44 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.deepEqual(Object.keys(timing.instances.u0.pins), ["A1", "ZN"]);
   assert.equal(timing.instances.u0.pins.A1.at, 0.453205);
   assert.equal(timing.instances.u0.worstPin, "A1");
+});
+
+test("timing badge choices select the cell corner metric", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo/u0>
+input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
+at 0.423782, rt 0.090101, slack -0.333681
+`);
+  const graph = {
+    moduleDisplayName: "timing",
+    width: 220,
+    height: 160,
+    nodes: [
+      {
+        id: "cell:u0",
+        kind: "cell",
+        gateKind: "buf",
+        label: "u0",
+        title: "BUF",
+        x: 40,
+        y: 40,
+        width: 120,
+        height: 72,
+        ports: [],
+        ref: { instance: "u0" }
+      }
+    ],
+    edges: []
+  };
+  const annotated = annotateGraphTiming(graph, timing, {
+    badgeChoices: {
+      u0: { pin: "ZN", metric: "at" }
+    }
+  });
+  const svg = renderSchematicSvg(annotated);
+
+  assert.equal(annotated.nodes[0].timing.badge.label, "ZN at 0.424");
+  assert.match(svg, /ZN at 0\.424/);
 });
 
 test("svg marks cells and pins with critical timing", () => {

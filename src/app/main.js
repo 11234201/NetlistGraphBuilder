@@ -19,6 +19,7 @@ const state = {
   nodeSizes: new Map(),
   graphOverrides: createEmptyGraphOverrides(),
   timing: null,
+  timingBadgeChoices: {},
   calibrationMode: false,
   layoutPolicy: cloneLayoutPolicy(DEFAULT_LAYOUT_POLICY)
 };
@@ -73,6 +74,7 @@ async function handleTimingFileChange(event) {
   }
   const text = await file.text();
   state.timing = parseTimingLog(text);
+  state.timingBadgeChoices = {};
   if (state.currentModule) {
     rerenderPreservingView(state.selectedNodeId);
     renderStats();
@@ -88,6 +90,7 @@ function loadDesign(source, label) {
     state.nodeSizes = new Map();
     state.graphOverrides = createEmptyGraphOverrides();
     state.timing = null;
+    state.timingBadgeChoices = {};
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -131,6 +134,7 @@ function selectModule(moduleName) {
   state.nodePositions = new Map();
   state.nodeSizes = new Map();
   state.graphOverrides = createEmptyGraphOverrides();
+  state.timingBadgeChoices = {};
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -143,7 +147,8 @@ function selectModule(moduleName) {
 function renderCurrentModuleGraph() {
   const sourceGraph = annotateGraphTiming(
     buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
-    state.timing
+    state.timing,
+    { badgeChoices: state.timingBadgeChoices }
   );
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
@@ -233,6 +238,7 @@ function renderSelection(node) {
     ["Inference", node.inferenceSource || "-"]
   ];
   elements.details.innerHTML = `${statsRows(lines)}${renderTimingDetails(node)}${renderAdjustControls(node)}`;
+  bindTimingBadgeControls(node);
   bindNodeSizeControls(node);
   bindNodePropertyControls(node);
   bindPinDirectionControls(node);
@@ -269,24 +275,39 @@ function renderTimingDetails(node) {
   if (!node.timing) {
     return "";
   }
+  const instance = getNodeInstance(node);
+  const choice = state.timingBadgeChoices[instance] || {
+    pin: node.timing.badge?.pin,
+    metric: node.timing.badge?.metric
+  };
 
   const rows = Object.values(node.timing.pins)
     .sort((left, right) => left.pin.localeCompare(right.pin))
     .map(
       (pin) =>
-        `<tr><td>${escapeHtml(pin.pin)}</td><td>${formatNumber(pin.at)}</td><td>${formatNumber(pin.rt)}</td><td>${formatNumber(pin.slack)}</td></tr>`
+        `<tr><td>${escapeHtml(pin.pin)}</td>${renderTimingChoiceCell(pin, "at", choice)}${renderTimingChoiceCell(pin, "rt", choice)}${renderTimingChoiceCell(pin, "slack", choice)}</tr>`
     )
     .join("");
   return `<div class="timing-list">
     <dl class="stats-list">${statsRows([
       ["Worst pin", node.timing.worstPin || "-"],
-      ["Worst slack", formatNumber(node.timing.worstSlack)]
+      ["Worst slack", formatNumber(node.timing.worstSlack)],
+      ["Badge", node.timing.badge?.label || "-"]
     ])}</dl>
     <table class="timing-table">
       <thead><tr><th>Pin</th><th>AT</th><th>RT</th><th>Slack</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badge</button>
   </div>`;
+}
+
+function renderTimingChoiceCell(pin, metric, choice) {
+  const checked = choice?.pin === pin.pin && choice?.metric === metric ? " checked" : "";
+  return `<td><label class="timing-choice">
+    <input type="radio" name="timingBadgeChoice" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked}>
+    <span>${formatNumber(pin[metric])}</span>
+  </label></td>`;
 }
 
 function renderAdjustControls(node) {
@@ -388,6 +409,30 @@ function bindNodeSizeControls(node) {
   });
 }
 
+function bindTimingBadgeControls(node) {
+  if (!node.timing) {
+    return;
+  }
+
+  for (const input of elements.details.querySelectorAll("[data-timing-pin]")) {
+    input.addEventListener("change", () => {
+      if (!input.checked) {
+        return;
+      }
+      updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric);
+    });
+  }
+
+  elements.details.querySelector("#resetTimingBadgeButton")?.addEventListener("click", () => {
+    const instance = getNodeInstance(node);
+    if (instance) {
+      delete state.timingBadgeChoices[instance];
+    }
+    rerenderPreservingView(node.id);
+    setStatus(`${node.label}: timing badge reset to worst slack`);
+  });
+}
+
 function bindNodePropertyControls(node) {
   if (!state.calibrationMode) {
     return;
@@ -479,6 +524,16 @@ function updateCellPinDirection(node, pinName, direction) {
   state.graphOverrides.cellPinDirections[instance][pinName] = direction;
   rerenderPreservingView(node.id);
   setStatus(`${node.label}.${pinName}: ${direction}`);
+}
+
+function updateTimingBadgeChoice(node, pin, metric) {
+  const instance = getNodeInstance(node);
+  if (!instance || !["at", "rt", "slack"].includes(metric)) {
+    return;
+  }
+  state.timingBadgeChoices[instance] = { pin, metric };
+  rerenderPreservingView(node.id);
+  setStatus(`${node.label}: badge ${pin} ${metric}`);
 }
 
 function rerenderPreservingView(selectedNodeId) {
@@ -646,7 +701,8 @@ function saveLayoutGolden() {
   const golden = createLayoutGolden(state.graph, {
     layoutOptions: {
       layoutPolicy: state.layoutPolicy,
-      graphOverrides: state.graphOverrides
+      graphOverrides: state.graphOverrides,
+      timingBadgeChoices: state.timingBadgeChoices
     },
     svgSnapshot: renderSchematicSvg(state.graph)
   });
@@ -745,6 +801,10 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
 }
 
 function cssEscape(value) {

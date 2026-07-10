@@ -35,10 +35,11 @@ export function parseTimingLog(text) {
   };
 }
 
-export function annotateGraphTiming(graph, timing) {
+export function annotateGraphTiming(graph, timing, options = {}) {
   if (!timing?.instances) {
     return graph;
   }
+  const badgeChoices = options.badgeChoices || {};
 
   return {
     ...graph,
@@ -48,8 +49,33 @@ export function annotateGraphTiming(graph, timing) {
       }
       const instance = node.ref?.instance || node.label;
       const nodeTiming = timing.instances[instance];
-      return nodeTiming ? { ...node, timing: nodeTiming } : node;
+      return nodeTiming ? { ...node, timing: annotateTimingBadge(nodeTiming, badgeChoices[instance]) } : node;
     })
+  };
+}
+
+function annotateTimingBadge(timing, choice) {
+  const badge = resolveBadgeChoice(timing, choice) || resolveBadgeChoice(timing, {
+    pin: timing.worstPin,
+    metric: "slack"
+  });
+  return {
+    ...timing,
+    badge
+  };
+}
+
+function resolveBadgeChoice(timing, choice) {
+  const pin = timing.pins?.[choice?.pin];
+  const metric = choice?.metric;
+  if (!pin || !["at", "rt", "slack"].includes(metric) || !Number.isFinite(pin[metric])) {
+    return null;
+  }
+  return {
+    pin: pin.pin,
+    metric,
+    value: pin[metric],
+    label: `${pin.pin} ${metric} ${formatTimingValue(pin[metric])}`
   };
 }
 
@@ -83,4 +109,8 @@ function summarizePins(pins) {
 function getLeafInstance(fullPath) {
   const parts = String(fullPath).split("/");
   return parts[parts.length - 1] || fullPath;
+}
+
+function formatTimingValue(value) {
+  return Number(value).toFixed(3);
 }

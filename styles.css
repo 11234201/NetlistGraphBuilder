@@ -270,6 +270,23 @@ input {
   text-align: left;
 }
 
+.timing-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: 100%;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.timing-choice input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .mini-button {
   height: 30px;
   border: 1px solid var(--line);

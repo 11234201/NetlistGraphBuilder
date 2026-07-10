@@ -187,11 +187,23 @@ function getTimingClass(node) {
 }
 
 function renderTimingBadge(node, x, y, width) {
-  if (!node.timing || node.timing.worstSlack === null) {
+  const badge = getTimingBadge(node);
+  if (!badge) {
     return "";
   }
-  const slack = formatTimingValue(node.timing.worstSlack);
-  return `<text class="timing-badge" x="${round(x + width - 6)}" y="${round(y + 14)}" text-anchor="end">${escapeHtml(slack)}</text>`;
+  return `<text class="timing-badge" x="${round(x + width - 6)}" y="${round(y + 14)}" text-anchor="end">${escapeHtml(badge.label)}</text>`;
+}
+
+function getTimingBadge(node) {
+  if (node.timing?.badge) {
+    return node.timing.badge;
+  }
+  if (Number.isFinite(node.timing?.worstSlack)) {
+    return {
+      label: formatTimingValue(node.timing.worstSlack)
+    };
+  }
+  return null;
 }
 
 function formatTimingValue(value) {
