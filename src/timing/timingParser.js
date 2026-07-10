@@ -1,6 +1,6 @@
 const NUMBER_PATTERN = "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?";
 const PIN_PATTERN = new RegExp(
-  `pin\\s+([^,\\s]+)\\s*,\\s*at\\s+(${NUMBER_PATTERN})\\s*,\\s*rt\\s+(${NUMBER_PATTERN})\\s*,\\s*slack\\s+(${NUMBER_PATTERN})`,
+  `pin\\s*(?:<\\s*([^>\\s]+)\\s*>|([^,\\s]+))\\s*,\\s*at\\s+(${NUMBER_PATTERN})\\s*,\\s*rt\\s+(${NUMBER_PATTERN})\\s*,\\s*slack\\s+(${NUMBER_PATTERN})`,
   "gi"
 );
 const INSTANCE_PATTERN = /\[D\]\[LocResyn\]\s+inst\s*<([^>]+)>/gi;
@@ -57,12 +57,12 @@ function parsePins(block) {
   const pins = {};
   PIN_PATTERN.lastIndex = 0;
   for (const match of block.matchAll(PIN_PATTERN)) {
-    const pin = match[1];
+    const pin = match[1] || match[2];
     pins[pin] = {
       pin,
-      at: Number(match[2]),
-      rt: Number(match[3]),
-      slack: Number(match[4])
+      at: Number(match[3]),
+      rt: Number(match[4]),
+      slack: Number(match[5])
     };
   }
   return pins;

@@ -481,6 +481,18 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.equal(annotated.nodes[0].timing.worstSlack, -0.352681);
 });
 
+test("LocResyn timing parser accepts angle-bracket pin names", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo/u0>
+input timing message: pin<A1>, at 0.453205, rt 0.100524, slack -0.352681 pin <ZN>,
+at 0.423782, rt 0.090101, slack -0.333681
+`);
+
+  assert.deepEqual(Object.keys(timing.instances.u0.pins), ["A1", "ZN"]);
+  assert.equal(timing.instances.u0.pins.A1.at, 0.453205);
+  assert.equal(timing.instances.u0.worstPin, "A1");
+});
+
 test("svg marks cells and pins with critical timing", () => {
   const svg = renderSchematicSvg({
     moduleDisplayName: "timing",
