@@ -19,6 +19,8 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   state.design = { modules: [] };
   state.timing = { instanceCount: 1 };
   state.selectedNodeId = "cell:u0";
+  state.viewMode = "fanin";
+  state.coneRootNodeId = "cell:u0";
   state.nodePositions.set("cell:u0", { x: 10, y: 20 });
   state.timingBadgeChoices.u0 = [{ pin: "Z", metric: "at" }];
   state.timingBadgePositions.u0 = "top-left";
@@ -32,6 +34,8 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   resetModuleWorkspace(state);
   assert.equal(state.nodePositions.size, 0);
   assert.deepEqual(state.graphOverrides, { nodeProperties: {}, cellPinDirections: {} });
+  assert.equal(state.viewMode, "whole");
+  assert.equal(state.coneRootNodeId, null);
   assert.equal(state.timing.instanceCount, 1);
 
   resetDesignWorkspace(state);

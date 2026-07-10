@@ -170,6 +170,51 @@ input {
   color: #263241;
 }
 
+.view-mode-control {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.view-mode-control button {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-right-width: 0;
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.view-mode-control button:last-child {
+  border-right-width: 1px;
+}
+
+.view-mode-control button.is-active {
+  border-color: var(--accent);
+  background: #dff1f3;
+  color: var(--accent-strong);
+}
+
+.view-mode-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cone-depth-field {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  color: var(--muted);
+}
+
+.cone-depth-field input {
+  width: 72px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+}
+
 .search-panel {
   position: relative;
   overflow: visible;

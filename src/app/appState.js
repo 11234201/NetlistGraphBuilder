@@ -2,11 +2,15 @@ export function createAppState(layoutPolicy) {
   return {
     design: null,
     currentModule: null,
+    fullGraph: null,
     autoGraph: null,
     graph: null,
     transform: { x: 0, y: 0, scale: 1 },
     selectedNodeId: null,
     selectedNet: null,
+    viewMode: "whole",
+    coneRootNodeId: null,
+    coneDepth: 3,
     searchIndex: [],
     searchResults: [],
     activeSearchResult: -1,
@@ -34,6 +38,8 @@ export function resetModuleWorkspace(state) {
   state.nodePositions = new Map();
   state.nodeSizes = new Map();
   state.graphOverrides = createEmptyGraphOverrides();
+  state.viewMode = "whole";
+  state.coneRootNodeId = null;
   resetTimingPresentation(state);
 }
 

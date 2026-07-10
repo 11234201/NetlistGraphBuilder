@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeGraphCone } from "../../src/analysis/graphCone.js";
+import { analyzeGraphCone, createConeGraph } from "../../src/analysis/graphCone.js";
 import { inspectGraphNet, inspectGraphNode } from "../../src/analysis/graphInspector.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -72,4 +72,14 @@ test("graph cone terminates on cycles and keeps shortest node depth", () => {
   assert.deepEqual(cone.nodeIds, ["a", "b", "c"]);
   assert.equal(cone.depthByNode.get("a"), 0);
   assert.equal(cone.depthByNode.get("c"), 2);
+});
+
+test("cone graph keeps graph metadata while filtering nodes and edges", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const cone = createConeGraph(graph, "output:y1", { direction: "fanin", maxDepth: 2 });
+
+  assert.equal(cone.moduleName, "m");
+  assert.deepEqual(new Set(cone.nodes.map((node) => node.id)), new Set(["cell:u0", "cell:u1", "output:y1"]));
+  assert.ok(cone.edges.every((edge) => cone.nodes.some((node) => node.id === edge.source)));
+  assert.deepEqual(cone.view, { mode: "fanin", rootNodeId: "output:y1", maxDepth: 2 });
 });

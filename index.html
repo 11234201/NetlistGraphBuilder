@@ -38,6 +38,18 @@
 
       <section class="workspace">
         <aside class="side-panel">
+          <section class="panel-section view-panel">
+            <h2>View</h2>
+            <div class="view-mode-control" role="group" aria-label="Schematic view mode">
+              <button id="wholeViewButton" type="button">Whole</button>
+              <button id="faninViewButton" type="button">Fanin</button>
+              <button id="fanoutViewButton" type="button">Fanout</button>
+            </div>
+            <label class="cone-depth-field" for="coneDepthInput">
+              <span>Depth</span>
+              <input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3">
+            </label>
+          </section>
           <section class="panel-section search-panel">
             <label class="search-label" for="searchInput">Search</label>
             <div class="search-box">

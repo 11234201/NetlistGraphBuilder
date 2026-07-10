@@ -46,6 +46,22 @@ export function analyzeGraphCone(graph, startNodeId, options = {}) {
   };
 }
 
+export function createConeGraph(graph, startNodeId, options = {}) {
+  const cone = analyzeGraphCone(graph, startNodeId, options);
+  const nodeIds = new Set(cone.nodeIds);
+  const edgeIds = new Set(cone.edgeIds);
+  return {
+    ...graph,
+    nodes: (graph?.nodes || []).filter((node) => nodeIds.has(node.id)),
+    edges: (graph?.edges || []).filter((edge) => edgeIds.has(edge.id)),
+    view: {
+      mode: cone.direction,
+      rootNodeId: startNodeId,
+      maxDepth: cone.maxDepth
+    }
+  };
+}
+
 function buildAdjacency(edges, direction) {
   const adjacency = new Map();
   for (const edge of edges) {

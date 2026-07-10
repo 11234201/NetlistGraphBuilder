@@ -1,6 +1,7 @@
 ﻿import { parseVerilog } from "../parser/verilogParser.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
+import { createConeGraph } from "../analysis/graphCone.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
@@ -44,6 +45,10 @@ const elements = {
   searchInput: document.querySelector("#searchInput"),
   searchClearButton: document.querySelector("#searchClearButton"),
   searchResults: document.querySelector("#searchResults"),
+  wholeViewButton: document.querySelector("#wholeViewButton"),
+  faninViewButton: document.querySelector("#faninViewButton"),
+  fanoutViewButton: document.querySelector("#fanoutViewButton"),
+  coneDepthInput: document.querySelector("#coneDepthInput"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
@@ -68,6 +73,10 @@ elements.searchInput.addEventListener("keydown", handleSearchKeydown);
 elements.searchInput.addEventListener("focus", handleSearchInput);
 elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
+elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
+elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
+elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
+elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
@@ -157,11 +166,12 @@ function selectModule(moduleName) {
   renderStats();
   renderDiagnostics();
   renderSelection(null);
+  updateViewControls();
   applyTransform();
 }
 
 function renderCurrentModuleGraph() {
-  const sourceGraph = annotateGraphTiming(
+  state.fullGraph = annotateGraphTiming(
     buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
     state.timing,
     {
@@ -169,6 +179,12 @@ function renderCurrentModuleGraph() {
       badgePositions: state.timingBadgePositions
     }
   );
+  const sourceGraph = state.viewMode === "whole"
+    ? state.fullGraph
+    : createConeGraph(state.fullGraph, state.coneRootNodeId, {
+        direction: state.viewMode,
+        maxDepth: state.coneDepth
+      });
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
   state.graph = layoutGraph(sourceGraph, {
@@ -178,6 +194,42 @@ function renderCurrentModuleGraph() {
   });
   elements.mount.innerHTML = renderSchematicSvg(state.graph);
   updateCalibrationControls();
+  updateViewControls();
+}
+
+function setViewMode(mode) {
+  if (mode !== "whole") {
+    const rootNodeId = state.selectedNodeId || state.coneRootNodeId;
+    if (!rootNodeId) {
+      setStatus(`Select a node before opening the ${mode} cone`);
+      return;
+    }
+    state.coneRootNodeId = rootNodeId;
+  }
+  state.viewMode = mode;
+  renderCurrentModuleGraph();
+  state.transform = { x: 0, y: 0, scale: 1 };
+  setSelectedNode(state.coneRootNodeId);
+  applyTransform();
+  setStatus(mode === "whole" ? "Whole module view" : `${mode} cone depth ${state.coneDepth}`);
+}
+
+function handleConeDepthChange(event) {
+  state.coneDepth = clamp(Math.floor(Number(event.target.value) || 1), 1, 99);
+  elements.coneDepthInput.value = String(state.coneDepth);
+  if (state.viewMode !== "whole") {
+    setViewMode(state.viewMode);
+  }
+}
+
+function updateViewControls() {
+  const hasRoot = Boolean(state.selectedNodeId || state.coneRootNodeId);
+  elements.wholeViewButton.classList.toggle("is-active", state.viewMode === "whole");
+  elements.faninViewButton.classList.toggle("is-active", state.viewMode === "fanin");
+  elements.fanoutViewButton.classList.toggle("is-active", state.viewMode === "fanout");
+  elements.faninViewButton.disabled = !hasRoot;
+  elements.fanoutViewButton.disabled = !hasRoot;
+  elements.coneDepthInput.disabled = state.viewMode === "whole";
 }
 
 function handleWireSpacingChange(event) {
@@ -210,6 +262,7 @@ function setSelectedNode(nodeId) {
   }
   const node = state.graph?.nodes.find((item) => item.id === nodeId) || null;
   renderSelection(node);
+  updateViewControls();
 }
 
 function setSelectedNet(netName) {
@@ -222,6 +275,7 @@ function setSelectedNet(netName) {
     }
   }
   renderNetSelection(netName);
+  updateViewControls();
 }
 
 function clearSchematicSelection() {
@@ -408,13 +462,13 @@ function renderSelection(node) {
   elements.details.className = "details-block";
   const instance = getNodeInstance(node);
   const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
-  elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.graph, node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+  elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
   bindSelectionControls(node);
 }
 
 function renderNetSelection(netName) {
   elements.details.className = "details-block";
-  elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.graph, netName));
+  elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.fullGraph || state.graph, netName));
 }
 
 function renderDiagnostics() {

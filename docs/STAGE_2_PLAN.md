@@ -17,7 +17,7 @@
 | R2-1 | 搜索索引 | 可搜索 module、port、net、instance、cell type，并定位到图中对象 | 已完成 |
 | R2-2 | 对象选择与属性面板 | 点击对象后展示 gate/cell type、instance、pin/net、driver/load、推断来源 | 已完成 |
 | R2-3 | Fanin/Fanout 图分析 | 支持 immediate、transitive 和 depth-limited fanin/fanout | 已完成 |
-| R2-4 | Cone 视图模式 | whole module、fanin cone、fanout cone 可切换 | 计划中 |
+| R2-4 | Cone 视图模式 | whole module、fanin cone、fanout cone 可切换 | 已完成 |
 | R2-5 | Assign/Alias 规范化 | alias 可折叠，并可切换显示 alias | 计划中 |
 | R2-6 | 导出 SVG | 当前 module/cone 视图可导出为离线 SVG | 计划中 |
 | R2-7 | 手动布局校准与临时 golden | 节点可拖动，保存 layout golden，并能对比自动布局与 golden 差异 | 已完成 |
