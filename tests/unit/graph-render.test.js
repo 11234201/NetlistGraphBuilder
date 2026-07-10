@@ -814,6 +814,7 @@ test("svg marks crossing wires with bridges", () => {
     ]
   });
 
+  assert.match(svg, /wire-hit-area/);
   assert.match(svg, /wire-bridge-cutout/);
   assert.match(svg, /wire-bridge/);
 });

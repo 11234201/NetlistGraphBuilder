@@ -22,6 +22,7 @@ function renderEdge(edge, crossings) {
   const bridges = crossings.map(renderWireBridge).join("");
 
   return `<g class="edge" data-edge-id="${escapeAttr(edge.id)}" data-net="${escapeAttr(edge.net)}">
+    <path class="wire-hit-area" d="${path}"></path>
     <path class="wire" d="${path}"></path>
     ${bridges}
     <text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>

@@ -529,6 +529,14 @@ input {
   stroke-width: 1.6;
 }
 
+.wire-hit-area {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
 .wire-bridge {
   fill: none;
   stroke: var(--wire);
