@@ -20,6 +20,7 @@ const state = {
   graphOverrides: createEmptyGraphOverrides(),
   timing: null,
   timingBadgeChoices: {},
+  timingBadgePositions: {},
   calibrationMode: false,
   layoutPolicy: cloneLayoutPolicy(DEFAULT_LAYOUT_POLICY)
 };
@@ -75,6 +76,7 @@ async function handleTimingFileChange(event) {
   const text = await file.text();
   state.timing = parseTimingLog(text);
   state.timingBadgeChoices = {};
+  state.timingBadgePositions = {};
   if (state.currentModule) {
     rerenderPreservingView(state.selectedNodeId);
     renderStats();
@@ -91,6 +93,7 @@ function loadDesign(source, label) {
     state.graphOverrides = createEmptyGraphOverrides();
     state.timing = null;
     state.timingBadgeChoices = {};
+    state.timingBadgePositions = {};
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -135,6 +138,7 @@ function selectModule(moduleName) {
   state.nodeSizes = new Map();
   state.graphOverrides = createEmptyGraphOverrides();
   state.timingBadgeChoices = {};
+  state.timingBadgePositions = {};
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -148,7 +152,10 @@ function renderCurrentModuleGraph() {
   const sourceGraph = annotateGraphTiming(
     buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
     state.timing,
-    { badgeChoices: state.timingBadgeChoices }
+    {
+      badgeChoices: state.timingBadgeChoices,
+      badgePositions: state.timingBadgePositions
+    }
   );
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
@@ -295,8 +302,27 @@ function renderTimingDetails(node) {
       <thead><tr><th>Pin</th><th>AT</th><th>RT</th><th>Slack</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    ${renderTimingBadgePosition(node)}
     <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badges</button>
   </div>`;
+}
+
+function renderTimingBadgePosition(node) {
+  const position = node.timing.badgePosition || "bottom-right";
+  const options = [
+    ["bottom-right", "Bottom right"],
+    ["top-right", "Top right"],
+    ["bottom-left", "Bottom left"],
+    ["top-left", "Top left"]
+  ];
+  return `<label class="timing-position-control">
+    <span>Badge position</span>
+    <select id="timingBadgePositionSelect">
+      ${options
+        .map(([value, label]) => `<option value="${value}"${position === value ? " selected" : ""}>${label}</option>`)
+        .join("")}
+    </select>
+  </label>`;
 }
 
 function renderTimingChoiceCell(pin, metric, choices) {
@@ -419,6 +445,10 @@ function bindTimingBadgeControls(node) {
     return;
   }
 
+  elements.details.querySelector("#timingBadgePositionSelect")?.addEventListener("change", (event) => {
+    updateTimingBadgePosition(node, event.target.value);
+  });
+
   for (const input of elements.details.querySelectorAll("[data-timing-pin]")) {
     input.addEventListener("change", () => {
       if (!input.checked) {
@@ -437,6 +467,16 @@ function bindTimingBadgeControls(node) {
     rerenderPreservingView(node.id);
     setStatus(`${node.label}: timing badges reset to output AT and slack`);
   });
+}
+
+function updateTimingBadgePosition(node, position) {
+  const instance = getNodeInstance(node);
+  if (!instance || !["top-left", "top-right", "bottom-left", "bottom-right"].includes(position)) {
+    return;
+  }
+  state.timingBadgePositions[instance] = position;
+  rerenderPreservingView(node.id);
+  setStatus(`${node.label}: timing badges ${position}`);
 }
 
 function bindNodePropertyControls(node) {
@@ -714,7 +754,8 @@ function saveLayoutGolden() {
     layoutOptions: {
       layoutPolicy: state.layoutPolicy,
       graphOverrides: state.graphOverrides,
-      timingBadgeChoices: state.timingBadgeChoices
+      timingBadgeChoices: state.timingBadgeChoices,
+      timingBadgePositions: state.timingBadgePositions
     },
     svgSnapshot: renderSchematicSvg(state.graph)
   });

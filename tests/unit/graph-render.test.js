@@ -494,6 +494,35 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.equal(timing.instances.u0.worstPin, "A1");
 });
 
+test("LocResyn timing uses the longest hierarchical instance suffix", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0>
+input timing message: pin Z, at 0.818539, rt 0.813487, slack -0.005052
+`);
+  const graph = {
+    nodes: [
+      {
+        id: "cell:leaf",
+        kind: "cell",
+        label: "GNUWA_DYNAMIC_ADDER_gen_1234_0",
+        ref: { instance: "GNUWA_DYNAMIC_ADDER_gen_1234_0" }
+      },
+      {
+        id: "cell:hierarchical",
+        kind: "cell",
+        label: "\\u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0",
+        ref: { instance: "u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0" }
+      }
+    ],
+    edges: []
+  };
+  const annotated = annotateGraphTiming(graph, timing);
+
+  assert.equal(timing.records[0].fullPath, "LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0");
+  assert.equal(annotated.nodes[0].timing, undefined);
+  assert.equal(annotated.nodes[1].timing.pins.Z.slack, -0.005052);
+});
+
 test("timing badge choices select the cell corner metric", () => {
   const timing = parseTimingLog(`[D][LocResyn] inst
 <LoResynHinst_of_module_demo/u0>
@@ -590,9 +619,48 @@ at 0.423782, rt 0.090101, slack -0.333681
     ]
   );
   assert.match(renderSchematicSvg(defaults), /ZN at 0\.424 slack -0\.334/);
+  assert.equal(defaults.nodes[0].timing.badgePosition, "bottom-right");
+  assert.match(renderSchematicSvg(defaults), /timing-badge-bottom-right[^>]*y="104"[^>]*text-anchor="end"/);
   assert.match(renderSchematicSvg(selected), /A1 at 0\.453/);
   assert.match(renderSchematicSvg(selected), /ZN slack -0\.334/);
   assert.doesNotMatch(renderSchematicSvg(hidden), /timing-badge/);
+});
+
+test("timing badge position supports every cell corner", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo/u0>
+input timing message: pin ZN, at 0.423782, rt 0.090101, slack -0.333681
+`);
+  const graph = {
+    moduleDisplayName: "timing",
+    width: 220,
+    height: 160,
+    nodes: [{
+      id: "cell:u0",
+      kind: "cell",
+      gateKind: "buf",
+      label: "u0",
+      title: "BUF",
+      x: 40,
+      y: 40,
+      width: 120,
+      height: 72,
+      ports: [],
+      ref: { instance: "u0" }
+    }],
+    edges: []
+  };
+  const topLeft = annotateGraphTiming(graph, timing, {
+    badgeChoices: { u0: [{ pin: "ZN", metric: "at" }] },
+    badgePositions: { u0: "top-left" }
+  });
+  const bottomLeft = annotateGraphTiming(graph, timing, {
+    badgeChoices: { u0: [{ pin: "ZN", metric: "at" }] },
+    badgePositions: { u0: "bottom-left" }
+  });
+
+  assert.match(renderSchematicSvg(topLeft), /timing-badge-top-left[^>]*x="46"[^>]*y="54"[^>]*text-anchor="start"/);
+  assert.match(renderSchematicSvg(bottomLeft), /timing-badge-bottom-left[^>]*x="46"[^>]*y="104"[^>]*text-anchor="start"/);
 });
 
 test("svg marks cells and pins with critical timing", () => {

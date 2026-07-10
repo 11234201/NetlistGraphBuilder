@@ -4,10 +4,12 @@ const PIN_PATTERN = new RegExp(
   "gi"
 );
 const INSTANCE_PATTERN = /\[D\]\[LocResyn\]\s+inst\s*<([^>]+)>/gi;
+const BADGE_POSITIONS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
 
 export function parseTimingLog(text) {
   const source = String(text || "");
   const instances = {};
+  const records = [];
   const matches = [...source.matchAll(INSTANCE_PATTERN)];
 
   for (const [index, match] of matches.entries()) {
@@ -19,19 +21,22 @@ export function parseTimingLog(text) {
     const pins = parsePins(block);
     const summary = summarizePins(pins);
 
-    instances[instance] = {
+    const record = {
       instance,
       fullPath,
       pins,
       worstPin: summary.worstPin,
       worstSlack: summary.worstSlack
     };
+    records.push(record);
+    instances[instance] = record;
   }
 
   return {
     kind: "locresyn-timing",
-    instanceCount: Object.keys(instances).length,
-    instances
+    instanceCount: records.length,
+    instances,
+    records
   };
 }
 
@@ -40,6 +45,8 @@ export function annotateGraphTiming(graph, timing, options = {}) {
     return graph;
   }
   const badgeChoices = options.badgeChoices || {};
+  const badgePositions = options.badgePositions || {};
+  const timingByNodeId = matchTimingRecords(graph.nodes, timing);
 
   return {
     ...graph,
@@ -48,13 +55,55 @@ export function annotateGraphTiming(graph, timing, options = {}) {
         return node;
       }
       const instance = node.ref?.instance || node.label;
-      const nodeTiming = timing.instances[instance];
-      return nodeTiming ? { ...node, timing: annotateTimingBadges(nodeTiming, badgeChoices[instance], node) } : node;
+      const nodeTiming = timingByNodeId.get(node.id);
+      return nodeTiming
+        ? { ...node, timing: annotateTimingBadges(nodeTiming, badgeChoices[instance], badgePositions[instance], node) }
+        : node;
     })
   };
 }
 
-function annotateTimingBadges(timing, choices, node) {
+function matchTimingRecords(nodes, timing) {
+  const matches = new Map();
+  const ambiguousNodeIds = new Set();
+  const cells = nodes
+    .filter((node) => node.kind === "cell")
+    .map((node) => ({
+      node,
+      instance: String(node.ref?.instance || node.label || "").replace(/^\\/, "")
+    }))
+    .filter((item) => item.instance);
+  const records = Array.isArray(timing.records)
+    ? timing.records
+    : Object.values(timing.instances || {});
+
+  for (const record of records) {
+    const fullPath = String(record.fullPath || record.instance || "").replace(/^\\/, "");
+    const candidates = cells.filter(({ instance }) =>
+      fullPath === instance || fullPath.endsWith(`/${instance}`)
+    );
+    if (candidates.length === 0) {
+      continue;
+    }
+    const longestLength = Math.max(...candidates.map(({ instance }) => instance.length));
+    const longest = candidates.filter(({ instance }) => instance.length === longestLength);
+    if (longest.length !== 1) {
+      continue;
+    }
+    const nodeId = longest[0].node.id;
+    if (matches.has(nodeId)) {
+      matches.delete(nodeId);
+      ambiguousNodeIds.add(nodeId);
+      continue;
+    }
+    if (!ambiguousNodeIds.has(nodeId)) {
+      matches.set(nodeId, record);
+    }
+  }
+  return matches;
+}
+
+function annotateTimingBadges(timing, choices, position, node) {
   const requestedChoices = choices === undefined
     ? getDefaultBadgeChoices(timing, node)
     : normalizeBadgeChoices(choices);
@@ -64,7 +113,8 @@ function annotateTimingBadges(timing, choices, node) {
   return {
     ...timing,
     badges,
-    badge: badges[0] || null
+    badge: badges[0] || null,
+    badgePosition: BADGE_POSITIONS.has(position) ? position : "bottom-right"
   };
 }
 

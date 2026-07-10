@@ -146,7 +146,7 @@ function renderGateNode(node) {
   const gateKind = node.gateKind || "blackbox";
   const ports = renderGatePorts(node, x, y, width, gateKind);
   const timingClass = getTimingClass(node);
-  const timingBadge = renderTimingBadge(node, x, y, width);
+  const timingBadge = renderTimingBadge(node, x, y, width, height);
 
   return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
@@ -186,16 +186,21 @@ function getTimingClass(node) {
   return node.timing.worstSlack < 0 ? " timing-critical" : " timing-annotated";
 }
 
-function renderTimingBadge(node, x, y, width) {
+function renderTimingBadge(node, x, y, width, height) {
   const lines = getTimingBadgeLines(node);
   if (lines.length === 0) {
     return "";
   }
-  const badgeX = round(x + width - 6);
+  const position = node.timing?.badgePosition || "bottom-right";
+  const isLeft = position.endsWith("left");
+  const isBottom = position.startsWith("bottom");
+  const badgeX = round(isLeft ? x + 6 : x + width - 6);
+  const badgeY = round(isBottom ? y + height - 8 - (lines.length - 1) * 11 : y + 14);
+  const anchor = isLeft ? "start" : "end";
   const tspans = lines
     .map((line, index) => `<tspan x="${badgeX}" dy="${index === 0 ? 0 : 11}">${escapeHtml(line)}</tspan>`)
     .join("");
-  return `<text class="timing-badge" x="${badgeX}" y="${round(y + 14)}" text-anchor="end">${tspans}</text>`;
+  return `<text class="timing-badge timing-badge-${position}" x="${badgeX}" y="${badgeY}" text-anchor="${anchor}">${tspans}</text>`;
 }
 
 function getTimingBadgeLines(node) {
