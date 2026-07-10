@@ -12,7 +12,8 @@ import { snapNodePosition, snapToGrid } from "../../src/layout/snap.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
-import { annotateGraphTiming, parseTimingLog } from "../../src/timing/timingParser.js";
+import { annotateGraphTiming } from "../../src/timing/timingAnnotation.js";
+import { parseTimingLog } from "../../src/timing/timingParser.js";
 
 const fixtureUrl = new URL("../fixtures/two_equivalent_style_modules.v", import.meta.url);
 

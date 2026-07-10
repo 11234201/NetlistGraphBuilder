@@ -33,10 +33,11 @@ examples/             示例网表和后续示例输出
 src/parser/           Verilog structural parser
 src/netlist/          Netlist IR 和图模型
 src/infer/            无 lib cell/pin 推断规则
-src/layout/           布局适配层，长期以 ELK.js 为主
+src/layout/           布局策略、节点几何和正交路由
 src/render/           SVG gate symbol 和连线渲染
-src/ui/               离线网页 UI
-src/app/              应用装配入口
+src/timing/           时序日志解析和 graph annotation
+src/ui/               无状态面板渲染和 DOM 绑定
+src/app/              应用状态和装配入口
 tests/fixtures/       测试网表夹具
 tests/unit/           单元测试
 vendor/               离线 vendored 第三方前端库

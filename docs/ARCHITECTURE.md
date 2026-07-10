@@ -112,6 +112,8 @@ adjust 模式的 snap 计算属于 UI/layout 边界：UI 负责把 pointer movem
 Layout policy:
 
 - `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
+- `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
+- `src/layout/simpleLayered.js` owns layer assignment, topology ordering, alignment passes, and orthogonal routing.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
 - The policy separates spacing from feature switches:
   - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
@@ -134,6 +136,15 @@ Layout policy:
 
 渲染层不解析网表，不计算 cone。
 
+### `src/timing/`
+
+负责可选时序信息的解析和图注释，保持两个边界：
+
+- `timingParser.js` 只把 LocResyn 文本解析为 timing records，不读取 graph。
+- `timingAnnotation.js` 负责层级 instance 后缀匹配、默认 badge 选择和 graph node 注释，不解析原始文本。
+
+时序记录保留完整 instance path；图注释采用最长层级后缀匹配，避免同叶子名 cell 误匹配。
+
 ### `src/ui/`
 
 负责用户交互。
@@ -149,6 +160,19 @@ Layout policy:
 - 导出。
 
 UI 通过明确 API 调用 parser/netlist/layout/render，不直接操作内部临时结构。
+
+当前面板边界：
+
+- `timingPanel.js` 负责时序表格、badge 多选和位置控件的 HTML/DOM 绑定。
+- `adjustPanel.js` 负责节点尺寸、属性和 pin direction 控件的 HTML/DOM 绑定。
+- `html.js` 只提供共享的安全转义和数值/definition list 格式化。
+
+面板模块不持有全局应用状态；状态更新通过回调交给 `src/app/main.js`。
+
+### `src/app/`
+
+- `appState.js` 定义应用初始状态，以及 design/module/timing 三种生命周期 reset。
+- `main.js` 负责应用编排、状态变更、布局/渲染调用和画布交互，不内嵌面板 HTML。
 
 ## 数据模型原则
 

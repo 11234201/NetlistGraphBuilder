@@ -5,25 +5,27 @@ import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
-import { annotateGraphTiming, parseTimingLog } from "../timing/timingParser.js";
+import { annotateGraphTiming } from "../timing/timingAnnotation.js";
+import { parseTimingLog } from "../timing/timingParser.js";
+import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
+import { renderDefinitionRows as statsRows } from "../ui/html.js";
+import {
+  bindTimingPanel,
+  getTimingBadgeChoices,
+  isTimingBadgePosition,
+  renderTimingPanel,
+  updateTimingBadgeChoices
+} from "../ui/timingPanel.js";
+import {
+  createAppState,
+  createEmptyGraphOverrides,
+  resetDesignWorkspace,
+  resetModuleWorkspace,
+  resetTimingPresentation
+} from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 
-const state = {
-  design: null,
-  currentModule: null,
-  autoGraph: null,
-  graph: null,
-  transform: { x: 0, y: 0, scale: 1 },
-  selectedNodeId: null,
-  nodePositions: new Map(),
-  nodeSizes: new Map(),
-  graphOverrides: createEmptyGraphOverrides(),
-  timing: null,
-  timingBadgeChoices: {},
-  timingBadgePositions: {},
-  calibrationMode: false,
-  layoutPolicy: cloneLayoutPolicy(DEFAULT_LAYOUT_POLICY)
-};
+const state = createAppState(DEFAULT_LAYOUT_POLICY);
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -75,8 +77,7 @@ async function handleTimingFileChange(event) {
   }
   const text = await file.text();
   state.timing = parseTimingLog(text);
-  state.timingBadgeChoices = {};
-  state.timingBadgePositions = {};
+  resetTimingPresentation(state);
   if (state.currentModule) {
     rerenderPreservingView(state.selectedNodeId);
     renderStats();
@@ -87,13 +88,7 @@ async function handleTimingFileChange(event) {
 function loadDesign(source, label) {
   try {
     state.design = parseVerilog(source);
-    state.selectedNodeId = null;
-    state.nodePositions = new Map();
-    state.nodeSizes = new Map();
-    state.graphOverrides = createEmptyGraphOverrides();
-    state.timing = null;
-    state.timingBadgeChoices = {};
-    state.timingBadgePositions = {};
+    resetDesignWorkspace(state);
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -134,11 +129,7 @@ function selectModule(moduleName) {
   }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
-  state.nodePositions = new Map();
-  state.nodeSizes = new Map();
-  state.graphOverrides = createEmptyGraphOverrides();
-  state.timingBadgeChoices = {};
-  state.timingBadgePositions = {};
+  resetModuleWorkspace(state);
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -244,11 +235,10 @@ function renderSelection(node) {
     ["Cell type", node.subtitle || "-"],
     ["Inference", node.inferenceSource || "-"]
   ];
-  elements.details.innerHTML = `${statsRows(lines)}${renderTimingDetails(node)}${renderAdjustControls(node)}`;
-  bindTimingBadgeControls(node);
-  bindNodeSizeControls(node);
-  bindNodePropertyControls(node);
-  bindPinDirectionControls(node);
+  const instance = getNodeInstance(node);
+  const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
+  elements.details.innerHTML = `${statsRows(lines)}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+  bindSelectionControls(node);
 }
 
 function renderDiagnostics() {
@@ -272,250 +262,53 @@ function renderDiagnostics() {
   }
 }
 
-function statsRows(rows) {
-  return rows
-    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(value)}</code></dd>`)
-    .join("");
-}
-
-function renderTimingDetails(node) {
-  if (!node.timing) {
-    return "";
-  }
+function bindSelectionControls(node) {
   const instance = getNodeInstance(node);
-  const choices = getTimingBadgeChoices(node, instance);
-
-  const rows = Object.values(node.timing.pins)
-    .sort((left, right) => left.pin.localeCompare(right.pin))
-    .map(
-      (pin) =>
-        `<tr><td>${escapeHtml(pin.pin)}</td>${renderTimingChoiceCell(pin, "at", choices)}${renderTimingChoiceCell(pin, "rt", choices)}${renderTimingChoiceCell(pin, "slack", choices)}</tr>`
-    )
-    .join("");
-  return `<div class="timing-list">
-    <dl class="stats-list">${statsRows([
-      ["Worst pin", node.timing.worstPin || "-"],
-      ["Worst slack", formatNumber(node.timing.worstSlack)],
-      ["Badges", node.timing.badges?.map((badge) => badge.label).join("; ") || "-"]
-    ])}</dl>
-    <table class="timing-table">
-      <thead><tr><th>Pin</th><th>AT</th><th>RT</th><th>Slack</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    ${renderTimingBadgePosition(node)}
-    <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badges</button>
-  </div>`;
-}
-
-function renderTimingBadgePosition(node) {
-  const position = node.timing.badgePosition || "bottom-right";
-  const options = [
-    ["bottom-right", "Bottom right"],
-    ["top-right", "Top right"],
-    ["bottom-left", "Bottom left"],
-    ["top-left", "Top left"]
-  ];
-  return `<label class="timing-position-control">
-    <span>Badge position</span>
-    <select id="timingBadgePositionSelect">
-      ${options
-        .map(([value, label]) => `<option value="${value}"${position === value ? " selected" : ""}>${label}</option>`)
-        .join("")}
-    </select>
-  </label>`;
-}
-
-function renderTimingChoiceCell(pin, metric, choices) {
-  const checked = choices.some((choice) => choice.pin === pin.pin && choice.metric === metric) ? " checked" : "";
-  return `<td><label class="timing-choice">
-    <input type="checkbox" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked}>
-    <span>${formatNumber(pin[metric])}</span>
-  </label></td>`;
-}
-
-function getTimingBadgeChoices(node, instance) {
-  if (Object.hasOwn(state.timingBadgeChoices, instance)) {
-    const saved = state.timingBadgeChoices[instance];
-    return Array.isArray(saved) ? saved : saved ? [saved] : [];
-  }
-  return (node.timing.badges || []).map(({ pin, metric }) => ({ pin, metric }));
-}
-
-function renderAdjustControls(node) {
-  if (!state.calibrationMode) {
-    return "";
-  }
-
-  return `${renderNodeSizeControls(node)}${renderNodePropertyControls(node)}${renderPinDirectionControls(node)}`;
-}
-
-function renderNodeSizeControls(node) {
-  const width = Math.round(node.width);
-  const height = Math.round(node.height);
-  return `<div class="adjust-section size-controls" aria-label="Node size controls">
-    <h3>Size</h3>
-    <label>
-      <span>Width</span>
-      <input id="nodeWidthInput" type="number" min="24" max="420" step="1" value="${width}">
-    </label>
-    <label>
-      <span>Height</span>
-      <input id="nodeHeightInput" type="number" min="12" max="260" step="1" value="${height}">
-    </label>
-    <button id="resetNodeSizeButton" class="mini-button" type="button">Reset size</button>
-  </div>`;
-}
-
-function renderNodePropertyControls(node) {
-  const values = {
-    label: node.label || "",
-    title: node.title || "",
-    subtitle: node.subtitle || "",
-    gateKind: node.gateKind || "",
-    inferenceSource: node.inferenceSource || ""
-  };
-  return `<div class="adjust-section property-controls" aria-label="Node property controls">
-    <h3>Properties</h3>
-    ${Object.entries(values)
-      .map(
-        ([key, value]) => `<label>
-          <span>${escapeHtml(key)}</span>
-          <input data-node-property="${escapeHtml(key)}" value="${escapeHtml(value)}">
-        </label>`
-      )
-      .join("")}
-    <button id="resetNodePropertiesButton" class="mini-button" type="button">Reset properties</button>
-  </div>`;
-}
-
-function renderPinDirectionControls(node) {
-  if (node.kind !== "cell") {
-    return "";
-  }
-
-  const rows = (node.ref?.pins || [])
-    .map((pin) => {
-      const pinName = pin.pinDisplayName || pin.pin;
-      const direction = node.pinDirections?.[pinName]?.direction || "input";
-      return `<label class="pin-direction-row">
-        <span>${escapeHtml(pinName)}</span>
-        <select data-cell-pin="${escapeHtml(pin.pin)}" data-cell-pin-label="${escapeHtml(pinName)}">
-          <option value="input"${direction === "input" ? " selected" : ""}>input</option>
-          <option value="output"${direction === "output" ? " selected" : ""}>output</option>
-        </select>
-      </label>`;
-    })
-    .join("");
-  return `<div class="adjust-section pin-direction-controls" aria-label="Pin direction controls">
-    <h3>Pin directions</h3>
-    ${rows}
-    <button id="resetPinDirectionsButton" class="mini-button" type="button">Reset pin directions</button>
-  </div>`;
-}
-
-function bindNodeSizeControls(node) {
-  if (!state.calibrationMode) {
-    return;
-  }
-
-  const widthInput = elements.details.querySelector("#nodeWidthInput");
-  const heightInput = elements.details.querySelector("#nodeHeightInput");
-  const resetButton = elements.details.querySelector("#resetNodeSizeButton");
-  widthInput?.addEventListener("input", () => {
-    updateNodeSize(node.id, {
-      width: widthInput.value,
-      height: heightInput?.value ?? node.height
-    });
-  });
-  heightInput?.addEventListener("input", () => {
-    updateNodeSize(node.id, {
-      width: widthInput?.value ?? node.width,
-      height: heightInput.value
-    });
-  });
-  resetButton?.addEventListener("click", () => {
-    state.nodeSizes.delete(node.id);
-    rerenderPreservingView(node.id);
-    setStatus(`${node.label}: size reset`);
-  });
-}
-
-function bindTimingBadgeControls(node) {
-  if (!node.timing) {
-    return;
-  }
-
-  elements.details.querySelector("#timingBadgePositionSelect")?.addEventListener("change", (event) => {
-    updateTimingBadgePosition(node, event.target.value);
-  });
-
-  for (const input of elements.details.querySelectorAll("[data-timing-pin]")) {
-    input.addEventListener("change", () => {
-      if (!input.checked) {
-        updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric, false);
-        return;
+  bindTimingPanel(elements.details, {
+    onPositionChange: (position) => updateTimingBadgePosition(node, position),
+    onBadgeToggle: (pin, metric, checked) =>
+      updateTimingBadgeChoice(node, pin, metric, checked),
+    onReset: () => {
+      if (instance) {
+        delete state.timingBadgeChoices[instance];
       }
-      updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric, true);
-    });
-  }
-
-  elements.details.querySelector("#resetTimingBadgeButton")?.addEventListener("click", () => {
-    const instance = getNodeInstance(node);
-    if (instance) {
-      delete state.timingBadgeChoices[instance];
+      rerenderPreservingView(node.id);
+      setStatus(`${node.label}: timing badges reset to output AT and slack`);
     }
-    rerenderPreservingView(node.id);
-    setStatus(`${node.label}: timing badges reset to output AT and slack`);
+  });
+
+  bindAdjustPanel(elements.details, node, state.calibrationMode, {
+    onSizeChange: (size) => updateNodeSize(node.id, size),
+    onResetSize: () => {
+      state.nodeSizes.delete(node.id);
+      rerenderPreservingView(node.id);
+      setStatus(`${node.label}: size reset`);
+    },
+    onPropertyChange: (property, value) => updateNodeProperty(node.id, property, value),
+    onResetProperties: () => {
+      delete state.graphOverrides.nodeProperties[node.id];
+      rerenderPreservingView(node.id);
+      setStatus(`${node.label}: properties reset`);
+    },
+    onPinDirectionChange: (pin, direction) => updateCellPinDirection(node, pin, direction),
+    onResetPinDirections: () => {
+      if (instance) {
+        delete state.graphOverrides.cellPinDirections[instance];
+      }
+      rerenderPreservingView(node.id);
+      setStatus(`${node.label}: pin directions reset`);
+    }
   });
 }
 
 function updateTimingBadgePosition(node, position) {
   const instance = getNodeInstance(node);
-  if (!instance || !["top-left", "top-right", "bottom-left", "bottom-right"].includes(position)) {
+  if (!instance || !isTimingBadgePosition(position)) {
     return;
   }
   state.timingBadgePositions[instance] = position;
   rerenderPreservingView(node.id);
   setStatus(`${node.label}: timing badges ${position}`);
-}
-
-function bindNodePropertyControls(node) {
-  if (!state.calibrationMode) {
-    return;
-  }
-
-  for (const input of elements.details.querySelectorAll("[data-node-property]")) {
-    input.addEventListener("change", () => {
-      updateNodeProperty(node.id, input.dataset.nodeProperty, input.value);
-    });
-  }
-
-  elements.details.querySelector("#resetNodePropertiesButton")?.addEventListener("click", () => {
-    delete state.graphOverrides.nodeProperties[node.id];
-    rerenderPreservingView(node.id);
-    setStatus(`${node.label}: properties reset`);
-  });
-}
-
-function bindPinDirectionControls(node) {
-  if (!state.calibrationMode || node.kind !== "cell") {
-    return;
-  }
-
-  for (const select of elements.details.querySelectorAll("[data-cell-pin]")) {
-    select.addEventListener("change", () => {
-      updateCellPinDirection(node, select.dataset.cellPin, select.value);
-    });
-  }
-
-  elements.details.querySelector("#resetPinDirectionsButton")?.addEventListener("click", () => {
-    const instance = getNodeInstance(node);
-    if (instance) {
-      delete state.graphOverrides.cellPinDirections[instance];
-    }
-    rerenderPreservingView(node.id);
-    setStatus(`${node.label}: pin directions reset`);
-  });
 }
 
 function updateNodeSize(nodeId, size) {
@@ -574,16 +367,11 @@ function updateCellPinDirection(node, pinName, direction) {
 
 function updateTimingBadgeChoice(node, pin, metric, checked) {
   const instance = getNodeInstance(node);
-  if (!instance || !["at", "rt", "slack"].includes(metric)) {
+  if (!instance) {
     return;
   }
-  const choices = getTimingBadgeChoices(node, instance).filter(
-    (choice) => choice.pin !== pin || choice.metric !== metric
-  );
-  if (checked) {
-    choices.push({ pin, metric });
-  }
-  state.timingBadgeChoices[instance] = choices;
+  const choices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
+  state.timingBadgeChoices[instance] = updateTimingBadgeChoices(choices, pin, metric, checked);
   rerenderPreservingView(node.id);
   setStatus(`${node.label}: ${checked ? "show" : "hide"} ${pin} ${metric}`);
 }
@@ -834,32 +622,6 @@ function countGraphOverrides() {
   );
 }
 
-function createEmptyGraphOverrides() {
-  return {
-    nodeProperties: {},
-    cellPinDirections: {}
-  };
-}
-
-function formatNumber(value) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-  return Number(value).toFixed(3);
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function escapeAttr(value) {
-  return escapeHtml(value);
-}
-
 function cssEscape(value) {
   if (globalThis.CSS?.escape) {
     return globalThis.CSS.escape(value);
@@ -889,12 +651,4 @@ function downloadJson(value, fileName) {
 
 function sanitizeFileName(value) {
   return String(value).replace(/[^A-Za-z0-9_.-]+/g, "_");
-}
-
-function cloneLayoutPolicy(policy) {
-  return {
-    name: policy.name,
-    spacing: { ...policy.spacing },
-    features: { ...policy.features }
-  };
 }
