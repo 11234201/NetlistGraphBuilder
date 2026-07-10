@@ -1,5 +1,6 @@
 ﻿import { parseVerilog } from "../parser/verilogParser.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
+import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
@@ -17,6 +18,7 @@ import {
   escapeHtml,
   renderDefinitionRows as statsRows
 } from "../ui/html.js";
+import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import {
   bindTimingPanel,
   getTimingBadgeChoices,
@@ -203,11 +205,16 @@ function bindSchematicEvents() {
   const svg = getSvg();
   svg?.addEventListener("click", (event) => {
     const node = event.target.closest("[data-node-id]");
-    if (!node) {
-      setSelectedNode(null);
+    if (node) {
+      setSelectedNode(node.dataset.nodeId);
       return;
     }
-    setSelectedNode(node.dataset.nodeId);
+    const edge = event.target.closest("[data-edge-id]");
+    if (edge) {
+      setSelectedNet(edge.dataset.net);
+      return;
+    }
+    setSelectedNode(null);
   });
 }
 
@@ -417,34 +424,15 @@ function renderSelection(node) {
   }
 
   elements.details.className = "details-block";
-  const lines = [
-    ["Kind", node.kind],
-    ["Label", node.label],
-    ["Gate", node.gateKind || node.title || "-"],
-    ["Cell type", node.subtitle || "-"],
-    ["Inference", node.inferenceSource || "-"]
-  ];
   const instance = getNodeInstance(node);
   const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
-  elements.details.innerHTML = `${statsRows(lines)}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+  elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.graph, node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
   bindSelectionControls(node);
 }
 
 function renderNetSelection(netName) {
-  const edges = state.graph?.edges.filter((edge) => edge.net === netName) || [];
-  const nodeById = new Map(state.graph?.nodes.map((node) => [node.id, node]) || []);
-  const drivers = uniqueLabels(edges.map((edge) => nodeById.get(edge.source)?.label));
-  const loads = uniqueLabels(edges.map((edge) => nodeById.get(edge.target)?.label));
-  const displayName = edges[0]?.label || netName;
-
   elements.details.className = "details-block";
-  elements.details.innerHTML = statsRows([
-    ["Kind", "net"],
-    ["Name", displayName],
-    ["Driver", drivers.join(", ") || "-"],
-    ["Loads", loads.join(", ") || "-"],
-    ["Fanout", edges.length]
-  ]);
+  elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.graph, netName));
 }
 
 function renderDiagnostics() {
@@ -819,10 +807,6 @@ function isEditableNodeProperty(property) {
 
 function getNodeInstance(node) {
   return node.ref?.instance || (node.id.startsWith("cell:") ? node.id.slice("cell:".length) : null);
-}
-
-function uniqueLabels(values) {
-  return [...new Set(values.filter(Boolean))];
 }
 
 function countGraphOverrides() {

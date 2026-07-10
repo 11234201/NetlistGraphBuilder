@@ -316,6 +316,47 @@ input {
   font-family: Consolas, "Courier New", monospace;
 }
 
+.connection-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.connection-section h3 {
+  margin: 0 0 8px;
+  color: #263241;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.connection-table-wrap {
+  overflow-x: auto;
+}
+
+.connection-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.connection-table th,
+.connection-table td {
+  padding: 4px 5px;
+  border-bottom: 1px solid #e5eaf0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.connection-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.connection-table code {
+  min-width: max-content;
+  white-space: nowrap;
+}
+
 .size-controls {
   display: grid;
   gap: 8px;
