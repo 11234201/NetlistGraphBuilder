@@ -152,7 +152,31 @@ export function buildSchematicGraph(module, options = {}) {
     }
   }
 
+  annotateGraphMetadata(graph, module);
+
   return graph;
+}
+
+function annotateGraphMetadata(graph, module) {
+  for (const node of graph.nodes) {
+    if (node.kind !== "cell") {
+      continue;
+    }
+    const outputNets = uniqueValues((node.ref?.pins || [])
+      .filter((pin) => {
+        const pinName = pin.pinDisplayName || pin.pin;
+        return node.pinDirections?.[pinName]?.direction === "output";
+      })
+      .map((pin) => pin.netDisplayName || getNetDisplayName(module, pin.net)));
+    const fanout = graph.edges.filter((edge) => edge.source === node.id).length;
+    node.metadata = {
+      cellType: node.subtitle || "-",
+      instance: node.label,
+      outputNets,
+      fanout
+    };
+    node.metadataText = `${node.metadata.cellType} | ${outputNets.join(", ") || "-"} | fo ${fanout}`;
+  }
 }
 
 function getCellPinDirections(cell, overrides) {
@@ -242,6 +266,10 @@ function createImplicitDriver(module, graph, addNode, net, overrides) {
 
 function isConstantNet(net) {
   return /^(\d+)?'[bdho][0-9a-fxz_]+$/i.test(net) || /^[01xz]$/i.test(net);
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 export function makeId(prefix, value) {

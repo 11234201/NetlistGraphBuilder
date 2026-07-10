@@ -703,6 +703,11 @@ input {
   fill: #475569;
 }
 
+.node-meta {
+  font-size: 8px;
+  fill: #687789;
+}
+
 .pin-bubble {
   fill: #ffffff;
   stroke: #111827;

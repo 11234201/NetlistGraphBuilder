@@ -65,7 +65,7 @@ Structural Verilog
 | R2-2 | 阶段 2 | 对象选择与属性面板增强 | gate/net 详情、pin/net 关系、driver/load 信息 | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-3 | 阶段 2 | Fanin/Fanout 分析与 cone view | immediate/transitive/depth-limited traversal、视图切换 | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-4 | 阶段 2 | Assign/Alias 规范化 | alias 折叠、显示切换、buf-like assign 处理 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-5 | 阶段 2 | 图中关键元信息 | cell type、instance、output net、fanout count | 计划中 | `docs/STAGE_2_PLAN.md` |
+| R2-5 | 阶段 2 | 图中关键元信息 | cell type、instance、output net、fanout count | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-6 | 阶段 2 | 导出 SVG | 当前 module/cone 视图离线 SVG 导出 | 计划中 | `docs/STAGE_2_PLAN.md` |
 | R2-7 | 阶段 2 | 手动布局校准与临时 golden | 节点拖动、保存 layout golden、对比自动布局与 golden 差异 | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-8 | 阶段 2 | Wire 可读性修正 | 局部优先 routing、pin 附近 net label、adjust snap 对齐 | 已完成 | `docs/STAGE_2_PLAN.md` |

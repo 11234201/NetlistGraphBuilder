@@ -149,7 +149,10 @@ function renderGateNode(node) {
   const timingClass = getTimingClass(node);
   const timingBadge = renderTimingBadge(node, x, y, width, height);
   const cellTitle = node.subtitle
-    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}`)}</title>`
+    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}`)}</title>`
+    : "";
+  const metadata = node.kind === "cell" && node.metadataText
+    ? `<text class="node-meta" x="${x + width / 2}" y="${y + height - 6}" text-anchor="middle">${escapeHtml(truncateText(node.metadataText, 34))}</text>`
     : "";
 
   return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
@@ -159,7 +162,13 @@ function renderGateNode(node) {
     ${timingBadge}
     <text class="gate-kind" x="${x + width / 2}" y="${y + 22}" text-anchor="middle">${escapeHtml(node.title || gateKind.toUpperCase())}</text>
     <text class="node-label" x="${x + width / 2}" y="${y + 42}" text-anchor="middle">${escapeHtml(node.label)}</text>
+    ${metadata}
   </g>`;
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "");
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 }
 
 function renderGatePorts(node, x, y, width, gateKind) {

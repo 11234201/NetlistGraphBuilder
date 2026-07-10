@@ -37,6 +37,21 @@ test("graph and svg render fixture module", async () => {
   assert.ok(graph.edges.some((edge) => edge.label === "sco_891"));
   assert.match(svg, /<svg class="schematic-svg"/);
   assert.match(svg, /l_resyn3_u_gen_1395/);
+  assert.match(svg, /class="node-meta"/);
+});
+
+test("cell metadata reports type, instance, output nets, and fanout", () => {
+  const source = "module m(a,y1,y2); input a; output y1; output y2; wire n; BUF u0 (.A(a), .Z(n)); BUF u1 (.A(n), .Z(y1)); BUF u2 (.A(n), .Z(y2)); endmodule";
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const node = graph.nodes.find((item) => item.id === "cell:u0");
+
+  assert.deepEqual(node.metadata, {
+    cellType: "BUF",
+    instance: "u0",
+    outputNets: ["n"],
+    fanout: 2
+  });
+  assert.equal(node.metadataText, "BUF | n | fo 2");
 });
 
 test("all fixture modules can be converted to renderable graphs", async () => {
@@ -453,7 +468,8 @@ test("unknown cells render as blackboxes", () => {
   assert.equal(node.title, "AOI21");
   assert.match(svg, /class="node blackbox cell"/);
   assert.match(svg, />AOI21<\/text>/);
-  assert.match(svg, /<title>AOI21X1APBH08HVT30P140: u0<\/title>/);
+  assert.match(svg, /<title>AOI21X1APBH08HVT30P140: u0;/);
+  assert.match(svg, /AOI21X1APBH08HVT30P140 \| y \| fo 1/);
 });
 
 test("cell pin direction overrides repair unknown cell connectivity", () => {
