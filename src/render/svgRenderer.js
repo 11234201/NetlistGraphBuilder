@@ -151,7 +151,7 @@ function renderGateNode(node) {
   const cellTitle = node.subtitle
     ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}`)}</title>`
     : "";
-  const metadata = node.kind === "cell" && node.metadataText
+  const metadata = node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0
     ? `<text class="node-meta" x="${x + width / 2}" y="${y + height - 6}" text-anchor="middle">${escapeHtml(truncateText(node.metadataText, 34))}</text>`
     : "";
 

@@ -64,6 +64,33 @@ test("cell metadata reports type, instance, output nets, and fanout", () => {
   assert.equal(node.metadataText, "BUF | n | fo 2");
 });
 
+test("visible timing badges suppress compact cell metadata", () => {
+  const node = {
+    id: "cell:u0",
+    kind: "cell",
+    gateKind: "buf",
+    label: "u0",
+    title: "BUF",
+    subtitle: "BUFX1",
+    metadataText: "BUFX1 | y | fo 1",
+    x: 20,
+    y: 20,
+    width: 120,
+    height: 72,
+    ports: [],
+    timing: {
+      worstSlack: -0.1,
+      badgePosition: "bottom-right",
+      badges: [{ pin: "Z", metric: "slack", value: -0.1 }]
+    }
+  };
+  const svg = renderSchematicSvg({ moduleDisplayName: "m", width: 180, height: 120, nodes: [node], edges: [] });
+
+  assert.match(svg, /timing-badge/);
+  assert.doesNotMatch(svg, /class="node-meta"/);
+  assert.match(svg, /BUFX1 \| y \| fo 1/);
+});
+
 test("all fixture modules can be converted to renderable graphs", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
