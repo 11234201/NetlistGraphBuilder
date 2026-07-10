@@ -122,14 +122,37 @@ function annotateTimingBadges(timing, choices, position, node) {
 }
 
 function getDefaultBadgeChoices(timing, node) {
+  const choices = findInputTimingPins(timing, node).map((pin) => ({
+    pin,
+    metric: "at"
+  }));
   const outputPin = findOutputTimingPin(timing, node);
   if (outputPin) {
-    return [
+    choices.push(
       { pin: outputPin, metric: "at" },
       { pin: outputPin, metric: "slack" }
-    ];
+    );
+  }
+  if (choices.length > 0) {
+    return choices;
   }
   return timing.worstPin ? [{ pin: timing.worstPin, metric: "slack" }] : [];
+}
+
+function findInputTimingPins(timing, node) {
+  const pins = [];
+  for (const pin of node.ref?.pins || []) {
+    const displayName = pin.pinDisplayName || pin.pin;
+    const direction = node.pinDirections?.[displayName]?.direction || node.pinDirections?.[pin.pin]?.direction;
+    if (direction !== "input") {
+      continue;
+    }
+    const timingPin = findTimingPin(timing, pin);
+    if (timingPin) {
+      pins.push(timingPin);
+    }
+  }
+  return pins;
 }
 
 function findOutputTimingPin(timing, node) {
@@ -139,14 +162,20 @@ function findOutputTimingPin(timing, node) {
     if (direction !== "output") {
       continue;
     }
-    if (timing.pins?.[displayName]) {
-      return displayName;
-    }
-    if (timing.pins?.[pin.pin]) {
-      return pin.pin;
+    const timingPin = findTimingPin(timing, pin);
+    if (timingPin) {
+      return timingPin;
     }
   }
   return null;
+}
+
+function findTimingPin(timing, pin) {
+  const displayName = pin.pinDisplayName || pin.pin;
+  if (timing.pins?.[displayName]) {
+    return displayName;
+  }
+  return timing.pins?.[pin.pin] ? pin.pin : null;
 }
 
 function resolveBadgeChoice(timing, choice) {

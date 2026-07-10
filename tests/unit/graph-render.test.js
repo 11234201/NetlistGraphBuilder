@@ -321,6 +321,42 @@ test("single-fanout inputs can localize near consuming cell pins", () => {
   assert.ok(inputEdges.every((edge) => edge.points[0].y === edge.points.at(-1).y));
 });
 
+test("long localized input names do not overlap upstream cells", () => {
+  const longInput = "very_long_hierarchical_input_name_that_must_fit_inside_the_port";
+  const source = `module m(a, \\${longInput} , y);
+input a; input \\${longInput} ; output y; wire n;
+BUF u0 (.A(a), .Z(n));
+AND2 u1 (.A1(n), .A2(\\${longInput} ), .Z(y));
+endmodule`;
+  const design = parseVerilog(source);
+  const laidOut = layoutGraph(buildSchematicGraph(design.modules[0]));
+  const input = laidOut.nodes.find((node) => node.kind === "input" && node.ref.name === longInput);
+  const inputEdge = laidOut.edges.find((edge) => edge.source === input.id);
+
+  assert.ok(input.width > 220);
+  assert.equal(inputEdge.routeKind, "direct");
+  assert.equal(inputEdge.points[0].y, inputEdge.points.at(-1).y);
+  assert.equal(overlappingNodes(laidOut).length, 0);
+});
+
+test("early outputs stay near their drivers in multi-output graphs", () => {
+  const source = `module m(a, early, y);
+input a; output early; output y; wire n;
+BUF u0 (.A(a), .Z(early));
+BUF u1 (.A(early), .Z(n));
+BUF u2 (.A(n), .Z(y));
+endmodule`;
+  const design = parseVerilog(source);
+  const laidOut = layoutGraph(buildSchematicGraph(design.modules[0]));
+  const early = laidOut.nodes.find((node) => node.id === "output:early");
+  const final = laidOut.nodes.find((node) => node.id === "output:y");
+  const earlyEdge = laidOut.edges.find((edge) => edge.target === early.id);
+
+  assert.ok(early.level < final.level);
+  assert.ok(["direct", "local-dogleg", "channel"].includes(earlyEdge.routeKind));
+  assert.equal(overlappingNodes(laidOut).length, 0);
+});
+
 test("golden-style default layout avoids input-cell overlap and straightens cell links", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
@@ -403,14 +439,18 @@ test("layout golden records moved nodes and diff summary", async () => {
 });
 
 test("unknown cells render as blackboxes", () => {
-  const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .Z(y)); endmodule";
+  const source = "module m(a,y); input a; output y; AOI21X1APBH08HVT30P140 u0 (.A1(a), .ZN(y)); endmodule";
   const design = parseVerilog(source);
   const graph = buildSchematicGraph(design.modules[0]);
   const laidOut = layoutGraph(graph);
   const svg = renderSchematicSvg(laidOut);
+  const node = graph.nodes.find((item) => item.kind === "cell");
 
-  assert.ok(graph.nodes.some((node) => node.gateKind === "blackbox"));
+  assert.equal(node.gateKind, "blackbox");
+  assert.equal(node.title, "AOI21");
   assert.match(svg, /class="node blackbox cell"/);
+  assert.match(svg, />AOI21<\/text>/);
+  assert.match(svg, /<title>AOI21X1APBH08HVT30P140: u0<\/title>/);
 });
 
 test("cell pin direction overrides repair unknown cell connectivity", () => {
@@ -598,11 +638,12 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.match(svg, /ZN at 0\.424/);
 });
 
-test("timing badges default to output AT and slack and allow multiple choices", () => {
+test("timing badges default to all input AT plus output AT and slack", () => {
   const timing = parseTimingLog(`[D][LocResyn] inst
 <LoResynHinst_of_module_demo/u0>
 input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
-at 0.423782, rt 0.090101, slack -0.333681
+at 0.423782, rt 0.090101, slack -0.333681 pin A2,
+at 0.401234, rt 0.110101, slack -0.291133
 `);
   const graph = {
     moduleDisplayName: "timing",
@@ -622,12 +663,14 @@ at 0.423782, rt 0.090101, slack -0.333681
         ports: [],
         pinDirections: {
           A1: { direction: "input" },
+          A2: { direction: "input" },
           ZN: { direction: "output" }
         },
         ref: {
           instance: "u0",
           pins: [
             { pin: "A1", pinDisplayName: "A1" },
+            { pin: "A2", pinDisplayName: "A2" },
             { pin: "ZN", pinDisplayName: "ZN" }
           ]
         }
@@ -651,13 +694,17 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.deepEqual(
     defaults.nodes[0].timing.badges.map(({ pin, metric }) => ({ pin, metric })),
     [
+      { pin: "A1", metric: "at" },
+      { pin: "A2", metric: "at" },
       { pin: "ZN", metric: "at" },
       { pin: "ZN", metric: "slack" }
     ]
   );
+  assert.match(renderSchematicSvg(defaults), /A1 at 0\.453/);
+  assert.match(renderSchematicSvg(defaults), /A2 at 0\.401/);
   assert.match(renderSchematicSvg(defaults), /ZN at 0\.424 slack -0\.334/);
   assert.equal(defaults.nodes[0].timing.badgePosition, "bottom-right");
-  assert.match(renderSchematicSvg(defaults), /timing-badge-bottom-right[^>]*y="104"[^>]*text-anchor="end"/);
+  assert.match(renderSchematicSvg(defaults), /timing-badge-bottom-right[^>]*y="82"[^>]*text-anchor="end"/);
   assert.match(renderSchematicSvg(selected), /A1 at 0\.453/);
   assert.match(renderSchematicSvg(selected), /ZN slack -0\.334/);
   assert.doesNotMatch(renderSchematicSvg(hidden), /timing-badge/);

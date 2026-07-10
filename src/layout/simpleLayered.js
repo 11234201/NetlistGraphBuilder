@@ -47,14 +47,29 @@ export function layoutGraph(graph, options = {}) {
   const positionedNodes = [];
   const levelKeys = [...buckets.keys()].sort((a, b) => a - b);
   orderBucketsByTopology(buckets, levelKeys, graph.edges);
+  const nodeSizes = new Map(
+    graph.nodes.map((node) => [
+      node.id,
+      applyNodeSizeOverride(measureNode(node, cellPinPitch), options.nodeSizes, node.id)
+    ])
+  );
+  const levelXs = computeLevelXs(
+    graph,
+    levels,
+    buckets,
+    levelKeys,
+    nodeSizes,
+    xSpacing,
+    margin
+  );
 
   for (const level of levelKeys) {
     const nodes = buckets.get(level);
     for (const [index, node] of nodes.entries()) {
-      const size = applyNodeSizeOverride(measureNode(node, cellPinPitch), options.nodeSizes, node.id);
+      const size = nodeSizes.get(node.id);
       positionedNodes.push({
         ...node,
-        x: margin + level * xSpacing,
+        x: levelXs.get(level),
         y: topWireSpace + margin + index * ySpacing,
         level,
         width: size.width,
@@ -79,6 +94,7 @@ export function layoutGraph(graph, options = {}) {
   if (policy.features.localizeSingleFanoutInputs) {
     applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
   }
+  resolveOutputOverlaps(positionedNodes, margin);
   applyNodePositionOverrides(positionedNodes, options.nodePositions);
 
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
@@ -369,8 +385,85 @@ function applySingleFanoutInputLocality(nodes, edges, margin) {
   }
 }
 
+function resolveOutputOverlaps(nodes, margin) {
+  for (const node of nodes.filter((item) => item.kind === "output").sort(compareNodes)) {
+    node.y = findNearestFreeY(node, node.y, nodes, new Set([node.id]), margin);
+  }
+}
+
+function findNearestFreeY(node, preferredY, nodes, ignoredIds, margin, gap = 12) {
+  const blockers = nodes.filter((candidate) =>
+    !ignoredIds.has(candidate.id) && horizontalRangesOverlap(node, candidate, gap)
+  );
+  const candidates = [preferredY];
+  for (const blocker of blockers) {
+    candidates.push(blocker.y - node.height - gap, blocker.y + blocker.height + gap);
+  }
+
+  for (const y of candidates
+    .map((candidate) => Math.max(margin, round(candidate)))
+    .toSorted((left, right) => Math.abs(left - preferredY) - Math.abs(right - preferredY))) {
+    const overlaps = blockers.some((blocker) =>
+      y < blocker.y + blocker.height + gap && y + node.height + gap > blocker.y
+    );
+    if (!overlaps) {
+      return y;
+    }
+  }
+  return Math.max(margin, preferredY);
+}
+
+function horizontalRangesOverlap(left, right, gap = 0) {
+  return left.x < right.x + right.width + gap && left.x + left.width + gap > right.x;
+}
+
 function isExternalSourceNode(node) {
   return node.kind === "input" || node.kind === "implicit" || node.kind === "constant";
+}
+
+function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, baseSpacing, margin) {
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const outgoingCounts = new Map();
+  for (const edge of graph.edges) {
+    outgoingCounts.set(edge.source, (outgoingCounts.get(edge.source) || 0) + 1);
+  }
+
+  const levelXs = new Map();
+  let x = margin;
+  for (const [index, level] of levelKeys.entries()) {
+    levelXs.set(level, x);
+    const nextLevel = levelKeys[index + 1];
+    if (nextLevel === undefined) {
+      continue;
+    }
+
+    const levelWidth = Math.max(
+      ...(buckets.get(level) || []).map((node) => nodeSizes.get(node.id).width),
+      0
+    );
+    const localizedInputWidth = nextLevel <= 1
+      ? 0
+      : Math.max(
+          ...graph.edges
+            .filter((edge) => {
+              const source = nodeById.get(edge.source);
+              const target = nodeById.get(edge.target);
+              return (
+                levels.get(edge.target) === nextLevel &&
+                target?.kind === "cell" &&
+                isExternalSourceNode(source) &&
+                outgoingCounts.get(edge.source) === 1
+              );
+            })
+            .map((edge) => nodeSizes.get(edge.source)?.width || 0),
+          0
+        );
+    const localizedInputSpacing = localizedInputWidth > 0
+      ? levelWidth + localizedInputWidth + 48
+      : 0;
+    x += Math.max(baseSpacing * (nextLevel - level), localizedInputSpacing);
+  }
+  return levelXs;
 }
 
 function getNodePositionOverride(nodePositions, nodeId) {
@@ -831,13 +924,6 @@ function assignLevels(graph) {
     }
     if (!changed) {
       break;
-    }
-  }
-
-  const outputLevel = Math.max(...levels.values(), 1);
-  for (const node of graph.nodes) {
-    if (node.kind === "output") {
-      levels.set(node.id, Math.max(levels.get(node.id) || 1, outputLevel));
     }
   }
 

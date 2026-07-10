@@ -147,8 +147,12 @@ function renderGateNode(node) {
   const ports = renderGatePorts(node, x, y, width, gateKind);
   const timingClass = getTimingClass(node);
   const timingBadge = renderTimingBadge(node, x, y, width, height);
+  const cellTitle = node.subtitle
+    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}`)}</title>`
+    : "";
 
   return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
+    ${cellTitle}
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
     ${ports}
     ${timingBadge}

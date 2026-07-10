@@ -81,7 +81,7 @@ export function buildSchematicGraph(module, options = {}) {
       gateKind: cellKind.kind,
       inferenceSource: cellKind.source,
       label: cell.instanceDisplayName || cell.instance,
-      title: cellKind.kind.toUpperCase(),
+      title: getCellTitle(cell, cellKind),
       subtitle: cell.typeDisplayName || cell.type,
       pinDirections,
       ref: cell
@@ -171,6 +171,19 @@ function getCellPinDirections(cell, overrides) {
     }
   }
   return directions;
+}
+
+function getCellTitle(cell, cellKind) {
+  if (cellKind.kind !== "blackbox") {
+    return cellKind.kind.toUpperCase();
+  }
+
+  const type = String(cell.typeDisplayName || cell.type || "BLACKBOX").replace(/^\\/, "");
+  const driveStrengthIndex = type.search(/X\d/i);
+  const functionalPrefix = driveStrengthIndex > 0
+    ? type.slice(0, driveStrengthIndex)
+    : type.match(/^[A-Za-z]+\d*/)?.[0] || type;
+  return functionalPrefix.slice(0, 18).toUpperCase();
 }
 
 function applyNodePropertyOverrides(node, overrides) {

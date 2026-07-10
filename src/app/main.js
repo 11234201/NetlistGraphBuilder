@@ -273,7 +273,7 @@ function bindSelectionControls(node) {
         delete state.timingBadgeChoices[instance];
       }
       rerenderPreservingView(node.id);
-      setStatus(`${node.label}: timing badges reset to output AT and slack`);
+      setStatus(`${node.label}: timing badges reset to input AT plus output AT and slack`);
     }
   });
 

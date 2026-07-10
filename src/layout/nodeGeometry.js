@@ -9,7 +9,10 @@ export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
     String(node.subtitle || "").length,
     String(node.title || "").length
   );
-  const width = clamp(labelLength * 7 + 42, node.kind === "cell" ? 128 : 92, 220);
+  const naturalWidth = labelLength * 7 + 42;
+  const width = node.kind === "cell"
+    ? clamp(naturalWidth, 128, 220)
+    : Math.max(92, naturalWidth);
   const pinCount = getMaxPinCount(node);
   const height =
     node.kind === "cell"

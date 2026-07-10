@@ -73,6 +73,7 @@ Structural Verilog
 | R3-2 | 阶段 3 | 对比高亮与统计 | 同名 port/net/cell、结构差异区域、cell/depth/fanout 统计 | 计划中 | `docs/STAGE_3_PLAN.md` |
 | R4-1 | 阶段 4 | 大图布局与性能 | LayoutProvider、ELK.js fallback/provider、progressive render | 计划中 | `docs/STAGE_4_PLAN.md` |
 | R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 计划中 | `docs/STAGE_4_PLAN.md` |
+| R4-3 | 阶段 4 | Balanced/Folded 布局 | 深层 DAG 按逻辑层分带折叠、跨带专用通道、保留默认左到右模式 | 暂缓 | `docs/STAGE_4_PLAN.md` |
 | R5-1 | 阶段 5 | 可选 Liberty 增强 | `.lib` 子集解析、pin direction 覆盖、function 辅助、fallback 诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
 
 ### 阶段 0：项目准备
@@ -218,6 +219,10 @@ Structural Verilog
   - collapse/expand group
   - fanout hub 简化
   - offscreen 节点降细节
+- 增加可选 Balanced/Folded layout：
+  - 默认 left-to-right 模式保持不变。
+  - 深层 DAG 可按 4-6 个逻辑层分带折叠，改善细长宽高比。
+  - 跨带 edge 使用独立通道，避免简单压缩列距导致局部 net 乱绕。
 - 增加 session state：
   - 最近打开的 module
   - 当前搜索
