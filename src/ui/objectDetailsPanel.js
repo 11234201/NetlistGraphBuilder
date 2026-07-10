@@ -4,7 +4,28 @@ export function renderObjectDetails(inspection) {
   if (!inspection) {
     return "";
   }
-  return `<dl class="stats-list">${renderDefinitionRows(inspection.summary)}</dl>${renderConnections(inspection.connections)}`;
+  return `<dl class="stats-list">${renderDefinitionRows(inspection.summary)}</dl>${renderConnections(inspection.connections)}${renderTraversal(inspection.traversal)}`;
+}
+
+function renderTraversal(traversal) {
+  if (!traversal?.length) {
+    return "";
+  }
+  const rows = traversal.map((item) => `<tr>
+    <th>${escapeHtml(item.label)}</th>
+    <td>${escapeHtml(item.immediate.join(", ") || "-")}</td>
+    <td>${escapeHtml(item.transitiveCount)}</td>
+    <td>${escapeHtml(item.maxDepth)}</td>
+  </tr>`).join("");
+  return `<section class="connection-section">
+    <h3>Traversal</h3>
+    <div class="connection-table-wrap">
+      <table class="connection-table traversal-table">
+        <thead><tr><th>Dir</th><th>Immediate</th><th>Nodes</th><th>Depth</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </section>`;
 }
 
 function renderConnections(connections) {

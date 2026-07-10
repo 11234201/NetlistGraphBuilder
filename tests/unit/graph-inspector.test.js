@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { analyzeGraphCone } from "../../src/analysis/graphCone.js";
 import { inspectGraphNet, inspectGraphNode } from "../../src/analysis/graphInspector.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -24,6 +25,8 @@ test("graph inspector reports cell pin nets and connected endpoints", () => {
   assert.equal(output.net, "n");
   assert.match(output.peers, /u1\.A/);
   assert.match(output.peers, /u2\.A/);
+  assert.deepEqual(inspection.traversal[0].immediate, ["a"]);
+  assert.equal(inspection.traversal[1].transitiveCount, 4);
 });
 
 test("graph inspector reports net driver, loads, and escaped HTML", () => {
@@ -40,4 +43,33 @@ test("graph inspector reports net driver, loads, and escaped HTML", () => {
   assert.match(html, /Connections/);
   assert.match(html, /&lt;P&gt;/);
   assert.match(html, /a&amp;b/);
+});
+
+test("graph cone supports immediate, depth-limited, and transitive traversal", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const immediate = analyzeGraphCone(graph, "input:a", { direction: "fanout", maxDepth: 1 });
+  const limited = analyzeGraphCone(graph, "input:a", { direction: "fanout", maxDepth: 2 });
+  const transitive = analyzeGraphCone(graph, "output:y1", { direction: "fanin" });
+
+  assert.deepEqual(immediate.immediateNodeIds, ["cell:u0"]);
+  assert.equal(immediate.nodeIds.length, 2);
+  assert.equal(limited.nodeIds.length, 4);
+  assert.deepEqual(new Set(transitive.nodeIds), new Set(["input:a", "cell:u0", "cell:u1", "output:y1"]));
+  assert.equal(transitive.maxDepthReached, 3);
+});
+
+test("graph cone terminates on cycles and keeps shortest node depth", () => {
+  const graph = {
+    nodes: ["a", "b", "c"].map((id) => ({ id })),
+    edges: [
+      { id: "ab", source: "a", target: "b" },
+      { id: "bc", source: "b", target: "c" },
+      { id: "ca", source: "c", target: "a" }
+    ]
+  };
+  const cone = analyzeGraphCone(graph, "a", { direction: "fanout" });
+
+  assert.deepEqual(cone.nodeIds, ["a", "b", "c"]);
+  assert.equal(cone.depthByNode.get("a"), 0);
+  assert.equal(cone.depthByNode.get("c"), 2);
 });

@@ -1,3 +1,5 @@
+import { analyzeGraphCone } from "./graphCone.js";
+
 export function inspectGraphNode(graph, node) {
   if (!node) {
     return null;
@@ -12,7 +14,27 @@ export function inspectGraphNode(graph, node) {
       ["Cell type", node.subtitle || "-"],
       ["Inference", node.inferenceSource || "-"]
     ],
-    connections: getNodeConnections(graph, node)
+    connections: getNodeConnections(graph, node),
+    traversal: inspectTraversal(graph, node)
+  };
+}
+
+function inspectTraversal(graph, node) {
+  const nodeById = new Map(graph?.nodes.map((item) => [item.id, item]) || []);
+  const fanin = analyzeGraphCone(graph, node.id, { direction: "fanin" });
+  const fanout = analyzeGraphCone(graph, node.id, { direction: "fanout" });
+  return [
+    describeTraversal("Fanin", fanin, nodeById),
+    describeTraversal("Fanout", fanout, nodeById)
+  ];
+}
+
+function describeTraversal(label, cone, nodeById) {
+  return {
+    label,
+    immediate: cone.immediateNodeIds.map((id) => nodeById.get(id)?.label || id),
+    transitiveCount: Math.max(0, cone.nodeIds.length - 1),
+    maxDepth: cone.maxDepthReached
   };
 }
 
