@@ -11,7 +11,7 @@ export function createAppState(layoutPolicy) {
     viewMode: "whole",
     coneRootNodeId: null,
     coneDepth: 3,
-    showAliases: true,
+    showAliases: false,
     searchIndex: [],
     searchResults: [],
     activeSearchResult: -1,

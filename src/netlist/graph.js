@@ -113,11 +113,11 @@ export function buildSchematicGraph(module, options = {}) {
     const node = addNode({
       id: makeId("assign", `${assign.lhs}:${assign.rhs}`),
       kind: "assign",
-      gateKind: "buf",
-      inferenceSource: "fallback",
+      gateKind: "alias",
+      inferenceSource: "assign",
       label: assign.lhsDisplayName || assign.lhs,
-      title: "BUF",
-      subtitle: "assign",
+      title: "ALIAS",
+      subtitle: "assign alias",
       ref: assign
     });
     applyNodePropertyOverrides(node, overrides);

@@ -16,6 +16,7 @@ import {
 
 test("app state reset helpers keep lifecycle boundaries explicit", () => {
   const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  assert.equal(state.showAliases, false);
   state.design = { modules: [] };
   state.timing = { instanceCount: 1 };
   state.selectedNodeId = "cell:u0";

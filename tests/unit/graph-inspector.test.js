@@ -104,7 +104,20 @@ assign n1 = a; assign n2 = n1; assign y = n2; endmodule`;
 
 test("alias normalization can preserve explicit assign nodes", () => {
   const graph = buildSchematicGraph(parseVerilog("module m(a,y); input a; output y; assign y=a; endmodule").modules[0]);
+  const aliasNode = graph.nodes.find((node) => node.kind === "assign");
+
+  assert.equal(aliasNode.gateKind, "alias");
+  assert.equal(aliasNode.title, "ALIAS");
   assert.equal(normalizeGraphAliases(graph, { showAliases: true }), graph);
+});
+
+test("alias normalization never removes instantiated buffer cells", () => {
+  const sourceWithBuffer = "module m(a,y); input a; output y; wire n; BUF u0 (.A(a), .Z(n)); assign y=n; endmodule";
+  const graph = buildSchematicGraph(parseVerilog(sourceWithBuffer).modules[0]);
+  const normalized = normalizeGraphAliases(graph, { showAliases: false });
+
+  assert.ok(normalized.nodes.some((node) => node.id === "cell:u0" && node.gateKind === "buf"));
+  assert.equal(normalized.nodes.some((node) => node.kind === "assign"), false);
 });
 
 test("alias normalization preserves unresolved cyclic aliases", () => {
