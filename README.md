@@ -1,82 +1,75 @@
 # Netlist Graph Builder
 
-一个面向门级网表的离线 schematic browser。目标是在没有 Liberty `.lib` 的情况下，快速解析 structural Verilog，生成可缩放、可搜索、可追踪 fanin/fanout cone 的结构图。
+Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可调整的交互式 SVG 结构图。
 
-当前仓库处于项目准备阶段，先建立计划、规范和目录骨架；正式写功能代码前必须先通读 [docs/PLAN.md](docs/PLAN.md)。
+当前版本：`v0.2.0`，阶段 2 实用分析能力已完成。
 
-## 目标
+## 主要功能
 
-- 支持内网/离线使用。
-- 支持 gate-level structural Verilog 的常见子集。
-- 无 `.lib` 时通过 cell/pin 命名规则推断门类型和方向。
-- 用交互图帮助分析结构，而不是只生成静态图片。
-- 长期支持 module 对比、cone 追踪、层级折叠和可选 `.lib` 增强。
-
-## 当前状态
-
-阶段 1 最小原型已经具备：
-
-- structural Verilog fixture 解析。
-- module 选择。
-- 无 `.lib` cell/pin 启发式推断。
-- 简单 left-to-right layered layout。
-- SVG schematic 渲染。
-- 鼠标滚轮缩放、拖拽平移、fit to view。
-- 文件导入。
-
-## 目录
-
-```text
-docs/                 项目计划、架构、设计规范、流程规则
-docs/skills/          项目专用 skill 文档和写入规范
-examples/             示例网表和后续示例输出
-src/parser/           Verilog structural parser
-src/netlist/          Netlist IR 和图模型
-src/infer/            无 lib cell/pin 推断规则
-src/layout/           布局策略、节点几何和正交路由
-src/render/           SVG gate symbol 和连线渲染
-src/timing/           时序日志解析和 graph annotation
-src/ui/               无状态面板渲染和 DOM 绑定
-src/app/              应用状态和装配入口
-tests/fixtures/       测试网表夹具
-tests/unit/           单元测试
-vendor/               离线 vendored 第三方前端库
-tools/                开发、检查、打包脚本
-```
+- 解析常见 structural Verilog：module、port、wire、assign、cell instance 和 escaped identifier。
+- 在没有 `.lib` 时，根据 cell/pin 命名推断 gate kind 与 pin direction；未知 cell 显示为 blackbox。
+- 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
+- 搜索 module、port、net、instance 和 cell type，并定位到图中对象。
+- 点击 cell、port 或 net 查看 pin/net、driver/load、fanin/fanout 和推断来源。
+- 切换 Whole、Fanin Cone 和 Fanout Cone，并设置追踪深度。
+- 默认折叠纯 `assign` alias；可通过 `Show aliases` 展开为明确的 `ALIAS` 节点。
+- 导入 LocResyn timing 日志，显示 input AT、output AT/slack 和 critical 标记。
+- 在 Adjust 模式拖动节点、调整尺寸和属性，并使用 grid/pin-y snap 辅助对齐。
+- 调整 wire lane spacing、侧栏宽度，并导出 layout golden。
+- 导出包含内嵌样式的独立 SVG，支持完整 module 和 cone 视图。
 
 ## 运行
 
+需要 Node.js 18 或更高版本。项目没有外部运行依赖。
+
 ```powershell
-node tools/serve.mjs
+npm start
 ```
 
-然后打开：
+然后打开 `http://127.0.0.1:4173/`。页面默认加载内置示例，也可以打开 `.v`、`.sv` 或 `.txt` 文件。
 
-```text
-http://127.0.0.1:4173/
-```
+## 基本操作
 
-当前版本没有外部运行依赖。页面默认加载内置示例网表，也可以通过工具栏打开 `.v`、`.sv` 或 `.txt` 文件。
+1. 点击“打开网表”加载 structural Verilog，并选择 module。
+2. 点击 node 或 wire，在 Selection 面板查看连接关系。
+3. 选中 node 后，使用 Whole/Fanin/Fanout 和 Depth 查看逻辑 cone。
+4. 使用 `Show aliases` 控制纯 net alias 是否显示。
+5. 点击 Adjust 后拖动节点；点击 Golden 导出布局记录。
+6. 点击 SVG 导出当前完整或 cone schematic。
 
 ## 测试
 
 ```powershell
-node --test tests/unit/*.test.js
+npm test
 ```
 
-测试覆盖：
+测试覆盖 parser、cell/pin inference、graph extraction、layout/routing、timing annotation、搜索、对象检查、cone、alias 规范化和 SVG 导出。
 
-- escaped identifier tokenizer。
-- fixture module 解析。
-- assign 解析。
-- 常见 cell type 推断。
-- graph 构建。
-- SVG smoke render。
+## 项目结构
 
-## 开发前置规则
+```text
+docs/                 路线图、阶段计划、架构和设计规范
+examples/             示例输入与输出
+src/analysis/         cone、alias 和对象连接分析
+src/app/              应用状态和浏览器入口
+src/infer/            无 Liberty 的 cell/pin 推断规则
+src/layout/           分层布局、节点几何、routing 和 snap
+src/netlist/          Netlist IR 与 graph extraction
+src/parser/           Structural Verilog tokenizer/parser
+src/render/           SVG 渲染与独立 SVG 导出
+src/search/           设计对象索引与搜索
+src/timing/           LocResyn timing 解析与图标注
+src/ui/               Selection、Timing 和 Adjust 面板
+tests/fixtures/       测试网表
+tests/unit/           单元测试
+tools/                本地开发工具
+```
 
-1. 写业务代码前，先通读 `docs/PLAN.md`。
-2. 再读当前阶段的细化方案，例如 `docs/STAGE_1_PLAN.md`。
-3. 涉及 UI 或图形交互时，同时通读 `docs/DESIGN_SPEC.md`。
-4. 引入或更新项目专用工作流时，按 `docs/SKILLS_AND_RULES.md` 写入。
-5. 每个阶段只实现当前阶段明确列出的功能，避免提前引入重依赖。
+## 当前限制
+
+- 只支持 structural Verilog 常用子集，不是完整 Verilog/SystemVerilog 前端。
+- 不解析 Liberty `.lib`，复杂或定制 cell 可能需要手动修正 pin direction。
+- 当前使用自研简单分层布局，大型 module 的宽高平衡和性能优化属于后续阶段。
+- 暂不提供 module compare、形式等价或逻辑等价分析。
+
+详细路线图见 [docs/PLAN.md](docs/PLAN.md)，阶段 2 完成记录见 [docs/STAGE_2_PLAN.md](docs/STAGE_2_PLAN.md)。
