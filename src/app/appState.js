@@ -6,6 +6,10 @@ export function createAppState(layoutPolicy) {
     graph: null,
     transform: { x: 0, y: 0, scale: 1 },
     selectedNodeId: null,
+    selectedNet: null,
+    searchIndex: [],
+    searchResults: [],
+    activeSearchResult: -1,
     nodePositions: new Map(),
     nodeSizes: new Map(),
     graphOverrides: createEmptyGraphOverrides(),
@@ -20,6 +24,9 @@ export function createAppState(layoutPolicy) {
 export function resetDesignWorkspace(state) {
   resetModuleWorkspace(state);
   state.selectedNodeId = null;
+  state.selectedNet = null;
+  state.searchResults = [];
+  state.activeSearchResult = -1;
   state.timing = null;
 }
 

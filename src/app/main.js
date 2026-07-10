@@ -5,10 +5,18 @@ import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
+import {
+  buildDesignSearchIndex,
+  searchDesignIndex
+} from "../search/designSearch.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
-import { renderDefinitionRows as statsRows } from "../ui/html.js";
+import {
+  escapeAttr,
+  escapeHtml,
+  renderDefinitionRows as statsRows
+} from "../ui/html.js";
 import {
   bindTimingPanel,
   getTimingBadgeChoices,
@@ -31,6 +39,9 @@ const elements = {
   fileInput: document.querySelector("#fileInput"),
   timingInput: document.querySelector("#timingInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
+  searchInput: document.querySelector("#searchInput"),
+  searchClearButton: document.querySelector("#searchClearButton"),
+  searchResults: document.querySelector("#searchResults"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
@@ -50,6 +61,11 @@ elements.timingInput.addEventListener("change", handleTimingFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
+elements.searchInput.addEventListener("input", handleSearchInput);
+elements.searchInput.addEventListener("keydown", handleSearchKeydown);
+elements.searchInput.addEventListener("focus", handleSearchInput);
+elements.searchClearButton.addEventListener("click", clearSearch);
+elements.searchResults.addEventListener("click", handleSearchResultClick);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
@@ -89,6 +105,8 @@ function loadDesign(source, label) {
   try {
     state.design = parseVerilog(source);
     resetDesignWorkspace(state);
+    state.searchIndex = buildDesignSearchIndex(state.design);
+    clearSearch();
     renderModuleOptions();
     const firstModule = state.design.modules[0];
     if (firstModule) {
@@ -133,6 +151,7 @@ function selectModule(moduleName) {
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
+  state.selectedNet = null;
   renderStats();
   renderDiagnostics();
   renderSelection(null);
@@ -194,15 +213,185 @@ function bindSchematicEvents() {
 
 function setSelectedNode(nodeId) {
   state.selectedNodeId = nodeId;
-  for (const nodeElement of elements.mount.querySelectorAll(".node.is-selected")) {
-    nodeElement.classList.remove("is-selected");
-  }
+  state.selectedNet = null;
+  clearSchematicSelection();
   if (nodeId) {
     const nodeElement = elements.mount.querySelector(`[data-node-id="${cssEscape(nodeId)}"]`);
     nodeElement?.classList.add("is-selected");
   }
   const node = state.graph?.nodes.find((item) => item.id === nodeId) || null;
   renderSelection(node);
+}
+
+function setSelectedNet(netName) {
+  state.selectedNodeId = null;
+  state.selectedNet = netName;
+  clearSchematicSelection();
+  for (const edgeElement of elements.mount.querySelectorAll(".edge")) {
+    if (edgeElement.dataset.net === netName) {
+      edgeElement.classList.add("is-selected");
+    }
+  }
+  renderNetSelection(netName);
+}
+
+function clearSchematicSelection() {
+  for (const element of elements.mount.querySelectorAll(".node.is-selected, .edge.is-selected")) {
+    element.classList.remove("is-selected");
+  }
+}
+
+function handleSearchInput() {
+  const query = elements.searchInput.value;
+  state.searchResults = searchDesignIndex(state.searchIndex, query);
+  state.activeSearchResult = state.searchResults.length > 0 ? 0 : -1;
+  renderSearchResults();
+}
+
+function handleSearchKeydown(event) {
+  if (event.key === "Escape") {
+    elements.searchResults.hidden = true;
+    state.activeSearchResult = -1;
+    return;
+  }
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") {
+    return;
+  }
+  if (state.searchResults.length === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.key === "Enter") {
+    activateSearchResult(state.searchResults[Math.max(0, state.activeSearchResult)]);
+    return;
+  }
+
+  const direction = event.key === "ArrowDown" ? 1 : -1;
+  state.activeSearchResult = (
+    state.activeSearchResult + direction + state.searchResults.length
+  ) % state.searchResults.length;
+  renderSearchResults();
+  elements.searchResults.querySelector(".search-result.is-active")?.scrollIntoView({ block: "nearest" });
+}
+
+function handleSearchResultClick(event) {
+  const button = event.target.closest("[data-search-index]");
+  if (!button) {
+    return;
+  }
+  activateSearchResult(state.searchResults[Number(button.dataset.searchIndex)]);
+}
+
+function renderSearchResults() {
+  const hasQuery = elements.searchInput.value.trim() !== "";
+  elements.searchClearButton.hidden = !hasQuery;
+  if (!hasQuery) {
+    elements.searchResults.hidden = true;
+    elements.searchResults.innerHTML = "";
+    return;
+  }
+
+  elements.searchResults.hidden = false;
+  if (state.searchResults.length === 0) {
+    elements.searchResults.innerHTML = `<div class="search-empty">No matches</div>`;
+    return;
+  }
+
+  elements.searchResults.innerHTML = state.searchResults
+    .map((result, index) => {
+      const active = index === state.activeSearchResult;
+      const context = result.kind === "module"
+        ? result.detail
+        : `${result.detail} / ${result.moduleName}`;
+      return `<button class="search-result${active ? " is-active" : ""}" type="button" role="option" aria-selected="${active}" data-search-index="${escapeAttr(index)}" title="${escapeAttr(result.label)}">
+        <span class="search-result-kind">${escapeHtml(result.kind)}</span>
+        <span class="search-result-label">${escapeHtml(result.label)}</span>
+        <span class="search-result-context">${escapeHtml(context)}</span>
+      </button>`;
+    })
+    .join("");
+}
+
+function clearSearch() {
+  elements.searchInput.value = "";
+  state.searchResults = [];
+  state.activeSearchResult = -1;
+  renderSearchResults();
+}
+
+function activateSearchResult(result) {
+  if (!result) {
+    return;
+  }
+  if (state.currentModule?.name !== result.moduleName) {
+    selectModule(result.moduleName);
+  }
+
+  elements.searchResults.hidden = true;
+  const target = result.target;
+  if (target.kind === "module") {
+    setSelectedNode(null);
+    setStatus(`Search: module ${result.label}`);
+    return;
+  }
+  if (target.kind === "net") {
+    const edge = state.graph?.edges.find((item) => item.net === target.name);
+    setSelectedNet(target.name);
+    if (edge) {
+      centerGraphPoint(getEdgeCenter(edge));
+    }
+    setStatus(`Search: net ${result.label}`);
+    return;
+  }
+
+  const node = findSearchTargetNode(target);
+  setSelectedNode(node?.id || null);
+  if (node) {
+    centerGraphPoint({
+      x: node.x + node.width / 2,
+      y: node.y + node.height / 2
+    });
+  }
+  setStatus(`Search: ${result.kind} ${result.label}`);
+}
+
+function findSearchTargetNode(target) {
+  if (target.kind === "cell") {
+    return state.graph?.nodes.find(
+      (node) => node.kind === "cell" && node.ref?.instance === target.name
+    );
+  }
+  if (target.kind === "port") {
+    const preferredKind = target.direction === "output" ? "output" : "input";
+    return state.graph?.nodes.find(
+      (node) => node.kind === preferredKind && node.ref?.name === target.name
+    ) || state.graph?.nodes.find(
+      (node) => (node.kind === "input" || node.kind === "output") && node.ref?.name === target.name
+    );
+  }
+  return null;
+}
+
+function centerGraphPoint(point) {
+  const svg = getSvg();
+  if (!svg || !point) {
+    return;
+  }
+  const scale = Math.max(state.transform.scale, 1.8);
+  const viewBox = svg.viewBox.baseVal;
+  state.transform = {
+    x: viewBox.width / 2 - point.x * scale,
+    y: viewBox.height / 2 - point.y * scale,
+    scale
+  };
+  applyTransform();
+}
+
+function getEdgeCenter(edge) {
+  const points = edge.points || [];
+  const middle = points[Math.floor(points.length / 2)];
+  return middle || points[0] || null;
 }
 
 function renderStats() {
@@ -239,6 +428,23 @@ function renderSelection(node) {
   const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
   elements.details.innerHTML = `${statsRows(lines)}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
   bindSelectionControls(node);
+}
+
+function renderNetSelection(netName) {
+  const edges = state.graph?.edges.filter((edge) => edge.net === netName) || [];
+  const nodeById = new Map(state.graph?.nodes.map((node) => [node.id, node]) || []);
+  const drivers = uniqueLabels(edges.map((edge) => nodeById.get(edge.source)?.label));
+  const loads = uniqueLabels(edges.map((edge) => nodeById.get(edge.target)?.label));
+  const displayName = edges[0]?.label || netName;
+
+  elements.details.className = "details-block";
+  elements.details.innerHTML = statsRows([
+    ["Kind", "net"],
+    ["Name", displayName],
+    ["Driver", drivers.join(", ") || "-"],
+    ["Loads", loads.join(", ") || "-"],
+    ["Fanout", edges.length]
+  ]);
 }
 
 function renderDiagnostics() {
@@ -613,6 +819,10 @@ function isEditableNodeProperty(property) {
 
 function getNodeInstance(node) {
   return node.ref?.instance || (node.id.startsWith("cell:") ? node.id.slice("cell:".length) : null);
+}
+
+function uniqueLabels(values) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function countGraphOverrides() {

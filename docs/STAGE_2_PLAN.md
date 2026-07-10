@@ -14,7 +14,7 @@
 
 | ID | 需求 | 完成标准 | 状态 |
 | --- | --- | --- | --- |
-| R2-1 | 搜索索引 | 可搜索 module、port、net、instance、cell type，并定位到图中对象 | 计划中 |
+| R2-1 | 搜索索引 | 可搜索 module、port、net、instance、cell type，并定位到图中对象 | 已完成 |
 | R2-2 | 对象选择与属性面板 | 点击对象后展示 gate/cell type、instance、pin/net、driver/load、推断来源 | 计划中 |
 | R2-3 | Fanin/Fanout 图分析 | 支持 immediate、transitive 和 depth-limited fanin/fanout | 计划中 |
 | R2-4 | Cone 视图模式 | whole module、fanin cone、fanout cone 可切换 | 计划中 |

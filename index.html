@@ -38,6 +38,14 @@
 
       <section class="workspace">
         <aside class="side-panel">
+          <section class="panel-section search-panel">
+            <label class="search-label" for="searchInput">Search</label>
+            <div class="search-box">
+              <input id="searchInput" type="search" placeholder="Module, port, net, instance" autocomplete="off" aria-controls="searchResults" aria-autocomplete="list">
+              <button id="searchClearButton" class="search-clear" type="button" title="清除搜索" aria-label="清除搜索" hidden>&times;</button>
+            </div>
+            <div id="searchResults" class="search-results" role="listbox" hidden></div>
+          </section>
           <section class="panel-section">
             <h2>Design</h2>
             <dl id="designStats" class="stats-list"></dl>
