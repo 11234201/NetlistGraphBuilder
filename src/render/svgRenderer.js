@@ -187,23 +187,36 @@ function getTimingClass(node) {
 }
 
 function renderTimingBadge(node, x, y, width) {
-  const badge = getTimingBadge(node);
-  if (!badge) {
+  const lines = getTimingBadgeLines(node);
+  if (lines.length === 0) {
     return "";
   }
-  return `<text class="timing-badge" x="${round(x + width - 6)}" y="${round(y + 14)}" text-anchor="end">${escapeHtml(badge.label)}</text>`;
+  const badgeX = round(x + width - 6);
+  const tspans = lines
+    .map((line, index) => `<tspan x="${badgeX}" dy="${index === 0 ? 0 : 11}">${escapeHtml(line)}</tspan>`)
+    .join("");
+  return `<text class="timing-badge" x="${badgeX}" y="${round(y + 14)}" text-anchor="end">${tspans}</text>`;
 }
 
-function getTimingBadge(node) {
+function getTimingBadgeLines(node) {
+  if (Array.isArray(node.timing?.badges)) {
+    const badges = node.timing.badges;
+    const byPin = new Map();
+    for (const badge of badges) {
+      if (!byPin.has(badge.pin)) {
+        byPin.set(badge.pin, []);
+      }
+      byPin.get(badge.pin).push(`${badge.metric} ${formatTimingValue(badge.value)}`);
+    }
+    return [...byPin].map(([pin, values]) => `${pin} ${values.join(" ")}`);
+  }
   if (node.timing?.badge) {
-    return node.timing.badge;
+    return [node.timing.badge.label];
   }
   if (Number.isFinite(node.timing?.worstSlack)) {
-    return {
-      label: formatTimingValue(node.timing.worstSlack)
-    };
+    return [formatTimingValue(node.timing.worstSlack)];
   }
-  return null;
+  return [];
 }
 
 function formatTimingValue(value) {

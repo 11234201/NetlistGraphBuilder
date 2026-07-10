@@ -276,38 +276,43 @@ function renderTimingDetails(node) {
     return "";
   }
   const instance = getNodeInstance(node);
-  const choice = state.timingBadgeChoices[instance] || {
-    pin: node.timing.badge?.pin,
-    metric: node.timing.badge?.metric
-  };
+  const choices = getTimingBadgeChoices(node, instance);
 
   const rows = Object.values(node.timing.pins)
     .sort((left, right) => left.pin.localeCompare(right.pin))
     .map(
       (pin) =>
-        `<tr><td>${escapeHtml(pin.pin)}</td>${renderTimingChoiceCell(pin, "at", choice)}${renderTimingChoiceCell(pin, "rt", choice)}${renderTimingChoiceCell(pin, "slack", choice)}</tr>`
+        `<tr><td>${escapeHtml(pin.pin)}</td>${renderTimingChoiceCell(pin, "at", choices)}${renderTimingChoiceCell(pin, "rt", choices)}${renderTimingChoiceCell(pin, "slack", choices)}</tr>`
     )
     .join("");
   return `<div class="timing-list">
     <dl class="stats-list">${statsRows([
       ["Worst pin", node.timing.worstPin || "-"],
       ["Worst slack", formatNumber(node.timing.worstSlack)],
-      ["Badge", node.timing.badge?.label || "-"]
+      ["Badges", node.timing.badges?.map((badge) => badge.label).join("; ") || "-"]
     ])}</dl>
     <table class="timing-table">
       <thead><tr><th>Pin</th><th>AT</th><th>RT</th><th>Slack</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badge</button>
+    <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badges</button>
   </div>`;
 }
 
-function renderTimingChoiceCell(pin, metric, choice) {
-  const checked = choice?.pin === pin.pin && choice?.metric === metric ? " checked" : "";
+function renderTimingChoiceCell(pin, metric, choices) {
+  const checked = choices.some((choice) => choice.pin === pin.pin && choice.metric === metric) ? " checked" : "";
   return `<td><label class="timing-choice">
-    <input type="radio" name="timingBadgeChoice" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked}>
+    <input type="checkbox" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked}>
     <span>${formatNumber(pin[metric])}</span>
   </label></td>`;
+}
+
+function getTimingBadgeChoices(node, instance) {
+  if (Object.hasOwn(state.timingBadgeChoices, instance)) {
+    const saved = state.timingBadgeChoices[instance];
+    return Array.isArray(saved) ? saved : saved ? [saved] : [];
+  }
+  return (node.timing.badges || []).map(({ pin, metric }) => ({ pin, metric }));
 }
 
 function renderAdjustControls(node) {
@@ -417,9 +422,10 @@ function bindTimingBadgeControls(node) {
   for (const input of elements.details.querySelectorAll("[data-timing-pin]")) {
     input.addEventListener("change", () => {
       if (!input.checked) {
+        updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric, false);
         return;
       }
-      updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric);
+      updateTimingBadgeChoice(node, input.dataset.timingPin, input.dataset.timingMetric, true);
     });
   }
 
@@ -429,7 +435,7 @@ function bindTimingBadgeControls(node) {
       delete state.timingBadgeChoices[instance];
     }
     rerenderPreservingView(node.id);
-    setStatus(`${node.label}: timing badge reset to worst slack`);
+    setStatus(`${node.label}: timing badges reset to output AT and slack`);
   });
 }
 
@@ -526,14 +532,20 @@ function updateCellPinDirection(node, pinName, direction) {
   setStatus(`${node.label}.${pinName}: ${direction}`);
 }
 
-function updateTimingBadgeChoice(node, pin, metric) {
+function updateTimingBadgeChoice(node, pin, metric, checked) {
   const instance = getNodeInstance(node);
   if (!instance || !["at", "rt", "slack"].includes(metric)) {
     return;
   }
-  state.timingBadgeChoices[instance] = { pin, metric };
+  const choices = getTimingBadgeChoices(node, instance).filter(
+    (choice) => choice.pin !== pin || choice.metric !== metric
+  );
+  if (checked) {
+    choices.push({ pin, metric });
+  }
+  state.timingBadgeChoices[instance] = choices;
   rerenderPreservingView(node.id);
-  setStatus(`${node.label}: badge ${pin} ${metric}`);
+  setStatus(`${node.label}: ${checked ? "show" : "hide"} ${pin} ${metric}`);
 }
 
 function rerenderPreservingView(selectedNodeId) {

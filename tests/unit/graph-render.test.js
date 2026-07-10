@@ -532,6 +532,69 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.match(svg, /ZN at 0\.424/);
 });
 
+test("timing badges default to output AT and slack and allow multiple choices", () => {
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<LoResynHinst_of_module_demo/u0>
+input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
+at 0.423782, rt 0.090101, slack -0.333681
+`);
+  const graph = {
+    moduleDisplayName: "timing",
+    width: 220,
+    height: 160,
+    nodes: [
+      {
+        id: "cell:u0",
+        kind: "cell",
+        gateKind: "buf",
+        label: "u0",
+        title: "BUF",
+        x: 40,
+        y: 40,
+        width: 120,
+        height: 72,
+        ports: [],
+        pinDirections: {
+          A1: { direction: "input" },
+          ZN: { direction: "output" }
+        },
+        ref: {
+          instance: "u0",
+          pins: [
+            { pin: "A1", pinDisplayName: "A1" },
+            { pin: "ZN", pinDisplayName: "ZN" }
+          ]
+        }
+      }
+    ],
+    edges: []
+  };
+  const defaults = annotateGraphTiming(graph, timing);
+  const selected = annotateGraphTiming(graph, timing, {
+    badgeChoices: {
+      u0: [
+        { pin: "A1", metric: "at" },
+        { pin: "ZN", metric: "slack" }
+      ]
+    }
+  });
+  const hidden = annotateGraphTiming(graph, timing, {
+    badgeChoices: { u0: [] }
+  });
+
+  assert.deepEqual(
+    defaults.nodes[0].timing.badges.map(({ pin, metric }) => ({ pin, metric })),
+    [
+      { pin: "ZN", metric: "at" },
+      { pin: "ZN", metric: "slack" }
+    ]
+  );
+  assert.match(renderSchematicSvg(defaults), /ZN at 0\.424 slack -0\.334/);
+  assert.match(renderSchematicSvg(selected), /A1 at 0\.453/);
+  assert.match(renderSchematicSvg(selected), /ZN slack -0\.334/);
+  assert.doesNotMatch(renderSchematicSvg(hidden), /timing-badge/);
+});
+
 test("svg marks cells and pins with critical timing", () => {
   const svg = renderSchematicSvg({
     moduleDisplayName: "timing",

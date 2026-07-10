@@ -49,20 +49,58 @@ export function annotateGraphTiming(graph, timing, options = {}) {
       }
       const instance = node.ref?.instance || node.label;
       const nodeTiming = timing.instances[instance];
-      return nodeTiming ? { ...node, timing: annotateTimingBadge(nodeTiming, badgeChoices[instance]) } : node;
+      return nodeTiming ? { ...node, timing: annotateTimingBadges(nodeTiming, badgeChoices[instance], node) } : node;
     })
   };
 }
 
-function annotateTimingBadge(timing, choice) {
-  const badge = resolveBadgeChoice(timing, choice) || resolveBadgeChoice(timing, {
-    pin: timing.worstPin,
-    metric: "slack"
-  });
+function annotateTimingBadges(timing, choices, node) {
+  const requestedChoices = choices === undefined
+    ? getDefaultBadgeChoices(timing, node)
+    : normalizeBadgeChoices(choices);
+  const badges = requestedChoices
+    .map((choice) => resolveBadgeChoice(timing, choice))
+    .filter(Boolean);
   return {
     ...timing,
-    badge
+    badges,
+    badge: badges[0] || null
   };
+}
+
+function getDefaultBadgeChoices(timing, node) {
+  const outputPin = findOutputTimingPin(timing, node);
+  if (outputPin) {
+    return [
+      { pin: outputPin, metric: "at" },
+      { pin: outputPin, metric: "slack" }
+    ];
+  }
+  return timing.worstPin ? [{ pin: timing.worstPin, metric: "slack" }] : [];
+}
+
+function findOutputTimingPin(timing, node) {
+  for (const pin of node.ref?.pins || []) {
+    const displayName = pin.pinDisplayName || pin.pin;
+    const direction = node.pinDirections?.[displayName]?.direction || node.pinDirections?.[pin.pin]?.direction;
+    if (direction !== "output") {
+      continue;
+    }
+    if (timing.pins?.[displayName]) {
+      return displayName;
+    }
+    if (timing.pins?.[pin.pin]) {
+      return pin.pin;
+    }
+  }
+  return null;
+}
+
+function normalizeBadgeChoices(choices) {
+  if (Array.isArray(choices)) {
+    return choices;
+  }
+  return choices ? [choices] : [];
 }
 
 function resolveBadgeChoice(timing, choice) {
