@@ -57,6 +57,8 @@ const elements = {
   adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
   saveGoldenButton: document.querySelector("#saveGoldenButton"),
   resetLayoutButton: document.querySelector("#resetLayoutButton"),
+  workspace: document.querySelector(".workspace"),
+  sidebarResizeHandle: document.querySelector("#sidebarResizeHandle"),
   canvas: document.querySelector("#canvas"),
   mount: document.querySelector("#schematicMount"),
   stats: document.querySelector("#designStats"),
@@ -85,11 +87,50 @@ elements.fitButton.addEventListener("click", fitToView);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
 elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
 elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
+elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize);
+elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
 
 loadDesign(sampleNetlist, "built-in sample");
 updateCalibrationControls();
+
+function startSidebarResize(event) {
+  if (event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  elements.sidebarResizeHandle.setPointerCapture(event.pointerId);
+  elements.workspace.classList.add("is-resizing-sidebar");
+
+  const move = (moveEvent) => setSidebarWidth(moveEvent.clientX - elements.workspace.getBoundingClientRect().left);
+  const up = () => {
+    elements.workspace.classList.remove("is-resizing-sidebar");
+    elements.sidebarResizeHandle.removeEventListener("pointermove", move);
+    elements.sidebarResizeHandle.removeEventListener("pointerup", up);
+    elements.sidebarResizeHandle.removeEventListener("pointercancel", up);
+  };
+
+  elements.sidebarResizeHandle.addEventListener("pointermove", move);
+  elements.sidebarResizeHandle.addEventListener("pointerup", up);
+  elements.sidebarResizeHandle.addEventListener("pointercancel", up);
+}
+
+function handleSidebarResizeKeydown(event) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+  event.preventDefault();
+  const currentWidth = Number.parseFloat(getComputedStyle(elements.workspace).getPropertyValue("--sidebar-width")) || 300;
+  setSidebarWidth(currentWidth + (event.key === "ArrowRight" ? 16 : -16));
+}
+
+function setSidebarWidth(width) {
+  const maxWidth = Math.max(320, Math.min(640, elements.workspace.clientWidth - 320));
+  const nextWidth = clamp(Math.round(width), 240, maxWidth);
+  elements.workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
+  elements.sidebarResizeHandle.setAttribute("aria-valuenow", String(nextWidth));
+}
 
 async function handleFileChange(event) {
   const file = event.target.files?.[0];

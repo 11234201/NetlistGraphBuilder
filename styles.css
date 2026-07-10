@@ -147,15 +147,42 @@ input {
 }
 
 .workspace {
+  --sidebar-width: 300px;
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: var(--sidebar-width) 6px minmax(0, 1fr);
   min-height: 0;
 }
 
 .side-panel {
   overflow: auto;
-  border-right: 1px solid var(--line);
   background: var(--panel);
+}
+
+.sidebar-resize-handle {
+  position: relative;
+  z-index: 2;
+  width: 6px;
+  background: var(--line);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:focus-visible,
+.workspace.is-resizing-sidebar .sidebar-resize-handle {
+  background: var(--accent);
+  outline: none;
+}
+
+.workspace.is-resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .panel-section {
