@@ -215,6 +215,20 @@ input {
   border: 1px solid var(--line);
 }
 
+.alias-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  color: var(--muted);
+}
+
+.alias-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 .search-panel {
   position: relative;
   overflow: visible;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeGraphCone, createConeGraph } from "../../src/analysis/graphCone.js";
+import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inspectGraphNet, inspectGraphNode } from "../../src/analysis/graphInspector.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -82,4 +83,44 @@ test("cone graph keeps graph metadata while filtering nodes and edges", () => {
   assert.deepEqual(new Set(cone.nodes.map((node) => node.id)), new Set(["cell:u0", "cell:u1", "output:y1"]));
   assert.ok(cone.edges.every((edge) => cone.nodes.some((node) => node.id === edge.source)));
   assert.deepEqual(cone.view, { mode: "fanin", rootNodeId: "output:y1", maxDepth: 2 });
+});
+
+test("alias normalization collapses assign chains without changing parser IR", () => {
+  const aliasSource = `module aliases(a, y); input a; output y; wire n1; wire n2;
+assign n1 = a; assign n2 = n1; assign y = n2; endmodule`;
+  const module = parseVerilog(aliasSource).modules[0];
+  const graph = buildSchematicGraph(module);
+  const normalized = normalizeGraphAliases(graph, { showAliases: false });
+
+  assert.equal(module.assigns.length, 3);
+  assert.equal(normalized.nodes.some((node) => node.kind === "assign"), false);
+  assert.equal(normalized.aliases.length, 3);
+  assert.equal(normalized.edges.length, 1);
+  assert.equal(normalized.edges[0].source, "input:a");
+  assert.equal(normalized.edges[0].target, "output:y");
+  assert.equal(normalized.edges[0].net, "y");
+  assert.equal(normalized.edges[0].collapsedAliasNodeIds.length, 3);
+});
+
+test("alias normalization can preserve explicit assign nodes", () => {
+  const graph = buildSchematicGraph(parseVerilog("module m(a,y); input a; output y; assign y=a; endmodule").modules[0]);
+  assert.equal(normalizeGraphAliases(graph, { showAliases: true }), graph);
+});
+
+test("alias normalization preserves unresolved cyclic aliases", () => {
+  const graph = {
+    nodes: [
+      { id: "assign:a", kind: "assign", ref: { lhs: "a", rhs: "b" } },
+      { id: "assign:b", kind: "assign", ref: { lhs: "b", rhs: "a" } }
+    ],
+    edges: [
+      { id: "ab", source: "assign:a", target: "assign:b" },
+      { id: "ba", source: "assign:b", target: "assign:a" }
+    ]
+  };
+  const normalized = normalizeGraphAliases(graph, { showAliases: false });
+
+  assert.equal(normalized.aliasNormalizationSkipped, true);
+  assert.equal(normalized.nodes.length, 2);
+  assert.equal(normalized.edges.length, 2);
 });

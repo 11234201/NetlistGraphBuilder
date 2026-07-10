@@ -2,6 +2,7 @@
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { createConeGraph } from "../analysis/graphCone.js";
+import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
@@ -49,6 +50,7 @@ const elements = {
   faninViewButton: document.querySelector("#faninViewButton"),
   fanoutViewButton: document.querySelector("#fanoutViewButton"),
   coneDepthInput: document.querySelector("#coneDepthInput"),
+  showAliasesInput: document.querySelector("#showAliasesInput"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
@@ -77,6 +79,7 @@ elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
 elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
+elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
@@ -171,7 +174,7 @@ function selectModule(moduleName) {
 }
 
 function renderCurrentModuleGraph() {
-  state.fullGraph = annotateGraphTiming(
+  const annotatedGraph = annotateGraphTiming(
     buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
     state.timing,
     {
@@ -179,6 +182,7 @@ function renderCurrentModuleGraph() {
       badgePositions: state.timingBadgePositions
     }
   );
+  state.fullGraph = normalizeGraphAliases(annotatedGraph, { showAliases: state.showAliases });
   const sourceGraph = state.viewMode === "whole"
     ? state.fullGraph
     : createConeGraph(state.fullGraph, state.coneRootNodeId, {
@@ -222,6 +226,21 @@ function handleConeDepthChange(event) {
   }
 }
 
+function handleAliasVisibilityChange(event) {
+  const selectedNode = state.graph?.nodes.find((node) => node.id === state.selectedNodeId);
+  state.showAliases = event.target.checked;
+  const selectedNodeId = state.selectedNodeId;
+  if (!state.showAliases && selectedNode?.kind === "assign") {
+    state.viewMode = "whole";
+    state.coneRootNodeId = null;
+  }
+  renderCurrentModuleGraph();
+  state.selectedNodeId = null;
+  setSelectedNode(state.graph.nodes.some((node) => node.id === selectedNodeId) ? selectedNodeId : null);
+  applyTransform();
+  setStatus(state.showAliases ? "Alias nodes shown" : `Collapsed ${state.fullGraph.aliases?.length || 0} alias node(s)`);
+}
+
 function updateViewControls() {
   const hasRoot = Boolean(state.selectedNodeId || state.coneRootNodeId);
   elements.wholeViewButton.classList.toggle("is-active", state.viewMode === "whole");
@@ -230,6 +249,7 @@ function updateViewControls() {
   elements.faninViewButton.disabled = !hasRoot;
   elements.fanoutViewButton.disabled = !hasRoot;
   elements.coneDepthInput.disabled = state.viewMode === "whole";
+  elements.showAliasesInput.checked = state.showAliases;
 }
 
 function handleWireSpacingChange(event) {
