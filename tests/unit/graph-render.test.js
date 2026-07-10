@@ -12,6 +12,7 @@ import { snapNodePosition, snapToGrid } from "../../src/layout/snap.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { createStandaloneSvg } from "../../src/render/svgExport.js";
 import { annotateGraphTiming } from "../../src/timing/timingAnnotation.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
 
@@ -38,6 +39,15 @@ test("graph and svg render fixture module", async () => {
   assert.match(svg, /<svg class="schematic-svg"/);
   assert.match(svg, /l_resyn3_u_gen_1395/);
   assert.match(svg, /class="node-meta"/);
+});
+
+test("standalone SVG export embeds namespace and schematic styles", () => {
+  const exported = createStandaloneSvg('<svg class="schematic-svg" viewBox="0 0 10 10"><g></g></svg>');
+
+  assert.match(exported, /^<\?xml version="1\.0"/);
+  assert.match(exported, /xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.match(exported, /<style>[\s\S]*\.wire/);
+  assert.match(exported, /<g><\/g><\/svg>$/);
 });
 
 test("cell metadata reports type, instance, output nets, and fanout", () => {

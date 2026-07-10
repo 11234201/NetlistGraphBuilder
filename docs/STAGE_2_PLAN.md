@@ -19,7 +19,7 @@
 | R2-3 | Fanin/Fanout 图分析 | 支持 immediate、transitive 和 depth-limited fanin/fanout | 已完成 |
 | R2-4 | Cone 视图模式 | whole module、fanin cone、fanout cone 可切换 | 已完成 |
 | R2-5 | Assign/Alias 规范化 | alias 可折叠，并可切换显示 alias | 已完成 |
-| R2-6 | 导出 SVG | 当前 module/cone 视图可导出为离线 SVG | 计划中 |
+| R2-6 | 导出 SVG | 当前 module/cone 视图可导出为离线 SVG | 已完成 |
 | R2-7 | 手动布局校准与临时 golden | 节点可拖动，保存 layout golden，并能对比自动布局与 golden 差异 | 已完成 |
 | R2-8 | Wire 可读性修正 | 相近 pin 局部优先连线，net label 靠近接口，adjust 模式支持吸附对齐 | 已完成 |
 

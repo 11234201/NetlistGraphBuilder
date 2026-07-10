@@ -8,6 +8,7 @@ import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
+import { createStandaloneSvg } from "../render/svgExport.js";
 import {
   buildDesignSearchIndex,
   searchDesignIndex
@@ -54,6 +55,7 @@ const elements = {
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
+  exportSvgButton: document.querySelector("#exportSvgButton"),
   adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
   saveGoldenButton: document.querySelector("#saveGoldenButton"),
   resetLayoutButton: document.querySelector("#resetLayoutButton"),
@@ -84,6 +86,7 @@ elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
+elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
 elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
 elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
@@ -814,6 +817,18 @@ function fitToView() {
   applyTransform();
 }
 
+function exportCurrentSvg() {
+  if (!state.graph || !state.currentModule) {
+    return;
+  }
+  const viewSuffix = state.viewMode === "whole"
+    ? "whole"
+    : `${state.viewMode}-depth-${state.coneDepth}`;
+  const fileName = `${sanitizeFileName(state.currentModule.name)}-${viewSuffix}.svg`;
+  downloadText(createStandaloneSvg(renderSchematicSvg(state.graph)), fileName, "image/svg+xml");
+  setStatus(`Exported SVG: ${fileName}`);
+}
+
 function toggleCalibrationMode() {
   state.calibrationMode = !state.calibrationMode;
   updateCalibrationControls();
@@ -941,9 +956,11 @@ function round(value) {
 }
 
 function downloadJson(value, fileName) {
-  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
-    type: "application/json"
-  });
+  downloadText(`${JSON.stringify(value, null, 2)}\n`, fileName, "application/json");
+}
+
+function downloadText(value, fileName, type) {
+  const blob = new Blob([value], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
