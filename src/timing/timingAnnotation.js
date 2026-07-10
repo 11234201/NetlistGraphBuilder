@@ -16,7 +16,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
   }
   const badgeChoices = options.badgeChoices || {};
   const badgePositions = options.badgePositions || {};
-  const timingByNodeId = matchTimingRecords(graph.nodes, timing);
+  const timingByNodeId = matchTimingRecords(graph, timing);
 
   return {
     ...graph,
@@ -48,19 +48,20 @@ export function normalizeBadgeChoices(choices) {
   return choices ? [choices] : [];
 }
 
-function matchTimingRecords(nodes, timing) {
+function matchTimingRecords(graph, timing) {
   const matches = new Map();
   const ambiguousNodeIds = new Set();
-  const cells = nodes
+  const cells = graph.nodes
     .filter((node) => node.kind === "cell")
     .map((node) => ({
       node,
       instance: normalizeHierarchicalName(getNodeInstance(node))
     }))
     .filter((item) => item.instance);
-  const records = Array.isArray(timing.records)
+  const allRecords = Array.isArray(timing.records)
     ? timing.records
     : Object.values(timing.instances || {});
+  const records = selectModuleRecords(allRecords, graph.moduleName);
 
   for (const record of records) {
     const fullPath = normalizeHierarchicalName(record.fullPath || record.instance);
@@ -86,6 +87,23 @@ function matchTimingRecords(nodes, timing) {
     }
   }
   return matches;
+}
+
+function selectModuleRecords(records, moduleName) {
+  const normalizedModule = normalizeHierarchicalName(moduleName);
+  if (!normalizedModule) {
+    return records;
+  }
+
+  const modulePattern = new RegExp(
+    `(?:^|of_module_)${escapeRegExp(normalizedModule)}(?:_ConeInst|_gen_\\d+)?/`
+  );
+  const moduleRecords = records.filter((record) =>
+    modulePattern.test(normalizeHierarchicalName(record.fullPath || record.instance))
+  );
+
+  // Unknown log wrappers still fall back to the established instance-suffix matching.
+  return moduleRecords.length > 0 ? moduleRecords : records;
 }
 
 function annotateTimingBadges(timing, choices, position, node) {
@@ -151,6 +169,10 @@ function getNodeInstance(node) {
 
 function normalizeHierarchicalName(value) {
   return String(value || "").trim().replace(/^\\/, "");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function formatTimingValue(value) {

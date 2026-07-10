@@ -524,6 +524,42 @@ input timing message: pin Z, at 0.818539, rt 0.813487, slack -0.005052
   assert.equal(annotated.nodes[1].timing.pins.Z.slack, -0.005052);
 });
 
+test("LocResyn timing scopes duplicate Flex instance names to the current module", () => {
+  const firstModule = "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_Flex";
+  const secondModule = "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex";
+  const timing = parseTimingLog(`[D][LocResyn] inst
+<${firstModule}_ConeInst/l_resyn1_u_gen_1>
+input timing message: pin Z, at 0.179111, rt 0.170000, slack -0.009111
+[D][LocResyn] inst
+<${firstModule}_ConeInst/l_resyn1_u_gen_0>
+input timing message: pin ZN, at 0.062084, rt 0.050000, slack -0.012084
+[D][LocResyn] inst
+<${secondModule}_ConeInst/l_resyn1_u_gen_1>
+input timing message: pin Z, at 0.185934, rt 0.180000, slack -0.005934
+[D][LocResyn] inst
+<${secondModule}_ConeInst/l_resyn1_u_gen_0>
+input timing message: pin ZN, at 0.027266, rt 0.020000, slack -0.007266
+`);
+  const makeGraph = (moduleName) => ({
+    moduleName,
+    nodes: ["l_resyn1_u_gen_0", "l_resyn1_u_gen_1"].map((instance) => ({
+      id: `cell:${instance}`,
+      kind: "cell",
+      label: instance,
+      ref: { instance }
+    })),
+    edges: []
+  });
+
+  const first = annotateGraphTiming(makeGraph(firstModule), timing);
+  const second = annotateGraphTiming(makeGraph(secondModule), timing);
+
+  assert.equal(first.nodes[0].timing.fullPath, `${firstModule}_ConeInst/l_resyn1_u_gen_0`);
+  assert.equal(first.nodes[1].timing.fullPath, `${firstModule}_ConeInst/l_resyn1_u_gen_1`);
+  assert.equal(second.nodes[0].timing.fullPath, `${secondModule}_ConeInst/l_resyn1_u_gen_0`);
+  assert.equal(second.nodes[1].timing.fullPath, `${secondModule}_ConeInst/l_resyn1_u_gen_1`);
+});
+
 test("timing badge choices select the cell corner metric", () => {
   const timing = parseTimingLog(`[D][LocResyn] inst
 <LoResynHinst_of_module_demo/u0>
