@@ -20,7 +20,11 @@ import {
 export const DEFAULT_WIRE_LANE_PITCH = 18;
 export const DEFAULT_TOP_WIRE_LANE_PITCH = 16;
 export { DEFAULT_LAYOUT_POLICY };
-export { DEFAULT_CELL_PIN_PITCH, DEFAULT_PIN_NODE_HEIGHT } from "./nodeGeometry.js";
+export {
+  DEFAULT_CELL_PIN_PITCH,
+  DEFAULT_INPUT_NODE_HEIGHT,
+  DEFAULT_PIN_NODE_HEIGHT
+} from "./nodeGeometry.js";
 
 export function layoutGraph(graph, options = {}) {
   const policy = normalizeLayoutPolicy(options.layoutPolicy, options);

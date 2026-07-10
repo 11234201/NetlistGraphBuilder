@@ -313,12 +313,15 @@ test("single-fanout inputs can localize near consuming cell pins", () => {
   const graph = createLocalityTestGraph();
   const laidOut = layoutGraph(graph, { localizeSingleFanoutInputs: true });
   const target = laidOut.nodes.find((item) => item.id === "cell:u0");
-  const inputs = laidOut.nodes.filter((item) => item.kind === "input");
+  const inputs = laidOut.nodes
+    .filter((item) => item.kind === "input")
+    .toSorted((left, right) => left.y - right.y);
   const inputEdges = laidOut.edges.filter((edge) => edge.target === target.id);
 
   assert.ok(inputs.every((input) => input.x > 48));
   assert.ok(inputs.every((input) => input.x < target.x));
   assert.ok(inputEdges.every((edge) => edge.points[0].y === edge.points.at(-1).y));
+  assert.equal(inputs[1].y - (inputs[0].y + inputs[0].height), 8);
 });
 
 test("long localized input names do not overlap upstream cells", () => {

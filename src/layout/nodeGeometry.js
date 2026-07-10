@@ -1,7 +1,8 @@
 import { inferPinDirection, isInvertingOutputGate } from "../infer/defaultCellRules.js";
 
 export const DEFAULT_PIN_NODE_HEIGHT = 36;
-export const DEFAULT_CELL_PIN_PITCH = DEFAULT_PIN_NODE_HEIGHT;
+export const DEFAULT_INPUT_NODE_HEIGHT = 28;
+export const DEFAULT_CELL_PIN_PITCH = 36;
 
 export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
   const labelLength = Math.max(
@@ -19,7 +20,9 @@ export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
       ? Math.max(58, cellPinPitch * (pinCount + 1))
       : node.kind === "assign"
         ? 58
-        : DEFAULT_PIN_NODE_HEIGHT;
+        : node.kind === "input" || node.kind === "implicit" || node.kind === "constant"
+          ? DEFAULT_INPUT_NODE_HEIGHT
+          : DEFAULT_PIN_NODE_HEIGHT;
   return { width, height };
 }
 
