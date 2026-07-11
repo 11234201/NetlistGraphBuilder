@@ -25,6 +25,7 @@
           <span>Module</span>
           <select id="moduleSelect"></select>
         </label>
+        <button id="compareButton" class="icon-button" type="button" title="进入双 module 对比视图">Compare</button>
         <label class="toolbar-field wire-spacing-field" title="调整平行 net 走线间距">
           <span>Wire spacing</span>
           <input id="wireSpacingInput" type="range" min="8" max="40" step="1" value="18">
@@ -55,6 +56,18 @@
               <span>Show aliases</span>
             </label>
           </section>
+          <section id="comparePanel" class="panel-section compare-panel" hidden>
+            <h2>Module Compare</h2>
+            <label><span>Left</span><select id="leftModuleSelect"></select></label>
+            <label><span>Right</span><select id="rightModuleSelect"></select></label>
+            <div class="compare-actions">
+              <button id="applyCompareButton" class="mini-button" type="button">Apply</button>
+              <button id="exitCompareButton" class="mini-button" type="button">Single</button>
+            </div>
+            <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked><span>Sync pan / zoom</span></label>
+            <label><span>Layout</span><select id="compareLayoutSelect"><option value="vertical">Top / Bottom</option><option value="horizontal">Left / Right</option></select></label>
+            <label><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label>
+          </section>
           <section class="panel-section search-panel">
             <label class="search-label" for="searchInput">Search</label>
             <div class="search-box">
@@ -81,6 +94,10 @@
 
         <section id="canvas" class="canvas" aria-label="schematic canvas">
           <div id="schematicMount" class="schematic-mount"></div>
+          <div id="compareMount" class="compare-mount" hidden>
+            <section class="compare-side" data-compare-side="left"><header>Left</header><div id="leftSchematicMount" class="schematic-mount"></div></section>
+            <section class="compare-side" data-compare-side="right"><header>Right</header><div id="rightSchematicMount" class="schematic-mount"></div></section>
+          </div>
         </section>
       </section>
 

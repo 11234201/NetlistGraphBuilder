@@ -3,6 +3,7 @@ import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { createConeGraph } from "../analysis/graphCone.js";
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
+import { alignModulePorts, compareModules, recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { layoutGraph } from "../layout/simpleLayered.js";
@@ -44,6 +45,15 @@ const elements = {
   fileInput: document.querySelector("#fileInput"),
   timingInput: document.querySelector("#timingInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
+  compareButton: document.querySelector("#compareButton"),
+  comparePanel: document.querySelector("#comparePanel"),
+  leftModuleSelect: document.querySelector("#leftModuleSelect"),
+  rightModuleSelect: document.querySelector("#rightModuleSelect"),
+  applyCompareButton: document.querySelector("#applyCompareButton"),
+  exitCompareButton: document.querySelector("#exitCompareButton"),
+  syncCompareInput: document.querySelector("#syncCompareInput"),
+  compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
+  compareOutputSelect: document.querySelector("#compareOutputSelect"),
   searchInput: document.querySelector("#searchInput"),
   searchClearButton: document.querySelector("#searchClearButton"),
   searchResults: document.querySelector("#searchResults"),
@@ -63,6 +73,9 @@ const elements = {
   sidebarResizeHandle: document.querySelector("#sidebarResizeHandle"),
   canvas: document.querySelector("#canvas"),
   mount: document.querySelector("#schematicMount"),
+  compareMount: document.querySelector("#compareMount"),
+  leftMount: document.querySelector("#leftSchematicMount"),
+  rightMount: document.querySelector("#rightSchematicMount"),
   stats: document.querySelector("#designStats"),
   details: document.querySelector("#selectionDetails"),
   diagnostics: document.querySelector("#diagnosticsList"),
@@ -73,6 +86,24 @@ elements.fileInput.addEventListener("change", handleFileChange);
 elements.timingInput.addEventListener("change", handleTimingFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
+});
+elements.compareButton.addEventListener("click", () => {
+  if (state.compare.active) exitCompareView();
+  else enterCompareView();
+});
+elements.applyCompareButton.addEventListener("click", applyCompareSelection);
+elements.exitCompareButton.addEventListener("click", exitCompareView);
+elements.syncCompareInput.addEventListener("change", (event) => { state.compare.synchronized = event.target.checked; });
+elements.compareLayoutSelect.addEventListener("change", (event) => {
+  state.compare.layout = event.target.value === "horizontal" ? "horizontal" : "vertical";
+  applyCompareLayout();
+  fitToView();
+});
+elements.compareOutputSelect.addEventListener("change", (event) => {
+  state.compare.outputName = event.target.value || null;
+  elements.coneDepthInput.disabled = !state.compare.outputName;
+  renderCompareGraphs();
+  renderStats();
 });
 elements.searchInput.addEventListener("input", handleSearchInput);
 elements.searchInput.addEventListener("keydown", handleSearchKeydown);
@@ -196,6 +227,140 @@ function renderModuleOptions() {
     option.textContent = module.displayName;
     elements.moduleSelect.append(option);
   }
+  renderCompareModuleOptions();
+}
+
+function renderCompareModuleOptions() {
+  for (const select of [elements.leftModuleSelect, elements.rightModuleSelect]) {
+    select.innerHTML = "";
+    for (const module of state.design.modules) {
+      const option = document.createElement("option");
+      option.value = module.name;
+      option.textContent = module.displayName;
+      select.append(option);
+    }
+  }
+}
+
+function enterCompareView() {
+  const left = state.currentModule || state.design?.modules[0];
+  const right = recommendModulePair(state.design?.modules || [], left?.name)
+    || state.design?.modules.find((module) => module !== left);
+  if (!left || !right) {
+    setStatus("Compare requires at least two modules");
+    return;
+  }
+  elements.leftModuleSelect.value = left.name;
+  elements.rightModuleSelect.value = right.name;
+  applyCompareSelection();
+}
+
+function applyCompareSelection() {
+  const left = state.design.modules.find((module) => module.name === elements.leftModuleSelect.value);
+  const right = state.design.modules.find((module) => module.name === elements.rightModuleSelect.value);
+  if (!left || !right || left === right) {
+    setStatus("Choose two different modules to compare");
+    return;
+  }
+  state.compare.active = true;
+  state.compare.leftModuleName = left.name;
+  state.compare.rightModuleName = right.name;
+  state.compare.outputName = null;
+  state.compare.selectedName = null;
+  state.compare.transforms.left = { x: 0, y: 0, scale: 1 };
+  state.compare.transforms.right = { x: 0, y: 0, scale: 1 };
+  elements.comparePanel.hidden = false;
+  elements.mount.hidden = true;
+  elements.compareMount.hidden = false;
+  elements.compareButton.classList.add("is-active");
+  elements.compareButton.textContent = "Single";
+  elements.compareButton.title = "退出双 module 对比视图";
+  elements.compareButton.setAttribute("aria-pressed", "true");
+  elements.compareLayoutSelect.value = state.compare.layout;
+  applyCompareLayout();
+  elements.coneDepthInput.disabled = true;
+  renderCompareGraphs();
+  renderStats();
+  renderSelection(null);
+  setStatus(`Comparing ${left.displayName} and ${right.displayName}`);
+}
+
+function exitCompareView() {
+  state.compare.active = false;
+  elements.comparePanel.hidden = true;
+  elements.compareMount.hidden = true;
+  elements.mount.hidden = false;
+  elements.compareButton.classList.remove("is-active");
+  elements.compareButton.textContent = "Compare";
+  elements.compareButton.title = "进入双 module 对比视图";
+  elements.compareButton.setAttribute("aria-pressed", "false");
+  updateViewControls();
+  renderStats();
+  applyTransform();
+  setStatus(`Single module view: ${state.currentModule?.displayName || "-"}`);
+}
+
+function applyCompareLayout() {
+  elements.compareMount.classList.toggle("is-horizontal", state.compare.layout === "horizontal");
+  elements.compareMount.classList.toggle("is-vertical", state.compare.layout !== "horizontal");
+}
+
+function renderCompareGraphs() {
+  const leftModule = getCompareModule("left");
+  const rightModule = getCompareModule("right");
+  if (!leftModule || !rightModule) return;
+  const fullGraphs = {
+    left: normalizeGraphAliases(buildSchematicGraph(leftModule), { showAliases: state.showAliases }),
+    right: normalizeGraphAliases(buildSchematicGraph(rightModule), { showAliases: state.showAliases })
+  };
+  alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
+  state.compare.fullGraphs = fullGraphs;
+  const sourceGraphs = { ...fullGraphs };
+  if (state.compare.outputName) {
+    for (const side of ["left", "right"]) {
+      const outputNodeId = findCompareNode(fullGraphs[side], "port", state.compare.outputName, "output")?.id;
+      sourceGraphs[side] = createConeGraph(fullGraphs[side], outputNodeId, {
+        direction: "fanin",
+        maxDepth: state.coneDepth
+      });
+    }
+  }
+  state.compare.graphs = {
+    left: layoutGraph(sourceGraphs.left, { layoutPolicy: state.layoutPolicy }),
+    right: layoutGraph(sourceGraphs.right, { layoutPolicy: state.layoutPolicy })
+  };
+  state.compare.analysis = compareModules(leftModule, rightModule, sourceGraphs.left, sourceGraphs.right);
+  elements.leftMount.innerHTML = renderSchematicSvg(state.compare.graphs.left);
+  elements.rightMount.innerHTML = renderSchematicSvg(state.compare.graphs.right);
+  elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;
+  elements.compareMount.querySelector('[data-compare-side="right"] > header').textContent = rightModule.displayName;
+  renderCompareOutputOptions(leftModule, rightModule);
+  applyCompareHighlights();
+  applyCompareTransforms();
+}
+
+function alignPortNodeOrder(graphs, alignedPorts) {
+  alignedPorts.forEach((port, order) => {
+    for (const graph of Object.values(graphs)) {
+      for (const kind of ["input", "output"]) {
+        const node = findCompareNode(graph, "port", port.name, kind);
+        if (node) node.order = order;
+      }
+    }
+  });
+}
+
+function renderCompareOutputOptions(left, right) {
+  const selected = state.compare.outputName || "";
+  const rightOutputs = new Set(right.ports.filter((port) => port.direction === "output").map((port) => port.name));
+  const outputs = left.ports.filter((port) => port.direction === "output" && rightOutputs.has(port.name));
+  elements.compareOutputSelect.innerHTML = `<option value="">Whole module</option>${outputs.map((port) =>
+    `<option value="${escapeAttr(port.name)}">${escapeHtml(port.displayName)}</option>`).join("")}`;
+  elements.compareOutputSelect.value = selected;
+}
+
+function getCompareModule(side) {
+  return state.design?.modules.find((module) => module.name === state.compare[`${side}ModuleName`]);
 }
 
 function selectModule(moduleName) {
@@ -265,6 +430,12 @@ function setViewMode(mode) {
 function handleConeDepthChange(event) {
   state.coneDepth = clamp(Math.floor(Number(event.target.value) || 1), 1, 99);
   elements.coneDepthInput.value = String(state.coneDepth);
+  if (state.compare.active && state.compare.outputName) {
+    renderCompareGraphs();
+    renderStats();
+    setStatus(`Compare fanin cone depth ${state.coneDepth}`);
+    return;
+  }
   if (state.viewMode !== "whole") {
     setViewMode(state.viewMode);
   }
@@ -273,6 +444,12 @@ function handleConeDepthChange(event) {
 function handleAliasVisibilityChange(event) {
   const selectedNode = state.graph?.nodes.find((node) => node.id === state.selectedNodeId);
   state.showAliases = event.target.checked;
+  if (state.compare.active) {
+    renderCompareGraphs();
+    renderStats();
+    setStatus(state.showAliases ? "Compare aliases shown" : "Compare aliases collapsed");
+    return;
+  }
   const selectedNodeId = state.selectedNodeId;
   if (!state.showAliases && selectedNode?.kind === "assign") {
     state.viewMode = "whole";
@@ -301,6 +478,13 @@ function handleWireSpacingChange(event) {
   state.layoutPolicy.spacing.wireLanePitch = clamp(value, 8, 40);
   elements.wireSpacingValue.value = String(state.layoutPolicy.spacing.wireLanePitch);
   if (!state.currentModule) {
+    return;
+  }
+
+  if (state.compare.active) {
+    renderCompareGraphs();
+    renderStats();
+    setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
     return;
   }
 
@@ -502,6 +686,23 @@ function getEdgeCenter(edge) {
 }
 
 function renderStats() {
+  if (state.compare.active && state.compare.analysis) {
+    const { left, right, delta, unmatchedPorts, unmatchedNets } = state.compare.analysis;
+    const pair = (a, b) => `${a} / ${b}`;
+    elements.stats.innerHTML = statsRows([
+      ["Cells L/R", pair(left.cells, right.cells)],
+      ["Cell delta", signed(delta.cells)],
+      ["Depth L/R", pair(left.logicDepth, right.logicDepth)],
+      ["Depth delta", signed(delta.logicDepth)],
+      ["Max fanout L/R", pair(left.maxFanout, right.maxFanout)],
+      ["Fanout delta", signed(delta.maxFanout)],
+      ["Gate kinds L", formatGateKinds(left.gateKinds)],
+      ["Gate kinds R", formatGateKinds(right.gateKinds)],
+      ["Unmatched ports", unmatchedPorts.length],
+      ["Unmatched nets L/R", pair(unmatchedNets.left.length, unmatchedNets.right.length)]
+    ]);
+    return;
+  }
   const module = state.currentModule;
   const graph = state.graph;
   elements.stats.innerHTML = statsRows([
@@ -514,6 +715,72 @@ function renderStats() {
     ["Graph nodes", graph.nodes.length],
     ["Graph edges", graph.edges.length]
   ]);
+}
+
+function signed(value) { return value > 0 ? `+${value}` : String(value); }
+function formatGateKinds(counts) { return Object.entries(counts).map(([kind, count]) => `${kind}:${count}`).join(", ") || "-"; }
+
+function applyCompareHighlights() {
+  const analysis = state.compare.analysis;
+  if (!analysis) return;
+  const matchedPorts = new Set(analysis.matchedPorts);
+  const unmatchedPorts = new Set(analysis.unmatchedPorts);
+  const commonNets = new Set(analysis.commonNets);
+  for (const side of ["left", "right"]) {
+    const mount = side === "left" ? elements.leftMount : elements.rightMount;
+    const graph = state.compare.graphs[side];
+    for (const node of mount.querySelectorAll(".node")) {
+      const id = node.dataset.nodeId || "";
+      const graphNode = graph.nodes.find((item) => item.id === id);
+      const name = getCompareNodeName(graphNode);
+      if (matchedPorts.has(name)) node.classList.add("is-compare-match");
+      if (unmatchedPorts.has(name)) node.classList.add("is-compare-unmatched");
+      if (graphNode?.kind === "cell") {
+        node.classList.add(analysis.commonGateKinds.includes(graphNode.gateKind || "blackbox")
+          ? "is-compare-match"
+          : "is-compare-unmatched");
+      }
+    }
+    for (const edge of mount.querySelectorAll(".edge")) {
+      edge.classList.add(commonNets.has(edge.dataset.net) ? "is-compare-match" : "is-compare-unmatched");
+    }
+  }
+  if (state.compare.selectedName) selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false);
+}
+
+function selectCompareObject(kind, name, focus = true) {
+  state.compare.selectedKind = kind;
+  state.compare.selectedName = name;
+  for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
+  for (const side of ["left", "right"]) {
+    const mount = side === "left" ? elements.leftMount : elements.rightMount;
+    if (kind === "net") {
+      for (const edge of mount.querySelectorAll(".edge")) if (edge.dataset.net === name) edge.classList.add("is-selected");
+    } else {
+      const graphNode = findCompareNode(state.compare.graphs[side], kind, name);
+      if (graphNode) mount.querySelector(`[data-node-id="${cssEscape(graphNode.id)}"]`)?.classList.add("is-selected");
+    }
+  }
+  if (focus) focusCompareSelection(kind, name);
+  elements.details.className = "details-block";
+  elements.details.innerHTML = statsRows([["Compare object", name], ["Kind", kind], ["Present", "highlighted on both sides where available"]]);
+}
+
+function focusCompareSelection(kind, name) {
+  if (kind === "net") return;
+  for (const side of ["left", "right"]) {
+    const graph = state.compare.graphs[side];
+    const node = findCompareNode(graph, kind, name);
+    const svg = (side === "left" ? elements.leftMount : elements.rightMount).querySelector("svg");
+    if (!node || !svg) continue;
+    const scale = Math.max(state.compare.transforms[side].scale, 1.5);
+    state.compare.transforms[side] = {
+      x: svg.viewBox.baseVal.width / 2 - (node.x + node.width / 2) * scale,
+      y: svg.viewBox.baseVal.height / 2 - (node.y + node.height / 2) * scale,
+      scale
+    };
+  }
+  applyCompareTransforms();
 }
 
 function renderSelection(node) {
@@ -680,6 +947,10 @@ function rerenderPreservingView(selectedNodeId) {
 }
 
 function handleWheel(event) {
+  if (state.compare.active) {
+    handleCompareWheel(event);
+    return;
+  }
   const svg = getSvg();
   if (!svg) {
     return;
@@ -697,6 +968,10 @@ function handleWheel(event) {
 }
 
 function handlePointerDown(event) {
+  if (state.compare.active) {
+    handleComparePointerDown(event);
+    return;
+  }
   const svg = getSvg();
   if (!svg || event.button !== 0) {
     return;
@@ -813,6 +1088,13 @@ function startNodeDrag(event, nodeId) {
 }
 
 function fitToView() {
+  if (state.compare.active) {
+    state.compare.transforms.left = { x: 0, y: 0, scale: 1 };
+    state.compare.transforms.right = { x: 0, y: 0, scale: 1 };
+    applyCompareTransforms();
+    setStatus("Fit both compare views");
+    return;
+  }
   state.transform = { x: 0, y: 0, scale: 1 };
   applyTransform();
 }
@@ -892,6 +1174,99 @@ function applyTransform() {
   }
   const { x, y, scale } = state.transform;
   content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+}
+
+function handleCompareWheel(event) {
+  const sideElement = event.target.closest("[data-compare-side]");
+  const side = sideElement?.dataset.compareSide;
+  const svg = sideElement?.querySelector("svg");
+  if (!side || !svg) return;
+  event.preventDefault();
+  const current = state.compare.transforms[side];
+  const oldScale = current.scale;
+  const nextScale = clamp(oldScale * (event.deltaY < 0 ? 1.12 : 0.88), 0.25, 4);
+  const point = eventPointToSvg(svg, event);
+  const next = {
+    x: point.x - (point.x - current.x) * (nextScale / oldScale),
+    y: point.y - (point.y - current.y) * (nextScale / oldScale),
+    scale: nextScale
+  };
+  setCompareTransform(side, next);
+}
+
+function handleComparePointerDown(event) {
+  const sideElement = event.target.closest("[data-compare-side]");
+  const side = sideElement?.dataset.compareSide;
+  const svg = sideElement?.querySelector("svg");
+  if (!side || !svg || event.button !== 0) return;
+  const nodeElement = event.target.closest("[data-node-id]");
+  if (nodeElement) {
+    const id = nodeElement.dataset.nodeId;
+    const graphNode = state.compare.graphs[side]?.nodes.find((node) => node.id === id);
+    selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode));
+    return;
+  }
+  const edgeElement = event.target.closest("[data-edge-id]");
+  if (edgeElement) {
+    selectCompareObject("net", edgeElement.dataset.net);
+    return;
+  }
+  elements.canvas.setPointerCapture(event.pointerId);
+  elements.canvas.classList.add("is-panning");
+  const start = { x: event.clientX, y: event.clientY, transform: { ...state.compare.transforms[side] } };
+  const move = (moveEvent) => {
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    setCompareTransform(side, {
+      ...start.transform,
+      x: start.transform.x + ((moveEvent.clientX - start.x) * viewBox.width) / rect.width,
+      y: start.transform.y + ((moveEvent.clientY - start.y) * viewBox.height) / rect.height
+    });
+  };
+  const up = () => {
+    elements.canvas.classList.remove("is-panning");
+    elements.canvas.removeEventListener("pointermove", move);
+    elements.canvas.removeEventListener("pointerup", up);
+    elements.canvas.removeEventListener("pointercancel", up);
+  };
+  elements.canvas.addEventListener("pointermove", move);
+  elements.canvas.addEventListener("pointerup", up);
+  elements.canvas.addEventListener("pointercancel", up);
+}
+
+function setCompareTransform(side, transform) {
+  state.compare.transforms[side] = transform;
+  if (state.compare.synchronized) state.compare.transforms[side === "left" ? "right" : "left"] = { ...transform };
+  applyCompareTransforms();
+}
+
+function findCompareNode(graph, kind, name, portKind = null) {
+  return graph?.nodes.find((node) => {
+    if (kind === "cell") return node.kind === "cell" && getCompareNodeName(node) === name;
+    if (kind === "port") {
+      return (node.kind === "input" || node.kind === "output")
+        && (!portKind || node.kind === portKind)
+        && getCompareNodeName(node) === name;
+    }
+    return false;
+  }) || null;
+}
+
+function getCompareNodeName(node) {
+  if (!node) return null;
+  return node.kind === "cell"
+    ? node.ref?.instance || node.label
+    : node.ref?.name || node.label;
+}
+
+function applyCompareTransforms() {
+  for (const side of ["left", "right"]) {
+    const mount = side === "left" ? elements.leftMount : elements.rightMount;
+    const content = mount.querySelector("#schematicContent");
+    if (!content) continue;
+    const { x, y, scale } = state.compare.transforms[side];
+    content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+  }
 }
 
 function eventPointToSvg(svg, event) {

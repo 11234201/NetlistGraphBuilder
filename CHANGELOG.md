@@ -2,6 +2,29 @@
 
 本项目使用语义化版本号。
 
+## [0.3.0] - 2026-07-11
+
+阶段 3 module compare 版本。
+
+### Added
+
+- 双 module Compare View，支持自动推荐 `_Flex`、`_orig`、`_new` 配对及手动选择左右 module。
+- 默认上下、可切换左右的双 schematic 布局，以及同步/独立 pan、zoom 和 Fit Both。
+- 同名且同方向 port 对齐、同名 net 和同类 gate kind 高亮、unmatched 结构差异候选标记。
+- Cell count、gate kind count、logic depth 粗估、max fanout 和两侧差值统计。
+- 两侧共有 output 的同步 fanin cone 对比和 cone 统计。
+- Compare View 的跨侧对象选择、聚焦和 Single View 返回入口。
+
+### Changed
+
+- README 增加完整 Single/Compare 使用方法及结构差异高亮的预期与算法边界。
+- Compare 默认使用 Top/Bottom 布局；进入后顶部按钮切换为 `Single`，再次点击直接退出。
+
+### Fixed
+
+- 修复 escaped hierarchical port（例如 `\u_dp_add_0/out0_33`）因安全节点 ID 与原始名称不同而产生空 output cone 的问题。
+- Escaped port/cell 的对齐、高亮、跨侧选择和聚焦改为基于 graph reference 查找。
+
 ## [0.2.0] - 2026-07-11
 
 阶段 2 实用分析能力版本。

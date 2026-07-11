@@ -47,7 +47,7 @@ Structural Verilog
 
 ## 需求拆解与完成状态
 
-当前里程碑：阶段 2 已完成，并随 `v0.2.0` 发布。下一阶段进入 module compare 能力。
+当前里程碑：阶段 3 已完成，并随 `v0.3.0` 发布 module compare 能力。下一阶段进入大图布局与性能优化。
 
 状态口径：
 
@@ -71,8 +71,8 @@ Structural Verilog
 | R2-6 | 阶段 2 | 导出 SVG | 当前 module/cone 视图离线 SVG 导出 | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-7 | 阶段 2 | 手动布局校准与临时 golden | 节点拖动、保存 layout golden、对比自动布局与 golden 差异 | 已完成 | `docs/STAGE_2_PLAN.md` |
 | R2-8 | 阶段 2 | Wire 可读性修正 | 局部优先 routing、pin 附近 net label、adjust snap 对齐 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R3-1 | 阶段 3 | Module compare view | 左右 module 选择、并排 schematic、同步缩放平移 | 计划中 | `docs/STAGE_3_PLAN.md` |
-| R3-2 | 阶段 3 | 对比高亮与统计 | 同名 port/net/cell、结构差异区域、cell/depth/fanout 统计 | 计划中 | `docs/STAGE_3_PLAN.md` |
+| R3-1 | 阶段 3 | Module compare view | 左右 module 选择、并排 schematic、同步缩放平移 | 已完成 | `docs/STAGE_3_PLAN.md` |
+| R3-2 | 阶段 3 | 对比高亮与统计 | 同名 port/net/cell、结构差异区域、cell/depth/fanout 统计 | 已完成 | `docs/STAGE_3_PLAN.md` |
 | R4-1 | 阶段 4 | 大图布局与性能 | LayoutProvider、ELK.js fallback/provider、progressive render | 计划中 | `docs/STAGE_4_PLAN.md` |
 | R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 计划中 | `docs/STAGE_4_PLAN.md` |
 | R4-3 | 阶段 4 | Balanced/Folded 布局 | 深层 DAG 按逻辑层分带折叠、跨带专用通道、保留默认左到右模式 | 暂缓 | `docs/STAGE_4_PLAN.md` |

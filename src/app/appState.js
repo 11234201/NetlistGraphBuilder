@@ -22,7 +22,28 @@ export function createAppState(layoutPolicy) {
     timingBadgeChoices: {},
     timingBadgePositions: {},
     calibrationMode: false,
-    layoutPolicy: cloneLayoutPolicy(layoutPolicy)
+    layoutPolicy: cloneLayoutPolicy(layoutPolicy),
+    compare: createCompareState()
+  };
+}
+
+export function createCompareState() {
+  return {
+    active: false,
+    leftModuleName: null,
+    rightModuleName: null,
+    graphs: { left: null, right: null },
+    fullGraphs: { left: null, right: null },
+    transforms: {
+      left: { x: 0, y: 0, scale: 1 },
+      right: { x: 0, y: 0, scale: 1 }
+    },
+    synchronized: true,
+    layout: "vertical",
+    selectedName: null,
+    selectedKind: null,
+    outputName: null,
+    analysis: null
   };
 }
 
