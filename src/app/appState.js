@@ -1,6 +1,8 @@
 export function createAppState(layoutPolicy) {
   return {
     design: null,
+    currentSource: null,
+    currentSourceLabel: null,
     currentModule: null,
     fullGraph: null,
     autoGraph: null,
@@ -12,7 +14,11 @@ export function createAppState(layoutPolicy) {
     coneRootNodeId: null,
     coneDepth: 3,
     showAliases: false,
+    useFanoutHubs: true,
+    collapseLargeGroups: true,
+    expandedGroupIds: new Set(),
     searchIndex: [],
+    searchQuery: "",
     searchResults: [],
     activeSearchResult: -1,
     nodePositions: new Map(),
@@ -23,6 +29,7 @@ export function createAppState(layoutPolicy) {
     timingBadgePositions: {},
     calibrationMode: false,
     layoutProviderId: "simple-layered",
+    layoutRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
     compare: createCompareState()
   };
@@ -61,6 +68,7 @@ export function resetModuleWorkspace(state) {
   state.nodePositions = new Map();
   state.nodeSizes = new Map();
   state.graphOverrides = createEmptyGraphOverrides();
+  state.expandedGroupIds = new Set();
   state.viewMode = "whole";
   state.coneRootNodeId = null;
   resetTimingPresentation(state);

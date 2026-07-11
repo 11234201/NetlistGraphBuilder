@@ -1,18 +1,25 @@
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 
 export function renderSchematicSvg(graph) {
+  const plan = createSchematicRenderPlan(graph);
+  return `${plan.openSvg}${plan.edges.join("")}${plan.betweenGroups}${plan.nodes.join("")}${plan.closeSvg}`;
+}
+
+export function createSchematicRenderPlan(graph) {
   const width = Math.max(640, Math.ceil(graph.width || 640));
   const height = Math.max(420, Math.ceil(graph.height || 420));
   const crossingByEdge = findWireCrossings(graph.edges);
-  const edges = graph.edges.map((edge) => renderEdge(edge, crossingByEdge.get(edge.id) || [])).join("");
-  const nodes = graph.nodes.map(renderNode).join("");
-
-  return `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(graph.moduleDisplayName)} schematic">
+  const edges = graph.edges.map((edge) => renderEdge(edge, crossingByEdge.get(edge.id) || []));
+  const nodes = graph.nodes.map(renderNode);
+  return {
+    edges,
+    nodes,
+    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(graph.moduleDisplayName)} schematic">
   <g id="schematicContent">
-    <g class="edges">${edges}</g>
-    <g class="nodes">${nodes}</g>
-  </g>
-</svg>`;
+    <g class="edges">`,
+    betweenGroups: `</g><g class="nodes">`,
+    closeSvg: `</g></g></svg>`
+  };
 }
 
 function renderEdge(edge, crossings) {
@@ -46,6 +53,9 @@ function renderNode(node) {
   }
   if (node.kind === "implicit" || node.kind === "constant") {
     return renderSimpleNode(node, node.kind);
+  }
+  if (node.kind === "hub") {
+    return renderSimpleNode(node, "hub");
   }
   return renderGateNode(node);
 }

@@ -2,6 +2,30 @@
 
 本项目使用语义化版本号。
 
+## [0.4.0] - 2026-07-11
+
+阶段 4 大图和工程化版本。
+
+### Added
+
+- LayoutProvider registry、Simple fallback 和离线 vendored `elkjs@0.11.1` ELK Layered provider。
+- 顶部 provider 切换、异步布局进度和 ELK 失败自动回退。
+- 400+ 可见对象的渐进式 SVG 批量渲染。
+- 高 fanout net hub 简化和 300+ cell 自动 group collapse；支持点击展开与一键重新折叠。
+- 低缩放自动隐藏文字/pin 细节及超宽图自适应缩放。
+- 基于 `sessionStorage` 的网表、module、cone、搜索、provider、选项和视图变换恢复。
+- 1024-cell 大图、hierarchical compare/timing examples 及对应 smoke tests。
+
+### Changed
+
+- Compare graph 构建从 `main.js` 拆入独立 workspace，并与 Single View 共用 provider 和 timing annotation。
+- 大图默认启用 fanout hub 与 group collapse，优先提供可浏览概览。
+
+### Fixed
+
+- 修复 1024-cell 深链受固定 `4×` 上限影响无法看到 cell 的问题。
+- 修复 Compare 模式导入 timing 后左右 cell 不显示 timing badge 的问题。
+
 ## [0.3.0] - 2026-07-11
 
 阶段 3 module compare 版本。

@@ -1,5 +1,7 @@
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { createConeGraph } from "../analysis/graphCone.js";
+import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
+import { collapseLargeGraph } from "../analysis/groupCollapse.js";
 import { alignModulePorts, compareModules } from "../analysis/moduleCompare.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
@@ -15,7 +17,10 @@ export function buildCompareWorkspace(options) {
     showAliases = false,
     timing = null,
     timingBadgeChoices = {},
-    timingBadgePositions = {}
+    timingBadgePositions = {},
+    useFanoutHubs = true,
+    collapseLargeGroups = true,
+    expandedGroupIds = new Set()
   } = options;
   const graphOptions = {
     showAliases,
@@ -39,17 +44,26 @@ export function buildCompareWorkspace(options) {
       });
     }
   }
+  for (const side of ["left", "right"]) {
+    if (useFanoutHubs) sourceGraphs[side] = simplifyFanoutWithHubs(sourceGraphs[side]);
+    if (collapseLargeGroups) sourceGraphs[side] = collapseLargeGraph(sourceGraphs[side], { expandedGroupIds });
+  }
 
-  const graphs = {
-    left: layoutProvider.layout(sourceGraphs.left, { layoutPolicy }),
-    right: layoutProvider.layout(sourceGraphs.right, { layoutPolicy })
-  };
-  return {
+  const leftLayout = layoutProvider.layout(sourceGraphs.left, { layoutPolicy });
+  const rightLayout = layoutProvider.layout(sourceGraphs.right, { layoutPolicy });
+  const finalize = ([left, right]) => ({
     fullGraphs,
-    graphs,
+    graphs: { left, right },
     analysis: compareModules(leftModule, rightModule, sourceGraphs.left, sourceGraphs.right)
-  };
+  });
+  return isPromise(leftLayout) || isPromise(rightLayout)
+    ? Promise.all([leftLayout, rightLayout]).then(finalize)
+    : finalize([leftLayout, rightLayout]);
 
+}
+
+function isPromise(value) {
+  return Boolean(value && typeof value.then === "function");
 }
 
 export function findCompareNode(graph, kind, name, portKind = null) {

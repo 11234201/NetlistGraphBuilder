@@ -28,6 +28,9 @@
 - 支持 fit to view。
 - 支持选中对象后居中。
 - 支持导出当前图为 SVG。
+- 支持 Simple/ELK layout provider 切换；异步布局和渐进渲染通过状态栏报告进度。
+- 大图允许自动 group collapse，紫色虚线组点击展开，并提供重新折叠入口。
+- 低缩放级别允许隐藏 pin、label、metadata 和 timing 文本，放大后必须恢复。
 - 支持布局校准模式：该模式下拖动单个 schematic 节点，普通查看模式下拖拽仍表示平移。
 - 布局校准模式应支持网格吸附和相连 pin 的 y 方向吸附，方便把 wire 调成水平或短折线。
 

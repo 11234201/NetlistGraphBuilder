@@ -84,6 +84,8 @@ input {
   color: var(--text);
 }
 
+.layout-provider-field select { width: 140px; }
+
 .file-button,
 .icon-button {
   display: inline-flex;
@@ -153,6 +155,15 @@ input {
 .node.is-compare-unmatched .node-shape { stroke: #dc2626; stroke-width: 2.2; stroke-dasharray: 5 3; }
 .edge.is-compare-match .wire { stroke: #0f766e; stroke-width: 2.2; }
 .edge.is-compare-unmatched .wire { stroke: #dc2626; stroke-width: 2.2; stroke-dasharray: 5 3; }
+
+.is-low-detail .wire-label,
+.is-low-detail .pin-label,
+.is-low-detail .node-label,
+.is-low-detail .node-meta,
+.is-low-detail .timing-badge { display: none; }
+
+.is-low-detail .pin-dot,
+.is-low-detail .pin-bubble { opacity: 0.35; }
 
 .wire-spacing-field {
   gap: 7px;
@@ -718,6 +729,9 @@ input {
   fill: #edf7ed;
   stroke: #2f855a;
 }
+
+.node.hub .node-shape { fill: #dbeafe; stroke: #2563eb; }
+.node.group .node-shape { fill: #f3e8ff; stroke: #7e22ce; stroke-width: 2; stroke-dasharray: 7 3; }
 
 .gate-kind {
   font-size: 12px;

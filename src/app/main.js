@@ -2,13 +2,16 @@
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { createConeGraph } from "../analysis/graphCone.js";
+import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
+import { collapseLargeGraph } from "../analysis/groupCollapse.js";
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
-import { getLayoutProvider } from "../layout/layoutProvider.js";
+import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
+import { renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import {
   buildDesignSearchIndex,
@@ -43,6 +46,7 @@ import {
   resetTimingPresentation
 } from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
+import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
 import {
   buildCompareWorkspace,
   findCompareNode,
@@ -50,11 +54,13 @@ import {
 } from "./compareWorkspace.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
+let sessionSaveTimer = null;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
   timingInput: document.querySelector("#timingInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
+  layoutProviderSelect: document.querySelector("#layoutProviderSelect"),
   compareButton: document.querySelector("#compareButton"),
   comparePanel: document.querySelector("#comparePanel"),
   leftModuleSelect: document.querySelector("#leftModuleSelect"),
@@ -72,6 +78,9 @@ const elements = {
   fanoutViewButton: document.querySelector("#fanoutViewButton"),
   coneDepthInput: document.querySelector("#coneDepthInput"),
   showAliasesInput: document.querySelector("#showAliasesInput"),
+  fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
+  collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
+  collapseAllButton: document.querySelector("#collapseAllButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   fitButton: document.querySelector("#fitButton"),
@@ -97,6 +106,7 @@ elements.timingInput.addEventListener("change", handleTimingFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
+elements.layoutProviderSelect.addEventListener("change", handleLayoutProviderChange);
 elements.compareButton.addEventListener("click", () => {
   if (state.compare.active) exitCompareView();
   else enterCompareView();
@@ -125,6 +135,12 @@ elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
 elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
+elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
+elements.collapseGroupsInput.addEventListener("change", handleGraphSimplificationChange);
+elements.collapseAllButton.addEventListener("click", () => {
+  state.expandedGroupIds.clear();
+  rerenderActiveGraph();
+});
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
@@ -135,8 +151,14 @@ elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize)
 elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
+window.addEventListener("beforeunload", () => {
+  if (state.currentSource) saveSessionState(createSessionSnapshot(state));
+});
 
-loadDesign(sampleNetlist, "built-in sample");
+const restoredSession = loadSessionState();
+applySessionPreferences(restoredSession);
+renderLayoutProviderOptions();
+loadDesign(restoredSession?.source || sampleNetlist, restoredSession?.sourceLabel || "built-in sample", restoredSession);
 updateCalibrationControls();
 
 function startSidebarResize(event) {
@@ -206,16 +228,30 @@ async function handleTimingFileChange(event) {
   setStatus(`Loaded timing ${file.name}: ${state.timing.instanceCount} instance(s)`);
 }
 
-function loadDesign(source, label) {
+function loadDesign(source, label, restore = null) {
   try {
     state.design = parseVerilog(source);
+    state.currentSource = source;
+    state.currentSourceLabel = label;
     resetDesignWorkspace(state);
     state.searchIndex = buildDesignSearchIndex(state.design);
     clearSearch();
+    if (restore?.searchQuery) {
+      state.searchQuery = restore.searchQuery;
+      elements.searchInput.value = restore.searchQuery;
+      handleSearchInput();
+    }
     renderModuleOptions();
-    const firstModule = state.design.modules[0];
+    const firstModule = state.design.modules.find((module) => module.name === restore?.moduleName)
+      || state.design.modules[0];
     if (firstModule) {
       selectModule(firstModule.name);
+      if (restore?.viewMode && restore.viewMode !== "whole" && restore.coneRootNodeId) {
+        state.viewMode = restore.viewMode;
+        state.coneRootNodeId = restore.coneRootNodeId;
+        renderCurrentModuleGraph();
+      }
+      if (restore?.transform) state.transform = { ...restore.transform };
       setStatus(`Loaded ${label}: ${state.design.modules.length} module(s)`);
     } else {
       state.currentModule = null;
@@ -335,18 +371,37 @@ function renderCompareGraphs() {
     showAliases: state.showAliases,
     timing: state.timing,
     timingBadgeChoices: state.timingBadgeChoices,
-    timingBadgePositions: state.timingBadgePositions
+    timingBadgePositions: state.timingBadgePositions,
+    useFanoutHubs: state.useFanoutHubs,
+    collapseLargeGroups: state.collapseLargeGroups,
+    expandedGroupIds: state.expandedGroupIds
   });
+  if (isPromise(workspace)) {
+    const requestId = ++state.layoutRequestId;
+    setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
+    workspace.then((result) => {
+      if (requestId === state.layoutRequestId) commitCompareWorkspace(result, leftModule, rightModule);
+    }).catch(handleLayoutFailure);
+    return;
+  }
+  commitCompareWorkspace(workspace, leftModule, rightModule);
+}
+
+function commitCompareWorkspace(workspace, leftModule, rightModule) {
   state.compare.fullGraphs = workspace.fullGraphs;
   state.compare.graphs = workspace.graphs;
   state.compare.analysis = workspace.analysis;
-  elements.leftMount.innerHTML = renderSchematicSvg(state.compare.graphs.left);
-  elements.rightMount.innerHTML = renderSchematicSvg(state.compare.graphs.right);
   elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;
   elements.compareMount.querySelector('[data-compare-side="right"] > header').textContent = rightModule.displayName;
   renderCompareOutputOptions(leftModule, rightModule);
-  applyCompareHighlights();
-  applyCompareTransforms();
+  Promise.all([
+    renderGraphMount(elements.leftMount, state.compare.graphs.left),
+    renderGraphMount(elements.rightMount, state.compare.graphs.right)
+  ]).then(() => {
+    applyCompareHighlights();
+    applyCompareTransforms();
+    setStatus(`Compare ready (${getCurrentLayoutProvider().label})`);
+  });
 }
 
 function renderCompareOutputOptions(left, right) {
@@ -397,17 +452,75 @@ function renderCurrentModuleGraph() {
         direction: state.viewMode,
         maxDepth: state.coneDepth
       });
+  let simplifiedGraph = sourceGraph;
+  if (state.useFanoutHubs) simplifiedGraph = simplifyFanoutWithHubs(simplifiedGraph);
+  if (state.collapseLargeGroups) simplifiedGraph = collapseLargeGraph(simplifiedGraph, {
+    expandedGroupIds: state.expandedGroupIds
+  });
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   const layoutProvider = getCurrentLayoutProvider();
-  state.autoGraph = layoutProvider.layout(sourceGraph, layoutOptions);
-  state.graph = layoutProvider.layout(sourceGraph, {
+  const autoGraph = layoutProvider.layout(simplifiedGraph, layoutOptions);
+  const graph = layoutProvider.layout(simplifiedGraph, {
     ...layoutOptions,
     nodePositions: state.nodePositions,
     nodeSizes: state.nodeSizes
   });
-  elements.mount.innerHTML = renderSchematicSvg(state.graph);
+  if (isPromise(autoGraph) || isPromise(graph)) {
+    const requestId = ++state.layoutRequestId;
+    setStatus(`Layout (${layoutProvider.label})…`);
+    Promise.all([autoGraph, graph]).then(([autoResult, graphResult]) => {
+      if (requestId === state.layoutRequestId) commitCurrentGraph(autoResult, graphResult);
+    }).catch(handleLayoutFailure);
+    return;
+  }
+  commitCurrentGraph(autoGraph, graph);
+}
+
+function commitCurrentGraph(autoGraph, graph) {
+  state.autoGraph = autoGraph;
+  state.graph = graph;
+  renderGraphMount(elements.mount, graph).then(() => {
+    applyTransform();
+    setStatus(`Ready (${getCurrentLayoutProvider().label})`);
+  });
   updateCalibrationControls();
   updateViewControls();
+  persistSession();
+}
+
+function renderGraphMount(mount, graph) {
+  return renderSchematicIntoMount(mount, graph, {
+    onProgress: ({ phase, rendered, total }) => {
+      if (phase === "render") setStatus(`Rendering ${rendered}/${total}…`);
+    }
+  });
+}
+
+function renderLayoutProviderOptions() {
+  elements.layoutProviderSelect.innerHTML = listLayoutProviders()
+    .map((provider) => `<option value="${escapeAttr(provider.id)}">${escapeHtml(provider.label)}</option>`)
+    .join("");
+  elements.layoutProviderSelect.value = state.layoutProviderId;
+}
+
+function handleLayoutProviderChange(event) {
+  state.layoutProviderId = event.target.value;
+  state.transform = { x: 0, y: 0, scale: 1 };
+  if (state.compare.active) renderCompareGraphs();
+  else renderCurrentModuleGraph();
+  persistSession();
+}
+
+function handleLayoutFailure(error) {
+  state.layoutProviderId = "simple-layered";
+  elements.layoutProviderSelect.value = state.layoutProviderId;
+  setStatus(`Layout failed; using Simple Layered: ${error.message}`);
+  if (state.compare.active) renderCompareGraphs();
+  else renderCurrentModuleGraph();
+}
+
+function isPromise(value) {
+  return Boolean(value && typeof value.then === "function");
 }
 
 function setViewMode(mode) {
@@ -471,6 +584,20 @@ function updateViewControls() {
   elements.fanoutViewButton.disabled = !hasRoot;
   elements.coneDepthInput.disabled = state.viewMode === "whole";
   elements.showAliasesInput.checked = state.showAliases;
+  elements.fanoutHubsInput.checked = state.useFanoutHubs;
+  elements.collapseGroupsInput.checked = state.collapseLargeGroups;
+  elements.collapseAllButton.disabled = state.expandedGroupIds.size === 0;
+}
+
+function handleGraphSimplificationChange() {
+  state.useFanoutHubs = elements.fanoutHubsInput.checked;
+  state.collapseLargeGroups = elements.collapseGroupsInput.checked;
+  rerenderActiveGraph();
+}
+
+function rerenderActiveGraph() {
+  if (state.compare.active) renderCompareGraphs();
+  else renderCurrentModuleGraph();
 }
 
 function handleWireSpacingChange(event) {
@@ -534,6 +661,7 @@ function clearSchematicSelection() {
 
 function handleSearchInput() {
   const query = elements.searchInput.value;
+  state.searchQuery = query;
   state.searchResults = searchDesignIndex(state.searchIndex, query);
   state.activeSearchResult = state.searchResults.length > 0 ? 0 : -1;
   renderSearchResults();
@@ -606,6 +734,7 @@ function renderSearchResults() {
 
 function clearSearch() {
   elements.searchInput.value = "";
+  state.searchQuery = "";
   state.searchResults = [];
   state.activeSearchResult = -1;
   renderSearchResults();
@@ -996,6 +1125,12 @@ function handlePointerDown(event) {
     return;
   }
   if (nodeElement) {
+    const groupNode = state.graph?.nodes.find((node) => node.id === nodeElement.dataset.nodeId && node.kind === "group");
+    if (groupNode) {
+      state.expandedGroupIds.add(groupNode.ref.groupId);
+      renderCurrentModuleGraph();
+      return;
+    }
     setSelectedNode(nodeElement.dataset.nodeId);
     return;
   }
@@ -1187,6 +1322,8 @@ function applyTransform() {
   }
   const { x, y, scale } = state.transform;
   content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+  elements.canvas.classList.toggle("is-low-detail", scale < 0.65);
+  persistSession();
 }
 
 function handleCompareWheel(event) {
@@ -1219,6 +1356,11 @@ function handleComparePointerDown(event) {
   if (nodeElement) {
     const id = nodeElement.dataset.nodeId;
     const graphNode = state.compare.graphs[side]?.nodes.find((node) => node.id === id);
+    if (graphNode?.kind === "group") {
+      state.expandedGroupIds.add(graphNode.ref.groupId);
+      renderCompareGraphs();
+      return;
+    }
     selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode));
     return;
   }
@@ -1263,6 +1405,7 @@ function applyCompareTransforms() {
     if (!content) continue;
     const { x, y, scale } = state.compare.transforms[side];
     content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+    mount.closest(".compare-side")?.classList.toggle("is-low-detail", scale < 0.65);
   }
 }
 
@@ -1299,6 +1442,22 @@ function getCurrentLayoutProvider() {
 
 function setStatus(message) {
   elements.status.textContent = message;
+}
+
+function applySessionPreferences(session) {
+  if (!session) return;
+  state.coneDepth = clamp(Number(session.coneDepth) || 3, 1, 99);
+  state.showAliases = Boolean(session.showAliases);
+  state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
+  state.useFanoutHubs = session.useFanoutHubs !== false;
+  state.collapseLargeGroups = session.collapseLargeGroups !== false;
+  elements.coneDepthInput.value = String(state.coneDepth);
+}
+
+function persistSession() {
+  if (!state.currentSource) return;
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(() => saveSessionState(createSessionSnapshot(state)), 150);
 }
 
 function isEditableNodeProperty(property) {

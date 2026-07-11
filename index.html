@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Netlist Graph Builder</title>
     <link rel="stylesheet" href="./styles.css">
+    <script src="./vendor/elkjs-0.11.1/lib/elk.bundled.js"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -26,6 +27,7 @@
           <select id="moduleSelect"></select>
         </label>
         <button id="compareButton" class="icon-button" type="button" title="进入双 module 对比视图">Compare</button>
+        <label class="toolbar-field layout-provider-field"><span>Layout</span><select id="layoutProviderSelect"></select></label>
         <label class="toolbar-field wire-spacing-field" title="调整平行 net 走线间距">
           <span>Wire spacing</span>
           <input id="wireSpacingInput" type="range" min="8" max="40" step="1" value="18">
@@ -55,6 +57,9 @@
               <input id="showAliasesInput" type="checkbox">
               <span>Show aliases</span>
             </label>
+            <label class="alias-toggle" for="fanoutHubsInput"><input id="fanoutHubsInput" type="checkbox" checked><span>Fanout hubs</span></label>
+            <label class="alias-toggle" for="collapseGroupsInput"><input id="collapseGroupsInput" type="checkbox" checked><span>Collapse large groups</span></label>
+            <button id="collapseAllButton" class="mini-button" type="button">Collapse all groups</button>
           </section>
           <section id="comparePanel" class="panel-section compare-panel" hidden>
             <h2>Module Compare</h2>

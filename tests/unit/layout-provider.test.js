@@ -6,6 +6,7 @@ import {
   SIMPLE_LAYOUT_PROVIDER_ID,
   SimpleLayeredLayoutProvider
 } from "../../src/layout/layoutProvider.js";
+import { ELK_LAYOUT_PROVIDER_ID, ElkLayoutProvider } from "../../src/layout/elkLayoutProvider.js";
 
 const graph = {
   moduleName: "m",
@@ -29,9 +30,30 @@ test("simple layered provider exposes a stable layout contract", () => {
 });
 
 test("layout provider registry falls back to simple layered", () => {
-  assert.deepEqual(listLayoutProviders(), [
-    { id: SIMPLE_LAYOUT_PROVIDER_ID, label: "Simple Layered" }
+  assert.deepEqual(listLayoutProviders().map((provider) => provider.id), [
+    SIMPLE_LAYOUT_PROVIDER_ID,
+    ELK_LAYOUT_PROVIDER_ID
   ]);
   assert.equal(getLayoutProvider("missing").id, SIMPLE_LAYOUT_PROVIDER_ID);
 });
 
+test("ELK provider normalizes async layout output", async () => {
+  const provider = new ElkLayoutProvider({
+    elkFactory: () => ({
+      layout: async (input) => ({
+        ...input,
+        width: 500,
+        height: 200,
+        children: input.children.map((child, index) => ({ ...child, x: index * 250, y: 50 })),
+        edges: input.edges.map((edge) => ({
+          ...edge,
+          sections: [{ startPoint: { x: 100, y: 70 }, bendPoints: [], endPoint: { x: 250, y: 70 } }]
+        }))
+      })
+    })
+  });
+  const positioned = await provider.layout(graph);
+  assert.equal(positioned.layoutProvider, ELK_LAYOUT_PROVIDER_ID);
+  assert.equal(positioned.width, 500);
+  assert.equal(positioned.edges[0].routeKind, "elk-orthogonal");
+});
