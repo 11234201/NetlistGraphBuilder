@@ -38,9 +38,12 @@ test("layout provider registry falls back to simple layered", () => {
 });
 
 test("ELK provider normalizes async layout output", async () => {
+  let elkInput;
   const provider = new ElkLayoutProvider({
     elkFactory: () => ({
-      layout: async (input) => ({
+      layout: async (input) => {
+        elkInput = input;
+        return ({
         ...input,
         width: 500,
         height: 200,
@@ -49,11 +52,63 @@ test("ELK provider normalizes async layout output", async () => {
           ...edge,
           sections: [{ startPoint: { x: 100, y: 70 }, bendPoints: [], endPoint: { x: 250, y: 70 } }]
         }))
+        });
+      }
+    })
+  });
+  const positioned = await provider.layout(graph, {
+    nodePositions: new Map([["output:y", { x: 420, y: 140 }]])
+  });
+  assert.equal(positioned.layoutProvider, ELK_LAYOUT_PROVIDER_ID);
+  assert.equal(positioned.nodes.find((node) => node.id === "output:y").x, 420);
+  assert.equal(positioned.edges[0].routeKind, "positioned-override");
+  assert.ok(positioned.edges[0].points.length >= 2);
+  assert.ok(elkInput.children.every((child) => child.ports.length > 0));
+  assert.match(elkInput.edges[0].sources[0], /::output:/);
+  assert.match(elkInput.edges[0].targets[0], /::input:/);
+});
+
+test("ELK fanout edges share the exact source pin instead of splitting on the node border", async () => {
+  const fanoutGraph = {
+    ...graph,
+    nodes: [
+      {
+        id: "cell:u0",
+        kind: "cell",
+        label: "u0",
+        gateKind: "buffer",
+        ref: { pins: [{ pin: "A", net: "a" }, { pin: "ZN", net: "n" }] },
+        pinDirections: { A: { direction: "input" }, ZN: { direction: "output" } }
+      },
+      { id: "output:y0", kind: "output", label: "y0", ref: { name: "y0" } },
+      { id: "output:y1", kind: "output", label: "y1", ref: { name: "y1" } }
+    ],
+    edges: [
+      { id: "e0", source: "cell:u0", sourcePin: "ZN", target: "output:y0", targetPin: "y0", net: "n" },
+      { id: "e1", source: "cell:u0", sourcePin: "ZN", target: "output:y1", targetPin: "y1", net: "n" }
+    ]
+  };
+  const provider = new ElkLayoutProvider({
+    elkFactory: () => ({
+      layout: async (input) => ({
+        ...input,
+        width: 600,
+        height: 240,
+        children: input.children.map((child, index) => ({ ...child, x: index ? 450 : 50, y: index * 90 })),
+        edges: input.edges.map((edge, index) => ({
+          ...edge,
+          sections: [{
+            startPoint: { x: 180, y: 45 + index * 30 },
+            bendPoints: [{ x: 320, y: 45 + index * 30 }],
+            endPoint: { x: 450, y: 18 + index * 90 }
+          }]
+        }))
       })
     })
   });
-  const positioned = await provider.layout(graph);
-  assert.equal(positioned.layoutProvider, ELK_LAYOUT_PROVIDER_ID);
-  assert.equal(positioned.width, 500);
-  assert.equal(positioned.edges[0].routeKind, "elk-orthogonal");
+
+  const positioned = await provider.layout(fanoutGraph);
+  assert.deepEqual(positioned.edges[0].points[0], positioned.edges[1].points[0]);
+  assert.deepEqual(positioned.edges[0].points[1], positioned.edges[1].points[1]);
+  assert.equal(positioned.edges[0].points[0].y, 36);
 });

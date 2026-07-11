@@ -9,6 +9,7 @@ import { recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
+import { applyPositionedOverrides } from "../layout/positionedRouting.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
 import { renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
@@ -1210,9 +1211,21 @@ function startNodeDrag(event, nodeId) {
 
     moved = true;
     state.nodePositions.set(nodeId, nextPosition);
-    renderCurrentModuleGraph();
-    setSelectedNode(nodeId);
-    applyTransform();
+    if (state.layoutProviderId === "elk-layered" && state.autoGraph?.layoutProvider === "elk-layered") {
+      state.graph = applyPositionedOverrides(state.autoGraph, {
+        nodePositions: state.nodePositions,
+        nodeSizes: state.nodeSizes,
+        layoutPolicy: state.layoutPolicy
+      });
+      elements.mount.innerHTML = renderSchematicSvg(state.graph);
+      setSelectedNode(nodeId);
+      applyTransform();
+      updateCalibrationControls();
+    } else {
+      renderCurrentModuleGraph();
+      setSelectedNode(nodeId);
+      applyTransform();
+    }
     if (snapResult.snap) {
       setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
     } else {

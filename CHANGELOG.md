@@ -25,6 +25,7 @@
 
 - 修复 1024-cell 深链受固定 `4×` 上限影响无法看到 cell 的问题。
 - 修复 Compare 模式导入 timing 后左右 cell 不显示 timing badge 的问题。
+- 修复 ELK 模式下 Adjust 位置被下一次自动布局覆盖的问题；手动 override 现在保留 ELK 基础坐标并独立重布线。
 
 ## [0.3.0] - 2026-07-11
 

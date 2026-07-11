@@ -73,6 +73,7 @@ node tools/generate-large-example.mjs
 4. 400 个以上可见节点/边使用分批 SVG 渲染，状态栏显示 rendering 进度。
 5. 缩放低于 0.65 时自动隐藏 pin、net、metadata 和 timing 文字，放大后恢复。
 6. 当前网表文本保存在浏览器 `sessionStorage`；刷新同一标签页会恢复网表和工作状态，关闭标签页后由浏览器清理。
+7. ELK 模式支持混合 Adjust：ELK 生成基础布局，手动位置/尺寸覆盖只修改目标节点，相连 edge 自动进行 Manhattan 重布线；Reset 恢复 ELK 自动坐标。
 
 ## 结构差异高亮
 

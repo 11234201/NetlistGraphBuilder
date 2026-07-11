@@ -59,6 +59,7 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
     const direction = getNodePinDirection(node, pinName, pin.pin);
     const port = {
       pin: pinName,
+      rawPin: pin.pin,
       direction,
       side: direction === "output" ? "right" : "left",
       x: direction === "output" ? size.width : 0,
@@ -88,7 +89,8 @@ export function getConnectionPoint(node, pin, role) {
 export function getPort(node, pin, role) {
   const preferredDirection = role === "source" ? "output" : "input";
   return (
-    node.ports?.find((candidate) => candidate.pin === pin && candidate.direction === preferredDirection) ||
+    node.ports?.find((candidate) =>
+      (candidate.pin === pin || candidate.rawPin === pin) && candidate.direction === preferredDirection) ||
     node.ports?.find((candidate) => candidate.direction === preferredDirection) ||
     node.ports?.[0]
   );

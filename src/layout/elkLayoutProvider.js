@@ -1,4 +1,5 @@
-import { buildNodePorts, computeBounds, measureNode } from "./nodeGeometry.js";
+import { buildNodePorts, computeBounds, getConnectionPoint, getPort, measureNode } from "./nodeGeometry.js";
+import { applyPositionedOverrides } from "./positionedRouting.js";
 
 export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
 
@@ -18,8 +19,11 @@ export class ElkLayoutProvider {
     const measuredNodes = graph.nodes.map((node) => {
       const measured = measureNode(node, options.layoutPolicy?.spacing?.cellPinPitch);
       const override = options.nodeSizes?.get(node.id);
-      return { ...node, width: override?.width || measured.width, height: override?.height || measured.height };
+      const sized = { ...node, width: override?.width || measured.width, height: override?.height || measured.height };
+      sized.ports = buildNodePorts(sized, sized, options.layoutPolicy?.spacing?.cellPinPitch);
+      return sized;
     });
+    const measuredNodeById = new Map(measuredNodes.map((node) => [node.id, node]));
     const elkGraph = {
       id: "root",
       layoutOptions: {
@@ -29,8 +33,8 @@ export class ElkLayoutProvider {
         "elk.layered.spacing.nodeNodeBetweenLayers": "100",
         "elk.edgeRouting": "ORTHOGONAL"
       },
-      children: measuredNodes.map((node) => ({ id: node.id, width: node.width, height: node.height })),
-      edges: graph.edges.map((edge) => ({ id: edge.id, sources: [edge.source], targets: [edge.target] }))
+      children: measuredNodes.map(toElkNode),
+      edges: graph.edges.map((edge) => toElkEdge(edge, measuredNodeById))
     };
     const result = await this.elkFactory().layout(elkGraph);
     const childById = new Map((result.children || []).map((child) => [child.id, child]));
@@ -41,8 +45,18 @@ export class ElkLayoutProvider {
       return positioned;
     });
     const elkEdgeById = new Map((result.edges || []).map((edge) => [edge.id, edge]));
+    const positionedNodeById = new Map(positionedNodes.map((node) => [node.id, node]));
     const positionedEdges = graph.edges.map((edge) => {
-      const points = getEdgePoints(elkEdgeById.get(edge.id));
+      const rawPoints = getEdgePoints(elkEdgeById.get(edge.id));
+      const source = positionedNodeById.get(edge.source);
+      const target = positionedNodeById.get(edge.target);
+      const points = source && target
+        ? attachToExactPorts(
+          rawPoints,
+          getConnectionPoint(source, edge.sourcePin, "source"),
+          getConnectionPoint(target, edge.targetPin, "target")
+        )
+        : rawPoints;
       return {
         ...edge,
         points,
@@ -52,7 +66,7 @@ export class ElkLayoutProvider {
       };
     });
     const bounds = computeBounds(positionedNodes);
-    return {
+    const positionedGraph = {
       ...graph,
       nodes: positionedNodes,
       edges: positionedEdges,
@@ -60,7 +74,70 @@ export class ElkLayoutProvider {
       height: Math.max(result.height || 0, bounds.height),
       layoutProvider: this.id
     };
+    return applyPositionedOverrides(positionedGraph, options);
   }
+}
+
+function toElkNode(node) {
+  return {
+    id: node.id,
+    width: node.width,
+    height: node.height,
+    layoutOptions: { "elk.portConstraints": "FIXED_POS" },
+    ports: node.ports.map((port) => ({
+      id: elkPortId(node.id, port),
+      width: 1,
+      height: 1,
+      x: port.x,
+      y: port.y,
+      layoutOptions: { "elk.port.side": port.side === "right" ? "EAST" : "WEST" }
+    }))
+  };
+}
+
+function toElkEdge(edge, nodeById) {
+  const sourcePort = getPort(nodeById.get(edge.source), edge.sourcePin, "source");
+  const targetPort = getPort(nodeById.get(edge.target), edge.targetPin, "target");
+  return {
+    id: edge.id,
+    sources: [sourcePort ? elkPortId(edge.source, sourcePort) : edge.source],
+    targets: [targetPort ? elkPortId(edge.target, targetPort) : edge.target]
+  };
+}
+
+function elkPortId(nodeId, port) {
+  return `${nodeId}::${port.direction}:${encodeURIComponent(port.rawPin || port.pin)}`;
+}
+
+function attachToExactPorts(points, start, end) {
+  const rawStart = points[0] || start;
+  const rawEnd = points.at(-1) || end;
+  const direction = end.x >= start.x ? 1 : -1;
+  const sourceTrunk = start.x + direction * 24;
+  const targetTrunk = end.x - direction * 24;
+  return simplifyPoints([
+    start,
+    { x: sourceTrunk, y: start.y },
+    { x: sourceTrunk, y: rawStart.y },
+    rawStart,
+    ...points.slice(1, -1),
+    rawEnd,
+    { x: targetTrunk, y: rawEnd.y },
+    { x: targetTrunk, y: end.y },
+    end
+  ]);
+}
+
+function simplifyPoints(points) {
+  const unique = points.filter((point, index) =>
+    index === 0 || point.x !== points[index - 1].x || point.y !== points[index - 1].y);
+  return unique.filter((point, index) => {
+    if (index === 0 || index === unique.length - 1) return true;
+    const previous = unique[index - 1];
+    const next = unique[index + 1];
+    return !((previous.x === point.x && point.x === next.x) ||
+      (previous.y === point.y && point.y === next.y));
+  });
 }
 
 function getEdgePoints(edge) {

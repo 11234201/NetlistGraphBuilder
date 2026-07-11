@@ -110,6 +110,7 @@ LayoutProvider
 - provider 的 `layout(graph, options)` 允许返回 positioned graph 或 Promise；应用编排层统一检测并提交最新 request，过期的异步结果不会覆盖新状态。
 - `src/app/compareWorkspace.js` 负责组合 compare 的 graph extraction、alias、cone、provider layout 和统计，不持有 DOM 或全局应用状态。
 - `ElkLayoutProvider` 使用 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，把内部 graph 转换为 ELK layered 输入并规范化回 positioned graph。
+- `src/layout/positionedRouting.js` 在 positioned graph 上应用手动位置/尺寸 override，并重建 ports、graph bounds 和带障碍检查的 Manhattan edge；ELK Adjust 拖动期间复用缓存的自动布局结果，不重复运行 ELK。
 - `src/render/progressiveSvgRenderer.js` 只负责将 renderer plan 分批提交 DOM，不参与布局或图分析。
 - `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
 - `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
