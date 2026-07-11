@@ -103,6 +103,13 @@ LayoutProvider
 - `SimpleLayeredLayoutProvider`：内置 fallback，方便测试和离线最小原型。
 - `ElkLayoutProvider`：长期主力。
 
+当前实现：
+
+- `src/layout/layoutProvider.js` 维护 provider registry 和 fallback 选择。
+- `SimpleLayeredLayoutProvider` 封装现有 `simpleLayered.layoutGraph`，应用层不再直接依赖具体布局函数。
+- provider 的 `layout(graph, options)` 当前为同步接口；引入异步 ELK/progressive layout 前，必须先把应用编排层统一异步化，不允许在同一调用点混用 positioned graph 和 Promise，也不把异步状态泄漏到 parser/netlist/render 层。
+- `src/app/compareWorkspace.js` 负责组合 compare 的 graph extraction、alias、cone、provider layout 和统计，不持有 DOM 或全局应用状态。
+
 手动布局校准不改变 Netlist IR，也不替代 layout provider。实现时应把用户拖动得到的节点位置作为 layout override/golden 叠加在 positioned graph 上，再让路由和渲染层基于覆盖后的节点位置工作。
 
 wire routing 策略属于 layout 层，不放到 render 层。layout 输出的 edge 可以携带 `routeKind`、`labelPoint` 和后续调试所需的 routing metadata；render 只负责按这些结果绘制 path 与文字。

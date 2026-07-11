@@ -26,6 +26,21 @@ npm start
 
 然后打开 `http://127.0.0.1:4173/`。页面默认加载内置示例，也可以打开 `.v`、`.sv` 或 `.txt` 文件。
 
+## 示例文件
+
+- `examples/two_equivalent_style_modules.v`：基础 resyn/Flex 双 module compare 示例。
+- `examples/hierarchical_escaped_compare.v`：包含 escaped hierarchical module、port、net 和 Flex 配对的真实结构示例。
+- `examples/hierarchical_escaped_timing.txt`：与 hierarchical compare 示例配套的 LocResyn timing 数据。
+- `examples/large_buffer_chain_1024.v`：Stage 4 千级 cell 大图和 bounded cone smoke 示例。
+
+大图文件由以下命令确定性生成：
+
+```powershell
+node tools/generate-large-example.mjs
+```
+
+`large_buffer_chain_1024.v` 是 1024 级严格串行链，Fit Whole 时会呈现为一条很细的全局概览。滚轮放大会根据画布宽度自动提高最大倍率；也可以搜索 `u_buf_512` 等 instance，视图会直接居中并放大到可读的 cell 尺寸。实际分析建议优先从 output 打开 bounded fanin cone。
+
 ## Single View 使用方法
 
 1. 点击“打开网表”加载 structural Verilog，然后从 Module 下拉框选择 module。
@@ -82,9 +97,9 @@ src/render/           SVG 渲染与独立 SVG 导出
 src/search/           设计对象索引与搜索
 src/timing/           LocResyn timing 解析与图标注
 src/ui/               Selection、Timing 和 Adjust 面板
-tests/fixtures/       测试网表
+tests/fixtures/       小型测试网表
 tests/unit/           单元测试
-tools/                本地开发工具
+tools/                本地开发工具与大图示例生成器
 ```
 
 ## 当前限制

@@ -22,6 +22,7 @@ export function createAppState(layoutPolicy) {
     timingBadgeChoices: {},
     timingBadgePositions: {},
     calibrationMode: false,
+    layoutProviderId: "simple-layered",
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
     compare: createCompareState()
   };

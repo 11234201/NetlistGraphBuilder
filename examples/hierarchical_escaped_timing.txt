@@ -1,0 +1,95 @@
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_gen_211/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0> input timing massage: 
+pin <A1>,  at 0.728399, rt 0.717721, slack -0.010677
+pin <A2>,  at 0.406354, rt 0.703325, slack 0.296971
+pin <Z>,  at 0.824563, rt 0.813886, slack -0.010677
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_gen_211/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_959_0> input timing massage: 
+pin <A1>,  at 0.664589, rt 0.653912, slack -0.010677
+pin <A2>,  at 0.668784, rt 0.681106, slack 0.012322
+pin <B>,  at 0.631862, rt 0.624843, slack -0.007019
+pin <ZN>,  at 0.728399, rt 0.717721, slack -0.010677
+
+
+
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0> input timing massage: 
+pin <A1>,  at 0.728399, rt 0.718217, slack -0.010182
+pin <A2>,  at 0.412016, rt 0.703266, slack 0.291250
+pin <Z>,  at 0.824085, rt 0.813903, slack -0.010182
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_895_0> input timing massage: 
+pin <A1>,  at 0.664589, rt 0.654407, slack -0.010182
+pin <A2>,  at 0.391495, rt 0.639604, slack 0.248109
+pin <B>,  at 0.359858, rt 0.630282, slack 0.270425
+pin <ZN>,  at 0.728399, rt 0.718217, slack -0.010182
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/buf2inv0_u1> input timing massage: 
+pin <I>,  at 0.630327, rt 0.619650, slack -0.010677
+pin <ZN>,  at 0.664589, rt 0.653912, slack -0.010677
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/buf2inv0_u0> input timing massage: 
+pin <I>,  at 0.591328, rt 0.580650, slack -0.010677
+pin <ZN>,  at 0.630327, rt 0.619650, slack -0.010677
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_883_0> input timing massage: 
+pin <A1>,  at 0.534300, rt 0.523623, slack -0.010677
+pin <A2>,  at 0.523259, rt 0.521826, slack -0.001433
+pin <B>,  at 0.524742, rt 0.516063, slack -0.008680
+pin <ZN>,  at 0.591328, rt 0.580650, slack -0.010677
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_723_0> input timing massage: 
+pin <A1>,  at 0.469122, rt 0.468227, slack -0.000895
+pin <A2>,  at 0.467084, rt 0.459937, slack -0.007146
+pin <B>,  at 0.464609, rt 0.453931, slack -0.010677
+pin <ZN>,  at 0.534300, rt 0.523623, slack -0.010677
+
+[D][LocResyn] inst <LoResynHinst_of_module_root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_577_0> input timing massage: 
+pin <A1>,  at 0.409685, rt 0.399007, slack -0.010677
+pin <A2>,  at 0.399470, rt 0.396679, slack -0.002791
+pin <B>,  at 0.403074, rt 0.393581, slack -0.009493
+pin <ZN>,  at 0.464609, rt 0.453931, slack -0.010677
+
+
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_Flex_ConeInst/l_resyn1_u_gen_1> input timing massage: 
+pin <A1>,  at 0.062084, rt 10000.062500, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <Z>,  at 0.179111, rt 10000.178711, slack 10000.000000
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_Flex_ConeInst/l_resyn1_u_gen_0> input timing massage: 
+pin <A1>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <B>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <ZN>,  at 0.062084, rt 10000.062500, slack 10000.000000
+
+
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex_ConeInst/l_resyn1_u_gen_4> input timing massage: 
+pin <A1>,  at 0.311772, rt 10000.311523, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <Z>,  at 0.426891, rt 10000.426758, slack 10000.000000
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex_ConeInst/l_resyn1_u_gen_3> input timing massage: 
+pin <A1>,  at 0.162589, rt 10000.162109, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <B>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <ZN>,  at 0.311772, rt 10000.311523, slack 10000.000000
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex_ConeInst/l_resyn1_u_gen_2> input timing massage: 
+pin <A1>,  at 0.185934, rt 10000.185547, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <B>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <ZN>,  at 0.162589, rt 10000.162109, slack 10000.000000
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex_ConeInst/l_resyn1_u_gen_1> input timing massage: 
+pin <A1>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <B>,  at 0.027266, rt 10000.027344, slack 10000.000000
+pin <C>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <Z>,  at 0.185934, rt 10000.185547, slack 10000.000000
+
+[D][LocResyn] inst <root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex_ConeInst/l_resyn1_u_gen_0> input timing massage: 
+pin <A1>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <A2>,  at 0.000000, rt 10000.000000, slack 10000.000000
+pin <ZN>,  at 0.027266, rt 10000.027344, slack 10000.000000

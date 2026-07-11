@@ -3,10 +3,10 @@ import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { createConeGraph } from "../analysis/graphCone.js";
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
-import { alignModulePorts, compareModules, recommendModulePair } from "../analysis/moduleCompare.js";
+import { recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
-import { layoutGraph } from "../layout/simpleLayered.js";
+import { getLayoutProvider } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
@@ -24,6 +24,11 @@ import {
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import {
+  getAdaptiveMaxScale,
+  getReadableObjectScale,
+  getZoomStep
+} from "../ui/viewport.js";
+import {
   bindTimingPanel,
   getTimingBadgeChoices,
   isTimingBadgePosition,
@@ -38,6 +43,11 @@ import {
   resetTimingPresentation
 } from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
+import {
+  buildCompareWorkspace,
+  findCompareNode,
+  getCompareNodeName
+} from "./compareWorkspace.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 
@@ -183,6 +193,12 @@ async function handleTimingFileChange(event) {
   const text = await file.text();
   state.timing = parseTimingLog(text);
   resetTimingPresentation(state);
+  if (state.compare.active) {
+    renderCompareGraphs();
+    renderStats();
+    setStatus(`Loaded timing ${file.name}: ${state.timing.instanceCount} instance(s)`);
+    return;
+  }
   if (state.currentModule) {
     rerenderPreservingView(state.selectedNodeId);
     renderStats();
@@ -309,27 +325,21 @@ function renderCompareGraphs() {
   const leftModule = getCompareModule("left");
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
-  const fullGraphs = {
-    left: normalizeGraphAliases(buildSchematicGraph(leftModule), { showAliases: state.showAliases }),
-    right: normalizeGraphAliases(buildSchematicGraph(rightModule), { showAliases: state.showAliases })
-  };
-  alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
-  state.compare.fullGraphs = fullGraphs;
-  const sourceGraphs = { ...fullGraphs };
-  if (state.compare.outputName) {
-    for (const side of ["left", "right"]) {
-      const outputNodeId = findCompareNode(fullGraphs[side], "port", state.compare.outputName, "output")?.id;
-      sourceGraphs[side] = createConeGraph(fullGraphs[side], outputNodeId, {
-        direction: "fanin",
-        maxDepth: state.coneDepth
-      });
-    }
-  }
-  state.compare.graphs = {
-    left: layoutGraph(sourceGraphs.left, { layoutPolicy: state.layoutPolicy }),
-    right: layoutGraph(sourceGraphs.right, { layoutPolicy: state.layoutPolicy })
-  };
-  state.compare.analysis = compareModules(leftModule, rightModule, sourceGraphs.left, sourceGraphs.right);
+  const workspace = buildCompareWorkspace({
+    leftModule,
+    rightModule,
+    layoutProvider: getCurrentLayoutProvider(),
+    layoutPolicy: state.layoutPolicy,
+    outputName: state.compare.outputName,
+    coneDepth: state.coneDepth,
+    showAliases: state.showAliases,
+    timing: state.timing,
+    timingBadgeChoices: state.timingBadgeChoices,
+    timingBadgePositions: state.timingBadgePositions
+  });
+  state.compare.fullGraphs = workspace.fullGraphs;
+  state.compare.graphs = workspace.graphs;
+  state.compare.analysis = workspace.analysis;
   elements.leftMount.innerHTML = renderSchematicSvg(state.compare.graphs.left);
   elements.rightMount.innerHTML = renderSchematicSvg(state.compare.graphs.right);
   elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;
@@ -337,17 +347,6 @@ function renderCompareGraphs() {
   renderCompareOutputOptions(leftModule, rightModule);
   applyCompareHighlights();
   applyCompareTransforms();
-}
-
-function alignPortNodeOrder(graphs, alignedPorts) {
-  alignedPorts.forEach((port, order) => {
-    for (const graph of Object.values(graphs)) {
-      for (const kind of ["input", "output"]) {
-        const node = findCompareNode(graph, "port", port.name, kind);
-        if (node) node.order = order;
-      }
-    }
-  });
 }
 
 function renderCompareOutputOptions(left, right) {
@@ -399,8 +398,9 @@ function renderCurrentModuleGraph() {
         maxDepth: state.coneDepth
       });
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
-  state.autoGraph = layoutGraph(sourceGraph, layoutOptions);
-  state.graph = layoutGraph(sourceGraph, {
+  const layoutProvider = getCurrentLayoutProvider();
+  state.autoGraph = layoutProvider.layout(sourceGraph, layoutOptions);
+  state.graph = layoutProvider.layout(sourceGraph, {
     ...layoutOptions,
     nodePositions: state.nodePositions,
     nodeSizes: state.nodeSizes
@@ -642,7 +642,7 @@ function activateSearchResult(result) {
     centerGraphPoint({
       x: node.x + node.width / 2,
       y: node.y + node.height / 2
-    });
+    }, node.width);
   }
   setStatus(`Search: ${result.kind} ${result.label}`);
 }
@@ -664,13 +664,18 @@ function findSearchTargetNode(target) {
   return null;
 }
 
-function centerGraphPoint(point) {
+function centerGraphPoint(point, objectWidth = 100) {
   const svg = getSvg();
   if (!svg || !point) {
     return;
   }
-  const scale = Math.max(state.transform.scale, 1.8);
   const viewBox = svg.viewBox.baseVal;
+  const scale = getReadableObjectScale({
+    viewBoxWidth: viewBox.width,
+    viewportWidth: svg.getBoundingClientRect().width,
+    objectWidth,
+    currentScale: state.transform.scale
+  });
   state.transform = {
     x: viewBox.width / 2 - point.x * scale,
     y: viewBox.height / 2 - point.y * scale,
@@ -773,7 +778,12 @@ function focusCompareSelection(kind, name) {
     const node = findCompareNode(graph, kind, name);
     const svg = (side === "left" ? elements.leftMount : elements.rightMount).querySelector("svg");
     if (!node || !svg) continue;
-    const scale = Math.max(state.compare.transforms[side].scale, 1.5);
+    const scale = getReadableObjectScale({
+      viewBoxWidth: svg.viewBox.baseVal.width,
+      viewportWidth: svg.getBoundingClientRect().width,
+      objectWidth: node.width,
+      currentScale: state.compare.transforms[side].scale
+    });
     state.compare.transforms[side] = {
       x: svg.viewBox.baseVal.width / 2 - (node.x + node.width / 2) * scale,
       y: svg.viewBox.baseVal.height / 2 - (node.y + node.height / 2) * scale,
@@ -958,7 +968,10 @@ function handleWheel(event) {
   event.preventDefault();
 
   const oldScale = state.transform.scale;
-  const nextScale = clamp(oldScale * (event.deltaY < 0 ? 1.12 : 0.88), 0.25, 4);
+  const rect = svg.getBoundingClientRect();
+  const zoomStep = getZoomStep(svg.viewBox.baseVal.width, rect.width);
+  const maxScale = getAdaptiveMaxScale(svg.viewBox.baseVal.width, rect.width);
+  const nextScale = clamp(oldScale * (event.deltaY < 0 ? zoomStep : 1 / zoomStep), 0.25, maxScale);
   const point = eventPointToSvg(svg, event);
 
   state.transform.x = point.x - (point.x - state.transform.x) * (nextScale / oldScale);
@@ -1184,7 +1197,10 @@ function handleCompareWheel(event) {
   event.preventDefault();
   const current = state.compare.transforms[side];
   const oldScale = current.scale;
-  const nextScale = clamp(oldScale * (event.deltaY < 0 ? 1.12 : 0.88), 0.25, 4);
+  const rect = svg.getBoundingClientRect();
+  const zoomStep = getZoomStep(svg.viewBox.baseVal.width, rect.width);
+  const maxScale = getAdaptiveMaxScale(svg.viewBox.baseVal.width, rect.width);
+  const nextScale = clamp(oldScale * (event.deltaY < 0 ? zoomStep : 1 / zoomStep), 0.25, maxScale);
   const point = eventPointToSvg(svg, event);
   const next = {
     x: point.x - (point.x - current.x) * (nextScale / oldScale),
@@ -1240,25 +1256,6 @@ function setCompareTransform(side, transform) {
   applyCompareTransforms();
 }
 
-function findCompareNode(graph, kind, name, portKind = null) {
-  return graph?.nodes.find((node) => {
-    if (kind === "cell") return node.kind === "cell" && getCompareNodeName(node) === name;
-    if (kind === "port") {
-      return (node.kind === "input" || node.kind === "output")
-        && (!portKind || node.kind === portKind)
-        && getCompareNodeName(node) === name;
-    }
-    return false;
-  }) || null;
-}
-
-function getCompareNodeName(node) {
-  if (!node) return null;
-  return node.kind === "cell"
-    ? node.ref?.instance || node.label
-    : node.ref?.name || node.label;
-}
-
 function applyCompareTransforms() {
   for (const side of ["left", "right"]) {
     const mount = side === "left" ? elements.leftMount : elements.rightMount;
@@ -1294,6 +1291,10 @@ function eventPointToContent(event) {
 
 function getSvg() {
   return elements.mount.querySelector("svg");
+}
+
+function getCurrentLayoutProvider() {
+  return getLayoutProvider(state.layoutProviderId);
 }
 
 function setStatus(message) {
