@@ -18,19 +18,26 @@ export function buildCompareWorkspace(options) {
     timing = null,
     timingBadgeChoices = {},
     timingBadgePositions = {},
+    graphOverrides = { left: null, right: null },
+    nodePositions = { left: new Map(), right: new Map() },
+    nodeSizes = { left: new Map(), right: new Map() },
     useFanoutHubs = true,
     collapseLargeGroups = true,
     expandedGroupIds = new Set()
   } = options;
-  const graphOptions = {
-    showAliases,
-    timing,
-    timingBadgeChoices,
-    timingBadgePositions
-  };
   const fullGraphs = {
-    left: buildCompareGraph(leftModule, graphOptions),
-    right: buildCompareGraph(rightModule, graphOptions)
+    left: buildCompareGraph(leftModule, {
+      showAliases, timing,
+      timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
+      timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
+      graphOverrides: graphOverrides.left
+    }),
+    right: buildCompareGraph(rightModule, {
+      showAliases, timing,
+      timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
+      timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
+      graphOverrides: graphOverrides.right
+    })
   };
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
 
@@ -49,8 +56,12 @@ export function buildCompareWorkspace(options) {
     if (collapseLargeGroups) sourceGraphs[side] = collapseLargeGraph(sourceGraphs[side], { expandedGroupIds });
   }
 
-  const leftLayout = layoutProvider.layout(sourceGraphs.left, { layoutPolicy });
-  const rightLayout = layoutProvider.layout(sourceGraphs.right, { layoutPolicy });
+  const leftLayout = layoutProvider.layout(sourceGraphs.left, {
+    layoutPolicy, nodePositions: nodePositions.left, nodeSizes: nodeSizes.left
+  });
+  const rightLayout = layoutProvider.layout(sourceGraphs.right, {
+    layoutPolicy, nodePositions: nodePositions.right, nodeSizes: nodeSizes.right
+  });
   const finalize = ([left, right]) => ({
     fullGraphs,
     graphs: { left, right },
@@ -91,7 +102,7 @@ export function getCompareNodeName(node) {
 
 function buildCompareGraph(module, options) {
   const annotatedGraph = annotateGraphTiming(
-    buildSchematicGraph(module),
+    buildSchematicGraph(module, { overrides: options.graphOverrides }),
     options.timing,
     {
       badgeChoices: options.timingBadgeChoices,

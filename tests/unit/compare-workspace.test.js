@@ -48,3 +48,27 @@ test("compare workspace annotates timing on both modules", async () => {
   assert.ok(leftTimed.some((node) => node.timing.badges.length > 0));
   assert.ok(rightTimed.some((node) => node.timing.badges.length > 0));
 });
+
+test("compare workspace applies layout and graph overrides independently per side", () => {
+  const [leftModule, rightModule] = parseVerilog(source).modules;
+  const workspace = buildCompareWorkspace({
+    leftModule,
+    rightModule,
+    layoutProvider: getLayoutProvider(),
+    nodeSizes: {
+      left: new Map([["cell:u0", { width: 210, height: 90 }]]),
+      right: new Map([["cell:u1", { width: 170, height: 80 }]])
+    },
+    graphOverrides: {
+      left: { nodeProperties: { "cell:u0": { label: "left-adjusted" } }, cellPinDirections: {} },
+      right: { nodeProperties: {}, cellPinDirections: {} }
+    }
+  });
+
+  const leftCell = workspace.graphs.left.nodes.find((node) => node.id === "cell:u0");
+  const rightCell = workspace.graphs.right.nodes.find((node) => node.id === "cell:u1");
+  assert.equal(leftCell.label, "left-adjusted");
+  assert.equal(leftCell.width, 210);
+  assert.equal(rightCell.width, 170);
+  assert.notEqual(rightCell.label, "left-adjusted");
+});

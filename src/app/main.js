@@ -42,9 +42,12 @@ import {
 import {
   createAppState,
   createEmptyGraphOverrides,
+  restoreCompareWorkspace,
+  restoreModuleWorkspace,
   resetDesignWorkspace,
-  resetModuleWorkspace,
-  resetTimingPresentation
+  resetTimingPresentation,
+  saveCompareWorkspace,
+  saveModuleWorkspace
 } from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
@@ -235,6 +238,7 @@ function loadDesign(source, label, restore = null) {
     state.currentSource = source;
     state.currentSourceLabel = label;
     resetDesignWorkspace(state);
+    state.currentModule = null;
     state.searchIndex = buildDesignSearchIndex(state.design);
     clearSearch();
     if (restore?.searchQuery) {
@@ -315,11 +319,19 @@ function applyCompareSelection() {
     setStatus("Choose two different modules to compare");
     return;
   }
+  const pairChanged = state.compare.leftModuleName !== left.name || state.compare.rightModuleName !== right.name;
+  if (state.compare.leftModuleName && state.compare.rightModuleName) {
+    saveCompareWorkspace(state);
+  }
   state.compare.active = true;
+  if (pairChanged) {
+    restoreCompareWorkspace(state, left.name, right.name);
+  }
   state.compare.leftModuleName = left.name;
   state.compare.rightModuleName = right.name;
   state.compare.outputName = null;
   state.compare.selectedName = null;
+  state.compare.selectedSide = null;
   state.compare.transforms.left = { x: 0, y: 0, scale: 1 };
   state.compare.transforms.right = { x: 0, y: 0, scale: 1 };
   elements.comparePanel.hidden = false;
@@ -335,10 +347,12 @@ function applyCompareSelection() {
   renderCompareGraphs();
   renderStats();
   renderSelection(null);
+  updateCalibrationControls();
   setStatus(`Comparing ${left.displayName} and ${right.displayName}`);
 }
 
 function exitCompareView() {
+  saveCompareWorkspace(state);
   state.compare.active = false;
   elements.comparePanel.hidden = true;
   elements.compareMount.hidden = true;
@@ -349,6 +363,7 @@ function exitCompareView() {
   elements.compareButton.setAttribute("aria-pressed", "false");
   updateViewControls();
   renderStats();
+  updateCalibrationControls();
   applyTransform();
   setStatus(`Single module view: ${state.currentModule?.displayName || "-"}`);
 }
@@ -371,8 +386,11 @@ function renderCompareGraphs() {
     coneDepth: state.coneDepth,
     showAliases: state.showAliases,
     timing: state.timing,
-    timingBadgeChoices: state.timingBadgeChoices,
-    timingBadgePositions: state.timingBadgePositions,
+    timingBadgeChoices: state.compare.timingBadgeChoices,
+    timingBadgePositions: state.compare.timingBadgePositions,
+    graphOverrides: state.compare.graphOverrides,
+    nodePositions: state.compare.nodePositions,
+    nodeSizes: state.compare.nodeSizes,
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds
@@ -423,9 +441,13 @@ function selectModule(moduleName) {
   if (!module) {
     return;
   }
+  const switchingModule = state.currentModule?.name !== module.name;
+  if (state.currentModule && switchingModule) {
+    saveModuleWorkspace(state, state.currentModule.name);
+  }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
-  resetModuleWorkspace(state);
+  if (switchingModule) restoreModuleWorkspace(state, module.name);
   renderCurrentModuleGraph();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -886,9 +908,10 @@ function applyCompareHighlights() {
   if (state.compare.selectedName) selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false);
 }
 
-function selectCompareObject(kind, name, focus = true) {
+function selectCompareObject(kind, name, focus = true, selectedSide = state.compare.selectedSide) {
   state.compare.selectedKind = kind;
   state.compare.selectedName = name;
+  state.compare.selectedSide = selectedSide;
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {
     const mount = side === "left" ? elements.leftMount : elements.rightMount;
@@ -900,8 +923,83 @@ function selectCompareObject(kind, name, focus = true) {
     }
   }
   if (focus) focusCompareSelection(kind, name);
+  if (kind !== "net" && selectedSide) {
+    const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
+    if (node) {
+      renderCompareSelection(selectedSide, node);
+      return;
+    }
+  }
   elements.details.className = "details-block";
   elements.details.innerHTML = statsRows([["Compare object", name], ["Kind", kind], ["Present", "highlighted on both sides where available"]]);
+}
+
+function renderCompareSelection(side, node) {
+  elements.details.className = "details-block";
+  const instance = getNodeInstance(node);
+  const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], instance);
+  elements.details.innerHTML = `${statsRows([["Compare side", side]])}${renderObjectDetails(
+    inspectGraphNode(state.compare.fullGraphs[side] || state.compare.graphs[side], node)
+  )}${renderTimingPanel(node, choices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+  bindCompareSelectionControls(side, node);
+}
+
+function bindCompareSelectionControls(side, node) {
+  const instance = getNodeInstance(node);
+  bindTimingPanel(elements.details, {
+    onPositionChange: (position) => {
+      if (!instance || !isTimingBadgePosition(position)) return;
+      state.compare.timingBadgePositions[side][instance] = position;
+      renderCompareGraphs();
+    },
+    onBadgeToggle: (pin, metric, checked) => {
+      if (!instance) return;
+      const current = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], instance);
+      state.compare.timingBadgeChoices[side][instance] = updateTimingBadgeChoices(current, pin, metric, checked);
+      renderCompareGraphs();
+    },
+    onReset: () => {
+      if (instance) delete state.compare.timingBadgeChoices[side][instance];
+      renderCompareGraphs();
+    }
+  });
+  bindAdjustPanel(elements.details, node, state.calibrationMode, {
+    onSizeChange: (size) => {
+      state.compare.nodeSizes[side].set(node.id, {
+        width: clamp(Number(size.width), 24, 420),
+        height: clamp(Number(size.height), 12, 260)
+      });
+      renderCompareGraphs();
+    },
+    onResetSize: () => {
+      state.compare.nodeSizes[side].delete(node.id);
+      renderCompareGraphs();
+    },
+    onPropertyChange: (property, value) => {
+      if (!isEditableNodeProperty(property)) return;
+      const overrides = state.compare.graphOverrides[side].nodeProperties;
+      overrides[node.id] ||= {};
+      const trimmed = String(value ?? "").trim();
+      if (trimmed) overrides[node.id][property] = trimmed;
+      else delete overrides[node.id][property];
+      if (Object.keys(overrides[node.id]).length === 0) delete overrides[node.id];
+      renderCompareGraphs();
+    },
+    onResetProperties: () => {
+      delete state.compare.graphOverrides[side].nodeProperties[node.id];
+      renderCompareGraphs();
+    },
+    onPinDirectionChange: (pin, direction) => {
+      if (!instance) return;
+      state.compare.graphOverrides[side].cellPinDirections[instance] ||= {};
+      state.compare.graphOverrides[side].cellPinDirections[instance][pin] = direction;
+      renderCompareGraphs();
+    },
+    onResetPinDirections: () => {
+      if (instance) delete state.compare.graphOverrides[side].cellPinDirections[instance];
+      renderCompareGraphs();
+    }
+  });
 }
 
 function focusCompareSelection(kind, name) {
@@ -1282,6 +1380,15 @@ function toggleCalibrationMode() {
 }
 
 function resetLayoutOverrides() {
+  if (state.compare.active) {
+    state.compare.nodePositions = { left: new Map(), right: new Map() };
+    state.compare.nodeSizes = { left: new Map(), right: new Map() };
+    state.compare.graphOverrides = { left: createEmptyGraphOverrides(), right: createEmptyGraphOverrides() };
+    renderCompareGraphs();
+    updateCalibrationControls();
+    setStatus("Compare Adjust overrides cleared");
+    return;
+  }
   if (state.nodePositions.size === 0 && state.nodeSizes.size === 0 && countGraphOverrides() === 0) {
     return;
   }
@@ -1325,10 +1432,20 @@ function updateCalibrationControls() {
   elements.canvas.classList.toggle("is-calibrating", state.calibrationMode);
   elements.adjustLayoutButton.classList.toggle("is-active", state.calibrationMode);
   elements.adjustLayoutButton.setAttribute("aria-pressed", String(state.calibrationMode));
-  elements.saveGoldenButton.disabled = !state.graph;
-  elements.resetLayoutButton.disabled =
-    state.nodePositions.size === 0 && state.nodeSizes.size === 0 && countGraphOverrides() === 0;
-  renderSelection(state.graph?.nodes.find((item) => item.id === state.selectedNodeId) || null);
+  elements.saveGoldenButton.disabled = state.compare.active || !state.graph;
+  elements.resetLayoutButton.disabled = state.compare.active
+    ? !hasCompareLayoutOverrides()
+    : state.nodePositions.size === 0 && state.nodeSizes.size === 0 && countGraphOverrides() === 0;
+  if (state.compare.active && state.compare.selectedSide && state.compare.selectedName) {
+    const node = findCompareNode(
+      state.compare.graphs[state.compare.selectedSide],
+      state.compare.selectedKind,
+      state.compare.selectedName
+    );
+    if (node) renderCompareSelection(state.compare.selectedSide, node);
+  } else {
+    renderSelection(state.graph?.nodes.find((item) => item.id === state.selectedNodeId) || null);
+  }
 }
 
 function applyTransform() {
@@ -1377,12 +1494,16 @@ function handleComparePointerDown(event) {
       renderCompareGraphs();
       return;
     }
-    selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode));
+    if (state.calibrationMode && graphNode) {
+      startCompareNodeDrag(event, side, graphNode);
+      return;
+    }
+    selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode), true, side);
     return;
   }
   const edgeElement = event.target.closest("[data-edge-id]");
   if (edgeElement) {
-    selectCompareObject("net", edgeElement.dataset.net);
+    selectCompareObject("net", edgeElement.dataset.net, true, side);
     return;
   }
   elements.canvas.setPointerCapture(event.pointerId);
@@ -1402,6 +1523,49 @@ function handleComparePointerDown(event) {
     elements.canvas.removeEventListener("pointermove", move);
     elements.canvas.removeEventListener("pointerup", up);
     elements.canvas.removeEventListener("pointercancel", up);
+  };
+  elements.canvas.addEventListener("pointermove", move);
+  elements.canvas.addEventListener("pointerup", up);
+  elements.canvas.addEventListener("pointercancel", up);
+}
+
+function startCompareNodeDrag(event, side, node) {
+  const mount = side === "left" ? elements.leftMount : elements.rightMount;
+  const content = mount.querySelector("#schematicContent");
+  const matrix = content?.getScreenCTM();
+  if (!matrix) return;
+  event.preventDefault();
+  elements.canvas.setPointerCapture(event.pointerId);
+  elements.canvas.classList.add("is-node-dragging");
+  selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side);
+  const toContent = (pointerEvent) => {
+    const svg = mount.querySelector("svg");
+    const currentMatrix = mount.querySelector("#schematicContent")?.getScreenCTM();
+    if (!svg || !currentMatrix) return null;
+    const point = svg.createSVGPoint();
+    point.x = pointerEvent.clientX;
+    point.y = pointerEvent.clientY;
+    return point.matrixTransform(currentMatrix.inverse());
+  };
+  const startPoint = toContent(event);
+  const startPosition = { x: node.x, y: node.y };
+  const move = (moveEvent) => {
+    const point = toContent(moveEvent);
+    if (!point || !startPoint) return;
+    const candidate = {
+      x: round(Math.max(16, startPosition.x + point.x - startPoint.x)),
+      y: round(Math.max(16, startPosition.y + point.y - startPoint.y))
+    };
+    const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
+    state.compare.nodePositions[side].set(node.id, snapped.position);
+    renderCompareGraphs();
+  };
+  const up = () => {
+    elements.canvas.classList.remove("is-node-dragging");
+    elements.canvas.removeEventListener("pointermove", move);
+    elements.canvas.removeEventListener("pointerup", up);
+    elements.canvas.removeEventListener("pointercancel", up);
+    setStatus(`${side} ${node.label}: position adjusted`);
   };
   elements.canvas.addEventListener("pointermove", move);
   elements.canvas.addEventListener("pointerup", up);
@@ -1488,6 +1652,15 @@ function countGraphOverrides() {
   return (
     Object.keys(state.graphOverrides.nodeProperties).length +
     Object.keys(state.graphOverrides.cellPinDirections).length
+  );
+}
+
+function hasCompareLayoutOverrides() {
+  return ["left", "right"].some((side) =>
+    state.compare.nodePositions[side].size > 0 ||
+    state.compare.nodeSizes[side].size > 0 ||
+    Object.keys(state.compare.graphOverrides[side].nodeProperties).length > 0 ||
+    Object.keys(state.compare.graphOverrides[side].cellPinDirections).length > 0
   );
 }
 

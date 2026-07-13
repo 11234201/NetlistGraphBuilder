@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createAppState,
+  restoreCompareWorkspace,
+  restoreModuleWorkspace,
   resetDesignWorkspace,
   resetModuleWorkspace,
-  resetTimingPresentation
+  resetTimingPresentation,
+  saveCompareWorkspace,
+  saveModuleWorkspace
 } from "../../src/app/appState.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
@@ -47,6 +51,33 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   assert.equal(state.timing, null);
   assert.equal(state.selectedNodeId, null);
   assert.deepEqual(state.design, { modules: [] });
+});
+
+test("module and compare workspace adjustments survive switching", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.nodePositions.set("cell:u0", { x: 120, y: 80 });
+  state.nodeSizes.set("cell:u0", { width: 180, height: 90 });
+  state.graphOverrides.nodeProperties["cell:u0"] = { label: "adjusted" };
+  saveModuleWorkspace(state, "left");
+
+  state.nodePositions = new Map();
+  state.nodeSizes = new Map();
+  state.graphOverrides = { nodeProperties: {}, cellPinDirections: {} };
+  assert.equal(restoreModuleWorkspace(state, "left"), true);
+  assert.deepEqual(state.nodePositions.get("cell:u0"), { x: 120, y: 80 });
+  assert.equal(state.nodeSizes.get("cell:u0").width, 180);
+  assert.equal(state.graphOverrides.nodeProperties["cell:u0"].label, "adjusted");
+
+  state.compare.leftModuleName = "left";
+  state.compare.rightModuleName = "right";
+  state.compare.nodePositions.right.set("cell:u1", { x: 240, y: 160 });
+  state.compare.timingBadgePositions.right.u1 = "top-left";
+  saveCompareWorkspace(state);
+  state.compare.nodePositions.right.clear();
+  state.compare.timingBadgePositions.right = {};
+  assert.equal(restoreCompareWorkspace(state, "left", "right"), true);
+  assert.deepEqual(state.compare.nodePositions.right.get("cell:u1"), { x: 240, y: 160 });
+  assert.equal(state.compare.timingBadgePositions.right.u1, "top-left");
 });
 
 test("timing panel helpers render and update badge choices without app state", () => {
