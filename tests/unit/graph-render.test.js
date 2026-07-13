@@ -635,6 +635,21 @@ at 0.423782, rt 0.090101, slack -0.333681
   assert.equal(timing.instances.u0.worstPin, "A1");
 });
 
+test("timing parser recognizes bare inst blocks in arbitrary order", () => {
+  const timing = parseTimingLog(`noise before the marker
+inst <top/u1>
+pin ZN, at 0.200, rt 0.100, slack -0.020
+unrelated text
+INST<top/u0>
+pin B, at 0.400, rt 0.300, slack -0.040
+pin A, at 0.300, rt 0.200, slack -0.030`);
+
+  assert.equal(timing.instanceCount, 2);
+  assert.equal(timing.instances.u1.pins.ZN.slack, -0.02);
+  assert.deepEqual(Object.keys(timing.instances.u0.pins), ["B", "A"]);
+  assert.equal(timing.instances.u0.worstPin, "B");
+});
+
 test("LocResyn timing uses the longest hierarchical instance suffix", () => {
   const timing = parseTimingLog(`[D][LocResyn] inst
 <LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0>

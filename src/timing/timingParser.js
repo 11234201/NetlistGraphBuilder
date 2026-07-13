@@ -3,7 +3,7 @@ const PIN_PATTERN = new RegExp(
   `pin\\s*(?:<\\s*([^>\\s]+)\\s*>|([^,\\s]+))\\s*,\\s*at\\s+(${NUMBER_PATTERN})\\s*,\\s*rt\\s+(${NUMBER_PATTERN})\\s*,\\s*slack\\s+(${NUMBER_PATTERN})`,
   "gi"
 );
-const INSTANCE_PATTERN = /\[D\]\[LocResyn\]\s+inst\s*<([^>]+)>/gi;
+const INSTANCE_PATTERN = /\binst\s*<([^>]+)>/gi;
 
 export { annotateGraphTiming } from "./timingAnnotation.js";
 
