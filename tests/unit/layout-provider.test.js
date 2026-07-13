@@ -111,4 +111,30 @@ test("ELK fanout edges share the exact source pin instead of splitting on the no
   assert.deepEqual(positioned.edges[0].points[0], positioned.edges[1].points[0]);
   assert.deepEqual(positioned.edges[0].points[1], positioned.edges[1].points[1]);
   assert.equal(positioned.edges[0].points[0].y, 36);
+  assert.equal(positioned.edges[0].labelAnchor, "middle");
+  assert.equal(positioned.edges[0].showLabel, true);
+  assert.ok(positioned.edges[0].labelPoint.x > positioned.edges[0].points[1].x);
+  assert.ok(positioned.edges[0].labelPoint.x < positioned.edges[0].points.at(-2).x);
+});
+
+test("ELK hides a net label when a short connection cannot contain it", async () => {
+  const provider = new ElkLayoutProvider({
+    elkFactory: () => ({
+      layout: async (input) => ({
+        ...input,
+        children: input.children.map((child, index) => ({ ...child, x: index * 130, y: 20 })),
+        edges: input.edges.map((edge) => ({
+          ...edge,
+          sections: [{ startPoint: { x: 92, y: 34 }, endPoint: { x: 130, y: 38 } }]
+        }))
+      })
+    })
+  });
+  const shortLabelGraph = {
+    ...graph,
+    edges: [{ ...graph.edges[0], label: "a_very_long_net_name" }]
+  };
+
+  const positioned = await provider.layout(shortLabelGraph);
+  assert.equal(positioned.edges[0].showLabel, false);
 });

@@ -1,6 +1,7 @@
 export const DEFAULT_LAYOUT_POLICY = Object.freeze({
   name: "schematic-readable-v1",
   spacing: Object.freeze({
+    x: 260,
     y: 88,
     margin: 48,
     wireLanePitch: 18,
@@ -37,6 +38,7 @@ export function normalizeLayoutPolicy(policy = {}, legacyOptions = {}) {
 
 function applyLegacySpacing(spacing, options) {
   const mappings = [
+    ["xSpacing", "x"],
     ["ySpacing", "y"],
     ["margin", "margin"],
     ["wireLanePitch", "wireLanePitch"],

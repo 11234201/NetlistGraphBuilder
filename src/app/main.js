@@ -507,6 +507,9 @@ function renderLayoutProviderOptions() {
 function handleLayoutProviderChange(event) {
   state.layoutProviderId = event.target.value;
   state.transform = { x: 0, y: 0, scale: 1 };
+  if (state.layoutProviderId === "elk-layered") {
+    setStatus("ELK Layered is experimental; Simple Layered is recommended for schematic editing");
+  }
   if (state.compare.active) renderCompareGraphs();
   else renderCurrentModuleGraph();
   persistSession();

@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Netlist Graph Builder: Open View",
+      "type": "editor-browser",
+      "request": "launch",
+      "url": "http://127.0.0.1:4173/",
+      "preLaunchTask": "Netlist Graph Builder: Serve"
+    }
+  ]
+}

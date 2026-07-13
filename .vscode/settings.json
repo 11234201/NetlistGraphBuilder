@@ -1,0 +1,11 @@
+{
+  "remote.restoreForwardedPorts": true,
+  "remote.portsAttributes": {
+    "4173": {
+      "label": "Netlist Graph Builder",
+      "onAutoForward": "silent"
+    }
+  },
+  "workbench.browser.enableRemoteProxy": true,
+  "workbench.browser.dataStorage": "workspace"
+}

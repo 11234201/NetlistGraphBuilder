@@ -41,6 +41,21 @@ test("graph and svg render fixture module", async () => {
   assert.match(svg, /class="node-meta"/);
 });
 
+test("hierarchical node names use only the leaf on canvas while preserving the full label", () => {
+  const fullName = "\\u_dp_add_0/w_gen_726";
+  const nodes = [
+    { id: "input:h", kind: "input", label: fullName, x: 10, y: 10, width: 120, height: 28 },
+    { id: "cell:h", kind: "cell", label: fullName, gateKind: "buffer", x: 180, y: 10, width: 128, height: 72, ports: [] },
+    { id: "output:h", kind: "output", label: fullName, x: 360, y: 10, width: 120, height: 36 }
+  ];
+  const svg = renderSchematicSvg({ moduleDisplayName: "m", width: 520, height: 140, nodes, edges: [] });
+
+  assert.equal(nodes[0].label, fullName);
+  assert.equal(svg.match(/>w_gen_726<\/text>/g)?.length, 3);
+  assert.equal(svg.match(/data-label="\\u_dp_add_0\/w_gen_726"/g)?.length, 3);
+  assert.doesNotMatch(svg, /class="node-label"[^>]*>\\u_dp_add_0\/w_gen_726/);
+});
+
 test("standalone SVG export embeds namespace and schematic styles", () => {
   const exported = createStandaloneSvg('<svg class="schematic-svg" viewBox="0 0 10 10"><g></g></svg>');
 
@@ -119,6 +134,35 @@ test("cell input edges connect to distinct pin positions", async () => {
   assert.equal(nandInputs.length, 3);
   assert.equal(targetYs.size, 3);
   assert.equal(nandOutput.points[0].x, nandNode.x + nandNode.width + 10);
+});
+
+test("many tall cells in one level keep height-aware vertical spacing", () => {
+  const pins = ["A1", "A2", "A3", "A4", "A5"].map((pin) => ({ pin, net: pin }));
+  const graph = {
+    moduleName: "dense",
+    moduleDisplayName: "dense",
+    nodes: Array.from({ length: 8 }, (_, index) => ({
+      id: `cell:u${index}`,
+      kind: "cell",
+      label: `u${index}`,
+      order: index,
+      ref: { pins: [...pins, { pin: "ZN", net: `n${index}` }] },
+      pinDirections: {
+        A1: { direction: "input" }, A2: { direction: "input" },
+        A3: { direction: "input" }, A4: { direction: "input" },
+        A5: { direction: "input" }, ZN: { direction: "output" }
+      }
+    })),
+    edges: [],
+    diagnostics: [],
+    stats: { ports: 0, nets: 8, cells: 8, assigns: 0 }
+  };
+
+  const laidOut = layoutGraph(graph);
+  assert.equal(overlappingNodes(laidOut).length, 0);
+  for (let index = 1; index < laidOut.nodes.length; index += 1) {
+    assert.ok(laidOut.nodes[index].y >= laidOut.nodes[index - 1].y + laidOut.nodes[index - 1].height + 16);
+  }
 });
 
 test("fixture input edges stay clear of intermediate cells", async () => {

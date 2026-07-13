@@ -6,7 +6,7 @@ export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
 export class ElkLayoutProvider {
   constructor(options = {}) {
     this.id = ELK_LAYOUT_PROVIDER_ID;
-    this.label = "ELK Layered";
+    this.label = "ELK Layered (Experimental)";
     this.elkFactory = options.elkFactory || (() => {
       if (typeof globalThis.ELK !== "function") {
         throw new Error("Vendored ELK runtime is not loaded");
@@ -30,7 +30,7 @@ export class ElkLayoutProvider {
         "elk.algorithm": "layered",
         "elk.direction": "RIGHT",
         "elk.spacing.nodeNode": "48",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+        "elk.layered.spacing.nodeNodeBetweenLayers": "80",
         "elk.edgeRouting": "ORTHOGONAL"
       },
       children: measuredNodes.map(toElkNode),
@@ -57,11 +57,13 @@ export class ElkLayoutProvider {
           getConnectionPoint(target, edge.targetPin, "target")
         )
         : rawPoints;
+      const labelPlacement = getWireLabelPlacement(points, edge.label);
       return {
         ...edge,
         points,
-        labelPoint: points[Math.floor(points.length / 2)] || { x: 0, y: 0 },
-        labelAnchor: "start",
+        labelPoint: labelPlacement.point,
+        labelAnchor: labelPlacement.anchor,
+        showLabel: labelPlacement.visible,
         routeKind: "elk-orthogonal"
       };
     });
@@ -76,6 +78,39 @@ export class ElkLayoutProvider {
     };
     return applyPositionedOverrides(positionedGraph, options);
   }
+}
+
+function getWireLabelPlacement(points, label) {
+  let best = null;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (Math.abs(start.y - end.y) > 0.5) continue;
+    const length = Math.abs(end.x - start.x);
+    if (!best || length > best.length) {
+      best = { start, end, length };
+    }
+  }
+  if (!best) {
+    return {
+      point: points[Math.floor(points.length / 2)] || { x: 0, y: 0 },
+      anchor: "middle",
+      visible: false
+    };
+  }
+  const requiredLength = estimateLabelWidth(label) + 32;
+  return {
+    point: {
+      x: (best.start.x + best.end.x) / 2,
+      y: best.start.y - 5
+    },
+    anchor: "middle",
+    visible: best.length >= requiredLength
+  };
+}
+
+function estimateLabelWidth(label) {
+  return Math.max(12, String(label || "").length * 6.5);
 }
 
 function toElkNode(node) {

@@ -122,6 +122,19 @@ export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys) {
   }
 }
 
+export function resolveLevelOverlaps(nodes, levelKeys, margin, gap = 16) {
+  for (const level of levelKeys) {
+    const levelNodes = nodes
+      .filter((node) => node.level === level)
+      .sort((left, right) => left.y - right.y || compareNodes(left, right));
+    let nextY = margin;
+    for (const node of levelNodes) {
+      node.y = round(Math.max(node.y, nextY));
+      nextY = node.y + node.height + gap;
+    }
+  }
+}
+
 export function applySingleFanoutInputLocality(nodes, edges, margin) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const outgoingBySource = new Map();
@@ -203,7 +216,7 @@ export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, bas
           0
         );
     const localizedInputSpacing = localizedInputWidth > 0
-      ? levelWidth + localizedInputWidth + 48
+      ? levelWidth + localizedInputWidth + 32
       : 0;
     x += Math.max(baseSpacing * (nextLevel - level), localizedInputSpacing);
   }

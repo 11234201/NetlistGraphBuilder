@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Netlist Graph Builder: Serve",
+      "type": "process",
+      "command": "bash",
+      "args": [
+        "tools/start-preview.sh"
+      ],
+      "windows": {
+        "command": "node",
+        "args": [
+          "tools/serve.mjs"
+        ]
+      },
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "HOST": "127.0.0.1",
+          "PORT": "4173"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "netlist-preview",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Starting Netlist Graph Builder preview server",
+          "endsPattern": "^Netlist Graph Builder running at http://"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}

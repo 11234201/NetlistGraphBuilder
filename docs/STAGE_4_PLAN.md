@@ -16,7 +16,7 @@
 
 | ID | 计划需求 | 完成标准 | 当前状态 |
 | --- | --- | --- | --- |
-| R4-1.1 | Layout Provider 抽象 | 应用只通过稳定 provider 接口布局；Simple Layered 作为默认 fallback 且可注册/查询 | 已完成 |
+| R4-1.1 | Layout Provider 抽象 | 应用只通过稳定 provider 接口布局；Simple Layered 作为默认稳定方案，ELK 作为 Experimental 可选项并可自动 fallback | 已完成 |
 | R4-1.2 | 离线 ELK.js Provider | ELK.js vendored 到 `vendor/`，记录版本、来源和 license，并可与 fallback 切换 | 已完成 |
 | R4-1.3 | Progressive Render | 大图布局和 SVG 分批呈现，主线程有明确进度状态 | 已完成 |
 | R4-2.1 | Fanout Hub | 高 fanout net 可折叠为 hub，减少重复长边 | 已完成 |

@@ -20,13 +20,49 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 ## 运行
 
-需要 Node.js 18 或更高版本。项目没有外部运行依赖。
+### VS Code 一键启动（推荐）
 
-```powershell
+仓库已包含 VS Code task 和 launch 配置。在本地工作区或 Remote-SSH 工作区中打开仓库后：
+
+1. 打开 `Run and Debug`（`Ctrl+Shift+D`）。
+2. 选择 `Netlist Graph Builder: Open View`。
+3. 按 `F5`。
+
+VS Code 会启动远端预览服务，并在编辑器区域的 Integrated Browser 标签页中打开网表视图。服务仅监听远端 `127.0.0.1:4173`；工作区配置会启用 VS Code 的远端浏览器代理并保留 4173 端口转发，不需要开放服务器防火墙端口。
+
+Linux 启动器按以下顺序选择运行时：
+
+1. 如果 `node` 可正常执行，使用 `tools/serve.mjs`；
+2. 否则，如果存在 Python 3，使用无第三方依赖的 `tools/serve.py`；
+3. 两者都不可用时，在 VS Code Terminal 中给出明确错误。
+
+因此 CentOS 7 即使无法运行要求较新 glibc 的 Node.js 官方二进制，也可以通过 Python 3 启动视图。建议先检查：
+
+```bash
+python3 --version
+```
+
+如果当前 VS Code 版本没有 `editor-browser` 调试类型，可以先运行 `Terminal > Run Task > Netlist Graph Builder: Serve`，再从 `Ports` 面板转发 4173，并执行 `Browser: Open Integrated Browser` 打开 `http://127.0.0.1:4173/`。
+
+> CentOS 7 兼容说明：[当前 VS Code Remote Development 官方基线](https://code.visualstudio.com/docs/remote/linux)要求 glibc 2.28、libstdc++ 3.4.25 和 kernel 4.18，CentOS 7 已不在正式支持范围内。如果 Remote-SSH 本身无法连接，应优先升级到 Rocky Linux、AlmaLinux 或 RHEL 8+；也可以按 [VS Code Remote FAQ](https://code.visualstudio.com/docs/remote/faq) 配置自定义 sysroot。项目提供的 Python 回退只解决预览服务运行时，不会修复 VS Code Server 自身的系统依赖。
+
+### 命令行启动
+
+常规开发需要 Node.js 18 或更高版本。项目没有外部运行依赖：
+
+```bash
 npm start
 ```
 
-然后打开 `http://127.0.0.1:4173/`。页面默认加载内置示例，也可以打开 `.v`、`.sv` 或 `.txt` 文件。
+老版本 Linux 也可以直接使用 Python 3：
+
+```bash
+python3 -u tools/serve.py
+```
+
+然后打开 `http://127.0.0.1:4173/`。可以用 `HOST` 和 `PORT` 修改监听地址和端口，例如 `HOST=0.0.0.0 PORT=8080 npm start`。只有确实需要从局域网直接访问时才应监听 `0.0.0.0`；Remote-SSH 场景保持默认地址更安全。
+
+页面默认加载内置示例，也可以打开 `.v`、`.sv` 或 `.txt` 文件。
 
 ## 示例文件
 
@@ -67,7 +103,7 @@ node tools/generate-large-example.mjs
 
 ## Stage 4 大图功能
 
-1. 顶部 `Layout` 可在 `Simple Layered` 和 `ELK Layered` 间切换。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
+1. 顶部 `Layout` 默认使用稳定的 `Simple Layered`；`ELK Layered (Experimental)` 仅作为大图初始排布的可选实验布局。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
 2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
 3. `Collapse large groups` 默认开启：300 个以上 cell 的图按 50 个 cell 自动折叠为紫色虚线组。点击组可展开，`Collapse all groups` 恢复全部折叠。
 4. 400 个以上可见节点/边使用分批 SVG 渲染，状态栏显示 rendering 进度。

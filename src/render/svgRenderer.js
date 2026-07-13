@@ -1,4 +1,5 @@
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
+import { getLeafDisplayName } from "../layout/nodeGeometry.js";
 
 export function renderSchematicSvg(graph) {
   const plan = createSchematicRenderPlan(graph);
@@ -27,12 +28,15 @@ function renderEdge(edge, crossings) {
     .map((point, index) => `${index === 0 ? "M" : "L"} ${round(point.x)} ${round(point.y)}`)
     .join(" ");
   const bridges = crossings.map(renderWireBridge).join("");
+  const label = edge.showLabel === false
+    ? ""
+    : `<text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>`;
 
   return `<g class="edge" data-edge-id="${escapeAttr(edge.id)}" data-net="${escapeAttr(edge.net)}">
     <path class="wire-hit-area" d="${path}"></path>
     <path class="wire" d="${path}"></path>
     ${bridges}
-    <text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>
+    ${label}
   </g>`;
 }
 
@@ -133,7 +137,7 @@ function renderPortNode(node, portKind) {
 
   return `<g class="node ${portKind}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
     <polygon class="node-shape" points="${points}"></polygon>
-    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(node.label)}</text>
+    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
   </g>`;
 }
 
@@ -145,7 +149,7 @@ function renderSimpleNode(node, className) {
 
   return `<g class="node ${className}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
-    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(node.label)}</text>
+    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
   </g>`;
 }
 
@@ -171,7 +175,7 @@ function renderGateNode(node) {
     ${ports}
     ${timingBadge}
     <text class="gate-kind" x="${x + width / 2}" y="${y + 22}" text-anchor="middle">${escapeHtml(node.title || gateKind.toUpperCase())}</text>
-    <text class="node-label" x="${x + width / 2}" y="${y + 42}" text-anchor="middle">${escapeHtml(node.label)}</text>
+    <text class="node-label" x="${x + width / 2}" y="${y + 42}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
     ${metadata}
   </g>`;
 }

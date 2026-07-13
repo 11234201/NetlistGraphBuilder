@@ -6,7 +6,7 @@ export const DEFAULT_CELL_PIN_PITCH = 36;
 
 export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
   const labelLength = Math.max(
-    String(node.label || "").length,
+    getLeafDisplayName(node.label).length,
     String(node.subtitle || "").length,
     String(node.title || "").length
   );
@@ -24,6 +24,14 @@ export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
           ? DEFAULT_INPUT_NODE_HEIGHT
           : DEFAULT_PIN_NODE_HEIGHT;
   return { width, height };
+}
+
+export function getLeafDisplayName(value) {
+  const text = String(value || "").trim();
+  const separator = text.lastIndexOf("/");
+  return separator >= 0 && separator < text.length - 1
+    ? text.slice(separator + 1)
+    : text;
 }
 
 export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {

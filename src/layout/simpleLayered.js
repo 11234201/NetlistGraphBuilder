@@ -14,6 +14,7 @@ import {
   applySingleFanoutInputLocality,
   compareNodes,
   computeLevelXs,
+  resolveLevelOverlaps,
   resolveOutputOverlaps
 } from "./nodePlacement.js";
 
@@ -43,8 +44,10 @@ export function layoutGraph(graph, options = {}) {
   );
   const levels = assignLevels(graph);
   const routePlan = planRouting(graph, levels);
-  const xSpacing =
-    options.xSpacing || Math.max(320, 260 + routePlan.maxSideLanes * wireLanePitch);
+  const xSpacing = Math.max(
+    Number(policy.spacing.x) || 260,
+    208 + routePlan.maxSideLanes * wireLanePitch
+  );
   const topWireSpace =
     options.topWireSpace || Math.max(80, 48 + routePlan.longLaneCount * topWireLanePitch);
   const buckets = new Map();
@@ -78,17 +81,19 @@ export function layoutGraph(graph, options = {}) {
 
   for (const level of levelKeys) {
     const nodes = buckets.get(level);
+    let nextY = topWireSpace + margin;
     for (const [index, node] of nodes.entries()) {
       const size = nodeSizes.get(node.id);
       positionedNodes.push({
         ...node,
         x: levelXs.get(level),
-        y: topWireSpace + margin + index * ySpacing,
+        y: nextY,
         level,
         width: size.width,
         height: size.height,
         ports: buildNodePorts(node, size, cellPinPitch)
       });
+      nextY += Math.max(ySpacing, size.height + 16);
     }
   }
 
@@ -104,6 +109,7 @@ export function layoutGraph(graph, options = {}) {
   if (policy.features.alignDrivenLinks) {
     alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys);
   }
+  resolveLevelOverlaps(positionedNodes, levelKeys, margin);
   if (policy.features.localizeSingleFanoutInputs) {
     applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
   }
