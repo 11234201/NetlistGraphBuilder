@@ -9,6 +9,7 @@ import {
 import {
   alignDrivenTargetsToDriverPins,
   applyBranchAwareLanes,
+  applyFanoutHubLocality,
   applyNodePositionOverrides,
   applyNodeSizeOverride,
   applySingleFanoutInputLocality,
@@ -110,6 +111,7 @@ export function layoutGraph(graph, options = {}) {
     alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys);
   }
   resolveLevelOverlaps(positionedNodes, levelKeys, margin);
+  applyFanoutHubLocality(positionedNodes, graph.edges, margin);
   if (policy.features.localizeSingleFanoutInputs) {
     applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
   }
@@ -160,6 +162,12 @@ export function layoutGraph(graph, options = {}) {
 function planRouting(graph, levels) {
   const edges = new Map();
   const channelLanes = new Map();
+  const channelLaneByFanout = new Map();
+  const fanoutCounts = new Map();
+  for (const edge of graph.edges) {
+    const key = `${edge.source}\u0000${edge.net}`;
+    fanoutCounts.set(key, (fanoutCounts.get(key) || 0) + 1);
+  }
   const longSourceLanes = new Map();
   const longTargetLanes = new Map();
   let longLaneCount = 0;
@@ -172,8 +180,13 @@ function planRouting(graph, levels) {
 
     if (levelDistance <= 1) {
       const key = `${sourceLevel}->${targetLevel}`;
-      const lane = channelLanes.get(key) || 0;
-      channelLanes.set(key, lane + 1);
+      const fanoutKey = `${edge.source}\u0000${edge.net}`;
+      let lane = channelLaneByFanout.get(fanoutKey);
+      if (lane === undefined || fanoutCounts.get(fanoutKey) === 1) {
+        lane = channelLanes.get(key) || 0;
+        channelLanes.set(key, lane + 1);
+        if (fanoutCounts.get(fanoutKey) > 1) channelLaneByFanout.set(fanoutKey, lane);
+      }
       maxSideLanes = Math.max(maxSideLanes, lane + 1);
       edges.set(edge.id, { kind: "channel", lane });
       continue;
@@ -229,19 +242,6 @@ function routeEdge(
     }
   }
 
-  if (horizontalGap > 64 && yDelta <= 32) {
-    const laneX = sourcePoint.x + Math.max(32, horizontalGap / 2);
-    const localRoute = route("local-dogleg", [
-      sourcePoint,
-      { x: laneX, y: sourcePoint.y },
-      { x: laneX, y: targetPoint.y },
-      targetPoint
-    ]);
-    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-      return localRoute;
-    }
-  }
-
   if (levelDistance <= 1) {
     const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * wireLanePitch;
     const channelRoute = route("channel", [
@@ -252,6 +252,19 @@ function routeEdge(
     ]);
     if (isRouteUsable(channelRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
       return channelRoute;
+    }
+  }
+
+  if (horizontalGap > 64 && yDelta <= 32) {
+    const laneX = sourcePoint.x + Math.max(32, horizontalGap / 2);
+    const localRoute = route("local-dogleg", [
+      sourcePoint,
+      { x: laneX, y: sourcePoint.y },
+      { x: laneX, y: targetPoint.y },
+      targetPoint
+    ]);
+    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
+      return localRoute;
     }
   }
 

@@ -61,9 +61,18 @@ function renderNode(node) {
     return renderSimpleNode(node, node.kind);
   }
   if (node.kind === "hub") {
-    return renderSimpleNode(node, "hub");
+    return renderHubNode(node);
   }
   return renderGateNode(node);
+}
+
+function renderHubNode(node) {
+  const cx = round(node.x + node.width / 2);
+  const cy = round(node.y + node.height / 2);
+  return `<g class="node hub" data-node-id="${escapeAttr(node.id)}" data-kind="hub" data-label="${escapeAttr(node.label)}">
+    <title>${escapeHtml(`Fanout: ${node.label}`)}</title>
+    <circle class="node-shape" cx="${cx}" cy="${cy}" r="5"></circle>
+  </g>`;
 }
 
 function findWireCrossings(edges) {

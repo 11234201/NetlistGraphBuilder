@@ -1,12 +1,18 @@
 export function simplifyFanoutWithHubs(graph, options = {}) {
   const threshold = Math.max(2, options.threshold || 8);
+  const inputThreshold = Math.max(2, options.inputThreshold || 2);
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const edgesBySourceAndNet = new Map();
   for (const edge of graph.edges) {
     const key = `${edge.source}\u0000${edge.net}`;
     if (!edgesBySourceAndNet.has(key)) edgesBySourceAndNet.set(key, []);
     edgesBySourceAndNet.get(key).push(edge);
   }
-  const hubGroups = [...edgesBySourceAndNet.values()].filter((edges) => edges.length >= threshold);
+  const hubGroups = [...edgesBySourceAndNet.values()].filter((edges) => {
+    const source = nodeById.get(edges[0]?.source);
+    const groupThreshold = isExternalSource(source) ? inputThreshold : threshold;
+    return edges.length >= groupThreshold;
+  });
   if (hubGroups.length === 0) return graph;
 
   const replacedEdgeIds = new Set(hubGroups.flatMap((edges) => edges.map((edge) => edge.id)));
@@ -26,18 +32,24 @@ export function simplifyFanoutWithHubs(graph, options = {}) {
       ...first,
       id: `${first.id}:hub-in`,
       target: hubId,
-      targetPin: "H"
+      targetPin: "H",
+      showLabel: isExternalSource(nodeById.get(first.source)) ? false : first.showLabel
     });
     for (const edge of fanoutEdges) {
       edges.push({
         ...edge,
         id: `${edge.id}:hub-out`,
         source: hubId,
-        sourcePin: "H"
+        sourcePin: "H",
+        showLabel: false
       });
     }
   }
   return { ...graph, nodes, edges, fanoutHubCount: hubGroups.length };
+}
+
+function isExternalSource(node) {
+  return node?.kind === "input" || node?.kind === "implicit" || node?.kind === "constant";
 }
 
 function safeId(value) {

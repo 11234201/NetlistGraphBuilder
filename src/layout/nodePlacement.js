@@ -156,7 +156,7 @@ export function applySingleFanoutInputLocality(nodes, edges, margin) {
 
     const edge = outgoing[0];
     const target = nodeById.get(edge.target);
-    if (!target || target.kind !== "cell") {
+    if (!target || (target.kind !== "cell" && target.kind !== "hub")) {
       continue;
     }
 
@@ -169,6 +169,38 @@ export function applySingleFanoutInputLocality(nodes, edges, margin) {
     node.x = Math.max(margin, target.x - node.width - gap);
     node.y = round(target.y + (targetPort?.y ?? target.height / 2) - (sourcePort?.y ?? node.height / 2));
     node.order = targetInputIndex >= 0 ? targetInputIndex : node.order;
+  }
+}
+
+export function applyFanoutHubLocality(nodes, edges, margin) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const outgoingBySource = groupEdges(edges, "source");
+  const hubs = nodes.filter((node) => node.kind === "hub");
+  const hubIds = new Set(hubs.map((node) => node.id));
+
+  for (const hub of hubs) {
+    const targetYs = (outgoingBySource.get(hub.id) || [])
+      .map((edge) => {
+        const target = nodeById.get(edge.target);
+        if (!target) return null;
+        const port = getPort(target, edge.targetPin, "target");
+        return target.y + (port?.y ?? target.height / 2);
+      })
+      .filter(Number.isFinite)
+      .toSorted((left, right) => left - right);
+    if (targetYs.length > 0) {
+      const middle = Math.floor(targetYs.length / 2);
+      const median = targetYs.length % 2 === 0
+        ? (targetYs[middle - 1] + targetYs[middle]) / 2
+        : targetYs[middle];
+      hub.y = round(median - hub.height / 2);
+    }
+  }
+
+  const blockers = nodes.filter((node) => !hubIds.has(node.id));
+  for (const hub of hubs.toSorted((left, right) => left.y - right.y || compareNodes(left, right))) {
+    hub.y = findNearestFreeY(hub, hub.y, blockers, new Set([hub.id]), margin);
+    blockers.push(hub);
   }
 }
 
@@ -189,7 +221,7 @@ export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, bas
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     if (
-      target?.kind === "cell" &&
+      (target?.kind === "cell" || target?.kind === "hub") &&
       isExternalSourceNode(source) &&
       outgoingCounts.get(edge.source) === 1
     ) {
@@ -214,9 +246,11 @@ export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, bas
       ...(buckets.get(level) || []).map((node) => nodeSizes.get(node.id).width),
       0
     );
-    const localizedInputWidth = nextLevel <= 1 ? 0 : localizedInputWidths.get(nextLevel) || 0;
+    const localizedInputWidth = localizedInputWidths.get(nextLevel) || 0;
     const localizedInputSpacing = localizedInputWidth > 0
-      ? levelWidth + localizedInputWidth + 32
+      ? nextLevel <= 1
+        ? Math.max(levelWidth, localizedInputWidth) + 32
+        : levelWidth + localizedInputWidth + 32
       : 0;
     x += Math.max(baseSpacing * (nextLevel - level), localizedInputSpacing);
   }

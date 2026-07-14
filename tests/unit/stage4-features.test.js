@@ -20,6 +20,28 @@ test("fanout simplification inserts a shared hub", () => {
   assert.equal(simplified.edges.filter((edge) => edge.target.startsWith("hub:")).length, 1);
 });
 
+test("input fanout uses a shared hub from two loads onward", () => {
+  const graph = {
+    nodes: [
+      { id: "input:a", kind: "input" },
+      { id: "cell:u0", kind: "cell" },
+      { id: "cell:u1", kind: "cell" }
+    ],
+    edges: [
+      { id: "e0", source: "input:a", target: "cell:u0", net: "a", label: "a" },
+      { id: "e1", source: "input:a", target: "cell:u1", net: "a", label: "a" }
+    ]
+  };
+
+  const simplified = simplifyFanoutWithHubs(graph);
+  const hub = simplified.nodes.find((node) => node.kind === "hub");
+  assert.ok(hub);
+  const hubInput = simplified.edges.find((edge) => edge.target === hub.id);
+  assert.ok(hubInput);
+  assert.equal(hubInput.showLabel, false);
+  assert.ok(simplified.edges.filter((edge) => edge.source === hub.id).every((edge) => edge.showLabel === false));
+});
+
 test("large graph groups collapse and expand independently", () => {
   const nodes = Array.from({ length: 120 }, (_, index) => ({ id: `c${index}`, kind: "cell", label: `c${index}` }));
   const edges = nodes.slice(1).map((node, index) => ({ id: `e${index}`, source: nodes[index].id, target: node.id, net: `n${index}` }));

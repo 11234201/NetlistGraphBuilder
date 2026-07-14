@@ -1,6 +1,7 @@
 ﻿import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { inferCellKind } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
@@ -473,6 +474,37 @@ test("single-fanout inputs can localize near consuming cell pins", () => {
   assert.ok(inputs.every((input) => input.x < target.x));
   assert.ok(inputEdges.every((edge) => edge.points[0].y === edge.points.at(-1).y));
   assert.equal(inputs[1].y - (inputs[0].y + inputs[0].height), 8);
+});
+
+test("multi-fanout inputs center on shared hubs and use distinct net trunks", () => {
+  const longInput = "very_long_multi_fanout_input_name_that_must_not_overlap_its_hub";
+  const source = `module m(${longInput},b,y0,y1,y2,y3);
+input ${longInput},b; output y0,y1,y2,y3;
+BUF u0 (.A(${longInput}), .Z(y0)); BUF u1 (.A(${longInput}), .Z(y1));
+BUF u2 (.A(b), .Z(y2)); BUF u3 (.A(b), .Z(y3));
+endmodule`;
+  const module = parseVerilog(source).modules[0];
+  const laidOut = layoutGraph(simplifyFanoutWithHubs(buildSchematicGraph(module)));
+  const hubs = laidOut.nodes.filter((node) => node.kind === "hub");
+
+  assert.equal(hubs.length, 2);
+  const trunkXs = [];
+  for (const hub of hubs) {
+    const loadEdges = laidOut.edges.filter((edge) => edge.source === hub.id);
+    const loadYs = loadEdges.map((edge) => edge.points.at(-1).y).toSorted((a, b) => a - b);
+    const expectedCenterY = (loadYs[0] + loadYs.at(-1)) / 2;
+    const inputEdge = laidOut.edges.find((edge) => edge.target === hub.id);
+
+    assert.equal(hub.y + hub.height / 2, expectedCenterY);
+    assert.equal(inputEdge.routeKind, "direct");
+    assert.equal(inputEdge.showLabel, false);
+    assert.equal(inputEdge.points[0].y, inputEdge.points.at(-1).y);
+    assert.ok(loadEdges.every((edge) => edge.routeKind === "channel" && edge.showLabel === false));
+    assert.equal(new Set(loadEdges.map((edge) => edge.points[1].x)).size, 1);
+    trunkXs.push(loadEdges[0].points[1].x);
+  }
+  assert.equal(new Set(trunkXs).size, hubs.length);
+  assert.equal(overlappingNodes(laidOut).length, 0);
 });
 
 test("long localized input names do not overlap upstream cells", () => {
