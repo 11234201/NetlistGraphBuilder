@@ -7,7 +7,11 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     wireLanePitch: 18,
     cellPinPitch: 36,
     branchTopY: 80,
-    branchLanePitch: 228
+    branchLanePitch: 228,
+    compactX: 196,
+    fanoutX: 292,
+    compactYGap: 8,
+    fanoutYGap: 28
   }),
   features: Object.freeze({
     alignDrivenLinks: true,
@@ -44,7 +48,11 @@ function applyLegacySpacing(spacing, options) {
     ["wireLanePitch", "wireLanePitch"],
     ["cellPinPitch", "cellPinPitch"],
     ["branchTopY", "branchTopY"],
-    ["branchLanePitch", "branchLanePitch"]
+    ["branchLanePitch", "branchLanePitch"],
+    ["compactX", "compactX"],
+    ["fanoutX", "fanoutX"],
+    ["compactYGap", "compactYGap"],
+    ["fanoutYGap", "fanoutYGap"]
   ];
 
   for (const [optionKey, spacingKey] of mappings) {

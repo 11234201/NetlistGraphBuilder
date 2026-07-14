@@ -88,7 +88,7 @@ export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) 
   }
 }
 
-export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys) {
+export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIntent) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map();
   for (const edge of edges) {
@@ -108,7 +108,7 @@ export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys) {
       .filter((node) => node.level === level && isAlignableDrivenTarget(node))
       .sort(compareNodes);
     for (const target of levelNodes) {
-      const edge = chooseAlignmentEdge(incomingByTarget.get(target.id), nodeById);
+      const edge = chooseAlignmentEdge(incomingByTarget.get(target.id), nodeById, layoutIntent);
       if (!edge) {
         continue;
       }
@@ -122,7 +122,34 @@ export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys) {
   }
 }
 
-export function resolveLevelOverlaps(nodes, levelKeys, margin, gap = 16) {
+export function alignSingleConnectionEndpoints(nodes, edges, layoutIntent) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  for (const edge of edges) {
+    const intent = layoutIntent?.getEdge(edge);
+    if (intent?.fanout !== 1) continue;
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!isExternalSourceNode(source) || !target) continue;
+    const sourcePort = getPort(source, edge.sourcePin, "source");
+    const targetPort = getPort(target, edge.targetPin, "target");
+    source.y = round(
+      target.y + (targetPort?.y ?? target.height / 2) - (sourcePort?.y ?? source.height / 2)
+    );
+  }
+}
+
+export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
+  const sources = nodes
+    .filter(isExternalSourceNode)
+    .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
+  let nextY = margin;
+  for (const source of sources) {
+    source.y = round(Math.max(source.y, nextY));
+    nextY = source.y + source.height + gap;
+  }
+}
+
+export function resolveLevelOverlaps(nodes, levelKeys, margin, gap = 16, layoutIntent = null, fanoutGap = gap) {
   for (const level of levelKeys) {
     const levelNodes = nodes
       .filter((node) => node.level === level)
@@ -130,7 +157,8 @@ export function resolveLevelOverlaps(nodes, levelKeys, margin, gap = 16) {
     let nextY = margin;
     for (const node of levelNodes) {
       node.y = round(Math.max(node.y, nextY));
-      nextY = node.y + node.height + gap;
+      const nodeGap = layoutIntent?.getNodeFanout(node) > 1 ? fanoutGap : gap;
+      nextY = node.y + node.height + nodeGap;
     }
   }
 }
@@ -218,7 +246,9 @@ export function computeLevelXs(
   nodeSizes,
   baseSpacing,
   margin,
-  localizeSingleFanoutInputs = true
+  localizeSingleFanoutInputs = true,
+  layoutIntent = null,
+  adaptiveSpacing = null
 ) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const outgoingCounts = new Map();
@@ -263,7 +293,16 @@ export function computeLevelXs(
         ? Math.max(levelWidth, localizedInputWidth) + 32
         : levelWidth + localizedInputWidth + 32
       : 0;
-    x += Math.max(baseSpacing * (nextLevel - level), localizedInputSpacing);
+    const pressure = layoutIntent?.getBoundaryPressure(level) || 1;
+    const compactX = Number(adaptiveSpacing?.compactX) || baseSpacing;
+    const fanoutX = Number(adaptiveSpacing?.fanoutX) || baseSpacing;
+    const lanePitch = Number(adaptiveSpacing?.wireLanePitch) || 18;
+    const requestedStep = pressure > 1
+      ? fanoutX + pressure * lanePitch
+      : compactX;
+    const routingClearance = pressure > 1 ? 72 : 40;
+    const adaptiveStep = Math.max(requestedStep, levelWidth + routingClearance);
+    x += Math.max(adaptiveStep * (nextLevel - level), localizedInputSpacing);
   }
   return levelXs;
 }
@@ -341,12 +380,24 @@ function isAlignableDriver(node) {
   return node?.kind === "cell" || node?.kind === "assign";
 }
 
-function chooseAlignmentEdge(edges, nodeById) {
+function chooseAlignmentEdge(edges, nodeById, layoutIntent) {
   if (!edges || edges.length === 0) {
     return null;
   }
-  if (edges.length > 1) {
-    return edges.toSorted((left, right) => {
+  const preferredEdges = layoutIntent
+    ? edges.filter((edge) => {
+      const intent = layoutIntent.getEdge(edge);
+      return intent?.fanout === 1 || intent?.isPrimary;
+    })
+    : edges;
+  if (preferredEdges.length === 0) return null;
+  if (preferredEdges.length > 1) {
+    return preferredEdges.toSorted((left, right) => {
+      const leftIntent = layoutIntent?.getEdge(left);
+      const rightIntent = layoutIntent?.getEdge(right);
+      if (Boolean(leftIntent?.isPrimary) !== Boolean(rightIntent?.isPrimary)) {
+        return leftIntent?.isPrimary ? -1 : 1;
+      }
       const leftTarget = nodeById.get(left.target);
       const rightTarget = nodeById.get(right.target);
       const leftIndex = getInputPortIndex(leftTarget, left.targetPin);
@@ -357,7 +408,7 @@ function chooseAlignmentEdge(edges, nodeById) {
       return String(left.targetPin || "").localeCompare(String(right.targetPin || ""));
     })[0];
   }
-  return edges
+  return preferredEdges
     .toSorted((left, right) => {
       const leftSource = nodeById.get(left.source);
       const rightSource = nodeById.get(right.source);

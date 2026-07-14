@@ -1,4 +1,5 @@
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
+import { analyzeLayoutIntent, compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import {
   buildNodePorts,
   computeBounds,
@@ -8,6 +9,7 @@ import {
 } from "./nodeGeometry.js";
 import {
   alignDrivenTargetsToDriverPins,
+  alignSingleConnectionEndpoints,
   applyBranchAwareLanes,
   applyFanoutHubLocality,
   applyNodePositionOverrides,
@@ -16,6 +18,7 @@ import {
   compareNodes,
   computeLevelXs,
   resolveLevelOverlaps,
+  resolveExternalSourceOverlaps,
   resolveOutputOverlaps
 } from "./nodePlacement.js";
 
@@ -44,13 +47,10 @@ export function layoutGraph(graph, options = {}) {
     48
   );
   const levels = assignLevels(graph);
-  const routePlan = planRouting(graph, levels);
-  const xSpacing = Math.max(
-    Number(policy.spacing.x) || 260,
-    208 + routePlan.maxSideLanes * wireLanePitch
-  );
-  const topWireSpace =
-    options.topWireSpace || Math.max(80, 48 + routePlan.longLaneCount * topWireLanePitch);
+  const layoutIntent = analyzeLayoutIntent(graph, levels);
+  const routePlan = planRouting(graph, levels, layoutIntent);
+  const xSpacing = Number(policy.spacing.x) || 260;
+  const topWireSpace = options.topWireSpace || 80;
   const buckets = new Map();
 
   for (const node of graph.nodes) {
@@ -78,7 +78,9 @@ export function layoutGraph(graph, options = {}) {
     nodeSizes,
     xSpacing,
     margin,
-    policy.features.localizeSingleFanoutInputs
+    policy.features.localizeSingleFanoutInputs,
+    layoutIntent,
+    policy.spacing
   );
 
   for (const level of levelKeys) {
@@ -95,7 +97,10 @@ export function layoutGraph(graph, options = {}) {
         height: size.height,
         ports: buildNodePorts(node, size, cellPinPitch)
       });
-      nextY += Math.max(ySpacing, size.height + 16);
+      const nodeGap = layoutIntent.getNodeFanout(node) > 1
+        ? Number(policy.spacing.fanoutYGap) || 28
+        : Number(policy.spacing.compactYGap) || 8;
+      nextY += Math.min(ySpacing, size.height + nodeGap);
     }
   }
 
@@ -109,9 +114,22 @@ export function layoutGraph(graph, options = {}) {
     );
   }
   if (policy.features.alignDrivenLinks) {
-    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys);
+    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys, layoutIntent);
   }
-  resolveLevelOverlaps(positionedNodes, levelKeys, margin);
+  resolveLevelOverlaps(
+    positionedNodes,
+    levelKeys,
+    margin,
+    Number(policy.spacing.compactYGap) || 8,
+    layoutIntent,
+    Number(policy.spacing.fanoutYGap) || 28
+  );
+  alignSingleConnectionEndpoints(positionedNodes, graph.edges, layoutIntent);
+  resolveExternalSourceOverlaps(
+    positionedNodes,
+    margin,
+    Number(policy.spacing.compactYGap) || 8
+  );
   applyFanoutHubLocality(positionedNodes, graph.edges, margin);
   if (policy.features.localizeSingleFanoutInputs) {
     applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
@@ -121,7 +139,10 @@ export function layoutGraph(graph, options = {}) {
 
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
   const levelBounds = computeLevelBounds(positionedNodes);
-  const positionedEdges = graph.edges.map((edge) => {
+  const routedById = new Map();
+  const reservedSegments = [];
+  for (const edge of graph.edges.toSorted((left, right) =>
+    compareEdgesByLayoutPriority(left, right, layoutIntent))) {
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
@@ -136,18 +157,24 @@ export function layoutGraph(graph, options = {}) {
       positionedNodes,
       wireLanePitch,
       topWireLanePitch,
-      margin
+      margin,
+      layoutIntent.getEdge(edge),
+      reservedSegments,
+      edge.net
     );
     const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
 
-    return {
+    const positionedEdge = {
       ...edge,
       points: route.points,
       routeKind: route.kind,
       labelPoint: label.point,
       labelAnchor: label.anchor
     };
-  });
+    routedById.set(edge.id, positionedEdge);
+    reservedSegments.push(...getRouteSegments(positionedEdge.points, edge.net));
+  }
+  const positionedEdges = graph.edges.map((edge) => routedById.get(edge.id));
 
   const bounds = computeBounds(positionedNodes);
 
@@ -160,7 +187,7 @@ export function layoutGraph(graph, options = {}) {
   };
 }
 
-function planRouting(graph, levels) {
+function planRouting(graph, levels, layoutIntent) {
   const edges = new Map();
   const channelLanes = new Map();
   const channelLaneByFanout = new Map();
@@ -170,6 +197,7 @@ function planRouting(graph, levels) {
     fanoutCounts.set(key, (fanoutCounts.get(key) || 0) + 1);
   }
   const longSourceLanes = new Map();
+  const longSourceLaneByFanout = new Map();
   const longTargetLanes = new Map();
   let longLaneCount = 0;
   let maxSideLanes = 1;
@@ -195,9 +223,16 @@ function planRouting(graph, levels) {
 
     const sourceKey = `source:${sourceLevel}`;
     const targetKey = `target:${targetLevel}`;
-    const sourceLane = longSourceLanes.get(sourceKey) || 0;
+    const intent = layoutIntent.getEdge(edge);
+    let sourceLane = intent?.fanout > 1
+      ? longSourceLaneByFanout.get(intent.groupKey)
+      : undefined;
+    if (sourceLane === undefined) {
+      sourceLane = longSourceLanes.get(sourceKey) || 0;
+      if (intent?.fanout > 1) longSourceLaneByFanout.set(intent.groupKey, sourceLane);
+    }
     const targetLane = longTargetLanes.get(targetKey) || 0;
-    longSourceLanes.set(sourceKey, sourceLane + 1);
+    longSourceLanes.set(sourceKey, Math.max(longSourceLanes.get(sourceKey) || 0, sourceLane + 1));
     longTargetLanes.set(targetKey, targetLane + 1);
     maxSideLanes = Math.max(maxSideLanes, sourceLane + 1, targetLane + 1);
     edges.set(edge.id, {
@@ -226,7 +261,10 @@ function routeEdge(
   nodes,
   wireLanePitch,
   topWireLanePitch,
-  margin
+  margin,
+  edgeIntent,
+  reservedSegments,
+  net
 ) {
   const sourceLevel = source.level ?? 0;
   const targetLevel = target.level ?? sourceLevel + 1;
@@ -235,68 +273,74 @@ function routeEdge(
   const targetBounds = levelBounds.get(targetLevel) || { left: target.x };
   const horizontalGap = targetPoint.x - sourcePoint.x;
   const yDelta = Math.abs(targetPoint.y - sourcePoint.y);
-
+  const candidates = [];
   if (horizontalGap > 0 && yDelta <= 4) {
-    const directRoute = route("direct", [sourcePoint, targetPoint]);
-    if (isRouteUsable(directRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-      return directRoute;
+    candidates.push(route("direct", [sourcePoint, targetPoint]));
+  }
+
+  const plannedLane = edgeIntent?.fanout > 1 && !edgeIntent.isPrimary
+    ? sourceBounds.right + 24 + (edgePlan?.lane ?? edgePlan?.sourceLane ?? 0) * wireLanePitch
+    : null;
+  if (plannedLane !== null) {
+    candidates.push(route("fanout-trunk", [
+      sourcePoint,
+      { x: plannedLane, y: sourcePoint.y },
+      { x: plannedLane, y: targetPoint.y },
+      targetPoint
+    ]));
+  }
+
+  if (horizontalGap > 0) {
+    const inset = Math.min(24, Math.max(2, horizontalGap / 4));
+    const minLaneX = sourcePoint.x + inset;
+    const maxLaneX = targetPoint.x - inset;
+    for (const ratio of [0.5, 0.25, 0.75]) {
+      const laneX = minLaneX + (maxLaneX - minLaneX) * ratio;
+      candidates.push(route("local-dogleg", [
+        sourcePoint,
+        { x: laneX, y: sourcePoint.y },
+        { x: laneX, y: targetPoint.y },
+        targetPoint
+      ]));
+    }
+    if (levelDistance <= 1) {
+      const laneX = sourceBounds.right + 18 + (edgePlan?.lane || 0) * wireLanePitch;
+      if (laneX > sourcePoint.x && laneX < targetPoint.x) {
+        candidates.push(route("channel", [
+          sourcePoint,
+          { x: laneX, y: sourcePoint.y },
+          { x: laneX, y: targetPoint.y },
+          targetPoint
+        ]));
+      }
     }
   }
 
-  if (levelDistance <= 1) {
-    const laneX = sourceBounds.right + 26 + (edgePlan?.lane || 0) * wireLanePitch;
-    const channelRoute = route("channel", [
-      sourcePoint,
-      { x: laneX, y: sourcePoint.y },
-      { x: laneX, y: targetPoint.y },
-      targetPoint
-    ]);
-    if (isRouteUsable(channelRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-      return channelRoute;
-    }
+  const basicCandidates = candidates.filter((candidate) =>
+    isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint)
+  );
+  const conflictFreeBasic = basicCandidates.filter((candidate) =>
+    countRouteConflicts(candidate.points, reservedSegments, net) === 0
+  );
+  if (conflictFreeBasic.length > 0) {
+    return conflictFreeBasic.toSorted((left, right) =>
+      scoreRoute(left, reservedSegments, net, edgeIntent) -
+      scoreRoute(right, reservedSegments, net, edgeIntent)
+    )[0];
   }
 
-  if (horizontalGap > 64 && yDelta <= 32) {
-    const laneX = sourcePoint.x + Math.max(32, horizontalGap / 2);
-    const localRoute = route("local-dogleg", [
-      sourcePoint,
-      { x: laneX, y: sourcePoint.y },
-      { x: laneX, y: targetPoint.y },
-      targetPoint
-    ]);
-    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-      return localRoute;
-    }
-  }
-
-  const sourceLaneX = sourceBounds.right + 20 + (edgePlan?.sourceLane || 0) * wireLanePitch;
-  const targetLaneX = targetBounds.left - 24 - (edgePlan?.targetLane || 0) * wireLanePitch;
-  if (targetLaneX <= sourceLaneX + 24) {
-    const laneX = sourcePoint.x + Math.max(32, (targetPoint.x - sourcePoint.x) / 2);
-    const localRoute = route("local-dogleg", [
-      sourcePoint,
-      { x: laneX, y: sourcePoint.y },
-      { x: laneX, y: targetPoint.y },
-      targetPoint
-    ]);
-    if (isRouteUsable(localRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-      return localRoute;
-    }
+  candidates.push(...createLocalObstacleCandidates(source, target, sourcePoint, targetPoint, nodes));
+  const usableCandidates = candidates.filter((candidate) =>
+    isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint)
+  );
+  if (usableCandidates.length > 0) {
+    return usableCandidates.toSorted((left, right) =>
+      scoreRoute(left, reservedSegments, net, edgeIntent) -
+      scoreRoute(right, reservedSegments, net, edgeIntent)
+    )[0];
   }
 
   const topLaneY = margin / 2 + (edgePlan?.topLane || 0) * topWireLanePitch;
-  const topRoute = route("top-lane", [
-    sourcePoint,
-    { x: sourceLaneX, y: sourcePoint.y },
-    { x: sourceLaneX, y: topLaneY },
-    { x: targetLaneX, y: topLaneY },
-    { x: targetLaneX, y: targetPoint.y },
-    targetPoint
-  ]);
-  if (isRouteUsable(topRoute.points, nodes, source, target, sourcePoint, targetPoint)) {
-    return topRoute;
-  }
-
   return findObstacleAvoidingRoute(
     source,
     target,
@@ -307,6 +351,70 @@ function routeEdge(
     margin,
     topWireLanePitch
   );
+}
+
+function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint, nodes) {
+  const padding = 9;
+  const forward = sourcePoint.x < targetPoint.x;
+  const gap = Math.abs(targetPoint.x - sourcePoint.x);
+  const inset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
+  const sourceColumnRight = Math.max(
+    sourcePoint.x,
+    ...nodes.filter((node) => node.level === source.level).map((node) => node.x + node.width)
+  );
+  const targetColumnLeft = Math.min(
+    targetPoint.x,
+    ...nodes.filter((node) => node.level === target.level).map((node) => node.x)
+  );
+  const sourceLaneX = forward
+    ? Math.min(targetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
+    : sourcePoint.x + inset;
+  const targetLaneX = forward
+    ? Math.max(sourcePoint.x + 2, Math.min(targetPoint.x - inset, targetColumnLeft - padding))
+    : targetPoint.x - inset;
+  const minX = Math.min(sourceLaneX, targetLaneX);
+  const maxX = Math.max(sourceLaneX, targetLaneX);
+  const relevantNodes = nodes.filter((node) =>
+    node.x + node.width + padding > minX && node.x - padding < maxX
+  );
+  const laneYs = uniqueRounded([
+    sourcePoint.y,
+    targetPoint.y,
+    (sourcePoint.y + targetPoint.y) / 2,
+    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding])
+  ]).toSorted((left, right) =>
+    localLaneCost(left, sourcePoint.y, targetPoint.y) -
+    localLaneCost(right, sourcePoint.y, targetPoint.y)
+  );
+  return laneYs.map((laneY) => route("obstacle-local", [
+    sourcePoint,
+    { x: sourceLaneX, y: sourcePoint.y },
+    { x: sourceLaneX, y: laneY },
+    { x: targetLaneX, y: laneY },
+    { x: targetLaneX, y: targetPoint.y },
+    targetPoint
+  ]));
+}
+
+function localLaneCost(laneY, sourceY, targetY) {
+  return Math.abs(laneY - sourceY) + Math.abs(laneY - targetY);
+}
+
+function scoreRoute(candidate, reservedSegments, net, edgeIntent) {
+  const crossings = countRouteConflicts(candidate.points, reservedSegments, net);
+  const length = getRouteLength(candidate.points);
+  const bends = Math.max(0, candidate.points.length - 2);
+  const bendWeight = edgeIntent?.fanout > 1 && !edgeIntent.isPrimary ? 40 : 120;
+  return crossings * 100000 + bends * bendWeight + length;
+}
+
+function getRouteLength(points) {
+  let length = 0;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    length += Math.abs(points[index + 1].x - points[index].x) +
+      Math.abs(points[index + 1].y - points[index].y);
+  }
+  return length;
 }
 
 function route(kind, points) {
@@ -320,8 +428,83 @@ function isRouteUsable(points, nodes, source, target, sourcePoint, targetPoint) 
   return (
     isRouteClear(points, nodes, source, target) &&
     exitsSourceWithoutCrossingBody(points, source, sourcePoint) &&
-    entersTargetWithoutCrossingBody(points, target, targetPoint)
+    entersTargetWithoutCrossingBody(points, target, targetPoint) &&
+    preservesEndpointAccess(points, source, target)
   );
+}
+
+function preservesEndpointAccess(points, source, target) {
+  const sourceBox = nodeBox(source);
+  const targetBox = nodeBox(target);
+  const lastSegment = points.length - 2;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    if (index !== 0 && segmentIntersectsNodeBox(points[index], points[index + 1], sourceBox)) {
+      return false;
+    }
+    if (index !== lastSegment && segmentIntersectsNodeBox(points[index], points[index + 1], targetBox)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function nodeBox(node) {
+  return {
+    left: node.x,
+    right: node.x + node.width,
+    top: node.y,
+    bottom: node.y + node.height
+  };
+}
+
+function segmentIntersectsNodeBox(start, end, box) {
+  if (start.y === end.y) return horizontalSegmentIntersectsBox(start, end, box);
+  if (start.x === end.x) return verticalSegmentIntersectsBox(start, end, box);
+  return true;
+}
+
+function getRouteSegments(points, net) {
+  const segments = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    segments.push({ start: points[index], end: points[index + 1], net });
+  }
+  return segments;
+}
+
+function countRouteConflicts(points, reservedSegments, net) {
+  let conflicts = 0;
+  for (const segment of getRouteSegments(points, net)) {
+    for (const reserved of reservedSegments) {
+      if (reserved.net !== net && segmentsConflict(segment, reserved)) conflicts += 1;
+    }
+  }
+  return conflicts;
+}
+
+function segmentsConflict(left, right) {
+  const leftHorizontal = left.start.y === left.end.y;
+  const rightHorizontal = right.start.y === right.end.y;
+  if (leftHorizontal && rightHorizontal) {
+    return left.start.y === right.start.y && rangesOverlapStrict(
+      left.start.x, left.end.x, right.start.x, right.end.x
+    );
+  }
+  if (!leftHorizontal && !rightHorizontal) {
+    return left.start.x === right.start.x && rangesOverlapStrict(
+      left.start.y, left.end.y, right.start.y, right.end.y
+    );
+  }
+  const horizontal = leftHorizontal ? left : right;
+  const vertical = leftHorizontal ? right : left;
+  return vertical.start.x > Math.min(horizontal.start.x, horizontal.end.x) &&
+    vertical.start.x < Math.max(horizontal.start.x, horizontal.end.x) &&
+    horizontal.start.y > Math.min(vertical.start.y, vertical.end.y) &&
+    horizontal.start.y < Math.max(vertical.start.y, vertical.end.y);
+}
+
+function rangesOverlapStrict(a1, a2, b1, b2) {
+  return Math.min(Math.max(a1, a2), Math.max(b1, b2)) >
+    Math.max(Math.min(a1, a2), Math.min(b1, b2));
 }
 
 function findObstacleAvoidingRoute(

@@ -217,7 +217,7 @@ test("many tall cells in one level keep height-aware vertical spacing", () => {
   const laidOut = layoutGraph(graph);
   assert.equal(overlappingNodes(laidOut).length, 0);
   for (let index = 1; index < laidOut.nodes.length; index += 1) {
-    assert.ok(laidOut.nodes[index].y >= laidOut.nodes[index - 1].y + laidOut.nodes[index - 1].height + 16);
+    assert.ok(laidOut.nodes[index].y >= laidOut.nodes[index - 1].y + laidOut.nodes[index - 1].height + 8);
   }
 });
 
@@ -232,16 +232,16 @@ test("fixture input edges stay clear of intermediate cells", async () => {
   assert.equal(edgesCrossingNonEndpoints({ ...laidOut, edges: inputEdges }).length, 0);
 });
 
-test("wire lane spacing is configurable", async () => {
-  const source = await readFile(fixtureUrl, "utf8");
-  const design = parseVerilog(source);
-  const graph = buildSchematicGraph(design.modules[0]);
+test("fanout routing space follows configurable wire lane spacing", () => {
+  const source = `module m(a,y0,y1,y2); input a; output y0,y1,y2; wire n;
+BUF d (.A(a),.Z(n)); BUF u0 (.A(n),.Z(y0)); BUF u1 (.A(n),.Z(y1)); BUF u2 (.A(n),.Z(y2)); endmodule`;
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
   const tight = layoutGraph(graph, { wireLanePitch: 10 });
   const loose = layoutGraph(graph, { wireLanePitch: 28 });
 
-  assert.ok(minLongSourceLaneGap(tight) >= 10);
-  assert.ok(minLongSourceLaneGap(loose) >= 28);
   assert.ok(loose.width > tight.width);
+  assert.equal(edgesCrossingNonEndpoints(tight).length, 0);
+  assert.equal(edgesCrossingNonEndpoints(loose).length, 0);
 });
 
 test("aligned skip-level pins use direct routing instead of top lane", () => {
@@ -300,7 +300,7 @@ test("fixture input sco_897 does not route through intermediate cells", async ()
     (candidate) => candidate.label === "sco_897" && candidate.target === "cell:l_resyn3_u_gen_1395"
   );
 
-  assert.ok(["direct", "top-lane", "local-dogleg", "obstacle-lane"].includes(edge.routeKind));
+  assert.ok(["direct", "local-dogleg", "obstacle-local", "obstacle-lane"].includes(edge.routeKind));
   assert.equal(edgesCrossingNonEndpoints({ ...laidOut, edges: [edge] }).length, 0);
 });
 
@@ -324,7 +324,7 @@ test("moved input to the right of a target cell routes around the cell body", ()
   const targetPoint = edge.points.at(-1);
   const previousPoint = edge.points.at(-2);
 
-  assert.ok(["top-lane", "obstacle-lane"].includes(edge.routeKind));
+  assert.ok(["obstacle-local", "obstacle-lane"].includes(edge.routeKind));
   assert.equal(targetPoint.x, adjustedTarget.x);
   assert.ok(previousPoint.x < targetPoint.x);
 });
@@ -351,7 +351,7 @@ test("adjusted layout routes every wire around non-endpoint cells", () => {
   assert.equal(edgesCrossingNonEndpoints(adjusted).length, 0);
 });
 
-test("long misaligned skip-level pins can still use top lanes", () => {
+test("long misaligned skip-level pins prefer local routing over the graph top", () => {
   const graph = createRoutingTestGraph();
   const base = layoutGraph(graph);
   const target = base.nodes.find((node) => node.id === "cell:u1");
@@ -363,8 +363,8 @@ test("long misaligned skip-level pins can still use top lanes", () => {
   const skipEdge = laidOut.edges.find((edge) => edge.id === "edge:skip");
   const minNodeY = Math.min(...laidOut.nodes.map((node) => node.y));
 
-  assert.equal(skipEdge.routeKind, "top-lane");
-  assert.ok(skipEdge.points.some((point) => point.y < minNodeY));
+  assert.notEqual(skipEdge.routeKind, "top-lane");
+  assert.ok(skipEdge.points.every((point) => point.y >= minNodeY));
 });
 
 test("wire labels are placed near target pins", () => {
@@ -373,15 +373,10 @@ test("wire labels are placed near target pins", () => {
   const edge = laidOut.edges.find((candidate) => candidate.id === "edge:n1");
   const target = laidOut.nodes.find((node) => node.id === edge.target);
   const targetPoint = edge.points.at(-1);
-  const pathMiddle = {
-    x: (edge.points[0].x + edge.points.at(-1).x) / 2,
-    y: (edge.points[0].y + edge.points.at(-1).y) / 2
-  };
-
   assert.equal(edge.labelAnchor, "start");
   assert.ok(edge.labelPoint.x < target.x);
   assert.ok(Math.abs(edge.labelPoint.y - targetPoint.y) <= 8);
-  assert.ok(Math.abs(edge.labelPoint.x - pathMiddle.x) > 20);
+  assert.ok(targetPoint.x - edge.labelPoint.x <= 110);
 });
 
 test("snap helpers align to grid and connected pin y", () => {
@@ -476,6 +471,35 @@ test("single-fanout inputs can localize near consuming cell pins", () => {
   assert.equal(inputs[1].y - (inputs[0].y + inputs[0].height), 8);
 });
 
+test("single-load chains stay compact and align each connection as a straight line", () => {
+  const source = `module m(a,y); input a; output y; wire n0,n1;
+BUF u0 (.A(a),.Z(n0)); BUF u1 (.A(n0),.Z(n1)); BUF u2 (.A(n1),.Z(y)); endmodule`;
+  const laidOut = layoutGraph(buildSchematicGraph(parseVerilog(source).modules[0]));
+  const cells = laidOut.nodes.filter((node) => node.kind === "cell").toSorted((a, b) => a.level - b.level);
+
+  assert.ok(laidOut.edges.every((edge) => edge.routeKind === "direct"));
+  for (let index = 1; index < cells.length; index += 1) {
+    const gap = cells[index].x - (cells[index - 1].x + cells[index - 1].width);
+    assert.ok(gap >= 40 && gap <= 72);
+  }
+});
+
+test("multi-load nets reserve routing space and straighten the shallow primary cell branch", () => {
+  const source = `module m(a,y0,y1,y2); input a; output y0,y1,y2; wire n;
+BUF d (.A(a),.Z(n)); BUF u0 (.A(n),.Z(y0)); BUF u1 (.A(n),.Z(y1)); BUF u2 (.A(n),.Z(y2)); endmodule`;
+  const laidOut = layoutGraph(buildSchematicGraph(parseVerilog(source).modules[0]));
+  const fanoutEdges = laidOut.edges.filter((edge) => edge.net === "n");
+  const driver = laidOut.nodes.find((node) => node.id === "cell:d");
+  const targets = fanoutEdges.map((edge) => laidOut.nodes.find((node) => node.id === edge.target));
+  const horizontalGap = Math.min(...targets.map((target) => target.x)) - (driver.x + driver.width);
+
+  assert.equal(fanoutEdges.length, 3);
+  assert.equal(fanoutEdges.filter((edge) => edge.routeKind === "direct").length, 1);
+  assert.ok(fanoutEdges.every((edge) => edge.routeKind !== "top-lane"));
+  assert.ok(horizontalGap >= 100);
+  assert.equal(edgesCrossingNonEndpoints(laidOut).length, 0);
+});
+
 test("multi-fanout inputs center on shared hubs and use distinct net trunks", () => {
   const longInput = "very_long_multi_fanout_input_name_that_must_not_overlap_its_hub";
   const source = `module m(${longInput},b,y0,y1,y2,y3);
@@ -501,9 +525,10 @@ endmodule`;
     assert.equal(inputEdge.routeKind, "direct");
     assert.equal(inputEdge.showLabel, false);
     assert.equal(inputEdge.points[0].y, inputEdge.points.at(-1).y);
-    assert.ok(loadEdges.every((edge) => edge.routeKind === "channel" && edge.showLabel === false));
-    assert.equal(new Set(loadEdges.map((edge) => edge.points[1].x)).size, 1);
-    trunkXs.push(loadEdges[0].points[1].x);
+    assert.ok(loadEdges.every((edge) => edge.showLabel === false));
+    assert.ok(loadEdges.some((edge) => edge.routeKind === "fanout-trunk"));
+    const trunkEdge = loadEdges.find((edge) => edge.routeKind === "fanout-trunk");
+    trunkXs.push(trunkEdge.points[1].x);
   }
   assert.equal(new Set(trunkXs).size, hubs.length);
   assert.equal(overlappingNodes(laidOut).length, 0);
@@ -558,7 +583,7 @@ endmodule`;
   const earlyEdge = laidOut.edges.find((edge) => edge.target === early.id);
 
   assert.ok(early.level < final.level);
-  assert.ok(["direct", "local-dogleg", "channel"].includes(earlyEdge.routeKind));
+  assert.ok(["direct", "local-dogleg", "fanout-trunk", "obstacle-local"].includes(earlyEdge.routeKind));
   assert.equal(overlappingNodes(laidOut).length, 0);
 });
 
@@ -1260,14 +1285,6 @@ function minGap(values) {
     gap = Math.min(gap, sorted[index] - sorted[index - 1]);
   }
   return gap;
-}
-
-function minLongSourceLaneGap(graph) {
-  const minNodeY = Math.min(...graph.nodes.map((node) => node.y));
-  const laneXs = graph.edges
-    .filter((edge) => edge.points.some((point) => point.y < minNodeY) && edge.points.length > 4)
-    .map((edge) => edge.points[1].x);
-  return minGap(laneXs);
 }
 
 function edgesCrossingNonEndpoints(graph) {
