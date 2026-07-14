@@ -35,7 +35,7 @@ function renderEdge(edge, crossings) {
     : `<text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>`;
 
   return `<g class="edge" data-edge-id="${escapeAttr(edge.id)}" data-net="${escapeAttr(edge.net)}">
-    <path class="wire-hit-area" d="${path}"></path>
+    <path class="wire-hit-area" d="${path}" pointer-events="stroke"></path>
     <path class="wire" d="${path}"></path>
     ${bridges}
     ${label}

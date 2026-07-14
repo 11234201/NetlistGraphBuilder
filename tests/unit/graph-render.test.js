@@ -1093,6 +1093,7 @@ test("svg marks crossing wires with bridges", () => {
   });
 
   assert.match(svg, /wire-hit-area/);
+  assert.match(svg, /class="wire-hit-area"[^>]*pointer-events="stroke"/);
   assert.match(svg, /wire-bridge-cutout/);
   assert.match(svg, /wire-bridge/);
 });
