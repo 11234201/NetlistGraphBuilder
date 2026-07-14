@@ -30,7 +30,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const reservedSegments = positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
     .flatMap((edge) => getEdgeSegments(edge));
-  const edges = positionedGraph.edges.map((edge) => {
+  const routedEdges = positionedGraph.edges.map((edge) => {
     if (!rerouteEdgeIds.has(edge.id)) {
       return edge;
     }
@@ -59,6 +59,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     reservedSegments.push(...getEdgeSegments(routedEdge));
     return routedEdge;
   });
+  const edges = placeWireLabels(routedEdges, nodes);
   const bounds = computeBounds(nodes);
   return {
     ...positionedGraph,
@@ -68,6 +69,75 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     height: bounds.height + margin,
     hasPositionOverrides: nodePositions.size > 0 || nodeSizes.size > 0
   };
+}
+
+function placeWireLabels(edges, nodes) {
+  const segments = edges.flatMap((edge) => getEdgeSegments(edge)
+    .map((segment) => ({ ...segment, edgeId: edge.id })));
+  const occupiedLabels = [];
+
+  return edges.map((edge) => {
+    const placement = findClearLabelPlacement(edge, segments, nodes, occupiedLabels);
+    if (!placement) return { ...edge, showLabel: false };
+    occupiedLabels.push(placement.box);
+    return {
+      ...edge,
+      labelPoint: placement.point,
+      labelAnchor: "middle",
+      showLabel: true
+    };
+  });
+}
+
+function findClearLabelPlacement(edge, segments, nodes, occupiedLabels) {
+  const label = String(edge.label || "");
+  if (!label) return null;
+  const labelWidth = Math.max(12, label.length * 6.5);
+  const horizontalSegments = getEdgeSegments(edge)
+    .filter((segment) => Math.abs(segment.start.y - segment.end.y) < 0.5)
+    .map((segment, index) => ({
+      ...segment,
+      index,
+      length: Math.abs(segment.end.x - segment.start.x)
+    }))
+    .filter((segment) => segment.length >= labelWidth + 16)
+    .toSorted((left, right) => right.index - left.index || right.length - left.length);
+
+  for (const segment of horizontalSegments) {
+    const centerX = (segment.start.x + segment.end.x) / 2;
+    for (const baselineOffset of [-8, 18, -26, 36]) {
+      const point = { x: centerX, y: segment.start.y + baselineOffset };
+      const box = {
+        left: centerX - labelWidth / 2 - 3,
+        right: centerX + labelWidth / 2 + 3,
+        top: point.y - 13,
+        bottom: point.y + 4
+      };
+      if (nodes.some((node) => boxesOverlap(box, {
+        left: node.x,
+        right: node.x + node.width,
+        top: node.y,
+        bottom: node.y + node.height
+      }))) continue;
+      if (occupiedLabels.some((occupied) => boxesOverlap(box, occupied))) continue;
+      if (segments.some((candidate) =>
+        !(candidate.edgeId === edge.id && sameSegment(candidate, segment)) &&
+        segmentIntersectsBox(candidate.start, candidate.end, box)
+      )) continue;
+      return { point, box };
+    }
+  }
+  return null;
+}
+
+function sameSegment(left, right) {
+  return left.start.x === right.start.x && left.start.y === right.start.y &&
+    left.end.x === right.end.x && left.end.y === right.end.y;
+}
+
+function boxesOverlap(left, right) {
+  return left.left < right.right && left.right > right.left &&
+    left.top < right.bottom && left.bottom > right.top;
 }
 
 function edgeNeedsReroute(edge, changedNodeIds, changedNodes) {
@@ -87,8 +157,10 @@ function routeManhattan(source, target, start, end, nodes, margin, net, reserved
   }
 
   if (start.x < end.x) {
-    const minChannelX = start.x + 24;
-    const maxChannelX = end.x - 24;
+    const horizontalGap = end.x - start.x;
+    const endpointClearance = Math.min(24, Math.max(2, horizontalGap / 4));
+    const minChannelX = start.x + endpointClearance;
+    const maxChannelX = end.x - endpointClearance;
     if (minChannelX <= maxChannelX) {
       const middleX = (minChannelX + maxChannelX) / 2;
       for (const channelX of alternatingCandidates(middleX, margin, 16)) {
@@ -106,7 +178,65 @@ function routeManhattan(source, target, start, end, nodes, margin, net, reserved
     }
   }
 
+  const localDetour = routeLocalDetour(
+    source,
+    target,
+    start,
+    end,
+    nodes,
+    net,
+    reservedSegments
+  );
+  if (localDetour) return localDetour;
+
   return routeAroundNodes(source, target, start, end, nodes, margin, net, reservedSegments);
+}
+
+function routeLocalDetour(source, target, start, end, nodes, net, reservedSegments) {
+  const padding = 8;
+  const forward = start.x < end.x;
+  const horizontalGap = Math.abs(end.x - start.x);
+  const endpointClearance = forward
+    ? Math.min(24, Math.max(2, horizontalGap / 4))
+    : 12;
+  const sourceLaneX = forward ? start.x + endpointClearance : start.x + endpointClearance;
+  const targetLaneX = forward ? end.x - endpointClearance : end.x - endpointClearance;
+  const minRouteX = Math.min(sourceLaneX, targetLaneX);
+  const maxRouteX = Math.max(sourceLaneX, targetLaneX);
+  const relevantNodes = nodes.filter((node) =>
+    node.x + node.width + padding > minRouteX && node.x - padding < maxRouteX
+  );
+  const laneYs = uniqueNumbers([
+    start.y,
+    end.y,
+    (start.y + end.y) / 2,
+    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding])
+  ]).toSorted((left, right) =>
+    localDetourCost(left, start.y, end.y) - localDetourCost(right, start.y, end.y)
+  );
+
+  for (const laneY of laneYs) {
+    const candidate = compactPoints([
+      start,
+      { x: sourceLaneX, y: start.y },
+      { x: sourceLaneX, y: laneY },
+      { x: targetLaneX, y: laneY },
+      { x: targetLaneX, y: end.y },
+      end
+    ]);
+    if (routeCandidateIsClear(candidate, nodes, source, target, net, reservedSegments)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function localDetourCost(laneY, startY, endY) {
+  return Math.abs(laneY - startY) + Math.abs(laneY - endY);
+}
+
+function uniqueNumbers(values) {
+  return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))];
 }
 
 function routeAroundNodes(source, target, start, end, nodes, margin, net, reservedSegments) {
@@ -151,7 +281,30 @@ function routeCandidateIsClear(points, nodes, source, target, net, reservedSegme
     const end = points[index + 1];
     if (!segmentClearOfNodes(start, end, nodes, source, target)) return false;
   }
+  if (!preservesEndpointAccess(points, source, target)) return false;
   return !segmentsOverlapReserved(points, net, reservedSegments);
+}
+
+function preservesEndpointAccess(points, source, target) {
+  const sourceBox = nodeInteriorBox(source);
+  const targetBox = nodeInteriorBox(target);
+  const lastSegmentIndex = points.length - 2;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (index !== 0 && segmentIntersectsBox(start, end, sourceBox)) return false;
+    if (index !== lastSegmentIndex && segmentIntersectsBox(start, end, targetBox)) return false;
+  }
+  return true;
+}
+
+function nodeInteriorBox(node) {
+  return {
+    left: node.x,
+    right: node.x + node.width,
+    top: node.y,
+    bottom: node.y + node.height
+  };
 }
 
 function segmentClearOfNodes(start, end, nodes, source, target) {

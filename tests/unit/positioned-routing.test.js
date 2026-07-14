@@ -74,6 +74,28 @@ test("adjust reroutes a net when an unrelated moved cell blocks its old path", (
 
   assert.equal(edge.routeKind, "positioned-override");
   assert.equal(polylineIntersectsNode(edge.points, blocker), false);
+  assert.ok(Math.min(...edge.points.map((point) => point.y)) >= blocker.y - 8);
+});
+
+test("adjust uses a nearby obstacle boundary before considering the graph outer lane", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 20, y: 72, width: 92, height: 28 },
+      { id: "y", kind: "output", label: "y", x: 600, y: 68, width: 92, height: 36 },
+      { id: "blocker", kind: "cell", label: "blocker", x: 260, y: 180, width: 128, height: 72, ref: { pins: [] } }
+    ],
+    edges: [{
+      id: "ay", source: "a", target: "y", net: "a", label: "a",
+      points: [{ x: 112, y: 86 }, { x: 600, y: 86 }]
+    }]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["blocker", { x: 260, y: 50 }]])
+  });
+  const edge = adjusted.edges[0];
+
+  assert.equal(Math.min(...edge.points.map((point) => point.y)), 42);
+  assert.equal(polylineIntersectsNode(edge.points, adjusted.nodes[2]), false);
 });
 
 test("adjust routes an input moved right of a cell around to its left input pin", () => {
@@ -100,6 +122,82 @@ test("adjust routes an input moved right of a cell around to its left input pin"
   assert.equal(targetPoint.x, target.x);
   assert.ok(approachPoint.x < targetPoint.x);
   assert.equal(polylineCrossesNodeInterior(edge.points, target), false);
+});
+
+test("adjust keeps a short connection local instead of sending it around the graph top", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 20, width: 92, height: 28 },
+      {
+        id: "u0", kind: "cell", label: "u0", gateKind: "buffer",
+        x: 220, y: 100, width: 128, height: 72,
+        pinDirections: { A: { direction: "input" }, Z: { direction: "output" } },
+        ref: { pins: [{ pin: "A" }, { pin: "Z" }] }
+      }
+    ],
+    edges: [{
+      id: "au0", source: "a", target: "u0", sourcePin: "a", targetPin: "A",
+      net: "a", label: "a"
+    }]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["u0", { x: 112, y: 100 }]])
+  });
+  const edge = adjusted.edges[0];
+  const endpointYs = [edge.points[0].y, edge.points.at(-1).y];
+
+  assert.ok(edge.points.slice(1, -1).every((point) =>
+    point.y >= Math.min(...endpointYs) && point.y <= Math.max(...endpointYs)
+  ));
+  assert.ok(edge.points.slice(1, -1).every((point) => point.x > 92 && point.x < 112));
+});
+
+test("adjust places a net label away from a nearby net", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 20, width: 92, height: 28 },
+      { id: "y", kind: "output", label: "y", x: 500, y: 16, width: 92, height: 36 }
+    ],
+    edges: [
+      {
+        id: "ay", source: "a", target: "y", net: "data", label: "data",
+        points: [{ x: 92, y: 34 }, { x: 500, y: 34 }]
+      },
+      {
+        id: "nearby", source: "missing-a", target: "missing-y", net: "nearby", label: "nearby",
+        points: [{ x: 180, y: 16 }, { x: 420, y: 16 }]
+      }
+    ]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["y", { x: 520, y: 16 }]])
+  });
+  const edge = adjusted.edges.find((candidate) => candidate.id === "ay");
+  const supportingY = edge.points.find((point, index) =>
+    index < edge.points.length - 1 && point.y === edge.points[index + 1].y
+  ).y;
+
+  assert.equal(edge.showLabel, true);
+  assert.equal(edge.labelAnchor, "middle");
+  assert.ok(edge.labelPoint.y > supportingY);
+});
+
+test("adjust hides a net label when no segment can hold it safely", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 20, width: 92, height: 28 },
+      { id: "y", kind: "output", label: "y", x: 120, y: 16, width: 92, height: 36 }
+    ],
+    edges: [{
+      id: "ay", source: "a", target: "y", net: "long", label: "a_very_long_net_name",
+      points: [{ x: 92, y: 34 }, { x: 120, y: 34 }]
+    }]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["y", { x: 122, y: 16 }]])
+  });
+
+  assert.equal(adjusted.edges[0].showLabel, false);
 });
 
 function polylineIntersectsNode(points, node) {
