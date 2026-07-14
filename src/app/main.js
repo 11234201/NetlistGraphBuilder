@@ -393,7 +393,8 @@ function renderCompareGraphs() {
     nodeSizes: state.compare.nodeSizes,
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
-    expandedGroupIds: state.expandedGroupIds
+    expandedGroupIds: state.expandedGroupIds,
+    moduleLibrary: state.design.modules
   });
   if (isPromise(workspace)) {
     const requestId = ++state.layoutRequestId;
@@ -461,7 +462,10 @@ function selectModule(moduleName) {
 
 function renderCurrentModuleGraph() {
   const annotatedGraph = annotateGraphTiming(
-    buildSchematicGraph(state.currentModule, { overrides: state.graphOverrides }),
+    buildSchematicGraph(state.currentModule, {
+      overrides: state.graphOverrides,
+      moduleLibrary: state.design.modules
+    }),
     state.timing,
     {
       badgeChoices: state.timingBadgeChoices,

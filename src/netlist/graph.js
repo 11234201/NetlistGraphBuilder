@@ -3,6 +3,7 @@ import { getNetDisplayName, getPortDisplayName } from "./model.js";
 
 export function buildSchematicGraph(module, options = {}) {
   const overrides = normalizeGraphOverrides(options.overrides);
+  const moduleByName = normalizeModuleLibrary(options.moduleLibrary || options.design?.modules);
   const graph = {
     moduleName: module.name,
     moduleDisplayName: module.displayName,
@@ -73,8 +74,11 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   for (const cell of module.cells) {
-    const cellKind = inferCellKind(cell.type);
-    const pinDirections = getCellPinDirections(cell, overrides);
+    const referencedModule = moduleByName.get(cell.type);
+    const cellKind = referencedModule
+      ? { kind: "module", source: "module-definition" }
+      : inferCellKind(cell.type);
+    const pinDirections = getCellPinDirections(cell, overrides, referencedModule);
     const node = addNode({
       id: makeId("cell", cell.instance),
       kind: "cell",
@@ -84,6 +88,7 @@ export function buildSchematicGraph(module, options = {}) {
       title: getCellTitle(cell, cellKind),
       subtitle: cell.typeDisplayName || cell.type,
       pinDirections,
+      referencedModuleName: referencedModule?.name || null,
       ref: cell
     });
     applyNodePropertyOverrides(node, overrides);
@@ -93,13 +98,14 @@ export function buildSchematicGraph(module, options = {}) {
         continue;
       }
       const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] || inferPinDirection(pin.pin);
-      if (pinDirection.direction === "output") {
+      if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
         drivers.set(pin.net, {
           nodeId: node.id,
           pin: pin.pinDisplayName || pin.pin,
           source: "cell"
         });
-      } else {
+      }
+      if (pinDirection.direction !== "output") {
         addLoad(pin.net, {
           nodeId: node.id,
           pin: pin.pinDisplayName || pin.pin,
@@ -169,7 +175,8 @@ function annotateGraphMetadata(graph, module) {
     const outputNets = uniqueValues((node.ref?.pins || [])
       .filter((pin) => {
         const pinName = pin.pinDisplayName || pin.pin;
-        return node.pinDirections?.[pinName]?.direction === "output";
+        const direction = node.pinDirections?.[pinName]?.direction;
+        return direction === "output" || direction === "inout";
       })
       .map((pin) => pin.netDisplayName || getNetDisplayName(module, pin.net)));
     const fanout = fanoutByNodeId.get(node.id) || 0;
@@ -183,16 +190,24 @@ function annotateGraphMetadata(graph, module) {
   }
 }
 
-function getCellPinDirections(cell, overrides) {
+function getCellPinDirections(cell, overrides, referencedModule = null) {
   const directions = {};
   const cellOverrides = overrides.cellPinDirections[cell.instance] || {};
+  const modulePorts = new Map((referencedModule?.ports || []).map((port) => [port.name, port]));
   for (const pin of cell.pins) {
     const displayName = pin.pinDisplayName || pin.pin;
     const overrideDirection = normalizePinDirection(cellOverrides[pin.pin] ?? cellOverrides[displayName]);
+    const modulePort = modulePorts.get(pin.pin);
     if (overrideDirection) {
       directions[displayName] = {
         direction: overrideDirection,
         source: "override"
+      };
+    } else if (modulePort && isKnownPortDirection(modulePort.direction)) {
+      directions[displayName] = {
+        direction: modulePort.direction,
+        source: "module-definition",
+        moduleName: referencedModule.name
       };
     } else {
       directions[displayName] = inferPinDirection(pin.pin);
@@ -201,7 +216,20 @@ function getCellPinDirections(cell, overrides) {
   return directions;
 }
 
+function normalizeModuleLibrary(value) {
+  if (value instanceof Map) return value;
+  const modules = Array.isArray(value) ? value : value?.modules || [];
+  return new Map(modules.map((item) => [item.name, item]));
+}
+
+function isKnownPortDirection(value) {
+  return value === "input" || value === "output" || value === "inout";
+}
+
 function getCellTitle(cell, cellKind) {
+  if (cellKind.kind === "module") {
+    return "MODULE";
+  }
   if (cellKind.kind !== "blackbox") {
     return cellKind.kind.toUpperCase();
   }

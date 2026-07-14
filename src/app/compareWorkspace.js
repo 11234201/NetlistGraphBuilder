@@ -23,20 +23,23 @@ export function buildCompareWorkspace(options) {
     nodeSizes = { left: new Map(), right: new Map() },
     useFanoutHubs = true,
     collapseLargeGroups = true,
-    expandedGroupIds = new Set()
+    expandedGroupIds = new Set(),
+    moduleLibrary = []
   } = options;
   const fullGraphs = {
     left: buildCompareGraph(leftModule, {
       showAliases, timing,
       timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
-      graphOverrides: graphOverrides.left
+      graphOverrides: graphOverrides.left,
+      moduleLibrary
     }),
     right: buildCompareGraph(rightModule, {
       showAliases, timing,
       timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
-      graphOverrides: graphOverrides.right
+      graphOverrides: graphOverrides.right,
+      moduleLibrary
     })
   };
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
@@ -102,7 +105,10 @@ export function getCompareNodeName(node) {
 
 function buildCompareGraph(module, options) {
   const annotatedGraph = annotateGraphTiming(
-    buildSchematicGraph(module, { overrides: options.graphOverrides }),
+    buildSchematicGraph(module, {
+      overrides: options.graphOverrides,
+      moduleLibrary: options.moduleLibrary
+    }),
     options.timing,
     {
       badgeChoices: options.timingBadgeChoices,

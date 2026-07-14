@@ -640,6 +640,39 @@ test("unknown cells render as blackboxes", () => {
   assert.match(svg, /AOI21X1APBH08HVT30P140 \| y \| fo 1/);
 });
 
+test("submodule instances use referenced module port directions", () => {
+  const source = `module leaf(request,response);
+input request; output response;
+BUF u0 (.A(request), .Z(response));
+endmodule
+module top(a,y);
+input a; output y;
+leaf u_leaf (.request(a), .response(y));
+endmodule`;
+  const design = parseVerilog(source);
+  const top = design.modules.find((module) => module.name === "top");
+  const graph = buildSchematicGraph(top, { moduleLibrary: design.modules });
+  const instance = graph.nodes.find((node) => node.id === "cell:u_leaf");
+
+  assert.equal(instance.gateKind, "module");
+  assert.equal(instance.title, "MODULE");
+  assert.equal(instance.inferenceSource, "module-definition");
+  assert.equal(instance.referencedModuleName, "leaf");
+  assert.deepEqual(instance.pinDirections.request, {
+    direction: "input",
+    source: "module-definition",
+    moduleName: "leaf"
+  });
+  assert.equal(instance.pinDirections.response.direction, "output");
+  assert.ok(graph.edges.some((edge) => edge.source === "input:a" && edge.target === instance.id));
+  assert.ok(graph.edges.some((edge) => edge.source === instance.id && edge.target === "output:y"));
+  assert.ok(!graph.nodes.some((node) => node.id === "implicit:y"));
+
+  const positionedInstance = layoutGraph(graph).nodes.find((node) => node.id === instance.id);
+  assert.equal(positionedInstance.ports.find((port) => port.pin === "request").side, "left");
+  assert.equal(positionedInstance.ports.find((port) => port.pin === "response").side, "right");
+});
+
 test("cell pin direction overrides repair unknown cell connectivity", () => {
   const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .B(y)); endmodule";
   const design = parseVerilog(source);
