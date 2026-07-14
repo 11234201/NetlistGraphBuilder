@@ -484,7 +484,9 @@ BUF u0 (.A(${longInput}), .Z(y0)); BUF u1 (.A(${longInput}), .Z(y1));
 BUF u2 (.A(b), .Z(y2)); BUF u3 (.A(b), .Z(y3));
 endmodule`;
   const module = parseVerilog(source).modules[0];
-  const laidOut = layoutGraph(simplifyFanoutWithHubs(buildSchematicGraph(module)));
+  const laidOut = layoutGraph(simplifyFanoutWithHubs(buildSchematicGraph(module), {
+    inputThreshold: 2
+  }), { localizeSingleFanoutInputs: true });
   const hubs = laidOut.nodes.filter((node) => node.kind === "hub");
 
   assert.equal(hubs.length, 2);
@@ -515,7 +517,9 @@ BUF u0 (.A(a), .Z(n));
 AND2 u1 (.A1(n), .A2(\\${longInput} ), .Z(y));
 endmodule`;
   const design = parseVerilog(source);
-  const laidOut = layoutGraph(buildSchematicGraph(design.modules[0]));
+  const laidOut = layoutGraph(buildSchematicGraph(design.modules[0]), {
+    localizeSingleFanoutInputs: true
+  });
   const input = laidOut.nodes.find((node) => node.kind === "input" && node.ref.name === longInput);
   const inputEdge = laidOut.edges.find((edge) => edge.source === input.id);
 
@@ -523,6 +527,21 @@ endmodule`;
   assert.equal(inputEdge.routeKind, "direct");
   assert.equal(inputEdge.points[0].y, inputEdge.points.at(-1).y);
   assert.equal(overlappingNodes(laidOut).length, 0);
+});
+
+test("primary inputs stay left of cells and deep input nets route around obstacles by default", () => {
+  const source = `module m(a,b,c,y);
+input a,b,c; output y; wire n0;
+BUF u0 (.A(a), .Z(n0));
+AND3 u1 (.A1(n0), .A2(b), .A3(c), .Z(y));
+endmodule`;
+  const graph = layoutGraph(buildSchematicGraph(parseVerilog(source).modules[0]));
+  const inputs = graph.nodes.filter((node) => node.kind === "input");
+  const cells = graph.nodes.filter((node) => node.kind === "cell");
+
+  assert.ok(inputs.every((input) => cells.every((cell) => input.x + input.width < cell.x)));
+  assert.equal(edgesCrossingNonEndpoints(graph).length, 0);
+  assert.equal(overlappingDifferentNetSegments(graph).length, 0);
 });
 
 test("early outputs stay near their drivers in multi-output graphs", () => {
@@ -572,7 +591,9 @@ test("branch-aware lanes approach the flex golden layout", async () => {
     layoutPolicy: DEFAULT_LAYOUT_POLICY
   });
   const nodeById = new Map(laidOut.nodes.map((node) => [node.id, node]));
-  const nonDirectEdges = laidOut.edges.filter((edge) => edge.routeKind !== "direct");
+  const nonDirectDrivenEdges = laidOut.edges.filter((edge) =>
+    edge.routeKind !== "direct" && nodeById.get(edge.source)?.kind !== "input"
+  );
 
   assert.equal(nodeById.get("cell:l_resyn1_u_gen_1").y, 80);
   assert.equal(nodeById.get("cell:remap37_u0").y, 80);
@@ -582,7 +603,7 @@ test("branch-aware lanes approach the flex golden layout", async () => {
   assert.equal(nodeById.get("cell:l_resyn1_u_gen_5").y, 272);
   assert.equal(nodeById.get("assign:sco_891:sco_925").y, 333);
   assert.equal(nodeById.get("output:sco_891").y, 344);
-  assert.deepEqual(nonDirectEdges.map((edge) => edge.label), ["sco_928"]);
+  assert.deepEqual(nonDirectDrivenEdges.map((edge) => edge.label), ["sco_928"]);
 });
 
 test("legacy layout options remain compatible with layout policy", async () => {
@@ -595,7 +616,7 @@ test("legacy layout options remain compatible with layout policy", async () => {
     cellPinPitch: 36,
     alignCellLinks: true,
     branchAwareLanes: true,
-    localizeSingleFanoutInputs: true
+    localizeSingleFanoutInputs: false
   });
 
   assert.deepEqual(
@@ -1266,6 +1287,43 @@ function edgesCrossingNonEndpoints(graph) {
     }
   }
   return crossings;
+}
+
+function overlappingDifferentNetSegments(graph) {
+  const overlaps = [];
+  for (let leftIndex = 0; leftIndex < graph.edges.length; leftIndex += 1) {
+    const left = graph.edges[leftIndex];
+    for (let rightIndex = leftIndex + 1; rightIndex < graph.edges.length; rightIndex += 1) {
+      const right = graph.edges[rightIndex];
+      if (left.net === right.net) continue;
+      for (let leftPoint = 0; leftPoint < left.points.length - 1; leftPoint += 1) {
+        for (let rightPoint = 0; rightPoint < right.points.length - 1; rightPoint += 1) {
+          if (segmentsOverlap(
+            left.points[leftPoint], left.points[leftPoint + 1],
+            right.points[rightPoint], right.points[rightPoint + 1]
+          )) {
+            overlaps.push({ leftEdgeId: left.id, rightEdgeId: right.id });
+          }
+        }
+      }
+    }
+  }
+  return overlaps;
+}
+
+function segmentsOverlap(a1, a2, b1, b2) {
+  if (a1.y === a2.y && b1.y === b2.y && a1.y === b1.y) {
+    return rangesOverlap(a1.x, a2.x, b1.x, b2.x);
+  }
+  if (a1.x === a2.x && b1.x === b2.x && a1.x === b1.x) {
+    return rangesOverlap(a1.y, a2.y, b1.y, b2.y);
+  }
+  return false;
+}
+
+function rangesOverlap(a1, a2, b1, b2) {
+  return Math.min(Math.max(a1, a2), Math.max(b1, b2)) >
+    Math.max(Math.min(a1, a2), Math.min(b1, b2));
 }
 
 function overlappingNodes(graph) {

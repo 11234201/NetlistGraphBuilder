@@ -20,7 +20,7 @@ test("fanout simplification inserts a shared hub", () => {
   assert.equal(simplified.edges.filter((edge) => edge.target.startsWith("hub:")).length, 1);
 });
 
-test("input fanout uses a shared hub from two loads onward", () => {
+test("small input fanout stays native unless an input threshold is requested", () => {
   const graph = {
     nodes: [
       { id: "input:a", kind: "input" },
@@ -33,7 +33,9 @@ test("input fanout uses a shared hub from two loads onward", () => {
     ]
   };
 
-  const simplified = simplifyFanoutWithHubs(graph);
+  assert.equal(simplifyFanoutWithHubs(graph), graph);
+
+  const simplified = simplifyFanoutWithHubs(graph, { inputThreshold: 2 });
   const hub = simplified.nodes.find((node) => node.kind === "hub");
   assert.ok(hub);
   const hubInput = simplified.edges.find((edge) => edge.target === hub.id);

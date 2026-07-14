@@ -1,6 +1,6 @@
 export function simplifyFanoutWithHubs(graph, options = {}) {
   const threshold = Math.max(2, options.threshold || 8);
-  const inputThreshold = Math.max(2, options.inputThreshold || 2);
+  const inputThreshold = Math.max(2, options.inputThreshold || threshold);
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const edgesBySourceAndNet = new Map();
   for (const edge of graph.edges) {

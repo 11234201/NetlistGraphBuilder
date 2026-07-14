@@ -210,26 +210,37 @@ export function resolveOutputOverlaps(nodes, margin) {
   }
 }
 
-export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, baseSpacing, margin) {
+export function computeLevelXs(
+  graph,
+  levels,
+  buckets,
+  levelKeys,
+  nodeSizes,
+  baseSpacing,
+  margin,
+  localizeSingleFanoutInputs = true
+) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const outgoingCounts = new Map();
   for (const edge of graph.edges) {
     outgoingCounts.set(edge.source, (outgoingCounts.get(edge.source) || 0) + 1);
   }
   const localizedInputWidths = new Map();
-  for (const edge of graph.edges) {
-    const source = nodeById.get(edge.source);
-    const target = nodeById.get(edge.target);
-    if (
-      (target?.kind === "cell" || target?.kind === "hub") &&
-      isExternalSourceNode(source) &&
-      outgoingCounts.get(edge.source) === 1
-    ) {
-      const targetLevel = levels.get(edge.target);
-      localizedInputWidths.set(
-        targetLevel,
-        Math.max(localizedInputWidths.get(targetLevel) || 0, nodeSizes.get(edge.source)?.width || 0)
-      );
+  if (localizeSingleFanoutInputs) {
+    for (const edge of graph.edges) {
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      if (
+        (target?.kind === "cell" || target?.kind === "hub") &&
+        isExternalSourceNode(source) &&
+        outgoingCounts.get(edge.source) === 1
+      ) {
+        const targetLevel = levels.get(edge.target);
+        localizedInputWidths.set(
+          targetLevel,
+          Math.max(localizedInputWidths.get(targetLevel) || 0, nodeSizes.get(edge.source)?.width || 0)
+        );
+      }
     }
   }
 

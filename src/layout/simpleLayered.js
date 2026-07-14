@@ -77,7 +77,8 @@ export function layoutGraph(graph, options = {}) {
     levelKeys,
     nodeSizes,
     xSpacing,
-    margin
+    margin,
+    policy.features.localizeSingleFanoutInputs
   );
 
   for (const level of levelKeys) {
