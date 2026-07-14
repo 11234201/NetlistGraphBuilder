@@ -184,6 +184,22 @@ export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, bas
   for (const edge of graph.edges) {
     outgoingCounts.set(edge.source, (outgoingCounts.get(edge.source) || 0) + 1);
   }
+  const localizedInputWidths = new Map();
+  for (const edge of graph.edges) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (
+      target?.kind === "cell" &&
+      isExternalSourceNode(source) &&
+      outgoingCounts.get(edge.source) === 1
+    ) {
+      const targetLevel = levels.get(edge.target);
+      localizedInputWidths.set(
+        targetLevel,
+        Math.max(localizedInputWidths.get(targetLevel) || 0, nodeSizes.get(edge.source)?.width || 0)
+      );
+    }
+  }
 
   const levelXs = new Map();
   let x = margin;
@@ -198,23 +214,7 @@ export function computeLevelXs(graph, levels, buckets, levelKeys, nodeSizes, bas
       ...(buckets.get(level) || []).map((node) => nodeSizes.get(node.id).width),
       0
     );
-    const localizedInputWidth = nextLevel <= 1
-      ? 0
-      : Math.max(
-          ...graph.edges
-            .filter((edge) => {
-              const source = nodeById.get(edge.source);
-              const target = nodeById.get(edge.target);
-              return (
-                levels.get(edge.target) === nextLevel &&
-                target?.kind === "cell" &&
-                isExternalSourceNode(source) &&
-                outgoingCounts.get(edge.source) === 1
-              );
-            })
-            .map((edge) => nodeSizes.get(edge.source)?.width || 0),
-          0
-        );
+    const localizedInputWidth = nextLevel <= 1 ? 0 : localizedInputWidths.get(nextLevel) || 0;
     const localizedInputSpacing = localizedInputWidth > 0
       ? levelWidth + localizedInputWidth + 32
       : 0;

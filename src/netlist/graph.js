@@ -158,6 +158,10 @@ export function buildSchematicGraph(module, options = {}) {
 }
 
 function annotateGraphMetadata(graph, module) {
+  const fanoutByNodeId = new Map();
+  for (const edge of graph.edges) {
+    fanoutByNodeId.set(edge.source, (fanoutByNodeId.get(edge.source) || 0) + 1);
+  }
   for (const node of graph.nodes) {
     if (node.kind !== "cell") {
       continue;
@@ -168,7 +172,7 @@ function annotateGraphMetadata(graph, module) {
         return node.pinDirections?.[pinName]?.direction === "output";
       })
       .map((pin) => pin.netDisplayName || getNetDisplayName(module, pin.net)));
-    const fanout = graph.edges.filter((edge) => edge.source === node.id).length;
+    const fanout = fanoutByNodeId.get(node.id) || 0;
     node.metadata = {
       cellType: node.subtitle || "-",
       instance: node.label,

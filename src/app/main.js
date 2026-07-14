@@ -483,20 +483,22 @@ function renderCurrentModuleGraph() {
   const layoutOptions = { layoutPolicy: state.layoutPolicy };
   const layoutProvider = getCurrentLayoutProvider();
   const autoGraph = layoutProvider.layout(simplifiedGraph, layoutOptions);
-  const graph = layoutProvider.layout(simplifiedGraph, {
+  const overrideOptions = {
     ...layoutOptions,
     nodePositions: state.nodePositions,
     nodeSizes: state.nodeSizes
-  });
-  if (isPromise(autoGraph) || isPromise(graph)) {
+  };
+  if (isPromise(autoGraph)) {
     const requestId = ++state.layoutRequestId;
     setStatus(`Layout (${layoutProvider.label})…`);
-    Promise.all([autoGraph, graph]).then(([autoResult, graphResult]) => {
-      if (requestId === state.layoutRequestId) commitCurrentGraph(autoResult, graphResult);
+    autoGraph.then((autoResult) => {
+      if (requestId === state.layoutRequestId) {
+        commitCurrentGraph(autoResult, applyPositionedOverrides(autoResult, overrideOptions));
+      }
     }).catch(handleLayoutFailure);
     return;
   }
-  commitCurrentGraph(autoGraph, graph);
+  commitCurrentGraph(autoGraph, applyPositionedOverrides(autoGraph, overrideOptions));
 }
 
 function commitCurrentGraph(autoGraph, graph) {

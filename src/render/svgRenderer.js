@@ -1,6 +1,8 @@
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { getLeafDisplayName } from "../layout/nodeGeometry.js";
 
+const MAX_WIRE_CROSSING_EDGES = 1200;
+
 export function renderSchematicSvg(graph) {
   const plan = createSchematicRenderPlan(graph);
   return `${plan.openSvg}${plan.edges.join("")}${plan.betweenGroups}${plan.nodes.join("")}${plan.closeSvg}`;
@@ -66,6 +68,12 @@ function renderNode(node) {
 
 function findWireCrossings(edges) {
   const crossings = new Map();
+  // Crossing detection compares horizontal and vertical segment pairs. On a full,
+  // uncollapsed netlist the resulting bridges are both too dense to read and can
+  // monopolize the UI thread, so reserve them for schematics where they add value.
+  if (edges.length > MAX_WIRE_CROSSING_EDGES) {
+    return crossings;
+  }
   const horizontalSegments = [];
   const verticalSegments = [];
 

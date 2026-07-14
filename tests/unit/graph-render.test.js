@@ -26,6 +26,61 @@ test("cell inference maps common foundry-like names", () => {
   assert.equal(inferCellKind("UNKNOWN_CELL").kind, "blackbox");
 });
 
+test("simple layout bounds levels when a sequential graph contains a large feedback cycle", () => {
+  const cellCount = 600;
+  const nodes = Array.from({ length: cellCount }, (_, index) => ({
+    id: `cell:u${index}`,
+    kind: "cell",
+    label: `u${index}`,
+    gateKind: "buffer",
+    pinDirections: { A: { direction: "input" }, Z: { direction: "output" } },
+    ref: { pins: [{ pin: "A", net: `n${index}` }, { pin: "Z", net: `n${index + 1}` }] }
+  }));
+  const edges = nodes.map((node, index) => ({
+    id: `e${index}`,
+    source: node.id,
+    target: nodes[(index + 1) % cellCount].id,
+    sourcePin: "Z",
+    targetPin: "A",
+    net: `n${index}`,
+    label: `n${index}`
+  }));
+
+  const positioned = layoutGraph({
+    moduleName: "feedback",
+    moduleDisplayName: "feedback",
+    nodes,
+    edges,
+    diagnostics: [],
+    stats: { ports: 0, nets: cellCount, cells: cellCount, assigns: 0 }
+  });
+
+  assert.equal(positioned.nodes.length, cellCount);
+  assert.ok(Math.max(...positioned.nodes.map((node) => node.level)) <= cellCount);
+  assert.ok(positioned.width < cellCount * 1000);
+});
+
+test("large render plans skip quadratic wire bridge detection", () => {
+  const edges = Array.from({ length: 1201 }, (_, index) => ({
+    id: `e${index}`,
+    net: `n${index}`,
+    label: `n${index}`,
+    points: [{ x: 0, y: index }, { x: 100, y: index }],
+    labelPoint: { x: 50, y: index },
+    labelAnchor: "start"
+  }));
+  const svg = renderSchematicSvg({
+    moduleDisplayName: "large",
+    width: 100,
+    height: 1201,
+    nodes: [],
+    edges
+  });
+
+  assert.doesNotMatch(svg, /wire-bridge/);
+  assert.match(svg, /data-edge-id="e1200"/);
+});
+
 test("graph and svg render fixture module", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
