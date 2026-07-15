@@ -1,8 +1,17 @@
 const EPSILON = 0.5;
 
 export function compactOrthogonalPoints(points) {
-  return points.filter((point, index) => index === 0 ||
+  const unique = points.filter((point, index) => index === 0 ||
     point.x !== points[index - 1].x || point.y !== points[index - 1].y);
+  return unique.filter((point, index) => {
+    if (index === 0 || index === unique.length - 1) return true;
+    const previous = unique[index - 1];
+    const next = unique[index + 1];
+    return !(
+      (near(previous.x, point.x) && near(point.x, next.x)) ||
+      (near(previous.y, point.y) && near(point.y, next.y))
+    );
+  });
 }
 
 export function getTargetApproachPoint(target, targetPoint, clearance = 8) {

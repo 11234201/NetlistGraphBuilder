@@ -1,4 +1,5 @@
 import { buildNodePorts, computeBounds, getConnectionPoint, getPort, measureNode } from "./nodeGeometry.js";
+import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
@@ -121,7 +122,7 @@ function attachToExactPorts(points, start, end) {
   const direction = end.x >= start.x ? 1 : -1;
   const sourceTrunk = start.x + direction * 24;
   const targetTrunk = end.x - direction * 24;
-  return simplifyPoints([
+  return compactOrthogonalPoints([
     start,
     { x: sourceTrunk, y: start.y },
     { x: sourceTrunk, y: rawStart.y },
@@ -132,18 +133,6 @@ function attachToExactPorts(points, start, end) {
     { x: targetTrunk, y: end.y },
     end
   ]);
-}
-
-function simplifyPoints(points) {
-  const unique = points.filter((point, index) =>
-    index === 0 || point.x !== points[index - 1].x || point.y !== points[index - 1].y);
-  return unique.filter((point, index) => {
-    if (index === 0 || index === unique.length - 1) return true;
-    const previous = unique[index - 1];
-    const next = unique[index + 1];
-    return !((previous.x === point.x && point.x === next.x) ||
-      (previous.y === point.y && point.y === next.y));
-  });
 }
 
 function getEdgePoints(edge) {

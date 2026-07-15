@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  compactOrthogonalPoints,
   countRouteConflicts,
   getTargetApproachPoint,
   routeFollowsEndpointSides,
@@ -12,6 +13,23 @@ import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 
 const source = { id: "source", x: 0, y: 40, width: 80, height: 28 };
 const target = { id: "target", x: 200, y: 100, width: 120, height: 72 };
+
+test("orthogonal point normalization removes duplicate and collinear pseudo-bends", () => {
+  assert.deepEqual(compactOrthogonalPoints([
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 20, y: 0 },
+    { x: 40, y: 0 },
+    { x: 40, y: 30 },
+    { x: 40, y: 50 },
+    { x: 80, y: 50 }
+  ]), [
+    { x: 0, y: 0 },
+    { x: 40, y: 0 },
+    { x: 40, y: 50 },
+    { x: 80, y: 50 }
+  ]);
+});
 
 test("top and bottom target pins require a vertical final segment", () => {
   const topPin = { x: 260, y: 100 };
