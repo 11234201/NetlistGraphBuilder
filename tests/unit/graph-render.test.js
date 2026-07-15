@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
+import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inferCellKind } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
@@ -18,6 +19,7 @@ import { annotateGraphTiming } from "../../src/timing/timingAnnotation.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
 
 const fixtureUrl = new URL("../fixtures/two_equivalent_style_modules.v", import.meta.url);
+const hierarchicalFixtureUrl = new URL("../../examples/hierarchical_escaped_compare.v", import.meta.url);
 
 test("cell inference maps common foundry-like names", () => {
   assert.equal(inferCellKind("ND3X2APAH08HVT30P140").kind, "nand");
@@ -554,7 +556,7 @@ endmodule`;
   assert.equal(overlappingNodes(laidOut).length, 0);
 });
 
-test("primary inputs stay left of cells and deep input nets route around obstacles by default", () => {
+test("single-load inputs localize at their consuming pins by default", () => {
   const source = `module m(a,b,c,y);
 input a,b,c; output y; wire n0;
 BUF u0 (.A(a), .Z(n0));
@@ -562,11 +564,13 @@ AND3 u1 (.A1(n0), .A2(b), .A3(c), .Z(y));
 endmodule`;
   const graph = layoutGraph(buildSchematicGraph(parseVerilog(source).modules[0]));
   const inputs = graph.nodes.filter((node) => node.kind === "input");
-  const cells = graph.nodes.filter((node) => node.kind === "cell");
+  const inputEdges = graph.edges.filter((edge) => inputs.some((input) => input.id === edge.source));
 
-  assert.ok(inputs.every((input) => cells.every((cell) => input.x + input.width < cell.x)));
+  assert.ok(inputs.every((input) => input.x > 48));
+  assert.ok(inputEdges.every((edge) => edge.routeKind === "direct"));
   assert.equal(edgesCrossingNonEndpoints(graph).length, 0);
   assert.equal(overlappingDifferentNetSegments(graph).length, 0);
+  assert.equal(overlappingNodes(graph).length, 0);
 });
 
 test("early outputs stay near their drivers in multi-output graphs", () => {
@@ -584,6 +588,35 @@ endmodule`;
 
   assert.ok(early.level < final.level);
   assert.ok(["direct", "local-dogleg", "fanout-trunk", "obstacle-local"].includes(earlyEdge.routeKind));
+  assert.equal(overlappingNodes(laidOut).length, 0);
+});
+
+test("multi-output nets keep the cell continuation straight and branch to outputs locally", async () => {
+  const source = await readFile(hierarchicalFixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) =>
+    item.name === "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex");
+  const graph = normalizeGraphAliases(buildSchematicGraph(module, {
+    moduleLibrary: design.modules
+  }), { showAliases: false });
+  const laidOut = layoutGraph(graph);
+  const mainChainTargets = new Set([
+    "cell:l_resyn1_u_gen_2",
+    "cell:l_resyn1_u_gen_3",
+    "cell:l_resyn1_u_gen_4"
+  ]);
+  const nodeById = new Map(laidOut.nodes.map((node) => [node.id, node]));
+  const mainChainEdges = laidOut.edges.filter((edge) =>
+    mainChainTargets.has(edge.target) && nodeById.get(edge.source)?.kind === "cell");
+  const branchOutputEdges = laidOut.edges.filter((edge) =>
+    edge.target === "output:sco_161" || edge.target === "output:sco_163");
+
+  assert.equal(module?.name.endsWith("_Flex"), true);
+  assert.equal(mainChainEdges.length, 3);
+  assert.ok(mainChainEdges.every((edge) => edge.routeKind === "direct"));
+  assert.ok(branchOutputEdges.every((edge) =>
+    ["fanout-trunk", "local-dogleg", "obstacle-local"].includes(edge.routeKind)));
+  assert.ok(laidOut.edges.every((edge) => edge.routeKind !== "obstacle-lane"));
   assert.equal(overlappingNodes(laidOut).length, 0);
 });
 
@@ -641,7 +674,7 @@ test("legacy layout options remain compatible with layout policy", async () => {
     cellPinPitch: 36,
     alignCellLinks: true,
     branchAwareLanes: true,
-    localizeSingleFanoutInputs: false
+    localizeSingleFanoutInputs: true
   });
 
   assert.deepEqual(

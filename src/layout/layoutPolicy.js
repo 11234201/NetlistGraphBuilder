@@ -16,7 +16,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
   features: Object.freeze({
     alignDrivenLinks: true,
     branchAwareLanes: true,
-    localizeSingleFanoutInputs: false
+    localizeSingleFanoutInputs: true
   })
 });
 

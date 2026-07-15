@@ -150,16 +150,78 @@ export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
 }
 
 export function resolveLevelOverlaps(nodes, levelKeys, margin, gap = 16, layoutIntent = null, fanoutGap = gap) {
+  const primaryChainTargets = getPrimaryCellChainTargets(layoutIntent);
   for (const level of levelKeys) {
     const levelNodes = nodes
       .filter((node) => node.level === level)
       .sort((left, right) => left.y - right.y || compareNodes(left, right));
+
+    const anchoredNodes = levelNodes.filter((node) => primaryChainTargets.has(node.id));
+    if (anchoredNodes.length > 0) {
+      resolveLevelAroundPrimaryChain(
+        levelNodes,
+        anchoredNodes,
+        margin,
+        gap,
+        layoutIntent,
+        fanoutGap
+      );
+      continue;
+    }
+
     let nextY = margin;
     for (const node of levelNodes) {
       node.y = round(Math.max(node.y, nextY));
       const nodeGap = layoutIntent?.getNodeFanout(node) > 1 ? fanoutGap : gap;
       nextY = node.y + node.height + nodeGap;
     }
+  }
+}
+
+function getPrimaryCellChainTargets(layoutIntent) {
+  const targets = new Set();
+  if (!layoutIntent?.netGroups) return targets;
+
+  for (const edges of layoutIntent.netGroups.values()) {
+    for (const edge of edges) {
+      const intent = layoutIntent.getEdge(edge);
+      if (
+        intent?.isPrimary &&
+        intent.sourceKind === "cell" &&
+        intent.targetKind === "cell"
+      ) {
+        targets.add(edge.target);
+      }
+    }
+  }
+  return targets;
+}
+
+function resolveLevelAroundPrimaryChain(
+  levelNodes,
+  anchoredNodes,
+  margin,
+  gap,
+  layoutIntent,
+  fanoutGap
+) {
+  const placed = [];
+  let nextAnchorY = margin;
+  for (const anchor of anchoredNodes.toSorted((left, right) =>
+    left.y - right.y || compareNodes(left, right))) {
+    anchor.y = round(Math.max(anchor.y, nextAnchorY));
+    placed.push(anchor);
+    const anchorGap = layoutIntent?.getNodeFanout(anchor) > 1 ? fanoutGap : gap;
+    nextAnchorY = anchor.y + anchor.height + anchorGap;
+  }
+
+  const anchoredIds = new Set(anchoredNodes.map((node) => node.id));
+  for (const node of levelNodes
+    .filter((candidate) => !anchoredIds.has(candidate.id))
+    .toSorted((left, right) => left.y - right.y || compareNodes(left, right))) {
+    const nodeGap = layoutIntent?.getNodeFanout(node) > 1 ? fanoutGap : gap;
+    node.y = findNearestFreeY(node, node.y, placed, new Set([node.id]), margin, nodeGap);
+    placed.push(node);
   }
 }
 
