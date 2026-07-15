@@ -21,6 +21,7 @@ import {
   renderDefinitionRows as statsRows
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
+import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
 import {
   clientPointToViewBox,
   formatViewportTransform,
@@ -1297,19 +1298,14 @@ function startNodeDrag(event, nodeId) {
       return;
     }
 
-    const candidatePosition = {
-      x: round(Math.max(16, startPosition.x + point.x - startPoint.x)),
-      y: round(Math.max(16, startPosition.y + point.y - startPoint.y))
-    };
+    const candidatePosition = getDraggedNodePosition(startPosition, startPoint, point);
     const snapResult = snapNodePosition(state.graph, nodeId, candidatePosition);
     const nextPosition = {
       x: round(Math.max(16, snapResult.position.x)),
       y: round(Math.max(16, snapResult.position.y))
     };
     const previous = state.nodePositions.get(nodeId);
-    if (previous?.x === nextPosition.x && previous?.y === nextPosition.y) {
-      return;
-    }
+    if (sameNodePosition(previous, nextPosition)) return;
 
     moved = true;
     state.nodePositions.set(nodeId, nextPosition);
@@ -1553,13 +1549,10 @@ function startCompareNodeDrag(event, side, node) {
   const move = (moveEvent) => {
     const point = toContent(moveEvent);
     if (!point || !startPoint) return;
-    const candidate = {
-      x: round(Math.max(16, startPosition.x + point.x - startPoint.x)),
-      y: round(Math.max(16, startPosition.y + point.y - startPoint.y))
-    };
+    const candidate = getDraggedNodePosition(startPosition, startPoint, point);
     const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
     const previous = state.compare.nodePositions[side].get(node.id);
-    if (previous?.x === snapped.position.x && previous?.y === snapped.position.y) return;
+    if (sameNodePosition(previous, snapped.position)) return;
     state.compare.nodePositions[side].set(node.id, snapped.position);
     renderAdjustedCompareSide(side);
   };

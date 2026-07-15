@@ -233,6 +233,8 @@ case-specific golden tests may impose tighter budgets.
 
 `src/ui/viewport.js` owns pure zoom, pan, coordinate-conversion and SVG-transform calculations. App event
 handlers provide DOM measurements and commit state, but do not duplicate viewport math.
+`src/ui/nodeDrag.js` owns provider-independent drag delta, boundary and position equality calculations used
+by both Single and Compare canvases.
 
 负责用户交互。
 
