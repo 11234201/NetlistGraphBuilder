@@ -1,4 +1,4 @@
-import { routeLocalOrthogonalEdge } from "./localOrthogonalRouter.js";
+import { selectLocalOrthogonalRoute } from "./localOrthogonalRouter.js";
 import { buildNodePorts, computeBounds, getConnectionPoint } from "./nodeGeometry.js";
 import { normalizeNodeOverrides } from "./nodeOverrides.js";
 import {
@@ -45,7 +45,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     }
     const start = getConnectionPoint(source, edge.sourcePin, "source");
     const end = getConnectionPoint(target, edge.targetPin, "target");
-    const points = routeLocalOrthogonalEdge({
+    const route = selectLocalOrthogonalRoute({
       source,
       target,
       start,
@@ -56,10 +56,12 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       net: edge.net,
       reservedSegments
     });
+    const points = route.points;
     const routedEdge = {
       ...edge,
       points,
       routeKind: "positioned-override",
+      routeStrategy: route.kind,
       labelPoint: points[Math.max(1, points.length - 2)] || end,
       labelAnchor: "end"
     };

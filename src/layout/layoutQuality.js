@@ -7,6 +7,7 @@ import { RouteSegmentIndex } from "./spatialIndex.js";
 
 export function analyzeLayoutQuality(graph) {
   const routeKinds = {};
+  const routeStrategies = {};
   let totalLength = 0;
   let totalBends = 0;
   let maxBends = 0;
@@ -33,6 +34,9 @@ export function analyzeLayoutQuality(graph) {
     }
     const routeKind = edge.routeKind || "unknown";
     routeKinds[routeKind] = (routeKinds[routeKind] || 0) + 1;
+    if (edge.routeStrategy) {
+      routeStrategies[edge.routeStrategy] = (routeStrategies[edge.routeStrategy] || 0) + 1;
+    }
   }
 
   const conflicts = countLayoutConflicts(graph.edges || []);
@@ -51,7 +55,8 @@ export function analyzeLayoutQuality(graph) {
     crossingCount: conflicts.crossings,
     overlapCount: conflicts.overlaps,
     hiddenLabelCount,
-    routeKinds
+    routeKinds,
+    routeStrategies
   };
 }
 

@@ -4,6 +4,10 @@ import { compareRouteCandidates, scoreRouteCandidate } from "./routeScoring.js";
 import { createNodeSpatialIndex } from "./spatialIndex.js";
 
 export function routeLocalOrthogonalEdge(context) {
+  return selectLocalOrthogonalRoute(context).points;
+}
+
+export function selectLocalOrthogonalRoute(context) {
   const nodeIndex = context.nodeIndex || createNodeSpatialIndex(context.nodes);
   const routeContext = { ...context, nodeIndex };
   let lastCandidate = null;
@@ -27,11 +31,14 @@ export function routeLocalOrthogonalEdge(context) {
       rejectReservedOverlaps: true
     });
     if (!usable) continue;
-    if (scoreRouteCandidate(candidate, scoreContext).crossings === 0) return candidate.points;
+    if (scoreRouteCandidate(candidate, scoreContext).crossings === 0) return candidate;
     if (!bestUsableCandidate ||
       compareRouteCandidates(candidate, bestUsableCandidate, scoreContext) < 0) {
       bestUsableCandidate = candidate;
     }
   }
-  return bestUsableCandidate?.points || lastCandidate?.points || [context.start, context.end];
+  return bestUsableCandidate || lastCandidate || {
+    kind: "fallback-direct",
+    points: [context.start, context.end]
+  };
 }

@@ -41,6 +41,8 @@ test("positioned overrides preserve untouched ELK nodes and reroute moved edges"
   );
   assert.ok(adjusted.edges.filter((edge) => edge.id !== "cz")
     .every((edge) => edge.routeKind === "positioned-override"));
+  assert.ok(adjusted.edges.filter((edge) => edge.id !== "cz")
+    .every((edge) => typeof edge.routeStrategy === "string"));
   assert.equal(adjusted.edges.find((edge) => edge.id === "cz").routeKind, "elk-orthogonal");
   assert.deepEqual(adjusted.edges.find((edge) => edge.id === "cz").points, graph.edges[2].points);
   assert.ok(adjusted.height > graph.height);
@@ -94,6 +96,7 @@ test("adjust reroutes a net when an unrelated moved cell blocks its old path", (
   const blocker = adjusted.nodes.find((node) => node.id === "blocker");
 
   assert.equal(edge.routeKind, "positioned-override");
+  assert.equal(edge.routeStrategy, "local-detour");
   assert.equal(polylineIntersectsNode(edge.points, blocker), false);
   assert.ok(Math.min(...edge.points.map((point) => point.y)) >= blocker.y - 8);
 });

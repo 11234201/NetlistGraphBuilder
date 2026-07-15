@@ -56,6 +56,7 @@ function normalizeLayout(graph) {
     edges: graph.edges.map((edge) => ({
       id: edge.id,
       routeKind: edge.routeKind,
+      routeStrategy: edge.routeStrategy,
       points: edge.points,
       labelPoint: edge.labelPoint,
       labelAnchor: edge.labelAnchor,

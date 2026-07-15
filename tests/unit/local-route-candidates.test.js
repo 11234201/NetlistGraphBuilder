@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { iterateLocalRouteCandidates } from "../../src/layout/localRouteCandidates.js";
-import { routeLocalOrthogonalEdge } from "../../src/layout/localOrthogonalRouter.js";
+import {
+  routeLocalOrthogonalEdge,
+  selectLocalOrthogonalRoute
+} from "../../src/layout/localOrthogonalRouter.js";
 import { createNodeSpatialIndex, RouteSegmentIndex } from "../../src/layout/spatialIndex.js";
 
 const source = { id: "source", x: 0, y: 40, width: 80, height: 28 };
@@ -75,8 +78,10 @@ test("Adjust scoring chooses a local wire detour over a direct crossing", () => 
     reservedSegments
   };
 
-  const points = routeLocalOrthogonalEdge(context);
+  const route = selectLocalOrthogonalRoute(context);
+  const points = route.points;
 
+  assert.equal(route.kind, "local-detour");
   assert.ok(points.length > 2);
   assert.ok(points.some((point) => point.y >= 88));
   assert.ok(points.every((point, index) => index === points.length - 1 || !(

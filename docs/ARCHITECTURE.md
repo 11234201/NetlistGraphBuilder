@@ -157,7 +157,8 @@ Layout policy:
   The router chooses and reserves candidates without embedding their coordinate formulas.
 - `src/layout/localOrthogonalRouter.js` owns Adjust candidate validation and scored selection. It reuses
   the shared route costs so a later local, conflict-free path can beat an earlier crossing path. It
-  accepts immutable route context plus shared indexes and does not apply node overrides or place labels.
+  returns the selected candidate strategy as well as points, accepts immutable route context plus shared
+  indexes, and does not apply node overrides or place labels.
 - `src/layout/localRouteCandidates.js` lazily yields local, obstacle and outer-lane Adjust candidates in
   policy order. Local candidates include nearby reserved-wire boundaries before outer lanes; the router
   validates candidates without owning coordinate formulas.
@@ -178,7 +179,8 @@ Layout policy:
   stage hook for diagnostics. Individual passes remain in their alignment, locality and spacing modules.
 - `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
   and labels. It contains no candidate-generation geometry. Adjust reroutes single-load nets first and
-  uses a stable topology key so reservation order cannot drift with parser edge order.
+  uses a stable topology key so reservation order cannot drift with parser edge order. Rerouted edges keep
+  `routeKind: positioned-override` for origin and record the chosen candidate in `routeStrategy`.
 - `src/layout/rerouteInvalidation.js` owns Adjust route invalidation. It indexes existing route segments
   and queries changed node boxes; batch overrides must not scan every changed-node/edge pair.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.

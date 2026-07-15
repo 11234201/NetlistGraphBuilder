@@ -18,7 +18,8 @@ test("layout quality summarizes bends, detours, crossings and overlaps", () => {
         points: [{ x: 50, y: -50 }, { x: 50, y: 50 }]
       },
       {
-        id: "c", net: "c", routeKind: "detour", label: "c", showLabel: false,
+        id: "c", net: "c", routeKind: "detour", routeStrategy: "local-detour",
+        label: "c", showLabel: false,
         points: [
           { x: 20, y: 0 },
           { x: 20, y: 20 },
@@ -36,6 +37,7 @@ test("layout quality summarizes bends, detours, crossings and overlaps", () => {
   assert.equal(quality.overlapCount, 0);
   assert.equal(quality.hiddenLabelCount, 1);
   assert.equal(quality.routeKinds.direct, 2);
+  assert.equal(quality.routeStrategies["local-detour"], 1);
 });
 
 test("layout quality comparison exposes stable signed deltas", () => {
