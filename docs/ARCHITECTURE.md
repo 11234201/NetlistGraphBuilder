@@ -256,6 +256,8 @@ handlers provide DOM measurements and commit state, but do not duplicate viewpor
 by both Single and Compare canvases.
 `src/ui/pointerSession.js` owns pointer capture plus move/up/cancel lifecycle cleanup shared by sidebar
 resize, canvas pan and Single/Compare node drag interactions.
+`src/ui/frameScheduler.js` coalesces high-frequency pan/drag updates to one latest task per animation frame
+and flushes the final pointer position on gesture completion.
 
 负责用户交互。
 
