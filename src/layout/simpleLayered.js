@@ -364,8 +364,9 @@ function routeEdge(
 
 function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint, nodes) {
   const padding = 9;
-  const forward = sourcePoint.x < targetPoint.x;
-  const gap = Math.abs(targetPoint.x - sourcePoint.x);
+  const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
+  const forward = sourcePoint.x < routeTargetPoint.x;
+  const gap = Math.abs(routeTargetPoint.x - sourcePoint.x);
   const inset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
   const sourceColumnRight = Math.max(
     sourcePoint.x,
@@ -380,12 +381,12 @@ function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint,
     source.kind === "constant";
   const sourceLaneX = forward
     ? sourceUsesLocalEscape
-      ? Math.min(targetPoint.x - 2, sourcePoint.x + inset)
-      : Math.min(targetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
+      ? Math.min(routeTargetPoint.x - 2, sourcePoint.x + inset)
+      : Math.min(routeTargetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
     : sourcePoint.x + inset;
   const targetLaneX = forward
-    ? Math.max(sourcePoint.x + 2, Math.min(targetPoint.x - inset, targetColumnLeft - padding))
-    : targetPoint.x - inset;
+    ? Math.max(sourcePoint.x + 2, Math.min(routeTargetPoint.x - inset, targetColumnLeft - padding))
+    : routeTargetPoint.x - inset;
   const minX = Math.min(sourceLaneX, targetLaneX);
   const maxX = Math.max(sourceLaneX, targetLaneX);
   const relevantNodes = nodes.filter((node) =>
@@ -393,19 +394,20 @@ function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint,
   );
   const laneYs = uniqueRounded([
     sourcePoint.y,
-    targetPoint.y,
-    (sourcePoint.y + targetPoint.y) / 2,
+    routeTargetPoint.y,
+    (sourcePoint.y + routeTargetPoint.y) / 2,
     ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding])
   ]).toSorted((left, right) =>
-    localLaneCost(left, sourcePoint.y, targetPoint.y) -
-    localLaneCost(right, sourcePoint.y, targetPoint.y)
+    localLaneCost(left, sourcePoint.y, routeTargetPoint.y) -
+    localLaneCost(right, sourcePoint.y, routeTargetPoint.y)
   );
   return laneYs.map((laneY) => route("obstacle-local", [
     sourcePoint,
     { x: sourceLaneX, y: sourcePoint.y },
     { x: sourceLaneX, y: laneY },
     { x: targetLaneX, y: laneY },
-    { x: targetLaneX, y: targetPoint.y },
+    { x: targetLaneX, y: routeTargetPoint.y },
+    routeTargetPoint,
     targetPoint
   ]));
 }
@@ -443,8 +445,50 @@ function isRouteUsable(points, nodes, source, target, sourcePoint, targetPoint) 
     isRouteClear(points, nodes, source, target) &&
     exitsSourceWithoutCrossingBody(points, source, sourcePoint) &&
     entersTargetWithoutCrossingBody(points, target, targetPoint) &&
+    entersTargetFromPortSide(points, target, targetPoint) &&
     preservesEndpointAccess(points, source, target)
   );
+}
+
+function getTargetApproachPoint(target, targetPoint) {
+  const clearance = 9;
+  if (near(targetPoint.y, target.y) && inside(targetPoint.x, target.x, target.x + target.width)) {
+    return { x: targetPoint.x, y: target.y - clearance };
+  }
+  if (
+    near(targetPoint.y, target.y + target.height) &&
+    inside(targetPoint.x, target.x, target.x + target.width)
+  ) {
+    return { x: targetPoint.x, y: target.y + target.height + clearance };
+  }
+  return targetPoint;
+}
+
+function entersTargetFromPortSide(points, target, targetPoint) {
+  if (points.length < 2) return false;
+  const previous = points.at(-2);
+  const onTopOrBottom = (
+    near(targetPoint.y, target.y) || near(targetPoint.y, target.y + target.height)
+  ) && inside(targetPoint.x, target.x, target.x + target.width);
+  if (onTopOrBottom) {
+    return near(previous.x, targetPoint.x) && !near(previous.y, targetPoint.y);
+  }
+
+  const onLeftOrRight = (
+    near(targetPoint.x, target.x) || near(targetPoint.x, target.x + target.width)
+  ) && inside(targetPoint.y, target.y, target.y + target.height);
+  if (onLeftOrRight) {
+    return near(previous.y, targetPoint.y) && !near(previous.x, targetPoint.x);
+  }
+  return true;
+}
+
+function near(left, right) {
+  return Math.abs(left - right) < 0.5;
+}
+
+function inside(value, minimum, maximum) {
+  return value > minimum + 0.5 && value < maximum - 0.5;
 }
 
 function preservesEndpointAccess(points, source, target) {
@@ -532,19 +576,26 @@ function findObstacleAvoidingRoute(
   lanePitch
 ) {
   const clearance = 24;
+  const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
   const baseSourceLaneX = getEscapeLaneX(source, sourcePoint, "source", clearance);
-  const baseTargetLaneX = getEscapeLaneX(target, targetPoint, "target", clearance);
+  const targetUsesVerticalApproach = routeTargetPoint !== targetPoint;
+  const baseTargetLaneX = targetUsesVerticalApproach
+    ? routeTargetPoint.x
+    : getEscapeLaneX(target, targetPoint, "target", clearance);
   const yCandidates = getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clearance);
 
   for (const laneY of yCandidates) {
     const sourceLaneX = findClearVerticalLaneX(baseSourceLaneX, sourcePoint.y, laneY, nodes, source, target);
-    const targetLaneX = findClearVerticalLaneX(baseTargetLaneX, targetPoint.y, laneY, nodes, source, target);
+    const targetLaneX = targetUsesVerticalApproach
+      ? baseTargetLaneX
+      : findClearVerticalLaneX(baseTargetLaneX, routeTargetPoint.y, laneY, nodes, source, target);
     const candidate = route("obstacle-lane", [
       sourcePoint,
       { x: sourceLaneX, y: sourcePoint.y },
       { x: sourceLaneX, y: laneY },
       { x: targetLaneX, y: laneY },
-      { x: targetLaneX, y: targetPoint.y },
+      { x: targetLaneX, y: routeTargetPoint.y },
+      routeTargetPoint,
       targetPoint
     ]);
     if (isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint)) {
@@ -557,7 +608,8 @@ function findObstacleAvoidingRoute(
     { x: baseSourceLaneX, y: sourcePoint.y },
     { x: baseSourceLaneX, y: yCandidates[0] ?? preferredLaneY },
     { x: baseTargetLaneX, y: yCandidates[0] ?? preferredLaneY },
-    { x: baseTargetLaneX, y: targetPoint.y },
+    { x: baseTargetLaneX, y: routeTargetPoint.y },
+    routeTargetPoint,
     targetPoint
   ]);
 }

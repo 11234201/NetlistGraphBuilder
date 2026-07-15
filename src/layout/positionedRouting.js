@@ -148,19 +148,21 @@ function edgeNeedsReroute(edge, changedNodeIds, changedNodes) {
 }
 
 function routeManhattan(source, target, start, end, nodes, margin, net, reservedSegments) {
+  const routeEnd = getTargetAccessPoint(target, end);
   if (
-    start.x <= end.x &&
-    Math.abs(start.y - end.y) < 0.5 &&
+    (Math.abs(start.x - end.x) < 0.5 || (
+      start.x <= end.x && Math.abs(start.y - end.y) < 0.5
+    )) &&
     routeCandidateIsClear([start, end], nodes, source, target, net, reservedSegments)
   ) {
     return [start, end];
   }
 
-  if (start.x < end.x) {
-    const horizontalGap = end.x - start.x;
+  if (start.x < routeEnd.x) {
+    const horizontalGap = routeEnd.x - start.x;
     const endpointClearance = Math.min(24, Math.max(2, horizontalGap / 4));
     const minChannelX = start.x + endpointClearance;
-    const maxChannelX = end.x - endpointClearance;
+    const maxChannelX = routeEnd.x - endpointClearance;
     if (minChannelX <= maxChannelX) {
       const middleX = (minChannelX + maxChannelX) / 2;
       for (const channelX of alternatingCandidates(middleX, margin, 16)) {
@@ -168,7 +170,8 @@ function routeManhattan(source, target, start, end, nodes, margin, net, reserved
         const candidate = compactPoints([
           start,
           { x: channelX, y: start.y },
-          { x: channelX, y: end.y },
+          { x: channelX, y: routeEnd.y },
+          routeEnd,
           end
         ]);
         if (routeCandidateIsClear(candidate, nodes, source, target, net, reservedSegments)) {
@@ -182,6 +185,7 @@ function routeManhattan(source, target, start, end, nodes, margin, net, reserved
     source,
     target,
     start,
+    routeEnd,
     end,
     nodes,
     net,
@@ -189,10 +193,20 @@ function routeManhattan(source, target, start, end, nodes, margin, net, reserved
   );
   if (localDetour) return localDetour;
 
-  return routeAroundNodes(source, target, start, end, nodes, margin, net, reservedSegments);
+  return routeAroundNodes(
+    source,
+    target,
+    start,
+    routeEnd,
+    end,
+    nodes,
+    margin,
+    net,
+    reservedSegments
+  );
 }
 
-function routeLocalDetour(source, target, start, end, nodes, net, reservedSegments) {
+function routeLocalDetour(source, target, start, end, finalEnd, nodes, net, reservedSegments) {
   const padding = 8;
   const forward = start.x < end.x;
   const horizontalGap = Math.abs(end.x - start.x);
@@ -222,7 +236,8 @@ function routeLocalDetour(source, target, start, end, nodes, net, reservedSegmen
       { x: sourceLaneX, y: laneY },
       { x: targetLaneX, y: laneY },
       { x: targetLaneX, y: end.y },
-      end
+      end,
+      finalEnd
     ]);
     if (routeCandidateIsClear(candidate, nodes, source, target, net, reservedSegments)) {
       return candidate;
@@ -239,7 +254,17 @@ function uniqueNumbers(values) {
   return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))];
 }
 
-function routeAroundNodes(source, target, start, end, nodes, margin, net, reservedSegments) {
+function routeAroundNodes(
+  source,
+  target,
+  start,
+  end,
+  finalEnd,
+  nodes,
+  margin,
+  net,
+  reservedSegments
+) {
   const minY = Math.min(...nodes.map((node) => node.y));
   const maxY = Math.max(...nodes.map((node) => node.y + node.height));
   for (let attempt = 0; attempt < 16; attempt += 1) {
@@ -257,7 +282,8 @@ function routeAroundNodes(source, target, start, end, nodes, margin, net, reserv
         { x: sourceLaneX, y: laneY },
         { x: targetLaneX, y: laneY },
         { x: targetLaneX, y: end.y },
-        end
+        end,
+        finalEnd
       ]);
       if (routeCandidateIsClear(candidate, nodes, source, target, net, reservedSegments)) {
         return candidate;
@@ -271,7 +297,8 @@ function routeAroundNodes(source, target, start, end, nodes, margin, net, reserv
     { x: source.x + source.width + margin * 17, y: laneY },
     { x: target.x - margin * 17, y: laneY },
     { x: target.x - margin * 17, y: end.y },
-    end
+    end,
+    finalEnd
   ]);
 }
 
@@ -282,7 +309,46 @@ function routeCandidateIsClear(points, nodes, source, target, net, reservedSegme
     if (!segmentClearOfNodes(start, end, nodes, source, target)) return false;
   }
   if (!preservesEndpointAccess(points, source, target)) return false;
+  if (!entersTargetFromPortSide(points, target)) return false;
   return !segmentsOverlapReserved(points, net, reservedSegments);
+}
+
+function getTargetAccessPoint(target, endpoint) {
+  const clearance = 8;
+  if (near(endpoint.y, target.y) && inside(endpoint.x, target.x, target.x + target.width)) {
+    return { x: endpoint.x, y: target.y - clearance };
+  }
+  if (
+    near(endpoint.y, target.y + target.height) &&
+    inside(endpoint.x, target.x, target.x + target.width)
+  ) {
+    return { x: endpoint.x, y: target.y + target.height + clearance };
+  }
+  return endpoint;
+}
+
+function entersTargetFromPortSide(points, target) {
+  if (points.length < 2) return false;
+  const endpoint = points.at(-1);
+  const before = points.at(-2);
+  const onTopOrBottom = (
+    near(endpoint.y, target.y) || near(endpoint.y, target.y + target.height)
+  ) && inside(endpoint.x, target.x, target.x + target.width);
+  if (onTopOrBottom) return near(before.x, endpoint.x) && !near(before.y, endpoint.y);
+
+  const onLeftOrRight = (
+    near(endpoint.x, target.x) || near(endpoint.x, target.x + target.width)
+  ) && inside(endpoint.y, target.y, target.y + target.height);
+  if (onLeftOrRight) return near(before.y, endpoint.y) && !near(before.x, endpoint.x);
+  return true;
+}
+
+function near(left, right) {
+  return Math.abs(left - right) < 0.5;
+}
+
+function inside(value, minimum, maximum) {
+  return value > minimum + 0.5 && value < maximum - 0.5;
 }
 
 function preservesEndpointAccess(points, source, target) {

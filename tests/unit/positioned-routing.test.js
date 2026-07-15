@@ -152,6 +152,40 @@ test("adjust keeps a short connection local instead of sending it around the gra
   assert.ok(edge.points.slice(1, -1).every((point) => point.x > 92 && point.x < 112));
 });
 
+test("adjust routes a mux select vertically into its top pin", () => {
+  const graph = {
+    nodes: [
+      { id: "c", kind: "input", label: "c", x: 80, y: 20, width: 92, height: 28 },
+      {
+        id: "mux", kind: "cell", label: "mux", gateKind: "mux",
+        x: 260, y: 120, width: 128, height: 108,
+        pinDirections: {
+          A: { direction: "input", side: "left" },
+          B: { direction: "input", side: "left" },
+          S: { direction: "input", side: "top", role: "select" },
+          Y: { direction: "output", side: "right" }
+        },
+        ref: { pins: [{ pin: "A" }, { pin: "B" }, { pin: "S" }, { pin: "Y" }] }
+      }
+    ],
+    edges: [{
+      id: "c-mux-s", source: "c", target: "mux", sourcePin: "c", targetPin: "S", net: "c"
+    }]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["c", { x: 360, y: 44 }]])
+  });
+  const edge = adjusted.edges[0];
+  const mux = adjusted.nodes.find((node) => node.id === "mux");
+  const endpoint = edge.points.at(-1);
+  const approach = edge.points.at(-2);
+
+  assert.equal(endpoint.y, mux.y);
+  assert.equal(approach.x, endpoint.x);
+  assert.ok(approach.y < endpoint.y);
+  assert.notEqual(approach.y, endpoint.y);
+});
+
 test("adjust places a net label away from a nearby net", () => {
   const graph = {
     nodes: [
