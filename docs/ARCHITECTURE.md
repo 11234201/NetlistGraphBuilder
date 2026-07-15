@@ -134,6 +134,8 @@ Layout policy:
 - `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.
 - `src/layout/simpleOrthogonalRouter.js` owns Simple-specific candidate generation and scoring. It consumes
   the shared routing contract and returns positioned edges; it does not move nodes.
+- `src/layout/localOrthogonalRouter.js` owns Adjust/local candidate generation. It accepts immutable route
+  context plus shared indexes and does not apply node overrides or place labels.
 - `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
   violation codes instead of repeating one-off geometric assertions.
 - `src/layout/wireLabelPlacement.js` is the only wire-label collision and visibility policy. Simple,
@@ -144,8 +146,8 @@ Layout policy:
   bends, length, detour, crossings, overlaps and hidden labels. Golden comparisons report metric deltas.
 - `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
   but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
-- `src/layout/positionedRouting.js` generates local reroutes after overrides. It may use different candidate
-  generation from Simple, but must apply the same shared routing contract.
+- `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
+  and labels. It contains no candidate-generation geometry.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
 - The policy separates spacing from feature switches:
   - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.

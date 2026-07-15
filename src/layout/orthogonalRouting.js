@@ -106,6 +106,30 @@ export function orthogonalSegmentIntersectsBox(start, end, box) {
   return true;
 }
 
+export function segmentIntersectsBox(start, end, box) {
+  let entry = 0;
+  let exit = 1;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const boundaries = [
+    [-dx, start.x - box.left],
+    [dx, box.right - start.x],
+    [-dy, start.y - box.top],
+    [dy, box.bottom - start.y]
+  ];
+  for (const [direction, distance] of boundaries) {
+    if (direction === 0) {
+      if (distance < 0) return false;
+      continue;
+    }
+    const ratio = distance / direction;
+    if (direction < 0) entry = Math.max(entry, ratio);
+    else exit = Math.min(exit, ratio);
+    if (entry > exit) return false;
+  }
+  return true;
+}
+
 export function nodeBox(node, padding = 0) {
   return {
     left: node.x - padding,
