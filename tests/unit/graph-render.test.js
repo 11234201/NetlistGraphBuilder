@@ -6,6 +6,7 @@ import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inferCellKind } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import {
   DEFAULT_WIRE_LANE_PITCH,
   layoutGraph
@@ -820,6 +821,7 @@ test("single-bit packed ports remain connected across hierarchical modules", asy
     edge.target === mux.id && edge.targetPin === "S");
   assert.equal(muxSelectEdge.routeKind, "direct");
   assert.equal(muxSelectEdge.points[0].x, muxSelectEdge.points[1].x);
+  assert.deepEqual(validateLayoutGraph(laidOutChild), []);
   assert.deepEqual(
     childGraph.edges.filter((edge) => edge.net === "c_in[0]").map((edge) => edge.target).sort(),
     ["cell:l_resyn2_u_gen_96", "cell:l_resyn2_u_gen_97"]

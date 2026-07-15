@@ -1,4 +1,12 @@
 import { buildNodePorts, computeBounds, getConnectionPoint } from "./nodeGeometry.js";
+import {
+  collinearSegmentsOverlap,
+  compactOrthogonalPoints as compactPoints,
+  getRouteSegments,
+  getTargetApproachPoint,
+  routeFollowsEndpointSides,
+  routePreservesEndpointAccess
+} from "./orthogonalRouting.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeOverrides(options.nodePositions);
@@ -148,7 +156,7 @@ function edgeNeedsReroute(edge, changedNodeIds, changedNodes) {
 }
 
 function routeManhattan(source, target, start, end, nodes, margin, net, reservedSegments) {
-  const routeEnd = getTargetAccessPoint(target, end);
+  const routeEnd = getTargetApproachPoint(target, end);
   if (
     (Math.abs(start.x - end.x) < 0.5 || (
       start.x <= end.x && Math.abs(start.y - end.y) < 0.5
@@ -308,69 +316,9 @@ function routeCandidateIsClear(points, nodes, source, target, net, reservedSegme
     const end = points[index + 1];
     if (!segmentClearOfNodes(start, end, nodes, source, target)) return false;
   }
-  if (!preservesEndpointAccess(points, source, target)) return false;
-  if (!entersTargetFromPortSide(points, target)) return false;
+  if (!routePreservesEndpointAccess(points, source, target)) return false;
+  if (!routeFollowsEndpointSides(points, source, target)) return false;
   return !segmentsOverlapReserved(points, net, reservedSegments);
-}
-
-function getTargetAccessPoint(target, endpoint) {
-  const clearance = 8;
-  if (near(endpoint.y, target.y) && inside(endpoint.x, target.x, target.x + target.width)) {
-    return { x: endpoint.x, y: target.y - clearance };
-  }
-  if (
-    near(endpoint.y, target.y + target.height) &&
-    inside(endpoint.x, target.x, target.x + target.width)
-  ) {
-    return { x: endpoint.x, y: target.y + target.height + clearance };
-  }
-  return endpoint;
-}
-
-function entersTargetFromPortSide(points, target) {
-  if (points.length < 2) return false;
-  const endpoint = points.at(-1);
-  const before = points.at(-2);
-  const onTopOrBottom = (
-    near(endpoint.y, target.y) || near(endpoint.y, target.y + target.height)
-  ) && inside(endpoint.x, target.x, target.x + target.width);
-  if (onTopOrBottom) return near(before.x, endpoint.x) && !near(before.y, endpoint.y);
-
-  const onLeftOrRight = (
-    near(endpoint.x, target.x) || near(endpoint.x, target.x + target.width)
-  ) && inside(endpoint.y, target.y, target.y + target.height);
-  if (onLeftOrRight) return near(before.y, endpoint.y) && !near(before.x, endpoint.x);
-  return true;
-}
-
-function near(left, right) {
-  return Math.abs(left - right) < 0.5;
-}
-
-function inside(value, minimum, maximum) {
-  return value > minimum + 0.5 && value < maximum - 0.5;
-}
-
-function preservesEndpointAccess(points, source, target) {
-  const sourceBox = nodeInteriorBox(source);
-  const targetBox = nodeInteriorBox(target);
-  const lastSegmentIndex = points.length - 2;
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    if (index !== 0 && segmentIntersectsBox(start, end, sourceBox)) return false;
-    if (index !== lastSegmentIndex && segmentIntersectsBox(start, end, targetBox)) return false;
-  }
-  return true;
-}
-
-function nodeInteriorBox(node) {
-  return {
-    left: node.x,
-    right: node.x + node.width,
-    top: node.y,
-    bottom: node.y + node.height
-  };
 }
 
 function segmentClearOfNodes(start, end, nodes, source, target) {
@@ -435,12 +383,7 @@ function segmentIntersectsBox(start, end, box) {
 }
 
 function getEdgeSegments(edge) {
-  const points = edge.points || [];
-  const segments = [];
-  for (let index = 0; index < points.length - 1; index += 1) {
-    segments.push({ start: points[index], end: points[index + 1], net: edge.net });
-  }
-  return segments;
+  return getRouteSegments(edge.points || [], edge.net);
 }
 
 function segmentsOverlapReserved(points, net, reservedSegments) {
@@ -454,34 +397,12 @@ function segmentsOverlapReserved(points, net, reservedSegments) {
   return false;
 }
 
-function collinearSegmentsOverlap(left, right) {
-  const leftHorizontal = left.start.y === left.end.y;
-  const rightHorizontal = right.start.y === right.end.y;
-  if (leftHorizontal && rightHorizontal && left.start.y === right.start.y) {
-    return rangesOverlap(left.start.x, left.end.x, right.start.x, right.end.x);
-  }
-  const leftVertical = left.start.x === left.end.x;
-  const rightVertical = right.start.x === right.end.x;
-  return leftVertical && rightVertical && left.start.x === right.start.x &&
-    rangesOverlap(left.start.y, left.end.y, right.start.y, right.end.y);
-}
-
-function rangesOverlap(a1, a2, b1, b2) {
-  return Math.min(Math.max(a1, a2), Math.max(b1, b2)) >
-    Math.max(Math.min(a1, a2), Math.min(b1, b2));
-}
-
 function alternatingCandidates(center, pitch, count) {
   const values = [center];
   for (let index = 1; index <= count; index += 1) {
     values.push(center + index * pitch, center - index * pitch);
   }
   return values;
-}
-
-function compactPoints(points) {
-  return points.filter((point, index) => index === 0 ||
-    point.x !== points[index - 1].x || point.y !== points[index - 1].y);
 }
 
 function normalizeOverrides(value) {

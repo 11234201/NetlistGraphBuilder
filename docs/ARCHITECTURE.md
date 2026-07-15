@@ -125,13 +125,49 @@ Layout policy:
 
 - `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
 - `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
-- `src/layout/simpleLayered.js` owns layer assignment, topology ordering, alignment passes, and orthogonal routing.
+- `src/layout/nodePlacement.js` owns placement passes. Placement may improve routing, but must not encode
+  wire collision rules.
+- `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It
+  owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
+- `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
+  reservations; it does not inspect pixel geometry or generate route points.
+- `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
+  violation codes instead of repeating one-off geometric assertions.
+- `src/layout/simpleLayered.js` orchestrates layer assignment, topology ordering, placement passes and
+  route candidate selection. New geometry invariants must go into `orthogonalRouting.js`, not this file.
+- `src/layout/positionedRouting.js` generates local reroutes after overrides. It may use different candidate
+  generation from Simple, but must apply the same shared routing contract.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
 - The policy separates spacing from feature switches:
   - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
   - features: driven-link alignment, branch-aware lanes, localized single-fanout inputs.
 - `simpleLayered` accepts `layoutPolicy` as the preferred API and keeps legacy options for compatibility.
 - Policy passes should be topology-based, not instance-name-based. They may use pin order and node kinds, but must not depend on fixture-specific cell names.
+
+布局流水线保持以下固定阶段：
+
+```text
+graph
+  -> layout intent（单/多负载、主分支、深度）
+  -> layer assignment + topology order
+  -> node measurement + port geometry
+  -> placement passes
+  -> route candidate generation + scoring
+  -> shared route contract validation
+  -> label placement
+  -> positioned graph
+```
+
+路由规则分为两类，不能混写：
+
+- **硬约束**：正交线、pin 侧进入、端点 cell 不可穿越、非端点 cell 不可穿越、不同 net
+  不可共线重叠。硬约束集中在共享内核和 validator。
+- **软目标**：直线优先、局部折线优先、少折点、少交叉、单负载紧凑、多负载留通道。软目标由
+  candidate generator 和 score 决定。
+
+增加新 case 时，先判断它改变的是硬约束还是软目标。硬约束必须先增加共享内核单元测试，再让
+Simple 和 Adjust 同时消费；软目标应增加 route score/golden 测试，不允许通过 instance 名称或单个
+坐标特判修复。
 
 ### `src/render/`
 
