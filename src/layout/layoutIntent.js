@@ -1,11 +1,8 @@
+import { groupEdgesByNet } from "./layoutTopology.js";
+
 export function analyzeLayoutIntent(graph, levels) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
-  const netGroups = new Map();
-  for (const edge of graph.edges) {
-    const key = getNetGroupKey(edge);
-    if (!netGroups.has(key)) netGroups.set(key, []);
-    netGroups.get(key).push(edge);
-  }
+  const netGroups = groupEdgesByNet(graph.edges);
 
   const edgeIntents = new Map();
   const nodeFanout = new Map();
@@ -95,9 +92,5 @@ function compareTargetPriority(left, right, source, nodeById, levels) {
 
   return `${left.target}:${left.targetPin || ""}`.localeCompare(
     `${right.target}:${right.targetPin || ""}`
-  );
-}
-
-function getNetGroupKey(edge) {
-  return `${edge.source}\u0000${edge.net || edge.label || edge.id}`;
+  ) || String(left.id || "").localeCompare(String(right.id || ""));
 }

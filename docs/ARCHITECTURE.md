@@ -136,6 +136,8 @@ Layout policy:
 - `src/layout/nodeSpacing.js` owns layer X spacing and node-overlap resolution.
 - `src/layout/nodePlacementShared.js` contains deterministic ordering and free-space helpers used by those
   placement policies. `nodePlacement.js` remains only as a compatibility export barrel.
+- `src/layout/layoutTopology.js` owns stable edge ordering and net grouping keys. Layering, layout intent
+  and lane planning must produce the same result when graph node/edge arrays are permuted.
 - Placement modules may improve routing, but must not encode wire collision rules.
 - `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It
   owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
@@ -146,6 +148,7 @@ Layout policy:
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
   reservations; it does not inspect pixel geometry or generate route points.
 - `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.
+  Cycle breaking selects a stable node order and must not depend on parser statement order.
 - `src/layout/simpleOrthogonalRouter.js` owns Simple candidate selection, scoring and segment reservation.
   It consumes the shared routing contract and returns positioned edges; it does not move nodes.
 - `src/layout/simpleRouteCandidates.js` owns Simple-specific candidate geometry and global fallback lanes.

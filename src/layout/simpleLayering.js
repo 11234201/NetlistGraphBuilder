@@ -1,6 +1,7 @@
 import { compareNodes } from "./nodePlacementShared.js";
 
 export function assignSimpleLevels(graph) {
+  const orderedNodes = graph.nodes.toSorted(compareNodes);
   const levels = new Map();
   const nodeIds = new Set(graph.nodes.map((node) => node.id));
   const outgoing = new Map(graph.nodes.map((node) => [node.id, []]));
@@ -10,25 +11,26 @@ export function assignSimpleLevels(graph) {
     outgoing.get(edge.source).push(edge.target);
     indegree.set(edge.target, indegree.get(edge.target) + 1);
   }
+  for (const targets of outgoing.values()) targets.sort(compareIds);
 
-  for (const node of graph.nodes) {
+  for (const node of orderedNodes) {
     levels.set(node.id, isExternalLevelSource(node) ? 0 : 1);
   }
 
-  const queue = graph.nodes
+  const queue = orderedNodes
     .filter((node) => indegree.get(node.id) === 0)
     .map((node) => node.id);
   const processed = new Set();
   let cursor = 0;
   let cycleCursor = 0;
-  while (processed.size < graph.nodes.length) {
+  while (processed.size < orderedNodes.length) {
     if (cursor >= queue.length) {
       // Sequential graphs commonly contain feedback. Break one remaining cycle
       // edge instead of repeatedly increasing levels without a bound.
-      while (cycleCursor < graph.nodes.length && processed.has(graph.nodes[cycleCursor].id)) {
+      while (cycleCursor < orderedNodes.length && processed.has(orderedNodes[cycleCursor].id)) {
         cycleCursor += 1;
       }
-      const cycleEntry = graph.nodes[cycleCursor];
+      const cycleEntry = orderedNodes[cycleCursor];
       if (!cycleEntry) break;
       queue.push(cycleEntry.id);
     }
@@ -45,6 +47,10 @@ export function assignSimpleLevels(graph) {
     }
   }
   return levels;
+}
+
+function compareIds(left, right) {
+  return String(left || "").localeCompare(String(right || ""));
 }
 
 export function orderSimpleLayers(buckets, levelKeys, edges) {

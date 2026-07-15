@@ -1,10 +1,13 @@
+import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
+import { getNetGroupKey } from "./layoutTopology.js";
+
 export function planSimpleRouting(graph, levels, layoutIntent) {
   const edges = new Map();
   const channelLanes = new Map();
   const channelLaneByFanout = new Map();
   const fanoutCounts = new Map();
   for (const edge of graph.edges) {
-    const key = `${edge.source}\u0000${edge.net}`;
+    const key = getNetGroupKey(edge);
     fanoutCounts.set(key, (fanoutCounts.get(key) || 0) + 1);
   }
 
@@ -14,14 +17,16 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
   let longLaneCount = 0;
   let maxSideLanes = 1;
 
-  for (const edge of graph.edges) {
+  const orderedEdges = graph.edges.toSorted((left, right) =>
+    compareEdgesByLayoutPriority(left, right, layoutIntent));
+  for (const edge of orderedEdges) {
     const sourceLevel = levels.get(edge.source) || 0;
     const targetLevel = levels.get(edge.target) || sourceLevel + 1;
     const levelDistance = targetLevel - sourceLevel;
 
     if (levelDistance <= 1) {
       const key = `${sourceLevel}->${targetLevel}`;
-      const fanoutKey = `${edge.source}\u0000${edge.net}`;
+      const fanoutKey = getNetGroupKey(edge);
       let lane = channelLaneByFanout.get(fanoutKey);
       if (lane === undefined || fanoutCounts.get(fanoutKey) === 1) {
         lane = channelLanes.get(key) || 0;

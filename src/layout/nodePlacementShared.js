@@ -2,7 +2,8 @@ export function compareNodes(left, right) {
   const leftOrder = left.order ?? 1000;
   const rightOrder = right.order ?? 1000;
   if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-  return `${left.kind}:${left.label}`.localeCompare(`${right.kind}:${right.label}`);
+  return `${left.kind}:${left.label}`.localeCompare(`${right.kind}:${right.label}`) ||
+    String(left.id || "").localeCompare(String(right.id || ""));
 }
 
 export function groupEdges(edges, key) {
