@@ -198,6 +198,9 @@ graph
 Simple 和 Adjust 同时消费；软目标应增加 route score/golden 测试，不允许通过 instance 名称或单个
 坐标特判修复。
 
+Repository Verilog fixtures are also a hard-invariant gate: every module must remain orthogonal, attached
+to the correct pin side, clear of node bodies, and free of different-net collinear overlap.
+
 ### `src/render/`
 
 负责把 positioned graph 变成 SVG。
