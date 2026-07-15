@@ -174,7 +174,8 @@ Layout policy:
 - `src/layout/routeSegmentIndex.js` attaches edge ownership, segment order and orientation before indexing.
   Renderer bridges, label collision and reroute invalidation share this metadata boundary.
 - `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,
-  bends, length, detour, crossings, overlaps and hidden labels. Golden comparisons report metric deltas.
+  bends, length, detour, crossings, overlaps, outer-lane use and hidden labels. Golden comparisons report
+  metric deltas; repository fixtures cap outer/global fallback routes independently of hard legality.
 - `src/layout/layoutGolden.js` version 2 stores stable node order plus per-edge route geometry and strategy.
   Golden diffs report changed edges so one bad net cannot disappear inside aggregate quality metrics.
 - `src/layout/routeScoring.js` owns named route costs and candidate comparison. Candidate generators must

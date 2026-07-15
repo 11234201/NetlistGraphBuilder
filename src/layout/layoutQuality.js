@@ -13,6 +13,7 @@ export function analyzeLayoutQuality(graph) {
   let maxBends = 0;
   let directRouteCount = 0;
   let hiddenLabelCount = 0;
+  let outerRouteCount = 0;
   let totalDetour = 0;
   let detourRouteCount = 0;
 
@@ -37,6 +38,7 @@ export function analyzeLayoutQuality(graph) {
     if (edge.routeStrategy) {
       routeStrategies[edge.routeStrategy] = (routeStrategies[edge.routeStrategy] || 0) + 1;
     }
+    if (isOuterRoute(edge)) outerRouteCount += 1;
   }
 
   const conflicts = countLayoutConflicts(graph.edges || []);
@@ -55,6 +57,8 @@ export function analyzeLayoutQuality(graph) {
     crossingCount: conflicts.crossings,
     overlapCount: conflicts.overlaps,
     hiddenLabelCount,
+    outerRouteCount,
+    outerRouteRatio: ratio(outerRouteCount, edgeCount),
     routeKinds,
     routeStrategies
   };
@@ -73,13 +77,21 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
     "averageDetourRatio",
     "crossingCount",
     "overlapCount",
-    "hiddenLabelCount"
+    "hiddenLabelCount",
+    "outerRouteCount",
+    "outerRouteRatio"
   ];
   return {
     base,
     candidate,
     delta: Object.fromEntries(keys.map((key) => [key, round(candidate[key] - base[key])]))
   };
+}
+
+function isOuterRoute(edge) {
+  return edge.routeStrategy === "outer-lane" ||
+    edge.routeKind === "obstacle-lane" ||
+    edge.routeKind === "top-lane";
 }
 
 function countLayoutConflicts(edges) {

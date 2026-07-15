@@ -26,18 +26,30 @@ test("layout quality summarizes bends, detours, crossings and overlaps", () => {
           { x: 80, y: 20 },
           { x: 80, y: 0 }
         ]
+      },
+      {
+        id: "d", net: "d", routeKind: "positioned-override", routeStrategy: "outer-lane",
+        label: "d",
+        points: [
+          { x: 0, y: 200 },
+          { x: 0, y: 220 },
+          { x: 100, y: 220 },
+          { x: 100, y: 200 }
+        ]
       }
     ]
   };
   const quality = analyzeLayoutQuality(graph);
 
   assert.equal(quality.directRouteCount, 2);
-  assert.equal(quality.totalBends, 2);
+  assert.equal(quality.totalBends, 4);
   assert.equal(quality.crossingCount, 2);
   assert.equal(quality.overlapCount, 0);
   assert.equal(quality.hiddenLabelCount, 1);
   assert.equal(quality.routeKinds.direct, 2);
   assert.equal(quality.routeStrategies["local-detour"], 1);
+  assert.equal(quality.outerRouteCount, 1);
+  assert.equal(quality.outerRouteRatio, 0.25);
 });
 
 test("layout quality comparison exposes stable signed deltas", () => {

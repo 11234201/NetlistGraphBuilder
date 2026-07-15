@@ -43,6 +43,10 @@ test("repository netlists retain broad schematic readability budgets", async () 
     if (quality.crossingCount > crossingBudget) {
       failures.push({ ...fixtureKey(fixture), metric: "crossingCount", value: quality.crossingCount });
     }
+    const outerRouteBudget = Math.max(1, Math.ceil(quality.edgeCount * 0.05));
+    if (quality.outerRouteCount > outerRouteBudget) {
+      failures.push({ ...fixtureKey(fixture), metric: "outerRouteCount", value: quality.outerRouteCount });
+    }
   }
   assert.deepEqual(failures, []);
 });
