@@ -171,6 +171,8 @@ Layout policy:
   label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
 - `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,
   bends, length, detour, crossings, overlaps and hidden labels. Golden comparisons report metric deltas.
+- `src/layout/layoutGolden.js` version 2 stores stable node order plus per-edge route geometry and strategy.
+  Golden diffs report changed edges so one bad net cannot disappear inside aggregate quality metrics.
 - `src/layout/routeScoring.js` owns named route costs and candidate comparison. Candidate generators must
   not embed crossing/bend/length magic numbers.
 - `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,

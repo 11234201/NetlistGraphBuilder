@@ -3,7 +3,7 @@ import { analyzeLayoutQuality, compareLayoutQuality } from "./layoutQuality.js";
 export function createLayoutGolden(graph, options = {}) {
   return {
     kind: "netlist-layout-golden",
-    version: 1,
+    version: 2,
     moduleName: graph.moduleName,
     moduleDisplayName: graph.moduleDisplayName,
     layoutOptions: { ...(options.layoutOptions || {}) },
@@ -15,7 +15,21 @@ export function createLayoutGolden(graph, options = {}) {
       y: round(node.y),
       width: round(node.width),
       height: round(node.height)
-    })),
+    })).toSorted(compareIds),
+    edges: graph.edges.map((edge) => ({
+      id: edge.id,
+      net: edge.net,
+      source: edge.source,
+      target: edge.target,
+      sourcePin: edge.sourcePin,
+      targetPin: edge.targetPin,
+      routeKind: edge.routeKind,
+      routeStrategy: edge.routeStrategy,
+      points: (edge.points || []).map(roundPoint),
+      labelPoint: edge.labelPoint ? roundPoint(edge.labelPoint) : null,
+      labelAnchor: edge.labelAnchor,
+      showLabel: edge.showLabel !== false
+    })).toSorted(compareIds),
     quality: analyzeLayoutQuality(graph),
     svgSnapshot: options.svgSnapshot || null
   };
@@ -49,6 +63,7 @@ export function compareLayoutGraphs(baseGraph, adjustedGraph) {
   }
 
   movedNodes.sort((left, right) => right.distance - left.distance);
+  const changedEdges = compareRoutes(baseGraph?.edges || [], adjustedGraph?.edges || []);
 
   return {
     movedNodeCount: movedNodes.length,
@@ -57,8 +72,50 @@ export function compareLayoutGraphs(baseGraph, adjustedGraph) {
       movedNodes.reduce((sum, item) => sum + item.distance, 0) / Math.max(1, movedNodes.length)
     ),
     sameLevelOrderChanges: compareSameLevelOrder(baseGraph, adjustedGraph),
+    changedEdgeCount: changedEdges.length,
+    changedEdges,
     quality: compareLayoutQuality(baseGraph, adjustedGraph),
     movedNodes
+  };
+}
+
+function compareRoutes(baseEdges, adjustedEdges) {
+  const baseById = new Map(baseEdges.map((edge) => [edge.id, edge]));
+  const changes = [];
+  for (const edge of adjustedEdges) {
+    const base = baseById.get(edge.id);
+    if (!base) continue;
+    const before = routeSignature(base);
+    const after = routeSignature(edge);
+    if (before === after) continue;
+    changes.push({
+      id: edge.id,
+      net: edge.net,
+      before: routeSummary(base),
+      after: routeSummary(edge)
+    });
+  }
+  return changes.toSorted(compareIds);
+}
+
+function routeSignature(edge) {
+  return JSON.stringify({
+    kind: edge.routeKind,
+    strategy: edge.routeStrategy,
+    points: (edge.points || []).map(roundPoint),
+    labelPoint: edge.labelPoint ? roundPoint(edge.labelPoint) : null,
+    labelAnchor: edge.labelAnchor,
+    showLabel: edge.showLabel !== false
+  });
+}
+
+function routeSummary(edge) {
+  return {
+    routeKind: edge.routeKind,
+    routeStrategy: edge.routeStrategy,
+    bends: Math.max(0, (edge.points?.length || 0) - 2),
+    points: (edge.points || []).map(roundPoint),
+    showLabel: edge.showLabel !== false
   };
 }
 
@@ -103,6 +160,14 @@ function compareYThenX(left, right) {
     return left.y - right.y;
   }
   return left.x - right.x;
+}
+
+function compareIds(left, right) {
+  return String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function roundPoint(point) {
+  return { x: round(point.x), y: round(point.y) };
 }
 
 function round(value) {
