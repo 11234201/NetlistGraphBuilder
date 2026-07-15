@@ -19,15 +19,18 @@ export function createModule(name, displayName = name, span = null) {
   };
 }
 
-export function ensurePort(module, name, displayName = name, direction = "unknown") {
+export function ensurePort(module, name, displayName = name, direction = "unknown", range = null) {
   let port = module.ports.find((item) => item.name === name);
   if (!port) {
-    port = { name, displayName, direction };
+    port = { name, displayName, direction, ...(range ? { range: { ...range } } : {}) };
     module.ports.push(port);
   } else {
     port.displayName = port.displayName || displayName;
     if (direction !== "unknown") {
       port.direction = direction;
+    }
+    if (range) {
+      port.range = { ...range };
     }
   }
 
@@ -35,14 +38,14 @@ export function ensurePort(module, name, displayName = name, direction = "unknow
     module.portOrder.push(name);
   }
 
-  ensureNet(module, name, displayName, "port");
+  ensureNet(module, name, displayName, "port", range);
   return port;
 }
 
-export function ensureNet(module, name, displayName = name, declaredKind = "implicit") {
+export function ensureNet(module, name, displayName = name, declaredKind = "implicit", range = null) {
   let net = module.nets.find((item) => item.name === name);
   if (!net) {
-    net = { name, displayName, declaredKind };
+    net = { name, displayName, declaredKind, ...(range ? { range: { ...range } } : {}) };
     module.nets.push(net);
     return net;
   }
@@ -50,6 +53,9 @@ export function ensureNet(module, name, displayName = name, declaredKind = "impl
   net.displayName = net.displayName || displayName;
   if (net.declaredKind === "implicit" || declaredKind === "port") {
     net.declaredKind = declaredKind;
+  }
+  if (range) {
+    net.range = { ...range };
   }
   return net;
 }

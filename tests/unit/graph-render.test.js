@@ -20,12 +20,14 @@ import { parseTimingLog } from "../../src/timing/timingParser.js";
 
 const fixtureUrl = new URL("../fixtures/two_equivalent_style_modules.v", import.meta.url);
 const hierarchicalFixtureUrl = new URL("../../examples/hierarchical_escaped_compare.v", import.meta.url);
+const vectorHierarchyUrl = new URL("../../examples/multibit.v", import.meta.url);
 
 test("cell inference maps common foundry-like names", () => {
   assert.equal(inferCellKind("ND3X2APAH08HVT30P140").kind, "nand");
   assert.equal(inferCellKind("NR2X1ATPH08HVT30P140").kind, "nor");
   assert.equal(inferCellKind("CKINVX8H08HVT30P140").kind, "inv");
   assert.equal(inferCellKind("XNR2X2AONH08HVT30P140").kind, "xnor");
+  assert.equal(inferCellKind("MUX2X1").kind, "mux");
   assert.equal(inferCellKind("UNKNOWN_CELL").kind, "blackbox");
 });
 
@@ -750,6 +752,88 @@ endmodule`;
   const positionedInstance = layoutGraph(graph).nodes.find((node) => node.id === instance.id);
   assert.equal(positionedInstance.ports.find((port) => port.pin === "request").side, "left");
   assert.equal(positionedInstance.ports.find((port) => port.pin === "response").side, "right");
+});
+
+test("packed vector ports drive and load their selected bits without implicit nodes", () => {
+  const source = `module vector_top(a, y);
+input [1:0] a; output [1:0] y;
+BUF u0 (.A(a[0]), .Z(y[0]));
+BUF u1 (.A(a[1]), .Z(y[1]));
+endmodule`;
+  const module = parseVerilog(source).modules[0];
+  const graph = buildSchematicGraph(module);
+
+  assert.deepEqual(
+    graph.nodes.filter((node) => node.kind === "input").map((node) => node.label),
+    ["a[1]", "a[0]"]
+  );
+  assert.deepEqual(
+    graph.nodes.filter((node) => node.kind === "output").map((node) => node.label),
+    ["y[1]", "y[0]"]
+  );
+  assert.equal(graph.nodes.some((node) => node.kind === "implicit"), false);
+  assert.equal(graph.edges.length, 4);
+  assert.ok(graph.edges.some((edge) => edge.net === "a[0]" && edge.source === "input:a_0_"));
+  assert.ok(graph.edges.some((edge) => edge.net === "y[1]" && edge.target === "output:y_1_"));
+});
+
+test("single-bit packed ports remain connected across hierarchical modules", async () => {
+  const design = parseVerilog(await readFile(vectorHierarchyUrl, "utf8"));
+  const top = design.modules.find((module) => module.name === "tc");
+  const child = design.modules.find((module) =>
+    module.name === "root_is_remap0_u0_1_50171648_2");
+  const topGraph = buildSchematicGraph(top, { moduleLibrary: design.modules });
+  const rawChildGraph = buildSchematicGraph(child, {
+    moduleLibrary: design.modules
+  });
+  const childGraph = normalizeGraphAliases(rawChildGraph, { showAliases: false });
+  const laidOutTop = layoutGraph(topGraph);
+  const laidOutChild = layoutGraph(childGraph);
+  const topNodeById = new Map(laidOutTop.nodes.map((node) => [node.id, node]));
+  const directNets = new Set(laidOutTop.edges
+    .filter((edge) => edge.routeKind === "direct")
+    .map((edge) => edge.net));
+
+  assert.ok(topGraph.nodes.some((node) => node.id === "input:a_in_0_" && node.label === "a_in[0]"));
+  assert.ok(topGraph.nodes.some((node) => node.id === "output:y_out_0_" && node.label === "y_out[0]"));
+  assert.ok(topGraph.edges.some((edge) =>
+    edge.source === "input:a_in_0_" && edge.net === "a_in[0]"));
+  assert.ok(topGraph.edges.some((edge) =>
+    edge.source === "cell:y_out_reg_0_" &&
+    edge.sourcePin === "Q" &&
+    edge.target === "output:y_out_0_" &&
+    edge.net === "y_out[0]"));
+  assert.equal(topGraph.nodes.some((node) => node.kind === "implicit"), false);
+  assert.equal(childGraph.nodes.some((node) => node.kind === "assign"), false);
+  assert.equal(childGraph.nodes.some((node) => node.kind === "implicit"), false);
+  const mux = rawChildGraph.nodes.find((node) => node.id === "cell:l_resyn2_u_gen_96");
+  const laidOutMux = laidOutChild.nodes.find((node) => node.id === mux.id);
+  assert.deepEqual(mux.pinDirections.S, {
+    direction: "input",
+    source: "cell-rule",
+    role: "select",
+    side: "top"
+  });
+  assert.equal(laidOutMux.gateKind, "mux");
+  assert.equal(laidOutMux.ports.find((port) => port.pin === "S").side, "top");
+  const muxSelectEdge = laidOutChild.edges.find((edge) =>
+    edge.target === mux.id && edge.targetPin === "S");
+  assert.equal(muxSelectEdge.routeKind, "direct");
+  assert.equal(muxSelectEdge.points[0].x, muxSelectEdge.points[1].x);
+  assert.deepEqual(
+    childGraph.edges.filter((edge) => edge.net === "c_in[0]").map((edge) => edge.target).sort(),
+    ["cell:l_resyn2_u_gen_96", "cell:l_resyn2_u_gen_97"]
+  );
+  assert.ok(topGraph.edges.some((edge) =>
+    edge.net === "1'b1" && edge.target === "cell:y_out_reg_0_" && edge.targetPin === "S"));
+  assert.equal(topNodeById.get("cell:l_resyn2_u_gen_95").y, 210);
+  assert.equal(topNodeById.get("cell:y_out_reg_0_").y, 102);
+  assert.equal(topNodeById.get("output:y_out_0_").y, 174);
+  assert.ok(topNodeById.get("input:a_in_0_").x > 48);
+  assert.ok(topNodeById.get("input:b_in_0_").x > 48);
+  assert.ok(["w_gen_108", "sco_4", "y_out[0]"].every((net) => directNets.has(net)));
+  assert.ok(laidOutTop.edges.every((edge) => edge.routeKind !== "obstacle-lane"));
+  assert.equal(overlappingNodes(laidOutTop).length, 0);
 });
 
 test("cell pin direction overrides repair unknown cell connectivity", () => {

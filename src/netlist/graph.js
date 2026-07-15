@@ -21,6 +21,7 @@ export function buildSchematicGraph(module, options = {}) {
   const nodeById = new Map();
   const drivers = new Map();
   const loads = new Map();
+  const referencedNets = collectReferencedNets(module);
 
   const addNode = (node) => {
     if (!nodeById.has(node.id)) {
@@ -37,39 +38,41 @@ export function buildSchematicGraph(module, options = {}) {
     loads.get(net).push(load);
   };
 
-  for (const [order, port] of module.ports.entries()) {
-    if (port.direction === "input" || port.direction === "inout") {
-      const node = addNode({
-        id: makeId("input", port.name),
-        kind: "input",
-        label: port.displayName,
-        title: "INPUT",
-        order,
-        ref: port
-      });
-      applyNodePropertyOverrides(node, overrides);
-      drivers.set(port.name, {
-        nodeId: node.id,
-        pin: port.displayName,
-        source: "port"
-      });
-    }
+  for (const [order, declaredPort] of module.ports.entries()) {
+    for (const port of expandPortEndpoints(declaredPort, referencedNets)) {
+      if (port.direction === "input" || port.direction === "inout") {
+        const node = addNode({
+          id: makeId("input", port.name),
+          kind: "input",
+          label: port.displayName,
+          title: "INPUT",
+          order,
+          ref: port
+        });
+        applyNodePropertyOverrides(node, overrides);
+        drivers.set(port.name, {
+          nodeId: node.id,
+          pin: port.displayName,
+          source: "port"
+        });
+      }
 
-    if (port.direction === "output" || port.direction === "inout") {
-      const node = addNode({
-        id: makeId("output", port.name),
-        kind: "output",
-        label: port.displayName,
-        title: "OUTPUT",
-        order,
-        ref: port
-      });
-      applyNodePropertyOverrides(node, overrides);
-      addLoad(port.name, {
-        nodeId: node.id,
-        pin: port.displayName,
-        source: "port"
-      });
+      if (port.direction === "output" || port.direction === "inout") {
+        const node = addNode({
+          id: makeId("output", port.name),
+          kind: "output",
+          label: port.displayName,
+          title: "OUTPUT",
+          order,
+          ref: port
+        });
+        applyNodePropertyOverrides(node, overrides);
+        addLoad(port.name, {
+          nodeId: node.id,
+          pin: port.displayName,
+          source: "port"
+        });
+      }
     }
   }
 
@@ -97,7 +100,8 @@ export function buildSchematicGraph(module, options = {}) {
       if (!pin.net) {
         continue;
       }
-      const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] || inferPinDirection(pin.pin);
+      const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] ||
+        inferPinDirection(pin.pin, cell.type);
       if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
         drivers.set(pin.net, {
           nodeId: node.id,
@@ -163,6 +167,42 @@ export function buildSchematicGraph(module, options = {}) {
   return graph;
 }
 
+function collectReferencedNets(module) {
+  return new Set([
+    ...module.cells.flatMap((cell) => cell.pins.map((pin) => pin.net)),
+    ...module.assigns.flatMap((assign) => [assign.lhs, assign.rhs])
+  ].filter(Boolean));
+}
+
+function expandPortEndpoints(port, referencedNets) {
+  const range = port.range;
+  if (!range || !Number.isInteger(range.msb) || !Number.isInteger(range.lsb)) {
+    return [port];
+  }
+
+  const step = range.msb <= range.lsb ? 1 : -1;
+  const bits = [];
+  for (let index = range.msb; ; index += step) {
+    bits.push({
+      ...port,
+      name: `${port.name}[${index}]`,
+      displayName: `${port.displayName}[${index}]`,
+      parentName: port.name,
+      bitIndex: index
+    });
+    if (index === range.lsb) break;
+  }
+
+  const referencedBits = bits.filter((bit) => referencedNets.has(bit.name));
+  if (referencedNets.has(port.name) && referencedBits.length === 0) {
+    return [port];
+  }
+  if (referencedNets.has(port.name)) {
+    bits.push(port);
+  }
+  return bits;
+}
+
 function annotateGraphMetadata(graph, module) {
   const fanoutByNodeId = new Map();
   for (const edge of graph.edges) {
@@ -210,7 +250,7 @@ function getCellPinDirections(cell, overrides, referencedModule = null) {
         moduleName: referencedModule.name
       };
     } else {
-      directions[displayName] = inferPinDirection(pin.pin);
+      directions[displayName] = inferPinDirection(pin.pin, cell.type);
     }
   }
   return directions;

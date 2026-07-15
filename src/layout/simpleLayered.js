@@ -114,7 +114,7 @@ export function layoutGraph(graph, options = {}) {
     );
   }
   if (policy.features.alignDrivenLinks) {
-    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys, layoutIntent);
+    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys, layoutIntent, margin);
   }
   resolveLevelOverlaps(
     positionedNodes,
@@ -132,7 +132,13 @@ export function layoutGraph(graph, options = {}) {
   );
   applyFanoutHubLocality(positionedNodes, graph.edges, margin);
   if (policy.features.localizeSingleFanoutInputs) {
-    applySingleFanoutInputLocality(positionedNodes, graph.edges, margin);
+    applySingleFanoutInputLocality(
+      positionedNodes,
+      graph.edges,
+      margin,
+      layoutIntent,
+      topWireLanePitch
+    );
   }
   resolveOutputOverlaps(positionedNodes, margin);
   applyNodePositionOverrides(positionedNodes, options.nodePositions);
@@ -277,6 +283,9 @@ function routeEdge(
   if (horizontalGap > 0 && yDelta <= 4) {
     candidates.push(route("direct", [sourcePoint, targetPoint]));
   }
+  if (Math.abs(horizontalGap) <= 4 && yDelta > 0) {
+    candidates.push(route("direct", [sourcePoint, targetPoint]));
+  }
 
   const plannedLane = edgeIntent?.fanout > 1 && !edgeIntent.isPrimary
     ? sourceBounds.right + 24 + (edgePlan?.lane ?? edgePlan?.sourceLane ?? 0) * wireLanePitch
@@ -366,8 +375,13 @@ function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint,
     targetPoint.x,
     ...nodes.filter((node) => node.level === target.level).map((node) => node.x)
   );
+  const sourceUsesLocalEscape = source.kind === "input" ||
+    source.kind === "implicit" ||
+    source.kind === "constant";
   const sourceLaneX = forward
-    ? Math.min(targetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
+    ? sourceUsesLocalEscape
+      ? Math.min(targetPoint.x - 2, sourcePoint.x + inset)
+      : Math.min(targetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
     : sourcePoint.x + inset;
   const targetLaneX = forward
     ? Math.max(sourcePoint.x + 2, Math.min(targetPoint.x - inset, targetColumnLeft - padding))

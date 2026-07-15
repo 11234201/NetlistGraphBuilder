@@ -83,6 +83,23 @@ export function tokenize(source) {
       continue;
     }
 
+    if (char === "[") {
+      let raw = "";
+      while (index < source.length) {
+        const rangeChar = advance();
+        raw += rangeChar;
+        if (rangeChar === "]") break;
+      }
+      pushToken(
+        "identifier",
+        raw.replace(/\s+/g, ""),
+        raw,
+        startLine,
+        startColumn
+      );
+      continue;
+    }
+
     if (char === "\\") {
       let raw = advance();
       let value = "";
@@ -155,11 +172,22 @@ class StructuralParser {
     });
 
     if (this.matchValue("(")) {
+      let headerDirection = "unknown";
+      let headerRange = null;
       while (!this.isEof() && !this.matchValue(")")) {
         const token = this.consume();
-        if (token.kind === "identifier" && !isRangeToken(token.value)) {
-          ensurePort(module, token.value, token.displayName, "unknown");
+        if (token.kind !== "identifier" || token.value === ",") continue;
+        if (token.value === "input" || token.value === "output" || token.value === "inout") {
+          headerDirection = token.value;
+          headerRange = null;
+          continue;
         }
+        if (isRangeToken(token.value)) {
+          headerRange = parseRangeToken(token.value);
+          continue;
+        }
+        if (DECLARATION_QUALIFIERS.has(token.value)) continue;
+        ensurePort(module, token.value, token.displayName, headerDirection, headerRange);
       }
     }
     this.matchValue(";");
@@ -186,20 +214,25 @@ class StructuralParser {
   parseDeclaration(module, declarationKind) {
     this.consume();
     const direction = declarationKind === "wire" ? null : declarationKind;
+    let range = null;
 
     while (!this.isEof() && !this.matchValue(";")) {
       const token = this.consume();
       if (token.kind !== "identifier") {
         continue;
       }
-      if (isRangeToken(token.value) || DECLARATION_QUALIFIERS.has(token.value)) {
+      if (isRangeToken(token.value)) {
+        range = parseRangeToken(token.value);
+        continue;
+      }
+      if (DECLARATION_QUALIFIERS.has(token.value)) {
         continue;
       }
 
       if (direction) {
-        ensurePort(module, token.value, token.displayName, direction);
+        ensurePort(module, token.value, token.displayName, direction, range);
       } else {
-        ensureNet(module, token.value, token.displayName, "wire");
+        ensureNet(module, token.value, token.displayName, "wire", range);
       }
     }
   }
@@ -389,4 +422,16 @@ class StructuralParser {
 
 function isRangeToken(value) {
   return value.startsWith("[") && value.endsWith("]");
+}
+
+function parseRangeToken(value) {
+  const match = String(value).match(/^\[(-?\d+):(-?\d+)\]$/);
+  if (!match) return null;
+  const msb = Number(match[1]);
+  const lsb = Number(match[2]);
+  return {
+    msb,
+    lsb,
+    width: Math.abs(msb - lsb) + 1
+  };
 }

@@ -66,23 +66,33 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
 
   const inputPins = [];
   const outputPins = [];
+  const topPins = [];
+  const bottomPins = [];
   for (const pin of node.ref?.pins || []) {
     const pinName = pin.pinDisplayName || pin.pin;
-    const direction = getNodePinDirection(node, pinName, pin.pin);
+    const pinRule = getNodePinRule(node, pinName, pin.pin);
+    const direction = pinRule.direction;
+    const side = pinRule.side || (direction === "output" ? "right" : "left");
     const port = {
       pin: pinName,
       rawPin: pin.pin,
       direction,
-      side: direction === "output" ? "right" : "left",
-      x: direction === "output" ? size.width : 0,
+      role: pinRule.role,
+      side,
+      x: side === "right" ? size.width : 0,
       y: 0
     };
-    (direction === "output" ? outputPins : inputPins).push(port);
+    if (side === "top") topPins.push(port);
+    else if (side === "bottom") bottomPins.push(port);
+    else if (direction === "output") outputPins.push(port);
+    else inputPins.push(port);
   }
 
   placePorts(inputPins, size.height, cellPinPitch);
   placePorts(outputPins, size.height, cellPinPitch);
-  return [...inputPins, ...outputPins];
+  placeHorizontalPorts(topPins, size.width, 0);
+  placeHorizontalPorts(bottomPins, size.width, size.height);
+  return [...inputPins, ...topPins, ...bottomPins, ...outputPins];
 }
 
 export function getConnectionPoint(node, pin, role) {
@@ -143,29 +153,35 @@ function placePorts(ports, height, preferredPitch) {
   });
 }
 
+function placeHorizontalPorts(ports, width, y) {
+  if (ports.length === 0) return;
+  const gap = width / (ports.length + 1);
+  ports.forEach((port, index) => {
+    port.x = gap * (index + 1);
+    port.y = y;
+  });
+}
+
 function getMaxPinCount(node) {
   if (node.kind === "assign" || node.kind !== "cell") {
     return 1;
   }
 
-  let inputs = 0;
-  let outputs = 0;
+  let leftPins = 0;
+  let rightPins = 0;
   for (const pin of node.ref?.pins || []) {
-    if (getNodePinDirection(node, pin.pinDisplayName || pin.pin, pin.pin) === "output") {
-      outputs += 1;
-    } else {
-      inputs += 1;
-    }
+    const rule = getNodePinRule(node, pin.pinDisplayName || pin.pin, pin.pin);
+    const side = rule.side || (rule.direction === "output" ? "right" : "left");
+    if (side === "left") leftPins += 1;
+    if (side === "right") rightPins += 1;
   }
-  return Math.max(inputs, outputs, 1);
+  return Math.max(leftPins, rightPins, 1);
 }
 
-function getNodePinDirection(node, displayName, rawName) {
-  return (
-    node.pinDirections?.[displayName]?.direction ||
-    node.pinDirections?.[rawName]?.direction ||
-    inferPinDirection(rawName).direction
-  );
+function getNodePinRule(node, displayName, rawName) {
+  return node.pinDirections?.[displayName] ||
+    node.pinDirections?.[rawName] ||
+    inferPinDirection(rawName, node.ref?.type);
 }
 
 function clamp(value, min, max) {

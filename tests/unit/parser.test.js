@@ -13,6 +13,14 @@ test("tokenizer preserves escaped identifiers", () => {
   assert.equal(escaped.displayName, "\\a_q[25]");
 });
 
+test("tokenizer separates a packed range from an adjacent declaration name", () => {
+  const tokens = tokenize("output [ 0 : 0 ]y_out;")
+    .filter((token) => token.kind !== "eof")
+    .map((token) => token.value);
+
+  assert.deepEqual(tokens, ["output", "[0:0]", "y_out", ";"]);
+});
+
 test("parser reads fixture modules and structural statements", async () => {
   const source = await readFile(fixtureUrl, "utf8");
   const design = parseVerilog(source);
@@ -32,4 +40,42 @@ test("parser reads fixture modules and structural statements", async () => {
   assert.equal(flex.assigns.length, 1);
   assert.equal(flex.assigns[0].lhs, "sco_891");
   assert.equal(flex.assigns[0].rhs, "sco_925");
+});
+
+test("parser preserves packed ranges on ports and wires", () => {
+  const design = parseVerilog(`module vector_ports(a, y);
+input [3:0] a;
+output [0:1] y;
+wire [7:4] n;
+endmodule`);
+  const module = design.modules[0];
+
+  assert.deepEqual(module.ports.find((port) => port.name === "a").range, {
+    msb: 3,
+    lsb: 0,
+    width: 4
+  });
+  assert.deepEqual(module.ports.find((port) => port.name === "y").range, {
+    msb: 0,
+    lsb: 1,
+    width: 2
+  });
+  assert.deepEqual(module.nets.find((net) => net.name === "n").range, {
+    msb: 7,
+    lsb: 4,
+    width: 4
+  });
+});
+
+test("parser supports packed ranges in ANSI-style module headers", () => {
+  const module = parseVerilog(`module ansi_vector(
+  input logic [7:0] a, b,
+  output [0:1] y
+); endmodule`).modules[0];
+
+  assert.deepEqual(module.ports.map((port) => [port.name, port.direction, port.range]), [
+    ["a", "input", { msb: 7, lsb: 0, width: 8 }],
+    ["b", "input", { msb: 7, lsb: 0, width: 8 }],
+    ["y", "output", { msb: 0, lsb: 1, width: 2 }]
+  ]);
 });

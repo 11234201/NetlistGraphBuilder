@@ -88,9 +88,10 @@ export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) 
   }
 }
 
-export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIntent) {
+export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIntent, margin = 0) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map();
+  const alignedEdges = [];
   for (const edge of edges) {
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
@@ -118,8 +119,50 @@ export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIn
       const sourceY = source.y + (sourcePort?.y ?? source.height / 2);
       const targetPinOffsetY = targetPort?.y ?? target.height / 2;
       target.y = round(sourceY - targetPinOffsetY);
+      alignedEdges.push(edge);
     }
   }
+
+  shiftAlignedComponentsInsideMargin(nodeById, alignedEdges, margin);
+}
+
+function shiftAlignedComponentsInsideMargin(nodeById, alignedEdges, margin) {
+  if (alignedEdges.length === 0) return;
+  const neighbors = new Map();
+  for (const edge of alignedEdges) {
+    addNeighbor(neighbors, edge.source, edge.target);
+    addNeighbor(neighbors, edge.target, edge.source);
+  }
+
+  const visited = new Set();
+  for (const nodeId of neighbors.keys()) {
+    if (visited.has(nodeId)) continue;
+    const component = [];
+    const pending = [nodeId];
+    visited.add(nodeId);
+    while (pending.length > 0) {
+      const currentId = pending.pop();
+      const node = nodeById.get(currentId);
+      if (node) component.push(node);
+      for (const neighborId of neighbors.get(currentId) || []) {
+        if (visited.has(neighborId)) continue;
+        visited.add(neighborId);
+        pending.push(neighborId);
+      }
+    }
+
+    const minY = Math.min(...component.map((node) => node.y));
+    const shift = Math.max(0, margin - minY);
+    if (shift <= 0) continue;
+    for (const node of component) {
+      node.y = round(node.y + shift);
+    }
+  }
+}
+
+function addNeighbor(neighbors, nodeId, neighborId) {
+  if (!neighbors.has(nodeId)) neighbors.set(nodeId, []);
+  neighbors.get(nodeId).push(neighborId);
 }
 
 export function alignSingleConnectionEndpoints(nodes, edges, layoutIntent) {
@@ -225,7 +268,13 @@ function resolveLevelAroundPrimaryChain(
   }
 }
 
-export function applySingleFanoutInputLocality(nodes, edges, margin) {
+export function applySingleFanoutInputLocality(
+  nodes,
+  edges,
+  margin,
+  layoutIntent = null,
+  branchLanePitch = 16
+) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const outgoingBySource = new Map();
   for (const edge of edges) {
@@ -235,16 +284,34 @@ export function applySingleFanoutInputLocality(nodes, edges, margin) {
     outgoingBySource.get(edge.source).push(edge);
   }
 
+  const primaryEdgeBySource = new Map();
+  for (const [sourceId, outgoing] of outgoingBySource) {
+    if (outgoing.length > 1 && new Set(outgoing.map((edge) => edge.net)).size > 1) {
+      continue;
+    }
+    const primary = outgoing.length === 1
+      ? outgoing[0]
+      : outgoing.find((edge) => layoutIntent?.getEdge(edge)?.isPrimary);
+    if (primary) primaryEdgeBySource.set(sourceId, primary);
+  }
+  const multiInputLaneRanks = getMultiInputLaneRanks(
+    nodes,
+    outgoingBySource,
+    primaryEdgeBySource,
+    nodeById
+  );
+
   for (const node of nodes) {
     if (!isExternalSourceNode(node)) {
       continue;
     }
     const outgoing = outgoingBySource.get(node.id) || [];
-    if (outgoing.length !== 1) {
+    if (outgoing.length === 0) {
       continue;
     }
 
-    const edge = outgoing[0];
+    const edge = primaryEdgeBySource.get(node.id);
+    if (!edge) continue;
     const target = nodeById.get(edge.target);
     if (!target || (target.kind !== "cell" && target.kind !== "hub")) {
       continue;
@@ -255,11 +322,51 @@ export function applySingleFanoutInputLocality(nodes, edges, margin) {
     const targetInputIndex = target.ports
       .filter((port) => port.direction === "input")
       .findIndex((port) => port.pin === targetPort?.pin);
-    const gap = 24;
-    node.x = Math.max(margin, target.x - node.width - gap);
-    node.y = round(target.y + (targetPort?.y ?? target.height / 2) - (sourcePort?.y ?? node.height / 2));
+    const laneRank = multiInputLaneRanks.get(node.id) || 0;
+    const gap = outgoing.length === 1
+      ? 24
+      : 28 + laneRank * branchLanePitch;
+    if (targetPort?.side === "top" || targetPort?.side === "bottom") {
+      node.x = round(Math.max(
+        margin,
+        target.x + targetPort.x - (sourcePort?.x ?? node.width)
+      ));
+      node.y = targetPort.side === "top"
+        ? round(Math.max(margin, target.y - node.height - 12))
+        : round(target.y + target.height + 12);
+    } else {
+      node.x = Math.max(margin, target.x - node.width - gap);
+      node.y = round(
+        target.y + (targetPort?.y ?? target.height / 2) -
+        (sourcePort?.y ?? node.height / 2)
+      );
+    }
     node.order = targetInputIndex >= 0 ? targetInputIndex : node.order;
   }
+}
+
+function getMultiInputLaneRanks(nodes, outgoingBySource, primaryEdgeBySource, nodeById) {
+  const sourcesByTarget = new Map();
+  for (const node of nodes) {
+    if (!isExternalSourceNode(node) || (outgoingBySource.get(node.id)?.length || 0) <= 1) continue;
+    const primary = primaryEdgeBySource.get(node.id);
+    const target = nodeById.get(primary?.target);
+    if (!primary || target?.kind !== "cell") continue;
+    if (!sourcesByTarget.has(target.id)) sourcesByTarget.set(target.id, []);
+    sourcesByTarget.get(target.id).push({ node, edge: primary, target });
+  }
+
+  const ranks = new Map();
+  for (const sources of sourcesByTarget.values()) {
+    const ordered = sources.toSorted((left, right) =>
+      getInputPortIndex(left.target, left.edge.targetPin) -
+      getInputPortIndex(right.target, right.edge.targetPin) ||
+      compareNodes(left.node, right.node));
+    for (const [index, source] of ordered.entries()) {
+      ranks.set(source.node.id, ordered.length - index);
+    }
+  }
+  return ranks;
 }
 
 export function applyFanoutHubLocality(nodes, edges, margin) {

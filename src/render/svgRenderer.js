@@ -208,8 +208,10 @@ function renderGatePorts(node, x, y, width, gateKind) {
       const px = round(x + port.x);
       const py = round(y + port.y);
       const isOutput = port.direction === "output";
-      const labelX = isOutput ? px - 6 : px + 6;
-      const anchor = isOutput ? "end" : "start";
+      const isVerticalPort = port.side === "top" || port.side === "bottom";
+      const labelX = isVerticalPort ? px : isOutput ? px - 6 : px + 6;
+      const labelY = port.side === "top" ? py + 13 : port.side === "bottom" ? py - 7 : py + 3;
+      const anchor = isVerticalPort ? "middle" : isOutput ? "end" : "start";
       const timing = node.timing?.pins?.[port.pin];
       const timingClass = timing ? (timing.slack < 0 ? " pin-critical" : " pin-timing") : "";
       const timingTitle = timing
@@ -219,7 +221,7 @@ function renderGatePorts(node, x, y, width, gateKind) {
         ? `<circle class="pin-bubble${timingClass}" cx="${round(x + width + 5)}" cy="${py}" r="5">${timingTitle}</circle>`
         : `<circle class="pin-dot${timingClass}" cx="${px}" cy="${py}" r="2.4">${timingTitle}</circle>`;
 
-      return `${marker}<text class="pin-label" x="${labelX}" y="${py + 3}" text-anchor="${anchor}">${escapeHtml(port.pin)}</text>`;
+      return `${marker}<text class="pin-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHtml(port.pin)}</text>`;
     })
     .join("");
 }
