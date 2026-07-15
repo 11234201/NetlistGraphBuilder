@@ -2,13 +2,12 @@ import { routeLocalOrthogonalEdge } from "./localOrthogonalRouter.js";
 import { buildNodePorts, computeBounds, getConnectionPoint } from "./nodeGeometry.js";
 import { normalizeNodeOverrides } from "./nodeOverrides.js";
 import {
-  getRouteSegments,
-  nodeBox,
-  segmentIntersectsBox
+  getRouteSegments
 } from "./orthogonalRouting.js";
 import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 import { createFanoutPriorityComparator } from "./layoutTopology.js";
+import { collectRerouteEdgeIds } from "./rerouteInvalidation.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -22,9 +21,11 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodeIndex = createNodeSpatialIndex(nodes);
   const changedNodeIds = new Set([...nodePositions.keys(), ...nodeSizes.keys()]);
   const changedNodes = nodes.filter((node) => changedNodeIds.has(node.id));
-  const rerouteEdgeIds = new Set(positionedGraph.edges
-    .filter((edge) => edgeNeedsReroute(edge, changedNodeIds, changedNodes))
-    .map((edge) => edge.id));
+  const rerouteEdgeIds = collectRerouteEdgeIds(
+    positionedGraph.edges,
+    changedNodes,
+    changedNodeIds
+  );
   const reservedSegments = new RouteSegmentIndex(positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
     .flatMap((edge) => getRouteSegments(edge.points || [], edge.net)));
@@ -92,19 +93,4 @@ function applyNodeOverrides(nodes, nodePositions, nodeSizes, cellPinPitch) {
     next.ports = buildNodePorts(next, next, cellPinPitch);
     return next;
   });
-}
-
-function edgeNeedsReroute(edge, changedNodeIds, changedNodes) {
-  if (changedNodeIds.has(edge.source) || changedNodeIds.has(edge.target)) return true;
-  return changedNodes.some((node) =>
-    node.id !== edge.source &&
-    node.id !== edge.target &&
-    polylineIntersectsNode(edge.points, node));
-}
-
-function polylineIntersectsNode(points, node) {
-  if (!Array.isArray(points)) return false;
-  const box = nodeBox(node, 8);
-  return points.some((point, index) => index < points.length - 1 &&
-    segmentIntersectsBox(point, points[index + 1], box));
 }

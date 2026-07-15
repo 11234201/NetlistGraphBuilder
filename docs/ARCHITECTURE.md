@@ -175,6 +175,8 @@ Layout policy:
 - `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
   and labels. It contains no candidate-generation geometry. Adjust reroutes single-load nets first and
   uses a stable topology key so reservation order cannot drift with parser edge order.
+- `src/layout/rerouteInvalidation.js` owns Adjust route invalidation. It indexes existing route segments
+  and queries changed node boxes; batch overrides must not scan every changed-node/edge pair.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
 - The policy separates spacing from feature switches:
   - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
