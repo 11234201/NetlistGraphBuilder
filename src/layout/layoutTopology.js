@@ -20,6 +20,18 @@ export function groupEdgesByNet(edges) {
   return groups;
 }
 
+export function createFanoutPriorityComparator(edges) {
+  const fanoutByGroup = new Map();
+  for (const edge of edges) {
+    const key = getNetGroupKey(edge);
+    fanoutByGroup.set(key, (fanoutByGroup.get(key) || 0) + 1);
+  }
+  return (left, right) =>
+    (fanoutByGroup.get(getNetGroupKey(left)) || 1) -
+      (fanoutByGroup.get(getNetGroupKey(right)) || 1) ||
+    compareGraphEdges(left, right);
+}
+
 function compareText(left, right) {
   return String(left || "").localeCompare(String(right || ""));
 }

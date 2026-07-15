@@ -51,6 +51,27 @@ test("positioned routing returns the original graph when no overrides exist", ()
   assert.equal(applyPositionedOverrides(graph), graph);
 });
 
+test("adjust rerouting is invariant to edge array order", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 20, width: 92, height: 28 },
+      { id: "b", kind: "input", label: "b", x: 0, y: 180, width: 92, height: 28 },
+      { id: "y", kind: "output", label: "y", x: 500, y: 176, width: 92, height: 36 },
+      { id: "z", kind: "output", label: "z", x: 500, y: 16, width: 92, height: 36 }
+    ],
+    edges: [
+      { id: "ay", source: "a", target: "y", net: "a", label: "a" },
+      { id: "bz", source: "b", target: "z", net: "b", label: "b" }
+    ]
+  };
+  const options = { nodePositions: new Map([["y", { x: 520, y: 176 }], ["z", { x: 520, y: 16 }]]) };
+
+  const forward = applyPositionedOverrides(graph, options);
+  const reversed = applyPositionedOverrides({ ...graph, edges: graph.edges.toReversed() }, options);
+
+  assert.deepEqual(normalizeEdges(reversed.edges), normalizeEdges(forward.edges));
+});
+
 test("adjust reroutes a net when an unrelated moved cell blocks its old path", () => {
   const graph = {
     nodes: [
@@ -265,4 +286,14 @@ function segmentIntersectsBox(start, end, box) {
       Math.max(start.y, end.y) > box.top && Math.min(start.y, end.y) < box.bottom;
   }
   return false;
+}
+
+function normalizeEdges(edges) {
+  return edges.map((edge) => ({
+    id: edge.id,
+    points: edge.points,
+    labelPoint: edge.labelPoint,
+    labelAnchor: edge.labelAnchor,
+    showLabel: edge.showLabel
+  })).toSorted((left, right) => left.id.localeCompare(right.id));
 }

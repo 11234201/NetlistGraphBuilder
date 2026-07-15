@@ -8,6 +8,7 @@ import {
 } from "./orthogonalRouting.js";
 import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
+import { createFanoutPriorityComparator } from "./layoutTopology.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -28,11 +29,19 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
     .flatMap((edge) => getRouteSegments(edge.points || [], edge.net)));
 
-  const routedEdges = positionedGraph.edges.map((edge) => {
-    if (!rerouteEdgeIds.has(edge.id)) return edge;
+  const compareEdges = createFanoutPriorityComparator(positionedGraph.edges);
+  const routedById = new Map();
+  for (const edge of positionedGraph.edges.toSorted(compareEdges)) {
+    if (!rerouteEdgeIds.has(edge.id)) {
+      routedById.set(edge.id, edge);
+      continue;
+    }
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
-    if (!source || !target) return edge;
+    if (!source || !target) {
+      routedById.set(edge.id, edge);
+      continue;
+    }
     const start = getConnectionPoint(source, edge.sourcePin, "source");
     const end = getConnectionPoint(target, edge.targetPin, "target");
     const points = routeLocalOrthogonalEdge({
@@ -54,9 +63,10 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       labelAnchor: "end"
     };
     reservedSegments.push(...getRouteSegments(points, edge.net));
-    return routedEdge;
-  });
-  const edges = placeWireLabels(routedEdges, nodes);
+    routedById.set(edge.id, routedEdge);
+  }
+  const routedEdges = positionedGraph.edges.map((edge) => routedById.get(edge.id) || edge);
+  const edges = placeWireLabels(routedEdges, nodes, { compareEdges });
   const bounds = computeBounds(nodes);
   return {
     ...positionedGraph,

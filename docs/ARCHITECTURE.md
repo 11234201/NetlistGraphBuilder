@@ -173,7 +173,8 @@ Layout policy:
 - `src/layout/simplePlacementPipeline.js` owns the stable order of placement passes and exposes an optional
   stage hook for diagnostics. Individual passes remain in their alignment, locality and spacing modules.
 - `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
-  and labels. It contains no candidate-generation geometry.
+  and labels. It contains no candidate-generation geometry. Adjust reroutes single-load nets first and
+  uses a stable topology key so reservation order cannot drift with parser edge order.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
 - The policy separates spacing from feature switches:
   - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
