@@ -125,6 +125,8 @@ Layout policy:
 
 - `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
 - `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
+- `src/layout/nodeOverrides.js` is the input boundary for manual node position and size overrides. It
+  normalizes supported collection shapes and owns numeric validation and size limits.
 - `src/layout/nodePlacement.js` owns placement passes. Placement may improve routing, but must not encode
   wire collision rules.
 - `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It

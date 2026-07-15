@@ -11,14 +11,13 @@ import {
   alignSingleConnectionEndpoints,
   applyBranchAwareLanes,
   applyFanoutHubLocality,
-  applyNodePositionOverrides,
-  applyNodeSizeOverride,
   applySingleFanoutInputLocality,
   computeLevelXs,
   resolveExternalSourceOverlaps,
   resolveLevelOverlaps,
   resolveOutputOverlaps
 } from "./nodePlacement.js";
+import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";

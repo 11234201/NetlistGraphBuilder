@@ -1,5 +1,6 @@
 import { routeLocalOrthogonalEdge } from "./localOrthogonalRouter.js";
 import { buildNodePorts, computeBounds, getConnectionPoint } from "./nodeGeometry.js";
+import { normalizeNodeOverrides } from "./nodeOverrides.js";
 import {
   getRouteSegments,
   nodeBox,
@@ -9,8 +10,8 @@ import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
-  const nodePositions = normalizeOverrides(options.nodePositions);
-  const nodeSizes = normalizeOverrides(options.nodeSizes);
+  const nodePositions = normalizeNodeOverrides(options.nodePositions);
+  const nodeSizes = normalizeNodeOverrides(options.nodeSizes);
   if (nodePositions.size === 0 && nodeSizes.size === 0) return positionedGraph;
 
   const cellPinPitch = options.layoutPolicy?.spacing?.cellPinPitch;
@@ -96,9 +97,4 @@ function polylineIntersectsNode(points, node) {
   const box = nodeBox(node, 8);
   return points.some((point, index) => index < points.length - 1 &&
     segmentIntersectsBox(point, points[index + 1], box));
-}
-
-function normalizeOverrides(value) {
-  if (value instanceof Map) return value;
-  return new Map(Object.entries(value || {}));
 }

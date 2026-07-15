@@ -1,40 +1,5 @@
 import { getPort } from "./nodeGeometry.js";
 
-export function applyNodePositionOverrides(nodes, nodePositions) {
-  if (!nodePositions) {
-    return;
-  }
-
-  for (const node of nodes) {
-    const override = getNodePositionOverride(nodePositions, node.id);
-    if (!override) {
-      continue;
-    }
-    const x = Number(override.x);
-    const y = Number(override.y);
-    if (Number.isFinite(x)) {
-      node.x = x;
-    }
-    if (Number.isFinite(y)) {
-      node.y = y;
-    }
-  }
-}
-
-export function applyNodeSizeOverride(size, nodeSizes, nodeId) {
-  const override = getNodeSizeOverride(nodeSizes, nodeId);
-  if (!override) {
-    return size;
-  }
-
-  const width = Number(override.width);
-  const height = Number(override.height);
-  return {
-    width: Number.isFinite(width) ? clamp(width, 24, 420) : size.width,
-    height: Number.isFinite(height) ? clamp(height, 12, 260) : size.height
-  };
-}
-
 export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = groupEdges(edges, "target");
@@ -485,35 +450,6 @@ export function compareNodes(left, right) {
   return `${left.kind}:${left.label}`.localeCompare(`${right.kind}:${right.label}`);
 }
 
-function getNodeSizeOverride(nodeSizes, nodeId) {
-  if (!nodeSizes) {
-    return null;
-  }
-  if (nodeSizes instanceof Map) {
-    return nodeSizes.get(nodeId);
-  }
-  if (Array.isArray(nodeSizes)) {
-    return nodeSizes.find((item) => item?.id === nodeId);
-  }
-  if (typeof nodeSizes === "object") {
-    return Object.hasOwn(nodeSizes, nodeId) ? nodeSizes[nodeId] : null;
-  }
-  return null;
-}
-
-function getNodePositionOverride(nodePositions, nodeId) {
-  if (nodePositions instanceof Map) {
-    return nodePositions.get(nodeId);
-  }
-  if (Array.isArray(nodePositions)) {
-    return nodePositions.find((item) => item?.id === nodeId);
-  }
-  if (typeof nodePositions === "object") {
-    return Object.hasOwn(nodePositions, nodeId) ? nodePositions[nodeId] : null;
-  }
-  return null;
-}
-
 function markUpstreamLane(nodeId, lane, laneById, incomingByTarget) {
   const previousLane = laneById.get(nodeId);
   if (previousLane !== undefined && previousLane <= lane) {
@@ -626,10 +562,6 @@ function horizontalRangesOverlap(left, right, gap = 0) {
 
 function isExternalSourceNode(node) {
   return node.kind === "input" || node.kind === "implicit" || node.kind === "constant";
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function round(value) {
