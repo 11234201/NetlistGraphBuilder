@@ -4,7 +4,6 @@ import { recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
-import { applyPositionedOverrides } from "../layout/positionedRouting.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
 import { renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
@@ -56,6 +55,7 @@ import {
   getCompareNodeName
 } from "./compareWorkspace.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
+import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 let sessionSaveTimer = null;
@@ -1297,8 +1297,8 @@ function startNodeDrag(event, nodeId) {
 
       moved = true;
       state.nodePositions.set(nodeId, nextPosition);
-      if (state.layoutProviderId === "elk-layered" && state.autoGraph?.layoutProvider === "elk-layered") {
-        state.graph = applyPositionedOverrides(state.autoGraph, {
+      if (state.autoGraph) {
+        state.graph = applyWorkspaceOverrides(state.autoGraph, {
           nodePositions: state.nodePositions,
           nodeSizes: state.nodeSizes,
           layoutPolicy: state.layoutPolicy
@@ -1540,7 +1540,7 @@ function renderAdjustedCompareSide(side) {
     renderCompareGraphs();
     return;
   }
-  const graph = applyPositionedOverrides(autoGraph, {
+  const graph = applyWorkspaceOverrides(autoGraph, {
     nodePositions: state.compare.nodePositions[side],
     nodeSizes: state.compare.nodeSizes[side],
     layoutPolicy: state.layoutPolicy

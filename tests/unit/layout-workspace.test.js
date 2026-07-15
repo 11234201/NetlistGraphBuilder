@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutWorkspaceGraph } from "../../src/app/layoutWorkspace.js";
+import {
+  applyWorkspaceOverrides,
+  layoutWorkspaceGraph
+} from "../../src/app/layoutWorkspace.js";
 
 const graph = {
   nodes: [{ id: "n", kind: "input", x: 0, y: 0, width: 40, height: 20, ports: [] }],
@@ -26,4 +29,22 @@ test("layout workspace preserves asynchronous providers", async () => {
   assert.equal(typeof result.then, "function");
   const resolved = await result;
   assert.equal(resolved.graph, resolved.autoGraph);
+});
+
+test("cached workspace overrides never rerun the layout provider", () => {
+  let providerCalls = 0;
+  const provider = {
+    layout(value) {
+      providerCalls += 1;
+      return structuredClone(value);
+    }
+  };
+  const result = layoutWorkspaceGraph(graph, { layoutProvider: provider });
+
+  const adjusted = applyWorkspaceOverrides(result.autoGraph, {
+    nodePositions: new Map([["n", { x: 160, y: 90 }]])
+  });
+
+  assert.equal(providerCalls, 1);
+  assert.deepEqual({ x: adjusted.nodes[0].x, y: adjusted.nodes[0].y }, { x: 160, y: 90 });
 });
