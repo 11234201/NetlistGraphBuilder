@@ -222,6 +222,9 @@ Simple 和 Adjust 同时消费；软目标应增加 route score/golden 测试，
 
 ### `src/ui/`
 
+`src/ui/viewport.js` owns pure zoom, pan, coordinate-conversion and SVG-transform calculations. App event
+handlers provide DOM measurements and commit state, but do not duplicate viewport math.
+
 负责用户交互。
 
 职责：

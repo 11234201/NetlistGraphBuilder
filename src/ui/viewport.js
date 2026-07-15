@@ -34,6 +34,53 @@ export function getZoomStep(viewBoxWidth, viewportWidth) {
   return 1.12;
 }
 
+export function getZoomedTransform(
+  transform,
+  point,
+  deltaY,
+  viewBoxWidth,
+  viewportWidth,
+  minScale = 0.25
+) {
+  const oldScale = positiveNumber(transform?.scale, 1);
+  const zoomStep = getZoomStep(viewBoxWidth, viewportWidth);
+  const maxScale = getAdaptiveMaxScale(viewBoxWidth, viewportWidth);
+  const nextScale = clamp(
+    oldScale * (deltaY < 0 ? zoomStep : 1 / zoomStep),
+    minScale,
+    maxScale
+  );
+  const ratio = nextScale / oldScale;
+  return {
+    x: point.x - (point.x - transform.x) * ratio,
+    y: point.y - (point.y - transform.y) * ratio,
+    scale: nextScale
+  };
+}
+
+export function getPannedTransform(transform, startClient, currentClient, viewBox, viewport) {
+  const viewportWidth = positiveNumber(viewport?.width, 1);
+  const viewportHeight = positiveNumber(viewport?.height, 1);
+  return {
+    ...transform,
+    x: transform.x + ((currentClient.x - startClient.x) * viewBox.width) / viewportWidth,
+    y: transform.y + ((currentClient.y - startClient.y) * viewBox.height) / viewportHeight
+  };
+}
+
+export function clientPointToViewBox(client, viewport, viewBox) {
+  const width = positiveNumber(viewport?.width, 1);
+  const height = positiveNumber(viewport?.height, 1);
+  return {
+    x: viewBox.x + ((client.x - viewport.left) / width) * viewBox.width,
+    y: viewBox.y + ((client.y - viewport.top) / height) * viewBox.height
+  };
+}
+
+export function formatViewportTransform(transform) {
+  return `translate(${round(transform.x)} ${round(transform.y)}) scale(${round(transform.scale)})`;
+}
+
 function safeRatio(viewBoxWidth, viewportWidth) {
   const rawViewportWidth = Number(viewportWidth);
   const width = Number.isFinite(rawViewportWidth) && rawViewportWidth > 0 ? rawViewportWidth : 1;
@@ -44,4 +91,13 @@ function safeRatio(viewBoxWidth, viewportWidth) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function round(value) {
+  return Math.round(value * 1000) / 1000;
 }

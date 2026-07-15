@@ -28,9 +28,12 @@ import {
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import {
+  clientPointToViewBox,
+  formatViewportTransform,
   getAdaptiveMaxScale,
+  getPannedTransform,
   getReadableObjectScale,
-  getZoomStep
+  getZoomedTransform
 } from "../ui/viewport.js";
 import {
   bindTimingPanel,
@@ -1204,16 +1207,15 @@ function handleWheel(event) {
   }
   event.preventDefault();
 
-  const oldScale = state.transform.scale;
   const rect = svg.getBoundingClientRect();
-  const zoomStep = getZoomStep(svg.viewBox.baseVal.width, rect.width);
-  const maxScale = getAdaptiveMaxScale(svg.viewBox.baseVal.width, rect.width);
-  const nextScale = clamp(oldScale * (event.deltaY < 0 ? zoomStep : 1 / zoomStep), 0.25, maxScale);
   const point = eventPointToSvg(svg, event);
-
-  state.transform.x = point.x - (point.x - state.transform.x) * (nextScale / oldScale);
-  state.transform.y = point.y - (point.y - state.transform.y) * (nextScale / oldScale);
-  state.transform.scale = nextScale;
+  state.transform = getZoomedTransform(
+    state.transform,
+    point,
+    event.deltaY,
+    svg.viewBox.baseVal.width,
+    rect.width
+  );
   applyTransform();
 }
 
@@ -1262,10 +1264,13 @@ function handlePointerDown(event) {
   const move = (moveEvent) => {
     const viewBox = svg.viewBox.baseVal;
     const rect = svg.getBoundingClientRect();
-    const dx = ((moveEvent.clientX - start.x) * viewBox.width) / rect.width;
-    const dy = ((moveEvent.clientY - start.y) * viewBox.height) / rect.height;
-    state.transform.x = start.transform.x + dx;
-    state.transform.y = start.transform.y + dy;
+    state.transform = getPannedTransform(
+      start.transform,
+      start,
+      { x: moveEvent.clientX, y: moveEvent.clientY },
+      viewBox,
+      rect
+    );
     applyTransform();
   };
 
@@ -1460,7 +1465,7 @@ function applyTransform() {
     return;
   }
   const { x, y, scale } = state.transform;
-  content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+  content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
   elements.canvas.classList.toggle("is-low-detail", scale < 0.65);
   persistSession();
 }
@@ -1472,17 +1477,15 @@ function handleCompareWheel(event) {
   if (!side || !svg) return;
   event.preventDefault();
   const current = state.compare.transforms[side];
-  const oldScale = current.scale;
   const rect = svg.getBoundingClientRect();
-  const zoomStep = getZoomStep(svg.viewBox.baseVal.width, rect.width);
-  const maxScale = getAdaptiveMaxScale(svg.viewBox.baseVal.width, rect.width);
-  const nextScale = clamp(oldScale * (event.deltaY < 0 ? zoomStep : 1 / zoomStep), 0.25, maxScale);
   const point = eventPointToSvg(svg, event);
-  const next = {
-    x: point.x - (point.x - current.x) * (nextScale / oldScale),
-    y: point.y - (point.y - current.y) * (nextScale / oldScale),
-    scale: nextScale
-  };
+  const next = getZoomedTransform(
+    current,
+    point,
+    event.deltaY,
+    svg.viewBox.baseVal.width,
+    rect.width
+  );
   setCompareTransform(side, next);
 }
 
@@ -1518,11 +1521,13 @@ function handleComparePointerDown(event) {
   const move = (moveEvent) => {
     const rect = svg.getBoundingClientRect();
     const viewBox = svg.viewBox.baseVal;
-    setCompareTransform(side, {
-      ...start.transform,
-      x: start.transform.x + ((moveEvent.clientX - start.x) * viewBox.width) / rect.width,
-      y: start.transform.y + ((moveEvent.clientY - start.y) * viewBox.height) / rect.height
-    });
+    setCompareTransform(side, getPannedTransform(
+      start.transform,
+      start,
+      { x: moveEvent.clientX, y: moveEvent.clientY },
+      viewBox,
+      rect
+    ));
   };
   const up = () => {
     elements.canvas.classList.remove("is-panning");
@@ -1590,18 +1595,18 @@ function applyCompareTransforms() {
     const content = mount.querySelector("#schematicContent");
     if (!content) continue;
     const { x, y, scale } = state.compare.transforms[side];
-    content.setAttribute("transform", `translate(${round(x)} ${round(y)}) scale(${round(scale)})`);
+    content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
     mount.closest(".compare-side")?.classList.toggle("is-low-detail", scale < 0.65);
   }
 }
 
 function eventPointToSvg(svg, event) {
   const rect = svg.getBoundingClientRect();
-  const viewBox = svg.viewBox.baseVal;
-  return {
-    x: viewBox.x + ((event.clientX - rect.left) / rect.width) * viewBox.width,
-    y: viewBox.y + ((event.clientY - rect.top) / rect.height) * viewBox.height
-  };
+  return clientPointToViewBox(
+    { x: event.clientX, y: event.clientY },
+    rect,
+    svg.viewBox.baseVal
+  );
 }
 
 function eventPointToContent(event) {
