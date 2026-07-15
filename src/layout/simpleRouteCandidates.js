@@ -11,8 +11,10 @@ import {
   queryReservedSegments,
   uniqueRoundedNumbers
 } from "./routeLaneCandidates.js";
+import { ROUTE_SEARCH_LIMITS } from "./routeSearchPolicy.js";
 
-export const MAX_GLOBAL_LANE_CANDIDATES = 512;
+export const MAX_GLOBAL_LANE_CANDIDATES =
+  ROUTE_SEARCH_LIMITS.maximumGlobalLaneCandidates;
 
 export function createBasicSimpleRouteCandidates(context) {
   const {
@@ -269,7 +271,10 @@ export function createGlobalLaneYCandidates(
   const minTop = Math.min(...boxes.map((box) => box.top));
   const maxBottom = Math.max(...boxes.map((box) => box.bottom));
   const candidates = [preferredLaneY];
-  const outerAttempts = Math.min(256, Math.max(4, nodes.length));
+  const outerAttempts = Math.min(
+    ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
+    Math.max(4, nodes.length)
+  );
   for (let index = 0; index < outerAttempts; index += 1) {
     candidates.push(minTop - margin - index * lanePitch);
     candidates.push(maxBottom + margin + index * lanePitch);

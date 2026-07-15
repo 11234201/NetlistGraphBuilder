@@ -6,6 +6,7 @@ import {
   collectLocalLaneYs,
   queryReservedSegments
 } from "./routeLaneCandidates.js";
+import { ROUTE_SEARCH_LIMITS } from "./routeSearchPolicy.js";
 
 export function* iterateLocalRouteCandidates(context) {
   const {
@@ -34,7 +35,11 @@ export function* iterateLocalRouteCandidates(context) {
     const maxChannelX = routeEnd.x - endpointClearance;
     if (minChannelX <= maxChannelX) {
       const middleX = (minChannelX + maxChannelX) / 2;
-      for (const channelX of alternatingCandidates(middleX, margin, 16)) {
+      for (const channelX of alternatingCandidates(
+        middleX,
+        margin,
+        ROUTE_SEARCH_LIMITS.localChannelAlternatives
+      )) {
         if (channelX < minChannelX || channelX > maxChannelX) continue;
         yield candidate("channel", [
           start,
@@ -114,7 +119,10 @@ function* iterateLocalDetours(
 function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {
   const minY = Math.min(...nodes.map((node) => node.y));
   const maxY = Math.max(...nodes.map((node) => node.y + node.height));
-  const attempts = Math.min(256, Math.max(32, nodes.length + 8));
+  const attempts = Math.min(
+    ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
+    Math.max(ROUTE_SEARCH_LIMITS.minimumOuterLaneAttempts, nodes.length + 8)
+  );
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const sourceLaneX = source.x + source.width + margin + attempt * margin;
     const targetLaneX = target.x - margin - attempt * margin;

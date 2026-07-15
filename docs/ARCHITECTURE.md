@@ -183,6 +183,8 @@ Layout policy:
   Golden diffs report changed edges so one bad net cannot disappear inside aggregate quality metrics.
 - `src/layout/routeScoring.js` owns named route costs and candidate comparison. Candidate generators must
   not embed crossing/bend/length magic numbers.
+- `src/layout/routeSearchPolicy.js` owns bounded candidate-search limits shared by Simple and Adjust.
+  Candidate generators must not add graph-size-proportional retry loops or private hard limits.
 - `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
   but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
 - `src/layout/simplePlacementPipeline.js` owns the stable order of placement passes and exposes an optional
