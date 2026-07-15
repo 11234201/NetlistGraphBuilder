@@ -87,6 +87,9 @@ export function createLocalObstacleCandidates(context) {
     sourcePoint,
     targetPoint,
     nodes,
+    nodeIndex,
+    nodeBounds,
+    levelBounds,
     reservedSegments,
     net
   } = context;
@@ -97,11 +100,11 @@ export function createLocalObstacleCandidates(context) {
   const inset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
   const sourceColumnRight = Math.max(
     sourcePoint.x,
-    ...nodes.filter((node) => node.level === source.level).map((node) => node.x + node.width)
+    levelBounds?.get(source.level)?.right ?? source.x + source.width
   );
   const targetColumnLeft = Math.min(
     targetPoint.x,
-    ...nodes.filter((node) => node.level === target.level).map((node) => node.x)
+    levelBounds?.get(target.level)?.left ?? target.x
   );
   const sourceUsesLocalEscape = source.kind === "input" ||
     source.kind === "implicit" ||
@@ -116,10 +119,17 @@ export function createLocalObstacleCandidates(context) {
     : routeTargetPoint.x - inset;
   const minX = Math.min(sourceLaneX, targetLaneX);
   const maxX = Math.max(sourceLaneX, targetLaneX);
-  const relevantNodes = nodes.filter((node) =>
-    node.x + node.width + padding > minX && node.x - padding < maxX);
-  const minNodeY = Math.min(...nodes.map((node) => node.y));
-  const maxNodeY = Math.max(...nodes.map((node) => node.y + node.height));
+  const relevantNodes = nodeIndex && nodeBounds
+    ? nodeIndex.query({
+      left: minX - padding,
+      right: maxX + padding,
+      top: nodeBounds.top,
+      bottom: nodeBounds.bottom
+    })
+    : nodes.filter((node) =>
+      node.x + node.width + padding > minX && node.x - padding < maxX);
+  const minNodeY = nodeBounds?.top ?? Math.min(...nodes.map((node) => node.y));
+  const maxNodeY = nodeBounds?.bottom ?? Math.max(...nodes.map((node) => node.y + node.height));
   const relevantSegments = queryReservedSegments(reservedSegments, {
     left: minX - padding,
     right: maxX + padding,

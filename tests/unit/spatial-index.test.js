@@ -2,10 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { countRouteConflicts } from "../../src/layout/orthogonalRouting.js";
 import {
+  computeNodeCollectionBox,
   createNodeSpatialIndex,
   RouteSegmentIndex,
   SpatialHashIndex
 } from "../../src/layout/spatialIndex.js";
+
+test("node collection bounds are computed once for corridor queries", () => {
+  const nodes = [
+    { x: 20, y: 30, width: 40, height: 50 },
+    { x: 100, y: 10, width: 20, height: 30 }
+  ];
+
+  assert.deepEqual(computeNodeCollectionBox(nodes, 8), {
+    left: 12,
+    right: 128,
+    top: 2,
+    bottom: 88
+  });
+  assert.deepEqual(computeNodeCollectionBox([], 8), {
+    left: 0, right: 0, top: 0, bottom: 0
+  });
+});
 
 test("spatial hash returns only nearby items across positive and negative cells", () => {
   const index = new SpatialHashIndex(64);

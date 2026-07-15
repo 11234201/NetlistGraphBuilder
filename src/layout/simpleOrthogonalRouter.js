@@ -9,13 +9,18 @@ import {
   createLocalObstacleCandidates,
   findObstacleAvoidingRoute
 } from "./simpleRouteCandidates.js";
-import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
+import {
+  computeNodeCollectionBox,
+  createNodeSpatialIndex,
+  RouteSegmentIndex
+} from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function routeSimpleEdges(graph, nodes, options) {
   const { layoutIntent, routePlan, wireLanePitch, topWireLanePitch, margin } = options;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIndex = createNodeSpatialIndex(nodes);
+  const nodeBounds = computeNodeCollectionBox(nodes);
   const levelBounds = computeLevelBounds(nodes);
   const routedById = new Map();
   const reservedSegments = new RouteSegmentIndex();
@@ -36,6 +41,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       levelBounds,
       nodes,
       nodeIndex,
+      nodeBounds,
       wireLanePitch,
       topWireLanePitch,
       margin,

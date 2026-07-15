@@ -82,6 +82,18 @@ export function createNodeSpatialIndex(nodes, cellSize = 128) {
   return index;
 }
 
+export function computeNodeCollectionBox(nodes, padding = 0) {
+  if (!nodes || nodes.length === 0) {
+    return { left: 0, right: 0, top: 0, bottom: 0 };
+  }
+  return {
+    left: Math.min(...nodes.map((node) => node.x)) - padding,
+    right: Math.max(...nodes.map((node) => node.x + node.width)) + padding,
+    top: Math.min(...nodes.map((node) => node.y)) - padding,
+    bottom: Math.max(...nodes.map((node) => node.y + node.height)) + padding
+  };
+}
+
 export function segmentBox(segment, padding = 0) {
   return {
     left: Math.min(segment.start.x, segment.end.x) - padding,
