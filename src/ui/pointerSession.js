@@ -17,6 +17,7 @@ export function startPointerSession(options) {
     target.removeEventListener("pointermove", move);
     target.removeEventListener("pointerup", finish);
     target.removeEventListener("pointercancel", finish);
+    if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture?.(pointerId);
     if (className) classTarget?.classList.remove(className);
     onEnd?.(event);
   };

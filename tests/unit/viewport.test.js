@@ -71,3 +71,25 @@ test("pan and client conversion use viewBox-to-viewport scale", () => {
     "translate(1.235 7.891) scale(1.235)"
   );
 });
+
+test("malformed pointer snapshots cannot poison pan and zoom transforms", () => {
+  const panned = getPannedTransform(
+    { x: 10, y: 20, scale: 1 },
+    { x: 100, y: 200 },
+    { clientX: 120, clientY: 220 },
+    { width: 1000, height: 500 },
+    { width: 500, height: 250 }
+  );
+  const zoomed = getZoomedTransform(
+    { x: Number.NaN, y: Number.NaN, scale: 1 },
+    { x: 100, y: 80 },
+    -1,
+    1000,
+    1000
+  );
+
+  assert.deepEqual(panned, { x: 10, y: 20, scale: 1 });
+  assert.ok(Number.isFinite(zoomed.x));
+  assert.ok(Number.isFinite(zoomed.y));
+  assert.equal(zoomed.scale, 1.12);
+});

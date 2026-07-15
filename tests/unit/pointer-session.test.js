@@ -22,6 +22,7 @@ test("pointer session captures, dispatches and cleans up on pointer up", () => {
   target.dispatch("pointercancel", {});
 
   assert.equal(target.capturedPointerId, 7);
+  assert.equal(target.releasedPointerId, 7);
   assert.deepEqual(moves, [10]);
   assert.equal(ended, 1);
   assert.equal(classTarget.classList.has("dragging"), false);
@@ -46,6 +47,14 @@ class FakeTarget {
 
   setPointerCapture(pointerId) {
     this.capturedPointerId = pointerId;
+  }
+
+  hasPointerCapture(pointerId) {
+    return this.capturedPointerId === pointerId && this.releasedPointerId !== pointerId;
+  }
+
+  releasePointerCapture(pointerId) {
+    this.releasedPointerId = pointerId;
   }
 
   addEventListener(type, listener) {

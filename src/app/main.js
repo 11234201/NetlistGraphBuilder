@@ -1601,7 +1601,12 @@ function eventPointToContent(event) {
 }
 
 function pointerClientPoint(event) {
-  return { clientX: event.clientX, clientY: event.clientY };
+  return {
+    x: event.clientX,
+    y: event.clientY,
+    clientX: event.clientX,
+    clientY: event.clientY
+  };
 }
 
 function getSvg() {

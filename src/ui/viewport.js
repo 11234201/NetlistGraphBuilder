@@ -43,6 +43,8 @@ export function getZoomedTransform(
   minScale = 0.25
 ) {
   const oldScale = positiveNumber(transform?.scale, 1);
+  const oldX = finiteNumber(transform?.x, 0);
+  const oldY = finiteNumber(transform?.y, 0);
   const zoomStep = getZoomStep(viewBoxWidth, viewportWidth);
   const maxScale = getAdaptiveMaxScale(viewBoxWidth, viewportWidth);
   const nextScale = clamp(
@@ -52,8 +54,8 @@ export function getZoomedTransform(
   );
   const ratio = nextScale / oldScale;
   return {
-    x: point.x - (point.x - transform.x) * ratio,
-    y: point.y - (point.y - transform.y) * ratio,
+    x: point.x - (point.x - oldX) * ratio,
+    y: point.y - (point.y - oldY) * ratio,
     scale: nextScale
   };
 }
@@ -61,10 +63,14 @@ export function getZoomedTransform(
 export function getPannedTransform(transform, startClient, currentClient, viewBox, viewport) {
   const viewportWidth = positiveNumber(viewport?.width, 1);
   const viewportHeight = positiveNumber(viewport?.height, 1);
+  const startX = finiteNumber(startClient?.x, 0);
+  const startY = finiteNumber(startClient?.y, 0);
+  const currentX = finiteNumber(currentClient?.x, startX);
+  const currentY = finiteNumber(currentClient?.y, startY);
   return {
     ...transform,
-    x: transform.x + ((currentClient.x - startClient.x) * viewBox.width) / viewportWidth,
-    y: transform.y + ((currentClient.y - startClient.y) * viewBox.height) / viewportHeight
+    x: finiteNumber(transform?.x, 0) + ((currentX - startX) * viewBox.width) / viewportWidth,
+    y: finiteNumber(transform?.y, 0) + ((currentY - startY) * viewBox.height) / viewportHeight
   };
 }
 
@@ -96,6 +102,11 @@ function clamp(value, min, max) {
 function positiveNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function round(value) {
