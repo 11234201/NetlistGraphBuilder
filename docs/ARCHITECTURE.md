@@ -254,6 +254,8 @@ case-specific golden tests may impose tighter budgets.
 handlers provide DOM measurements and commit state, but do not duplicate viewport math.
 `src/ui/nodeDrag.js` owns provider-independent drag delta, boundary and position equality calculations used
 by both Single and Compare canvases.
+`src/ui/pointerSession.js` owns pointer capture plus move/up/cancel lifecycle cleanup shared by sidebar
+resize, canvas pan and Single/Compare node drag interactions.
 
 负责用户交互。
 

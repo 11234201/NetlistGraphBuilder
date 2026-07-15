@@ -22,6 +22,7 @@ import {
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
+import { startPointerSession } from "../ui/pointerSession.js";
 import {
   clientPointToViewBox,
   formatViewportTransform,
@@ -169,20 +170,15 @@ function startSidebarResize(event) {
     return;
   }
   event.preventDefault();
-  elements.sidebarResizeHandle.setPointerCapture(event.pointerId);
-  elements.workspace.classList.add("is-resizing-sidebar");
-
-  const move = (moveEvent) => setSidebarWidth(moveEvent.clientX - elements.workspace.getBoundingClientRect().left);
-  const up = () => {
-    elements.workspace.classList.remove("is-resizing-sidebar");
-    elements.sidebarResizeHandle.removeEventListener("pointermove", move);
-    elements.sidebarResizeHandle.removeEventListener("pointerup", up);
-    elements.sidebarResizeHandle.removeEventListener("pointercancel", up);
-  };
-
-  elements.sidebarResizeHandle.addEventListener("pointermove", move);
-  elements.sidebarResizeHandle.addEventListener("pointerup", up);
-  elements.sidebarResizeHandle.addEventListener("pointercancel", up);
+  startPointerSession({
+    target: elements.sidebarResizeHandle,
+    pointerId: event.pointerId,
+    classTarget: elements.workspace,
+    className: "is-resizing-sidebar",
+    onMove: (moveEvent) => setSidebarWidth(
+      moveEvent.clientX - elements.workspace.getBoundingClientRect().left
+    )
+  });
 }
 
 function handleSidebarResizeKeydown(event) {
@@ -1244,37 +1240,29 @@ function handlePointerDown(event) {
 
   setSelectedNode(null);
 
-  elements.canvas.setPointerCapture(event.pointerId);
-  elements.canvas.classList.add("is-panning");
   const start = {
     x: event.clientX,
     y: event.clientY,
     transform: { ...state.transform }
   };
 
-  const move = (moveEvent) => {
-    const viewBox = svg.viewBox.baseVal;
-    const rect = svg.getBoundingClientRect();
-    state.transform = getPannedTransform(
-      start.transform,
-      start,
-      { x: moveEvent.clientX, y: moveEvent.clientY },
-      viewBox,
-      rect
-    );
-    applyTransform();
-  };
-
-  const up = () => {
-    elements.canvas.classList.remove("is-panning");
-    elements.canvas.removeEventListener("pointermove", move);
-    elements.canvas.removeEventListener("pointerup", up);
-    elements.canvas.removeEventListener("pointercancel", up);
-  };
-
-  elements.canvas.addEventListener("pointermove", move);
-  elements.canvas.addEventListener("pointerup", up);
-  elements.canvas.addEventListener("pointercancel", up);
+  startPointerSession({
+    target: elements.canvas,
+    pointerId: event.pointerId,
+    className: "is-panning",
+    onMove: (moveEvent) => {
+      const viewBox = svg.viewBox.baseVal;
+      const rect = svg.getBoundingClientRect();
+      state.transform = getPannedTransform(
+        start.transform,
+        start,
+        { x: moveEvent.clientX, y: moveEvent.clientY },
+        viewBox,
+        rect
+      );
+      applyTransform();
+    }
+  });
 }
 
 function startNodeDrag(event, nodeId) {
@@ -1284,66 +1272,56 @@ function startNodeDrag(event, nodeId) {
   }
 
   event.preventDefault();
-  elements.canvas.setPointerCapture(event.pointerId);
-  elements.canvas.classList.add("is-node-dragging");
   setSelectedNode(nodeId);
 
   const startPoint = eventPointToContent(event);
   const startPosition = { x: node.x, y: node.y };
   let moved = false;
 
-  const move = (moveEvent) => {
-    const point = eventPointToContent(moveEvent);
-    if (!point || !startPoint) {
-      return;
-    }
+  startPointerSession({
+    target: elements.canvas,
+    pointerId: event.pointerId,
+    className: "is-node-dragging",
+    onMove: (moveEvent) => {
+      const point = eventPointToContent(moveEvent);
+      if (!point || !startPoint) return;
 
-    const candidatePosition = getDraggedNodePosition(startPosition, startPoint, point);
-    const snapResult = snapNodePosition(state.graph, nodeId, candidatePosition);
-    const nextPosition = {
-      x: round(Math.max(16, snapResult.position.x)),
-      y: round(Math.max(16, snapResult.position.y))
-    };
-    const previous = state.nodePositions.get(nodeId);
-    if (sameNodePosition(previous, nextPosition)) return;
+      const candidatePosition = getDraggedNodePosition(startPosition, startPoint, point);
+      const snapResult = snapNodePosition(state.graph, nodeId, candidatePosition);
+      const nextPosition = {
+        x: round(Math.max(16, snapResult.position.x)),
+        y: round(Math.max(16, snapResult.position.y))
+      };
+      const previous = state.nodePositions.get(nodeId);
+      if (sameNodePosition(previous, nextPosition)) return;
 
-    moved = true;
-    state.nodePositions.set(nodeId, nextPosition);
-    if (state.layoutProviderId === "elk-layered" && state.autoGraph?.layoutProvider === "elk-layered") {
-      state.graph = applyPositionedOverrides(state.autoGraph, {
-        nodePositions: state.nodePositions,
-        nodeSizes: state.nodeSizes,
-        layoutPolicy: state.layoutPolicy
-      });
-      elements.mount.innerHTML = renderSchematicSvg(state.graph);
-      setSelectedNode(nodeId);
-      applyTransform();
-      updateCalibrationControls();
-    } else {
-      renderCurrentModuleGraph();
-      setSelectedNode(nodeId);
-      applyTransform();
+      moved = true;
+      state.nodePositions.set(nodeId, nextPosition);
+      if (state.layoutProviderId === "elk-layered" && state.autoGraph?.layoutProvider === "elk-layered") {
+        state.graph = applyPositionedOverrides(state.autoGraph, {
+          nodePositions: state.nodePositions,
+          nodeSizes: state.nodeSizes,
+          layoutPolicy: state.layoutPolicy
+        });
+        elements.mount.innerHTML = renderSchematicSvg(state.graph);
+        setSelectedNode(nodeId);
+        applyTransform();
+        updateCalibrationControls();
+      } else {
+        renderCurrentModuleGraph();
+        setSelectedNode(nodeId);
+        applyTransform();
+      }
+      if (snapResult.snap) {
+        setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
+      } else {
+        setStatus(`${node.label}: x=${nextPosition.x}, y=${nextPosition.y}`);
+      }
+    },
+    onEnd: () => {
+      if (moved) setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
     }
-    if (snapResult.snap) {
-      setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
-    } else {
-      setStatus(`${node.label}: x=${nextPosition.x}, y=${nextPosition.y}`);
-    }
-  };
-
-  const up = () => {
-    elements.canvas.classList.remove("is-node-dragging");
-    elements.canvas.removeEventListener("pointermove", move);
-    elements.canvas.removeEventListener("pointerup", up);
-    elements.canvas.removeEventListener("pointercancel", up);
-    if (moved) {
-      setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
-    }
-  };
-
-  elements.canvas.addEventListener("pointermove", move);
-  elements.canvas.addEventListener("pointerup", up);
-  elements.canvas.addEventListener("pointercancel", up);
+  });
 }
 
 function fitToView() {
@@ -1501,29 +1479,23 @@ function handleComparePointerDown(event) {
     selectCompareObject("net", edgeElement.dataset.net, true, side);
     return;
   }
-  elements.canvas.setPointerCapture(event.pointerId);
-  elements.canvas.classList.add("is-panning");
   const start = { x: event.clientX, y: event.clientY, transform: { ...state.compare.transforms[side] } };
-  const move = (moveEvent) => {
-    const rect = svg.getBoundingClientRect();
-    const viewBox = svg.viewBox.baseVal;
-    setCompareTransform(side, getPannedTransform(
-      start.transform,
-      start,
-      { x: moveEvent.clientX, y: moveEvent.clientY },
-      viewBox,
-      rect
-    ));
-  };
-  const up = () => {
-    elements.canvas.classList.remove("is-panning");
-    elements.canvas.removeEventListener("pointermove", move);
-    elements.canvas.removeEventListener("pointerup", up);
-    elements.canvas.removeEventListener("pointercancel", up);
-  };
-  elements.canvas.addEventListener("pointermove", move);
-  elements.canvas.addEventListener("pointerup", up);
-  elements.canvas.addEventListener("pointercancel", up);
+  startPointerSession({
+    target: elements.canvas,
+    pointerId: event.pointerId,
+    className: "is-panning",
+    onMove: (moveEvent) => {
+      const rect = svg.getBoundingClientRect();
+      const viewBox = svg.viewBox.baseVal;
+      setCompareTransform(side, getPannedTransform(
+        start.transform,
+        start,
+        { x: moveEvent.clientX, y: moveEvent.clientY },
+        viewBox,
+        rect
+      ));
+    }
+  });
 }
 
 function startCompareNodeDrag(event, side, node) {
@@ -1532,8 +1504,6 @@ function startCompareNodeDrag(event, side, node) {
   const matrix = content?.getScreenCTM();
   if (!matrix) return;
   event.preventDefault();
-  elements.canvas.setPointerCapture(event.pointerId);
-  elements.canvas.classList.add("is-node-dragging");
   selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side);
   const toContent = (pointerEvent) => {
     const svg = mount.querySelector("svg");
@@ -1546,26 +1516,22 @@ function startCompareNodeDrag(event, side, node) {
   };
   const startPoint = toContent(event);
   const startPosition = { x: node.x, y: node.y };
-  const move = (moveEvent) => {
-    const point = toContent(moveEvent);
-    if (!point || !startPoint) return;
-    const candidate = getDraggedNodePosition(startPosition, startPoint, point);
-    const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
-    const previous = state.compare.nodePositions[side].get(node.id);
-    if (sameNodePosition(previous, snapped.position)) return;
-    state.compare.nodePositions[side].set(node.id, snapped.position);
-    renderAdjustedCompareSide(side);
-  };
-  const up = () => {
-    elements.canvas.classList.remove("is-node-dragging");
-    elements.canvas.removeEventListener("pointermove", move);
-    elements.canvas.removeEventListener("pointerup", up);
-    elements.canvas.removeEventListener("pointercancel", up);
-    setStatus(`${side} ${node.label}: position adjusted`);
-  };
-  elements.canvas.addEventListener("pointermove", move);
-  elements.canvas.addEventListener("pointerup", up);
-  elements.canvas.addEventListener("pointercancel", up);
+  startPointerSession({
+    target: elements.canvas,
+    pointerId: event.pointerId,
+    className: "is-node-dragging",
+    onMove: (moveEvent) => {
+      const point = toContent(moveEvent);
+      if (!point || !startPoint) return;
+      const candidate = getDraggedNodePosition(startPosition, startPoint, point);
+      const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
+      const previous = state.compare.nodePositions[side].get(node.id);
+      if (sameNodePosition(previous, snapped.position)) return;
+      state.compare.nodePositions[side].set(node.id, snapped.position);
+      renderAdjustedCompareSide(side);
+    },
+    onEnd: () => setStatus(`${side} ${node.label}: position adjusted`)
+  });
 }
 
 function renderAdjustedCompareSide(side) {
