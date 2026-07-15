@@ -7,6 +7,7 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
+import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeOverrides(options.nodePositions);
@@ -77,75 +78,6 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     height: bounds.height + margin,
     hasPositionOverrides: nodePositions.size > 0 || nodeSizes.size > 0
   };
-}
-
-function placeWireLabels(edges, nodes) {
-  const segments = edges.flatMap((edge) => getEdgeSegments(edge)
-    .map((segment) => ({ ...segment, edgeId: edge.id })));
-  const occupiedLabels = [];
-
-  return edges.map((edge) => {
-    const placement = findClearLabelPlacement(edge, segments, nodes, occupiedLabels);
-    if (!placement) return { ...edge, showLabel: false };
-    occupiedLabels.push(placement.box);
-    return {
-      ...edge,
-      labelPoint: placement.point,
-      labelAnchor: "middle",
-      showLabel: true
-    };
-  });
-}
-
-function findClearLabelPlacement(edge, segments, nodes, occupiedLabels) {
-  const label = String(edge.label || "");
-  if (!label) return null;
-  const labelWidth = Math.max(12, label.length * 6.5);
-  const horizontalSegments = getEdgeSegments(edge)
-    .filter((segment) => Math.abs(segment.start.y - segment.end.y) < 0.5)
-    .map((segment, index) => ({
-      ...segment,
-      index,
-      length: Math.abs(segment.end.x - segment.start.x)
-    }))
-    .filter((segment) => segment.length >= labelWidth + 16)
-    .toSorted((left, right) => right.index - left.index || right.length - left.length);
-
-  for (const segment of horizontalSegments) {
-    const centerX = (segment.start.x + segment.end.x) / 2;
-    for (const baselineOffset of [-8, 18, -26, 36]) {
-      const point = { x: centerX, y: segment.start.y + baselineOffset };
-      const box = {
-        left: centerX - labelWidth / 2 - 3,
-        right: centerX + labelWidth / 2 + 3,
-        top: point.y - 13,
-        bottom: point.y + 4
-      };
-      if (nodes.some((node) => boxesOverlap(box, {
-        left: node.x,
-        right: node.x + node.width,
-        top: node.y,
-        bottom: node.y + node.height
-      }))) continue;
-      if (occupiedLabels.some((occupied) => boxesOverlap(box, occupied))) continue;
-      if (segments.some((candidate) =>
-        !(candidate.edgeId === edge.id && sameSegment(candidate, segment)) &&
-        segmentIntersectsBox(candidate.start, candidate.end, box)
-      )) continue;
-      return { point, box };
-    }
-  }
-  return null;
-}
-
-function sameSegment(left, right) {
-  return left.start.x === right.start.x && left.start.y === right.start.y &&
-    left.end.x === right.end.x && left.end.y === right.end.y;
-}
-
-function boxesOverlap(left, right) {
-  return left.left < right.right && left.right > right.left &&
-    left.top < right.bottom && left.bottom > right.top;
 }
 
 function edgeNeedsReroute(edge, changedNodeIds, changedNodes) {

@@ -10,6 +10,7 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
+import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function routeSimpleEdges(graph, nodes, options) {
   const {
@@ -58,7 +59,8 @@ export function routeSimpleEdges(graph, nodes, options) {
     reservedSegments.push(...getRouteSegments(positionedEdge.points, edge.net));
   }
 
-  return graph.edges.map((edge) => routedById.get(edge.id) || edge);
+  const routedEdges = graph.edges.map((edge) => routedById.get(edge.id) || edge);
+  return placeWireLabels(routedEdges, nodes, { preferExisting: true });
 }
 
 function routeEdge(context) {

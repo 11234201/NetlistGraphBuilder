@@ -378,7 +378,7 @@ test("wire labels are placed near target pins", () => {
   const edge = laidOut.edges.find((candidate) => candidate.id === "edge:n1");
   const target = laidOut.nodes.find((node) => node.id === edge.target);
   const targetPoint = edge.points.at(-1);
-  assert.equal(edge.labelAnchor, "start");
+  assert.equal(edge.labelAnchor, "middle");
   assert.ok(edge.labelPoint.x < target.x);
   assert.ok(Math.abs(edge.labelPoint.y - targetPoint.y) <= 8);
   assert.ok(targetPoint.x - edge.labelPoint.x <= 110);

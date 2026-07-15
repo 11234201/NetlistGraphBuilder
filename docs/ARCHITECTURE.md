@@ -136,6 +136,8 @@ Layout policy:
   the shared routing contract and returns positioned edges; it does not move nodes.
 - `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
   violation codes instead of repeating one-off geometric assertions.
+- `src/layout/wireLabelPlacement.js` is the only wire-label collision and visibility policy. Simple,
+  Adjust and ELK may choose different segment ordering, but share label sizing and collision checks.
 - `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
   but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
 - `src/layout/positionedRouting.js` generates local reroutes after overrides. It may use different candidate

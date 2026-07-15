@@ -1,5 +1,6 @@
 import { buildNodePorts, computeBounds, getConnectionPoint, getPort, measureNode } from "./nodeGeometry.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
+import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
 
@@ -46,7 +47,7 @@ export class ElkLayoutProvider {
     });
     const elkEdgeById = new Map((result.edges || []).map((edge) => [edge.id, edge]));
     const positionedNodeById = new Map(positionedNodes.map((node) => [node.id, node]));
-    const positionedEdges = graph.edges.map((edge) => {
+    const routedEdges = graph.edges.map((edge) => {
       const rawPoints = getEdgePoints(elkEdgeById.get(edge.id));
       const source = positionedNodeById.get(edge.source);
       const target = positionedNodeById.get(edge.target);
@@ -57,15 +58,18 @@ export class ElkLayoutProvider {
           getConnectionPoint(target, edge.targetPin, "target")
         )
         : rawPoints;
-      const labelPlacement = getWireLabelPlacement(points, edge.label);
       return {
         ...edge,
         points,
-        labelPoint: labelPlacement.point,
-        labelAnchor: labelPlacement.anchor,
-        showLabel: labelPlacement.visible,
         routeKind: "elk-orthogonal"
       };
+    });
+    const positionedEdges = placeWireLabels(routedEdges, positionedNodes, {
+      order: "longest",
+      minimumPadding: 32,
+      baselineOffsets: [-5],
+      checkCollisions: false,
+      includeEmpty: true
     });
     const bounds = computeBounds(positionedNodes);
     const positionedGraph = {
@@ -78,39 +82,6 @@ export class ElkLayoutProvider {
     };
     return applyPositionedOverrides(positionedGraph, options);
   }
-}
-
-function getWireLabelPlacement(points, label) {
-  let best = null;
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    if (Math.abs(start.y - end.y) > 0.5) continue;
-    const length = Math.abs(end.x - start.x);
-    if (!best || length > best.length) {
-      best = { start, end, length };
-    }
-  }
-  if (!best) {
-    return {
-      point: points[Math.floor(points.length / 2)] || { x: 0, y: 0 },
-      anchor: "middle",
-      visible: false
-    };
-  }
-  const requiredLength = estimateLabelWidth(label) + 32;
-  return {
-    point: {
-      x: (best.start.x + best.end.x) / 2,
-      y: best.start.y - 5
-    },
-    anchor: "middle",
-    visible: best.length >= requiredLength
-  };
-}
-
-function estimateLabelWidth(label) {
-  return Math.max(12, String(label || "").length * 6.5);
 }
 
 function toElkNode(node) {
