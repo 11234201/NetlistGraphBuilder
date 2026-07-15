@@ -156,7 +156,8 @@ Layout policy:
 - `src/layout/simpleOrthogonalRouter.js` owns Simple candidate selection, scoring and segment reservation.
   It consumes the shared routing contract and returns positioned edges; it does not move nodes.
 - `src/layout/simpleRouteCandidates.js` owns Simple-specific candidate geometry and global fallback lanes.
-  The router chooses and reserves candidates without embedding their coordinate formulas.
+  The router chooses and reserves candidates without embedding their coordinate formulas. Global fallback
+  candidates have a fixed budget; their count must not grow unbounded with graph node count.
 - `src/layout/localOrthogonalRouter.js` owns Adjust candidate validation and scored selection. It reuses
   the shared route costs so a later local, conflict-free path can beat an earlier crossing path. It
   returns the selected candidate strategy as well as points, accepts immutable route context plus shared

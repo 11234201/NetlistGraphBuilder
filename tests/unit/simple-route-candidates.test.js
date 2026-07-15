@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   computeLevelBounds,
+  createGlobalLaneYCandidates,
   createBasicSimpleRouteCandidates,
-  createLocalObstacleCandidates
+  createLocalObstacleCandidates,
+  MAX_GLOBAL_LANE_CANDIDATES
 } from "../../src/layout/simpleRouteCandidates.js";
 
 const source = {
@@ -71,4 +73,17 @@ test("local obstacle candidates approach top pins vertically", () => {
     assert.equal(candidate.points.at(-2).x, targetPoint.x);
     assert.ok(candidate.points.at(-2).y < targetPoint.y);
   }
+});
+
+test("global fallback lane candidates stay bounded on large graphs", () => {
+  const nodes = Array.from({ length: 5000 }, (_, index) => ({
+    id: `n${index}`,
+    y: index * 100,
+    height: 40
+  }));
+
+  const lanes = createGlobalLaneYCandidates(nodes, 20, 48, 16, 24);
+
+  assert.ok(lanes.length <= MAX_GLOBAL_LANE_CANDIDATES);
+  assert.equal(lanes[0], 20);
 });

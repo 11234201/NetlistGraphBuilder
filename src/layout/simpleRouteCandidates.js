@@ -12,6 +12,8 @@ import {
   uniqueRoundedNumbers
 } from "./routeLaneCandidates.js";
 
+export const MAX_GLOBAL_LANE_CANDIDATES = 512;
+
 export function createBasicSimpleRouteCandidates(context) {
   const {
     source,
@@ -162,7 +164,13 @@ export function findObstacleAvoidingRoute(context) {
   const baseTargetLaneX = targetUsesVerticalApproach
     ? routeTargetPoint.x
     : getEscapeLaneX(target, targetPoint, "target", clearance);
-  const yCandidates = getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clearance);
+  const yCandidates = createGlobalLaneYCandidates(
+    nodes,
+    preferredLaneY,
+    margin,
+    lanePitch,
+    clearance
+  );
 
   for (const laneY of yCandidates) {
     const sourceLaneX = findClearVerticalLaneX(
@@ -237,7 +245,13 @@ function getEscapeLaneX(node, point, role, clearance) {
   return leftDistance <= rightDistance ? node.x - clearance : node.x + node.width + clearance;
 }
 
-function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clearance) {
+export function createGlobalLaneYCandidates(
+  nodes,
+  preferredLaneY,
+  margin,
+  lanePitch,
+  clearance
+) {
   const boxes = nodes.map((node) => ({
     top: node.y - clearance,
     bottom: node.y + node.height + clearance
@@ -245,7 +259,8 @@ function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clea
   const minTop = Math.min(...boxes.map((box) => box.top));
   const maxBottom = Math.max(...boxes.map((box) => box.bottom));
   const candidates = [preferredLaneY];
-  for (let index = 0; index < Math.max(4, nodes.length); index += 1) {
+  const outerAttempts = Math.min(256, Math.max(4, nodes.length));
+  for (let index = 0; index < outerAttempts; index += 1) {
     candidates.push(minTop - margin - index * lanePitch);
     candidates.push(maxBottom + margin + index * lanePitch);
   }
@@ -258,7 +273,8 @@ function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clea
     }
   }
   return uniqueRoundedNumbers(candidates).sort(
-    (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY));
+    (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY) ||
+      left - right).slice(0, MAX_GLOBAL_LANE_CANDIDATES);
 }
 
 function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {
