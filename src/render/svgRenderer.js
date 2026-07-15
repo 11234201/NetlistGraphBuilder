@@ -1,7 +1,9 @@
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { getLeafDisplayName } from "../layout/nodeGeometry.js";
+import { segmentsConflict } from "../layout/orthogonalRouting.js";
+import { RouteSegmentIndex } from "../layout/spatialIndex.js";
 
-const MAX_WIRE_CROSSING_EDGES = 1200;
+const MAX_WIRE_BRIDGES = 2000;
 
 export function renderSchematicSvg(graph) {
   const plan = createSchematicRenderPlan(graph);
@@ -77,62 +79,43 @@ function renderHubNode(node) {
 
 function findWireCrossings(edges) {
   const crossings = new Map();
-  // Crossing detection compares horizontal and vertical segment pairs. On a full,
-  // uncollapsed netlist the resulting bridges are both too dense to read and can
-  // monopolize the UI thread, so reserve them for schematics where they add value.
-  if (edges.length > MAX_WIRE_CROSSING_EDGES) {
-    return crossings;
-  }
-  const horizontalSegments = [];
-  const verticalSegments = [];
+  const segmentIndex = new RouteSegmentIndex();
+  let bridgeCount = 0;
 
   for (const edge of edges) {
     for (let index = 0; index < edge.points.length - 1; index += 1) {
       const start = edge.points[index];
       const end = edge.points[index + 1];
-      if (start.y === end.y && start.x !== end.x) {
-        horizontalSegments.push(normalizeSegment(edge, start, end, "horizontal"));
-      } else if (start.x === end.x && start.y !== end.y) {
-        verticalSegments.push(normalizeSegment(edge, start, end, "vertical"));
+      const orientation = start.y === end.y && start.x !== end.x
+        ? "horizontal"
+        : start.x === end.x && start.y !== end.y
+          ? "vertical"
+          : null;
+      if (!orientation) continue;
+      const segment = { start, end, edge, net: edge.net, orientation };
+      for (const existing of segmentIndex.querySegment(segment)) {
+        if (
+          existing.orientation === orientation ||
+          existing.edge.id === edge.id ||
+          existing.net === edge.net ||
+          !segmentsConflict(existing, segment)
+        ) continue;
+        const horizontal = orientation === "horizontal" ? segment : existing;
+        const vertical = orientation === "vertical" ? segment : existing;
+        addCrossing(crossings, horizontal.edge.id, {
+          x: vertical.start.x,
+          y: horizontal.start.y
+        });
+        bridgeCount += 1;
+        // Beyond this point bridges stop conveying useful information. Returning
+        // none avoids both a dense SVG and a data-dependent render-time cliff.
+        if (bridgeCount > MAX_WIRE_BRIDGES) return new Map();
       }
-    }
-  }
-
-  for (const horizontal of horizontalSegments) {
-    for (const vertical of verticalSegments) {
-      if (horizontal.edge.id === vertical.edge.id || horizontal.edge.net === vertical.edge.net) {
-        continue;
-      }
-      if (
-        vertical.x > horizontal.x1 &&
-        vertical.x < horizontal.x2 &&
-        horizontal.y > vertical.y1 &&
-        horizontal.y < vertical.y2
-      ) {
-        addCrossing(crossings, horizontal.edge.id, { x: vertical.x, y: horizontal.y });
-      }
+      segmentIndex.push(segment);
     }
   }
 
   return crossings;
-}
-
-function normalizeSegment(edge, start, end, orientation) {
-  if (orientation === "horizontal") {
-    return {
-      edge,
-      y: start.y,
-      x1: Math.min(start.x, end.x),
-      x2: Math.max(start.x, end.x)
-    };
-  }
-
-  return {
-    edge,
-    x: start.x,
-    y1: Math.min(start.y, end.y),
-    y2: Math.max(start.y, end.y)
-  };
 }
 
 function addCrossing(crossings, edgeId, crossing) {

@@ -67,7 +67,7 @@ test("simple layout bounds levels when a sequential graph contains a large feedb
   assert.ok(positioned.width < cellCount * 1000);
 });
 
-test("large render plans skip quadratic wire bridge detection", () => {
+test("large render plans index wire bridge detection without a threshold cliff", () => {
   const edges = Array.from({ length: 1201 }, (_, index) => ({
     id: `e${index}`,
     net: `n${index}`,
