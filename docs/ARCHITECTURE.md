@@ -145,6 +145,8 @@ Layout policy:
   testing or rendering. Providers must not maintain private polyline simplifiers.
 - `src/layout/routeCandidateValidation.js` applies that contract to candidate paths. Simple and Adjust
   share its orthogonality, node-clearance and endpoint checks; overlap rejection is an explicit option.
+- `src/layout/routeLaneCandidates.js` owns stable local Y-lane collection from node and reserved-wire
+  boundaries. Simple and Adjust must not maintain separate obstacle-boundary ordering rules.
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
   reservations; it does not inspect pixel geometry or generate route points.
 - `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.

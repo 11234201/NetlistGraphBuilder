@@ -6,6 +6,11 @@ import {
   routeCandidateIsUsable,
   routeSegmentIsClear
 } from "./routeCandidateValidation.js";
+import {
+  collectLocalLaneYs,
+  queryReservedSegments,
+  uniqueRoundedNumbers
+} from "./routeLaneCandidates.js";
 
 export function createBasicSimpleRouteCandidates(context) {
   const {
@@ -74,7 +79,15 @@ export function createBasicSimpleRouteCandidates(context) {
 }
 
 export function createLocalObstacleCandidates(context) {
-  const { source, target, sourcePoint, targetPoint, nodes } = context;
+  const {
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    reservedSegments,
+    net
+  } = context;
   const padding = 9;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint, padding);
   const forward = sourcePoint.x < routeTargetPoint.x;
@@ -103,14 +116,21 @@ export function createLocalObstacleCandidates(context) {
   const maxX = Math.max(sourceLaneX, targetLaneX);
   const relevantNodes = nodes.filter((node) =>
     node.x + node.width + padding > minX && node.x - padding < maxX);
-  const laneYs = uniqueRounded([
-    sourcePoint.y,
-    routeTargetPoint.y,
-    (sourcePoint.y + routeTargetPoint.y) / 2,
-    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding])
-  ]).toSorted((left, right) =>
-    localLaneCost(left, sourcePoint.y, routeTargetPoint.y) -
-    localLaneCost(right, sourcePoint.y, routeTargetPoint.y));
+  const minNodeY = Math.min(...nodes.map((node) => node.y));
+  const maxNodeY = Math.max(...nodes.map((node) => node.y + node.height));
+  const relevantSegments = queryReservedSegments(reservedSegments, {
+    left: minX - padding,
+    right: maxX + padding,
+    top: minNodeY - padding,
+    bottom: maxNodeY + padding
+  }, net);
+  const laneYs = collectLocalLaneYs({
+    sourceY: sourcePoint.y,
+    targetY: routeTargetPoint.y,
+    nodes: relevantNodes,
+    segments: relevantSegments,
+    padding
+  });
 
   return laneYs.map((laneY) => createRoute("obstacle-local", [
     sourcePoint,
@@ -208,10 +228,6 @@ function createRoute(kind, points) {
   return { kind, points: compactOrthogonalPoints(points) };
 }
 
-function localLaneCost(laneY, sourceY, targetY) {
-  return Math.abs(laneY - sourceY) + Math.abs(laneY - targetY);
-}
-
 function getEscapeLaneX(node, point, role, clearance) {
   const leftDistance = Math.abs(point.x - node.x);
   const rightDistance = Math.abs(point.x - (node.x + node.width));
@@ -241,7 +257,7 @@ function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clea
       candidates.push((previous.bottom + next.top) / 2);
     }
   }
-  return uniqueRounded(candidates).sort(
+  return uniqueRoundedNumbers(candidates).sort(
     (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY));
 }
 
@@ -256,8 +272,4 @@ function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {
     )) return x;
   }
   return preferredX;
-}
-
-function uniqueRounded(values) {
-  return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))];
 }

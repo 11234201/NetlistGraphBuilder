@@ -2,6 +2,10 @@ import {
   compactOrthogonalPoints,
   getTargetApproachPoint
 } from "./orthogonalRouting.js";
+import {
+  collectLocalLaneYs,
+  queryReservedSegments
+} from "./routeLaneCandidates.js";
 
 export function* iterateLocalRouteCandidates(context) {
   const {
@@ -80,23 +84,19 @@ function* iterateLocalDetours(
     top: minNodeY - padding,
     bottom: maxNodeY + padding
   });
-  const relevantSegments = getRelevantSegments(reservedSegments, {
+  const relevantSegments = queryReservedSegments(reservedSegments, {
     left: minRouteX - padding,
     right: maxRouteX + padding,
     top: minNodeY - padding,
     bottom: maxNodeY + padding
-  }).filter((segment) => segment.net !== net);
-  const laneYs = uniqueNumbers([
-    start.y,
-    end.y,
-    (start.y + end.y) / 2,
-    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding]),
-    ...relevantSegments.flatMap((segment) => [
-      Math.min(segment.start.y, segment.end.y) - padding,
-      Math.max(segment.start.y, segment.end.y) + padding
-    ])
-  ]).toSorted((left, right) =>
-    localDetourCost(left, start.y, end.y) - localDetourCost(right, start.y, end.y));
+  }, net);
+  const laneYs = collectLocalLaneYs({
+    sourceY: start.y,
+    targetY: end.y,
+    nodes: relevantNodes,
+    segments: relevantSegments,
+    padding
+  });
 
   for (const laneY of laneYs) {
     yield candidate("local-detour", [
@@ -109,17 +109,6 @@ function* iterateLocalDetours(
       finalEnd
     ]);
   }
-}
-
-function getRelevantSegments(reservedSegments, box) {
-  if (!reservedSegments) return [];
-  if (typeof reservedSegments.queryBox === "function") return reservedSegments.queryBox(box);
-  return Array.from(reservedSegments).filter((segment) =>
-    Math.max(segment.start.x, segment.end.x) >= box.left &&
-    Math.min(segment.start.x, segment.end.x) <= box.right &&
-    Math.max(segment.start.y, segment.end.y) >= box.top &&
-    Math.min(segment.start.y, segment.end.y) <= box.bottom
-  );
 }
 
 function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {
@@ -149,14 +138,6 @@ function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin)
 
 function candidate(kind, points) {
   return { kind, points: compactOrthogonalPoints(points) };
-}
-
-function localDetourCost(laneY, startY, endY) {
-  return Math.abs(laneY - startY) + Math.abs(laneY - endY);
-}
-
-function uniqueNumbers(values) {
-  return [...new Set(values.map((value) => Math.round(value * 1000) / 1000))];
 }
 
 function alternatingCandidates(center, pitch, count) {
