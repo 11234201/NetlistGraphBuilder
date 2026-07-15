@@ -1558,8 +1558,10 @@ function startCompareNodeDrag(event, side, node) {
       y: round(Math.max(16, startPosition.y + point.y - startPoint.y))
     };
     const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
+    const previous = state.compare.nodePositions[side].get(node.id);
+    if (previous?.x === snapped.position.x && previous?.y === snapped.position.y) return;
     state.compare.nodePositions[side].set(node.id, snapped.position);
-    renderCompareGraphs();
+    renderAdjustedCompareSide(side);
   };
   const up = () => {
     elements.canvas.classList.remove("is-node-dragging");
@@ -1571,6 +1573,25 @@ function startCompareNodeDrag(event, side, node) {
   elements.canvas.addEventListener("pointermove", move);
   elements.canvas.addEventListener("pointerup", up);
   elements.canvas.addEventListener("pointercancel", up);
+}
+
+function renderAdjustedCompareSide(side) {
+  const autoGraph = state.compare.autoGraphs[side];
+  if (!autoGraph) {
+    renderCompareGraphs();
+    return;
+  }
+  const graph = applyPositionedOverrides(autoGraph, {
+    nodePositions: state.compare.nodePositions[side],
+    nodeSizes: state.compare.nodeSizes[side],
+    layoutPolicy: state.layoutPolicy
+  });
+  state.compare.graphs[side] = graph;
+  const mount = side === "left" ? elements.leftMount : elements.rightMount;
+  mount.innerHTML = renderSchematicSvg(graph);
+  applyCompareHighlights();
+  applyCompareTransforms();
+  updateCalibrationControls();
 }
 
 function setCompareTransform(side, transform) {
