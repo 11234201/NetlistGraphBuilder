@@ -131,10 +131,13 @@ Layout policy:
   owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
   reservations; it does not inspect pixel geometry or generate route points.
+- `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.
+- `src/layout/simpleOrthogonalRouter.js` owns Simple-specific candidate generation and scoring. It consumes
+  the shared routing contract and returns positioned edges; it does not move nodes.
 - `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
   violation codes instead of repeating one-off geometric assertions.
-- `src/layout/simpleLayered.js` orchestrates layer assignment, topology ordering, placement passes and
-  route candidate selection. New geometry invariants must go into `orthogonalRouting.js`, not this file.
+- `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
+  but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
 - `src/layout/positionedRouting.js` generates local reroutes after overrides. It may use different candidate
   generation from Simple, but must apply the same shared routing contract.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
