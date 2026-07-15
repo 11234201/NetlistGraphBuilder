@@ -407,6 +407,7 @@ function renderCompareGraphs() {
 
 function commitCompareWorkspace(workspace, leftModule, rightModule) {
   state.compare.fullGraphs = workspace.fullGraphs;
+  state.compare.autoGraphs = workspace.autoGraphs;
   state.compare.graphs = workspace.graphs;
   state.compare.analysis = workspace.analysis;
   elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;

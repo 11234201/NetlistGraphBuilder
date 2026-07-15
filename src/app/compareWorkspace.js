@@ -4,6 +4,7 @@ import {
   buildWorkspaceGraph,
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
+import { layoutWorkspaceGraph } from "./layoutWorkspace.js";
 
 export function buildCompareWorkspace(options) {
   const {
@@ -62,15 +63,22 @@ export function buildCompareWorkspace(options) {
     });
   }
 
-  const leftLayout = layoutProvider.layout(sourceGraphs.left, {
-    layoutPolicy, nodePositions: nodePositions.left, nodeSizes: nodeSizes.left
+  const leftLayout = layoutWorkspaceGraph(sourceGraphs.left, {
+    layoutProvider,
+    layoutPolicy,
+    nodePositions: nodePositions.left,
+    nodeSizes: nodeSizes.left
   });
-  const rightLayout = layoutProvider.layout(sourceGraphs.right, {
-    layoutPolicy, nodePositions: nodePositions.right, nodeSizes: nodeSizes.right
+  const rightLayout = layoutWorkspaceGraph(sourceGraphs.right, {
+    layoutProvider,
+    layoutPolicy,
+    nodePositions: nodePositions.right,
+    nodeSizes: nodeSizes.right
   });
   const finalize = ([left, right]) => ({
     fullGraphs,
-    graphs: { left, right },
+    autoGraphs: { left: left.autoGraph, right: right.autoGraph },
+    graphs: { left: left.graph, right: right.graph },
     analysis: compareModules(leftModule, rightModule, sourceGraphs.left, sourceGraphs.right)
   });
   return isPromise(leftLayout) || isPromise(rightLayout)

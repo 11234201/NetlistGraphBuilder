@@ -67,8 +67,10 @@ test("compare workspace applies layout and graph overrides independently per sid
 
   const leftCell = workspace.graphs.left.nodes.find((node) => node.id === "cell:u0");
   const rightCell = workspace.graphs.right.nodes.find((node) => node.id === "cell:u1");
+  const autoLeftCell = workspace.autoGraphs.left.nodes.find((node) => node.id === "cell:u0");
   assert.equal(leftCell.label, "left-adjusted");
   assert.equal(leftCell.width, 210);
   assert.equal(rightCell.width, 170);
+  assert.notEqual(autoLeftCell.width, 210);
   assert.notEqual(rightCell.label, "left-adjusted");
 });

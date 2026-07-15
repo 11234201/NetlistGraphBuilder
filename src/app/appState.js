@@ -43,6 +43,7 @@ export function createCompareState() {
     leftModuleName: null,
     rightModuleName: null,
     graphs: { left: null, right: null },
+    autoGraphs: { left: null, right: null },
     fullGraphs: { left: null, right: null },
     transforms: {
       left: { x: 0, y: 0, scale: 1 },

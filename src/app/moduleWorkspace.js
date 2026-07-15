@@ -1,9 +1,9 @@
-import { applyPositionedOverrides } from "../layout/positionedRouting.js";
 import {
   applyWorkspaceGraphTransforms,
   buildWorkspaceGraph,
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
+import { layoutWorkspaceGraph } from "./layoutWorkspace.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -44,17 +44,13 @@ export function buildModuleWorkspace(options) {
     expandedGroupIds
   });
 
-  const layoutOptions = { layoutPolicy };
-  const layoutResult = layoutProvider.layout(displayGraph, layoutOptions);
-  const finalize = (autoGraph) => ({
-    fullGraph,
-    autoGraph,
-    graph: applyPositionedOverrides(autoGraph, {
-      ...layoutOptions,
-      nodePositions,
-      nodeSizes
-    })
+  const layoutResult = layoutWorkspaceGraph(displayGraph, {
+    layoutProvider,
+    layoutPolicy,
+    nodePositions,
+    nodeSizes
   });
+  const finalize = (layout) => ({ fullGraph, ...layout });
   return isPromise(layoutResult) ? layoutResult.then(finalize) : finalize(layoutResult);
 }
 
