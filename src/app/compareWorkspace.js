@@ -1,10 +1,9 @@
-import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
-import { createConeGraph } from "../analysis/graphCone.js";
-import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
-import { collapseLargeGraph } from "../analysis/groupCollapse.js";
 import { alignModulePorts, compareModules } from "../analysis/moduleCompare.js";
-import { buildSchematicGraph } from "../netlist/graph.js";
-import { annotateGraphTiming } from "../timing/timingAnnotation.js";
+import {
+  applyWorkspaceGraphTransforms,
+  buildWorkspaceGraph,
+  selectWorkspaceGraphView
+} from "./graphWorkspace.js";
 
 export function buildCompareWorkspace(options) {
   const {
@@ -27,14 +26,14 @@ export function buildCompareWorkspace(options) {
     moduleLibrary = []
   } = options;
   const fullGraphs = {
-    left: buildCompareGraph(leftModule, {
+    left: buildWorkspaceGraph(leftModule, {
       showAliases, timing,
       timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
       graphOverrides: graphOverrides.left,
       moduleLibrary
     }),
-    right: buildCompareGraph(rightModule, {
+    right: buildWorkspaceGraph(rightModule, {
       showAliases, timing,
       timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
@@ -48,15 +47,19 @@ export function buildCompareWorkspace(options) {
   if (outputName) {
     for (const side of ["left", "right"]) {
       const outputNodeId = findCompareNode(fullGraphs[side], "port", outputName, "output")?.id;
-      sourceGraphs[side] = createConeGraph(fullGraphs[side], outputNodeId, {
-        direction: "fanin",
+      sourceGraphs[side] = selectWorkspaceGraphView(fullGraphs[side], {
+        viewMode: "fanin",
+        rootNodeId: outputNodeId,
         maxDepth: coneDepth
       });
     }
   }
   for (const side of ["left", "right"]) {
-    if (useFanoutHubs) sourceGraphs[side] = simplifyFanoutWithHubs(sourceGraphs[side]);
-    if (collapseLargeGroups) sourceGraphs[side] = collapseLargeGraph(sourceGraphs[side], { expandedGroupIds });
+    sourceGraphs[side] = applyWorkspaceGraphTransforms(sourceGraphs[side], {
+      useFanoutHubs,
+      collapseLargeGroups,
+      expandedGroupIds
+    });
   }
 
   const leftLayout = layoutProvider.layout(sourceGraphs.left, {
@@ -101,21 +104,6 @@ export function getCompareNodeName(node) {
   return node.kind === "cell"
     ? node.ref?.instance || node.label
     : node.ref?.name || node.label;
-}
-
-function buildCompareGraph(module, options) {
-  const annotatedGraph = annotateGraphTiming(
-    buildSchematicGraph(module, {
-      overrides: options.graphOverrides,
-      moduleLibrary: options.moduleLibrary
-    }),
-    options.timing,
-    {
-      badgeChoices: options.timingBadgeChoices,
-      badgePositions: options.timingBadgePositions
-    }
-  );
-  return normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases });
 }
 
 function alignPortNodeOrder(graphs, alignedPorts) {
