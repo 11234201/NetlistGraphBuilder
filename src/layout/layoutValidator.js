@@ -8,12 +8,14 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
+import { createNodeSpatialIndex, segmentBox } from "./spatialIndex.js";
 
 export function validateLayoutGraph(graph, options = {}) {
   const violations = [];
   const nodes = graph.nodes || [];
   const edges = graph.edges || [];
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const nodeIndex = createNodeSpatialIndex(nodes);
   const checkObstacles = options.checkObstacles !== false;
   const checkOverlaps = options.checkOverlaps !== false;
 
@@ -45,7 +47,13 @@ export function validateLayoutGraph(graph, options = {}) {
       violations.push(violation(edge, "endpoint-body-crossing", "Route crosses an endpoint node body"));
     }
     if (checkObstacles) {
-      const blockedBy = findBlockingNode(points, nodes, source, target, options.nodePadding || 0);
+      const blockedBy = findBlockingNode(
+        points,
+        nodeIndex,
+        source,
+        target,
+        options.nodePadding || 0
+      );
       if (blockedBy) {
         violations.push(violation(
           edge,
@@ -61,11 +69,12 @@ export function validateLayoutGraph(graph, options = {}) {
   return violations;
 }
 
-function findBlockingNode(points, nodes, source, target, padding) {
-  for (const node of nodes) {
-    if (node.id === source.id || node.id === target.id) continue;
-    const box = nodeBox(node, padding);
-    for (let index = 0; index < points.length - 1; index += 1) {
+function findBlockingNode(points, nodeIndex, source, target, padding) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const segment = { start: points[index], end: points[index + 1] };
+    for (const node of nodeIndex.query(segmentBox(segment, padding))) {
+      if (node.id === source.id || node.id === target.id) continue;
+      const box = nodeBox(node, padding);
       if (orthogonalSegmentIntersectsBox(points[index], points[index + 1], box)) return node;
     }
   }

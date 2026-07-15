@@ -2,7 +2,6 @@ import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
 import {
   compactOrthogonalPoints,
-  countRouteConflicts,
   getRouteSegments,
   getTargetApproachPoint,
   nodeBox,
@@ -15,6 +14,7 @@ import {
   RouteSegmentIndex,
   segmentBox
 } from "./spatialIndex.js";
+import { compareRouteCandidates, scoreRouteCandidate } from "./routeScoring.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function routeSimpleEdges(graph, nodes, options) {
@@ -143,7 +143,7 @@ function routeEdge(context) {
   const basicCandidates = candidates.filter((candidate) =>
     isRouteUsable(candidate.points, nodeIndex, source, target, sourcePoint, targetPoint));
   const conflictFreeBasic = basicCandidates.filter((candidate) =>
-    countRouteConflicts(candidate.points, reservedSegments, net) === 0);
+    scoreRouteCandidate(candidate, { reservedSegments, net, edgeIntent }).crossings === 0);
   if (conflictFreeBasic.length > 0) {
     return chooseBestRoute(conflictFreeBasic, reservedSegments, net, edgeIntent);
   }
@@ -177,8 +177,7 @@ function routeEdge(context) {
 
 function chooseBestRoute(candidates, reservedSegments, net, edgeIntent) {
   return candidates.toSorted((left, right) =>
-    scoreRoute(left, reservedSegments, net, edgeIntent) -
-    scoreRoute(right, reservedSegments, net, edgeIntent))[0];
+    compareRouteCandidates(left, right, { reservedSegments, net, edgeIntent }))[0];
 }
 
 function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint, nodes) {
@@ -232,23 +231,6 @@ function createLocalObstacleCandidates(source, target, sourcePoint, targetPoint,
 
 function localLaneCost(laneY, sourceY, targetY) {
   return Math.abs(laneY - sourceY) + Math.abs(laneY - targetY);
-}
-
-function scoreRoute(candidate, reservedSegments, net, edgeIntent) {
-  const crossings = countRouteConflicts(candidate.points, reservedSegments, net);
-  const length = getRouteLength(candidate.points);
-  const bends = Math.max(0, candidate.points.length - 2);
-  const bendWeight = edgeIntent?.fanout > 1 && !edgeIntent.isPrimary ? 40 : 120;
-  return crossings * 100000 + bends * bendWeight + length;
-}
-
-function getRouteLength(points) {
-  let length = 0;
-  for (let index = 0; index < points.length - 1; index += 1) {
-    length += Math.abs(points[index + 1].x - points[index].x) +
-      Math.abs(points[index + 1].y - points[index].y);
-  }
-  return length;
 }
 
 function route(kind, points) {
