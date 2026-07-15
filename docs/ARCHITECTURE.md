@@ -200,6 +200,8 @@ Simple 和 Adjust 同时消费；软目标应增加 route score/golden 测试，
 
 Repository Verilog fixtures are also a hard-invariant gate: every module must remain orthogonal, attached
 to the correct pin side, clear of node bodies, and free of different-net collinear overlap.
+The same fixture pass enforces broad soft budgets for straight-route ratio, maximum bends and crossings;
+case-specific golden tests may impose tighter budgets.
 
 ### `src/render/`
 
