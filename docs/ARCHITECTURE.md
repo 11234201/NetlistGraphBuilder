@@ -114,6 +114,8 @@ LayoutProvider
 - `src/render/progressiveSvgRenderer.js` 只负责将 renderer plan 分批提交 DOM，不参与布局或图分析。
 - SVG wire-bridge detection uses the shared segment spatial index. Render complexity must not switch from
   indexed to all-pairs behavior at an arbitrary edge-count threshold.
+- Interactive drag previews may disable decorative wire bridges for the frame; gesture completion always
+  restores one full render. Routing geometry, labels and hit areas remain present in previews.
 - `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
 - `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
 

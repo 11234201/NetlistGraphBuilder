@@ -1295,7 +1295,7 @@ function startNodeDrag(event, nodeId) {
         nodeSizes: state.nodeSizes,
         layoutPolicy: state.layoutPolicy
       });
-      elements.mount.innerHTML = renderSchematicSvg(state.graph);
+      elements.mount.innerHTML = renderSchematicSvg(state.graph, { wireBridges: false });
       setSelectedNode(nodeId);
       applyTransform();
       updateCalibrationControls();
@@ -1318,7 +1318,12 @@ function startNodeDrag(event, nodeId) {
     onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => {
       dragFrames.flush();
-      if (moved) setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
+      if (moved) {
+        elements.mount.innerHTML = renderSchematicSvg(state.graph);
+        setSelectedNode(nodeId);
+        applyTransform();
+        setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
+      }
     }
   });
 }
@@ -1511,6 +1516,7 @@ function startCompareNodeDrag(event, side, node) {
   };
   const startPoint = toContent(event);
   const startPosition = { x: node.x, y: node.y };
+  let moved = false;
   const dragFrames = createLatestFrameScheduler((pointer) => {
     const point = toContent(pointer);
     if (!point || !startPoint) return;
@@ -1518,8 +1524,9 @@ function startCompareNodeDrag(event, side, node) {
     const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
     const previous = state.compare.nodePositions[side].get(node.id);
     if (sameNodePosition(previous, snapped.position)) return;
+    moved = true;
     state.compare.nodePositions[side].set(node.id, snapped.position);
-    renderAdjustedCompareSide(side);
+    renderAdjustedCompareSide(side, { wireBridges: false });
   });
   startPointerSession({
     target: elements.canvas,
@@ -1528,12 +1535,13 @@ function startCompareNodeDrag(event, side, node) {
     onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => {
       dragFrames.flush();
+      if (moved) renderAdjustedCompareSide(side);
       setStatus(`${side} ${node.label}: position adjusted`);
     }
   });
 }
 
-function renderAdjustedCompareSide(side) {
+function renderAdjustedCompareSide(side, renderOptions = {}) {
   const autoGraph = state.compare.autoGraphs[side];
   if (!autoGraph) {
     renderCompareGraphs();
@@ -1546,7 +1554,7 @@ function renderAdjustedCompareSide(side) {
   });
   state.compare.graphs[side] = graph;
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
-  mount.innerHTML = renderSchematicSvg(graph);
+  mount.innerHTML = renderSchematicSvg(graph, renderOptions);
   applyCompareHighlights();
   applyCompareTransforms();
   updateCalibrationControls();

@@ -6,15 +6,17 @@ import { RouteSegmentIndex } from "../layout/spatialIndex.js";
 
 const MAX_WIRE_BRIDGES = 2000;
 
-export function renderSchematicSvg(graph) {
-  const plan = createSchematicRenderPlan(graph);
+export function renderSchematicSvg(graph, options = {}) {
+  const plan = createSchematicRenderPlan(graph, options);
   return `${plan.openSvg}${plan.edges.join("")}${plan.betweenGroups}${plan.nodes.join("")}${plan.closeSvg}`;
 }
 
-export function createSchematicRenderPlan(graph) {
+export function createSchematicRenderPlan(graph, options = {}) {
   const width = Math.max(640, Math.ceil(graph.width || 640));
   const height = Math.max(420, Math.ceil(graph.height || 420));
-  const crossingByEdge = findWireCrossings(graph.edges);
+  const crossingByEdge = options.wireBridges === false
+    ? new Map()
+    : findWireCrossings(graph.edges);
   const edges = graph.edges.map((edge) => renderEdge(edge, crossingByEdge.get(edge.id) || []));
   const nodes = graph.nodes.map(renderNode);
   return {

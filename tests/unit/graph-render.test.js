@@ -1193,7 +1193,7 @@ test("svg marks cells and pins with critical timing", () => {
 });
 
 test("svg marks crossing wires with bridges", () => {
-  const svg = renderSchematicSvg({
+  const graph = {
     moduleDisplayName: "crossing",
     width: 220,
     height: 180,
@@ -1220,12 +1220,16 @@ test("svg marks crossing wires with bridges", () => {
         labelPoint: { x: 104, y: 82 }
       }
     ]
-  });
+  };
+  const svg = renderSchematicSvg(graph);
+  const previewSvg = renderSchematicSvg(graph, { wireBridges: false });
 
   assert.match(svg, /wire-hit-area/);
   assert.match(svg, /class="wire-hit-area"[^>]*pointer-events="stroke"/);
   assert.match(svg, /wire-bridge-cutout/);
   assert.match(svg, /wire-bridge/);
+  assert.doesNotMatch(previewSvg, /wire-bridge/);
+  assert.match(previewSvg, /class="wire"/);
 });
 
 test("same-net crossings do not render bridges", () => {
