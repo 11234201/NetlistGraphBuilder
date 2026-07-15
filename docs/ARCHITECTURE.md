@@ -135,6 +135,8 @@ Layout policy:
 - Placement modules may improve routing, but must not encode wire collision rules.
 - `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It
   owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
+- `src/layout/routeCandidateValidation.js` applies that contract to candidate paths. Simple and Adjust
+  share its orthogonality, node-clearance and endpoint checks; overlap rejection is an explicit option.
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
   reservations; it does not inspect pixel geometry or generate route points.
 - `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.

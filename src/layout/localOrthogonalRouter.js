@@ -1,11 +1,11 @@
 import {
-  collinearSegmentsOverlap,
   compactOrthogonalPoints,
-  getTargetApproachPoint,
-  routeFollowsEndpointSides,
-  routePreservesEndpointAccess
+  getTargetApproachPoint
 } from "./orthogonalRouting.js";
-import { createNodeSpatialIndex, segmentBox } from "./spatialIndex.js";
+import {
+  routeCandidateIsUsable
+} from "./routeCandidateValidation.js";
+import { createNodeSpatialIndex } from "./spatialIndex.js";
 
 export function routeLocalOrthogonalEdge(context) {
   const {
@@ -133,43 +133,10 @@ function routeAroundNodes(start, end, finalEnd, margin, context) {
 }
 
 function routeCandidateIsClear(points, context) {
-  for (let index = 0; index < points.length - 1; index += 1) {
-    if (!segmentClearOfNodes(points[index], points[index + 1], context)) return false;
-  }
-  if (!routePreservesEndpointAccess(points, context.source, context.target)) return false;
-  if (!routeFollowsEndpointSides(points, context.source, context.target)) return false;
-  return !segmentsOverlapReserved(points, context.net, context.reservedSegments);
-}
-
-function segmentClearOfNodes(start, end, context) {
-  if (start.x !== end.x && start.y !== end.y) return false;
-  const padding = 8;
-  const candidates = context.nodeIndex.query(segmentBox({ start, end }, padding));
-  if (start.y === end.y) {
-    const minX = Math.min(start.x, end.x);
-    const maxX = Math.max(start.x, end.x);
-    return candidates.every((node) => node.id === context.source.id || node.id === context.target.id
-      || start.y <= node.y - padding || start.y >= node.y + node.height + padding
-      || maxX <= node.x - padding || minX >= node.x + node.width + padding);
-  }
-  const minY = Math.min(start.y, end.y);
-  const maxY = Math.max(start.y, end.y);
-  return candidates.every((node) => node.id === context.source.id || node.id === context.target.id
-    || start.x <= node.x - padding || start.x >= node.x + node.width + padding
-    || maxY <= node.y - padding || minY >= node.y + node.height + padding);
-}
-
-function segmentsOverlapReserved(points, net, reservedSegments) {
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const candidate = { start: points[index], end: points[index + 1] };
-    const reservedCandidates = typeof reservedSegments.querySegment === "function"
-      ? reservedSegments.querySegment(candidate)
-      : reservedSegments;
-    for (const reserved of reservedCandidates) {
-      if (reserved.net !== net && collinearSegmentsOverlap(candidate, reserved)) return true;
-    }
-  }
-  return false;
+  return routeCandidateIsUsable(points, context, {
+    allowNodePaddingBoundary: true,
+    rejectReservedOverlaps: true
+  });
 }
 
 function localDetourCost(laneY, startY, endY) {

@@ -3,16 +3,15 @@ import { getConnectionPoint } from "./nodeGeometry.js";
 import {
   compactOrthogonalPoints,
   getRouteSegments,
-  getTargetApproachPoint,
-  nodeBox,
-  orthogonalSegmentIntersectsBox,
-  routeFollowsEndpointSides,
-  routePreservesEndpointAccess
+  getTargetApproachPoint
 } from "./orthogonalRouting.js";
 import {
+  routeCandidateIsUsable,
+  routeSegmentIsClear
+} from "./routeCandidateValidation.js";
+import {
   createNodeSpatialIndex,
-  RouteSegmentIndex,
-  segmentBox
+  RouteSegmentIndex
 } from "./spatialIndex.js";
 import { compareRouteCandidates, scoreRouteCandidate } from "./routeScoring.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
@@ -238,9 +237,13 @@ function route(kind, points) {
 }
 
 function isRouteUsable(points, nodeIndex, source, target, sourcePoint, targetPoint) {
-  return isRouteClear(points, nodeIndex, source, target) &&
-    routeFollowsEndpointSides(points, source, target, sourcePoint, targetPoint) &&
-    routePreservesEndpointAccess(points, source, target);
+  return routeCandidateIsUsable(points, {
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    nodeIndex
+  });
 }
 
 function findObstacleAvoidingRoute(
@@ -345,23 +348,13 @@ function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {
   const offsets = [0, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
   for (const offset of offsets) {
     const x = preferredX + offset;
-    if (!segmentHitsObstacle({ x, y: y1 }, { x, y: y2 }, nodeIndex, source, target)) return x;
+    if (routeSegmentIsClear(
+      { x, y: y1 },
+      { x, y: y2 },
+      { nodeIndex, source, target }
+    )) return x;
   }
   return preferredX;
-}
-
-function isRouteClear(points, nodeIndex, source, target) {
-  return points.every((point, index) => index === points.length - 1 ||
-    !segmentHitsObstacle(point, points[index + 1], nodeIndex, source, target));
-}
-
-function segmentHitsObstacle(start, end, nodeIndex, source, target) {
-  const padding = 8;
-  const segment = { start, end };
-  return nodeIndex.query(segmentBox(segment, padding)).some((node) =>
-    node.id !== source.id &&
-    node.id !== target.id &&
-    orthogonalSegmentIntersectsBox(start, end, nodeBox(node, padding)));
 }
 
 function uniqueRounded(values) {

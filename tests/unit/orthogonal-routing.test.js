@@ -6,6 +6,8 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "../../src/layout/orthogonalRouting.js";
+import { routeCandidateIsUsable } from "../../src/layout/routeCandidateValidation.js";
+import { createNodeSpatialIndex } from "../../src/layout/spatialIndex.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 
 const source = { id: "source", x: 0, y: 40, width: 80, height: 28 };
@@ -63,6 +65,38 @@ test("shared conflict counting treats crossings and overlaps consistently", () =
   assert.equal(countRouteConflicts([
     { x: 80, y: 54 }, { x: 200, y: 54 }
   ], reserved, "another"), 1);
+});
+
+test("candidate validation centralizes obstacles, endpoint sides and overlap policy", () => {
+  const blocker = { id: "blocker", x: 120, y: 62, width: 40, height: 40 };
+  const points = [{ x: 80, y: 54 }, { x: 200, y: 54 }];
+  const nodes = [source, target, blocker];
+  const context = {
+    source,
+    target,
+    sourcePoint: points[0],
+    targetPoint: points.at(-1),
+    nodes,
+    nodeIndex: createNodeSpatialIndex(nodes),
+    net: "candidate",
+    reservedSegments: [{
+      start: { x: 100, y: 54 },
+      end: { x: 180, y: 54 },
+      net: "other"
+    }]
+  };
+
+  assert.equal(routeCandidateIsUsable(points, context), false);
+  assert.equal(routeCandidateIsUsable(points, context, {
+    allowNodePaddingBoundary: true
+  }), true);
+  assert.equal(routeCandidateIsUsable(points, context, {
+    allowNodePaddingBoundary: true,
+    rejectReservedOverlaps: true
+  }), false);
+  assert.equal(routeCandidateIsUsable([
+    points[0], { x: 120, y: 70 }, points.at(-1)
+  ], context, { allowNodePaddingBoundary: true }), false);
 });
 
 test("layout validation reports stable route invariant codes", () => {
