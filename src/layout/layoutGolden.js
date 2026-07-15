@@ -1,3 +1,5 @@
+import { analyzeLayoutQuality, compareLayoutQuality } from "./layoutQuality.js";
+
 export function createLayoutGolden(graph, options = {}) {
   return {
     kind: "netlist-layout-golden",
@@ -14,6 +16,7 @@ export function createLayoutGolden(graph, options = {}) {
       width: round(node.width),
       height: round(node.height)
     })),
+    quality: analyzeLayoutQuality(graph),
     svgSnapshot: options.svgSnapshot || null
   };
 }
@@ -54,6 +57,7 @@ export function compareLayoutGraphs(baseGraph, adjustedGraph) {
       movedNodes.reduce((sum, item) => sum + item.distance, 0) / Math.max(1, movedNodes.length)
     ),
     sameLevelOrderChanges: compareSameLevelOrder(baseGraph, adjustedGraph),
+    quality: compareLayoutQuality(baseGraph, adjustedGraph),
     movedNodes
   };
 }
