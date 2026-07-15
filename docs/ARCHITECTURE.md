@@ -153,10 +153,12 @@ Layout policy:
   It consumes the shared routing contract and returns positioned edges; it does not move nodes.
 - `src/layout/simpleRouteCandidates.js` owns Simple-specific candidate geometry and global fallback lanes.
   The router chooses and reserves candidates without embedding their coordinate formulas.
-- `src/layout/localOrthogonalRouter.js` owns Adjust candidate validation and first-valid selection. It
+- `src/layout/localOrthogonalRouter.js` owns Adjust candidate validation and scored selection. It reuses
+  the shared route costs so a later local, conflict-free path can beat an earlier crossing path. It
   accepts immutable route context plus shared indexes and does not apply node overrides or place labels.
 - `src/layout/localRouteCandidates.js` lazily yields local, obstacle and outer-lane Adjust candidates in
-  policy order. The router validates candidates without owning coordinate formulas.
+  policy order. Local candidates include nearby reserved-wire boundaries before outer lanes; the router
+  validates candidates without owning coordinate formulas.
 - `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
   violation codes instead of repeating one-off geometric assertions.
 - `src/layout/wireLabelPlacement.js` is the only wire-label collision and visibility policy. Simple,

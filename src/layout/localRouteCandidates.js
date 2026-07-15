@@ -4,7 +4,17 @@ import {
 } from "./orthogonalRouting.js";
 
 export function* iterateLocalRouteCandidates(context) {
-  const { source, target, start, end, nodes, nodeIndex, margin } = context;
+  const {
+    source,
+    target,
+    start,
+    end,
+    nodes,
+    nodeIndex,
+    margin,
+    reservedSegments,
+    net
+  } = context;
   const routeEnd = getTargetApproachPoint(target, end);
 
   if (Math.abs(start.x - end.x) < 0.5 || (
@@ -33,11 +43,27 @@ export function* iterateLocalRouteCandidates(context) {
     }
   }
 
-  yield* iterateLocalDetours(start, routeEnd, end, nodes, nodeIndex);
+  yield* iterateLocalDetours(
+    start,
+    routeEnd,
+    end,
+    nodes,
+    nodeIndex,
+    reservedSegments,
+    net
+  );
   yield* iterateOuterLanes(start, routeEnd, end, source, target, nodes, margin);
 }
 
-function* iterateLocalDetours(start, end, finalEnd, nodes, nodeIndex) {
+function* iterateLocalDetours(
+  start,
+  end,
+  finalEnd,
+  nodes,
+  nodeIndex,
+  reservedSegments,
+  net
+) {
   const padding = 8;
   const forward = start.x < end.x;
   const horizontalGap = Math.abs(end.x - start.x);
@@ -54,11 +80,21 @@ function* iterateLocalDetours(start, end, finalEnd, nodes, nodeIndex) {
     top: minNodeY - padding,
     bottom: maxNodeY + padding
   });
+  const relevantSegments = getRelevantSegments(reservedSegments, {
+    left: minRouteX - padding,
+    right: maxRouteX + padding,
+    top: minNodeY - padding,
+    bottom: maxNodeY + padding
+  }).filter((segment) => segment.net !== net);
   const laneYs = uniqueNumbers([
     start.y,
     end.y,
     (start.y + end.y) / 2,
-    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding])
+    ...relevantNodes.flatMap((node) => [node.y - padding, node.y + node.height + padding]),
+    ...relevantSegments.flatMap((segment) => [
+      Math.min(segment.start.y, segment.end.y) - padding,
+      Math.max(segment.start.y, segment.end.y) + padding
+    ])
   ]).toSorted((left, right) =>
     localDetourCost(left, start.y, end.y) - localDetourCost(right, start.y, end.y));
 
@@ -73,6 +109,17 @@ function* iterateLocalDetours(start, end, finalEnd, nodes, nodeIndex) {
       finalEnd
     ]);
   }
+}
+
+function getRelevantSegments(reservedSegments, box) {
+  if (!reservedSegments) return [];
+  if (typeof reservedSegments.queryBox === "function") return reservedSegments.queryBox(box);
+  return Array.from(reservedSegments).filter((segment) =>
+    Math.max(segment.start.x, segment.end.x) >= box.left &&
+    Math.min(segment.start.x, segment.end.x) <= box.right &&
+    Math.max(segment.start.y, segment.end.y) >= box.top &&
+    Math.min(segment.start.y, segment.end.y) <= box.bottom
+  );
 }
 
 function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {

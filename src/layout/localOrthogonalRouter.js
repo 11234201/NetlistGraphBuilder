@@ -1,14 +1,21 @@
 import { iterateLocalRouteCandidates } from "./localRouteCandidates.js";
 import { routeCandidateIsUsable } from "./routeCandidateValidation.js";
+import { compareRouteCandidates, scoreRouteCandidate } from "./routeScoring.js";
 import { createNodeSpatialIndex } from "./spatialIndex.js";
 
 export function routeLocalOrthogonalEdge(context) {
   const nodeIndex = context.nodeIndex || createNodeSpatialIndex(context.nodes);
   const routeContext = { ...context, nodeIndex };
   let lastCandidate = null;
+  let bestUsableCandidate = null;
+  const scoreContext = {
+    reservedSegments: context.reservedSegments,
+    net: context.net,
+    edgeIntent: context.edgeIntent
+  };
   for (const candidate of iterateLocalRouteCandidates(routeContext)) {
     lastCandidate = candidate;
-    if (routeCandidateIsUsable(candidate.points, {
+    const usable = routeCandidateIsUsable(candidate.points, {
       source: context.source,
       target: context.target,
       nodes: context.nodes,
@@ -18,7 +25,13 @@ export function routeLocalOrthogonalEdge(context) {
     }, {
       allowNodePaddingBoundary: true,
       rejectReservedOverlaps: true
-    })) return candidate.points;
+    });
+    if (!usable) continue;
+    if (scoreRouteCandidate(candidate, scoreContext).crossings === 0) return candidate.points;
+    if (!bestUsableCandidate ||
+      compareRouteCandidates(candidate, bestUsableCandidate, scoreContext) < 0) {
+      bestUsableCandidate = candidate;
+    }
   }
-  return lastCandidate?.points || [context.start, context.end];
+  return bestUsableCandidate?.points || lastCandidate?.points || [context.start, context.end];
 }

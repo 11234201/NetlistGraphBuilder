@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { iterateLocalRouteCandidates } from "../../src/layout/localRouteCandidates.js";
-import { createNodeSpatialIndex } from "../../src/layout/spatialIndex.js";
+import { routeLocalOrthogonalEdge } from "../../src/layout/localOrthogonalRouter.js";
+import { createNodeSpatialIndex, RouteSegmentIndex } from "../../src/layout/spatialIndex.js";
 
 const source = { id: "source", x: 0, y: 40, width: 80, height: 28 };
 const target = { id: "target", x: 200, y: 40, width: 100, height: 60 };
@@ -54,4 +55,34 @@ test("reverse-direction connections start with a local detour", () => {
   assert.equal(result[0].kind, "local-detour");
   assert.deepEqual(result[0].points[0], { x: 440, y: 54 });
   assert.deepEqual(result[0].points.at(-1), { x: 200, y: 54 });
+});
+
+test("Adjust scoring chooses a local wire detour over a direct crossing", () => {
+  const reservedSegments = new RouteSegmentIndex([{
+    start: { x: 140, y: 20 },
+    end: { x: 140, y: 80 },
+    net: "reserved"
+  }]);
+  const context = {
+    source,
+    target,
+    start: { x: 80, y: 54 },
+    end: { x: 200, y: 54 },
+    nodes: [source, target],
+    nodeIndex: createNodeSpatialIndex([source, target]),
+    margin: 16,
+    net: "candidate",
+    reservedSegments
+  };
+
+  const points = routeLocalOrthogonalEdge(context);
+
+  assert.ok(points.length > 2);
+  assert.ok(points.some((point) => point.y >= 88));
+  assert.ok(points.every((point, index) => index === points.length - 1 || !(
+    point.y === points[index + 1].y &&
+    point.y > 20 && point.y < 80 &&
+    Math.min(point.x, points[index + 1].x) < 140 &&
+    Math.max(point.x, points[index + 1].x) > 140
+  )));
 });
