@@ -6,24 +6,13 @@ import {
   DEFAULT_CELL_PIN_PITCH,
   measureNode
 } from "./nodeGeometry.js";
+import { applyNodeSizeOverride } from "./nodeOverrides.js";
 import {
-  alignDrivenTargetsToDriverPins,
-  alignSingleConnectionEndpoints,
-  applyBranchAwareLanes
-} from "./nodeAlignment.js";
-import {
-  applyFanoutHubLocality,
-  applySingleFanoutInputLocality
-} from "./nodeLocality.js";
-import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
-import {
-  computeLevelXs,
-  resolveExternalSourceOverlaps,
-  resolveLevelOverlaps,
-  resolveOutputOverlaps
+  computeLevelXs
 } from "./nodeSpacing.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
+import { runSimplePlacementPipeline } from "./simplePlacementPipeline.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";
 
 export const DEFAULT_WIRE_LANE_PITCH = 18;
@@ -88,7 +77,7 @@ export function layoutGraph(graph, options = {}) {
     policy
   });
 
-  applyPlacementPasses({
+  runSimplePlacementPipeline({
     positionedNodes,
     graph,
     levelKeys,
@@ -97,7 +86,7 @@ export function layoutGraph(graph, options = {}) {
     topWireLanePitch,
     policy,
     nodePositions: options.nodePositions
-  });
+  }, { onStage: options.onPlacementStage });
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
@@ -160,56 +149,6 @@ function placeInitialNodes(context) {
     }
   }
   return positionedNodes;
-}
-
-function applyPlacementPasses(context) {
-  const {
-    positionedNodes,
-    graph,
-    levelKeys,
-    layoutIntent,
-    margin,
-    topWireLanePitch,
-    policy,
-    nodePositions
-  } = context;
-  const compactGap = Number(policy.spacing.compactYGap) || 8;
-  const fanoutGap = Number(policy.spacing.fanoutYGap) || 28;
-
-  if (policy.features.branchAwareLanes) {
-    applyBranchAwareLanes(
-      positionedNodes,
-      graph.edges,
-      levelKeys,
-      policy.spacing.branchTopY,
-      policy.spacing.branchLanePitch
-    );
-  }
-  if (policy.features.alignDrivenLinks) {
-    alignDrivenTargetsToDriverPins(positionedNodes, graph.edges, levelKeys, layoutIntent, margin);
-  }
-  resolveLevelOverlaps(
-    positionedNodes,
-    levelKeys,
-    margin,
-    compactGap,
-    layoutIntent,
-    fanoutGap
-  );
-  alignSingleConnectionEndpoints(positionedNodes, graph.edges, layoutIntent);
-  resolveExternalSourceOverlaps(positionedNodes, margin, compactGap);
-  applyFanoutHubLocality(positionedNodes, graph.edges, margin);
-  if (policy.features.localizeSingleFanoutInputs) {
-    applySingleFanoutInputLocality(
-      positionedNodes,
-      graph.edges,
-      margin,
-      layoutIntent,
-      topWireLanePitch
-    );
-  }
-  resolveOutputOverlaps(positionedNodes, margin);
-  applyNodePositionOverrides(positionedNodes, nodePositions);
 }
 
 function clamp(value, minimum, maximum) {

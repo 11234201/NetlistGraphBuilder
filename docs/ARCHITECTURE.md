@@ -160,6 +160,8 @@ Layout policy:
   not embed crossing/bend/length magic numbers.
 - `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
   but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
+- `src/layout/simplePlacementPipeline.js` owns the stable order of placement passes and exposes an optional
+  stage hook for diagnostics. Individual passes remain in their alignment, locality and spacing modules.
 - `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
   and labels. It contains no candidate-generation geometry.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
