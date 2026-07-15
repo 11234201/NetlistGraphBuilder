@@ -9,15 +9,19 @@ import {
 import {
   alignDrivenTargetsToDriverPins,
   alignSingleConnectionEndpoints,
-  applyBranchAwareLanes,
+  applyBranchAwareLanes
+} from "./nodeAlignment.js";
+import {
   applyFanoutHubLocality,
-  applySingleFanoutInputLocality,
+  applySingleFanoutInputLocality
+} from "./nodeLocality.js";
+import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
+import {
   computeLevelXs,
   resolveExternalSourceOverlaps,
   resolveLevelOverlaps,
   resolveOutputOverlaps
-} from "./nodePlacement.js";
-import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
+} from "./nodeSpacing.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";

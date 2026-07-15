@@ -1,4 +1,4 @@
-import { compareNodes } from "./nodePlacement.js";
+import { compareNodes } from "./nodePlacementShared.js";
 
 export function assignSimpleLevels(graph) {
   const levels = new Map();

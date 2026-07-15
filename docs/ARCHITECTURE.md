@@ -127,8 +127,12 @@ Layout policy:
 - `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
 - `src/layout/nodeOverrides.js` is the input boundary for manual node position and size overrides. It
   normalizes supported collection shapes and owns numeric validation and size limits.
-- `src/layout/nodePlacement.js` owns placement passes. Placement may improve routing, but must not encode
-  wire collision rules.
+- `src/layout/nodeAlignment.js` owns topology-driven vertical alignment and branch lanes.
+- `src/layout/nodeLocality.js` owns external-input and fanout-hub locality policies.
+- `src/layout/nodeSpacing.js` owns layer X spacing and node-overlap resolution.
+- `src/layout/nodePlacementShared.js` contains deterministic ordering and free-space helpers used by those
+  placement policies. `nodePlacement.js` remains only as a compatibility export barrel.
+- Placement modules may improve routing, but must not encode wire collision rules.
 - `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It
   owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
