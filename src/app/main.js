@@ -1,10 +1,5 @@
 ﻿import { parseVerilog } from "../parser/verilogParser.js";
-import { buildSchematicGraph } from "../netlist/graph.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
-import { createConeGraph } from "../analysis/graphCone.js";
-import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
-import { collapseLargeGraph } from "../analysis/groupCollapse.js";
-import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { recommendModulePair } from "../analysis/moduleCompare.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
@@ -18,7 +13,6 @@ import {
   buildDesignSearchIndex,
   searchDesignIndex
 } from "../search/designSearch.js";
-import { annotateGraphTiming } from "../timing/timingAnnotation.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
@@ -59,6 +53,7 @@ import {
   findCompareNode,
   getCompareNodeName
 } from "./compareWorkspace.js";
+import { buildModuleWorkspace } from "./moduleWorkspace.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 let sessionSaveTimer = null;
@@ -380,6 +375,7 @@ function renderCompareGraphs() {
   const leftModule = getCompareModule("left");
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
+  const requestId = ++state.layoutRequestId;
   const workspace = buildCompareWorkspace({
     leftModule,
     rightModule,
@@ -400,7 +396,6 @@ function renderCompareGraphs() {
     moduleLibrary: state.design.modules
   });
   if (isPromise(workspace)) {
-    const requestId = ++state.layoutRequestId;
     setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
     workspace.then((result) => {
       if (requestId === state.layoutRequestId) commitCompareWorkspace(result, leftModule, rightModule);
@@ -464,48 +459,42 @@ function selectModule(moduleName) {
 }
 
 function renderCurrentModuleGraph() {
-  const annotatedGraph = annotateGraphTiming(
-    buildSchematicGraph(state.currentModule, {
-      overrides: state.graphOverrides,
-      moduleLibrary: state.design.modules
-    }),
-    state.timing,
-    {
-      badgeChoices: state.timingBadgeChoices,
-      badgePositions: state.timingBadgePositions
-    }
-  );
-  state.fullGraph = normalizeGraphAliases(annotatedGraph, { showAliases: state.showAliases });
-  const sourceGraph = state.viewMode === "whole"
-    ? state.fullGraph
-    : createConeGraph(state.fullGraph, state.coneRootNodeId, {
-        direction: state.viewMode,
-        maxDepth: state.coneDepth
-      });
-  let simplifiedGraph = sourceGraph;
-  if (state.useFanoutHubs) simplifiedGraph = simplifyFanoutWithHubs(simplifiedGraph);
-  if (state.collapseLargeGroups) simplifiedGraph = collapseLargeGraph(simplifiedGraph, {
-    expandedGroupIds: state.expandedGroupIds
-  });
-  const layoutOptions = { layoutPolicy: state.layoutPolicy };
+  const requestId = ++state.layoutRequestId;
   const layoutProvider = getCurrentLayoutProvider();
-  const autoGraph = layoutProvider.layout(simplifiedGraph, layoutOptions);
-  const overrideOptions = {
-    ...layoutOptions,
+  const workspace = buildModuleWorkspace({
+    module: state.currentModule,
+    moduleLibrary: state.design.modules,
+    graphOverrides: state.graphOverrides,
+    timing: state.timing,
+    timingBadgeChoices: state.timingBadgeChoices,
+    timingBadgePositions: state.timingBadgePositions,
+    showAliases: state.showAliases,
+    viewMode: state.viewMode,
+    coneRootNodeId: state.coneRootNodeId,
+    coneDepth: state.coneDepth,
+    useFanoutHubs: state.useFanoutHubs,
+    collapseLargeGroups: state.collapseLargeGroups,
+    expandedGroupIds: state.expandedGroupIds,
+    layoutProvider,
+    layoutPolicy: state.layoutPolicy,
     nodePositions: state.nodePositions,
     nodeSizes: state.nodeSizes
-  };
-  if (isPromise(autoGraph)) {
-    const requestId = ++state.layoutRequestId;
+  });
+  if (isPromise(workspace)) {
     setStatus(`Layout (${layoutProvider.label})…`);
-    autoGraph.then((autoResult) => {
+    workspace.then((result) => {
       if (requestId === state.layoutRequestId) {
-        commitCurrentGraph(autoResult, applyPositionedOverrides(autoResult, overrideOptions));
+        commitCurrentWorkspace(result);
       }
     }).catch(handleLayoutFailure);
     return;
   }
-  commitCurrentGraph(autoGraph, applyPositionedOverrides(autoGraph, overrideOptions));
+  commitCurrentWorkspace(workspace);
+}
+
+function commitCurrentWorkspace(workspace) {
+  state.fullGraph = workspace.fullGraph;
+  commitCurrentGraph(workspace.autoGraph, workspace.graph);
 }
 
 function commitCurrentGraph(autoGraph, graph) {
