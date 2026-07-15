@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import test from "node:test";
 import { createConeGraph } from "../../src/analysis/graphCone.js";
+import { applyWorkspaceOverrides } from "../../src/app/layoutWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -24,11 +25,25 @@ test("concrete 1024-cell example supports a bounded output cone smoke flow", asy
   const cone = createConeGraph(graph, output.id, { direction: "fanin", maxDepth: 12 });
   const positioned = getLayoutProvider().layout(cone);
   const svg = renderSchematicSvg(positioned);
+  const movedNode = fullLayout.nodes.find((node) => node.label === "u_buf_512");
+  const adjustStartedAt = performance.now();
+  const adjusted = applyWorkspaceOverrides(fullLayout, {
+    nodePositions: new Map([[
+      movedNode.id,
+      { x: movedNode.x, y: movedNode.y + 96 }
+    ]])
+  });
+  const previewSvg = renderSchematicSvg(adjusted, { wireBridges: false });
+  const adjustElapsed = performance.now() - adjustStartedAt;
 
   assert.equal(module.cells.length, 1024);
   assert.equal(graph.edges.length, 1025);
   assert.equal(fullLayout.nodes.length, 1027);
   assert.ok(layoutElapsed < 5000, `whole layout took ${Math.round(layoutElapsed)}ms`);
+  assert.ok(adjustElapsed < 2000, `Adjust preview took ${Math.round(adjustElapsed)}ms`);
+  assert.ok(adjusted.edges.some((edge) => edge.routeStrategy));
+  assert.match(previewSvg, /u_buf_512/);
+  assert.doesNotMatch(previewSvg, /wire-bridge/);
   assert.equal(cone.nodes.length, 13);
   assert.match(svg, /large_buffer_chain_1024 schematic/);
   assert.match(svg, /u_buf_1023/);

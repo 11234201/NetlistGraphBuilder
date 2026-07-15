@@ -225,6 +225,8 @@ Repository Verilog fixtures are also a hard-invariant gate: every module must re
 to the correct pin side, clear of node bodies, and free of different-net collinear overlap.
 The same fixture pass enforces broad soft budgets for straight-route ratio, maximum bends and crossings;
 case-specific golden tests may impose tighter budgets.
+The checked-in 1024-cell chain also gates the interactive Adjust path: cached override, incremental reroute
+and bridge-free SVG preview must complete within the large-example smoke budget.
 
 ### `src/render/`
 
