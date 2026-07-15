@@ -161,6 +161,7 @@ Layout policy:
   violation codes instead of repeating one-off geometric assertions.
 - `src/layout/wireLabelPlacement.js` is the only wire-label collision and visibility policy. Simple,
   Adjust and ELK may choose different segment ordering, but share label sizing and collision checks.
+  Label collision ownership uses an explicit stable edge priority and never raw graph array order.
 - `src/layout/spatialIndex.js` provides the dynamic segment and static node indexes used by routing and
   label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
 - `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,

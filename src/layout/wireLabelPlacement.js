@@ -8,6 +8,7 @@ import {
   RouteSegmentIndex,
   SpatialHashIndex
 } from "./spatialIndex.js";
+import { compareGraphEdges } from "./layoutTopology.js";
 
 export function placeWireLabels(edges, nodes, options = {}) {
   const segments = edges.flatMap((edge) => getRouteSegments(edge.points || [], edge.net)
@@ -17,22 +18,31 @@ export function placeWireLabels(edges, nodes, options = {}) {
     segments: new RouteSegmentIndex(segments),
     labels: new SpatialHashIndex()
   };
-  return edges.map((edge) => {
-    if (edge.showLabel === false) return edge;
+  const placedById = new Map();
+  const compareEdges = options.compareEdges || compareGraphEdges;
+  for (const edge of edges.toSorted(compareEdges)) {
+    if (edge.showLabel === false) {
+      placedById.set(edge.id, edge);
+      continue;
+    }
     const placement = findClearLabelPlacement(
       edge,
       collisionIndexes,
       options
     );
-    if (!placement) return { ...edge, showLabel: false };
+    if (!placement) {
+      placedById.set(edge.id, { ...edge, showLabel: false });
+      continue;
+    }
     collisionIndexes.labels.insert(placement, placement.box);
-    return {
+    placedById.set(edge.id, {
       ...edge,
       labelPoint: placement.point,
       labelAnchor: placement.anchor,
       showLabel: true
-    };
-  });
+    });
+  }
+  return edges.map((edge) => placedById.get(edge.id) || edge);
 }
 
 export function estimateWireLabelWidth(label) {

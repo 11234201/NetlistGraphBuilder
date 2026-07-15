@@ -56,7 +56,10 @@ export function routeSimpleEdges(graph, nodes, options) {
   }
 
   const routedEdges = graph.edges.map((edge) => routedById.get(edge.id) || edge);
-  return placeWireLabels(routedEdges, nodes, { preferExisting: true });
+  return placeWireLabels(routedEdges, nodes, {
+    preferExisting: true,
+    compareEdges: (left, right) => compareEdgesByLayoutPriority(left, right, layoutIntent)
+  });
 }
 
 function routeEdge(context) {
