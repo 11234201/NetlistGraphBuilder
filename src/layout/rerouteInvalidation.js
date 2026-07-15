@@ -1,9 +1,8 @@
 import {
-  getRouteSegments,
   nodeBox,
   segmentIntersectsBox
 } from "./orthogonalRouting.js";
-import { RouteSegmentIndex } from "./spatialIndex.js";
+import { createEdgeRouteSegmentIndex } from "./routeSegmentIndex.js";
 
 export function collectRerouteEdgeIds(edges, changedNodes, changedNodeIds = null) {
   const changedIds = changedNodeIds || new Set(changedNodes.map((node) => node.id));
@@ -16,11 +15,7 @@ export function collectRerouteEdgeIds(edges, changedNodes, changedNodeIds = null
   if (changedNodes.length === 0) return rerouteEdgeIds;
 
   const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
-  const segmentIndex = new RouteSegmentIndex(edges.flatMap((edge) =>
-    getRouteSegments(edge.points || [], edge.net).map((segment) => ({
-      ...segment,
-      edgeId: edge.id
-    }))));
+  const segmentIndex = createEdgeRouteSegmentIndex(edges);
 
   for (const node of changedNodes) {
     const box = nodeBox(node, 8);

@@ -5,17 +5,15 @@ import {
 } from "./orthogonalRouting.js";
 import {
   createNodeSpatialIndex,
-  RouteSegmentIndex,
   SpatialHashIndex
 } from "./spatialIndex.js";
 import { compareGraphEdges } from "./layoutTopology.js";
+import { createEdgeRouteSegmentIndex } from "./routeSegmentIndex.js";
 
 export function placeWireLabels(edges, nodes, options = {}) {
-  const segments = edges.flatMap((edge) => getRouteSegments(edge.points || [], edge.net)
-    .map((segment) => ({ ...segment, edgeId: edge.id })));
   const collisionIndexes = {
     nodes: createNodeSpatialIndex(nodes),
-    segments: new RouteSegmentIndex(segments),
+    segments: createEdgeRouteSegmentIndex(edges),
     labels: new SpatialHashIndex()
   };
   const placedById = new Map();

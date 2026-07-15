@@ -1,6 +1,7 @@
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { getLeafDisplayName } from "../layout/nodeGeometry.js";
 import { segmentsConflict } from "../layout/orthogonalRouting.js";
+import { getEdgeRouteSegments } from "../layout/routeSegmentIndex.js";
 import { RouteSegmentIndex } from "../layout/spatialIndex.js";
 
 const MAX_WIRE_BRIDGES = 2000;
@@ -83,26 +84,20 @@ function findWireCrossings(edges) {
   let bridgeCount = 0;
 
   for (const edge of edges) {
-    for (let index = 0; index < edge.points.length - 1; index += 1) {
-      const start = edge.points[index];
-      const end = edge.points[index + 1];
-      const orientation = start.y === end.y && start.x !== end.x
-        ? "horizontal"
-        : start.x === end.x && start.y !== end.y
-          ? "vertical"
-          : null;
+    for (const edgeSegment of getEdgeRouteSegments(edge)) {
+      const { orientation } = edgeSegment;
       if (!orientation) continue;
-      const segment = { start, end, edge, net: edge.net, orientation };
+      const segment = edgeSegment;
       for (const existing of segmentIndex.querySegment(segment)) {
         if (
           existing.orientation === orientation ||
-          existing.edge.id === edge.id ||
+          existing.edgeId === edge.id ||
           existing.net === edge.net ||
           !segmentsConflict(existing, segment)
         ) continue;
         const horizontal = orientation === "horizontal" ? segment : existing;
         const vertical = orientation === "vertical" ? segment : existing;
-        addCrossing(crossings, horizontal.edge.id, {
+        addCrossing(crossings, horizontal.edgeId, {
           x: vertical.start.x,
           y: horizontal.start.y
         });

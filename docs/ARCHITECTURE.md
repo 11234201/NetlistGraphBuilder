@@ -169,6 +169,8 @@ Layout policy:
   Label collision ownership uses an explicit stable edge priority and never raw graph array order.
 - `src/layout/spatialIndex.js` provides the dynamic segment and static node indexes used by routing and
   label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
+- `src/layout/routeSegmentIndex.js` attaches edge ownership, segment order and orientation before indexing.
+  Renderer bridges, label collision and reroute invalidation share this metadata boundary.
 - `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,
   bends, length, detour, crossings, overlaps and hidden labels. Golden comparisons report metric deltas.
 - `src/layout/layoutGolden.js` version 2 stores stable node order plus per-edge route geometry and strategy.
