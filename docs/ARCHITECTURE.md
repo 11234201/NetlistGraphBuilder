@@ -140,8 +140,10 @@ Layout policy:
 - `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
   reservations; it does not inspect pixel geometry or generate route points.
 - `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.
-- `src/layout/simpleOrthogonalRouter.js` owns Simple-specific candidate generation and scoring. It consumes
-  the shared routing contract and returns positioned edges; it does not move nodes.
+- `src/layout/simpleOrthogonalRouter.js` owns Simple candidate selection, scoring and segment reservation.
+  It consumes the shared routing contract and returns positioned edges; it does not move nodes.
+- `src/layout/simpleRouteCandidates.js` owns Simple-specific candidate geometry and global fallback lanes.
+  The router chooses and reserves candidates without embedding their coordinate formulas.
 - `src/layout/localOrthogonalRouter.js` owns Adjust/local candidate generation. It accepts immutable route
   context plus shared indexes and does not apply node overrides or place labels.
 - `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
