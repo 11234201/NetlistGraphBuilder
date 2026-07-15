@@ -124,6 +124,8 @@ adjust 模式的 snap 计算属于 UI/layout 边界：UI 负责把 pointer movem
 Layout policy:
 
 - `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
+- Layout spacing and feature values are normalized once at the policy boundary. Algorithms consume the
+  normalized policy and must not add their own conflicting ranges or string/boolean coercion.
 - `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
 - `src/layout/nodeOverrides.js` is the input boundary for manual node position and size overrides. It
   normalizes supported collection shapes and owns numeric validation and size limits.

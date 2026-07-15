@@ -28,12 +28,8 @@ export function layoutGraph(graph, options = {}) {
   const policy = normalizeLayoutPolicy(options.layoutPolicy, options);
   const ySpacing = policy.spacing.y;
   const margin = policy.spacing.margin;
-  const cellPinPitch = clamp(Number(policy.spacing.cellPinPitch) || DEFAULT_CELL_PIN_PITCH, 18, 72);
-  const wireLanePitch = clamp(
-    Number(policy.spacing.wireLanePitch) || DEFAULT_WIRE_LANE_PITCH,
-    8,
-    48
-  );
+  const cellPinPitch = policy.spacing.cellPinPitch;
+  const wireLanePitch = policy.spacing.wireLanePitch;
   const topWireLanePitch = clamp(
     Number(options.topWireLanePitch) || Math.max(8, wireLanePitch - 2),
     8,
@@ -42,7 +38,7 @@ export function layoutGraph(graph, options = {}) {
   const levels = assignSimpleLevels(graph);
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   const routePlan = planSimpleRouting(graph, levels, layoutIntent);
-  const xSpacing = Number(policy.spacing.x) || 260;
+  const xSpacing = policy.spacing.x;
   const topWireSpace = options.topWireSpace || 80;
   const buckets = bucketNodesByLevel(graph.nodes, levels);
   const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
