@@ -10,6 +10,11 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
+import {
+  createNodeSpatialIndex,
+  RouteSegmentIndex,
+  segmentBox
+} from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function routeSimpleEdges(graph, nodes, options) {
@@ -21,9 +26,10 @@ export function routeSimpleEdges(graph, nodes, options) {
     margin
   } = options;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const nodeIndex = createNodeSpatialIndex(nodes);
   const levelBounds = computeLevelBounds(nodes);
   const routedById = new Map();
-  const reservedSegments = [];
+  const reservedSegments = new RouteSegmentIndex();
 
   for (const edge of graph.edges.toSorted((left, right) =>
     compareEdgesByLayoutPriority(left, right, layoutIntent))) {
@@ -40,6 +46,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       edgePlan: routePlan.edges.get(edge.id),
       levelBounds,
       nodes,
+      nodeIndex,
       wireLanePitch,
       topWireLanePitch,
       margin,
@@ -72,6 +79,7 @@ function routeEdge(context) {
     edgePlan,
     levelBounds,
     nodes,
+    nodeIndex,
     wireLanePitch,
     topWireLanePitch,
     margin,
@@ -133,7 +141,7 @@ function routeEdge(context) {
   }
 
   const basicCandidates = candidates.filter((candidate) =>
-    isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint));
+    isRouteUsable(candidate.points, nodeIndex, source, target, sourcePoint, targetPoint));
   const conflictFreeBasic = basicCandidates.filter((candidate) =>
     countRouteConflicts(candidate.points, reservedSegments, net) === 0);
   if (conflictFreeBasic.length > 0) {
@@ -148,7 +156,7 @@ function routeEdge(context) {
     nodes
   ));
   const usableCandidates = candidates.filter((candidate) =>
-    isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint));
+    isRouteUsable(candidate.points, nodeIndex, source, target, sourcePoint, targetPoint));
   if (usableCandidates.length > 0) {
     return chooseBestRoute(usableCandidates, reservedSegments, net, edgeIntent);
   }
@@ -162,7 +170,8 @@ function routeEdge(context) {
     nodes,
     topLaneY,
     margin,
-    topWireLanePitch
+    topWireLanePitch,
+    nodeIndex
   );
 }
 
@@ -246,8 +255,8 @@ function route(kind, points) {
   return { kind, points: compactOrthogonalPoints(points) };
 }
 
-function isRouteUsable(points, nodes, source, target, sourcePoint, targetPoint) {
-  return isRouteClear(points, nodes, source, target) &&
+function isRouteUsable(points, nodeIndex, source, target, sourcePoint, targetPoint) {
+  return isRouteClear(points, nodeIndex, source, target) &&
     routeFollowsEndpointSides(points, source, target, sourcePoint, targetPoint) &&
     routePreservesEndpointAccess(points, source, target);
 }
@@ -260,7 +269,8 @@ function findObstacleAvoidingRoute(
   nodes,
   preferredLaneY,
   margin,
-  lanePitch
+  lanePitch,
+  nodeIndex
 ) {
   const clearance = 24;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint, 9);
@@ -276,9 +286,9 @@ function findObstacleAvoidingRoute(
       baseSourceLaneX,
       sourcePoint.y,
       laneY,
-      nodes,
       source,
-      target
+      target,
+      nodeIndex
     );
     const targetLaneX = targetUsesVerticalApproach
       ? baseTargetLaneX
@@ -286,9 +296,9 @@ function findObstacleAvoidingRoute(
         baseTargetLaneX,
         routeTargetPoint.y,
         laneY,
-        nodes,
         source,
-        target
+        target,
+        nodeIndex
       );
     const candidate = route("obstacle-lane", [
       sourcePoint,
@@ -299,7 +309,7 @@ function findObstacleAvoidingRoute(
       routeTargetPoint,
       targetPoint
     ]);
-    if (isRouteUsable(candidate.points, nodes, source, target, sourcePoint, targetPoint)) {
+    if (isRouteUsable(candidate.points, nodeIndex, source, target, sourcePoint, targetPoint)) {
       return candidate;
     }
   }
@@ -349,23 +359,24 @@ function getGlobalLaneYCandidates(nodes, preferredLaneY, margin, lanePitch, clea
     (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY));
 }
 
-function findClearVerticalLaneX(preferredX, y1, y2, nodes, source, target) {
+function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {
   const offsets = [0, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
   for (const offset of offsets) {
     const x = preferredX + offset;
-    if (!segmentHitsObstacle({ x, y: y1 }, { x, y: y2 }, nodes, source, target)) return x;
+    if (!segmentHitsObstacle({ x, y: y1 }, { x, y: y2 }, nodeIndex, source, target)) return x;
   }
   return preferredX;
 }
 
-function isRouteClear(points, nodes, source, target) {
+function isRouteClear(points, nodeIndex, source, target) {
   return points.every((point, index) => index === points.length - 1 ||
-    !segmentHitsObstacle(point, points[index + 1], nodes, source, target));
+    !segmentHitsObstacle(point, points[index + 1], nodeIndex, source, target));
 }
 
-function segmentHitsObstacle(start, end, nodes, source, target) {
+function segmentHitsObstacle(start, end, nodeIndex, source, target) {
   const padding = 8;
-  return nodes.some((node) =>
+  const segment = { start, end };
+  return nodeIndex.query(segmentBox(segment, padding)).some((node) =>
     node.id !== source.id &&
     node.id !== target.id &&
     orthogonalSegmentIntersectsBox(start, end, nodeBox(node, padding)));

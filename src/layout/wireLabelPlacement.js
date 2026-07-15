@@ -3,22 +3,29 @@ import {
   nodeBox,
   orthogonalSegmentIntersectsBox
 } from "./orthogonalRouting.js";
+import {
+  createNodeSpatialIndex,
+  RouteSegmentIndex,
+  SpatialHashIndex
+} from "./spatialIndex.js";
 
 export function placeWireLabels(edges, nodes, options = {}) {
   const segments = edges.flatMap((edge) => getRouteSegments(edge.points || [], edge.net)
     .map((segment) => ({ ...segment, edgeId: edge.id })));
-  const occupiedLabels = [];
+  const collisionIndexes = {
+    nodes: createNodeSpatialIndex(nodes),
+    segments: new RouteSegmentIndex(segments),
+    labels: new SpatialHashIndex()
+  };
   return edges.map((edge) => {
     if (edge.showLabel === false) return edge;
     const placement = findClearLabelPlacement(
       edge,
-      segments,
-      nodes,
-      occupiedLabels,
+      collisionIndexes,
       options
     );
     if (!placement) return { ...edge, showLabel: false };
-    occupiedLabels.push(placement.box);
+    collisionIndexes.labels.insert(placement, placement.box);
     return {
       ...edge,
       labelPoint: placement.point,
@@ -32,7 +39,7 @@ export function estimateWireLabelWidth(label) {
   return Math.max(12, String(label || "").length * 6.5);
 }
 
-function findClearLabelPlacement(edge, segments, nodes, occupiedLabels, options) {
+function findClearLabelPlacement(edge, collisionIndexes, options) {
   const label = String(edge.label || "");
   if (!label && !options.includeEmpty) return null;
   const labelWidth = estimateWireLabelWidth(label);
@@ -47,7 +54,7 @@ function findClearLabelPlacement(edge, segments, nodes, occupiedLabels, options)
       anchor,
       box: labelBox(edge.labelPoint, labelWidth, anchor)
     };
-    if (placementIsClear(preferred, edge, null, segments, nodes, occupiedLabels, options)) {
+    if (placementIsClear(preferred, edge, null, collisionIndexes, options)) {
       return preferred;
     }
   }
@@ -61,9 +68,7 @@ function findClearLabelPlacement(edge, segments, nodes, occupiedLabels, options)
         placement,
         edge,
         segment,
-        segments,
-        nodes,
-        occupiedLabels,
+        collisionIndexes,
         options
       )) continue;
       return placement;
@@ -93,16 +98,16 @@ function placementIsClear(
   placement,
   edge,
   supportingSegment,
-  segments,
-  nodes,
-  occupiedLabels,
+  collisionIndexes,
   options
 ) {
   if (options.checkCollisions === false) return true;
   const box = placement.box;
-  if (nodes.some((node) => boxesOverlap(box, nodeBox(node)))) return false;
-  if (occupiedLabels.some((occupied) => boxesOverlap(box, occupied))) return false;
-  return !segments.some((candidate) =>
+  if (collisionIndexes.nodes.query(box)
+    .some((node) => boxesOverlap(box, nodeBox(node)))) return false;
+  if (collisionIndexes.labels.query(box)
+    .some((occupied) => boxesOverlap(box, occupied.box))) return false;
+  return !collisionIndexes.segments.queryBox(box).some((candidate) =>
     supportingSegment && candidate.edgeId === edge.id && sameSegment(candidate, supportingSegment)
       ? false
       : orthogonalSegmentIntersectsBox(candidate.start, candidate.end, box));

@@ -7,6 +7,7 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
+import { RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
@@ -36,9 +37,9 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const rerouteEdgeIds = new Set(positionedGraph.edges
     .filter((edge) => edgeNeedsReroute(edge, changedNodeIds, changedNodes))
     .map((edge) => edge.id));
-  const reservedSegments = positionedGraph.edges
+  const reservedSegments = new RouteSegmentIndex(positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
-    .flatMap((edge) => getEdgeSegments(edge));
+    .flatMap((edge) => getEdgeSegments(edge)));
   const routedEdges = positionedGraph.edges.map((edge) => {
     if (!rerouteEdgeIds.has(edge.id)) {
       return edge;
@@ -321,7 +322,10 @@ function getEdgeSegments(edge) {
 function segmentsOverlapReserved(points, net, reservedSegments) {
   for (let index = 0; index < points.length - 1; index += 1) {
     const candidate = { start: points[index], end: points[index + 1] };
-    for (const reserved of reservedSegments) {
+    const candidates = typeof reservedSegments.querySegment === "function"
+      ? reservedSegments.querySegment(candidate)
+      : reservedSegments;
+    for (const reserved of candidates) {
       if (reserved.net === net) continue;
       if (collinearSegmentsOverlap(candidate, reserved)) return true;
     }

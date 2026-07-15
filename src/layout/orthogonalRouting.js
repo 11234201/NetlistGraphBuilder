@@ -51,7 +51,10 @@ export function getRouteSegments(points, net) {
 export function countRouteConflicts(points, reservedSegments, net) {
   let conflicts = 0;
   for (const segment of getRouteSegments(points, net)) {
-    for (const reserved of reservedSegments) {
+    const candidates = typeof reservedSegments.querySegment === "function"
+      ? reservedSegments.querySegment(segment)
+      : reservedSegments;
+    for (const reserved of candidates) {
       if (reserved.net !== net && segmentsConflict(segment, reserved)) conflicts += 1;
     }
   }
