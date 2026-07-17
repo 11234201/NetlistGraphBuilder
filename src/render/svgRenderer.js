@@ -159,14 +159,20 @@ function renderGateNode(node) {
   const ports = renderGatePorts(node, x, y, width, gateKind);
   const timingClass = getTimingClass(node);
   const timingBadge = renderTimingBadge(node, x, y, width, height);
+  const navigationHint = node.referencedModuleName
+    ? `; double-click to open module ${node.referencedModuleName}`
+    : "";
   const cellTitle = node.subtitle
-    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}`)}</title>`
+    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`)}</title>`
     : "";
   const metadata = node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0
     ? `<text class="node-meta" x="${x + width / 2}" y="${y + height - 6}" text-anchor="middle">${escapeHtml(truncateText(node.metadataText, 34))}</text>`
     : "";
+  const referencedModuleAttribute = node.referencedModuleName
+    ? ` data-referenced-module="${escapeAttr(node.referencedModuleName)}"`
+    : "";
 
-  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
+  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${referencedModuleAttribute}>
     ${cellTitle}
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
     ${ports}

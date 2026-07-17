@@ -131,6 +131,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="netlistTextDialog"/);
   assert.match(html, /id="netlistTextInput"/);
   assert.match(html, /id="goldenInput"[^>]+accept="\.json,application\/json"/);
+  assert.match(html, /id="dropOverlay"/);
 });
 
 test("pasted design input rejects text without a module", () => {

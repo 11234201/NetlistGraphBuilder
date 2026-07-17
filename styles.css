@@ -225,6 +225,39 @@ textarea {
   color: white;
 }
 
+.drop-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 14px;
+  display: none;
+  place-items: center;
+  border: 3px dashed var(--accent);
+  background: rgb(231 243 244 / 92%);
+  color: var(--accent-strong);
+  pointer-events: none;
+}
+
+body.is-dragging-files .drop-overlay {
+  display: grid;
+}
+
+.drop-overlay > div {
+  display: grid;
+  gap: 7px;
+  padding: 24px 34px;
+  background: var(--panel-strong);
+  box-shadow: 0 12px 36px rgb(15 23 42 / 18%);
+  text-align: center;
+}
+
+.drop-overlay strong {
+  font-size: 20px;
+}
+
+.drop-overlay span {
+  color: var(--muted);
+}
+
 .toolbar-field {
   display: inline-flex;
   align-items: center;
@@ -736,6 +769,10 @@ textarea {
 
 .canvas.is-calibrating .node {
   cursor: move;
+}
+
+.canvas:not(.is-calibrating) .node.module {
+  cursor: zoom-in;
 }
 
 .canvas.is-node-dragging,

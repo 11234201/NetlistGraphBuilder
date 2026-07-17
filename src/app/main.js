@@ -65,9 +65,15 @@ import {
   applyLayoutGoldenState,
   resolveLayoutGoldenModule
 } from "./layoutGoldenImport.js";
+import {
+  detectQuickInputKind,
+  getQuickInputPriority
+} from "./quickInput.js";
+import { findReferencedModule } from "./moduleNavigation.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 let sessionSaveTimer = null;
+let fileDragDepth = 0;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -77,6 +83,7 @@ const elements = {
   netlistTextInput: document.querySelector("#netlistTextInput"),
   closeNetlistTextButton: document.querySelector("#closeNetlistTextButton"),
   cancelNetlistTextButton: document.querySelector("#cancelNetlistTextButton"),
+  dropOverlay: document.querySelector("#dropOverlay"),
   timingInput: document.querySelector("#timingInput"),
   goldenInput: document.querySelector("#goldenInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
@@ -177,6 +184,13 @@ elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize)
 elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
+elements.canvas.addEventListener("dblclick", handleCanvasDoubleClick);
+window.addEventListener("dragenter", handleWindowDragEnter);
+window.addEventListener("dragover", handleWindowDragOver);
+window.addEventListener("dragleave", handleWindowDragLeave);
+window.addEventListener("drop", handleWindowDrop);
+window.addEventListener("dragend", clearFileDragState);
+window.addEventListener("paste", handleGlobalPaste);
 window.addEventListener("beforeunload", () => {
   if (state.currentSource) saveSessionState(createSessionSnapshot(state));
 });
@@ -220,18 +234,7 @@ function setSidebarWidth(width) {
 }
 
 async function handleFileChange(event) {
-  const file = event.target.files?.[0];
-  if (!file) {
-    return;
-  }
-  try {
-    const text = await file.text();
-    loadDesign(text, file.name);
-  } catch {
-    // loadDesign reports the parse error while preserving the current schematic.
-  } finally {
-    event.target.value = "";
-  }
+  await handleInputFileChange(event, "netlist");
 }
 
 function openNetlistTextDialog() {
@@ -267,37 +270,153 @@ function handleNetlistTextSubmit(event) {
 }
 
 async function handleGoldenFileChange(event) {
+  await handleInputFileChange(event, "golden");
+}
+
+async function handleTimingFileChange(event) {
+  await handleInputFileChange(event, "timing");
+}
+
+async function handleInputFileChange(event, preferredKind) {
   const file = event.target.files?.[0];
   if (!file) return;
   try {
-    const imported = getLayoutGoldenState(await file.text());
-    loadLayoutGolden(imported, file.name);
+    await loadQuickInputFile(file, preferredKind);
   } catch (error) {
-    setStatus(`Golden load failed: ${error.message}`);
+    setStatus(`Load failed ${file.name}: ${error.message}`);
   } finally {
     event.target.value = "";
   }
 }
 
-async function handleTimingFileChange(event) {
-  const file = event.target.files?.[0];
-  if (!file) {
-    return;
-  }
+async function loadQuickInputFile(file, preferredKind = null) {
   const text = await file.text();
+  const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
+  loadQuickInputText(text, { kind, label: file.name });
+}
+
+function loadQuickInputText(text, options = {}) {
+  const kind = options.kind || detectQuickInputKind(text, { name: options.name });
+  const label = options.label || options.name || "quick input";
+  if (kind === "netlist") {
+    loadDesign(text, label);
+    return kind;
+  }
+  if (kind === "golden") {
+    loadLayoutGolden(getLayoutGoldenState(text), label);
+    return kind;
+  }
+
+  loadTimingText(text, label);
+  return kind;
+}
+
+function loadTimingText(text, label) {
   state.timing = parseTimingLog(text);
   resetTimingPresentation(state);
   if (state.compare.active) {
     renderCompareGraphs();
     renderStats();
-    setStatus(`Loaded timing ${file.name}: ${state.timing.instanceCount} instance(s)`);
+    setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
     return;
   }
   if (state.currentModule) {
     rerenderPreservingView(state.selectedNodeId);
     renderStats();
   }
-  setStatus(`Loaded timing ${file.name}: ${state.timing.instanceCount} instance(s)`);
+  setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
+}
+
+function handleWindowDragEnter(event) {
+  if (!carriesFiles(event)) return;
+  event.preventDefault();
+  fileDragDepth += 1;
+  showFileDropOverlay();
+}
+
+function handleWindowDragOver(event) {
+  if (!carriesFiles(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  showFileDropOverlay();
+}
+
+function handleWindowDragLeave(event) {
+  if (fileDragDepth === 0) return;
+  fileDragDepth = Math.max(0, fileDragDepth - 1);
+  if (fileDragDepth === 0) clearFileDragState();
+}
+
+function handleWindowDrop(event) {
+  if (!carriesFiles(event)) return;
+  event.preventDefault();
+  const files = Array.from(event.dataTransfer?.files || []);
+  clearFileDragState();
+  if (files.length === 0) return;
+  loadDroppedFiles(files).catch((error) => setStatus(`Drop failed: ${error.message}`));
+}
+
+async function loadDroppedFiles(files) {
+  const entries = await Promise.all(files.map(async (file, order) => {
+    const text = await file.text();
+    const kind = detectQuickInputKind(text, { name: file.name });
+    return { file, text, kind, order };
+  }));
+  entries.sort((left, right) =>
+    getQuickInputPriority(left.kind) - getQuickInputPriority(right.kind) || left.order - right.order);
+  for (const entry of entries) {
+    loadQuickInputText(entry.text, { kind: entry.kind, label: entry.file.name });
+  }
+}
+
+function handleGlobalPaste(event) {
+  if (elements.netlistTextDialog.open || isEditablePasteTarget(event.target)) return;
+  const files = Array.from(event.clipboardData?.files || []);
+  if (files.length > 0) {
+    event.preventDefault();
+    loadDroppedFiles(files).catch((error) => setStatus(`Paste failed: ${error.message}`));
+    return;
+  }
+
+  const text = event.clipboardData?.getData("text/plain") || "";
+  if (!text.trim()) return;
+  let kind;
+  try {
+    kind = detectQuickInputKind(text);
+  } catch {
+    return;
+  }
+  event.preventDefault();
+  const label = kind === "netlist"
+    ? "pasted Verilog"
+    : kind === "golden" ? "pasted Golden" : "pasted timing";
+  try {
+    loadQuickInputText(text, { kind, label });
+  } catch (error) {
+    setStatus(`Paste failed: ${error.message}`);
+  }
+}
+
+function showFileDropOverlay() {
+  document.body.classList.add("is-dragging-files");
+  elements.dropOverlay.setAttribute("aria-hidden", "false");
+}
+
+function clearFileDragState() {
+  fileDragDepth = 0;
+  document.body.classList.remove("is-dragging-files");
+  elements.dropOverlay.setAttribute("aria-hidden", "true");
+}
+
+function carriesFiles(event) {
+  return Array.from(event.dataTransfer?.types || []).includes("Files") ||
+    (event.dataTransfer?.files?.length || 0) > 0;
+}
+
+function isEditablePasteTarget(target) {
+  return target instanceof Element && Boolean(
+    target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")
+  );
 }
 
 function loadDesign(source, label, restore = null) {
@@ -1328,6 +1447,36 @@ function handlePointerDown(event) {
     onMove: (moveEvent) => panFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => panFrames.flush()
   });
+}
+
+function handleCanvasDoubleClick(event) {
+  const nodeElement = event.target.closest?.("[data-node-id]");
+  if (!nodeElement) return;
+
+  let node = null;
+  let sourceModule = state.currentModule;
+  if (state.compare.active) {
+    const side = event.target.closest?.("[data-compare-side]")?.dataset.compareSide;
+    if (!side) return;
+    node = state.compare.graphs[side]?.nodes.find((item) => item.id === nodeElement.dataset.nodeId);
+    sourceModule = getCompareModule(side);
+  } else {
+    node = state.graph?.nodes.find((item) => item.id === nodeElement.dataset.nodeId);
+  }
+  if (!node?.referencedModuleName) return;
+
+  const referencedModule = findReferencedModule(state.design, node);
+  if (!referencedModule) {
+    setStatus(`Module definition not found: ${node.referencedModuleName}`);
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (state.compare.active) exitCompareView();
+  const readyMessage = `Opened submodule ${referencedModule.displayName} from ${sourceModule?.displayName || "module"}.${node.label}`;
+  selectModule(referencedModule.name, { readyMessage });
+  setStatus(readyMessage);
 }
 
 function startNodeDrag(event, nodeId) {

@@ -756,9 +756,13 @@ endmodule`;
   assert.ok(graph.edges.some((edge) => edge.source === instance.id && edge.target === "output:y"));
   assert.ok(!graph.nodes.some((node) => node.id === "implicit:y"));
 
-  const positionedInstance = layoutGraph(graph).nodes.find((node) => node.id === instance.id);
+  const positionedGraph = layoutGraph(graph);
+  const positionedInstance = positionedGraph.nodes.find((node) => node.id === instance.id);
+  const svg = renderSchematicSvg(positionedGraph);
   assert.equal(positionedInstance.ports.find((port) => port.pin === "request").side, "left");
   assert.equal(positionedInstance.ports.find((port) => port.pin === "response").side, "right");
+  assert.match(svg, /data-referenced-module="leaf"/);
+  assert.match(svg, /double-click to open module leaf/);
 });
 
 test("packed vector ports drive and load their selected bits without implicit nodes", () => {
