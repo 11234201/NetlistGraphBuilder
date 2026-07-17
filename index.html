@@ -18,6 +18,7 @@
           <input id="fileInput" type="file" accept=".v,.sv,.txt">
           打开网表
         </label>
+        <button id="pasteNetlistButton" class="icon-button compact-button" type="button" title="粘贴一段 structural Verilog 网表">Paste</button>
         <label class="file-button" title="导入 LocResyn 时序信息">
           <input id="timingInput" type="file" accept=".log,.txt">
           导入时序
@@ -36,7 +37,11 @@
         <button id="fitButton" class="icon-button" type="button" title="适配视图">Fit</button>
         <button id="exportSvgButton" class="icon-button" type="button" title="导出当前 schematic SVG">SVG</button>
         <button id="adjustLayoutButton" class="icon-button" type="button" title="切换布局校准模式">Adjust</button>
-        <button id="saveGoldenButton" class="icon-button" type="button" title="导出当前布局 golden">Golden</button>
+        <button id="saveGoldenButton" class="icon-button" type="button" title="导出当前布局 Golden">Save G</button>
+        <label class="file-button compact-button" title="载入当前网表对应的布局 Golden">
+          <input id="goldenInput" type="file" accept=".json,application/json">
+          Load G
+        </label>
         <button id="resetLayoutButton" class="icon-button" type="button" title="清除手动布局调整">Reset</button>
       </header>
 
@@ -108,6 +113,26 @@
 
       <footer id="statusBar" class="status-bar">Ready</footer>
     </main>
+
+    <dialog id="netlistTextDialog" class="text-input-dialog" aria-labelledby="netlistTextTitle">
+      <form id="netlistTextForm" class="text-input-form">
+        <header>
+          <div>
+            <h2 id="netlistTextTitle">Paste Verilog</h2>
+            <p>粘贴 structural Verilog，解析成功后立即画图。</p>
+          </div>
+          <button id="closeNetlistTextButton" class="dialog-close" type="button" aria-label="关闭">&times;</button>
+        </header>
+        <textarea id="netlistTextInput" aria-label="Verilog netlist text" placeholder="module example (input a, output y);&#10;  BUF u0 (.A(a), .Y(y));&#10;endmodule" spellcheck="false" required></textarea>
+        <footer>
+          <span>Ctrl + Enter 快速画图</span>
+          <div>
+            <button id="cancelNetlistTextButton" class="dialog-button" type="button">Cancel</button>
+            <button class="dialog-button primary" type="submit">Draw</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
 
     <script type="module" src="./src/app/main.js"></script>
   </body>

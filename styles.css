@@ -32,20 +32,23 @@ body {
 
 button,
 select,
-input {
+input,
+textarea {
   font: inherit;
 }
 
 .app-shell {
   display: grid;
-  grid-template-rows: 52px 1fr 28px;
+  grid-template-rows: auto minmax(0, 1fr) 28px;
   height: 100vh;
 }
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 10px;
+  min-height: 52px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   background: var(--panel-strong);
@@ -96,6 +99,12 @@ input {
   cursor: pointer;
 }
 
+.compact-button {
+  min-width: 64px;
+  padding-right: 9px;
+  padding-left: 9px;
+}
+
 .file-button:hover,
 .icon-button:hover,
 .toolbar-field select:hover {
@@ -115,6 +124,105 @@ input {
 
 .file-button input {
   display: none;
+}
+
+.text-input-dialog {
+  width: min(780px, calc(100vw - 48px));
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+  box-shadow: 0 24px 70px rgb(15 23 42 / 28%);
+}
+
+.text-input-dialog::backdrop {
+  background: rgb(15 23 42 / 42%);
+}
+
+.text-input-form > header,
+.text-input-form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.text-input-form > header {
+  border-bottom: 1px solid var(--line);
+}
+
+.text-input-form h2,
+.text-input-form p {
+  margin: 0;
+}
+
+.text-input-form h2 {
+  font-size: 16px;
+}
+
+.text-input-form p,
+.text-input-form > footer > span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.text-input-form textarea {
+  display: block;
+  width: calc(100% - 32px);
+  min-height: min(52vh, 440px);
+  margin: 16px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  outline: none;
+  background: #fbfdff;
+  color: var(--text);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.text-input-form textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px #cce7ea;
+}
+
+.text-input-form > footer {
+  border-top: 1px solid var(--line);
+}
+
+.text-input-form > footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+.dialog-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 24px;
+}
+
+.dialog-button {
+  min-width: 82px;
+  height: 34px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dialog-button.primary {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  color: white;
 }
 
 .toolbar-field {

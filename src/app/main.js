@@ -1,7 +1,10 @@
-﻿import { parseVerilog } from "../parser/verilogParser.js";
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
 import { recommendModulePair } from "../analysis/moduleCompare.js";
-import { compareLayoutGraphs, createLayoutGolden } from "../layout/layoutGolden.js";
+import {
+  compareLayoutGraphs,
+  createLayoutGolden,
+  getLayoutGoldenState
+} from "../layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
@@ -57,13 +60,25 @@ import {
 } from "./compareWorkspace.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
 import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
+import { parseDesignSource } from "./designInput.js";
+import {
+  applyLayoutGoldenState,
+  resolveLayoutGoldenModule
+} from "./layoutGoldenImport.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 let sessionSaveTimer = null;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
+  pasteNetlistButton: document.querySelector("#pasteNetlistButton"),
+  netlistTextDialog: document.querySelector("#netlistTextDialog"),
+  netlistTextForm: document.querySelector("#netlistTextForm"),
+  netlistTextInput: document.querySelector("#netlistTextInput"),
+  closeNetlistTextButton: document.querySelector("#closeNetlistTextButton"),
+  cancelNetlistTextButton: document.querySelector("#cancelNetlistTextButton"),
   timingInput: document.querySelector("#timingInput"),
+  goldenInput: document.querySelector("#goldenInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
   layoutProviderSelect: document.querySelector("#layoutProviderSelect"),
   compareButton: document.querySelector("#compareButton"),
@@ -107,7 +122,13 @@ const elements = {
 };
 
 elements.fileInput.addEventListener("change", handleFileChange);
+elements.pasteNetlistButton.addEventListener("click", openNetlistTextDialog);
+elements.netlistTextForm.addEventListener("submit", handleNetlistTextSubmit);
+elements.netlistTextInput.addEventListener("keydown", handleNetlistTextKeydown);
+elements.closeNetlistTextButton.addEventListener("click", closeNetlistTextDialog);
+elements.cancelNetlistTextButton.addEventListener("click", closeNetlistTextDialog);
 elements.timingInput.addEventListener("change", handleTimingFileChange);
+elements.goldenInput.addEventListener("change", handleGoldenFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
@@ -203,8 +224,59 @@ async function handleFileChange(event) {
   if (!file) {
     return;
   }
-  const text = await file.text();
-  loadDesign(text, file.name);
+  try {
+    const text = await file.text();
+    loadDesign(text, file.name);
+  } catch {
+    // loadDesign reports the parse error while preserving the current schematic.
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function openNetlistTextDialog() {
+  if (!elements.netlistTextDialog.open) elements.netlistTextDialog.showModal();
+  requestAnimationFrame(() => elements.netlistTextInput.focus());
+}
+
+function closeNetlistTextDialog() {
+  if (elements.netlistTextDialog.open) elements.netlistTextDialog.close();
+}
+
+function handleNetlistTextKeydown(event) {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    elements.netlistTextForm.requestSubmit();
+  }
+}
+
+function handleNetlistTextSubmit(event) {
+  event.preventDefault();
+  const source = elements.netlistTextInput.value.trim();
+  if (!source) {
+    setStatus("Paste failed: Verilog text is empty");
+    elements.netlistTextInput.focus();
+    return;
+  }
+  try {
+    loadDesign(source, "pasted Verilog");
+    closeNetlistTextDialog();
+  } catch {
+    elements.netlistTextInput.focus();
+  }
+}
+
+async function handleGoldenFileChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const imported = getLayoutGoldenState(await file.text());
+    loadLayoutGolden(imported, file.name);
+  } catch (error) {
+    setStatus(`Golden load failed: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
 }
 
 async function handleTimingFileChange(event) {
@@ -229,8 +301,16 @@ async function handleTimingFileChange(event) {
 }
 
 function loadDesign(source, label, restore = null) {
+  let design;
   try {
-    state.design = parseVerilog(source);
+    design = parseDesignSource(source);
+  } catch (error) {
+    setStatus(`Parse failed: ${error.message}`);
+    throw error;
+  }
+
+  try {
+    state.design = design;
     state.currentSource = source;
     state.currentSourceLabel = label;
     resetDesignWorkspace(state);
@@ -245,29 +325,17 @@ function loadDesign(source, label, restore = null) {
     renderModuleOptions();
     const firstModule = state.design.modules.find((module) => module.name === restore?.moduleName)
       || state.design.modules[0];
-    if (firstModule) {
-      selectModule(firstModule.name);
-      if (restore?.viewMode && restore.viewMode !== "whole" && restore.coneRootNodeId) {
-        state.viewMode = restore.viewMode;
-        state.coneRootNodeId = restore.coneRootNodeId;
-        renderCurrentModuleGraph();
-      }
-      if (restore?.transform) state.transform = { ...restore.transform };
-      setStatus(`Loaded ${label}: ${state.design.modules.length} module(s)`);
-    } else {
-      state.currentModule = null;
-      state.autoGraph = null;
-      state.graph = null;
-      elements.mount.innerHTML = "";
-      updateCalibrationControls();
-      setStatus(`Loaded ${label}: no modules found`);
+    const readyMessage = `Loaded ${label}: ${state.design.modules.length} module(s)`;
+    selectModule(firstModule.name, { readyMessage });
+    if (restore?.viewMode && restore.viewMode !== "whole" && restore.coneRootNodeId) {
+      state.viewMode = restore.viewMode;
+      state.coneRootNodeId = restore.coneRootNodeId;
+      renderCurrentModuleGraph({ readyMessage });
     }
+    if (restore?.transform) state.transform = { ...restore.transform };
+    setStatus(readyMessage);
   } catch (error) {
-    state.autoGraph = null;
-    state.graph = null;
-    elements.mount.innerHTML = "";
-    updateCalibrationControls();
-    setStatus(`Parse failed: ${error.message}`);
+    setStatus(`Load failed: ${error.message}`);
     throw error;
   }
 }
@@ -434,7 +502,7 @@ function getCompareModule(side) {
   return state.design?.modules.find((module) => module.name === state.compare[`${side}ModuleName`]);
 }
 
-function selectModule(moduleName) {
+function selectModule(moduleName, options = {}) {
   const module = state.design.modules.find((item) => item.name === moduleName);
   if (!module) {
     return;
@@ -446,7 +514,7 @@ function selectModule(moduleName) {
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
   if (switchingModule) restoreModuleWorkspace(state, module.name);
-  renderCurrentModuleGraph();
+  renderCurrentModuleGraph(options);
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
   state.selectedNet = null;
@@ -457,7 +525,7 @@ function selectModule(moduleName) {
   applyTransform();
 }
 
-function renderCurrentModuleGraph() {
+function renderCurrentModuleGraph(options = {}) {
   const requestId = ++state.layoutRequestId;
   const layoutProvider = getCurrentLayoutProvider();
   const workspace = buildModuleWorkspace({
@@ -483,25 +551,25 @@ function renderCurrentModuleGraph() {
     setStatus(`Layout (${layoutProvider.label})…`);
     workspace.then((result) => {
       if (requestId === state.layoutRequestId) {
-        commitCurrentWorkspace(result);
+        commitCurrentWorkspace(result, options.readyMessage);
       }
     }).catch(handleLayoutFailure);
     return;
   }
-  commitCurrentWorkspace(workspace);
+  commitCurrentWorkspace(workspace, options.readyMessage);
 }
 
-function commitCurrentWorkspace(workspace) {
+function commitCurrentWorkspace(workspace, readyMessage = null) {
   state.fullGraph = workspace.fullGraph;
-  commitCurrentGraph(workspace.autoGraph, workspace.graph);
+  commitCurrentGraph(workspace.autoGraph, workspace.graph, readyMessage);
 }
 
-function commitCurrentGraph(autoGraph, graph) {
+function commitCurrentGraph(autoGraph, graph, readyMessage = null) {
   state.autoGraph = autoGraph;
   state.graph = graph;
   renderGraphMount(elements.mount, graph).then(() => {
     applyTransform();
-    setStatus(`Ready (${getCurrentLayoutProvider().label})`);
+    setStatus(readyMessage || `Ready (${getCurrentLayoutProvider().label})`);
   });
   updateCalibrationControls();
   updateViewControls();
@@ -1382,6 +1450,29 @@ function resetLayoutOverrides() {
   setStatus("Adjust overrides cleared");
 }
 
+function loadLayoutGolden(imported, label) {
+  const module = resolveLayoutGoldenModule(state.design, imported);
+
+  if (state.compare.active) exitCompareView();
+  if (state.currentModule?.name !== module.name) selectModule(module.name);
+  applyLayoutGoldenState(state, imported);
+
+  elements.coneDepthInput.value = String(state.coneDepth);
+  elements.wireSpacingInput.value = String(clamp(state.layoutPolicy.spacing.wireLanePitch, 8, 40));
+  elements.wireSpacingValue.value = elements.wireSpacingInput.value;
+  state.transform = { x: 0, y: 0, scale: 1 };
+  state.selectedNodeId = null;
+  state.selectedNet = null;
+  renderSelection(null);
+  updateViewControls();
+  renderCurrentModuleGraph({
+    readyMessage: `Loaded Golden ${label}: ${state.nodePositions.size} node position(s)`
+  });
+  renderStats();
+  renderDiagnostics();
+  updateCalibrationControls();
+}
+
 function saveLayoutGolden() {
   if (!state.graph || !state.currentModule) {
     return;
@@ -1393,7 +1484,15 @@ function saveLayoutGolden() {
       layoutPolicy: state.layoutPolicy,
       graphOverrides: state.graphOverrides,
       timingBadgeChoices: state.timingBadgeChoices,
-      timingBadgePositions: state.timingBadgePositions
+      timingBadgePositions: state.timingBadgePositions,
+      display: {
+        viewMode: state.viewMode,
+        coneRootNodeId: state.coneRootNodeId,
+        coneDepth: state.coneDepth,
+        useFanoutHubs: state.useFanoutHubs,
+        collapseLargeGroups: state.collapseLargeGroups,
+        expandedGroupIds: [...state.expandedGroupIds]
+      }
     },
     svgSnapshot: renderSchematicSvg(state.graph)
   });

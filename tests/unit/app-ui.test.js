@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   createAppState,
@@ -10,6 +11,7 @@ import {
   saveCompareWorkspace,
   saveModuleWorkspace
 } from "../../src/app/appState.js";
+import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
 import {
@@ -120,4 +122,18 @@ test("adjust panel escapes editable property values", () => {
 
   assert.match(html, /value="&lt;u0&gt;"/);
   assert.match(html, /value="BUF&amp;X"/);
+});
+
+test("lightweight inputs expose paste and Golden load controls", async () => {
+  const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
+
+  assert.match(html, /id="pasteNetlistButton"/);
+  assert.match(html, /id="netlistTextDialog"/);
+  assert.match(html, /id="netlistTextInput"/);
+  assert.match(html, /id="goldenInput"[^>]+accept="\.json,application\/json"/);
+});
+
+test("pasted design input rejects text without a module", () => {
+  assert.equal(parseDesignSource("module m(input a, output y); assign y = a; endmodule").modules[0].name, "m");
+  assert.throws(() => parseDesignSource("this is not a netlist"), /No module declarations found/);
 });
