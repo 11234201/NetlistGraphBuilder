@@ -14,7 +14,10 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 切换 Whole、Fanin Cone 和 Fanout Cone，并设置追踪深度。
 - 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
 - 导入 LocResyn timing 日志并显示 timing badge 和 critical 标记。
-- Adjust 模式下调整节点、属性和 pin direction，并导出 SVG 或 layout golden。
+- 支持文件选择、拖放、全局粘贴和 Paste 文本框，自动识别 Verilog、layout Golden 与 LocResyn timing 日志。
+- 支持保存和载入 layout Golden，快速复用人工调整后的节点、pin 和布线布局。
+- 识别层次化子 module 实例，双击实例可直接跳转到对应 module 定义。
+- Adjust 模式下调整节点、属性和 pin direction，并导出 SVG 或 layout Golden。
 - Simple/ELK 布局 provider 离线切换，大图渐进渲染、fanout hub、结构分组折叠和低缩放降细节。
 - 同一浏览器标签页刷新后恢复网表、module、cone、搜索、provider、布局选项和 pan/zoom。
 
@@ -62,7 +65,15 @@ python3 -u tools/serve.py
 
 然后打开 `http://127.0.0.1:4173/`。可以用 `HOST` 和 `PORT` 修改监听地址和端口，例如 `HOST=0.0.0.0 PORT=8080 npm start`。只有确实需要从局域网直接访问时才应监听 `0.0.0.0`；Remote-SSH 场景保持默认地址更安全。
 
-页面默认加载内置示例，也可以打开 `.v`、`.sv` 或 `.txt` 文件。
+页面默认加载内置示例。可以打开或拖入 `.v`、`.sv`、`.txt` 网表、`.json` layout Golden 和 `.log` timing 日志；鼠标不在输入框中时，也可以直接按 `Ctrl+V`，程序会自动识别剪贴板中的文件或文本。对于一小段临时网表，点击顶部 `Paste` 后粘贴文本即可立即画图。
+
+## 快速输入与层次浏览
+
+1. 点击“打开网表”、将文件拖到页面，或在页面上直接粘贴 Verilog 文本，均可快速载入网表。
+2. `Paste` 文本框适合复制一段小型 structural Verilog 后立即查看，不需要先保存成本地文件。
+3. 拖放和全局粘贴会自动区分 Verilog、layout Golden 与 LocResyn timing；同时提供多个文件时，会先载入网表，再应用与之配套的 Golden 和 timing。
+4. 点击 `Save G` 保存当前 layout Golden；先载入对应网表，再点击 `Load G`，即可恢复布局。Golden 必须与目标 module 匹配。
+5. 层次化网表中的子 module 实例可通过双击进入其 module 定义；使用 Module 下拉框可随时切换到其他 module。
 
 ## 示例文件
 
@@ -81,12 +92,13 @@ node tools/generate-large-example.mjs
 
 ## Single View 使用方法
 
-1. 点击“打开网表”加载 structural Verilog，然后从 Module 下拉框选择 module。
-2. 点击 node 或 wire，在 Selection 面板查看连接关系。
-3. 选中 node 后使用 Whole、Fanin、Fanout 和 Depth 查看逻辑 cone。
-4. 使用 `Show aliases` 控制 assign alias 是否显示。
-5. 点击 Adjust 后可拖动节点；点击 Golden 保存布局记录。
-6. 点击 SVG 导出当前完整 module 或 cone schematic。
+1. 载入 structural Verilog，然后从 Module 下拉框选择 module。
+2. 点击 node 或 wire，在 Selection 面板查看连接关系；选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
+3. 双击子 module 实例可直接跳转到对应 module 定义。
+4. 选中 node 后使用 Whole、Fanin、Fanout 和 Depth 查看逻辑 cone。
+5. 使用 `Show aliases` 控制 assign alias 是否显示。
+6. 点击 Adjust 后可拖动节点；使用 `Save G` 保存布局，使用 `Load G` 恢复与当前网表匹配的布局。
+7. 点击 SVG 导出当前完整 module 或 cone schematic。
 
 ## Compare View 使用方法
 

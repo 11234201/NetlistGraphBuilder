@@ -25,6 +25,7 @@ import {
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
 import { createLatestFrameScheduler } from "../ui/frameScheduler.js";
+import { hasPointerDragged } from "../ui/pointerGesture.js";
 import { startPointerSession } from "../ui/pointerSession.js";
 import {
   clientPointToViewBox,
@@ -1426,13 +1427,12 @@ function handlePointerDown(event) {
     return;
   }
 
-  setSelectedNode(null);
-
   const start = {
     x: event.clientX,
     y: event.clientY,
     transform: { ...state.transform }
   };
+  let didPan = false;
   const panFrames = createLatestFrameScheduler((point) => {
     const viewBox = svg.viewBox.baseVal;
     const rect = svg.getBoundingClientRect();
@@ -1444,8 +1444,15 @@ function handlePointerDown(event) {
     target: elements.canvas,
     pointerId: event.pointerId,
     className: "is-panning",
-    onMove: (moveEvent) => panFrames.schedule(pointerClientPoint(moveEvent)),
-    onEnd: () => panFrames.flush()
+    onMove: (moveEvent) => {
+      const point = pointerClientPoint(moveEvent);
+      didPan ||= hasPointerDragged(start, point);
+      panFrames.schedule(point);
+    },
+    onEnd: (endEvent) => {
+      panFrames.flush();
+      if (!didPan && endEvent?.type !== "pointercancel") setSelectedNode(null);
+    }
   });
 }
 
