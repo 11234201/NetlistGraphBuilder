@@ -622,6 +622,38 @@ body.is-dragging-files .drop-overlay {
   white-space: nowrap;
 }
 
+.selection-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  text-align: left;
+}
+
+.selection-link code {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #7eb6bb;
+  text-underline-offset: 2px;
+}
+
+.selection-link:hover code,
+.selection-link:focus-visible code {
+  color: #0f766e;
+  text-decoration-color: currentColor;
+}
+
+.selection-link:focus-visible {
+  outline: 2px solid #99d3d8;
+  outline-offset: 2px;
+}
+
+.selection-link-separator {
+  color: var(--muted);
+}
+
 .size-controls {
   display: grid;
   gap: 8px;

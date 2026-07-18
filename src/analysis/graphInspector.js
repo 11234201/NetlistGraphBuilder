@@ -30,9 +30,13 @@ function inspectTraversal(graph, node) {
 }
 
 function describeTraversal(label, cone, nodeById) {
+  const immediateTargets = cone.immediateNodeIds
+    .map((id) => createNodeTarget(nodeById.get(id)))
+    .filter(Boolean);
   return {
     label,
     immediate: cone.immediateNodeIds.map((id) => nodeById.get(id)?.label || id),
+    immediateTargets,
     transitiveCount: Math.max(0, cone.nodeIds.length - 1),
     maxDepth: cone.maxDepthReached
   };
@@ -41,8 +45,11 @@ function describeTraversal(label, cone, nodeById) {
 export function inspectGraphNet(graph, netName) {
   const edges = graph?.edges.filter((edge) => edge.net === netName) || [];
   const nodeById = new Map(graph?.nodes.map((node) => [node.id, node]) || []);
-  const drivers = uniqueValues(edges.map((edge) => describeEndpoint(nodeById.get(edge.source), edge.sourcePin)));
-  const loads = uniqueValues(edges.map((edge) => describeEndpoint(nodeById.get(edge.target), edge.targetPin)));
+  const driverTargets = uniqueTargets(edges.map((edge) => createNodeTarget(nodeById.get(edge.source), edge.sourcePin)));
+  const loadTargets = uniqueTargets(edges.map((edge) => createNodeTarget(nodeById.get(edge.target), edge.targetPin)));
+  const drivers = driverTargets.map((target) => target.label);
+  const loads = loadTargets.map((target) => target.label);
+  const netTarget = createNetTarget(netName, edges[0]?.label || netName);
 
   return {
     kind: "net",
@@ -54,8 +61,22 @@ export function inspectGraphNet(graph, netName) {
       ["Fanout", edges.length]
     ],
     connections: [
-      ...drivers.map((endpoint) => ({ pin: "driver", direction: "output", net: edges[0]?.label || netName, peers: endpoint })),
-      ...loads.map((endpoint) => ({ pin: "load", direction: "input", net: edges[0]?.label || netName, peers: endpoint }))
+      ...driverTargets.map((target) => ({
+        pin: "driver",
+        direction: "output",
+        net: edges[0]?.label || netName,
+        netTarget,
+        peers: target.label,
+        peerTargets: [target]
+      })),
+      ...loadTargets.map((target) => ({
+        pin: "load",
+        direction: "input",
+        net: edges[0]?.label || netName,
+        netTarget,
+        peers: target.label,
+        peerTargets: [target]
+      }))
     ]
   };
 }
@@ -100,14 +121,18 @@ function inspectPin(graph, node, pinName, netLabel, netName, direction) {
     return edge.target === node.id && edge.targetPin === pinName && (!netName || edge.net === netName);
   }) || [];
   const peers = direction === "output"
-    ? edges.map((edge) => describeEndpoint(nodeById.get(edge.target), edge.targetPin))
-    : edges.map((edge) => describeEndpoint(nodeById.get(edge.source), edge.sourcePin));
+    ? edges.map((edge) => createNodeTarget(nodeById.get(edge.target), edge.targetPin))
+    : edges.map((edge) => createNodeTarget(nodeById.get(edge.source), edge.sourcePin));
+  const peerTargets = uniqueTargets(peers);
+  const targetNetName = edges[0]?.net || netName;
 
   return {
     pin: pinName,
     direction: direction || "unknown",
     net: netLabel || edges[0]?.label || netName || "-",
-    peers: uniqueValues(peers).join(", ") || "-"
+    netTarget: createNetTarget(targetNetName, netLabel || edges[0]?.label || targetNetName),
+    peers: peerTargets.map((target) => target.label).join(", ") || "-",
+    peerTargets
   };
 }
 
@@ -125,6 +150,31 @@ function describeEndpoint(node, pin) {
   return pin ? `${node.label}.${pin}` : node.label;
 }
 
-function uniqueValues(values) {
-  return [...new Set(values.filter(Boolean))];
+function createNodeTarget(node, pin = null) {
+  if (!node) return null;
+  return {
+    kind: "node",
+    id: node.id,
+    label: describeEndpoint(node, pin)
+  };
+}
+
+function createNetTarget(name, label) {
+  if (!name || name === "-") return null;
+  return {
+    kind: "net",
+    name,
+    label: label || name
+  };
+}
+
+function uniqueTargets(targets) {
+  const seen = new Set();
+  return targets.filter((target) => {
+    if (!target) return false;
+    const key = `${target.kind}:${target.id || target.name}:${target.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

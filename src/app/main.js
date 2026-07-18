@@ -164,6 +164,7 @@ elements.searchInput.addEventListener("keydown", handleSearchKeydown);
 elements.searchInput.addEventListener("focus", handleSearchInput);
 elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
+elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
 elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
@@ -671,25 +672,27 @@ function renderCurrentModuleGraph(options = {}) {
     setStatus(`Layout (${layoutProvider.label})…`);
     workspace.then((result) => {
       if (requestId === state.layoutRequestId) {
-        commitCurrentWorkspace(result, options.readyMessage);
+        commitCurrentWorkspace(result, options);
       }
     }).catch(handleLayoutFailure);
     return;
   }
-  commitCurrentWorkspace(workspace, options.readyMessage);
+  commitCurrentWorkspace(workspace, options);
 }
 
-function commitCurrentWorkspace(workspace, readyMessage = null) {
+function commitCurrentWorkspace(workspace, options = {}) {
   state.fullGraph = workspace.fullGraph;
-  commitCurrentGraph(workspace.autoGraph, workspace.graph, readyMessage);
+  commitCurrentGraph(workspace.autoGraph, workspace.graph, options);
 }
 
-function commitCurrentGraph(autoGraph, graph, readyMessage = null) {
+function commitCurrentGraph(autoGraph, graph, options = {}) {
+  const { readyMessage = null, onRendered = null } = options;
   state.autoGraph = autoGraph;
   state.graph = graph;
   renderGraphMount(elements.mount, graph).then(() => {
     applyTransform();
     setStatus(readyMessage || `Ready (${getCurrentLayoutProvider().label})`);
+    onRendered?.(graph);
   });
   updateCalibrationControls();
   updateViewControls();
@@ -870,6 +873,90 @@ function clearSchematicSelection() {
   }
 }
 
+function handleSelectionNavigationClick(event) {
+  const button = event.target.closest?.("[data-selection-target-kind]");
+  if (!button) return;
+
+  const kind = button.dataset.selectionTargetKind;
+  const target = kind === "net"
+    ? { kind, name: button.dataset.selectionTargetName }
+    : { kind, id: button.dataset.selectionTargetId };
+  if ((kind === "net" && !target.name) || (kind === "node" && !target.id)) return;
+
+  event.preventDefault();
+  if (state.compare.active) navigateCompareSelectionTarget(target);
+  else navigateSingleSelectionTarget(target);
+}
+
+function navigateSingleSelectionTarget(target) {
+  if (focusSingleSelectionTarget(target)) return;
+  if (!selectionTargetExists(state.fullGraph, target)) {
+    setStatus("Connected object is no longer available in this module");
+    return;
+  }
+
+  state.viewMode = "whole";
+  state.transform = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  setStatus("Opening whole module to reveal the connected object…");
+  renderCurrentModuleGraph({
+    onRendered: () => {
+      if (!focusSingleSelectionTarget(target)) {
+        setStatus("Connected object is inside a collapsed group; expand the group to reveal it");
+      }
+    }
+  });
+}
+
+function focusSingleSelectionTarget(target) {
+  if (target.kind === "net") {
+    const edge = state.graph?.edges.find((item) => item.net === target.name);
+    if (!edge) return false;
+    setSelectedNet(target.name);
+    centerGraphPoint(getEdgeCenter(edge));
+    setStatus(`Connected net: ${edge.label || target.name}`);
+    return true;
+  }
+
+  const node = state.graph?.nodes.find((item) => item.id === target.id);
+  if (!node) return false;
+  setSelectedNode(node.id);
+  centerGraphPoint({
+    x: node.x + node.width / 2,
+    y: node.y + node.height / 2
+  }, node.width);
+  setStatus(`Connected ${node.kind}: ${node.label}`);
+  return true;
+}
+
+function selectionTargetExists(graph, target) {
+  if (target.kind === "net") return graph?.edges.some((edge) => edge.net === target.name) || false;
+  return graph?.nodes.some((node) => node.id === target.id) || false;
+}
+
+function navigateCompareSelectionTarget(target) {
+  const side = state.compare.selectedSide || "left";
+  const graph = state.compare.graphs[side];
+  if (target.kind === "net") {
+    if (!graph?.edges.some((edge) => edge.net === target.name)) {
+      setStatus("Connected net is outside the current compare cone");
+      return;
+    }
+    selectCompareObject("net", target.name, true, side);
+    setStatus(`Connected net: ${target.name}`);
+    return;
+  }
+
+  const node = graph?.nodes.find((item) => item.id === target.id);
+  if (!node) {
+    setStatus("Connected node is outside the current compare cone");
+    return;
+  }
+  const kind = node.kind === "cell" ? "cell" : "port";
+  selectCompareObject(kind, getCompareNodeName(node), true, side);
+  setStatus(`Connected ${node.kind}: ${node.label}`);
+}
+
 function handleSearchInput() {
   const query = elements.searchInput.value;
   state.searchQuery = query;
@@ -1025,7 +1112,7 @@ function centerGraphPoint(point, objectWidth = 100) {
 }
 
 function getEdgeCenter(edge) {
-  const points = edge.points || [];
+  const points = edge?.points || [];
   const middle = points[Math.floor(points.length / 2)];
   return middle || points[0] || null;
 }
@@ -1188,21 +1275,28 @@ function bindCompareSelectionControls(side, node) {
 }
 
 function focusCompareSelection(kind, name) {
-  if (kind === "net") return;
   for (const side of ["left", "right"]) {
     const graph = state.compare.graphs[side];
-    const node = findCompareNode(graph, kind, name);
     const svg = (side === "left" ? elements.leftMount : elements.rightMount).querySelector("svg");
-    if (!node || !svg) continue;
+    const node = kind === "net" ? null : findCompareNode(graph, kind, name);
+    const edgePoint = kind === "net"
+      ? getEdgeCenter(graph?.edges.find((edge) => edge.net === name))
+      : null;
+    if ((!node && !edgePoint) || !svg) continue;
+    const objectWidth = node?.width || 100;
+    const point = edgePoint || {
+      x: node.x + node.width / 2,
+      y: node.y + node.height / 2
+    };
     const scale = getReadableObjectScale({
       viewBoxWidth: svg.viewBox.baseVal.width,
       viewportWidth: svg.getBoundingClientRect().width,
-      objectWidth: node.width,
+      objectWidth,
       currentScale: state.compare.transforms[side].scale
     });
     state.compare.transforms[side] = {
-      x: svg.viewBox.baseVal.width / 2 - (node.x + node.width / 2) * scale,
-      y: svg.viewBox.baseVal.height / 2 - (node.y + node.height / 2) * scale,
+      x: svg.viewBox.baseVal.width / 2 - point.x * scale,
+      y: svg.viewBox.baseVal.height / 2 - point.y * scale,
       scale
     };
   }

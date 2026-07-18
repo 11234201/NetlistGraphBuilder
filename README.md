@@ -11,6 +11,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
 - 搜索 module、port、net、instance 和 cell type，并定位图中对象。
 - 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
+- Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
 - 切换 Whole、Fanin Cone 和 Fanout Cone，并设置追踪深度。
 - 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
 - 导入 LocResyn timing 日志并显示 timing badge 和 critical 标记。
@@ -93,7 +94,7 @@ node tools/generate-large-example.mjs
 ## Single View 使用方法
 
 1. 载入 structural Verilog，然后从 Module 下拉框选择 module。
-2. 点击 node 或 wire，在 Selection 面板查看连接关系；选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
+2. 点击 node 或 wire，在 Selection 面板查看连接关系；点击其中的 net、Connected、Fanin 或 Fanout 项可快速选中并居中对应对象。选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
 3. 双击子 module 实例可直接跳转到对应 module 定义。
 4. 选中 node 后使用 Whole、Fanin、Fanout 和 Depth 查看逻辑 cone。
 5. 使用 `Show aliases` 控制 assign alias 是否显示。

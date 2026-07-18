@@ -23,10 +23,15 @@ test("graph inspector reports cell pin nets and connected endpoints", () => {
 
   assert.equal(input.net, "a");
   assert.equal(input.peers, "a.a");
+  assert.deepEqual(input.netTarget, { kind: "net", name: "a", label: "a" });
+  assert.deepEqual(input.peerTargets, [{ kind: "node", id: "input:a", label: "a.a" }]);
   assert.equal(output.net, "n");
   assert.match(output.peers, /u1\.A/);
   assert.match(output.peers, /u2\.A/);
   assert.deepEqual(inspection.traversal[0].immediate, ["a"]);
+  assert.deepEqual(inspection.traversal[0].immediateTargets, [
+    { kind: "node", id: "input:a", label: "a" }
+  ]);
   assert.equal(inspection.traversal[1].transitiveCount, 4);
 });
 
@@ -42,6 +47,8 @@ test("graph inspector reports net driver, loads, and escaped HTML", () => {
   assert.match(inspection.summary[2][1], /u0\.Z/);
   assert.match(inspection.summary[3][1], /u1\.A/);
   assert.match(html, /Connections/);
+  assert.match(html, /data-selection-target-kind="net"/);
+  assert.match(html, /data-selection-target-id="cell:u0"/);
   assert.match(html, /&lt;P&gt;/);
   assert.match(html, /a&amp;b/);
 });

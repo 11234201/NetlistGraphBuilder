@@ -1,4 +1,4 @@
-import { escapeHtml, renderDefinitionRows } from "./html.js";
+import { escapeAttr, escapeHtml, renderDefinitionRows } from "./html.js";
 
 export function renderObjectDetails(inspection) {
   if (!inspection) {
@@ -13,7 +13,7 @@ function renderTraversal(traversal) {
   }
   const rows = traversal.map((item) => `<tr>
     <th>${escapeHtml(item.label)}</th>
-    <td>${escapeHtml(item.immediate.join(", ") || "-")}</td>
+    <td>${renderTargets(item.immediateTargets, item.immediate.join(", ") || "-")}</td>
     <td>${escapeHtml(item.transitiveCount)}</td>
     <td>${escapeHtml(item.maxDepth)}</td>
   </tr>`).join("");
@@ -35,8 +35,8 @@ function renderConnections(connections) {
   const rows = connections.map((connection) => `<tr>
     <td><code>${escapeHtml(connection.pin)}</code></td>
     <td>${escapeHtml(connection.direction)}</td>
-    <td><code>${escapeHtml(connection.net)}</code></td>
-    <td><code>${escapeHtml(connection.peers)}</code></td>
+    <td>${renderTarget(connection.netTarget, connection.net)}</td>
+    <td>${renderTargets(connection.peerTargets, connection.peers)}</td>
   </tr>`).join("");
 
   return `<section class="connection-section">
@@ -48,4 +48,18 @@ function renderConnections(connections) {
       </table>
     </div>
   </section>`;
+}
+
+function renderTargets(targets, fallback = "-") {
+  if (!targets?.length) return `<code>${escapeHtml(fallback || "-")}</code>`;
+  return targets.map((target) => renderTarget(target)).join(`<span class="selection-link-separator">, </span>`);
+}
+
+function renderTarget(target, fallback = "-") {
+  if (!target) return `<code>${escapeHtml(fallback || "-")}</code>`;
+  const valueAttribute = target.kind === "net"
+    ? `data-selection-target-name="${escapeAttr(target.name)}"`
+    : `data-selection-target-id="${escapeAttr(target.id)}"`;
+  const label = target.label || target.name || target.id || fallback;
+  return `<button class="selection-link" type="button" data-selection-target-kind="${escapeAttr(target.kind)}" ${valueAttribute} title="定位到 ${escapeAttr(label)}"><code>${escapeHtml(label)}</code></button>`;
 }
