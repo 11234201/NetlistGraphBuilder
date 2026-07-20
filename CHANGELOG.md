@@ -2,6 +2,35 @@
 
 本项目使用语义化版本号。
 
+## [0.5.0] - 2026-07-20
+
+轻量输入、层次浏览和布局稳定性版本。
+
+### Added
+
+- 支持 Paste 文本输入、文件拖放和页面全局粘贴，自动识别 Verilog、layout Golden 与 LocResyn timing。
+- 支持载入 layout Golden，并保存/恢复节点、pin 和 edge route 调整结果。
+- 支持双击子 module 实例跳转到对应 module 定义，并推断层次 module pin 的输入输出方向。
+- 支持多位 port/net 连接及 `[0:0]` 等位选择表达式。
+- Selection 面板的 net、driver/load 和直接 fanin/fanout 可点击跳转并自动居中。
+- Windows 原生轻量启动器和可复现的 ZIP Release 构建流程，无需终端用户安装 Node.js。
+
+### Changed
+
+- 优化 3000+ 行门级网表的解析、布局和渐进渲染性能。
+- 将 Simple Layered 拆分为稳定的 placement、routing、validation、scoring 和 workspace 管线。
+- 单输出 net 优先使用紧凑直连/局部折线，多输出 net 为共享布线保留空间并稳定主干顺序。
+- Adjust 拖动期间复用布局缓存、合并渲染帧并只重布受影响的 edge。
+- 正交路由、wire label、碰撞索引、route metadata 和 Golden route 比较改为共享基础设施。
+
+### Fixed
+
+- 修复 MUX select pin、子 module pin 和多位 output 连接遗漏或方向错误的问题。
+- 修复 net 非法绕到全图顶部、穿过 cell、重叠、label 覆盖和点击命中矩形过大的问题。
+- 修复 input 多 fanout/单 fanout 位置不合理及 net 交叉、远距离乱飞问题。
+- 修复空白画布点击后无法缩放、拖动画布取消 net 高亮的问题。
+- 修复布局顺序、wire bridge 和 Adjust route reservation 不稳定导致的旧问题回归。
+
 ## [0.4.0] - 2026-07-11
 
 阶段 4 大图和工程化版本。
