@@ -92,6 +92,11 @@ import { findReferencedModule } from "./moduleNavigation.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 import { createProcessLog } from "./processLog.js";
 import { renderProcessLogEntries } from "../ui/processLogPanel.js";
+import {
+  closeAllDisclosures,
+  closeDisclosuresOutside,
+  closeOtherDisclosures
+} from "../ui/disclosure.js";
 import { executeStartupManifest, fetchStartupManifest } from "./startupController.js";
 import {
   canStepModuleHistory,
@@ -199,6 +204,7 @@ const elements = {
   processLogList: document.querySelector("#processLogList")
 };
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
+const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
 elements.fileInput.addEventListener("change", handleFileChange);
 elements.pasteNetlistButton.addEventListener("click", () => openTextInputDialog("netlist"));
@@ -271,12 +277,22 @@ elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
 elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
 elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
-elements.toggleProcessLogButton.addEventListener("click", toggleProcessLogDrawer);
+elements.toggleProcessLogButton.addEventListener("click", () => toggleProcessLogDrawer());
 elements.processLogLevelFilter.addEventListener("change", renderProcessLog);
 elements.processLogPhaseFilter.addEventListener("change", renderProcessLog);
 elements.copyProcessLogButton.addEventListener("click", copyProcessLog);
 elements.exportProcessLogButton.addEventListener("click", exportProcessLog);
 elements.clearProcessLogButton.addEventListener("click", clearProcessLog);
+for (const menu of toolbarMenus) {
+  menu.addEventListener("toggle", () => closeOtherDisclosures(toolbarMenus, menu));
+  menu.addEventListener("click", (event) => {
+    if (event.target.closest(".menu-action")) menu.open = false;
+  });
+}
+document.addEventListener("pointerdown", (event) => closeDisclosuresOutside(toolbarMenus, event.target));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeAllDisclosures(toolbarMenus);
+});
 elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize);
 elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
