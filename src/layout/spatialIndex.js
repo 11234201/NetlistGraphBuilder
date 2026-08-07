@@ -5,35 +5,38 @@ export class SpatialHashIndex {
   }
 
   insert(item, box) {
-    for (const key of this.#keysForBox(box)) {
-      if (!this.buckets.has(key)) this.buckets.set(key, []);
-      this.buckets.get(key).push(item);
+    const range = getCellRange(box, this.cellSize);
+    for (let column = range.minColumn; column <= range.maxColumn; column += 1) {
+      let rows = this.buckets.get(column);
+      if (!rows) {
+        rows = new Map();
+        this.buckets.set(column, rows);
+      }
+      for (let row = range.minRow; row <= range.maxRow; row += 1) {
+        if (!rows.has(row)) rows.set(row, []);
+        rows.get(row).push(item);
+      }
     }
     return item;
   }
 
   query(box) {
+    const range = getCellRange(box, this.cellSize);
+    if (range.minColumn === range.maxColumn && range.minRow === range.maxRow) {
+      const bucket = this.buckets.get(range.minColumn)?.get(range.minRow);
+      if (!bucket || bucket.length === 0) return [];
+      return bucket.length === 1 ? bucket.slice() : [...new Set(bucket)];
+    }
+
     const found = new Set();
-    for (const key of this.#keysForBox(box)) {
-      for (const item of this.buckets.get(key) || []) found.add(item);
+    for (let column = range.minColumn; column <= range.maxColumn; column += 1) {
+      const rows = this.buckets.get(column);
+      if (!rows) continue;
+      for (let row = range.minRow; row <= range.maxRow; row += 1) {
+        for (const item of rows.get(row) || []) found.add(item);
+      }
     }
     return [...found];
-  }
-
-  #keysForBox(box) {
-    const left = Math.min(box.left, box.right);
-    const right = Math.max(box.left, box.right);
-    const top = Math.min(box.top, box.bottom);
-    const bottom = Math.max(box.top, box.bottom);
-    const minColumn = Math.floor(left / this.cellSize);
-    const maxColumn = Math.floor(right / this.cellSize);
-    const minRow = Math.floor(top / this.cellSize);
-    const maxRow = Math.floor(bottom / this.cellSize);
-    const keys = [];
-    for (let column = minColumn; column <= maxColumn; column += 1) {
-      for (let row = minRow; row <= maxRow; row += 1) keys.push(`${column}:${row}`);
-    }
-    return keys;
   }
 }
 
@@ -100,5 +103,18 @@ export function segmentBox(segment, padding = 0) {
     right: Math.max(segment.start.x, segment.end.x) + padding,
     top: Math.min(segment.start.y, segment.end.y) - padding,
     bottom: Math.max(segment.start.y, segment.end.y) + padding
+  };
+}
+
+function getCellRange(box, cellSize) {
+  const left = Math.min(box.left, box.right);
+  const right = Math.max(box.left, box.right);
+  const top = Math.min(box.top, box.bottom);
+  const bottom = Math.max(box.top, box.bottom);
+  return {
+    minColumn: Math.floor(left / cellSize),
+    maxColumn: Math.floor(right / cellSize),
+    minRow: Math.floor(top / cellSize),
+    maxRow: Math.floor(bottom / cellSize)
   };
 }

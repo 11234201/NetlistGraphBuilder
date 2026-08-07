@@ -8,7 +8,9 @@ export const DEFAULT_ROUTE_COSTS = Object.freeze({
 });
 
 export function scoreRouteCandidate(candidate, context = {}) {
-  const costs = { ...DEFAULT_ROUTE_COSTS, ...(context.costs || {}) };
+  const costs = context.costs
+    ? { ...DEFAULT_ROUTE_COSTS, ...context.costs }
+    : DEFAULT_ROUTE_COSTS;
   const points = candidate.points || [];
   const crossings = countRouteConflicts(
     points,

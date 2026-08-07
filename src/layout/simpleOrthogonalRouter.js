@@ -2,7 +2,7 @@ import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
 import { getRouteSegments } from "./orthogonalRouting.js";
 import { routeCandidateIsUsable } from "./routeCandidateValidation.js";
-import { compareRouteCandidates, scoreRouteCandidate } from "./routeScoring.js";
+import { scoreRouteCandidate } from "./routeScoring.js";
 import {
   computeLevelBounds,
   createBasicSimpleRouteCandidates,
@@ -86,10 +86,10 @@ function routeEdge(context) {
   const candidates = createBasicSimpleRouteCandidates(context);
   const basicCandidates = candidates.filter((candidate) =>
     candidateIsUsable(candidate, context));
-  const conflictFreeBasic = basicCandidates.filter((candidate) =>
-    scoreRouteCandidate(candidate, { reservedSegments, net, edgeIntent }).crossings === 0);
+  const scoredBasic = scoreCandidates(basicCandidates, reservedSegments, net, edgeIntent);
+  const conflictFreeBasic = scoredBasic.filter(({ score }) => score.crossings === 0);
   if (conflictFreeBasic.length > 0) {
-    return chooseBestRoute(conflictFreeBasic, reservedSegments, net, edgeIntent);
+    return chooseBestScoredRoute(conflictFreeBasic);
   }
 
   candidates.push(...createLocalObstacleCandidates(context));
@@ -122,8 +122,31 @@ function candidateIsUsable(candidate, context) {
 }
 
 function chooseBestRoute(candidates, reservedSegments, net, edgeIntent) {
-  return candidates.toSorted((left, right) =>
-    compareRouteCandidates(left, right, { reservedSegments, net, edgeIntent }))[0];
+  return chooseBestScoredRoute(scoreCandidates(candidates, reservedSegments, net, edgeIntent));
+}
+
+function scoreCandidates(candidates, reservedSegments, net, edgeIntent) {
+  const context = { reservedSegments, net, edgeIntent };
+  return candidates.map((candidate) => ({
+    candidate,
+    score: scoreRouteCandidate(candidate, context)
+  }));
+}
+
+function chooseBestScoredRoute(scoredCandidates) {
+  let best = scoredCandidates[0];
+  for (let index = 1; index < scoredCandidates.length; index += 1) {
+    const candidate = scoredCandidates[index];
+    if (compareRouteScores(candidate.score, best.score) < 0) best = candidate;
+  }
+  return best?.candidate;
+}
+
+function compareRouteScores(left, right) {
+  return left.total - right.total ||
+    left.crossings - right.crossings ||
+    left.bends - right.bends ||
+    left.length - right.length;
 }
 
 function getLabelPlacement(edge, source, target, sourcePoint, targetPoint) {

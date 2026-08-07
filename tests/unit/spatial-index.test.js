@@ -39,6 +39,17 @@ test("spatial hash returns only nearby items across positive and negative cells"
   assert.deepEqual(index.query({ left: 0, right: 20, top: 0, bottom: 20 }), []);
 });
 
+test("spatial hash deduplicates items spanning multiple numeric buckets", () => {
+  const index = new SpatialHashIndex(64);
+  const wide = { id: "wide" };
+  index.insert(wide, { left: -80, right: 140, top: -20, bottom: 90 });
+
+  assert.deepEqual(
+    index.query({ left: -100, right: 160, top: -40, bottom: 120 }),
+    [wide]
+  );
+});
+
 test("node index bounds candidate counts on large sparse layouts", () => {
   const nodes = Array.from({ length: 3000 }, (_, index) => ({
     id: `n${index}`,
