@@ -5,6 +5,9 @@ const MUX_SELECT_PINS = /^(S|S\d+|SEL|SELECT)$/;
 export function inferCellKind(cellType) {
   const type = cellType.toUpperCase();
 
+  if (isDffCellType(type)) {
+    return inference("dff", "rule");
+  }
   if (type.startsWith("XNR") || type.startsWith("XNOR")) {
     return inference("xnor", "rule");
   }
@@ -60,6 +63,10 @@ function inference(kind, source) {
 
 function isMuxCellType(type) {
   return /^(MUX|MX\d|MXI\d)/.test(type);
+}
+
+function isDffCellType(type) {
+  return /^(DFF|SDFF)/.test(type);
 }
 
 function isAdderCellType(type) {

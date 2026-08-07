@@ -30,7 +30,25 @@ test("cell inference maps common foundry-like names", () => {
   assert.equal(inferCellKind("CKINVX8H08HVT30P140").kind, "inv");
   assert.equal(inferCellKind("XNR2X2AONH08HVT30P140").kind, "xnor");
   assert.equal(inferCellKind("MUX2X1").kind, "mux");
+  assert.equal(inferCellKind("DFFR_X1").kind, "dff");
+  assert.equal(inferCellKind("SDFFRS_X2").kind, "dff");
   assert.equal(inferCellKind("UNKNOWN_CELL").kind, "blackbox");
+});
+
+test("mapped resettable flip-flops render as dff cells", () => {
+  const source = `
+    module dff_case(input clk, input rst_n, input d, output q);
+      DFFR_X1 u_reg (.CK(clk), .D(d), .Q(q), .RN(rst_n));
+    endmodule
+  `;
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const dff = graph.nodes.find((node) => node.id === "cell:u_reg");
+
+  assert.equal(dff.gateKind, "dff");
+  assert.equal(dff.inferenceSource, "rule");
+  assert.equal(dff.pinDirections.Q.direction, "output");
+  assert.equal(dff.pinDirections.CK.direction, "input");
+  assert.equal(dff.pinDirections.RN.direction, "input");
 });
 
 test("simple layout bounds levels when a sequential graph contains a large feedback cycle", () => {
