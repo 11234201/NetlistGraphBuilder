@@ -8,7 +8,9 @@
 
 ## 需求计划表
 
-| ID | 需求 | 现状 | 计划交付物 | 验收标准 | 优先级 | 状态 |
+> 实施更新（2026-08-07）：R6-1 至 R6-11 已全部完成。下表状态列保留需求制定时的规划基线，当前状态以 `docs/PLAN.md` 为准。
+
+| ID | 需求 | 现状 | 计划交付物 | 验收标准 | 优先级 | 规划时状态 |
 | --- | --- | --- | --- | --- | --- | --- |
 | R6-1 | 解析新的 module 边界时序格式 | 仅支持 `inst <...>` 与 `pin ..., at ..., rt ..., slack ...` 格式 | 统一 timing IR；兼容旧格式和 `direction at rat slack [Global/Local]...` 表格；保存 `Apply` 结果；支持 module boundary，并为后续 instance 同格式预留 scope matcher | 给定样例解析为一个 timing scope，Global/Local 各 20 条记录，其中 8 个 OUTPUT、12 个 INPUT；`rat` 规范化为内部 `rt`；`Apply:None` 保留且 Auto 默认选择 Global；旧格式测试保持通过 | P0 | 计划中 |
 | R6-2 | 全图统一设置 cell/port 显示的时序 | 当前按单个 cell、pin 和 metric 设置 badge | 新增全图 `Timing snapshot: Auto/Global/Local` 与 `Timing metric: Slack/AT/RT/All`；统一 Single、Compare 和 SVG 导出行为；Selection 详情仍展示全部数值 | 修改一次设置后，所有已匹配 cell 和 module boundary port 同步更新；新 Golden/session 保存全图策略；旧 Golden 可读取且不崩溃 | P0 | 计划中 |

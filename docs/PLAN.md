@@ -48,7 +48,7 @@ Structural Verilog
 
 ## 需求拆解与完成状态
 
-当前里程碑：阶段 4 已完成，并随 `v0.4.0` 发布大图布局与工程化能力；`v0.5.0` 继续完成多位/层次网表、快速输入、Golden 恢复、连接导航和布局稳定性重构。阶段 5 保留可选 Liberty 增强，阶段 6 纳入 Global/Local 时序、可复用 Cell Config、聚焦式大图浏览、所选 cell 定位、module 前进/后退、过程日志和 EDA 启动集成。
+当前里程碑：阶段 6 已完成 Global/Local 时序、可复用 Cell Config、聚焦式大图浏览、所选 cell 定位、module 前进/后退、过程日志和 EDA 启动集成。阶段 5 的可选 Liberty 增强继续保留为后续计划。
 
 状态口径：
 
@@ -78,17 +78,17 @@ Structural Verilog
 | R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 已完成 | `docs/STAGE_4_PLAN.md` |
 | R4-3 | 阶段 4 | Balanced/Folded 布局 | 深层 DAG 按逻辑层分带折叠、跨带专用通道、保留默认左到右模式 | 暂缓 | `docs/STAGE_4_PLAN.md` |
 | R5-1 | 阶段 5 | 可选 Liberty 增强 | `.lib` 子集解析、pin direction 覆盖、function 辅助、fallback 诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
-| R6-1 | 阶段 6 | 新 module/instance 边界时序格式 | Global/Local、INPUT/OUTPUT、AT/RT/Slack、Apply 和旧格式兼容 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-2 | 阶段 6 | 全图时序显示策略 | Auto/Global/Local 与 Slack/AT/RT/All 全图设置 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-3 | 阶段 6 | Cell spacing 与拥塞可读性 | 可调 cell 间距、拥塞感知通道和布局质量回归 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-4 | 阶段 6 | 顶部控件收敛 | Import/More 分组、侧栏 Layout/Timing 和窄屏可用性 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-5 | 阶段 6 | 直接粘贴时序 | 显式 Paste timing、通用文本导入和新格式自动识别 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-6 | 阶段 6 | EDA 启动接口 | 统一 CLI、应用控制层、ready 输出和本地安全边界 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-7 | 阶段 6 | Search-first 双向局部视图 | 独立 fanin/fanout depth、Focused neighborhood 和大图按需布局 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-8 | 阶段 6 | Module 前进/后退 | module 导航历史、状态恢复、按钮和快捷键 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-9 | 阶段 6 | 过程日志控件 | 可折叠日志面板、阶段/级别过滤、容量控制、复制和导出 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-10 | 阶段 6 | 定位并放大所选 cell | View 定位控件、稳定阅读尺度、局部图自动揭示和 Compare 一致行为 | 计划中 | `docs/STAGE_6_PLAN.md` |
-| R6-11 | 阶段 6 | 可复用 Cell Config | 编辑 gate kind/pin direction、本地持久化、JSON 导入导出和 EDA 加载 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-1 | 阶段 6 | 新 module/instance 边界时序格式 | Global/Local、INPUT/OUTPUT、AT/RT/Slack、Apply 和旧格式兼容 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-2 | 阶段 6 | 全图时序显示策略 | Auto/Global/Local 与 Slack/AT/RT/All 全图设置 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-3 | 阶段 6 | Cell spacing 与拥塞可读性 | 可调 cell 间距、拥塞感知通道和布局质量回归 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-4 | 阶段 6 | 顶部控件收敛 | Import/More 分组、侧栏 Layout/Timing 和窄屏可用性 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-5 | 阶段 6 | 直接粘贴时序 | 显式 Paste timing、通用文本导入和新格式自动识别 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-6 | 阶段 6 | EDA 启动接口 | 统一 CLI、应用控制层、ready 输出和本地安全边界 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-7 | 阶段 6 | Search-first 双向局部视图 | 独立 fanin/fanout depth、Focused neighborhood 和大图按需布局 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-8 | 阶段 6 | Module 前进/后退 | module 导航历史、状态恢复、按钮和快捷键 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-9 | 阶段 6 | 过程日志控件 | 可折叠日志面板、阶段/级别过滤、容量控制、复制和导出 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-10 | 阶段 6 | 定位并放大所选 cell | View 定位控件、稳定阅读尺度、局部图自动揭示和 Compare 一致行为 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-11 | 阶段 6 | 可复用 Cell Config | 编辑 gate kind/pin direction、本地持久化、JSON 导入导出和 EDA 加载 | 已完成 | `docs/STAGE_6_PLAN.md` |
 
 ### 阶段 0：项目准备
 
