@@ -72,6 +72,15 @@
             <label><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
             <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="all">All</option></select></label>
           </section>
+          <section class="panel-section cell-config-panel">
+            <h2>Cell Config</h2>
+            <button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the selected primitive cell type" disabled>Edit selected type</button>
+            <div class="cell-config-actions">
+              <label class="file-button compact-button" title="Import a versioned Cell Config JSON"><input id="cellConfigInput" type="file" accept=".json,application/json">Import</label>
+              <button id="exportCellConfigButton" class="mini-button" type="button" title="Export Cell Config JSON">Export</button>
+              <button id="resetCellConfigButton" class="mini-button" type="button" title="Remove all saved Cell Config definitions">Reset all</button>
+            </div>
+          </section>
           <section id="comparePanel" class="panel-section compare-panel" hidden>
             <h2>Module Compare</h2>
             <label><span>Left</span><select id="leftModuleSelect"></select></label>
@@ -137,6 +146,14 @@
             <button class="dialog-button primary" type="submit">Draw</button>
           </div>
         </footer>
+      </form>
+    </dialog>
+
+    <dialog id="cellDefinitionDialog" class="text-input-dialog cell-definition-dialog" aria-labelledby="cellDefinitionTitle">
+      <form id="cellDefinitionForm" class="text-input-form">
+        <header><div><h2 id="cellDefinitionTitle">Cell Definition</h2><p>按 cell type 保存 gate kind 和 pin direction。</p></div><button id="closeCellDefinitionButton" class="dialog-close" type="button" aria-label="关闭">&times;</button></header>
+        <div id="cellDefinitionBody" class="cell-definition-body"></div>
+        <footer><button id="deleteCellDefinitionButton" class="dialog-button" type="button">Delete saved</button><div><button id="cancelCellDefinitionButton" class="dialog-button" type="button">Cancel</button><button class="dialog-button primary" type="submit">Save</button></div></footer>
       </form>
     </dialog>
 

@@ -14,6 +14,7 @@ import {
 import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
+import { collectCellTypeSummary, renderCellDefinitionEditor } from "../../src/ui/cellDefinitionPanel.js";
 import {
   getTimingBadgeChoices,
   renderTimingPanel,
@@ -132,6 +133,25 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="netlistTextInput"/);
   assert.match(html, /id="goldenInput"[^>]+accept="\.json,application\/json"/);
   assert.match(html, /id="dropOverlay"/);
+  assert.match(html, /id="editCellDefinitionButton"/);
+  assert.match(html, /id="cellConfigInput"/);
+  assert.match(html, /id="cellDefinitionDialog"/);
+});
+
+test("Cell Definition editor summarizes a type and escapes names", () => {
+  const summary = collectCellTypeSummary({ modules: [{ cells: [
+    { type: "X&1", pins: [{ pin: "A", pinDisplayName: "A<0>" }, { pin: "Z" }] },
+    { type: "X&1", pins: [{ pin: "A", pinDisplayName: "A<0>" }] }
+  ] }] }, "X&1");
+  const html = renderCellDefinitionEditor(summary, {
+    gateKind: "BUF",
+    pins: { A: "input", Z: "output" }
+  });
+  assert.equal(summary.instanceCount, 2);
+  assert.equal(summary.pins.find((pin) => pin.canonicalName === "A").count, 2);
+  assert.match(html, /X&amp;1/);
+  assert.match(html, /A&lt;0&gt;/);
+  assert.match(html, /value="BUF" selected/);
 });
 
 test("pasted design input rejects text without a module", () => {

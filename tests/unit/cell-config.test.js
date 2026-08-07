@@ -4,9 +4,12 @@ import {
   CELL_CONFIG_STORAGE_KEY,
   createEmptyCellConfig,
   loadStoredCellConfig,
+  mergeCellConfigs,
   parseCellConfig,
+  removeCellConfigDefinition,
   saveStoredCellConfig,
-  serializeCellConfig
+  serializeCellConfig,
+  setCellConfigDefinition
 } from "../../src/infer/cellConfig.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -61,4 +64,15 @@ test("Cell Config persistence keeps the last valid bundle", () => {
   values.set(CELL_CONFIG_STORAGE_KEY, "{broken");
   assert.deepEqual(loadStoredCellConfig(storage), createEmptyCellConfig());
   assert.equal(saved.kind, "netlist-cell-config");
+});
+
+test("Cell Config updates, deletes and reports import conflicts immutably", () => {
+  const empty = createEmptyCellConfig();
+  const one = setCellConfigDefinition(empty, "X", { displayName: "X", gateKind: "BUF", pins: { A: "input", Z: "output" } });
+  assert.equal(Object.keys(empty.cells).length, 0);
+  assert.equal(one.cells.X.gateKind, "BUF");
+  const merged = mergeCellConfigs(one, parseCellConfig({ ...configSource, cells: { X: { displayName: "X2", gateKind: "INV", pins: { Z: "output" } } } }));
+  assert.deepEqual(merged.conflicts, ["X"]);
+  assert.equal(merged.bundle.cells.X.gateKind, "INV");
+  assert.equal(Object.keys(removeCellConfigDefinition(merged.bundle, "X").cells).length, 0);
 });

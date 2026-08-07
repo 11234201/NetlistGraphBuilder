@@ -16,8 +16,22 @@ import {
   searchDesignIndex
 } from "../search/designSearch.js";
 import { parseTimingLog } from "../timing/timingParser.js";
-import { loadStoredCellConfig } from "../infer/cellConfig.js";
+import {
+  createEmptyCellConfig,
+  loadStoredCellConfig,
+  mergeCellConfigs,
+  parseCellConfig,
+  removeCellConfigDefinition,
+  saveStoredCellConfig,
+  serializeCellConfig,
+  setCellConfigDefinition
+} from "../infer/cellConfig.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
+import {
+  collectCellTypeSummary,
+  readCellDefinitionEditor,
+  renderCellDefinitionEditor
+} from "../ui/cellDefinitionPanel.js";
 import {
   escapeAttr,
   escapeHtml,
@@ -82,6 +96,7 @@ let fileDragDepth = 0;
 let pendingWheelGesture = null;
 let wheelInteractionTimer = null;
 let textInputKind = "netlist";
+let activeCellDefinition = null;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -123,6 +138,16 @@ const elements = {
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
   timingMetricSelect: document.querySelector("#timingMetricSelect"),
+  editCellDefinitionButton: document.querySelector("#editCellDefinitionButton"),
+  cellConfigInput: document.querySelector("#cellConfigInput"),
+  exportCellConfigButton: document.querySelector("#exportCellConfigButton"),
+  resetCellConfigButton: document.querySelector("#resetCellConfigButton"),
+  cellDefinitionDialog: document.querySelector("#cellDefinitionDialog"),
+  cellDefinitionForm: document.querySelector("#cellDefinitionForm"),
+  cellDefinitionBody: document.querySelector("#cellDefinitionBody"),
+  closeCellDefinitionButton: document.querySelector("#closeCellDefinitionButton"),
+  cancelCellDefinitionButton: document.querySelector("#cancelCellDefinitionButton"),
+  deleteCellDefinitionButton: document.querySelector("#deleteCellDefinitionButton"),
   fitButton: document.querySelector("#fitButton"),
   exportSvgButton: document.querySelector("#exportSvgButton"),
   adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
@@ -193,6 +218,14 @@ elements.collapseAllButton.addEventListener("click", () => {
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
+elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
+elements.cellConfigInput.addEventListener("change", handleCellConfigImport);
+elements.exportCellConfigButton.addEventListener("click", exportCellConfig);
+elements.resetCellConfigButton.addEventListener("click", resetAllCellConfig);
+elements.cellDefinitionForm.addEventListener("submit", saveActiveCellDefinition);
+elements.closeCellDefinitionButton.addEventListener("click", closeCellDefinitionDialog);
+elements.cancelCellDefinitionButton.addEventListener("click", closeCellDefinitionDialog);
+elements.deleteCellDefinitionButton.addEventListener("click", deleteActiveCellDefinition);
 elements.fitButton.addEventListener("click", fitToView);
 elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
@@ -885,6 +918,99 @@ function handleTimingDisplayPolicyChange() {
   setStatus(`Timing: ${state.timingDisplayPolicy.snapshot} / ${metric}`);
 }
 
+function openSelectedCellDefinition() {
+  const node = state.fullGraph?.nodes.find((item) => item.id === state.selectedNodeId)
+    || state.graph?.nodes.find((item) => item.id === state.selectedNodeId);
+  if (!node || node.kind !== "cell") {
+    setStatus("Select a primitive cell first");
+    return;
+  }
+  if (node.referencedModuleName) {
+    setStatus(`${node.label}: real submodule definitions cannot be replaced by Cell Config`);
+    return;
+  }
+  const cellType = node.ref?.type;
+  activeCellDefinition = collectCellTypeSummary(state.design, cellType);
+  const definition = state.cellConfig.cells[activeCellDefinition.cellType] || null;
+  elements.cellDefinitionBody.innerHTML = renderCellDefinitionEditor(activeCellDefinition, definition);
+  elements.deleteCellDefinitionButton.disabled = !definition;
+  if (!elements.cellDefinitionDialog.open) elements.cellDefinitionDialog.showModal();
+}
+
+function closeCellDefinitionDialog() {
+  if (elements.cellDefinitionDialog.open) elements.cellDefinitionDialog.close();
+  activeCellDefinition = null;
+}
+
+function saveActiveCellDefinition(event) {
+  event.preventDefault();
+  if (!activeCellDefinition) return;
+  try {
+    const definition = readCellDefinitionEditor(elements.cellDefinitionForm, activeCellDefinition);
+    const next = setCellConfigDefinition(state.cellConfig, activeCellDefinition.cellType, definition);
+    state.cellConfig = saveStoredCellConfig(next);
+    const cellType = activeCellDefinition.cellType;
+    closeCellDefinitionDialog();
+    rebuildAfterCellConfigChange(`${cellType}: Cell Config saved`);
+  } catch (error) {
+    setStatus(`Cell Config save failed: ${error.message}`);
+  }
+}
+
+function deleteActiveCellDefinition() {
+  if (!activeCellDefinition) return;
+  const cellType = activeCellDefinition.cellType;
+  state.cellConfig = saveStoredCellConfig(removeCellConfigDefinition(state.cellConfig, cellType));
+  closeCellDefinitionDialog();
+  rebuildAfterCellConfigChange(`${cellType}: saved Cell Config deleted`);
+}
+
+async function handleCellConfigImport(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const incoming = parseCellConfig(await file.text());
+    const { bundle, conflicts } = mergeCellConfigs(state.cellConfig, incoming);
+    if (conflicts.length && !window.confirm(`Replace ${conflicts.length} existing Cell Config definition(s): ${conflicts.join(", ")}?`)) return;
+    state.cellConfig = saveStoredCellConfig(bundle);
+    rebuildAfterCellConfigChange(`Imported Cell Config ${file.name}: ${Object.keys(incoming.cells).length} definition(s)`);
+  } catch (error) {
+    setStatus(`Cell Config import failed ${file.name}: ${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function exportCellConfig() {
+  downloadText(`${serializeCellConfig(state.cellConfig)}\n`, "netlist-cell-config.json", "application/json");
+  setStatus(`Exported ${Object.keys(state.cellConfig.cells).length} Cell Config definition(s)`);
+}
+
+function resetAllCellConfig() {
+  const count = Object.keys(state.cellConfig.cells).length;
+  if (count === 0) return;
+  if (!window.confirm(`Remove all ${count} saved Cell Config definition(s)?`)) return;
+  state.cellConfig = saveStoredCellConfig(createEmptyCellConfig());
+  rebuildAfterCellConfigChange("All saved Cell Config definitions reset");
+}
+
+function rebuildAfterCellConfigChange(message) {
+  if (state.compare.active) {
+    renderCompareGraphs();
+  } else if (state.currentModule) {
+    rerenderPreservingView(state.selectedNodeId);
+  }
+  updateCellDefinitionControls();
+  setStatus(message);
+}
+
+function updateCellDefinitionControls(node = null) {
+  const selected = node || state.fullGraph?.nodes.find((item) => item.id === state.selectedNodeId);
+  elements.editCellDefinitionButton.disabled = !selected || selected.kind !== "cell" || Boolean(selected.referencedModuleName);
+  elements.exportCellConfigButton.disabled = Object.keys(state.cellConfig.cells).length === 0;
+  elements.resetCellConfigButton.disabled = Object.keys(state.cellConfig.cells).length === 0;
+}
+
 function setSelectedNode(nodeId) {
   state.selectedNodeId = nodeId;
   state.selectedNet = null;
@@ -1349,10 +1475,13 @@ function focusCompareSelection(kind, name) {
 
 function renderSelection(node) {
   if (!node) {
+    updateCellDefinitionControls(null);
     elements.details.className = "details-empty";
     elements.details.textContent = "未选择对象";
     return;
   }
+
+  updateCellDefinitionControls(node);
 
   elements.details.className = "details-block";
   const instance = getNodeInstance(node);
@@ -1362,6 +1491,7 @@ function renderSelection(node) {
 }
 
 function renderNetSelection(netName) {
+  updateCellDefinitionControls(null);
   elements.details.className = "details-block";
   elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.fullGraph || state.graph, netName));
 }

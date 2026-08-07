@@ -52,6 +52,31 @@ export function resolveCellConfigDefinition(bundle, cellType) {
   return bundle?.cells?.[canonicalCellType(cellType)] || null;
 }
 
+export function setCellConfigDefinition(bundle, cellType, definition) {
+  const type = canonicalCellType(cellType);
+  return parseCellConfig({
+    ...parseCellConfig(bundle),
+    cells: { ...parseCellConfig(bundle).cells, [type]: definition }
+  });
+}
+
+export function removeCellConfigDefinition(bundle, cellType) {
+  const normalized = parseCellConfig(bundle);
+  const cells = { ...normalized.cells };
+  delete cells[canonicalCellType(cellType)];
+  return { ...normalized, cells };
+}
+
+export function mergeCellConfigs(current, incoming) {
+  const left = parseCellConfig(current);
+  const right = parseCellConfig(incoming);
+  const conflicts = Object.keys(right.cells).filter((type) => Object.hasOwn(left.cells, type)).sort();
+  return {
+    bundle: parseCellConfig({ ...left, cells: { ...left.cells, ...right.cells } }),
+    conflicts
+  };
+}
+
 export function toInternalGateKind(gateKind) {
   return gateKind === "REGISTER" ? "dff" : String(gateKind || "BLACKBOX").toLowerCase();
 }

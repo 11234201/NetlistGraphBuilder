@@ -225,6 +225,38 @@ textarea {
   color: white;
 }
 
+.cell-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cell-definition-body {
+  max-height: min(58vh, 520px);
+  padding: 16px;
+  overflow: auto;
+}
+
+.cell-definition-field,
+.cell-definition-pin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.cell-definition-pin small {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.cell-definition-pins h3 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+}
+
 .drop-overlay {
   position: fixed;
   z-index: 1000;
