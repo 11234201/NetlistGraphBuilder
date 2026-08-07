@@ -6,14 +6,24 @@ export const TIMING_BADGE_POSITIONS = Object.freeze([
 ]);
 
 export const TIMING_METRICS = Object.freeze(["at", "rt", "slack"]);
+export const TIMING_SNAPSHOTS = Object.freeze(["auto", "global", "local"]);
+export const DEFAULT_TIMING_DISPLAY_POLICY = Object.freeze({
+  snapshot: "auto",
+  metrics: Object.freeze(["slack"])
+});
 
 const BADGE_POSITION_SET = new Set(TIMING_BADGE_POSITIONS);
 const TIMING_METRIC_SET = new Set(TIMING_METRICS);
+const TIMING_SNAPSHOT_SET = new Set(TIMING_SNAPSHOTS);
 
 export function annotateGraphTiming(graph, timing, options = {}) {
-  if (!timing?.instances) {
+  if (!timing) {
     return graph;
   }
+  if (Array.isArray(timing.scopes) && timing.format === "boundary-table") {
+    return annotateDatasetTiming(graph, timing, options);
+  }
+  if (!timing.instances) return graph;
   const badgeChoices = options.badgeChoices || {};
   const badgePositions = options.badgePositions || {};
   const timingByNodeId = matchTimingRecords(graph, timing);
@@ -39,6 +49,93 @@ export function annotateGraphTiming(graph, timing, options = {}) {
         : node;
     })
   };
+}
+
+export function normalizeTimingDisplayPolicy(policy = DEFAULT_TIMING_DISPLAY_POLICY) {
+  const snapshot = TIMING_SNAPSHOT_SET.has(policy?.snapshot)
+    ? policy.snapshot
+    : DEFAULT_TIMING_DISPLAY_POLICY.snapshot;
+  const metrics = [...new Set((Array.isArray(policy?.metrics) ? policy.metrics : [policy?.metrics])
+    .filter((metric) => TIMING_METRIC_SET.has(metric)))];
+  return { snapshot, metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics] };
+}
+
+export function resolveTimingSnapshot(scope, requested = "auto") {
+  const policy = TIMING_SNAPSHOT_SET.has(requested) ? requested : "auto";
+  if (policy !== "auto") return policy;
+  const apply = String(scope?.apply ?? "").trim().toLowerCase();
+  if (!apply || ["none", "no", "false", "0", "global"].includes(apply)) return "global";
+  if (["yes", "true", "1", "apply", "applied", "local"].includes(apply)) return "local";
+  return "global";
+}
+
+function annotateDatasetTiming(graph, timing, options) {
+  const policy = normalizeTimingDisplayPolicy(options.displayPolicy);
+  const scope = selectDatasetScope(timing.scopes, graph.moduleName);
+  if (!scope) return graph;
+  const snapshotName = resolveTimingSnapshot(scope, policy.snapshot);
+  const snapshot = scope.snapshots?.[snapshotName] || [];
+  const recordsByObject = new Map(snapshot.map((record) => [normalizeObjectName(record.objectName), record]));
+
+  if (scope.scopeKind === "module" || scope.scopeKind === "unknown") {
+    return {
+      ...graph,
+      timingScope: { subject: scope.subject, apply: scope.apply, snapshot: snapshotName, policy },
+      nodes: graph.nodes.map((node) => {
+        if (node.kind !== "input" && node.kind !== "output") return node;
+        const names = [node.ref?.name, node.ref?.displayName, node.label].map(normalizeObjectName);
+        const record = names.map((name) => recordsByObject.get(name)).find(Boolean);
+        return record ? { ...node, timing: { ...record, snapshot: snapshotName } } : node;
+      })
+    };
+  }
+
+  const record = makeInstanceTimingRecord(scope, snapshot);
+  const matches = matchTimingRecords(graph, { records: [record], instances: {} });
+  return {
+    ...graph,
+    timingScope: { subject: scope.subject, apply: scope.apply, snapshot: snapshotName, policy },
+    nodes: graph.nodes.map((node) => {
+      if (node.kind !== "cell" || !matches.has(node.id)) return node;
+      return { ...node, timing: annotateTimingBadgesWithPolicy(record, policy, node) };
+    })
+  };
+}
+
+function selectDatasetScope(scopes, moduleName) {
+  const module = normalizeHierarchicalName(moduleName);
+  const exact = scopes.filter((scope) => {
+    const subject = normalizeHierarchicalName(scope.subject);
+    return subject === module || subject.endsWith(`/${module}`);
+  });
+  if (exact.length === 1) return exact[0];
+  return scopes.length === 1 ? scopes[0] : null;
+}
+
+function makeInstanceTimingRecord(scope, snapshot) {
+  const pins = Object.fromEntries(snapshot.map((item) => [item.objectName, {
+    pin: item.objectName,
+    direction: item.direction,
+    at: item.at,
+    rt: item.rt,
+    slack: item.slack
+  }]));
+  const worst = Object.values(pins).reduce((value, item) =>
+    value === null || item.slack < value.slack ? item : value, null);
+  return {
+    instance: getLeafHierarchicalName(scope.subject),
+    fullPath: scope.subject,
+    pins,
+    worstPin: worst?.pin || null,
+    worstSlack: worst?.slack ?? null
+  };
+}
+
+function annotateTimingBadgesWithPolicy(timing, policy, node) {
+  const pinOrder = (node.ref?.pins || []).map((pin) => pin.pinDisplayName || pin.pin);
+  const orderedPins = [...pinOrder, ...Object.keys(timing.pins || {}).filter((pin) => !pinOrder.includes(pin))];
+  const choices = orderedPins.flatMap((pin) => policy.metrics.map((metric) => ({ pin, metric })));
+  return annotateTimingBadges(timing, choices, "bottom-right", node);
 }
 
 export function normalizeBadgeChoices(choices) {
@@ -198,6 +295,14 @@ function getNodeInstance(node) {
 
 function normalizeHierarchicalName(value) {
   return String(value || "").trim().replace(/^\\/, "");
+}
+
+function normalizeObjectName(value) {
+  return normalizeHierarchicalName(value).replace(/^.*[/.]/, "");
+}
+
+function getLeafHierarchicalName(value) {
+  return normalizeHierarchicalName(value).split("/").pop() || "";
 }
 
 function escapeRegExp(value) {

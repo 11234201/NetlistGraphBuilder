@@ -19,6 +19,7 @@
           打开网表
         </label>
         <button id="pasteNetlistButton" class="icon-button compact-button" type="button" title="粘贴一段 structural Verilog 网表">Paste</button>
+        <button id="pasteTimingButton" class="icon-button compact-button" type="button" title="直接粘贴 Global/Local 或 LocResyn 时序文本">Paste timing</button>
         <label class="file-button" title="导入 LocResyn 时序信息">
           <input id="timingInput" type="file" accept=".log,.txt">
           导入时序
@@ -65,6 +66,11 @@
             <label class="alias-toggle" for="fanoutHubsInput"><input id="fanoutHubsInput" type="checkbox" checked><span>Fanout hubs</span></label>
             <label class="alias-toggle" for="collapseGroupsInput"><input id="collapseGroupsInput" type="checkbox" checked><span>Collapse large groups</span></label>
             <button id="collapseAllButton" class="mini-button" type="button">Collapse all groups</button>
+          </section>
+          <section class="panel-section timing-policy-panel">
+            <h2>Timing</h2>
+            <label><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
+            <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="all">All</option></select></label>
           </section>
           <section id="comparePanel" class="panel-section compare-panel" hidden>
             <h2>Module Compare</h2>
@@ -119,7 +125,7 @@
         <header>
           <div>
             <h2 id="netlistTextTitle">Paste Verilog</h2>
-            <p>粘贴 structural Verilog，解析成功后立即画图。</p>
+            <p id="netlistTextDescription">粘贴 structural Verilog，解析成功后立即画图。</p>
           </div>
           <button id="closeNetlistTextButton" class="dialog-close" type="button" aria-label="关闭">&times;</button>
         </header>

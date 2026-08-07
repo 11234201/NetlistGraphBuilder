@@ -10,7 +10,9 @@ export function buildModuleWorkspace(options) {
     module,
     moduleLibrary = [],
     graphOverrides = null,
+    cellConfig = null,
     timing = null,
+    timingDisplayPolicy = null,
     timingBadgeChoices = {},
     timingBadgePositions = {},
     showAliases = false,
@@ -28,7 +30,9 @@ export function buildModuleWorkspace(options) {
   const fullGraph = buildWorkspaceGraph(module, {
     moduleLibrary,
     graphOverrides,
+    cellConfig,
     timing,
+    timingDisplayPolicy,
     timingBadgeChoices,
     timingBadgePositions,
     showAliases

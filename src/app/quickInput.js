@@ -14,6 +14,9 @@ export function detectQuickInputKind(text, options = {}) {
   if (source.startsWith("{")) return "golden";
   if (/\bmodule\s+(?:\\\S+|[A-Za-z_$][\w$]*)/i.test(source)) return "netlist";
   if (/\binst\s*<[^>]+>/i.test(source)) return "timing";
+  if (/\bapply\s*:/i.test(source) && /\b(?:global|local)\b/i.test(source)) return "timing";
+  if (/\b(?:input|output)\s+[-+]?\d*\.?\d+\s+[-+]?\d*\.?\d+\s+[-+]?\d*\.?\d+/i.test(source) &&
+      /\b(?:direction|slack|global|local)\b/i.test(source)) return "timing";
   throw new Error("input is not recognized as Verilog, Golden JSON, or timing text");
 }
 

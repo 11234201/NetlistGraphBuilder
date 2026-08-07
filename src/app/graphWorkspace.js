@@ -8,9 +8,11 @@ import { annotateGraphTiming } from "../timing/timingAnnotation.js";
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
     overrides: options.graphOverrides,
-    moduleLibrary: options.moduleLibrary || []
+    moduleLibrary: options.moduleLibrary || [],
+    cellConfig: options.cellConfig
   });
   const annotatedGraph = annotateGraphTiming(graph, options.timing, {
+    displayPolicy: options.timingDisplayPolicy,
     badgeChoices: options.timingBadgeChoices || {},
     badgePositions: options.timingBadgePositions || {}
   });

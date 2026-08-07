@@ -16,6 +16,7 @@ import {
   searchDesignIndex
 } from "../search/designSearch.js";
 import { parseTimingLog } from "../timing/timingParser.js";
+import { loadStoredCellConfig } from "../infer/cellConfig.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
   escapeAttr,
@@ -75,17 +76,22 @@ import {
 import { findReferencedModule } from "./moduleNavigation.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
+state.cellConfig = loadStoredCellConfig();
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
 let pendingWheelGesture = null;
 let wheelInteractionTimer = null;
+let textInputKind = "netlist";
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
   pasteNetlistButton: document.querySelector("#pasteNetlistButton"),
+  pasteTimingButton: document.querySelector("#pasteTimingButton"),
   netlistTextDialog: document.querySelector("#netlistTextDialog"),
   netlistTextForm: document.querySelector("#netlistTextForm"),
   netlistTextInput: document.querySelector("#netlistTextInput"),
+  netlistTextTitle: document.querySelector("#netlistTextTitle"),
+  netlistTextDescription: document.querySelector("#netlistTextDescription"),
   closeNetlistTextButton: document.querySelector("#closeNetlistTextButton"),
   cancelNetlistTextButton: document.querySelector("#cancelNetlistTextButton"),
   dropOverlay: document.querySelector("#dropOverlay"),
@@ -115,6 +121,8 @@ const elements = {
   collapseAllButton: document.querySelector("#collapseAllButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
+  timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
+  timingMetricSelect: document.querySelector("#timingMetricSelect"),
   fitButton: document.querySelector("#fitButton"),
   exportSvgButton: document.querySelector("#exportSvgButton"),
   adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
@@ -135,7 +143,8 @@ const elements = {
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 
 elements.fileInput.addEventListener("change", handleFileChange);
-elements.pasteNetlistButton.addEventListener("click", openNetlistTextDialog);
+elements.pasteNetlistButton.addEventListener("click", () => openTextInputDialog("netlist"));
+elements.pasteTimingButton.addEventListener("click", () => openTextInputDialog("timing"));
 elements.netlistTextForm.addEventListener("submit", handleNetlistTextSubmit);
 elements.netlistTextInput.addEventListener("keydown", handleNetlistTextKeydown);
 elements.closeNetlistTextButton.addEventListener("click", closeNetlistTextDialog);
@@ -182,6 +191,8 @@ elements.collapseAllButton.addEventListener("click", () => {
   rerenderActiveGraph();
 });
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
+elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
+elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.fitButton.addEventListener("click", fitToView);
 elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
@@ -244,7 +255,13 @@ async function handleFileChange(event) {
   await handleInputFileChange(event, "netlist");
 }
 
-function openNetlistTextDialog() {
+function openTextInputDialog(kind) {
+  textInputKind = kind === "timing" ? "timing" : "netlist";
+  const timingMode = textInputKind === "timing";
+  elements.netlistTextTitle.textContent = timingMode ? "Paste timing" : "Paste Verilog";
+  elements.netlistTextDescription.textContent = timingMode
+    ? "粘贴 Global/Local 表格或 LocResyn timing，解析成功后应用到当前设计。"
+    : "粘贴 structural Verilog，解析成功后立即画图。";
   if (!elements.netlistTextDialog.open) elements.netlistTextDialog.showModal();
   requestAnimationFrame(() => elements.netlistTextInput.focus());
 }
@@ -264,12 +281,15 @@ function handleNetlistTextSubmit(event) {
   event.preventDefault();
   const source = elements.netlistTextInput.value.trim();
   if (!source) {
-    setStatus("Paste failed: Verilog text is empty");
+    setStatus(`Paste failed: ${textInputKind} text is empty`);
     elements.netlistTextInput.focus();
     return;
   }
   try {
-    loadDesign(source, "pasted Verilog");
+    loadQuickInputText(source, {
+      kind: textInputKind,
+      label: textInputKind === "timing" ? "pasted timing" : "pasted Verilog"
+    });
     closeNetlistTextDialog();
   } catch {
     elements.netlistTextInput.focus();
@@ -319,7 +339,11 @@ function loadQuickInputText(text, options = {}) {
 }
 
 function loadTimingText(text, label) {
-  state.timing = parseTimingLog(text);
+  const timing = parseTimingLog(text);
+  if ((timing.scopeCount || timing.instanceCount || 0) === 0) {
+    throw new Error("no timing scope or instance record was recognized");
+  }
+  state.timing = timing;
   resetTimingPresentation(state);
   if (state.compare.active) {
     renderCompareGraphs();
@@ -577,9 +601,11 @@ function renderCompareGraphs() {
     coneDepth: state.coneDepth,
     showAliases: state.showAliases,
     timing: state.timing,
+    timingDisplayPolicy: state.timingDisplayPolicy,
     timingBadgeChoices: state.compare.timingBadgeChoices,
     timingBadgePositions: state.compare.timingBadgePositions,
     graphOverrides: state.compare.graphOverrides,
+    cellConfig: state.cellConfig,
     nodePositions: state.compare.nodePositions,
     nodeSizes: state.compare.nodeSizes,
     useFanoutHubs: state.useFanoutHubs,
@@ -658,7 +684,9 @@ function renderCurrentModuleGraph(options = {}) {
     module: state.currentModule,
     moduleLibrary: state.design.modules,
     graphOverrides: state.graphOverrides,
+    cellConfig: state.cellConfig,
     timing: state.timing,
+    timingDisplayPolicy: state.timingDisplayPolicy,
     timingBadgeChoices: state.timingBadgeChoices,
     timingBadgePositions: state.timingBadgePositions,
     showAliases: state.showAliases,
@@ -844,6 +872,17 @@ function handleWireSpacingChange(event) {
   setSelectedNode(selectedNode);
   applyTransform();
   setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
+}
+
+function handleTimingDisplayPolicyChange() {
+  const metric = elements.timingMetricSelect.value;
+  state.timingDisplayPolicy = {
+    snapshot: elements.timingSnapshotSelect.value,
+    metrics: metric === "all" ? ["at", "rt", "slack"] : [metric]
+  };
+  persistSession();
+  if (state.timing && state.currentModule) rerenderActiveGraph();
+  setStatus(`Timing: ${state.timingDisplayPolicy.snapshot} / ${metric}`);
 }
 
 function setSelectedNode(nodeId) {
@@ -2056,13 +2095,24 @@ function setStatus(message) {
 }
 
 function applySessionPreferences(session) {
-  if (!session) return;
-  state.coneDepth = clamp(Number(session.coneDepth) || 3, 1, 99);
-  state.showAliases = Boolean(session.showAliases);
-  state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
-  state.useFanoutHubs = session.useFanoutHubs !== false;
-  state.collapseLargeGroups = session.collapseLargeGroups !== false;
+  if (session) {
+    state.coneDepth = clamp(Number(session.coneDepth) || 3, 1, 99);
+    state.showAliases = Boolean(session.showAliases);
+    state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
+    state.useFanoutHubs = session.useFanoutHubs !== false;
+    state.collapseLargeGroups = session.collapseLargeGroups !== false;
+    const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
+      ? session.timingDisplayPolicy.snapshot : "auto";
+    const metrics = session.timingDisplayPolicy?.metrics;
+    state.timingDisplayPolicy = {
+      snapshot,
+      metrics: Array.isArray(metrics) && metrics.length ? metrics : ["slack"]
+    };
+  }
   elements.coneDepthInput.value = String(state.coneDepth);
+  elements.timingSnapshotSelect.value = state.timingDisplayPolicy.snapshot;
+  elements.timingMetricSelect.value = state.timingDisplayPolicy.metrics.length === 3
+    ? "all" : state.timingDisplayPolicy.metrics[0];
 }
 
 function persistSession() {

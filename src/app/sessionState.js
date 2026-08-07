@@ -31,6 +31,10 @@ export function createSessionSnapshot(state) {
     layoutProviderId: state.layoutProviderId,
     transform: { ...state.transform },
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups
+    collapseLargeGroups: state.collapseLargeGroups,
+    timingDisplayPolicy: {
+      snapshot: state.timingDisplayPolicy?.snapshot || "auto",
+      metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]
+    }
   };
 }

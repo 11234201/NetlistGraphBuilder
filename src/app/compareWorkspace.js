@@ -16,9 +16,11 @@ export function buildCompareWorkspace(options) {
     coneDepth = 3,
     showAliases = false,
     timing = null,
+    timingDisplayPolicy = null,
     timingBadgeChoices = {},
     timingBadgePositions = {},
     graphOverrides = { left: null, right: null },
+    cellConfig = null,
     nodePositions = { left: new Map(), right: new Map() },
     nodeSizes = { left: new Map(), right: new Map() },
     useFanoutHubs = true,
@@ -28,17 +30,19 @@ export function buildCompareWorkspace(options) {
   } = options;
   const fullGraphs = {
     left: buildWorkspaceGraph(leftModule, {
-      showAliases, timing,
+      showAliases, timing, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
       graphOverrides: graphOverrides.left,
+      cellConfig,
       moduleLibrary
     }),
     right: buildWorkspaceGraph(rightModule, {
-      showAliases, timing,
+      showAliases, timing, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
       graphOverrides: graphOverrides.right,
+      cellConfig,
       moduleLibrary
     })
   };

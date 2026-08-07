@@ -1,9 +1,11 @@
 ﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
 import { getNetDisplayName, getPortDisplayName } from "./model.js";
+import { resolveCellConfigDefinition, toInternalGateKind } from "../infer/cellConfig.js";
 
 export function buildSchematicGraph(module, options = {}) {
   const overrides = normalizeGraphOverrides(options.overrides);
   const moduleByName = normalizeModuleLibrary(options.moduleLibrary || options.design?.modules);
+  const cellConfig = options.cellConfig || null;
   const graph = {
     moduleName: module.name,
     moduleDisplayName: module.displayName,
@@ -78,10 +80,13 @@ export function buildSchematicGraph(module, options = {}) {
 
   for (const cell of module.cells) {
     const referencedModule = moduleByName.get(cell.type);
+    const configuredDefinition = referencedModule ? null : resolveCellConfigDefinition(cellConfig, cell.type);
     const cellKind = referencedModule
       ? { kind: "module", source: "module-definition" }
-      : inferCellKind(cell.type);
-    const pinDirections = getCellPinDirections(cell, overrides, referencedModule);
+      : configuredDefinition
+        ? { kind: toInternalGateKind(configuredDefinition.gateKind), source: "user-config" }
+        : inferCellKind(cell.type);
+    const pinDirections = getCellPinDirections(cell, overrides, referencedModule, configuredDefinition);
     const node = addNode({
       id: makeId("cell", cell.instance),
       kind: "cell",
@@ -230,7 +235,7 @@ function annotateGraphMetadata(graph, module) {
   }
 }
 
-function getCellPinDirections(cell, overrides, referencedModule = null) {
+function getCellPinDirections(cell, overrides, referencedModule = null, configuredDefinition = null) {
   const directions = {};
   const cellOverrides = overrides.cellPinDirections[cell.instance] || {};
   const modulePorts = new Map((referencedModule?.ports || []).map((port) => [port.name, port]));
@@ -238,16 +243,22 @@ function getCellPinDirections(cell, overrides, referencedModule = null) {
     const displayName = pin.pinDisplayName || pin.pin;
     const overrideDirection = normalizePinDirection(cellOverrides[pin.pin] ?? cellOverrides[displayName]);
     const modulePort = modulePorts.get(pin.pin);
-    if (overrideDirection) {
-      directions[displayName] = {
-        direction: overrideDirection,
-        source: "override"
-      };
-    } else if (modulePort && isKnownPortDirection(modulePort.direction)) {
+    const configuredDirection = configuredDefinition?.pins?.[pin.pin] ?? configuredDefinition?.pins?.[displayName];
+    if (modulePort && isKnownPortDirection(modulePort.direction)) {
       directions[displayName] = {
         direction: modulePort.direction,
         source: "module-definition",
         moduleName: referencedModule.name
+      };
+    } else if (overrideDirection) {
+      directions[displayName] = {
+        direction: overrideDirection,
+        source: "override"
+      };
+    } else if (configuredDirection) {
+      directions[displayName] = {
+        direction: configuredDirection,
+        source: "user-config"
       };
     } else {
       directions[displayName] = inferPinDirection(pin.pin, cell.type);

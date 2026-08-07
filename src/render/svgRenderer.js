@@ -158,7 +158,20 @@ function renderPortNode(node, portKind) {
       ? `${x},${y} ${x + width - 14},${y} ${x + width},${y + height / 2} ${x + width - 14},${y + height} ${x},${y + height}`
       : `${x + 14},${y} ${x + width},${y} ${x + width},${y + height} ${x + 14},${y + height} ${x},${y + height / 2}`;
 
-  return `<g class="node ${portKind}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
+  const timingMetrics = node.timing?.metrics || (node.timing ? {
+    at: node.timing.at,
+    rt: node.timing.rt,
+    slack: node.timing.slack
+  } : null);
+  const timingTitle = timingMetrics
+    ? `<title>${escapeHtml(`${node.label}: ${Object.entries(timingMetrics)
+      .filter(([, value]) => Number.isFinite(value))
+      .map(([name, value]) => `${name} ${formatTimingValue(value)}`).join(", ")}`)}</title>`
+    : "";
+  const timingClass = node.timing
+    ? (node.timing.slack < 0 ? " timing-critical" : " timing-annotated") : "";
+  return `<g class="node ${portKind}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
+    ${timingTitle}
     <polygon class="node-shape" points="${points}"></polygon>
     <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
   </g>`;
