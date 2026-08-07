@@ -7,6 +7,7 @@ import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 
 const input = process.argv[2];
+const noCollapse = process.argv.includes("--no-collapse");
 if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v>");
 
 const source = await readFile(input, "utf8");
@@ -18,7 +19,9 @@ if (!module) throw new Error(`No Verilog module found in ${input}`);
 
 const graphStarted = performance.now();
 const rawGraph = buildSchematicGraph(module);
-const graph = applyWorkspaceGraphTransforms(rawGraph);
+const graph = applyWorkspaceGraphTransforms(rawGraph, {
+  collapseLargeGroups: !noCollapse
+});
 const graphMs = performance.now() - graphStarted;
 const layoutStarted = performance.now();
 const laidOut = getLayoutProvider().layout(graph);

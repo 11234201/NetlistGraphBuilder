@@ -3,19 +3,20 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 const defaultRoot = path.resolve(
-  "dc_runs/local_resyn_ut_yellow_cases_v6/yellow"
+  "tests/fixtures/mapped"
 );
 const caseRoot = path.resolve(process.env.MAPPED_CASE_ROOT || defaultRoot);
 const expectedCases = numberFromEnvironment("EXPECTED_MAPPED_CASES", 47);
 const timeoutMs = numberFromEnvironment("MAPPED_CASE_TIMEOUT_MS", 45_000);
 const maximumCaseViolations = numberFromEnvironment("MAX_CASE_VIOLATIONS", 32);
 const maximumTotalViolations = numberFromEnvironment("MAX_TOTAL_VIOLATIONS", 120);
+const noCollapse = process.env.MAPPED_CASE_NO_COLLAPSE === "1";
 const worker = path.resolve("tools/test-one-mapped-case.mjs");
 
 if (!await isDirectory(caseRoot)) {
   throw new Error(
     `Mapped-case root not found: ${caseRoot}\n` +
-    "Set MAPPED_CASE_ROOT to the external yellow-case directory."
+    "Set MAPPED_CASE_ROOT to another mapped-case directory if needed."
   );
 }
 
@@ -86,7 +87,10 @@ async function findMappedNetlists(root) {
 
 function runWorker(netlist, timeout) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [worker, netlist], {
+    const workerArguments = noCollapse
+      ? [worker, netlist, "--no-collapse"]
+      : [worker, netlist];
+    const child = spawn(process.execPath, workerArguments, {
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
