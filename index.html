@@ -139,6 +139,21 @@
         </section>
       </section>
 
+      <section id="processLogDrawer" class="process-log-drawer" aria-label="Process Log">
+        <header>
+          <button id="toggleProcessLogButton" class="mini-button" type="button" aria-expanded="false">Process Log <span id="processLogCount">0</span></button>
+          <div id="processLogControls" class="process-log-controls" hidden>
+            <label>Level <select id="processLogLevelFilter"><option value="">All</option><option value="debug">Debug</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select></label>
+            <label>Phase <select id="processLogPhaseFilter"><option value="">All</option><option value="import">Import</option><option value="parse">Parse</option><option value="timing">Timing</option><option value="graph">Graph</option><option value="layout">Layout</option><option value="render">Render</option><option value="navigation">Navigation</option><option value="export">Export</option><option value="launcher">Launcher</option></select></label>
+            <label><input id="processLogAutoScroll" type="checkbox" checked> Auto-scroll</label>
+            <button id="copyProcessLogButton" class="mini-button" type="button">Copy</button>
+            <button id="exportProcessLogButton" class="mini-button" type="button">Export</button>
+            <button id="clearProcessLogButton" class="mini-button" type="button">Clear</button>
+          </div>
+        </header>
+        <ol id="processLogList" class="process-log-list" hidden></ol>
+      </section>
+
       <footer id="statusBar" class="status-bar">Ready</footer>
     </main>
 

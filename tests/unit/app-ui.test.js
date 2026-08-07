@@ -15,6 +15,7 @@ import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
 import { collectCellTypeSummary, renderCellDefinitionEditor } from "../../src/ui/cellDefinitionPanel.js";
+import { renderProcessLogEntries } from "../../src/ui/processLogPanel.js";
 import {
   getTimingBadgeChoices,
   renderTimingPanel,
@@ -151,6 +152,24 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="8"[^>]+max="120"/);
+  assert.match(html, /id="processLogDrawer"/);
+  assert.match(html, /id="processLogLevelFilter"/);
+  assert.match(html, /id="processLogPhaseFilter"/);
+  assert.match(html, /id="exportProcessLogButton"/);
+});
+
+test("process log renderer escapes messages and detail values", () => {
+  const html = renderProcessLogEntries([{
+    timestamp: "2026-08-07T00:00:00.000Z",
+    level: "error",
+    phase: "parse",
+    message: "<script>alert(1)</script>",
+    details: { fileName: "bad<&>.v" }
+  }]);
+
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /bad&lt;&amp;&gt;\.v/);
 });
 
 test("Cell Definition editor summarizes a type and escapes names", () => {

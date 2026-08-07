@@ -261,6 +261,56 @@ textarea {
   font-size: 18px;
 }
 
+.process-log-drawer {
+  border-top: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+.process-log-drawer > header,
+.process-log-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.process-log-controls {
+  flex: 1;
+  flex-wrap: wrap;
+  padding: 0;
+}
+
+.process-log-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.process-log-list {
+  max-height: 220px;
+  margin: 0;
+  padding: 4px 12px 10px;
+  overflow: auto;
+  list-style: none;
+  font: 12px/1.45 Consolas, "Courier New", monospace;
+}
+
+.process-log-entry {
+  display: grid;
+  grid-template-columns: 72px 54px 76px 1fr auto;
+  gap: 8px;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--line-soft, var(--line));
+}
+
+.process-log-entry.level-error { color: #b91c1c; }
+.process-log-entry.level-warning { color: #a16207; }
+.process-log-level,
+.process-log-phase { text-transform: uppercase; }
+.process-log-entry pre { max-width: 480px; white-space: pre-wrap; }
+
 .cell-definition-body {
   max-height: min(58vh, 520px);
   padding: 16px;

@@ -90,6 +90,8 @@ import {
 } from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
+import { createProcessLog } from "./processLog.js";
+import { renderProcessLogEntries } from "../ui/processLogPanel.js";
 import {
   canStepModuleHistory,
   createModuleHistoryEntry,
@@ -100,6 +102,7 @@ import {
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 state.cellConfig = loadStoredCellConfig();
+const processLog = createProcessLog({ capacity: 500 });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
@@ -181,7 +184,18 @@ const elements = {
   stats: document.querySelector("#designStats"),
   details: document.querySelector("#selectionDetails"),
   diagnostics: document.querySelector("#diagnosticsList"),
-  status: document.querySelector("#statusBar")
+  status: document.querySelector("#statusBar"),
+  processLogDrawer: document.querySelector("#processLogDrawer"),
+  toggleProcessLogButton: document.querySelector("#toggleProcessLogButton"),
+  processLogCount: document.querySelector("#processLogCount"),
+  processLogControls: document.querySelector("#processLogControls"),
+  processLogLevelFilter: document.querySelector("#processLogLevelFilter"),
+  processLogPhaseFilter: document.querySelector("#processLogPhaseFilter"),
+  processLogAutoScroll: document.querySelector("#processLogAutoScroll"),
+  copyProcessLogButton: document.querySelector("#copyProcessLogButton"),
+  exportProcessLogButton: document.querySelector("#exportProcessLogButton"),
+  clearProcessLogButton: document.querySelector("#clearProcessLogButton"),
+  processLogList: document.querySelector("#processLogList")
 };
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 
@@ -256,6 +270,12 @@ elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
 elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
 elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
+elements.toggleProcessLogButton.addEventListener("click", toggleProcessLogDrawer);
+elements.processLogLevelFilter.addEventListener("change", renderProcessLog);
+elements.processLogPhaseFilter.addEventListener("change", renderProcessLog);
+elements.copyProcessLogButton.addEventListener("click", copyProcessLog);
+elements.exportProcessLogButton.addEventListener("click", exportProcessLog);
+elements.clearProcessLogButton.addEventListener("click", clearProcessLog);
 elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize);
 elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
@@ -399,11 +419,23 @@ function loadQuickInputText(text, options = {}) {
 }
 
 function loadTimingText(text, label) {
-  const timing = parseTimingLog(text);
+  logProcess("info", "timing", `Parsing timing ${label}`);
+  let timing;
+  try {
+    timing = parseTimingLog(text);
+  } catch (error) {
+    logProcess("error", "timing", `Timing parse failed: ${error.message}`, { label });
+    throw error;
+  }
   if ((timing.scopeCount || timing.instanceCount || 0) === 0) {
     throw new Error("no timing scope or instance record was recognized");
   }
   state.timing = timing;
+  logProcess("info", "timing", `Loaded ${timing.scopeCount || timing.instanceCount} timing scope(s)`, {
+    label,
+    format: timing.format,
+    diagnostics: timing.diagnostics?.length || 0
+  });
   resetTimingPresentation(state);
   if (state.compare.active) {
     renderCompareGraphs();
@@ -511,15 +543,21 @@ function isEditablePasteTarget(target) {
 }
 
 function loadDesign(source, label, restore = null) {
+  logProcess("info", "import", `Loading design ${label}`);
   let design;
   try {
     design = parseDesignSource(source);
   } catch (error) {
+    logProcess("error", "parse", `Design parse failed: ${error.message}`, { label });
     setStatus(`Parse failed: ${error.message}`);
     throw error;
   }
 
   try {
+    logProcess("info", "parse", `Parsed ${design.modules.length} module(s)`, {
+      label,
+      diagnostics: design.diagnostics?.length || 0
+    });
     state.design = design;
     state.currentSource = source;
     state.currentSourceLabel = label;
@@ -656,6 +694,9 @@ function renderCompareGraphs() {
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
   const requestId = ++state.layoutRequestId;
+  logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
+    provider: getCurrentLayoutProvider().id
+  });
   const workspace = buildCompareWorkspace({
     leftModule,
     rightModule,
@@ -680,6 +721,7 @@ function renderCompareGraphs() {
     moduleLibrary: state.design.modules
   });
   if (isPromise(workspace)) {
+    logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
     setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
     workspace.then((result) => {
       if (requestId === state.layoutRequestId) commitCompareWorkspace(result, leftModule, rightModule);
@@ -694,6 +736,10 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
   state.compare.autoGraphs = workspace.autoGraphs;
   state.compare.graphs = workspace.graphs;
   state.compare.analysis = workspace.analysis;
+  logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
+    leftModule: leftModule.name,
+    rightModule: rightModule.name
+  });
   elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;
   elements.compareMount.querySelector('[data-compare-side="right"] > header').textContent = rightModule.displayName;
   renderCompareOutputOptions(leftModule, rightModule);
@@ -703,6 +749,10 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
   ]).then(() => {
     applyCompareHighlights();
     applyCompareTransforms();
+    logProcess("info", "render", "Compare render completed", {
+      leftNodes: state.compare.graphs.left.nodes.length,
+      rightNodes: state.compare.graphs.right.nodes.length
+    });
     setStatus(`Compare ready (${getCurrentLayoutProvider().label})`);
   });
 }
@@ -735,6 +785,7 @@ function selectModule(moduleName, options = {}) {
     saveModuleWorkspace(state, state.currentModule.name);
   }
   state.currentModule = module;
+  if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
   elements.moduleSelect.value = module.name;
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
   if (historyEntry) {
@@ -823,6 +874,10 @@ function updateModuleHistoryControls() {
 function renderCurrentModuleGraph(options = {}) {
   const requestId = ++state.layoutRequestId;
   const layoutProvider = getCurrentLayoutProvider();
+  logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
+    viewMode: state.viewMode,
+    provider: layoutProvider.id
+  });
   const workspace = buildModuleWorkspace({
     module: state.currentModule,
     moduleLibrary: state.design.modules,
@@ -845,6 +900,7 @@ function renderCurrentModuleGraph(options = {}) {
     nodeSizes: state.nodeSizes
   });
   if (isPromise(workspace)) {
+    logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId });
     setStatus(`Layout (${layoutProvider.label})…`);
     workspace.then((result) => {
       if (requestId === state.layoutRequestId) {
@@ -858,6 +914,10 @@ function renderCurrentModuleGraph(options = {}) {
 
 function commitCurrentWorkspace(workspace, options = {}) {
   state.fullGraph = workspace.fullGraph;
+  logProcess("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
+    fullNodes: workspace.fullGraph.nodes.length,
+    viewMode: workspace.graph.view?.mode || state.viewMode
+  });
   commitCurrentGraph(workspace.autoGraph, workspace.graph, options);
 }
 
@@ -882,7 +942,10 @@ function renderGraphMount(mount, graph) {
   }
   return renderSchematicIntoMount(mount, graph, {
     onProgress: ({ phase, rendered, total }) => {
-      if (phase === "render") setStatus(`Rendering ${rendered}/${total}…`);
+      if (phase === "render") {
+        setStatus(`Rendering ${rendered}/${total}…`);
+        logProcess("debug", "render", `Rendering ${rendered}/${total}`, { rendered, total }, { progressKey: "svg-batch" });
+      }
     }
   });
 }
@@ -906,6 +969,7 @@ function handleLayoutProviderChange(event) {
 }
 
 function handleLayoutFailure(error) {
+  logProcess("error", "layout", `Layout failed; falling back to Simple Layered: ${error.message}`);
   state.layoutProviderId = "simple-layered";
   elements.layoutProviderSelect.value = state.layoutProviderId;
   setStatus(`Layout failed; using Simple Layered: ${error.message}`);
@@ -2097,6 +2161,10 @@ function exportCurrentSvg() {
     : `${state.viewMode}-depth-${state.coneDepth}`;
   const fileName = `${sanitizeFileName(state.currentModule.name)}-${viewSuffix}.svg`;
   downloadText(createStandaloneSvg(renderSchematicSvg(state.graph)), fileName, "image/svg+xml");
+  logProcess("info", "export", `Exported SVG: ${fileName}`, {
+    nodeCount: state.graph.nodes.length,
+    edgeCount: state.graph.edges.length
+  });
   setStatus(`Exported SVG: ${fileName}`);
 }
 
@@ -2185,6 +2253,10 @@ function saveLayoutGolden() {
     },
     `layout-golden-${sanitizeFileName(state.currentModule.name)}.json`
   );
+  logProcess("info", "export", `Exported layout Golden for ${state.currentModule.displayName}`, {
+    movedNodeCount: diff.movedNodeCount,
+    maxMove: diff.maxMove
+  });
   setStatus(`Saved layout golden: ${diff.movedNodeCount} moved node(s), max move ${diff.maxMove}px`);
 }
 
@@ -2472,6 +2544,65 @@ function getCurrentLayoutProvider() {
 
 function setStatus(message) {
   elements.status.textContent = message;
+}
+
+function logProcess(level, phase, message, details = undefined, options = {}) {
+  if (options.progressKey) {
+    processLog.progress({ level, phase, message, details, key: options.progressKey });
+  } else {
+    processLog.append({ level, phase, message, details });
+  }
+  if (level === "error") toggleProcessLogDrawer(true);
+  renderProcessLog();
+}
+
+function toggleProcessLogDrawer(forceOpen = null) {
+  const open = forceOpen === null
+    ? elements.processLogList.hidden
+    : Boolean(forceOpen);
+  elements.processLogList.hidden = !open;
+  elements.processLogControls.hidden = !open;
+  elements.toggleProcessLogButton.setAttribute("aria-expanded", String(open));
+  if (open) renderProcessLog();
+}
+
+function getProcessLogFilters() {
+  return {
+    level: elements.processLogLevelFilter.value,
+    phase: elements.processLogPhaseFilter.value
+  };
+}
+
+function renderProcessLog() {
+  elements.processLogCount.textContent = String(processLog.size);
+  if (elements.processLogList.hidden) return;
+  const entries = processLog.entries(getProcessLogFilters());
+  elements.processLogList.innerHTML = renderProcessLogEntries(entries);
+  if (elements.processLogAutoScroll.checked) {
+    elements.processLogList.scrollTop = elements.processLogList.scrollHeight;
+  }
+}
+
+async function copyProcessLog() {
+  const text = processLog.toJsonLines(getProcessLogFilters());
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(`Copied ${processLog.entries(getProcessLogFilters()).length} log entry(s)`);
+  } catch (error) {
+    setStatus(`Copy log failed: ${error.message}`);
+  }
+}
+
+function exportProcessLog() {
+  const text = processLog.toJsonLines(getProcessLogFilters());
+  downloadText(`${text}${text ? "\n" : ""}`, "netlist-process-log.jsonl", "application/x-ndjson");
+  setStatus(`Exported ${processLog.entries(getProcessLogFilters()).length} log entry(s)`);
+}
+
+function clearProcessLog() {
+  processLog.clear();
+  renderProcessLog();
+  setStatus("Process Log cleared");
 }
 
 function applySessionPreferences(session) {
