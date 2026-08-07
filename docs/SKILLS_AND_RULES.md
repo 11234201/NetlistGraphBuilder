@@ -29,12 +29,16 @@ docs/PLAN.md
 docs/STAGE_<N>_PLAN.md
 ```
 
+仓库根目录 `AGENTS.md` 是开发 agent 和新贡献者的自动发现入口，只保留跨领域、必须始终遵守
+的约束，并链接到上述详细文档和相关 skill。领域细节不得在 `AGENTS.md` 与 skill 中重复维护。
+
 如果未来需要迁移到 Codex 全局 skill，再从 `docs/skills/` 中挑选稳定版本安装，不直接把实验性规则写进全局目录。
 
 ## 写入规则
 
 每个 skill 必须包含：
 
+- 可被工具识别的 YAML frontmatter：仅含 `name` 和覆盖触发场景的 `description`。
 - 适用场景。
 - 必读上下文。
 - 输入和输出约定。
