@@ -14,16 +14,15 @@
           <span class="brand-mark">NGB</span>
           <span class="brand-title">Netlist Graph Builder</span>
         </div>
-        <label class="file-button" title="打开 structural Verilog 网表">
-          <input id="fileInput" type="file" accept=".v,.sv,.txt">
-          打开网表
-        </label>
-        <button id="pasteNetlistButton" class="icon-button compact-button" type="button" title="粘贴一段 structural Verilog 网表">Paste</button>
-        <button id="pasteTimingButton" class="icon-button compact-button" type="button" title="直接粘贴 Global/Local 或 LocResyn 时序文本">Paste timing</button>
-        <label class="file-button" title="导入 LocResyn 时序信息">
-          <input id="timingInput" type="file" accept=".log,.txt">
-          导入时序
-        </label>
+        <details class="toolbar-menu import-menu">
+          <summary title="Import netlist or timing data">Import</summary>
+          <div class="toolbar-menu-popover">
+            <label class="menu-action" title="打开 structural Verilog 网表"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist</label>
+            <button id="pasteNetlistButton" class="menu-action" type="button" title="粘贴一段 structural Verilog 网表">Paste netlist</button>
+            <label class="menu-action" title="导入 Global/Local 或 LocResyn 时序信息"><input id="timingInput" type="file" accept=".log,.txt">Open timing</label>
+            <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴 Global/Local 或 LocResyn 时序文本">Paste timing</button>
+          </div>
+        </details>
         <label class="toolbar-field">
           <span>Module</span>
           <select id="moduleSelect"></select>
@@ -31,26 +30,16 @@
         <button id="moduleBackButton" class="icon-button compact-button" type="button" title="返回上一个 module 视图 (Alt+Left)" disabled>&larr;</button>
         <button id="moduleForwardButton" class="icon-button compact-button" type="button" title="前进到下一个 module 视图 (Alt+Right)" disabled>&rarr;</button>
         <button id="compareButton" class="icon-button" type="button" title="进入双 module 对比视图">Compare</button>
-        <label class="toolbar-field layout-provider-field"><span>Layout</span><select id="layoutProviderSelect"></select></label>
-        <label class="toolbar-field wire-spacing-field" title="调整平行 net 走线间距">
-          <span>Wire spacing</span>
-          <input id="wireSpacingInput" type="range" min="8" max="40" step="1" value="18">
-          <output id="wireSpacingValue">18</output>
-        </label>
-        <label class="toolbar-field cell-spacing-field" title="调整 cell 间距和拥塞通道留白">
-          <span>Cell spacing</span>
-          <input id="cellSpacingInput" type="range" min="8" max="120" step="4" value="8">
-          <output id="cellSpacingValue">8</output>
-        </label>
         <button id="fitButton" class="icon-button" type="button" title="适配视图">Fit</button>
-        <button id="exportSvgButton" class="icon-button" type="button" title="导出当前 schematic SVG">SVG</button>
-        <button id="adjustLayoutButton" class="icon-button" type="button" title="切换布局校准模式">Adjust</button>
-        <button id="saveGoldenButton" class="icon-button" type="button" title="导出当前布局 Golden">Save G</button>
-        <label class="file-button compact-button" title="载入当前网表对应的布局 Golden">
-          <input id="goldenInput" type="file" accept=".json,application/json">
-          Load G
-        </label>
-        <button id="resetLayoutButton" class="icon-button" type="button" title="清除手动布局调整">Reset</button>
+        <details class="toolbar-menu more-menu">
+          <summary title="Export and layout file actions">More</summary>
+          <div class="toolbar-menu-popover toolbar-menu-popover-right">
+            <button id="exportSvgButton" class="menu-action" type="button" title="导出当前 schematic SVG">Export SVG</button>
+            <button id="saveGoldenButton" class="menu-action" type="button" title="导出当前布局 Golden">Save Golden</button>
+            <label class="menu-action" title="载入当前网表对应的布局 Golden"><input id="goldenInput" type="file" accept=".json,application/json">Load Golden</label>
+            <button id="resetLayoutButton" class="menu-action" type="button" title="清除手动布局调整">Reset layout</button>
+          </div>
+        </details>
       </header>
 
       <section class="workspace">
@@ -80,11 +69,22 @@
             <button id="collapseAllButton" class="mini-button" type="button">Collapse all groups</button>
             <button id="focusSelectedButton" class="mini-button" type="button" title="Center and zoom the selected cell (F)" disabled>Focus selected cell</button>
           </section>
-          <section class="panel-section timing-policy-panel">
-            <h2>Timing</h2>
-            <label><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
-            <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="all">All</option></select></label>
-          </section>
+          <details class="panel-section collapsible-panel layout-settings-panel" open>
+            <summary>Layout</summary>
+            <div class="panel-section-body">
+              <label class="panel-field layout-provider-field"><span>Provider</span><select id="layoutProviderSelect" title="Choose the shared layout provider"></select></label>
+              <label class="panel-field wire-spacing-field" title="调整平行 net 走线间距"><span>Wire spacing</span><span class="range-control"><input id="wireSpacingInput" type="range" min="8" max="40" step="1" value="18"><output id="wireSpacingValue">18</output></span></label>
+              <label class="panel-field cell-spacing-field" title="调整 cell 间距和拥塞通道留白"><span>Cell spacing</span><span class="range-control"><input id="cellSpacingInput" type="range" min="8" max="120" step="4" value="8"><output id="cellSpacingValue">8</output></span></label>
+              <button id="adjustLayoutButton" class="mini-button" type="button" title="切换布局校准模式">Adjust layout</button>
+            </div>
+          </details>
+          <details class="panel-section collapsible-panel timing-policy-panel" open>
+            <summary>Timing</summary>
+            <div class="panel-section-body">
+              <label><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
+              <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="all">All</option></select></label>
+            </div>
+          </details>
           <section class="panel-section cell-config-panel">
             <h2>Cell Config</h2>
             <button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the selected primitive cell type" disabled>Edit selected type</button>

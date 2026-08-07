@@ -136,6 +136,7 @@ test("adjust panel escapes editable property values", () => {
 
 test("lightweight inputs expose paste and Golden load controls", async () => {
   const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
+  const topbar = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)?.[1] || "";
 
   assert.match(html, /id="pasteNetlistButton"/);
   assert.match(html, /id="netlistTextDialog"/);
@@ -156,6 +157,11 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="processLogLevelFilter"/);
   assert.match(html, /id="processLogPhaseFilter"/);
   assert.match(html, /id="exportProcessLogButton"/);
+  assert.match(topbar, /<summary[^>]*>Import<\/summary>/);
+  assert.match(topbar, /<summary[^>]*>More<\/summary>/);
+  assert.doesNotMatch(topbar, /id="layoutProviderSelect"|id="timingSnapshotSelect"|id="wireSpacingInput"/);
+  assert.match(html, /<details class="panel-section collapsible-panel layout-settings-panel" open>/);
+  assert.match(html, /<details class="panel-section collapsible-panel timing-policy-panel" open>/);
 });
 
 test("process log renderer escapes messages and detail values", () => {
