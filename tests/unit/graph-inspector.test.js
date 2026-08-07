@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeGraphCone, createConeGraph } from "../../src/analysis/graphCone.js";
+import {
+  analyzeFocusedNeighborhood,
+  analyzeGraphCone,
+  createConeGraph,
+  createFocusedNeighborhoodGraph
+} from "../../src/analysis/graphCone.js";
 import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inspectGraphNet, inspectGraphNode } from "../../src/analysis/graphInspector.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
@@ -90,6 +95,16 @@ test("cone graph keeps graph metadata while filtering nodes and edges", () => {
   assert.deepEqual(new Set(cone.nodes.map((node) => node.id)), new Set(["cell:u0", "cell:u1", "output:y1"]));
   assert.ok(cone.edges.every((edge) => cone.nodes.some((node) => node.id === edge.source)));
   assert.deepEqual(cone.view, { mode: "fanin", rootNodeId: "output:y1", maxDepth: 2 });
+});
+
+test("focused neighborhood unions independent fanin and fanout depths", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const focused = analyzeFocusedNeighborhood(graph, "cell:u0", { faninDepth: 1, fanoutDepth: 2 });
+  assert.deepEqual(new Set(focused.nodeIds), new Set(["input:a", "cell:u0", "cell:u1", "cell:u2", "output:y1", "output:y2"]));
+  assert.equal(new Set(focused.edgeIds).size, focused.edgeIds.length);
+  const fanoutOnly = createFocusedNeighborhoodGraph(graph, "cell:u0", { faninDepth: 0, fanoutDepth: 1 });
+  assert.equal(fanoutOnly.nodes.some((node) => node.id === "input:a"), false);
+  assert.deepEqual(fanoutOnly.view, { mode: "focused", rootNodeId: "cell:u0", faninDepth: 0, fanoutDepth: 1 });
 });
 
 test("alias normalization collapses assign chains without changing parser IR", () => {

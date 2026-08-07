@@ -232,6 +232,35 @@ textarea {
   margin-top: 8px;
 }
 
+.focused-depth-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.focused-depth-fields label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.search-first-empty {
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  min-height: 100%;
+  padding: 32px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.search-first-empty strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
 .cell-definition-body {
   max-height: min(58vh, 520px);
   padding: 16px;

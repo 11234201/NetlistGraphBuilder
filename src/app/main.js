@@ -88,9 +88,11 @@ import {
   getQuickInputPriority
 } from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
+import { shouldUseSearchFirst } from "./graphWorkspace.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 state.cellConfig = loadStoredCellConfig();
+const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
 let pendingWheelGesture = null;
@@ -127,9 +129,12 @@ const elements = {
   searchClearButton: document.querySelector("#searchClearButton"),
   searchResults: document.querySelector("#searchResults"),
   wholeViewButton: document.querySelector("#wholeViewButton"),
+  focusedViewButton: document.querySelector("#focusedViewButton"),
   faninViewButton: document.querySelector("#faninViewButton"),
   fanoutViewButton: document.querySelector("#fanoutViewButton"),
   coneDepthInput: document.querySelector("#coneDepthInput"),
+  faninDepthInput: document.querySelector("#faninDepthInput"),
+  fanoutDepthInput: document.querySelector("#fanoutDepthInput"),
   showAliasesInput: document.querySelector("#showAliasesInput"),
   fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
   collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
@@ -205,9 +210,12 @@ elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
 elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
+elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
 elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
 elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
+elements.faninDepthInput.addEventListener("change", handleFocusedDepthChange);
+elements.fanoutDepthInput.addEventListener("change", handleFocusedDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
 elements.collapseGroupsInput.addEventListener("change", handleGraphSimplificationChange);
@@ -632,6 +640,8 @@ function renderCompareGraphs() {
     layoutPolicy: state.layoutPolicy,
     outputName: state.compare.outputName,
     coneDepth: state.coneDepth,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth,
     showAliases: state.showAliases,
     timing: state.timing,
     timingDisplayPolicy: state.timingDisplayPolicy,
@@ -698,7 +708,11 @@ function selectModule(moduleName, options = {}) {
   }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
-  if (switchingModule) restoreModuleWorkspace(state, module.name);
+  const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
+  if (switchingModule && !restoredWorkspace && shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD)) {
+    state.viewMode = "search-first";
+    state.coneRootNodeId = null;
+  }
   renderCurrentModuleGraph(options);
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
@@ -766,6 +780,10 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
 }
 
 function renderGraphMount(mount, graph) {
+  if (graph?.view?.mode === "search-first") {
+    mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;
+    return Promise.resolve();
+  }
   return renderSchematicIntoMount(mount, graph, {
     onProgress: ({ phase, rendered, total }) => {
       if (phase === "render") setStatus(`Rendering ${rendered}/${total}…`);
@@ -804,7 +822,7 @@ function isPromise(value) {
 }
 
 function setViewMode(mode) {
-  if (mode !== "whole") {
+  if (mode !== "whole" && mode !== "search-first") {
     const rootNodeId = state.selectedNodeId || state.coneRootNodeId;
     if (!rootNodeId) {
       setStatus(`Select a node before opening the ${mode} cone`);
@@ -817,7 +835,12 @@ function setViewMode(mode) {
   state.transform = { x: 0, y: 0, scale: 1 };
   setSelectedNode(state.coneRootNodeId);
   applyTransform();
-  setStatus(mode === "whole" ? "Whole module view" : `${mode} cone depth ${state.coneDepth}`);
+  const message = mode === "whole"
+    ? "Whole module overview"
+    : mode === "focused"
+      ? `Focused neighborhood: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`
+      : `${mode} cone depth ${state.coneDepth}`;
+  setStatus(message);
 }
 
 function handleConeDepthChange(event) {
@@ -832,6 +855,15 @@ function handleConeDepthChange(event) {
   if (state.viewMode !== "whole") {
     setViewMode(state.viewMode);
   }
+}
+
+function handleFocusedDepthChange() {
+  state.faninDepth = clamp(Math.floor(Number(elements.faninDepthInput.value) || 0), 0, 99);
+  state.fanoutDepth = clamp(Math.floor(Number(elements.fanoutDepthInput.value) || 0), 0, 99);
+  elements.faninDepthInput.value = String(state.faninDepth);
+  elements.fanoutDepthInput.value = String(state.fanoutDepth);
+  if (state.viewMode === "focused") setViewMode("focused");
+  else persistSession();
 }
 
 function handleAliasVisibilityChange(event) {
@@ -858,11 +890,15 @@ function handleAliasVisibilityChange(event) {
 function updateViewControls() {
   const hasRoot = Boolean(state.selectedNodeId || state.coneRootNodeId);
   elements.wholeViewButton.classList.toggle("is-active", state.viewMode === "whole");
+  elements.focusedViewButton.classList.toggle("is-active", state.viewMode === "focused");
   elements.faninViewButton.classList.toggle("is-active", state.viewMode === "fanin");
   elements.fanoutViewButton.classList.toggle("is-active", state.viewMode === "fanout");
   elements.faninViewButton.disabled = !hasRoot;
   elements.fanoutViewButton.disabled = !hasRoot;
-  elements.coneDepthInput.disabled = state.viewMode === "whole";
+  elements.focusedViewButton.disabled = !hasRoot;
+  elements.coneDepthInput.disabled = state.viewMode === "whole" || state.viewMode === "focused" || state.viewMode === "search-first";
+  elements.faninDepthInput.disabled = state.viewMode !== "focused";
+  elements.fanoutDepthInput.disabled = state.viewMode !== "focused";
   elements.showAliasesInput.checked = state.showAliases;
   elements.fanoutHubsInput.checked = state.useFanoutHubs;
   elements.collapseGroupsInput.checked = state.collapseLargeGroups;
@@ -1213,7 +1249,8 @@ function activateSearchResult(result) {
     return;
   }
   if (state.currentModule?.name !== result.moduleName) {
-    selectModule(result.moduleName);
+    selectModule(result.moduleName, { onRendered: () => activateSearchResult(result) });
+    return;
   }
 
   elements.searchResults.hidden = true;
@@ -1233,6 +1270,21 @@ function activateSearchResult(result) {
     return;
   }
 
+  const fullNode = findSearchTargetNode(target, state.fullGraph);
+  if (target.kind === "cell" && fullNode) {
+    state.coneRootNodeId = fullNode.id;
+    state.viewMode = "focused";
+    state.transform = { x: 0, y: 0, scale: 1 };
+    renderCurrentModuleGraph({
+      onRendered: (graph) => {
+        const node = graph.nodes.find((item) => item.id === fullNode.id);
+        setSelectedNode(node?.id || null);
+        if (node) centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
+        setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
+      }
+    });
+    return;
+  }
   const node = findSearchTargetNode(target);
   setSelectedNode(node?.id || null);
   if (node) {
@@ -1244,17 +1296,17 @@ function activateSearchResult(result) {
   setStatus(`Search: ${result.kind} ${result.label}`);
 }
 
-function findSearchTargetNode(target) {
+function findSearchTargetNode(target, graph = state.graph) {
   if (target.kind === "cell") {
-    return state.graph?.nodes.find(
+    return graph?.nodes.find(
       (node) => node.kind === "cell" && node.ref?.instance === target.name
     );
   }
   if (target.kind === "port") {
     const preferredKind = target.direction === "output" ? "output" : "input";
-    return state.graph?.nodes.find(
+    return graph?.nodes.find(
       (node) => node.kind === preferredKind && node.ref?.name === target.name
-    ) || state.graph?.nodes.find(
+    ) || graph?.nodes.find(
       (node) => (node.kind === "input" || node.kind === "output") && node.ref?.name === target.name
     );
   }
@@ -2227,6 +2279,8 @@ function setStatus(message) {
 function applySessionPreferences(session) {
   if (session) {
     state.coneDepth = clamp(Number(session.coneDepth) || 3, 1, 99);
+    state.faninDepth = clamp(Number.isFinite(Number(session.faninDepth)) ? Number(session.faninDepth) : 3, 0, 99);
+    state.fanoutDepth = clamp(Number.isFinite(Number(session.fanoutDepth)) ? Number(session.fanoutDepth) : 3, 0, 99);
     state.showAliases = Boolean(session.showAliases);
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
@@ -2240,6 +2294,8 @@ function applySessionPreferences(session) {
     };
   }
   elements.coneDepthInput.value = String(state.coneDepth);
+  elements.faninDepthInput.value = String(state.faninDepth);
+  elements.fanoutDepthInput.value = String(state.fanoutDepth);
   elements.timingSnapshotSelect.value = state.timingDisplayPolicy.snapshot;
   elements.timingMetricSelect.value = state.timingDisplayPolicy.metrics.length === 3
     ? "all" : state.timingDisplayPolicy.metrics[0];

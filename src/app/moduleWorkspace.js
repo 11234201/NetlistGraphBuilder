@@ -19,6 +19,8 @@ export function buildModuleWorkspace(options) {
     viewMode = "whole",
     coneRootNodeId = null,
     coneDepth = 3,
+    faninDepth = 3,
+    fanoutDepth = 3,
     useFanoutHubs = true,
     collapseLargeGroups = true,
     expandedGroupIds = new Set(),
@@ -40,7 +42,9 @@ export function buildModuleWorkspace(options) {
   const sourceGraph = selectWorkspaceGraphView(fullGraph, {
     viewMode,
     rootNodeId: coneRootNodeId,
-    maxDepth: coneDepth
+    maxDepth: coneDepth,
+    faninDepth,
+    fanoutDepth
   });
   const displayGraph = applyWorkspaceGraphTransforms(sourceGraph, {
     useFanoutHubs,

@@ -52,6 +52,7 @@
             <h2>View</h2>
             <div class="view-mode-control" role="group" aria-label="Schematic view mode">
               <button id="wholeViewButton" type="button">Whole</button>
+              <button id="focusedViewButton" type="button">Focused</button>
               <button id="faninViewButton" type="button">Fanin</button>
               <button id="fanoutViewButton" type="button">Fanout</button>
             </div>
@@ -59,6 +60,10 @@
               <span>Depth</span>
               <input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3">
             </label>
+            <div class="focused-depth-fields">
+              <label for="faninDepthInput"><span>Fanin depth</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
+              <label for="fanoutDepthInput"><span>Fanout depth</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
+            </div>
             <label class="alias-toggle" for="showAliasesInput">
               <input id="showAliasesInput" type="checkbox">
               <span>Show aliases</span>

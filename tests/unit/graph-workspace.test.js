@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   applyWorkspaceGraphTransforms,
   buildWorkspaceGraph,
-  selectWorkspaceGraphView
+  selectWorkspaceGraphView,
+  shouldUseSearchFirst
 } from "../../src/app/graphWorkspace.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 
@@ -24,6 +25,12 @@ test("shared graph workspace prepares whole and cone views without mutation", ()
   assert.ok(cone.nodes.some((node) => node.id === "cell:u0"));
 });
 
+test("large module policy enters search-first only above its stable threshold", () => {
+  assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 500 }) }), false);
+  assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 501 }) }), true);
+  assert.equal(shouldUseSearchFirst({ nodes: Array.from({ length: 1024 }) }, 500), true);
+});
+
 test("shared display transforms can be disabled independently", () => {
   const module = parseVerilog(source).modules[0];
   const graph = buildWorkspaceGraph(module, { moduleLibrary: [module] });
@@ -38,4 +45,21 @@ test("shared display transforms can be disabled independently", () => {
 
   assert.equal(unchanged, graph);
   assert.ok(simplified.nodes.length >= graph.nodes.length);
+});
+
+test("search-first and focused views derive from the full graph without mutation", () => {
+  const module = parseVerilog(source).modules[0];
+  const fullGraph = buildWorkspaceGraph(module, { moduleLibrary: [module] });
+  const empty = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
+  const focused = selectWorkspaceGraphView(fullGraph, {
+    viewMode: "focused",
+    rootNodeId: "cell:u0",
+    faninDepth: 1,
+    fanoutDepth: 1
+  });
+  assert.equal(empty.nodes.length, 0);
+  assert.equal(empty.view.totalNodes, fullGraph.nodes.length);
+  assert.ok(focused.nodes.some((node) => node.id === "cell:u0"));
+  assert.equal(fullGraph.view, undefined);
+  assert.ok(fullGraph.nodes.length > focused.nodes.length);
 });

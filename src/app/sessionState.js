@@ -26,6 +26,8 @@ export function createSessionSnapshot(state) {
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
     coneDepth: state.coneDepth,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth,
     searchQuery: state.searchQuery,
     showAliases: state.showAliases,
     layoutProviderId: state.layoutProviderId,

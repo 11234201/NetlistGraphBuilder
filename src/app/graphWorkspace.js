@@ -1,6 +1,6 @@
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
-import { createConeGraph } from "../analysis/graphCone.js";
+import { createConeGraph, createFocusedNeighborhoodGraph } from "../analysis/graphCone.js";
 import { collapseLargeGraph } from "../analysis/groupCollapse.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
@@ -20,11 +20,33 @@ export function buildWorkspaceGraph(module, options = {}) {
 }
 
 export function selectWorkspaceGraphView(fullGraph, options = {}) {
+  if (options.viewMode === "search-first") {
+    return {
+      ...fullGraph,
+      nodes: [],
+      edges: [],
+      view: { mode: "search-first", totalNodes: fullGraph.nodes.length }
+    };
+  }
   if (!options.viewMode || options.viewMode === "whole") return fullGraph;
+  if (options.viewMode === "focused") {
+    return createFocusedNeighborhoodGraph(fullGraph, options.rootNodeId, {
+      faninDepth: options.faninDepth,
+      fanoutDepth: options.fanoutDepth
+    });
+  }
   return createConeGraph(fullGraph, options.rootNodeId, {
     direction: options.viewMode,
     maxDepth: options.maxDepth ?? 3
   });
+}
+
+export function shouldUseSearchFirst(value, threshold = 500) {
+  const count = Array.isArray(value?.nodes)
+    ? value.nodes.length
+    : Array.isArray(value?.cells) ? value.cells.length : 0;
+  const limit = Number.isFinite(Number(threshold)) ? Math.max(1, Math.floor(Number(threshold))) : 500;
+  return count > limit;
 }
 
 export function applyWorkspaceGraphTransforms(graph, options = {}) {

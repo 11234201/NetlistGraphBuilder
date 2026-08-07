@@ -62,6 +62,41 @@ export function createConeGraph(graph, startNodeId, options = {}) {
   };
 }
 
+export function analyzeFocusedNeighborhood(graph, startNodeId, options = {}) {
+  const faninDepth = normalizeMaxDepth(options.faninDepth ?? 3);
+  const fanoutDepth = normalizeMaxDepth(options.fanoutDepth ?? 3);
+  const fanin = analyzeGraphCone(graph, startNodeId, { direction: "fanin", maxDepth: faninDepth });
+  const fanout = analyzeGraphCone(graph, startNodeId, { direction: "fanout", maxDepth: fanoutDepth });
+  const nodeIds = new Set([...(faninDepth > 0 ? fanin.nodeIds : [startNodeId]), ...(fanoutDepth > 0 ? fanout.nodeIds : [startNodeId])]);
+  const edgeIds = new Set([...(faninDepth > 0 ? fanin.edgeIds : []), ...(fanoutDepth > 0 ? fanout.edgeIds : [])]);
+  return {
+    startNodeId,
+    faninDepth,
+    fanoutDepth,
+    nodeIds: (graph?.nodes || []).filter((node) => nodeIds.has(node.id)).map((node) => node.id),
+    edgeIds: (graph?.edges || []).filter((edge) => edgeIds.has(edge.id)).map((edge) => edge.id),
+    fanin,
+    fanout
+  };
+}
+
+export function createFocusedNeighborhoodGraph(graph, startNodeId, options = {}) {
+  const focused = analyzeFocusedNeighborhood(graph, startNodeId, options);
+  const nodeIds = new Set(focused.nodeIds);
+  const edgeIds = new Set(focused.edgeIds);
+  return {
+    ...graph,
+    nodes: (graph?.nodes || []).filter((node) => nodeIds.has(node.id)),
+    edges: (graph?.edges || []).filter((edge) => edgeIds.has(edge.id)),
+    view: {
+      mode: "focused",
+      rootNodeId: startNodeId,
+      faninDepth: focused.faninDepth,
+      fanoutDepth: focused.fanoutDepth
+    }
+  };
+}
+
 function buildAdjacency(edges, direction) {
   const adjacency = new Map();
   for (const edge of edges) {

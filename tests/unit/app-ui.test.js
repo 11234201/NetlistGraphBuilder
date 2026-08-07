@@ -61,6 +61,10 @@ test("module and compare workspace adjustments survive switching", () => {
   state.nodePositions.set("cell:u0", { x: 120, y: 80 });
   state.nodeSizes.set("cell:u0", { width: 180, height: 90 });
   state.graphOverrides.nodeProperties["cell:u0"] = { label: "adjusted" };
+  state.viewMode = "focused";
+  state.coneRootNodeId = "cell:u0";
+  state.faninDepth = 1;
+  state.fanoutDepth = 4;
   saveModuleWorkspace(state, "left");
 
   state.nodePositions = new Map();
@@ -70,6 +74,10 @@ test("module and compare workspace adjustments survive switching", () => {
   assert.deepEqual(state.nodePositions.get("cell:u0"), { x: 120, y: 80 });
   assert.equal(state.nodeSizes.get("cell:u0").width, 180);
   assert.equal(state.graphOverrides.nodeProperties["cell:u0"].label, "adjusted");
+  assert.equal(state.viewMode, "focused");
+  assert.equal(state.coneRootNodeId, "cell:u0");
+  assert.equal(state.faninDepth, 1);
+  assert.equal(state.fanoutDepth, 4);
 
   state.compare.leftModuleName = "left";
   state.compare.rightModuleName = "right";
@@ -136,6 +144,9 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="editCellDefinitionButton"/);
   assert.match(html, /id="cellConfigInput"/);
   assert.match(html, /id="cellDefinitionDialog"/);
+  assert.match(html, /id="focusedViewButton"/);
+  assert.match(html, /id="faninDepthInput"[^>]+min="0"/);
+  assert.match(html, /id="fanoutDepthInput"[^>]+min="0"/);
 });
 
 test("Cell Definition editor summarizes a type and escapes names", () => {

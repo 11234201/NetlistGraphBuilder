@@ -13,6 +13,8 @@ export function createAppState(layoutPolicy) {
     viewMode: "whole",
     coneRootNodeId: null,
     coneDepth: 3,
+    faninDepth: 3,
+    fanoutDepth: 3,
     showAliases: false,
     useFanoutHubs: true,
     collapseLargeGroups: true,
@@ -83,6 +85,10 @@ export function saveModuleWorkspace(state, moduleName) {
     nodePositions: new Map(state.nodePositions),
     nodeSizes: new Map(state.nodeSizes),
     graphOverrides: cloneGraphOverrides(state.graphOverrides),
+    viewMode: state.viewMode,
+    coneRootNodeId: state.coneRootNodeId,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth,
     timingBadgeChoices: cloneRecord(state.timingBadgeChoices),
     timingBadgePositions: { ...state.timingBadgePositions }
   });
@@ -95,6 +101,10 @@ export function restoreModuleWorkspace(state, moduleName) {
   state.nodePositions = new Map(saved.nodePositions);
   state.nodeSizes = new Map(saved.nodeSizes);
   state.graphOverrides = cloneGraphOverrides(saved.graphOverrides);
+  state.viewMode = saved.viewMode || "whole";
+  state.coneRootNodeId = saved.coneRootNodeId || null;
+  state.faninDepth = normalizeDepth(saved.faninDepth, state.faninDepth);
+  state.fanoutDepth = normalizeDepth(saved.fanoutDepth, state.fanoutDepth);
   state.timingBadgeChoices = cloneRecord(saved.timingBadgeChoices);
   state.timingBadgePositions = { ...saved.timingBadgePositions };
   return true;
@@ -195,4 +205,9 @@ function cloneLayoutPolicy(policy) {
     spacing: { ...policy.spacing },
     features: { ...policy.features }
   };
+}
+
+function normalizeDepth(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
 }
