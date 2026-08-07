@@ -23,6 +23,31 @@ export function getReadableObjectScale(options) {
   );
 }
 
+export function getFocusedObjectTransform(options) {
+  const viewBoxWidth = positiveNumber(options?.viewBox?.width, 1);
+  const viewBoxHeight = positiveNumber(options?.viewBox?.height, 1);
+  const viewportWidth = positiveNumber(options?.viewportWidth, 1);
+  const objectWidth = positiveNumber(options?.bounds?.width, 1);
+  const targetPixels = positiveNumber(options?.targetPixels, 220);
+  const minimumScale = positiveNumber(options?.minimumScale, 0.25);
+  const maximumScale = positiveNumber(
+    options?.maximumScale,
+    getAdaptiveMaxScale(viewBoxWidth, viewportWidth)
+  );
+  const scale = clamp(
+    (targetPixels * safeRatio(viewBoxWidth, viewportWidth)) / objectWidth,
+    Math.min(minimumScale, maximumScale),
+    Math.max(minimumScale, maximumScale)
+  );
+  const centerX = finiteNumber(options?.bounds?.x, 0) + objectWidth / 2;
+  const centerY = finiteNumber(options?.bounds?.y, 0) + positiveNumber(options?.bounds?.height, 1) / 2;
+  return {
+    x: finiteNumber(options?.viewBox?.x, 0) + viewBoxWidth / 2 - centerX * scale,
+    y: finiteNumber(options?.viewBox?.y, 0) + viewBoxHeight / 2 - centerY * scale,
+    scale
+  };
+}
+
 export function getZoomStep(viewBoxWidth, viewportWidth) {
   const ratio = safeRatio(viewBoxWidth, viewportWidth);
   if (ratio >= 100) {

@@ -47,6 +47,7 @@ import {
   clientPointToViewBox,
   formatViewportTransform,
   getAdaptiveMaxScale,
+  getFocusedObjectTransform,
   getPannedTransform,
   getReadableObjectScale,
   getSteppedZoomedTransform,
@@ -148,6 +149,7 @@ const elements = {
   fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
   collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
   collapseAllButton: document.querySelector("#collapseAllButton"),
+  focusSelectedButton: document.querySelector("#focusSelectedButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
@@ -234,6 +236,7 @@ elements.collapseAllButton.addEventListener("click", () => {
   state.expandedGroupIds.clear();
   rerenderActiveGraph();
 });
+elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
@@ -262,6 +265,7 @@ window.addEventListener("drop", handleWindowDrop);
 window.addEventListener("dragend", clearFileDragState);
 window.addEventListener("paste", handleGlobalPaste);
 window.addEventListener("keydown", handleModuleHistoryShortcut);
+window.addEventListener("keydown", handleFocusSelectedShortcut);
 window.addEventListener("beforeunload", () => {
   if (state.currentSource) saveSessionState(createSessionSnapshot(state));
 });
@@ -599,6 +603,7 @@ function applyCompareSelection() {
   state.compare.outputName = null;
   state.compare.selectedName = null;
   state.compare.selectedSide = null;
+  updateFocusSelectedControl();
   state.compare.transforms.left = { x: 0, y: 0, scale: 1 };
   state.compare.transforms.right = { x: 0, y: 0, scale: 1 };
   elements.comparePanel.hidden = false;
@@ -622,6 +627,7 @@ function applyCompareSelection() {
 function exitCompareView() {
   saveCompareWorkspace(state);
   state.compare.active = false;
+  updateFocusSelectedControl();
   elements.comparePanel.hidden = true;
   elements.compareMount.hidden = true;
   elements.mount.hidden = false;
@@ -991,6 +997,84 @@ function updateViewControls() {
   elements.collapseGroupsInput.checked = state.collapseLargeGroups;
   elements.collapseAllButton.disabled = state.expandedGroupIds.size === 0;
   updateModuleHistoryControls();
+  updateFocusSelectedControl();
+}
+
+function updateFocusSelectedControl() {
+  const singleCell = !state.compare.active && state.fullGraph?.nodes.some(
+    (node) => node.id === state.selectedNodeId && node.kind === "cell"
+  );
+  const compareCell = state.compare.active && state.compare.selectedKind === "cell" && Boolean(state.compare.selectedName);
+  elements.focusSelectedButton.disabled = !(singleCell || compareCell);
+}
+
+function handleFocusSelectedShortcut(event) {
+  if (event.key.toLowerCase() !== "f" || event.altKey || event.ctrlKey || event.metaKey || isEditablePasteTarget(event.target)) return;
+  if (elements.focusSelectedButton.disabled) return;
+  event.preventDefault();
+  focusSelectedCell();
+}
+
+function focusSelectedCell() {
+  if (state.compare.active) {
+    focusSelectedCompareCell();
+    return;
+  }
+  const selectedNodeId = state.selectedNodeId;
+  const fullNode = state.fullGraph?.nodes.find((node) => node.id === selectedNodeId && node.kind === "cell");
+  if (!fullNode) return;
+  const positioned = state.graph?.nodes.find((node) => node.id === selectedNodeId);
+  if (positioned) {
+    focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+    applyTransform();
+    setStatus(`Focused ${fullNode.label}`);
+    return;
+  }
+
+  const requestId = ++state.selectionFocusRequestId;
+  state.viewMode = "focused";
+  state.coneRootNodeId = selectedNodeId;
+  renderCurrentModuleGraph({
+    onRendered: (graph) => {
+      if (requestId !== state.selectionFocusRequestId || state.selectedNodeId !== selectedNodeId) return;
+      const node = graph.nodes.find((item) => item.id === selectedNodeId);
+      if (!node) return;
+      focusPositionedCell(node, elements.mount, state.transform, (transform) => { state.transform = transform; });
+      setSelectedNode(selectedNodeId);
+      applyTransform();
+      setStatus(`Focused ${node.label} in a new neighborhood`);
+    }
+  });
+}
+
+function focusSelectedCompareCell() {
+  if (state.compare.selectedKind !== "cell" || !state.compare.selectedName) return;
+  const activeSide = state.compare.selectedSide || "left";
+  const sides = state.compare.synchronized ? ["left", "right"] : [activeSide];
+  for (const side of sides) {
+    const node = findCompareNode(state.compare.graphs[side], "cell", state.compare.selectedName);
+    if (!node) continue;
+    const mount = side === "left" ? elements.leftMount : elements.rightMount;
+    focusPositionedCell(node, mount, state.compare.transforms[side], (transform) => {
+      state.compare.transforms[side] = transform;
+    });
+  }
+  applyCompareTransforms();
+  setStatus(`Focused compare cell ${state.compare.selectedName}`);
+}
+
+function focusPositionedCell(node, mount, currentTransform, commit) {
+  const svg = mount.querySelector("svg");
+  if (!svg) return;
+  commit(getFocusedObjectTransform({
+    viewBox: svg.viewBox.baseVal,
+    viewportWidth: svg.getBoundingClientRect().width,
+    bounds: node,
+    targetPixels: 220,
+    minimumScale: 0.25,
+    maximumScale: getAdaptiveMaxScale(svg.viewBox.baseVal.width, svg.getBoundingClientRect().width),
+    currentTransform
+  }));
 }
 
 function handleGraphSimplificationChange() {
@@ -1136,6 +1220,7 @@ function updateCellDefinitionControls(node = null) {
 }
 
 function setSelectedNode(nodeId) {
+  state.selectionFocusRequestId += 1;
   state.selectedNodeId = nodeId;
   state.selectedNet = null;
   clearSchematicSelection();
@@ -1149,6 +1234,7 @@ function setSelectedNode(nodeId) {
 }
 
 function setSelectedNet(netName) {
+  state.selectionFocusRequestId += 1;
   state.selectedNodeId = null;
   state.selectedNet = netName;
   clearSchematicSelection();
@@ -1494,6 +1580,7 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
   state.compare.selectedKind = kind;
   state.compare.selectedName = name;
   state.compare.selectedSide = selectedSide;
+  updateFocusSelectedControl();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {
     const mount = side === "left" ? elements.leftMount : elements.rightMount;

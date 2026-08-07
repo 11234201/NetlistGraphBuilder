@@ -36,6 +36,7 @@ export function createAppState(layoutPolicy) {
     calibrationMode: false,
     layoutProviderId: "simple-layered",
     layoutRequestId: 0,
+    selectionFocusRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
     moduleWorkspaces: new Map(),
     moduleHistory: createModuleHistory(),

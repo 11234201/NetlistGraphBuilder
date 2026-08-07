@@ -4,6 +4,7 @@ import {
   clientPointToViewBox,
   formatViewportTransform,
   getAdaptiveMaxScale,
+  getFocusedObjectTransform,
   getPannedTransform,
   getReadableObjectScale,
   getSteppedZoomedTransform,
@@ -14,6 +15,23 @@ import {
 test("ordinary schematics retain the existing zoom behavior", () => {
   assert.equal(getAdaptiveMaxScale(1000, 1000), 4);
   assert.equal(getZoomStep(1000, 1000), 1.12);
+});
+
+test("focused object transform centers a cell at a stable 220px reading width", () => {
+  const options = {
+    viewBox: { x: 0, y: 0, width: 1000, height: 500 },
+    viewportWidth: 500,
+    bounds: { x: 100, y: 50, width: 100, height: 40 },
+    targetPixels: 220,
+    minimumScale: 0.25,
+    maximumScale: 10
+  };
+  const first = getFocusedObjectTransform(options);
+  const second = getFocusedObjectTransform({ ...options, currentTransform: first });
+  assert.deepEqual(first, { x: -160, y: -58, scale: 4.4 });
+  assert.deepEqual(second, first);
+  assert.ok(Math.abs((options.bounds.width * first.scale) / (options.viewBox.width / options.viewportWidth) - 220) < 1e-9);
+  assert.equal(getFocusedObjectTransform({ ...options, maximumScale: 3 }).scale, 3);
 });
 
 test("very wide schematics receive a usable adaptive zoom range", () => {
