@@ -44,10 +44,11 @@ Structural Verilog
 - 阶段 3：`docs/STAGE_3_PLAN.md`
 - 阶段 4：`docs/STAGE_4_PLAN.md`
 - 阶段 5：`docs/STAGE_5_PLAN.md`
+- 阶段 6：`docs/STAGE_6_PLAN.md`
 
 ## 需求拆解与完成状态
 
-当前里程碑：阶段 4 已完成，并随 `v0.4.0` 发布大图布局与工程化能力；`v0.5.0` 继续完成多位/层次网表、快速输入、Golden 恢复、连接导航和布局稳定性重构。下一阶段进入可选 Liberty 增强。
+当前里程碑：阶段 4 已完成，并随 `v0.4.0` 发布大图布局与工程化能力；`v0.5.0` 继续完成多位/层次网表、快速输入、Golden 恢复、连接导航和布局稳定性重构。阶段 5 保留可选 Liberty 增强，阶段 6 纳入 Global/Local 时序、可复用 Cell Config、聚焦式大图浏览、所选 cell 定位、module 前进/后退、过程日志和 EDA 启动集成。
 
 状态口径：
 
@@ -77,6 +78,17 @@ Structural Verilog
 | R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 已完成 | `docs/STAGE_4_PLAN.md` |
 | R4-3 | 阶段 4 | Balanced/Folded 布局 | 深层 DAG 按逻辑层分带折叠、跨带专用通道、保留默认左到右模式 | 暂缓 | `docs/STAGE_4_PLAN.md` |
 | R5-1 | 阶段 5 | 可选 Liberty 增强 | `.lib` 子集解析、pin direction 覆盖、function 辅助、fallback 诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
+| R6-1 | 阶段 6 | 新 module/instance 边界时序格式 | Global/Local、INPUT/OUTPUT、AT/RT/Slack、Apply 和旧格式兼容 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-2 | 阶段 6 | 全图时序显示策略 | Auto/Global/Local 与 Slack/AT/RT/All 全图设置 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-3 | 阶段 6 | Cell spacing 与拥塞可读性 | 可调 cell 间距、拥塞感知通道和布局质量回归 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-4 | 阶段 6 | 顶部控件收敛 | Import/More 分组、侧栏 Layout/Timing 和窄屏可用性 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-5 | 阶段 6 | 直接粘贴时序 | 显式 Paste timing、通用文本导入和新格式自动识别 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-6 | 阶段 6 | EDA 启动接口 | 统一 CLI、应用控制层、ready 输出和本地安全边界 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-7 | 阶段 6 | Search-first 双向局部视图 | 独立 fanin/fanout depth、Focused neighborhood 和大图按需布局 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-8 | 阶段 6 | Module 前进/后退 | module 导航历史、状态恢复、按钮和快捷键 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-9 | 阶段 6 | 过程日志控件 | 可折叠日志面板、阶段/级别过滤、容量控制、复制和导出 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-10 | 阶段 6 | 定位并放大所选 cell | View 定位控件、稳定阅读尺度、局部图自动揭示和 Compare 一致行为 | 计划中 | `docs/STAGE_6_PLAN.md` |
+| R6-11 | 阶段 6 | 可复用 Cell Config | 编辑 gate kind/pin direction、本地持久化、JSON 导入导出和 EDA 加载 | 计划中 | `docs/STAGE_6_PLAN.md` |
 
 ### 阶段 0：项目准备
 
@@ -258,6 +270,35 @@ Structural Verilog
 - 无 `.lib` 时功能照常可用。
 - 有 `.lib` 时 pin 方向和 cell 类型更准确。
 - UI 明确显示当前推断来源。
+
+### 阶段 6：时序、聚焦浏览与 EDA 集成
+
+目标：让工具适应 Global/Local 边界时序和真实层次调试工作流，大图优先通过搜索和双向局部逻辑浏览，并可由已有 EDA 工具直接启动到指定分析位置。
+
+短期计划：
+
+- 兼容旧 LocResyn timing 和新的 module/instance 边界表格格式。
+- 增加可复用 Cell Config，为未知 cell type 配置 gate kind 和各 pin direction。
+- 将 cell/port 时序 badge 改为全图 snapshot/metric 设置。
+- 增加显式 Paste timing、Cell spacing 和拥塞感知布局。
+- 精简 topbar，将低频操作归入菜单和侧栏。
+- 增加 Search-first、独立 fanin/fanout depth 和 Focused neighborhood。
+- 增加 Focus selected cell，将选择对象居中并缩放到稳定可读级别。
+- 增加 module 浏览历史、后退、前进和视图状态恢复。
+- 增加可折叠 Process Log，记录导入、解析、时序、布局、渲染和启动过程。
+- 提供统一、离线、本地安全的 EDA 启动接口。
+
+完成标准：
+
+- 新旧时序格式可通过文件和粘贴载入，Global/Local/Apply 语义明确。
+- 未知 cell 的 gate kind 和 pin direction 可编辑、保存、导入导出，并在后续 design 中自动复用。
+- 全图时序显示、双向局部逻辑、module 前进/后退和 Cell spacing 可稳定使用。
+- 所选 cell 可以一键居中放大；目标在局部图外时可自动进入对应 Focused neighborhood。
+- 过程日志可以过滤、复制和导出，且不会因高频进度信息拖慢大图。
+- 千级 cell 场景无需先渲染 Whole 即可搜索并查看局部逻辑。
+- 外部 EDA 工具能打开指定 netlist、module 和 focus cell。
+
+详细任务、接口约定和验证矩阵见 `docs/STAGE_6_PLAN.md`。
 
 ## 每次写代码前必须通读
 
