@@ -163,6 +163,8 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="exportProcessLogButton"/);
   assert.match(topbar, /<summary[^>]*>Import<\/summary>/);
   assert.match(topbar, /<summary[^>]*>More<\/summary>/);
+  assert.match(topbar, /class="topbar-search"[\s\S]*id="searchInput"/);
+  assert.doesNotMatch(html, /class="panel-section search-panel"/);
   assert.doesNotMatch(topbar, /id="layoutProviderSelect"|id="timingSnapshotSelect"|id="wireSpacingInput"/);
   assert.match(html, /<details class="panel-section collapsible-panel layout-settings-panel" open>/);
   assert.match(html, /<details class="panel-section collapsible-panel timing-policy-panel" open>/);

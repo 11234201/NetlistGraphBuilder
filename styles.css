@@ -181,6 +181,22 @@ textarea {
   left: auto;
 }
 
+.topbar-search {
+  position: relative;
+  flex: 1 1 230px;
+  min-width: 180px;
+  max-width: 360px;
+}
+
+.topbar-search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .menu-action {
   display: flex;
   align-items: center;
@@ -627,6 +643,14 @@ body.is-dragging-files .drop-overlay {
   width: 100%;
 }
 
+@media (max-width: 1400px) {
+  .topbar-search {
+    order: 10;
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
 @media (max-width: 1100px) {
   .brand {
     min-width: auto;
@@ -710,19 +734,6 @@ body.is-dragging-files .drop-overlay {
   accent-color: var(--accent);
 }
 
-.search-panel {
-  position: relative;
-  overflow: visible;
-}
-
-.search-label {
-  display: block;
-  margin-bottom: 7px;
-  color: #263241;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .search-box {
   position: relative;
 }
@@ -760,10 +771,10 @@ body.is-dragging-files .drop-overlay {
 
 .search-results {
   position: absolute;
-  z-index: 10;
-  top: 72px;
-  left: 14px;
-  right: 14px;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
   max-height: min(420px, 55vh);
   overflow: auto;
   border: 1px solid var(--line);
