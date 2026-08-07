@@ -2,6 +2,35 @@
 
 本项目使用语义化版本号。
 
+## [0.6.0] - 2026-08-07
+
+阶段 6 时序、搜索优先大图分析和 EDA 集成版本。
+
+### Added
+
+- 支持 Global/Local module boundary timing 表格、`rat` 别名、Apply 信息和表头驱动的未来扩展列，同时兼容旧 LocResyn 格式。
+- 增加全图 Timing snapshot/metric 策略，统一 Single、Compare、module boundary port 和 SVG 的时序展示。
+- 增加 Focused 双向局部视图、独立 fanin/fanout depth、大图 Search-first 入口和所选 cell 一键定位。
+- 增加 module 前进/后退历史，恢复 module、局部视图、selection 和 viewport。
+- 增加可持久化、可导入导出的 Cell Config，并支持 EDA 启动时载入。
+- 增加可过滤、复制和导出的 Process Log，以及 Node、Python、Windows 共用的 EDA 启动参数和 JSON ready 协议。
+- 增加 679 行完整用户教程，覆盖全部界面功能、输入格式、推荐工作流和故障排查，并随 Windows 发布包提供。
+
+### Changed
+
+- 搜索移动到顶部工具栏；窄窗口使用顶栏第二行整宽搜索，结果以浮层显示。
+- 顶部操作收敛为 Import、Module/history、Search、Compare、Fit 和 More；Layout/Timing 设置进入侧栏。
+- 新增 Cell spacing，并将 cell 间距与 wire lane spacing 分开控制。
+- Cell Config 编辑器优先显示内置规则已经推断出的 gate kind 和 pin direction，修改一项不再把其他项重置为 BLACKBOX/unknown。
+- 大 module 保存 Cell Config 后保留所选 cell 的 Focused 局部图，避免重新布局整张图。
+
+### Fixed
+
+- 修复 Process Log 打开后无法收起的问题。
+- 修复 Import/More 菜单必须再次点击标题才能关闭的问题；现在点击空白处或按 Escape 即可关闭。
+- 修复无回车或 scope 紧邻 snapshot 的 timing 表头解析，并保留以后新增的 metric 列。
+- 修复大图修改 cell 定义后可能长时间卡死的问题。
+
 ## [0.5.0] - 2026-07-20
 
 轻量输入、层次浏览和布局稳定性版本。
