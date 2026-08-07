@@ -57,3 +57,16 @@ test("spacing helpers choose local free slots and preserve level separation", ()
   assert.equal(nodes[0].y, 10);
   assert.equal(nodes[1].y, 54);
 });
+
+test("cell spacing increases same-level clearance independently of wire spacing", () => {
+  const makeNodes = () => [
+    { id: "a", kind: "cell", label: "a", level: 1, y: 10, height: 30, ports: [] },
+    { id: "b", kind: "cell", label: "b", level: 1, y: 20, height: 30, ports: [] }
+  ];
+  const tight = makeNodes();
+  const loose = makeNodes();
+  resolveLevelOverlaps(tight, [1], 8, 8, null, 28, undefined, 8);
+  resolveLevelOverlaps(loose, [1], 8, 8, null, 28, undefined, 64);
+  assert.equal(tight[1].y - tight[0].y - tight[0].height, 8);
+  assert.equal(loose[1].y - loose[0].y - loose[0].height, 64);
+});

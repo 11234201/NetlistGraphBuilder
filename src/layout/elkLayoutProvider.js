@@ -18,6 +18,7 @@ export class ElkLayoutProvider {
   }
 
   async layout(graph, options = {}) {
+    const cellSpacing = Number(options.layoutPolicy?.spacing?.cellSpacing) || 8;
     const measuredNodes = graph.nodes.map((node) => {
       const measured = measureNode(node, options.layoutPolicy?.spacing?.cellPinPitch);
       const override = options.nodeSizes?.get(node.id);
@@ -31,8 +32,8 @@ export class ElkLayoutProvider {
       layoutOptions: {
         "elk.algorithm": "layered",
         "elk.direction": "RIGHT",
-        "elk.spacing.nodeNode": "48",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+        "elk.spacing.nodeNode": String(40 + cellSpacing),
+        "elk.layered.spacing.nodeNodeBetweenLayers": String(72 + cellSpacing),
         "elk.edgeRouting": "ORTHOGONAL"
       },
       children: measuredNodes.map(toElkNode),

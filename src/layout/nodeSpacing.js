@@ -24,7 +24,8 @@ export function resolveLevelOverlaps(
   gap = 16,
   layoutIntent = null,
   fanoutGap = gap,
-  nodesByLevel = groupNodesByLevel(nodes)
+  nodesByLevel = groupNodesByLevel(nodes),
+  cellSpacing = gap
 ) {
   const primaryChainTargets = getPrimaryCellChainTargets(layoutIntent);
   for (const level of levelKeys) {
@@ -32,14 +33,14 @@ export function resolveLevelOverlaps(
       .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
     const anchoredNodes = levelNodes.filter((node) => primaryChainTargets.has(node.id));
     if (anchoredNodes.length > 0) {
-      resolveLevelAroundPrimaryChain(levelNodes, anchoredNodes, margin, gap, layoutIntent, fanoutGap);
+      resolveLevelAroundPrimaryChain(levelNodes, anchoredNodes, margin, gap, layoutIntent, fanoutGap, cellSpacing);
       continue;
     }
 
     let nextY = margin;
     for (const node of levelNodes) {
       node.y = round(Math.max(node.y, nextY));
-      const nodeGap = layoutIntent?.getNodeFanout(node) > 1 ? fanoutGap : gap;
+      const nodeGap = computeAdaptiveCellGap(node, levelNodes, layoutIntent, gap, fanoutGap, cellSpacing);
       nextY = node.y + node.height + nodeGap;
     }
   }
@@ -108,7 +109,9 @@ export function computeLevelXs(
     const fanoutX = Number(adaptiveSpacing?.fanoutX) || baseSpacing;
     const lanePitch = Number(adaptiveSpacing?.wireLanePitch) || 18;
     const requestedStep = pressure > 1 ? fanoutX + pressure * lanePitch : compactX;
-    const routingClearance = pressure > 1 ? 72 : 40;
+    const cellSpacing = Number(adaptiveSpacing?.cellSpacing) || 8;
+    const congestion = getLevelCongestion(buckets.get(level) || [], buckets.get(nextLevel) || [], pressure);
+    const routingClearance = (pressure > 1 ? 72 : 40) + Math.max(0, cellSpacing - 8) + congestion;
     const adaptiveStep = Math.max(requestedStep, levelWidth + routingClearance);
     x += Math.max(adaptiveStep * (nextLevel - level), localizedInputSpacing);
   }
@@ -135,7 +138,8 @@ function resolveLevelAroundPrimaryChain(
   margin,
   gap,
   layoutIntent,
-  fanoutGap
+  fanoutGap,
+  cellSpacing
 ) {
   const placed = [];
   let nextAnchorY = margin;
@@ -143,7 +147,7 @@ function resolveLevelAroundPrimaryChain(
     left.y - right.y || compareNodes(left, right))) {
     anchor.y = round(Math.max(anchor.y, nextAnchorY));
     placed.push(anchor);
-    const anchorGap = layoutIntent?.getNodeFanout(anchor) > 1 ? fanoutGap : gap;
+    const anchorGap = computeAdaptiveCellGap(anchor, levelNodes, layoutIntent, gap, fanoutGap, cellSpacing);
     nextAnchorY = anchor.y + anchor.height + anchorGap;
   }
 
@@ -151,8 +155,25 @@ function resolveLevelAroundPrimaryChain(
   for (const node of levelNodes
     .filter((candidate) => !anchoredIds.has(candidate.id))
     .toSorted((left, right) => left.y - right.y || compareNodes(left, right))) {
-    const nodeGap = layoutIntent?.getNodeFanout(node) > 1 ? fanoutGap : gap;
+    const nodeGap = computeAdaptiveCellGap(node, levelNodes, layoutIntent, gap, fanoutGap, cellSpacing);
     node.y = findNearestFreeY(node, node.y, placed, new Set([node.id]), margin, nodeGap);
     placed.push(node);
   }
+}
+
+export function computeAdaptiveCellGap(node, levelNodes, layoutIntent, compactGap, fanoutGap, cellSpacing) {
+  const base = Math.max(Number(compactGap) || 0, Number(cellSpacing) || 8);
+  const fanout = layoutIntent?.getNodeFanout(node) || 0;
+  const pressure = layoutIntent?.getBoundaryPressure(node.level) || 1;
+  const pinCount = node.ports?.length || node.ref?.pins?.length || 0;
+  const density = Math.max(0, (levelNodes?.length || 1) - 4);
+  const congestion = Math.min(48,
+    Math.max(0, pressure - 1) * 2 + Math.max(0, pinCount - 4) * 2 + Math.min(12, density));
+  return Math.max(fanout > 1 ? Number(fanoutGap) || base : base, base + congestion);
+}
+
+function getLevelCongestion(leftNodes, rightNodes, pressure) {
+  const maxPins = Math.max(0, ...[...leftNodes, ...rightNodes].map((node) => node.ref?.pins?.length || 0));
+  const density = Math.max(leftNodes.length, rightNodes.length);
+  return Math.min(64, Math.max(0, pressure - 1) * 2 + Math.max(0, maxPins - 4) * 2 + Math.max(0, density - 8));
 }

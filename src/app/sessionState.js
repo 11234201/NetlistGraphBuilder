@@ -34,6 +34,11 @@ export function createSessionSnapshot(state) {
     transform: { ...state.transform },
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
+    layoutPolicy: {
+      name: state.layoutPolicy?.name,
+      spacing: { ...(state.layoutPolicy?.spacing || {}) },
+      features: { ...(state.layoutPolicy?.features || {}) }
+    },
     timingDisplayPolicy: {
       snapshot: state.timingDisplayPolicy?.snapshot || "auto",
       metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]

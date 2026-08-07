@@ -73,7 +73,8 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
     compactGap,
     layoutIntent,
     fanoutGap,
-    nodesByLevel
+    nodesByLevel,
+    policy.spacing.cellSpacing
   ));
   run("align-single-connections", () => alignSingleConnectionEndpoints(
     positionedNodes,

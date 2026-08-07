@@ -367,16 +367,19 @@ body.is-dragging-files .drop-overlay {
 .is-low-detail .pin-dot,
 .is-low-detail .pin-bubble { opacity: 0.35; }
 
-.wire-spacing-field {
+.wire-spacing-field,
+.cell-spacing-field {
   gap: 7px;
 }
 
-.wire-spacing-field input {
+.wire-spacing-field input,
+.cell-spacing-field input {
   width: 120px;
   accent-color: var(--accent);
 }
 
-.wire-spacing-field output {
+.wire-spacing-field output,
+.cell-spacing-field output {
   display: inline-flex;
   align-items: center;
   justify-content: center;

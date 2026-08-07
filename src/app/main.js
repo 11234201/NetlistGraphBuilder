@@ -5,7 +5,7 @@ import {
   createLayoutGolden,
   getLayoutGoldenState
 } from "../layout/layoutGolden.js";
-import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
+import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
@@ -152,6 +152,8 @@ const elements = {
   focusSelectedButton: document.querySelector("#focusSelectedButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
+  cellSpacingInput: document.querySelector("#cellSpacingInput"),
+  cellSpacingValue: document.querySelector("#cellSpacingValue"),
   timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
   timingMetricSelect: document.querySelector("#timingMetricSelect"),
   editCellDefinitionButton: document.querySelector("#editCellDefinitionButton"),
@@ -238,6 +240,7 @@ elements.collapseAllButton.addEventListener("click", () => {
 });
 elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
+elements.cellSpacingInput.addEventListener("input", handleCellSpacingChange);
 elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
@@ -1113,6 +1116,24 @@ function handleWireSpacingChange(event) {
   setSelectedNode(selectedNode);
   applyTransform();
   setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
+}
+
+function handleCellSpacingChange(event) {
+  const value = Number(event.target.value);
+  state.layoutPolicy.spacing.cellSpacing = clamp(value, 8, 120);
+  elements.cellSpacingValue.value = String(state.layoutPolicy.spacing.cellSpacing);
+  persistSession();
+  if (!state.currentModule) return;
+  const selectedNodeId = state.selectedNodeId;
+  const previousTransform = { ...state.transform };
+  rerenderActiveGraph();
+  if (!state.compare.active) {
+    state.transform = previousTransform;
+    state.selectedNodeId = null;
+    setSelectedNode(selectedNodeId);
+    applyTransform();
+  }
+  setStatus(`Cell spacing: ${state.layoutPolicy.spacing.cellSpacing}px`);
 }
 
 function handleTimingDisplayPolicyChange() {
@@ -2119,6 +2140,8 @@ function loadLayoutGolden(imported, label) {
   elements.coneDepthInput.value = String(state.coneDepth);
   elements.wireSpacingInput.value = String(clamp(state.layoutPolicy.spacing.wireLanePitch, 8, 40));
   elements.wireSpacingValue.value = elements.wireSpacingInput.value;
+  elements.cellSpacingInput.value = String(clamp(state.layoutPolicy.spacing.cellSpacing, 8, 120));
+  elements.cellSpacingValue.value = elements.cellSpacingInput.value;
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
   state.selectedNet = null;
@@ -2460,6 +2483,7 @@ function applySessionPreferences(session) {
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
     state.collapseLargeGroups = session.collapseLargeGroups !== false;
+    if (session.layoutPolicy) state.layoutPolicy = normalizeLayoutPolicy(session.layoutPolicy);
     const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
       ? session.timingDisplayPolicy.snapshot : "auto";
     const metrics = session.timingDisplayPolicy?.metrics;
@@ -2471,6 +2495,8 @@ function applySessionPreferences(session) {
   elements.coneDepthInput.value = String(state.coneDepth);
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
+  elements.cellSpacingInput.value = String(state.layoutPolicy.spacing.cellSpacing);
+  elements.cellSpacingValue.value = elements.cellSpacingInput.value;
   elements.timingSnapshotSelect.value = state.timingDisplayPolicy.snapshot;
   elements.timingMetricSelect.value = state.timingDisplayPolicy.metrics.length === 3
     ? "all" : state.timingDisplayPolicy.metrics[0];

@@ -57,7 +57,8 @@ test("ELK provider normalizes async layout output", async () => {
     })
   });
   const positioned = await provider.layout(graph, {
-    nodePositions: new Map([["output:y", { x: 420, y: 140 }]])
+    nodePositions: new Map([["output:y", { x: 420, y: 140 }]]),
+    layoutPolicy: { spacing: { cellSpacing: 32 } }
   });
   assert.equal(positioned.layoutProvider, ELK_LAYOUT_PROVIDER_ID);
   assert.equal(positioned.nodes.find((node) => node.id === "output:y").x, 420);
@@ -66,6 +67,8 @@ test("ELK provider normalizes async layout output", async () => {
   assert.ok(elkInput.children.every((child) => child.ports.length > 0));
   assert.match(elkInput.edges[0].sources[0], /::output:/);
   assert.match(elkInput.edges[0].targets[0], /::input:/);
+  assert.equal(elkInput.layoutOptions["elk.spacing.nodeNode"], "72");
+  assert.equal(elkInput.layoutOptions["elk.layered.spacing.nodeNodeBetweenLayers"], "104");
 });
 
 test("ELK fanout edges share the exact source pin instead of splitting on the node border", async () => {

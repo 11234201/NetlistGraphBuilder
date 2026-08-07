@@ -70,11 +70,13 @@ test("session state round trips through injected storage", () => {
     layoutProviderId: "elk-layered",
     transform: { x: 1, y: 2, scale: 3 },
     useFanoutHubs: true,
-    collapseLargeGroups: true
+    collapseLargeGroups: true,
+    layoutPolicy: { name: "test", spacing: { cellSpacing: 64 }, features: {} }
   };
   assert.equal(saveSessionState(createSessionSnapshot(state), storage), true);
   assert.deepEqual(loadSessionState(storage).transform, state.transform);
   assert.equal(loadSessionState(storage).layoutProviderId, "elk-layered");
+  assert.equal(loadSessionState(storage).layoutPolicy.spacing.cellSpacing, 64);
 });
 
 test("render plan separates edges and nodes for progressive batches", () => {
