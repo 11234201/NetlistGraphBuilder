@@ -1,6 +1,7 @@
 import {
   compareNodes,
   findNearestFreeY,
+  groupNodesByLevel,
   isExternalSourceNode,
   round
 } from "./nodePlacementShared.js";
@@ -22,13 +23,13 @@ export function resolveLevelOverlaps(
   margin,
   gap = 16,
   layoutIntent = null,
-  fanoutGap = gap
+  fanoutGap = gap,
+  nodesByLevel = groupNodesByLevel(nodes)
 ) {
   const primaryChainTargets = getPrimaryCellChainTargets(layoutIntent);
   for (const level of levelKeys) {
-    const levelNodes = nodes
-      .filter((node) => node.level === level)
-      .sort((left, right) => left.y - right.y || compareNodes(left, right));
+    const levelNodes = (nodesByLevel.get(level) || [])
+      .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
     const anchoredNodes = levelNodes.filter((node) => primaryChainTargets.has(node.id));
     if (anchoredNodes.length > 0) {
       resolveLevelAroundPrimaryChain(levelNodes, anchoredNodes, margin, gap, layoutIntent, fanoutGap);

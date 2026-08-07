@@ -4,11 +4,19 @@ import {
   getInputPortIndex,
   getInputPorts,
   groupEdges,
+  groupNodesByLevel,
   isExternalSourceNode,
   round
 } from "./nodePlacementShared.js";
 
-export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) {
+export function applyBranchAwareLanes(
+  nodes,
+  edges,
+  levelKeys,
+  topY,
+  lanePitch,
+  nodesByLevel = groupNodesByLevel(nodes)
+) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = groupEdges(edges, "target");
   const laneById = new Map();
@@ -36,7 +44,7 @@ export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) 
   if (laneById.size === 0) return;
   const laneY = new Map([[upperLane, topY], [lowerLane, topY + lanePitch]]);
   for (const level of levelKeys) {
-    for (const node of nodes.filter((item) => item.level === level).sort(compareNodes)) {
+    for (const node of (nodesByLevel.get(level) || []).toSorted(compareNodes)) {
       const lane = laneById.get(node.id);
       if (lane === undefined || !isLanePositionedNode(node)) continue;
       const incomingSameLane = (incomingByTarget.get(node.id) || []).some(
@@ -47,7 +55,14 @@ export function applyBranchAwareLanes(nodes, edges, levelKeys, topY, lanePitch) 
   }
 }
 
-export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIntent, margin = 0) {
+export function alignDrivenTargetsToDriverPins(
+  nodes,
+  edges,
+  levelKeys,
+  layoutIntent,
+  margin = 0,
+  nodesByLevel = groupNodesByLevel(nodes)
+) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByTarget = new Map();
   const alignedEdges = [];
@@ -60,9 +75,9 @@ export function alignDrivenTargetsToDriverPins(nodes, edges, levelKeys, layoutIn
   }
 
   for (const level of levelKeys) {
-    const levelNodes = nodes
-      .filter((node) => node.level === level && isAlignableDrivenTarget(node))
-      .sort(compareNodes);
+    const levelNodes = (nodesByLevel.get(level) || [])
+      .filter(isAlignableDrivenTarget)
+      .toSorted(compareNodes);
     for (const target of levelNodes) {
       const edge = chooseAlignmentEdge(incomingByTarget.get(target.id), nodeById, layoutIntent);
       if (!edge) continue;

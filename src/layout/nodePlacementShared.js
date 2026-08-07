@@ -16,6 +16,15 @@ export function groupEdges(edges, key) {
   return groups;
 }
 
+export function groupNodesByLevel(nodes) {
+  const groups = new Map();
+  for (const node of nodes) {
+    if (!groups.has(node.level)) groups.set(node.level, []);
+    groups.get(node.level).push(node);
+  }
+  return groups;
+}
+
 export function getInputPorts(node) {
   return (node?.ports || []).filter((port) => port.direction === "input");
 }

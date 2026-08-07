@@ -13,6 +13,7 @@ import {
   resolveLevelOverlaps,
   resolveOutputOverlaps
 } from "./nodeSpacing.js";
+import { groupNodesByLevel } from "./nodePlacementShared.js";
 
 export const SIMPLE_PLACEMENT_STAGES = Object.freeze([
   "branch-aware-lanes",
@@ -39,6 +40,7 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
   } = context;
   const compactGap = Number(policy.spacing.compactYGap) || 8;
   const fanoutGap = Number(policy.spacing.fanoutYGap) || 28;
+  const nodesByLevel = groupNodesByLevel(positionedNodes);
   const run = (stage, action) => {
     action();
     hooks.onStage?.(stage, positionedNodes);
@@ -50,7 +52,8 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
       graph.edges,
       levelKeys,
       policy.spacing.branchTopY,
-      policy.spacing.branchLanePitch
+      policy.spacing.branchLanePitch,
+      nodesByLevel
     ));
   }
   if (policy.features.alignDrivenLinks) {
@@ -59,7 +62,8 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
       graph.edges,
       levelKeys,
       layoutIntent,
-      margin
+      margin,
+      nodesByLevel
     ));
   }
   run("resolve-level-overlaps", () => resolveLevelOverlaps(
@@ -68,7 +72,8 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
     margin,
     compactGap,
     layoutIntent,
-    fanoutGap
+    fanoutGap,
+    nodesByLevel
   ));
   run("align-single-connections", () => alignSingleConnectionEndpoints(
     positionedNodes,

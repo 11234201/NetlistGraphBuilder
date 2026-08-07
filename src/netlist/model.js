@@ -5,6 +5,8 @@
   };
 }
 
+const moduleIndexes = new WeakMap();
+
 export function createModule(name, displayName = name, span = null) {
   return {
     name,
@@ -20,10 +22,13 @@ export function createModule(name, displayName = name, span = null) {
 }
 
 export function ensurePort(module, name, displayName = name, direction = "unknown", range = null) {
-  let port = module.ports.find((item) => item.name === name);
+  const indexes = getModuleIndexes(module);
+  let port = indexes.portByName.get(name);
   if (!port) {
     port = { name, displayName, direction, ...(range ? { range: { ...range } } : {}) };
     module.ports.push(port);
+    indexes.portByName.set(name, port);
+    indexes.portCount = module.ports.length;
   } else {
     port.displayName = port.displayName || displayName;
     if (direction !== "unknown") {
@@ -34,8 +39,10 @@ export function ensurePort(module, name, displayName = name, direction = "unknow
     }
   }
 
-  if (!module.portOrder.includes(name)) {
+  if (!indexes.portOrderNames.has(name)) {
     module.portOrder.push(name);
+    indexes.portOrderNames.add(name);
+    indexes.portOrderCount = module.portOrder.length;
   }
 
   ensureNet(module, name, displayName, "port", range);
@@ -43,10 +50,13 @@ export function ensurePort(module, name, displayName = name, direction = "unknow
 }
 
 export function ensureNet(module, name, displayName = name, declaredKind = "implicit", range = null) {
-  let net = module.nets.find((item) => item.name === name);
+  const indexes = getModuleIndexes(module);
+  let net = indexes.netByName.get(name);
   if (!net) {
     net = { name, displayName, declaredKind, ...(range ? { range: { ...range } } : {}) };
     module.nets.push(net);
+    indexes.netByName.set(name, net);
+    indexes.netCount = module.nets.length;
     return net;
   }
 
@@ -76,11 +86,46 @@ export function addAssign(module, assign) {
 }
 
 export function getNetDisplayName(module, name) {
-  const net = module.nets.find((item) => item.name === name);
+  const net = getModuleIndexes(module).netByName.get(name);
   return net?.displayName || name;
 }
 
 export function getPortDisplayName(module, name) {
-  const port = module.ports.find((item) => item.name === name);
+  const port = getModuleIndexes(module).portByName.get(name);
   return port?.displayName || getNetDisplayName(module, name);
+}
+
+function getModuleIndexes(module) {
+  let indexes = moduleIndexes.get(module);
+  if (
+    !indexes ||
+    indexes.ports !== module.ports ||
+    indexes.nets !== module.nets ||
+    indexes.portOrder !== module.portOrder ||
+    indexes.portCount !== module.ports.length ||
+    indexes.netCount !== module.nets.length ||
+    indexes.portOrderCount !== module.portOrder.length
+  ) {
+    indexes = {
+      ports: module.ports,
+      nets: module.nets,
+      portOrder: module.portOrder,
+      portCount: module.ports.length,
+      netCount: module.nets.length,
+      portOrderCount: module.portOrder.length,
+      portByName: indexFirstByName(module.ports),
+      netByName: indexFirstByName(module.nets),
+      portOrderNames: new Set(module.portOrder)
+    };
+    moduleIndexes.set(module, indexes);
+  }
+  return indexes;
+}
+
+function indexFirstByName(items) {
+  const index = new Map();
+  for (const item of items) {
+    if (!index.has(item.name)) index.set(item.name, item);
+  }
+  return index;
 }
