@@ -29,11 +29,29 @@ export class SpatialHashIndex {
     }
 
     const found = new Set();
-    for (let column = range.minColumn; column <= range.maxColumn; column += 1) {
-      const rows = this.buckets.get(column);
-      if (!rows) continue;
-      for (let row = range.minRow; row <= range.maxRow; row += 1) {
-        for (const item of rows.get(row) || []) found.add(item);
+    const visitRows = (rows) => {
+      if (!rows) return;
+      const rowSpan = range.maxRow - range.minRow + 1;
+      if (rowSpan <= rows.size * 2) {
+        for (let row = range.minRow; row <= range.maxRow; row += 1) {
+          for (const item of rows.get(row) || []) found.add(item);
+        }
+        return;
+      }
+      for (const [row, items] of rows) {
+        if (row < range.minRow || row > range.maxRow) continue;
+        for (const item of items) found.add(item);
+      }
+    };
+    const columnSpan = range.maxColumn - range.minColumn + 1;
+    if (columnSpan <= this.buckets.size * 2) {
+      for (let column = range.minColumn; column <= range.maxColumn; column += 1) {
+        visitRows(this.buckets.get(column));
+      }
+    } else {
+      for (const [column, rows] of this.buckets) {
+        if (column < range.minColumn || column > range.maxColumn) continue;
+        visitRows(rows);
       }
     }
     return [...found];
@@ -43,24 +61,92 @@ export class SpatialHashIndex {
 export class RouteSegmentIndex {
   constructor(segments = [], cellSize = 128) {
     this.items = [];
-    this.index = new SpatialHashIndex(cellSize);
+    this.cellSize = Math.max(16, Number(cellSize) || 128);
+    this.horizontalBuckets = new Map();
+    this.verticalBuckets = new Map();
+    this.otherIndex = new SpatialHashIndex(this.cellSize);
     this.push(...segments);
   }
 
   push(...segments) {
     for (const segment of segments) {
       this.items.push(segment);
-      this.index.insert(segment, segmentBox(segment));
+      const record = {
+        segment,
+        box: segmentBox(segment)
+      };
+      const dx = Math.abs(segment.end.x - segment.start.x);
+      const dy = Math.abs(segment.end.y - segment.start.y);
+      if (dy < 0.5) {
+        insertAxisBucket(
+          this.horizontalBuckets,
+          Math.floor(segment.start.y / this.cellSize),
+          record
+        );
+      } else if (dx < 0.5) {
+        insertAxisBucket(
+          this.verticalBuckets,
+          Math.floor(segment.start.x / this.cellSize),
+          record
+        );
+      } else {
+        this.otherIndex.insert(record, record.box);
+      }
     }
     return this.items.length;
   }
 
   querySegment(segment, padding = 0) {
-    return this.index.query(segmentBox(segment, padding));
+    return this.queryBox(segmentBox(segment, padding));
   }
 
   queryBox(box) {
-    return this.index.query(box);
+    const found = new Set();
+    queryAxisBuckets(
+      this.horizontalBuckets,
+      Math.floor(Math.min(box.top, box.bottom) / this.cellSize),
+      Math.floor(Math.max(box.top, box.bottom) / this.cellSize),
+      box,
+      found
+    );
+    queryAxisBuckets(
+      this.verticalBuckets,
+      Math.floor(Math.min(box.left, box.right) / this.cellSize),
+      Math.floor(Math.max(box.left, box.right) / this.cellSize),
+      box,
+      found
+    );
+    for (const record of this.otherIndex.query(box)) {
+      if (boxesIntersect(record.box, box)) found.add(record);
+    }
+    return [...found].map((record) => record.segment);
+  }
+
+  countBox(box, predicate, maximum = Infinity) {
+    let count = 0;
+    const visit = (segment) => {
+      if (!predicate(segment)) return false;
+      count += 1;
+      return count >= maximum;
+    };
+    if (someAxisBuckets(
+      this.horizontalBuckets,
+      Math.floor(Math.min(box.top, box.bottom) / this.cellSize),
+      Math.floor(Math.max(box.top, box.bottom) / this.cellSize),
+      box,
+      visit
+    )) return count;
+    if (someAxisBuckets(
+      this.verticalBuckets,
+      Math.floor(Math.min(box.left, box.right) / this.cellSize),
+      Math.floor(Math.max(box.left, box.right) / this.cellSize),
+      box,
+      visit
+    )) return count;
+    for (const record of this.otherIndex.query(box)) {
+      if (boxesIntersect(record.box, box) && visit(record.segment)) break;
+    }
+    return count;
   }
 
   [Symbol.iterator]() {
@@ -70,6 +156,58 @@ export class RouteSegmentIndex {
   get length() {
     return this.items.length;
   }
+}
+
+function insertAxisBucket(buckets, key, record) {
+  if (!buckets.has(key)) buckets.set(key, []);
+  buckets.get(key).push(record);
+}
+
+function queryAxisBuckets(buckets, minimum, maximum, box, found) {
+  const span = maximum - minimum + 1;
+  if (span <= buckets.size * 2) {
+    for (let key = minimum; key <= maximum; key += 1) {
+      collectIntersectingRecords(buckets.get(key), box, found);
+    }
+    return;
+  }
+  for (const [key, records] of buckets) {
+    if (key < minimum || key > maximum) continue;
+    collectIntersectingRecords(records, box, found);
+  }
+}
+
+function someAxisBuckets(buckets, minimum, maximum, box, predicate) {
+  const visit = (records) => {
+    for (const record of records || []) {
+      if (boxesIntersect(record.box, box) && predicate(record.segment)) return true;
+    }
+    return false;
+  };
+  const span = maximum - minimum + 1;
+  if (span <= buckets.size * 2) {
+    for (let key = minimum; key <= maximum; key += 1) {
+      if (visit(buckets.get(key))) return true;
+    }
+    return false;
+  }
+  for (const [key, records] of buckets) {
+    if (key >= minimum && key <= maximum && visit(records)) return true;
+  }
+  return false;
+}
+
+function collectIntersectingRecords(records, box, found) {
+  for (const record of records || []) {
+    if (boxesIntersect(record.box, box)) found.add(record);
+  }
+}
+
+function boxesIntersect(left, right) {
+  return left.right >= Math.min(right.left, right.right) &&
+    left.left <= Math.max(right.left, right.right) &&
+    left.bottom >= Math.min(right.top, right.bottom) &&
+    left.top <= Math.max(right.top, right.bottom);
 }
 
 export function createNodeSpatialIndex(nodes, cellSize = 128) {

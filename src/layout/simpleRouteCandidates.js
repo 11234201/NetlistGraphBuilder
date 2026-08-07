@@ -15,6 +15,8 @@ import { ROUTE_SEARCH_LIMITS } from "./routeSearchPolicy.js";
 
 export const MAX_GLOBAL_LANE_CANDIDATES =
   ROUTE_SEARCH_LIMITS.maximumGlobalLaneCandidates;
+export const MAX_LOCAL_LANE_CANDIDATES =
+  ROUTE_SEARCH_LIMITS.localChannelAlternatives;
 
 export function createBasicSimpleRouteCandidates(context) {
   const {
@@ -121,22 +123,33 @@ export function createLocalObstacleCandidates(context) {
     : routeTargetPoint.x - inset;
   const minX = Math.min(sourceLaneX, targetLaneX);
   const maxX = Math.max(sourceLaneX, targetLaneX);
+  const corridorTop = Math.min(
+    source.y,
+    target.y,
+    sourcePoint.y,
+    routeTargetPoint.y
+  ) - padding * 4;
+  const corridorBottom = Math.max(
+    source.y + source.height,
+    target.y + target.height,
+    sourcePoint.y,
+    routeTargetPoint.y
+  ) + padding * 4;
   const relevantNodes = nodeIndex && nodeBounds
     ? nodeIndex.query({
       left: minX - padding,
       right: maxX + padding,
-      top: nodeBounds.top,
-      bottom: nodeBounds.bottom
+      top: corridorTop,
+      bottom: corridorBottom
     })
     : nodes.filter((node) =>
-      node.x + node.width + padding > minX && node.x - padding < maxX);
-  const minNodeY = nodeBounds?.top ?? Math.min(...nodes.map((node) => node.y));
-  const maxNodeY = nodeBounds?.bottom ?? Math.max(...nodes.map((node) => node.y + node.height));
+      node.x + node.width + padding > minX && node.x - padding < maxX &&
+      node.y + node.height + padding > corridorTop && node.y - padding < corridorBottom);
   const relevantSegments = queryReservedSegments(reservedSegments, {
     left: minX - padding,
     right: maxX + padding,
-    top: minNodeY - padding,
-    bottom: maxNodeY + padding
+    top: corridorTop,
+    bottom: corridorBottom
   }, net);
   const laneYs = collectLocalLaneYs({
     sourceY: sourcePoint.y,
@@ -146,7 +159,7 @@ export function createLocalObstacleCandidates(context) {
     padding
   });
 
-  return laneYs.map((laneY) => createRoute("obstacle-local", [
+  return laneYs.slice(0, MAX_LOCAL_LANE_CANDIDATES).map((laneY) => createRoute("obstacle-local", [
     sourcePoint,
     { x: sourceLaneX, y: sourcePoint.y },
     { x: sourceLaneX, y: laneY },
@@ -167,21 +180,20 @@ export function findObstacleAvoidingRoute(context) {
     preferredLaneY,
     margin,
     lanePitch,
-    nodeIndex
+    nodeIndex,
+    globalLaneGeometry
   } = context;
   const clearance = 24;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint, 9);
   const baseSourceLaneX = getEscapeLaneX(source, sourcePoint, "source", clearance);
-  const targetUsesVerticalApproach = routeTargetPoint !== targetPoint;
-  const baseTargetLaneX = targetUsesVerticalApproach
-    ? routeTargetPoint.x
-    : getEscapeLaneX(target, targetPoint, "target", clearance);
+  const baseTargetLaneX = getEscapeLaneX(target, targetPoint, "target", clearance);
   const yCandidates = createGlobalLaneYCandidates(
     nodes,
     preferredLaneY,
     margin,
     lanePitch,
-    clearance
+    clearance,
+    globalLaneGeometry
   );
 
   for (const laneY of yCandidates) {
@@ -193,16 +205,14 @@ export function findObstacleAvoidingRoute(context) {
       target,
       nodeIndex
     );
-    const targetLaneX = targetUsesVerticalApproach
-      ? baseTargetLaneX
-      : findClearVerticalLaneX(
-        baseTargetLaneX,
-        routeTargetPoint.y,
-        laneY,
-        source,
-        target,
-        nodeIndex
-      );
+    const targetLaneX = findClearVerticalLaneX(
+      baseTargetLaneX,
+      routeTargetPoint.y,
+      laneY,
+      source,
+      target,
+      nodeIndex
+    );
     const candidate = createRoute("obstacle-lane", [
       sourcePoint,
       { x: sourceLaneX, y: sourcePoint.y },
@@ -262,14 +272,11 @@ export function createGlobalLaneYCandidates(
   preferredLaneY,
   margin,
   lanePitch,
-  clearance
+  clearance,
+  preparedGeometry = null
 ) {
-  const boxes = nodes.map((node) => ({
-    top: node.y - clearance,
-    bottom: node.y + node.height + clearance
-  }));
-  const minTop = Math.min(...boxes.map((box) => box.top));
-  const maxBottom = Math.max(...boxes.map((box) => box.bottom));
+  const { minTop, maxBottom, gapLanes } = preparedGeometry ||
+    prepareGlobalLaneGeometry(nodes, clearance);
   const candidates = [preferredLaneY];
   const outerAttempts = Math.min(
     ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
@@ -279,17 +286,36 @@ export function createGlobalLaneYCandidates(
     candidates.push(minTop - margin - index * lanePitch);
     candidates.push(maxBottom + margin + index * lanePitch);
   }
-  const sortedBoxes = boxes.toSorted((left, right) => left.top - right.top);
-  for (let index = 1; index < sortedBoxes.length; index += 1) {
-    const previous = sortedBoxes[index - 1];
-    const next = sortedBoxes[index];
-    if (next.top - previous.bottom >= clearance * 2) {
-      candidates.push((previous.bottom + next.top) / 2);
-    }
-  }
+  candidates.push(...gapLanes);
   return uniqueRoundedNumbers(candidates).sort(
     (left, right) => Math.abs(left - preferredLaneY) - Math.abs(right - preferredLaneY) ||
       left - right).slice(0, MAX_GLOBAL_LANE_CANDIDATES);
+}
+
+export function prepareGlobalLaneGeometry(nodes, clearance) {
+  if (!nodes || nodes.length === 0) {
+    return { minTop: 0, maxBottom: 0, gapLanes: [] };
+  }
+  const boxes = nodes.map((node) => ({
+    top: node.y - clearance,
+    bottom: node.y + node.height + clearance
+  })).sort((left, right) => left.top - right.top || left.bottom - right.bottom);
+  const gapLanes = [];
+  for (let index = 1; index < boxes.length; index += 1) {
+    const previous = boxes[index - 1];
+    const next = boxes[index];
+    if (next.top - previous.bottom >= clearance * 2) {
+      gapLanes.push((previous.bottom + next.top) / 2);
+    }
+  }
+  return {
+    minTop: boxes[0].top,
+    maxBottom: boxes.reduce(
+      (maximum, box) => Math.max(maximum, box.bottom),
+      boxes[0].bottom
+    ),
+    gapLanes
+  };
 }
 
 function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {

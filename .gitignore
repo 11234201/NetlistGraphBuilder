@@ -1,6 +1,7 @@
 # Local accidental/system artifacts.
 %SystemDrive%/
 mytest/
+dc_runs/
 
 # Dependencies and build outputs.
 node_modules/

@@ -57,17 +57,38 @@ export function getRouteSegments(points, net) {
   return segments;
 }
 
-export function countRouteConflicts(points, reservedSegments, net) {
+export function countRouteConflicts(points, reservedSegments, net, maximum = Infinity) {
   let conflicts = 0;
   for (const segment of getRouteSegments(points, net)) {
+    if (typeof reservedSegments.countBox === "function") {
+      conflicts += reservedSegments.countBox(
+        segmentBounds(segment),
+        (reserved) => reserved.net !== net && segmentsConflict(segment, reserved),
+        maximum - conflicts
+      );
+      if (conflicts >= maximum) return conflicts;
+      continue;
+    }
     const candidates = typeof reservedSegments.querySegment === "function"
       ? reservedSegments.querySegment(segment)
       : reservedSegments;
     for (const reserved of candidates) {
-      if (reserved.net !== net && segmentsConflict(segment, reserved)) conflicts += 1;
+      if (reserved.net !== net && segmentsConflict(segment, reserved)) {
+        conflicts += 1;
+        if (conflicts >= maximum) return conflicts;
+      }
     }
   }
   return conflicts;
+}
+
+function segmentBounds(segment) {
+  return {
+    left: Math.min(segment.start.x, segment.end.x),
+    right: Math.max(segment.start.x, segment.end.x),
+    top: Math.min(segment.start.y, segment.end.y),
+    bottom: Math.max(segment.start.y, segment.end.y)
+  };
 }
 
 export function segmentsConflict(left, right) {

@@ -5,7 +5,8 @@ import {
   createGlobalLaneYCandidates,
   createBasicSimpleRouteCandidates,
   createLocalObstacleCandidates,
-  MAX_GLOBAL_LANE_CANDIDATES
+  MAX_GLOBAL_LANE_CANDIDATES,
+  MAX_LOCAL_LANE_CANDIDATES
 } from "../../src/layout/simpleRouteCandidates.js";
 
 const source = {
@@ -69,6 +70,7 @@ test("local obstacle candidates approach top pins vertically", () => {
   });
 
   assert.ok(candidates.length > 0);
+  assert.ok(candidates.length <= MAX_LOCAL_LANE_CANDIDATES);
   for (const candidate of candidates) {
     assert.equal(candidate.points.at(-2).x, targetPoint.x);
     assert.ok(candidate.points.at(-2).y < targetPoint.y);

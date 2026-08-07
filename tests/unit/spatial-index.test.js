@@ -80,3 +80,15 @@ test("indexed route conflicts match array scanning after dynamic insertions", ()
   );
   assert.equal(index.length, 2);
 });
+
+test("indexed route conflict counts stop at the requested maximum", () => {
+  const index = new RouteSegmentIndex([
+    { start: { x: 40, y: 0 }, end: { x: 40, y: 100 }, net: "a" },
+    { start: { x: 60, y: 0 }, end: { x: 60, y: 100 }, net: "b" },
+    { start: { x: 80, y: 0 }, end: { x: 80, y: 100 }, net: "c" }
+  ]);
+  const candidate = [{ x: 0, y: 50 }, { x: 100, y: 50 }];
+
+  assert.equal(countRouteConflicts(candidate, index, "candidate", 2), 2);
+  assert.equal(countRouteConflicts(candidate, index, "candidate"), 3);
+});

@@ -89,7 +89,9 @@ export function layoutGraph(graph, options = {}) {
     routePlan,
     wireLanePitch,
     topWireLanePitch,
-    margin
+    margin,
+    onRoutingProgress: options.onRoutingProgress,
+    onRoutingStage: options.onRoutingStage
   });
   const bounds = computeBounds(positionedNodes);
   return {

@@ -1,13 +1,14 @@
 import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
-import { getRouteSegments } from "./orthogonalRouting.js";
+import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
 import { routeCandidateIsUsable } from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
 import {
   computeLevelBounds,
   createBasicSimpleRouteCandidates,
   createLocalObstacleCandidates,
-  findObstacleAvoidingRoute
+  findObstacleAvoidingRoute,
+  prepareGlobalLaneGeometry
 } from "./simpleRouteCandidates.js";
 import {
   computeNodeCollectionBox,
@@ -16,17 +17,29 @@ import {
 } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
+const MAX_SCORED_ROUTE_CONFLICTS = 8;
+
 export function routeSimpleEdges(graph, nodes, options) {
   const { layoutIntent, routePlan, wireLanePitch, topWireLanePitch, margin } = options;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIndex = createNodeSpatialIndex(nodes);
   const nodeBounds = computeNodeCollectionBox(nodes);
   const levelBounds = computeLevelBounds(nodes);
+  const globalLaneGeometry = prepareGlobalLaneGeometry(nodes, 24);
   const routedById = new Map();
   const reservedSegments = new RouteSegmentIndex();
+  const orderedEdges = graph.edges.toSorted((left, right) =>
+    compareEdgesByLayoutPriority(left, right, layoutIntent));
+  const routingMetrics = {
+    basicCandidates: 0,
+    localFallbacks: 0,
+    localCandidates: 0,
+    globalFallbacks: 0,
+    routeKinds: Object.create(null)
+  };
 
-  for (const edge of graph.edges.toSorted((left, right) =>
-    compareEdgesByLayoutPriority(left, right, layoutIntent))) {
+  for (const [edgeIndex, edge] of orderedEdges.entries()) {
+    const edgeIntent = layoutIntent.getEdge(edge);
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     if (!source || !target) continue;
@@ -45,8 +58,10 @@ export function routeSimpleEdges(graph, nodes, options) {
       wireLanePitch,
       topWireLanePitch,
       margin,
-      edgeIntent: layoutIntent.getEdge(edge),
+      edgeIntent,
       reservedSegments,
+      globalLaneGeometry,
+      routingMetrics,
       net: edge.net
     });
     const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
@@ -58,14 +73,31 @@ export function routeSimpleEdges(graph, nodes, options) {
       labelAnchor: label.anchor
     };
     routedById.set(edge.id, positionedEdge);
+    routingMetrics.routeKinds[routed.kind] =
+      (routingMetrics.routeKinds[routed.kind] || 0) + 1;
     reservedSegments.push(...getRouteSegments(positionedEdge.points, edge.net));
+    if (options.onRoutingProgress &&
+      ((edgeIndex + 1) % 256 === 0 || edgeIndex + 1 === orderedEdges.length)) {
+      options.onRoutingProgress({
+        completedEdges: edgeIndex + 1,
+        totalEdges: orderedEdges.length,
+        reservedSegments: reservedSegments.length,
+        metrics: {
+          ...routingMetrics,
+          routeKinds: { ...routingMetrics.routeKinds }
+        }
+      });
+    }
   }
 
   const routedEdges = graph.edges.map((edge) => routedById.get(edge.id) || edge);
-  return placeWireLabels(routedEdges, nodes, {
+  options.onRoutingStage?.("labels-start");
+  const labeledEdges = placeWireLabels(routedEdges, nodes, {
     preferExisting: true,
     compareEdges: (left, right) => compareEdgesByLayoutPriority(left, right, layoutIntent)
   });
+  options.onRoutingStage?.("labels-complete");
+  return labeledEdges;
 }
 
 function routeEdge(context) {
@@ -81,33 +113,55 @@ function routeEdge(context) {
     margin,
     edgeIntent,
     reservedSegments,
+    routingMetrics,
     net
   } = context;
   const candidates = createBasicSimpleRouteCandidates(context);
   const basicCandidates = candidates.filter((candidate) =>
     candidateIsUsable(candidate, context));
+  routingMetrics.basicCandidates += basicCandidates.length;
   const scoredBasic = scoreCandidates(basicCandidates, reservedSegments, net, edgeIntent);
   const conflictFreeBasic = scoredBasic.filter(({ score }) => score.crossings === 0);
   if (conflictFreeBasic.length > 0) {
     return chooseBestScoredRoute(conflictFreeBasic);
   }
 
-  candidates.push(...createLocalObstacleCandidates(context));
-  const usableCandidates = candidates.filter((candidate) => candidateIsUsable(candidate, context));
-  if (usableCandidates.length > 0) {
-    return chooseBestRoute(usableCandidates, reservedSegments, net, edgeIntent);
+  routingMetrics.localFallbacks += 1;
+  const localCandidates = createLocalObstacleCandidates(context);
+  routingMetrics.localCandidates += localCandidates.length;
+  const usableLocalCandidates = [];
+  for (const candidate of localCandidates) {
+    if (!candidateIsUsable(candidate, context)) continue;
+    usableLocalCandidates.push(candidate);
+    if (countRouteConflicts(candidate.points, reservedSegments, net, 1) === 0) {
+      return candidate;
+    }
+  }
+  const scoredCandidates = [
+    ...scoredBasic,
+    ...scoreCandidates(usableLocalCandidates, reservedSegments, net, edgeIntent)
+  ];
+  if (scoredCandidates.length > 0) {
+    return chooseBestScoredRoute(scoredCandidates);
   }
 
+  routingMetrics.globalFallbacks += 1;
+  return createGlobalFallback(context);
+}
+
+function createGlobalFallback(context) {
   return findObstacleAvoidingRoute({
-    source,
-    target,
-    sourcePoint,
-    targetPoint,
-    nodes,
-    preferredLaneY: margin / 2 + (edgePlan?.topLane || 0) * topWireLanePitch,
-    margin,
-    lanePitch: topWireLanePitch,
-    nodeIndex
+    source: context.source,
+    target: context.target,
+    sourcePoint: context.sourcePoint,
+    targetPoint: context.targetPoint,
+    nodes: context.nodes,
+    preferredLaneY: context.margin / 2 +
+      (context.edgePlan?.topLane || 0) * context.topWireLanePitch,
+    margin: context.margin,
+    lanePitch: context.topWireLanePitch,
+    nodeIndex: context.nodeIndex,
+    globalLaneGeometry: context.globalLaneGeometry
   });
 }
 
@@ -121,12 +175,13 @@ function candidateIsUsable(candidate, context) {
   });
 }
 
-function chooseBestRoute(candidates, reservedSegments, net, edgeIntent) {
-  return chooseBestScoredRoute(scoreCandidates(candidates, reservedSegments, net, edgeIntent));
-}
-
 function scoreCandidates(candidates, reservedSegments, net, edgeIntent) {
-  const context = { reservedSegments, net, edgeIntent };
+  const context = {
+    reservedSegments,
+    net,
+    edgeIntent,
+    maximumCrossings: MAX_SCORED_ROUTE_CONFLICTS
+  };
   return candidates.map((candidate) => ({
     candidate,
     score: scoreRouteCandidate(candidate, context)

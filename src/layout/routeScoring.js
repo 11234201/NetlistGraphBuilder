@@ -15,7 +15,8 @@ export function scoreRouteCandidate(candidate, context = {}) {
   const crossings = countRouteConflicts(
     points,
     context.reservedSegments || [],
-    context.net
+    context.net,
+    context.maximumCrossings ?? Infinity
   );
   const bends = Math.max(0, points.length - 2);
   const length = getRouteLength(points);
