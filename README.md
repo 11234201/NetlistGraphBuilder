@@ -4,6 +4,8 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 当前版本：`v0.5.0`。阶段 6 已加入 Global/Local 时序、搜索优先的双向局部逻辑、可复用 Cell Config、过程日志和 EDA 启动接口。
 
+完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
+
 ## 主要功能
 
 - 解析常见 structural Verilog：module、port、wire、assign、cell instance 和 escaped identifier。

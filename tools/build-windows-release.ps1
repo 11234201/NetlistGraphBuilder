@@ -61,6 +61,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\elkjs-0.11.1\lib\elk.bundled
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
+Copy-Item -LiteralPath (Join-Path $repoRoot "docs\USER_GUIDE.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\elkjs-0.11.1\LICENSE.md") -Destination (Join-Path $packageRoot "ELKJS-LICENSE.md")
 Set-Content -LiteralPath (Join-Path $packageRoot "VERSION") -Encoding ASCII -Value $version
 
