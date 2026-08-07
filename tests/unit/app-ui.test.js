@@ -14,7 +14,11 @@ import {
 import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
-import { collectCellTypeSummary, renderCellDefinitionEditor } from "../../src/ui/cellDefinitionPanel.js";
+import {
+  collectCellTypeSummary,
+  createInferredCellDefinition,
+  renderCellDefinitionEditor
+} from "../../src/ui/cellDefinitionPanel.js";
 import { renderProcessLogEntries } from "../../src/ui/processLogPanel.js";
 import {
   getTimingBadgeChoices,
@@ -192,6 +196,20 @@ test("Cell Definition editor summarizes a type and escapes names", () => {
   assert.match(html, /X&amp;1/);
   assert.match(html, /A&lt;0&gt;/);
   assert.match(html, /value="BUF" selected/);
+});
+
+test("Cell Definition editor can start from built-in inference rules", () => {
+  const summary = collectCellTypeSummary({ modules: [{ cells: [{
+    type: "ND2D1",
+    pins: [{ pin: "A1" }, { pin: "A2" }, { pin: "ZN" }]
+  }] }] }, "ND2D1");
+  const definition = createInferredCellDefinition(summary);
+  const html = renderCellDefinitionEditor(summary, definition);
+
+  assert.equal(definition.gateKind, "NAND");
+  assert.deepEqual(definition.pins, { A1: "input", A2: "input", ZN: "output" });
+  assert.match(html, /value="NAND" selected/);
+  assert.match(html, /data-cell-config-pin="ZN"[\s\S]*?<option value="output" selected/);
 });
 
 test("pasted design input rejects text without a module", () => {

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applyWorkspaceGraphTransforms,
   buildWorkspaceGraph,
+  resolveCellConfigRefreshView,
   selectWorkspaceGraphView,
   shouldUseSearchFirst
 } from "../../src/app/graphWorkspace.js";
@@ -29,6 +30,23 @@ test("large module policy enters search-first only above its stable threshold", 
   assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 500 }) }), false);
   assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 501 }) }), true);
   assert.equal(shouldUseSearchFirst({ nodes: Array.from({ length: 1024 }) }, 500), true);
+});
+
+test("Cell Config refresh avoids whole-layout work for a large selected cell", () => {
+  const largeModule = { cells: Array.from({ length: 501 }) };
+  const fullGraph = { nodes: [{ id: "cell:u42", kind: "cell" }] };
+  assert.deepEqual(resolveCellConfigRefreshView({
+    module: largeModule,
+    fullGraph,
+    selectedNodeId: "cell:u42",
+    viewMode: "whole"
+  }), { viewMode: "focused", coneRootNodeId: "cell:u42" });
+  assert.deepEqual(resolveCellConfigRefreshView({
+    module: largeModule,
+    fullGraph,
+    selectedNodeId: null,
+    viewMode: "whole"
+  }), { viewMode: "search-first", coneRootNodeId: null });
 });
 
 test("shared display transforms can be disabled independently", () => {

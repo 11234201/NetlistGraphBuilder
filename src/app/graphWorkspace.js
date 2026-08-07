@@ -49,6 +49,17 @@ export function shouldUseSearchFirst(value, threshold = 500) {
   return count > limit;
 }
 
+export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId, viewMode }, threshold = 500) {
+  if (!shouldUseSearchFirst(module, threshold)) {
+    return { viewMode, coneRootNodeId: null };
+  }
+  const selected = fullGraph?.nodes?.find((node) => node.id === selectedNodeId);
+  if (selected?.kind === "cell") {
+    return { viewMode: "focused", coneRootNodeId: selectedNodeId };
+  }
+  return { viewMode: "search-first", coneRootNodeId: null };
+}
+
 export function applyWorkspaceGraphTransforms(graph, options = {}) {
   let result = graph;
   if (options.useFanoutHubs !== false) result = simplifyFanoutWithHubs(result);

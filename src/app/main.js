@@ -29,6 +29,7 @@ import {
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
   collectCellTypeSummary,
+  createInferredCellDefinition,
   readCellDefinitionEditor,
   renderCellDefinitionEditor
 } from "../ui/cellDefinitionPanel.js";
@@ -89,7 +90,7 @@ import {
   getQuickInputPriority
 } from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
-import { shouldUseSearchFirst } from "./graphWorkspace.js";
+import { resolveCellConfigRefreshView, shouldUseSearchFirst } from "./graphWorkspace.js";
 import { createProcessLog } from "./processLog.js";
 import { renderProcessLogEntries } from "../ui/processLogPanel.js";
 import {
@@ -1345,9 +1346,10 @@ function openSelectedCellDefinition() {
   }
   const cellType = node.ref?.type;
   activeCellDefinition = collectCellTypeSummary(state.design, cellType);
-  const definition = state.cellConfig.cells[activeCellDefinition.cellType] || null;
+  const definition = state.cellConfig.cells[activeCellDefinition.cellType]
+    || createInferredCellDefinition(activeCellDefinition);
   elements.cellDefinitionBody.innerHTML = renderCellDefinitionEditor(activeCellDefinition, definition);
-  elements.deleteCellDefinitionButton.disabled = !definition;
+  elements.deleteCellDefinitionButton.disabled = !state.cellConfig.cells[activeCellDefinition.cellType];
   if (!elements.cellDefinitionDialog.open) elements.cellDefinitionDialog.showModal();
 }
 
@@ -1412,7 +1414,26 @@ function rebuildAfterCellConfigChange(message) {
   if (state.compare.active) {
     renderCompareGraphs();
   } else if (state.currentModule) {
-    rerenderPreservingView(state.selectedNodeId);
+    const selectedNodeId = state.selectedNodeId;
+    const previousTransform = { ...state.transform };
+    const refreshView = resolveCellConfigRefreshView({
+      module: state.currentModule,
+      fullGraph: state.fullGraph,
+      selectedNodeId,
+      viewMode: state.viewMode
+    }, SEARCH_FIRST_NODE_THRESHOLD);
+    state.viewMode = refreshView.viewMode;
+    if (refreshView.viewMode === "focused" || refreshView.viewMode === "search-first") {
+      state.coneRootNodeId = refreshView.coneRootNodeId;
+    }
+    renderCurrentModuleGraph({
+      readyMessage: message,
+      onRendered: (graph) => {
+        state.transform = previousTransform;
+        setSelectedNode(graph.nodes.some((node) => node.id === selectedNodeId) ? selectedNodeId : null);
+        applyTransform();
+      }
+    });
   }
   updateCellDefinitionControls();
   setStatus(message);
