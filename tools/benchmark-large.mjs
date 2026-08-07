@@ -3,7 +3,10 @@ import { collapseLargeGraph } from "../src/analysis/groupCollapse.js";
 import { layoutGraph } from "../src/layout/simpleLayered.js";
 import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
-import { renderSchematicSvg } from "../src/render/svgRenderer.js";
+import {
+  createProgressiveSchematicRenderPlan,
+  renderSchematicSvg
+} from "../src/render/svgRenderer.js";
 
 const sizes = parseSizes(process.env.BENCHMARK_SIZES);
 const runs = clampInteger(process.env.BENCHMARK_RUNS, 3, 1, 20);
@@ -29,6 +32,8 @@ function runOnce(source) {
   const collapse = measure(() => collapseLargeGraph(graph.value));
   const collapsedLayout = measure(() => layoutGraph(collapse.value));
   const collapsedSvg = measure(() => renderSchematicSvg(collapsedLayout.value));
+  const progressivePlan = measure(() => createProgressiveSchematicRenderPlan(layout.value));
+  const progressiveFirstBatch = measure(() => renderFirstBatch(progressivePlan.value, 120));
   return {
     parseMs: parse.ms,
     graphMs: graph.ms,
@@ -38,7 +43,9 @@ function runOnce(source) {
     collapseMs: collapse.ms,
     collapsedNodes: collapse.value.nodes.length,
     collapsedLayoutMs: collapsedLayout.ms,
-    collapsedSvgMs: collapsedSvg.ms
+    collapsedSvgMs: collapsedSvg.ms,
+    progressivePlanMs: progressivePlan.ms,
+    progressiveFirstBatchMs: progressiveFirstBatch.ms
   };
 }
 
@@ -56,8 +63,18 @@ function summarize(cells, sourceBytes, samples) {
     collapseMs: round(median(samples.map((sample) => sample.collapseMs))),
     collapsedNodes: Math.round(median(samples.map((sample) => sample.collapsedNodes))),
     collapsedLayoutMs: round(median(samples.map((sample) => sample.collapsedLayoutMs))),
-    collapsedSvgMs: round(median(samples.map((sample) => sample.collapsedSvgMs)))
+    collapsedSvgMs: round(median(samples.map((sample) => sample.collapsedSvgMs))),
+    progressivePlanMs: round(median(samples.map((sample) => sample.progressivePlanMs))),
+    progressiveFirstBatchMs: round(median(samples.map((sample) => sample.progressiveFirstBatchMs)))
   };
+}
+
+function renderFirstBatch(plan, batchSize) {
+  const edgeEnd = Math.min(plan.edgeCount, batchSize);
+  const edges = plan.renderEdges(0, edgeEnd);
+  const remaining = batchSize - edgeEnd;
+  const nodes = remaining > 0 ? plan.renderNodes(0, remaining) : [];
+  return { edges, nodes };
 }
 
 function createBufferChain(cellCount) {

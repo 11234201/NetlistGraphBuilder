@@ -12,22 +12,48 @@ export function renderSchematicSvg(graph, options = {}) {
 }
 
 export function createSchematicRenderPlan(graph, options = {}) {
+  const progressive = createProgressiveSchematicRenderPlan(graph, options);
+  return {
+    edges: progressive.renderEdges(0, progressive.edgeCount),
+    nodes: progressive.renderNodes(0, progressive.nodeCount),
+    openSvg: progressive.openSvg,
+    betweenGroups: progressive.betweenGroups,
+    closeSvg: progressive.closeSvg
+  };
+}
+
+export function createProgressiveSchematicRenderPlan(graph, options = {}) {
   const width = Math.max(640, Math.ceil(graph.width || 640));
   const height = Math.max(420, Math.ceil(graph.height || 420));
   const crossingByEdge = options.wireBridges === false
     ? new Map()
     : findWireCrossings(graph.edges);
-  const edges = graph.edges.map((edge) => renderEdge(edge, crossingByEdge.get(edge.id) || []));
-  const nodes = graph.nodes.map(renderNode);
   return {
-    edges,
-    nodes,
+    edgeCount: graph.edges.length,
+    nodeCount: graph.nodes.length,
+    renderEdges(start, end) {
+      return renderRange(graph.edges, start, end, (edge) =>
+        renderEdge(edge, crossingByEdge.get(edge.id) || []));
+    },
+    renderNodes(start, end) {
+      return renderRange(graph.nodes, start, end, renderNode);
+    },
     openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(graph.moduleDisplayName)} schematic">
   <g id="schematicContent">
     <g class="edges">`,
     betweenGroups: `</g><g class="nodes">`,
     closeSvg: `</g></g></svg>`
   };
+}
+
+function renderRange(items, start, end, renderItem) {
+  const first = Math.max(0, Math.floor(Number(start) || 0));
+  const last = Math.min(items.length, Math.max(first, Math.floor(Number(end) || 0)));
+  const rendered = [];
+  for (let index = first; index < last; index += 1) {
+    rendered.push(renderItem(items[index]));
+  }
+  return rendered;
 }
 
 function renderEdge(edge, crossings) {

@@ -86,3 +86,23 @@ P2 和 P3 必须根据本轮结果另行评估，不在本轮隐式引入架构�
 | 完整纯 JS 流水线 | 345.1 ms | 284.7 ms | 降低约 17% |
 
 完整单元测试增加至 183 项并全部通过。第二批仍未改变公开 graph/layout 数据结构或路由评分语义。
+
+## 第三批执行结果
+
+2026-08-07 优化大图 progressive SVG rendering：
+
+- 新增惰性的 progressive render plan，只保留 graph 和 wire crossing 索引。
+- edge/node SVG markup 在对应动画帧的批次内生成，不再在首帧前生成整图字符串数组。
+- 删除由全部 edge/node HTML 再包装出的中间 `items` 对象数组。
+- edge 批次仍先于 node 批次提交，progress、取消和普通小图渲染语义保持不变。
+- 完整 SVG 导出继续使用 eager render plan，导出内容不变。
+
+同一环境下，对 8K 深链运行十次并取中位数：
+
+| 渲染阶段 | 耗时 |
+| --- | ---: |
+| 完整 SVG 字符串生成 | 62.4 ms |
+| Progressive plan 初始化 | 3.1 ms |
+| 首批 120 项 markup 生成 | 0.2 ms |
+
+因此大图首批 DOM 提交前不再承担完整 8.6 MiB SVG 字符串的构造成本。该基准不包含浏览器实际 DOM 解析与插入时间；后者仍由 `requestAnimationFrame` 分批摊开。完整单元测试增加至 185 项并全部通过。

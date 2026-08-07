@@ -1,4 +1,7 @@
-import { createSchematicRenderPlan, renderSchematicSvg } from "./svgRenderer.js";
+import {
+  createProgressiveSchematicRenderPlan,
+  renderSchematicSvg
+} from "./svgRenderer.js";
 
 const DEFAULT_THRESHOLD = 400;
 const DEFAULT_BATCH_SIZE = 120;
@@ -13,30 +16,36 @@ export function renderSchematicIntoMount(mount, graph, options = {}) {
   }
   const renderId = Symbol("progressive-render");
   activeRenderIds.set(mount, renderId);
-  const plan = createSchematicRenderPlan(graph);
+  const plan = createProgressiveSchematicRenderPlan(graph);
   mount.innerHTML = `${plan.openSvg}${plan.betweenGroups}${plan.closeSvg}`;
   const edgeGroup = mount.querySelector(".edges");
   const nodeGroup = mount.querySelector(".nodes");
-  const items = [
-    ...plan.edges.map((html) => ({ group: edgeGroup, html })),
-    ...plan.nodes.map((html) => ({ group: nodeGroup, html }))
-  ];
-  const batchSize = options.batchSize || DEFAULT_BATCH_SIZE;
-  options.onProgress?.({ phase: "render", rendered: 0, total: items.length });
+  const total = plan.edgeCount + plan.nodeCount;
+  const batchSize = Math.max(1, Math.floor(Number(options.batchSize) || DEFAULT_BATCH_SIZE));
+  options.onProgress?.({ phase: "render", rendered: 0, total });
   return new Promise((resolve) => {
-    let index = 0;
+    let edgeIndex = 0;
+    let nodeIndex = 0;
     const renderBatch = () => {
       if (activeRenderIds.get(mount) !== renderId) {
         resolve({ progressive: true, cancelled: true });
         return;
       }
-      const batch = items.slice(index, index + batchSize);
-      const byGroup = new Map();
-      for (const item of batch) byGroup.set(item.group, (byGroup.get(item.group) || "") + item.html);
-      for (const [group, html] of byGroup) group.insertAdjacentHTML("beforeend", html);
-      index += batch.length;
-      options.onProgress?.({ phase: "render", rendered: index, total: items.length });
-      if (index < items.length) scheduleFrame(renderBatch);
+      let remaining = batchSize;
+      if (edgeIndex < plan.edgeCount) {
+        const end = Math.min(plan.edgeCount, edgeIndex + remaining);
+        edgeGroup.insertAdjacentHTML("beforeend", plan.renderEdges(edgeIndex, end).join(""));
+        remaining -= end - edgeIndex;
+        edgeIndex = end;
+      }
+      if (remaining > 0 && nodeIndex < plan.nodeCount) {
+        const end = Math.min(plan.nodeCount, nodeIndex + remaining);
+        nodeGroup.insertAdjacentHTML("beforeend", plan.renderNodes(nodeIndex, end).join(""));
+        nodeIndex = end;
+      }
+      const rendered = edgeIndex + nodeIndex;
+      options.onProgress?.({ phase: "render", rendered, total });
+      if (rendered < total) scheduleFrame(renderBatch);
       else resolve({ progressive: true, cancelled: false });
     };
     scheduleFrame(renderBatch);
