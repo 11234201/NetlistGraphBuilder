@@ -89,6 +89,13 @@ import {
 } from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
+import {
+  canStepModuleHistory,
+  createModuleHistoryEntry,
+  pushModuleHistory,
+  replaceCurrentModuleHistory,
+  stepModuleHistory
+} from "./moduleHistory.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 state.cellConfig = loadStoredCellConfig();
@@ -115,6 +122,8 @@ const elements = {
   timingInput: document.querySelector("#timingInput"),
   goldenInput: document.querySelector("#goldenInput"),
   moduleSelect: document.querySelector("#moduleSelect"),
+  moduleBackButton: document.querySelector("#moduleBackButton"),
+  moduleForwardButton: document.querySelector("#moduleForwardButton"),
   layoutProviderSelect: document.querySelector("#layoutProviderSelect"),
   compareButton: document.querySelector("#compareButton"),
   comparePanel: document.querySelector("#comparePanel"),
@@ -184,6 +193,8 @@ elements.goldenInput.addEventListener("change", handleGoldenFileChange);
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
+elements.moduleBackButton.addEventListener("click", () => navigateModuleHistory(-1));
+elements.moduleForwardButton.addEventListener("click", () => navigateModuleHistory(1));
 elements.layoutProviderSelect.addEventListener("change", handleLayoutProviderChange);
 elements.compareButton.addEventListener("click", () => {
   if (state.compare.active) exitCompareView();
@@ -250,6 +261,7 @@ window.addEventListener("dragleave", handleWindowDragLeave);
 window.addEventListener("drop", handleWindowDrop);
 window.addEventListener("dragend", clearFileDragState);
 window.addEventListener("paste", handleGlobalPaste);
+window.addEventListener("keydown", handleModuleHistoryShortcut);
 window.addEventListener("beforeunload", () => {
   if (state.currentSource) saveSessionState(createSessionSnapshot(state));
 });
@@ -603,6 +615,7 @@ function applyCompareSelection() {
   renderStats();
   renderSelection(null);
   updateCalibrationControls();
+  updateModuleHistoryControls();
   setStatus(`Comparing ${left.displayName} and ${right.displayName}`);
 }
 
@@ -619,6 +632,7 @@ function exitCompareView() {
   updateViewControls();
   renderStats();
   updateCalibrationControls();
+  updateModuleHistoryControls();
   applyTransform();
   setStatus(`Single module view: ${state.currentModule?.displayName || "-"}`);
 }
@@ -702,26 +716,99 @@ function selectModule(moduleName, options = {}) {
   if (!module) {
     return;
   }
+  const historyMode = options.historyMode || "push";
+  const historyEntry = options.historyEntry || null;
   const switchingModule = state.currentModule?.name !== module.name;
   if (state.currentModule && switchingModule) {
+    if (historyMode === "push") {
+      state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
+    }
     saveModuleWorkspace(state, state.currentModule.name);
   }
   state.currentModule = module;
   elements.moduleSelect.value = module.name;
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
-  if (switchingModule && !restoredWorkspace && shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD)) {
+  if (historyEntry) {
+    applyModuleHistoryEntry(historyEntry);
+  } else if (switchingModule && !restoredWorkspace && shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD)) {
     state.viewMode = "search-first";
     state.coneRootNodeId = null;
   }
-  renderCurrentModuleGraph(options);
-  state.transform = { x: 0, y: 0, scale: 1 };
-  state.selectedNodeId = null;
-  state.selectedNet = null;
+  if (!historyEntry) {
+    state.transform = { x: 0, y: 0, scale: 1 };
+    state.selectedNodeId = null;
+    state.selectedNet = null;
+  }
+  const requestedOnRendered = options.onRendered;
+  renderCurrentModuleGraph({
+    ...options,
+    onRendered: (graph) => {
+      if (historyEntry) restoreModuleHistorySelection(historyEntry, graph);
+      requestedOnRendered?.(graph);
+    }
+  });
+  if (historyMode === "push" && (switchingModule || state.moduleHistory.index < 0)) {
+    state.moduleHistory = pushModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
+  }
   renderStats();
   renderDiagnostics();
   renderSelection(null);
   updateViewControls();
   applyTransform();
+}
+
+function navigateModuleHistory(delta) {
+  if (state.compare.active || !state.currentModule) return;
+  state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
+  const validNames = state.design.modules.map((module) => module.name);
+  const result = stepModuleHistory(state.moduleHistory, delta, validNames);
+  if (!result.entry) {
+    updateModuleHistoryControls();
+    return;
+  }
+  state.moduleHistory = result.history;
+  selectModule(result.entry.moduleName, {
+    historyMode: "restore",
+    historyEntry: result.entry,
+    readyMessage: `Restored ${result.entry.moduleName} from module history`
+  });
+}
+
+function applyModuleHistoryEntry(entry) {
+  state.viewMode = entry.viewMode || "whole";
+  state.coneRootNodeId = entry.coneRootNodeId || null;
+  state.coneDepth = entry.coneDepth;
+  state.faninDepth = entry.faninDepth;
+  state.fanoutDepth = entry.fanoutDepth;
+  state.selectedNodeId = entry.selectedNodeId || null;
+  state.selectedNet = entry.selectedNet || null;
+  state.transform = { ...entry.transform };
+}
+
+function restoreModuleHistorySelection(entry, graph) {
+  state.transform = { ...entry.transform };
+  if (entry.selectedNet && graph.edges.some((edge) => edge.net === entry.selectedNet)) {
+    setSelectedNet(entry.selectedNet);
+  } else if (entry.selectedNodeId && graph.nodes.some((node) => node.id === entry.selectedNodeId)) {
+    setSelectedNode(entry.selectedNodeId);
+  } else {
+    setSelectedNode(null);
+  }
+  applyTransform();
+  updateModuleHistoryControls();
+}
+
+function handleModuleHistoryShortcut(event) {
+  if (!event.altKey || event.ctrlKey || event.metaKey || isEditablePasteTarget(event.target)) return;
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  navigateModuleHistory(event.key === "ArrowLeft" ? -1 : 1);
+}
+
+function updateModuleHistoryControls() {
+  const validNames = state.design?.modules.map((module) => module.name) || [];
+  elements.moduleBackButton.disabled = state.compare.active || !canStepModuleHistory(state.moduleHistory, -1, validNames);
+  elements.moduleForwardButton.disabled = state.compare.active || !canStepModuleHistory(state.moduleHistory, 1, validNames);
 }
 
 function renderCurrentModuleGraph(options = {}) {
@@ -903,6 +990,7 @@ function updateViewControls() {
   elements.fanoutHubsInput.checked = state.useFanoutHubs;
   elements.collapseGroupsInput.checked = state.collapseLargeGroups;
   elements.collapseAllButton.disabled = state.expandedGroupIds.size === 0;
+  updateModuleHistoryControls();
 }
 
 function handleGraphSimplificationChange() {

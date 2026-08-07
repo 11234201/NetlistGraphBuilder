@@ -1,3 +1,5 @@
+import { createModuleHistory } from "./moduleHistory.js";
+
 export function createAppState(layoutPolicy) {
   return {
     design: null,
@@ -36,6 +38,7 @@ export function createAppState(layoutPolicy) {
     layoutRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
     moduleWorkspaces: new Map(),
+    moduleHistory: createModuleHistory(),
     compareWorkspaces: new Map(),
     compare: createCompareState()
   };
@@ -76,6 +79,7 @@ export function resetDesignWorkspace(state) {
   state.activeSearchResult = -1;
   state.timing = null;
   state.moduleWorkspaces = new Map();
+  state.moduleHistory = createModuleHistory();
   state.compareWorkspaces = new Map();
 }
 

@@ -147,6 +147,8 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="focusedViewButton"/);
   assert.match(html, /id="faninDepthInput"[^>]+min="0"/);
   assert.match(html, /id="fanoutDepthInput"[^>]+min="0"/);
+  assert.match(html, /id="moduleBackButton"[^>]+disabled/);
+  assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
 });
 
 test("Cell Definition editor summarizes a type and escapes names", () => {
