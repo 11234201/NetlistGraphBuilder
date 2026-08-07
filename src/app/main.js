@@ -92,6 +92,7 @@ import { findReferencedModule } from "./moduleNavigation.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 import { createProcessLog } from "./processLog.js";
 import { renderProcessLogEntries } from "../ui/processLogPanel.js";
+import { executeStartupManifest, fetchStartupManifest } from "./startupController.js";
 import {
   canStepModuleHistory,
   createModuleHistoryEntry,
@@ -296,8 +297,74 @@ window.addEventListener("beforeunload", () => {
 const restoredSession = loadSessionState();
 applySessionPreferences(restoredSession);
 renderLayoutProviderOptions();
-loadDesign(restoredSession?.source || sampleNetlist, restoredSession?.sourceLabel || "built-in sample", restoredSession);
+initializeApplication(restoredSession);
 updateCalibrationControls();
+
+async function initializeApplication(session) {
+  try {
+    const manifest = await fetchStartupManifest(globalThis.location?.search || "");
+    if (!manifest) {
+      loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
+      return;
+    }
+    logProcess("info", "launcher", "Applying EDA startup manifest");
+    await executeStartupManifest(manifest, createStartupHandlers());
+  } catch (error) {
+    logProcess("error", "launcher", `Startup failed: ${error.message}`);
+    if (!state.currentModule) loadDesign(sampleNetlist, "built-in sample");
+  }
+}
+
+function createStartupHandlers() {
+  return {
+    configureTarget(target) {
+      state.layoutProviderId = "simple-layered";
+      elements.layoutProviderSelect.value = state.layoutProviderId;
+      if (target.faninDepth !== undefined) state.faninDepth = target.faninDepth;
+      if (target.fanoutDepth !== undefined) state.fanoutDepth = target.fanoutDepth;
+      elements.faninDepthInput.value = String(state.faninDepth);
+      elements.fanoutDepthInput.value = String(state.fanoutDepth);
+    },
+    loadCellConfig(input) {
+      state.cellConfig = parseCellConfig(input.text);
+      logProcess("info", "launcher", `Applied Cell Config ${input.name}`, {
+        definitionCount: Object.keys(state.cellConfig.cells).length
+      });
+    },
+    loadNetlist(input, target) {
+      return new Promise((resolve, reject) => {
+        try {
+          loadDesign(input.text, input.name, { moduleName: target.module, onRendered: resolve });
+          if (target.module && state.currentModule?.name !== target.module && state.currentModule?.displayName !== target.module) {
+            reject(new Error(`Startup module not found: ${target.module}`));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    loadTiming(input) {
+      loadTimingText(input.text, input.name);
+    },
+    ensureDesign() {
+      if (state.currentModule) return undefined;
+      return new Promise((resolve) => loadDesign(sampleNetlist, "built-in sample", { onRendered: resolve }));
+    },
+    selectModule: selectStartupModule,
+    focusCell: focusStartupCell,
+    ready(manifest) {
+      const detail = {
+        module: state.currentModule?.name || null,
+        focus: manifest.target.focus || null,
+        faninDepth: state.faninDepth,
+        fanoutDepth: state.fanoutDepth
+      };
+      globalThis.__NGB_STARTUP_READY__ = detail;
+      globalThis.dispatchEvent?.(new CustomEvent("ngb-startup-ready", { detail }));
+      logProcess("info", "launcher", `EDA startup ready: ${detail.module}`, detail);
+    }
+  };
+}
 
 function startSidebarResize(event) {
   if (event.button !== 0) {
@@ -574,7 +641,7 @@ function loadDesign(source, label, restore = null) {
     const firstModule = state.design.modules.find((module) => module.name === restore?.moduleName)
       || state.design.modules[0];
     const readyMessage = `Loaded ${label}: ${state.design.modules.length} module(s)`;
-    selectModule(firstModule.name, { readyMessage });
+    selectModule(firstModule.name, { readyMessage, onRendered: restore?.onRendered });
     if (restore?.viewMode && restore.viewMode !== "whole" && restore.coneRootNodeId) {
       state.viewMode = restore.viewMode;
       state.coneRootNodeId = restore.coneRootNodeId;
@@ -1111,6 +1178,44 @@ function focusSelectedCell() {
       applyTransform();
       setStatus(`Focused ${node.label} in a new neighborhood`);
     }
+  });
+}
+
+function selectStartupModule(moduleName) {
+  const module = state.design?.modules.find(
+    (item) => item.name === moduleName || item.displayName === moduleName
+  );
+  if (!module) return Promise.reject(new Error(`Startup module not found: ${moduleName}`));
+  if (state.currentModule?.name === module.name) return Promise.resolve();
+  return new Promise((resolve) => selectModule(module.name, { onRendered: resolve }));
+}
+
+function focusStartupCell(value) {
+  const focus = String(value).replace(/^cell:/, "");
+  const node = state.fullGraph?.nodes.find((item) => {
+    if (item.kind !== "cell") return false;
+    return [item.id, item.id.replace(/^cell:/, ""), item.label, item.ref?.instance, item.ref?.instanceDisplayName]
+      .includes(value) || item.ref?.instance === focus;
+  });
+  if (!node) return Promise.reject(new Error(`Startup focus cell not found: ${value}`));
+  const nodeId = node.id;
+  state.selectedNodeId = nodeId;
+  state.viewMode = "focused";
+  state.coneRootNodeId = nodeId;
+  state.transform = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  return new Promise((resolve) => {
+    renderCurrentModuleGraph({
+      onRendered: (graph) => {
+        const positioned = graph.nodes.find((item) => item.id === nodeId);
+        setSelectedNode(positioned?.id || null);
+        if (positioned) {
+          focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+          applyTransform();
+        }
+        resolve();
+      }
+    });
   });
 }
 

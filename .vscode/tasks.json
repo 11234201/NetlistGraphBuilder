@@ -6,18 +6,19 @@
       "type": "process",
       "command": "bash",
       "args": [
-        "tools/start-preview.sh"
+        "tools/start-preview.sh",
+        "--no-open"
       ],
       "windows": {
         "command": "node",
         "args": [
-          "tools/serve.mjs"
+          "tools/serve.mjs",
+          "--no-open"
         ]
       },
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {
-          "HOST": "127.0.0.1",
           "PORT": "4173"
         }
       },
@@ -31,7 +32,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": "^Starting Netlist Graph Builder preview server",
-          "endsPattern": "^Netlist Graph Builder running at http://"
+          "endsPattern": "^\\{\"event\":\"ready\""
         }
       },
       "presentation": {

@@ -275,7 +275,7 @@ Structural Verilog
 
 目标：让工具适应 Global/Local 边界时序和真实层次调试工作流，大图优先通过搜索和双向局部逻辑浏览，并可由已有 EDA 工具直接启动到指定分析位置。
 
-短期计划：
+实施状态：已完成。
 
 - 兼容旧 LocResyn timing 和新的 module/instance 边界表格格式。
 - 增加可复用 Cell Config，为未知 cell type 配置 gate kind 和各 pin direction。

@@ -300,10 +300,18 @@ UI 通过明确 API 调用 parser/netlist/layout/render，不直接操作内部�
   timing, alias, cone and display-transform behavior from drifting between the two workspaces.
 - `layoutWorkspace.js` is the shared provider/override boundary. It preserves both the automatic graph
   and the adjusted graph so manual edits never become implicit provider behavior.
+- `startupController.js` validates the versioned localhost startup manifest and sequences Cell Config,
+  netlist, timing, module and focus actions through injected handlers. It has no DOM dependency; browser
+  bindings remain in `main.js`.
 - Single and Compare Adjust drags call `applyWorkspaceOverrides` on cached automatic graphs for every
   provider, including Simple Layered. Pointer movement must not invoke a layout provider; provider
   execution belongs to workspace rebuilds only.
 - `main.js` 负责应用编排、状态变更、布局/渲染调用和画布交互，不内嵌面板 HTML。
+
+Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
+业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。
+`/__ngb_startup__.json` 仅在 loopback 服务上暴露显式启动输入，ready stdout 只包含文件名和目标摘要，
+不包含网表、时序或 Cell Config 原文。
 
 ## 数据模型原则
 

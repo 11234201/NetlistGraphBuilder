@@ -2,7 +2,7 @@
 
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v0.5.0`。在阶段 4 大图能力之上，进一步支持多位与层次化网表、快速输入、Golden 载入、子 module 跳转和连接关系导航。
+当前版本：`v0.5.0`。阶段 6 已加入 Global/Local 时序、搜索优先的双向局部逻辑、可复用 Cell Config、过程日志和 EDA 启动接口。
 
 ## 主要功能
 
@@ -12,15 +12,18 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 搜索 module、port、net、instance 和 cell type，并定位图中对象。
 - 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
 - Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
-- 切换 Whole、Fanin Cone 和 Fanout Cone，并设置追踪深度。
+- 切换 Whole、Focused、Fanin Cone 和 Fanout Cone；Focused 的前后向深度可独立设置，大 module 默认 Search-first。
+- module 前进/后退恢复视图、选择与 viewport，并可将所选 cell 一键居中放大。
 - 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
-- 导入 LocResyn timing 日志并显示 timing badge 和 critical 标记。
+- 导入旧 LocResyn 与新 Global/Local 边界 timing，按全图 snapshot/metric 策略显示 cell/port badge 和 critical 标记。
 - 支持文件选择、拖放、全局粘贴和 Paste 文本框，自动识别 Verilog、layout Golden 与 LocResyn timing 日志。
 - 支持保存和载入 layout Golden，快速复用人工调整后的节点、pin 和布线布局。
 - 识别层次化子 module 实例，双击实例可直接跳转到对应 module 定义。
 - Adjust 模式下调整节点、属性和 pin direction，并导出 SVG 或 layout Golden。
 - Simple/ELK 布局 provider 离线切换，大图渐进渲染、fanout hub、结构分组折叠和低缩放降细节。
 - 同一浏览器标签页刷新后恢复网表、module、cone、搜索、provider、布局选项和 pan/zoom。
+- 编辑、持久化和导入导出未知 cell type 的 gate/pin 定义；Process Log 可过滤、复制和导出。
+- Node、Python 和 Windows 启动器可由 EDA 工具直接指定 netlist、timing、module、focus 与局部深度。
 
 ## 运行
 
@@ -76,9 +79,32 @@ npm start
 python3 -u tools/serve.py
 ```
 
-然后打开 `http://127.0.0.1:4173/`。可以用 `HOST` 和 `PORT` 修改监听地址和端口，例如 `HOST=0.0.0.0 PORT=8080 npm start`。只有确实需要从局域网直接访问时才应监听 `0.0.0.0`；Remote-SSH 场景保持默认地址更安全。
+启动器只监听 `127.0.0.1`，默认自动打开浏览器；用 `--no-open` 只启动服务，用 `--port` 或 `PORT` 修改端口。启动成功后 stdout 输出一行 JSON ready 信息，EDA 进程可以据此取得最终 URL 和启动目标。
 
-页面默认加载内置示例。可以打开或拖入 `.v`、`.sv`、`.txt` 网表、`.json` layout Golden 和 `.log` timing 日志；鼠标不在输入框中时，也可以直接按 `Ctrl+V`，程序会自动识别剪贴板中的文件或文本。对于一小段临时网表，点击顶部 `Paste` 后粘贴文本即可立即画图。
+### EDA 启动接口
+
+Node、Python 与 Windows 正式版使用同一组参数。下面的命令会加载指定网表和时序，打开 `top`，并以 `u0` 为中心显示前向 1 层、后向 2 层的局部图：
+
+```powershell
+node tools/serve.mjs --netlist "C:\EDA jobs\design one.v" --timing "C:\EDA jobs\timing one.txt" --cell-config "C:\EDA jobs\cells.json" --module top --focus u0 --fanin-depth 1 --fanout-depth 2 --no-open
+```
+
+Python 用法只需将命令头替换为 `python3 -u tools/serve.py`；Windows 发布包使用 `NetlistGraphBuilder.exe`。可用参数如下：
+
+- `--netlist <path>`、`--timing <path>`、`--cell-config <path>`：启动输入；含空格的路径需要按 shell 规则加引号。
+- `--module <name>`、`--focus <instance>`：初始 module 与聚焦 cell。
+- `--fanin-depth <0-99>`、`--fanout-depth <0-99>`：Focused neighborhood 的独立深度，`0` 表示关闭该方向。
+- `--port <1-65535>`：本机端口；`--no-open`（兼容旧名 `--no-browser`）禁止自动打开浏览器。
+
+ready 行不包含网表、时序或 Cell Config 原文，例如：
+
+```json
+{"event":"ready","host":"127.0.0.1","port":4173,"url":"http://127.0.0.1:4173/?startup=1","startup":{"netlist":"design one.v","timing":"timing one.txt","cellConfig":"cells.json","module":"top","focus":"u0","faninDepth":1,"fanoutDepth":2}}
+```
+
+文件不可读、Cell Config schema 非法、module/focus 与 Node 启动时加载的网表不匹配，或参数越界时，启动器在监听端口前输出明确错误并以非零状态退出。可运行 `npm run test:launcher` 验证 Node/Python 端到端协议。
+
+没有启动输入时页面加载内置示例。可以打开或拖入 `.v`、`.sv`、`.txt` 网表、`.json` layout Golden 和 `.log` timing 日志；鼠标不在输入框中时，也可以直接按 `Ctrl+V`，程序会自动识别剪贴板中的文件或文本。对于一小段临时网表，从顶部 `Import` 选择 `Paste netlist` 后粘贴文本即可立即画图。
 
 ## 快速输入与层次浏览
 
