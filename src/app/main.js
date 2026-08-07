@@ -24,6 +24,7 @@ import {
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
+import { createNodeDragPreview } from "../ui/nodeDragPreview.js";
 import { createLatestFrameScheduler } from "../ui/frameScheduler.js";
 import { hasPointerDragged } from "../ui/pointerGesture.js";
 import { startPointerSession } from "../ui/pointerSession.js";
@@ -33,6 +34,7 @@ import {
   getAdaptiveMaxScale,
   getPannedTransform,
   getReadableObjectScale,
+  getSteppedZoomedTransform,
   getZoomedTransform
 } from "../ui/viewport.js";
 import {
@@ -75,6 +77,8 @@ import { findReferencedModule } from "./moduleNavigation.js";
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
+let pendingWheelGesture = null;
+let wheelInteractionTimer = null;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -128,6 +132,7 @@ const elements = {
   diagnostics: document.querySelector("#diagnosticsList"),
   status: document.querySelector("#statusBar")
 };
+const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 
 elements.fileInput.addEventListener("change", handleFileChange);
 elements.pasteNetlistButton.addEventListener("click", openNetlistTextDialog);
@@ -1476,17 +1481,12 @@ function handleWheel(event) {
     return;
   }
   event.preventDefault();
-
-  const rect = svg.getBoundingClientRect();
-  const point = eventPointToSvg(svg, event);
-  state.transform = getZoomedTransform(
-    state.transform,
-    point,
-    event.deltaY,
-    svg.viewBox.baseVal.width,
-    rect.width
-  );
-  applyTransform();
+  queueWheelGesture({
+    mode: "single",
+    clientX: event.clientX,
+    clientY: event.clientY,
+    deltaY: event.deltaY
+  });
 }
 
 function handlePointerDown(event) {
@@ -1531,7 +1531,7 @@ function handlePointerDown(event) {
     const viewBox = svg.viewBox.baseVal;
     const rect = svg.getBoundingClientRect();
     state.transform = getPannedTransform(start.transform, start, point, viewBox, rect);
-    applyTransform();
+    applyTransform(false);
   });
 
   startPointerSession({
@@ -1545,6 +1545,7 @@ function handlePointerDown(event) {
     },
     onEnd: (endEvent) => {
       panFrames.flush();
+      persistSession();
       if (!didPan && endEvent?.type !== "pointercancel") setSelectedNode(null);
     }
   });
@@ -1591,6 +1592,12 @@ function startNodeDrag(event, nodeId) {
 
   const startPoint = eventPointToContent(event);
   const startPosition = { x: node.x, y: node.y };
+  const preview = createNodeDragPreview(
+    elements.mount,
+    state.graph,
+    nodeId,
+    startPosition
+  );
   let moved = false;
   const dragFrames = createLatestFrameScheduler((pointer) => {
     const point = eventPointToContent(pointer);
@@ -1607,21 +1614,7 @@ function startNodeDrag(event, nodeId) {
 
     moved = true;
     state.nodePositions.set(nodeId, nextPosition);
-    if (state.autoGraph) {
-      state.graph = applyWorkspaceOverrides(state.autoGraph, {
-        nodePositions: state.nodePositions,
-        nodeSizes: state.nodeSizes,
-        layoutPolicy: state.layoutPolicy
-      });
-      elements.mount.innerHTML = renderSchematicSvg(state.graph, { wireBridges: false });
-      setSelectedNode(nodeId);
-      applyTransform();
-      updateCalibrationControls();
-    } else {
-      renderCurrentModuleGraph();
-      setSelectedNode(nodeId);
-      applyTransform();
-    }
+    preview.update(nextPosition);
     if (snapResult.snap) {
       setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
     } else {
@@ -1636,13 +1629,33 @@ function startNodeDrag(event, nodeId) {
     onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => {
       dragFrames.flush();
-      if (moved) {
-        elements.mount.innerHTML = renderSchematicSvg(state.graph);
-        setSelectedNode(nodeId);
-        applyTransform();
-        setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
+      if (!moved) {
+        preview.clear();
+        return;
       }
+      setStatus(`Rerouting ${node.label}…`);
+      runAfterNextPaint(() => commitNodeDrag(nodeId, preview));
     }
+  });
+}
+
+function commitNodeDrag(nodeId, preview) {
+  if (!state.autoGraph) {
+    preview.clear();
+    renderCurrentModuleGraph();
+    return;
+  }
+  state.graph = applyWorkspaceOverrides(state.autoGraph, {
+    nodePositions: state.nodePositions,
+    nodeSizes: state.nodeSizes,
+    layoutPolicy: state.layoutPolicy
+  });
+  preview.clear();
+  renderGraphMount(elements.mount, state.graph).then(() => {
+    setSelectedNode(nodeId);
+    applyTransform();
+    updateCalibrationControls();
+    setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
   });
 }
 
@@ -1776,7 +1789,7 @@ function updateCalibrationControls() {
   }
 }
 
-function applyTransform() {
+function applyTransform(shouldPersist = true) {
   const content = elements.mount.querySelector("#schematicContent");
   if (!content) {
     return;
@@ -1784,7 +1797,7 @@ function applyTransform() {
   const { x, y, scale } = state.transform;
   content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
   elements.canvas.classList.toggle("is-low-detail", scale < 0.65);
-  persistSession();
+  if (shouldPersist) persistSession();
 }
 
 function handleCompareWheel(event) {
@@ -1793,17 +1806,13 @@ function handleCompareWheel(event) {
   const svg = sideElement?.querySelector("svg");
   if (!side || !svg) return;
   event.preventDefault();
-  const current = state.compare.transforms[side];
-  const rect = svg.getBoundingClientRect();
-  const point = eventPointToSvg(svg, event);
-  const next = getZoomedTransform(
-    current,
-    point,
-    event.deltaY,
-    svg.viewBox.baseVal.width,
-    rect.width
-  );
-  setCompareTransform(side, next);
+  queueWheelGesture({
+    mode: "compare",
+    side,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    deltaY: event.deltaY
+  });
 }
 
 function handleComparePointerDown(event) {
@@ -1865,6 +1874,12 @@ function startCompareNodeDrag(event, side, node) {
   };
   const startPoint = toContent(event);
   const startPosition = { x: node.x, y: node.y };
+  const preview = createNodeDragPreview(
+    mount,
+    state.compare.graphs[side],
+    node.id,
+    startPosition
+  );
   let moved = false;
   const dragFrames = createLatestFrameScheduler((pointer) => {
     const point = toContent(pointer);
@@ -1875,7 +1890,7 @@ function startCompareNodeDrag(event, side, node) {
     if (sameNodePosition(previous, snapped.position)) return;
     moved = true;
     state.compare.nodePositions[side].set(node.id, snapped.position);
-    renderAdjustedCompareSide(side, { wireBridges: false });
+    preview.update(snapped.position);
   });
   startPointerSession({
     target: elements.canvas,
@@ -1884,10 +1899,80 @@ function startCompareNodeDrag(event, side, node) {
     onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => {
       dragFrames.flush();
-      if (moved) renderAdjustedCompareSide(side);
-      setStatus(`${side} ${node.label}: position adjusted`);
+      if (!moved) {
+        preview.clear();
+        return;
+      }
+      setStatus(`Rerouting ${side} ${node.label}…`);
+      runAfterNextPaint(() => {
+        preview.clear();
+        renderAdjustedCompareSide(side);
+        setStatus(`${side} ${node.label}: position adjusted`);
+      });
     }
   });
+}
+
+function queueWheelGesture(sample) {
+  const sameTarget = pendingWheelGesture &&
+    pendingWheelGesture.mode === sample.mode &&
+    pendingWheelGesture.side === sample.side;
+  if (sameTarget) {
+    pendingWheelGesture.clientX = sample.clientX;
+    pendingWheelGesture.clientY = sample.clientY;
+    pendingWheelGesture.steps += sample.deltaY < 0 ? -1 : 1;
+  } else {
+    wheelFrames.flush();
+    pendingWheelGesture = {
+      ...sample,
+      steps: sample.deltaY < 0 ? -1 : 1
+    };
+  }
+  elements.canvas.classList.add("is-view-interacting");
+  clearTimeout(wheelInteractionTimer);
+  wheelInteractionTimer = setTimeout(() => {
+    elements.canvas.classList.remove("is-view-interacting");
+    persistSession();
+  }, 140);
+  wheelFrames.schedule(pendingWheelGesture);
+}
+
+function applyPendingWheelGesture(sample) {
+  if (!sample) return;
+  if (pendingWheelGesture === sample) pendingWheelGesture = null;
+  if (sample.mode === "compare") {
+    const mount = sample.side === "left" ? elements.leftMount : elements.rightMount;
+    const svg = mount.querySelector("svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const point = eventPointToSvg(svg, sample);
+    setCompareTransform(sample.side, getSteppedZoomedTransform(
+      state.compare.transforms[sample.side],
+      point,
+      sample.steps,
+      svg.viewBox.baseVal.width,
+      rect.width
+    ));
+    return;
+  }
+  const svg = getSvg();
+  if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const point = eventPointToSvg(svg, sample);
+  state.transform = getSteppedZoomedTransform(
+    state.transform,
+    point,
+    sample.steps,
+    svg.viewBox.baseVal.width,
+    rect.width
+  );
+  applyTransform(false);
+}
+
+function runAfterNextPaint(task) {
+  const requestFrame = globalThis.requestAnimationFrame ||
+    ((callback) => globalThis.setTimeout(callback, 0));
+  requestFrame(() => globalThis.setTimeout(task, 0));
 }
 
 function renderAdjustedCompareSide(side, renderOptions = {}) {

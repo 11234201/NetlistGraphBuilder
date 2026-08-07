@@ -6,6 +6,7 @@ import {
   getAdaptiveMaxScale,
   getPannedTransform,
   getReadableObjectScale,
+  getSteppedZoomedTransform,
   getZoomedTransform,
   getZoomStep
 } from "../../src/ui/viewport.js";
@@ -45,6 +46,20 @@ test("zoom keeps the pointer's graph position stationary", () => {
   assert.ok(Math.abs(next.x + 0.8) < 1e-9);
   assert.ok(Math.abs(next.y - 12.8) < 1e-9);
   assert.equal(next.scale, 1.12);
+});
+
+test("coalesced wheel steps preserve zoom distance with one final transform", () => {
+  const start = { x: 10, y: 20, scale: 1 };
+  const point = { x: 100, y: 80 };
+  let sequential = start;
+  for (let index = 0; index < 3; index += 1) {
+    sequential = getZoomedTransform(sequential, point, -1, 1000, 1000);
+  }
+
+  assert.deepEqual(
+    getSteppedZoomedTransform(start, point, -3, 1000, 1000),
+    sequential
+  );
 });
 
 test("pan and client conversion use viewBox-to-viewport scale", () => {

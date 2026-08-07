@@ -60,6 +60,32 @@ export function getZoomedTransform(
   };
 }
 
+export function getSteppedZoomedTransform(
+  transform,
+  point,
+  steps,
+  viewBoxWidth,
+  viewportWidth,
+  minScale = 0.25
+) {
+  const direction = steps < 0 ? -1 : 1;
+  const count = Math.abs(Math.trunc(steps));
+  let next = transform;
+  for (let index = 0; index < count; index += 1) {
+    const candidate = getZoomedTransform(
+      next,
+      point,
+      direction,
+      viewBoxWidth,
+      viewportWidth,
+      minScale
+    );
+    if (candidate.scale === next.scale) break;
+    next = candidate;
+  }
+  return next;
+}
+
 export function getPannedTransform(transform, startClient, currentClient, viewBox, viewport) {
   const viewportWidth = positiveNumber(viewport?.width, 1);
   const viewportHeight = positiveNumber(viewport?.height, 1);

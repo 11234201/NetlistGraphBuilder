@@ -812,6 +812,29 @@ body.is-dragging-files .drop-overlay {
   cursor: move;
 }
 
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-label,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .pin-label,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .node-label,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .node-meta,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .timing-badge,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-bridge,
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-bridge-cutout {
+  display: none;
+}
+
+.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-hit-area {
+  pointer-events: none;
+}
+
+.edge.is-drag-preview-edge {
+  opacity: 0.2;
+}
+
+.node.is-drag-preview-node {
+  pointer-events: none;
+  will-change: transform;
+}
+
 .schematic-mount {
   width: 100%;
   height: 100%;
