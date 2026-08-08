@@ -8,7 +8,13 @@ import {
 
 test("layout policy normalizes numeric values without mutating its input", () => {
   const input = {
-    spacing: { wireLanePitch: "32", cellSpacing: 999, cellPinPitch: 500, margin: "invalid" },
+    spacing: {
+      wireLanePitch: "32",
+      cellSpacing: 999,
+      cellPinPitch: 500,
+      margin: "invalid",
+      topPadding: 9999
+    },
     features: { alignDrivenLinks: "false" }
   };
   const policy = normalizeLayoutPolicy(input);
@@ -17,12 +23,14 @@ test("layout policy normalizes numeric values without mutating its input", () =>
   assert.equal(policy.spacing.cellSpacing, LAYOUT_SPACING_LIMITS.cellSpacing[1]);
   assert.equal(policy.spacing.cellPinPitch, LAYOUT_SPACING_LIMITS.cellPinPitch[1]);
   assert.equal(policy.spacing.margin, DEFAULT_LAYOUT_POLICY.spacing.margin);
+  assert.equal(policy.spacing.topPadding, LAYOUT_SPACING_LIMITS.topPadding[1]);
   assert.equal(policy.features.alignDrivenLinks, false);
   assert.deepEqual(input.spacing, {
     wireLanePitch: "32",
     cellSpacing: 999,
     cellPinPitch: 500,
-    margin: "invalid"
+    margin: "invalid",
+    topPadding: 9999
   });
 });
 

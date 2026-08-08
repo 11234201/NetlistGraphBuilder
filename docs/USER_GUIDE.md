@@ -283,6 +283,8 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 在 Adjust 模式中拖动 cell 或 port。拖动时只更新轻量预览，释放鼠标后提交受影响 wire 的正交重布线。
 
+自动布局会在图像上方保留一段编辑空间，因此最上层的 cell 和 port 仍可继续向上拖动；这个留白同时适用于 Simple、ELK、Single 和 Compare，手工保存的位置仍按画布绝对坐标恢复。
+
 ### 10.2 修改 Size
 
 选中节点后，Selection 会显示：
