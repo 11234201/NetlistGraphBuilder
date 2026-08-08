@@ -2,6 +2,21 @@
 
 本项目使用语义化版本号。
 
+## [0.7.0] - 2026-08-08
+
+Focused 浏览与布局可读性改进版本。
+
+### Added
+
+- 增加 `Set selected as Focused`，可将图中选中的 cell 切换为新的 Focused root。
+- 扩大 Wire spacing 至 `4–96 px`、Cell spacing 至 `4–320 px`，让最小值与最大值具有明显差异。
+
+### Changed
+
+- 将旧 Fanin/Fanout 视图收敛到 Focused，并让 fanin/fanout depth 独立控制实际局部图深度。
+- Cell spacing 同时作用于 cell、输入端口和输出端口。
+- MUX 的 `S`、`S0/S1`、`SEL/SELECT` 选择端改为左侧输入，减少顶部绕线。
+
 ## [0.6.0] - 2026-08-07
 
 阶段 6 时序、搜索优先大图分析和 EDA 集成版本。
