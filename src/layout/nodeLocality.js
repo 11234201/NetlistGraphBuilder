@@ -5,7 +5,8 @@ import {
   getInputPortIndex,
   groupEdges,
   isExternalSourceNode,
-  round
+  round,
+  stackNodesVertically
 } from "./nodePlacementShared.js";
 
 export function applySingleFanoutInputLocality(
@@ -13,7 +14,8 @@ export function applySingleFanoutInputLocality(
   edges,
   margin,
   layoutIntent = null,
-  branchLanePitch = 16
+  branchLanePitch = 16,
+  cellSpacing = 8
 ) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const outgoingBySource = groupEdges(edges, "source");
@@ -47,12 +49,15 @@ export function applySingleFanoutInputLocality(
       .filter((port) => port.direction === "input")
       .findIndex((port) => port.pin === targetPort?.pin);
     const laneRank = multiInputLaneRanks.get(node.id) || 0;
-    const gap = outgoing.length === 1 ? 24 : 28 + laneRank * branchLanePitch;
+    const normalizedCellSpacing = Number(cellSpacing) || 8;
+    const baseGap = Math.max(4, 24 + normalizedCellSpacing - 8);
+    const gap = outgoing.length === 1 ? baseGap : baseGap + 4 + laneRank * branchLanePitch;
     if (targetPort?.side === "top" || targetPort?.side === "bottom") {
       node.x = round(Math.max(margin, target.x + targetPort.x - (sourcePort?.x ?? node.width)));
+      const verticalGap = Math.max(4, 12 + normalizedCellSpacing - 8);
       node.y = targetPort.side === "top"
-        ? round(Math.max(margin, target.y - node.height - 12))
-        : round(target.y + target.height + 12);
+        ? round(Math.max(margin, target.y - node.height - verticalGap))
+        : round(target.y + target.height + verticalGap);
     } else {
       node.x = Math.max(margin, target.x - node.width - gap);
       node.y = round(
@@ -60,6 +65,10 @@ export function applySingleFanoutInputLocality(
       );
     }
     node.order = targetInputIndex >= 0 ? targetInputIndex : node.order;
+  }
+
+  if ((Number(cellSpacing) || 8) > 8) {
+    preserveExpandedSourceSpacing(nodes, margin, Number(cellSpacing));
   }
 }
 
@@ -117,4 +126,11 @@ function getMultiInputLaneRanks(nodes, outgoingBySource, primaryEdgeBySource, no
     }
   }
   return ranks;
+}
+
+function preserveExpandedSourceSpacing(nodes, margin, gap) {
+  const sources = nodes
+    .filter(isExternalSourceNode)
+    .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
+  stackNodesVertically(sources, margin, gap);
 }

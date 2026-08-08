@@ -3,18 +3,15 @@ import {
   findNearestFreeY,
   groupNodesByLevel,
   isExternalSourceNode,
-  round
+  round,
+  stackNodesVertically
 } from "./nodePlacementShared.js";
 
 export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
   const sources = nodes
     .filter(isExternalSourceNode)
     .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
-  let nextY = margin;
-  for (const source of sources) {
-    source.y = round(Math.max(source.y, nextY));
-    nextY = source.y + source.height + gap;
-  }
+  stackNodesVertically(sources, margin, gap);
 }
 
 export function resolveLevelOverlaps(
@@ -46,9 +43,9 @@ export function resolveLevelOverlaps(
   }
 }
 
-export function resolveOutputOverlaps(nodes, margin) {
+export function resolveOutputOverlaps(nodes, margin, gap = 8) {
   for (const node of nodes.filter((item) => item.kind === "output").sort(compareNodes)) {
-    node.y = findNearestFreeY(node, node.y, nodes, new Set([node.id]), margin);
+    node.y = findNearestFreeY(node, node.y, nodes, new Set([node.id]), margin, gap);
   }
 }
 

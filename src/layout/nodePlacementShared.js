@@ -63,6 +63,14 @@ export function round(value) {
   return Math.round(value * 1000) / 1000;
 }
 
+export function stackNodesVertically(nodes, margin, gap) {
+  let nextY = margin;
+  for (const node of nodes) {
+    node.y = round(Math.max(node.y, nextY));
+    nextY = node.y + node.height + gap;
+  }
+}
+
 function horizontalRangesOverlap(left, right, gap = 0) {
   return left.x < right.x + right.width + gap && left.x + left.width + gap > right.x;
 }

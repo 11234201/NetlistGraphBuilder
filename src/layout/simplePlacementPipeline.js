@@ -40,6 +40,7 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
   } = context;
   const compactGap = Number(policy.spacing.compactYGap) || 8;
   const fanoutGap = Number(policy.spacing.fanoutYGap) || 28;
+  const cellSpacing = Number(policy.spacing.cellSpacing) || 8;
   const nodesByLevel = groupNodesByLevel(positionedNodes);
   const run = (stage, action) => {
     action();
@@ -84,7 +85,7 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
   run("resolve-source-overlaps", () => resolveExternalSourceOverlaps(
     positionedNodes,
     margin,
-    compactGap
+    cellSpacing
   ));
   run("localize-fanout-hubs", () => applyFanoutHubLocality(
     positionedNodes,
@@ -97,10 +98,15 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
       graph.edges,
       margin,
       layoutIntent,
-      topWireLanePitch
+      topWireLanePitch,
+      cellSpacing
     ));
   }
-  run("resolve-output-overlaps", () => resolveOutputOverlaps(positionedNodes, margin));
+  run("resolve-output-overlaps", () => resolveOutputOverlaps(
+    positionedNodes,
+    margin,
+    cellSpacing
+  ));
   run("apply-node-overrides", () => applyNodePositionOverrides(positionedNodes, nodePositions));
   return positionedNodes;
 }
