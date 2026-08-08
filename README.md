@@ -15,7 +15,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
 - Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
 - 切换 Whole 和 Focused；Focused 的前后向深度可独立设置，大 module 默认 Search-first。
-- module 前进/后退恢复视图、选择与 viewport，并可将所选 cell 一键居中放大。
+- module 前进/后退恢复视图、选择与 viewport；可将所选 cell 一键居中放大，或设为新的 Focused root。
 - 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
 - 导入旧 LocResyn 与新 Global/Local 边界 timing，按全图 snapshot/metric 策略显示 cell/port badge 和 critical 标记。
 - 支持文件选择、拖放、全局粘贴和 Paste 文本框，自动识别 Verilog、layout Golden 与 LocResyn timing 日志。

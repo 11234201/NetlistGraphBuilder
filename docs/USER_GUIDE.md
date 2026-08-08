@@ -195,6 +195,16 @@ Selection 中以按钮显示的 net、driver/load、Connected、Fanin 和 Fanout
 - 如果 cell 不在当前局部图，先建立 Focused neighborhood，再定位。
 - 目标 cell 会以稳定的阅读尺寸居中显示。
 
+### 6.4 切换 Focused root
+
+在 Whole 或当前 Focused 局部图中选中另一个 cell 后，点击 `Set selected as Focused`：
+
+- 所选 cell 会成为新的 Focused root。
+- 当前 fanin/fanout depth 会继续使用。
+- 局部图重建完成后，新 root 会保持选中并居中放大。
+
+当所选 cell 已经是当前 root 时按钮禁用。`Focus selected cell` 只调整 viewport，`Set selected as Focused` 才会改变局部图的 root。
+
 ## 7. Whole 和 Focused 视图
 
 ### 7.1 Whole

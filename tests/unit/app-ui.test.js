@@ -157,6 +157,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="moduleBackButton"[^>]+disabled/);
   assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
+  assert.match(html, /id="setFocusedRootButton"[^>]+disabled/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="8"[^>]+max="120"/);
   assert.match(html, /id="processLogDrawer"/);
   assert.match(html, /id="processLogLevelFilter"/);

@@ -74,6 +74,7 @@ import {
 import { sampleNetlist } from "./sampleNetlist.js";
 import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { resolveFocusedRootTarget } from "./focusedSelection.js";
 import {
   buildCompareWorkspace,
   findCompareNode,
@@ -159,6 +160,7 @@ const elements = {
   fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
   collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
   collapseAllButton: document.querySelector("#collapseAllButton"),
+  setFocusedRootButton: document.querySelector("#setFocusedRootButton"),
   focusSelectedButton: document.querySelector("#focusSelectedButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
@@ -258,6 +260,7 @@ elements.collapseAllButton.addEventListener("click", () => {
   state.expandedGroupIds.clear();
   rerenderActiveGraph();
 });
+elements.setFocusedRootButton.addEventListener("click", setSelectedAsFocusedRoot);
 elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
 elements.cellSpacingInput.addEventListener("input", handleCellSpacingChange);
@@ -1150,7 +1153,45 @@ function updateViewControls() {
   elements.collapseGroupsInput.checked = state.collapseLargeGroups;
   elements.collapseAllButton.disabled = state.expandedGroupIds.size === 0;
   updateModuleHistoryControls();
+  updateFocusedRootControl();
   updateFocusSelectedControl();
+}
+
+function updateFocusedRootControl() {
+  const target = state.compare.active ? null : resolveFocusedRootTarget(
+    state.fullGraph,
+    state.selectedNodeId,
+    state.coneRootNodeId,
+    state.viewMode
+  );
+  elements.setFocusedRootButton.disabled = !target;
+}
+
+function setSelectedAsFocusedRoot() {
+  const nodeId = resolveFocusedRootTarget(
+    state.fullGraph,
+    state.selectedNodeId,
+    state.coneRootNodeId,
+    state.viewMode
+  );
+  if (!nodeId || state.compare.active) return;
+  const requestId = ++state.selectionFocusRequestId;
+  state.viewMode = "focused";
+  state.coneRootNodeId = nodeId;
+  state.transform = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  setStatus("Rebuilding Focused view around selected cell…");
+  renderCurrentModuleGraph({
+    onRendered: (graph) => {
+      if (requestId !== state.selectionFocusRequestId || state.coneRootNodeId !== nodeId) return;
+      const node = graph.nodes.find((item) => item.id === nodeId);
+      if (!node) return;
+      setSelectedNode(nodeId);
+      focusPositionedCell(node, elements.mount, state.transform, (transform) => { state.transform = transform; });
+      applyTransform();
+      setStatus(`Focused neighborhood root: ${node.label}`);
+    }
+  });
 }
 
 function updateFocusSelectedControl() {
