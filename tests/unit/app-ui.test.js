@@ -36,7 +36,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   state.design = { modules: [] };
   state.timing = { instanceCount: 1 };
   state.selectedNodeId = "cell:u0";
-  state.viewMode = "fanin";
+  state.viewMode = "focused";
   state.coneRootNodeId = "cell:u0";
   state.nodePositions.set("cell:u0", { x: 10, y: 20 });
   state.timingBadgeChoices.u0 = [{ pin: "Z", metric: "at" }];
@@ -151,6 +151,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="cellConfigInput"/);
   assert.match(html, /id="cellDefinitionDialog"/);
   assert.match(html, /id="focusedViewButton"/);
+  assert.doesNotMatch(html, /id="faninViewButton"|id="fanoutViewButton"/);
   assert.match(html, /id="faninDepthInput"[^>]+min="0"/);
   assert.match(html, /id="fanoutDepthInput"[^>]+min="0"/);
   assert.match(html, /id="moduleBackButton"[^>]+disabled/);

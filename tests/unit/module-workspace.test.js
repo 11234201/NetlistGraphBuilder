@@ -21,7 +21,7 @@ function build(overrides = {}) {
 
 test("module workspace composes graph, view, layout and manual overrides", () => {
   const workspace = build({
-    viewMode: "fanin",
+    viewMode: "focused",
     coneRootNodeId: "output:y",
     coneDepth: 3,
     nodePositions: new Map([["cell:u0", { x: 333, y: 222 }]])

@@ -1,4 +1,5 @@
 import { createModuleHistory } from "./moduleHistory.js";
+import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 export function createAppState(layoutPolicy) {
   return {
@@ -106,7 +107,7 @@ export function restoreModuleWorkspace(state, moduleName) {
   state.nodePositions = new Map(saved.nodePositions);
   state.nodeSizes = new Map(saved.nodeSizes);
   state.graphOverrides = cloneGraphOverrides(saved.graphOverrides);
-  state.viewMode = saved.viewMode || "whole";
+  state.viewMode = normalizeSingleViewMode(saved.viewMode);
   state.coneRootNodeId = saved.coneRootNodeId || null;
   state.faninDepth = normalizeDepth(saved.faninDepth, state.faninDepth);
   state.fanoutDepth = normalizeDepth(saved.fanoutDepth, state.fanoutDepth);

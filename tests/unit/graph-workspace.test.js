@@ -12,18 +12,19 @@ import { parseVerilog } from "../../src/parser/verilogParser.js";
 const source = `module top (a, y0, y1); input a; output y0, y1;
 BUF u0 (.A(a), .Y(y0)); BUF u1 (.A(a), .Y(y1)); endmodule`;
 
-test("shared graph workspace prepares whole and cone views without mutation", () => {
+test("shared graph workspace prepares whole and focused views without mutation", () => {
   const module = parseVerilog(source).modules[0];
   const fullGraph = buildWorkspaceGraph(module, { moduleLibrary: [module] });
-  const cone = selectWorkspaceGraphView(fullGraph, {
-    viewMode: "fanin",
-    rootNodeId: "output:y0",
-    maxDepth: 3
+  const focused = selectWorkspaceGraphView(fullGraph, {
+    viewMode: "focused",
+    rootNodeId: "cell:u0",
+    faninDepth: 1,
+    fanoutDepth: 0
   });
 
   assert.ok(fullGraph.nodes.some((node) => node.id === "cell:u1"));
-  assert.equal(cone.nodes.some((node) => node.id === "cell:u1"), false);
-  assert.ok(cone.nodes.some((node) => node.id === "cell:u0"));
+  assert.equal(focused.nodes.some((node) => node.id === "cell:u1"), false);
+  assert.ok(focused.nodes.some((node) => node.id === "cell:u0"));
 });
 
 test("large module policy enters search-first only above its stable threshold", () => {

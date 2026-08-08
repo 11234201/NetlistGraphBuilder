@@ -15,11 +15,12 @@ export function applyLayoutGoldenState(state, imported) {
   if (imported.layoutPolicy) state.layoutPolicy = imported.layoutPolicy;
 
   const display = imported.display;
-  if (display.viewMode === "whole") {
+  const viewMode = normalizeSingleViewMode(display.viewMode);
+  if (viewMode === "whole") {
     state.viewMode = "whole";
     state.coneRootNodeId = null;
   } else if (display.viewMode && display.coneRootNodeId) {
-    state.viewMode = display.viewMode;
+    state.viewMode = viewMode;
     state.coneRootNodeId = display.coneRootNodeId;
   }
   if (display.coneDepth) state.coneDepth = clamp(display.coneDepth, 1, 99);
@@ -34,3 +35,4 @@ export function applyLayoutGoldenState(state, imported) {
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }
+import { normalizeSingleViewMode } from "./singleViewMode.js";

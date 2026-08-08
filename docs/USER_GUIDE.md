@@ -10,7 +10,7 @@
 4. [Module 与层次导航](#4-module-与层次导航)
 5. [顶部搜索](#5-顶部搜索)
 6. [画布、选择和连接追踪](#6-画布选择和连接追踪)
-7. [Whole、Focused、Fanin 和 Fanout 视图](#7-wholefocusedfanin-和-fanout-视图)
+7. [Whole 和 Focused 视图](#7-whole-和-focused-视图)
 8. [大图 Search-first 工作流](#8-大图-search-first-工作流)
 9. [布局、间距和大图简化](#9-布局间距和大图简化)
 10. [Adjust 手工校准](#10-adjust-手工校准)
@@ -195,7 +195,7 @@ Selection 中以按钮显示的 net、driver/load、Connected、Fanin 和 Fanout
 - 如果 cell 不在当前局部图，先建立 Focused neighborhood，再定位。
 - 目标 cell 会以稳定的阅读尺寸居中显示。
 
-## 7. Whole、Focused、Fanin 和 Fanout 视图
+## 7. Whole 和 Focused 视图
 
 ### 7.1 Whole
 
@@ -211,13 +211,7 @@ Focused 是以所选 cell 为 root 的双向局部图：
 
 两侧结果会合并并去重。修改一个深度只扩展对应方向。
 
-### 7.3 Fanin 与 Fanout
-
-- `Fanin`：只显示向 root 输入方向的 cone。
-- `Fanout`：只显示向 root 输出方向的 cone。
-- `Depth`：单向 cone 最大深度。
-
-这些模式需要先选择可作为 root 的对象。`Whole` 不使用 Depth。
+Focused 同时覆盖 fanin 与 fanout，因此界面不再提供重复的单向模式。需要只看一个方向时，把另一个方向的深度设为 `0` 即可。
 
 ## 8. 大图 Search-first 工作流
 

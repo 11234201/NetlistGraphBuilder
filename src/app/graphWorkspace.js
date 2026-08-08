@@ -1,9 +1,10 @@
 import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
-import { createConeGraph, createFocusedNeighborhoodGraph } from "../analysis/graphCone.js";
+import { createFocusedNeighborhoodGraph } from "../analysis/graphCone.js";
 import { collapseLargeGraph } from "../analysis/groupCollapse.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
+import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
@@ -20,7 +21,8 @@ export function buildWorkspaceGraph(module, options = {}) {
 }
 
 export function selectWorkspaceGraphView(fullGraph, options = {}) {
-  if (options.viewMode === "search-first") {
+  const viewMode = normalizeSingleViewMode(options.viewMode);
+  if (viewMode === "search-first") {
     return {
       ...fullGraph,
       nodes: [],
@@ -28,17 +30,14 @@ export function selectWorkspaceGraphView(fullGraph, options = {}) {
       view: { mode: "search-first", totalNodes: fullGraph.nodes.length }
     };
   }
-  if (!options.viewMode || options.viewMode === "whole") return fullGraph;
-  if (options.viewMode === "focused") {
+  if (viewMode === "whole") return fullGraph;
+  if (viewMode === "focused") {
     return createFocusedNeighborhoodGraph(fullGraph, options.rootNodeId, {
       faninDepth: options.faninDepth,
       fanoutDepth: options.fanoutDepth
     });
   }
-  return createConeGraph(fullGraph, options.rootNodeId, {
-    direction: options.viewMode,
-    maxDepth: options.maxDepth ?? 3
-  });
+  return fullGraph;
 }
 
 export function shouldUseSearchFirst(value, threshold = 500) {
@@ -51,7 +50,7 @@ export function shouldUseSearchFirst(value, threshold = 500) {
 
 export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId, viewMode }, threshold = 500) {
   if (!shouldUseSearchFirst(module, threshold)) {
-    return { viewMode, coneRootNodeId: null };
+    return { viewMode: normalizeSingleViewMode(viewMode), coneRootNodeId: null };
   }
   const selected = fullGraph?.nodes?.find((node) => node.id === selectedNodeId);
   if (selected?.kind === "cell") {

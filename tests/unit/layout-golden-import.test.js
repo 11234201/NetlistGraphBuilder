@@ -64,7 +64,7 @@ test("layout Golden import restores bounded layout and display state", () => {
   const state = createAppState(DEFAULT_LAYOUT_POLICY);
   applyLayoutGoldenState(state, imported);
   assert.deepEqual(state.nodePositions.get("cell:u0"), { x: 160, y: 20 });
-  assert.equal(state.viewMode, "fanin");
+  assert.equal(state.viewMode, "focused");
   assert.equal(state.coneRootNodeId, "cell:u0");
   assert.equal(state.useFanoutHubs, false);
   assert.equal(state.expandedGroupIds.has("group:cells-0-49"), true);

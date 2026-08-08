@@ -73,6 +73,7 @@ import {
 } from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
+import { normalizeSingleViewMode } from "./singleViewMode.js";
 import {
   buildCompareWorkspace,
   findCompareNode,
@@ -150,8 +151,6 @@ const elements = {
   searchResults: document.querySelector("#searchResults"),
   wholeViewButton: document.querySelector("#wholeViewButton"),
   focusedViewButton: document.querySelector("#focusedViewButton"),
-  faninViewButton: document.querySelector("#faninViewButton"),
-  fanoutViewButton: document.querySelector("#fanoutViewButton"),
   coneDepthInput: document.querySelector("#coneDepthInput"),
   faninDepthInput: document.querySelector("#faninDepthInput"),
   fanoutDepthInput: document.querySelector("#fanoutDepthInput"),
@@ -248,8 +247,6 @@ elements.searchResults.addEventListener("click", handleSearchResultClick);
 elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
-elements.faninViewButton.addEventListener("click", () => setViewMode("fanin"));
-elements.fanoutViewButton.addEventListener("click", () => setViewMode("fanout"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
 elements.faninDepthInput.addEventListener("change", handleFocusedDepthChange);
 elements.fanoutDepthInput.addEventListener("change", handleFocusedDepthChange);
@@ -660,7 +657,7 @@ function loadDesign(source, label, restore = null) {
     const readyMessage = `Loaded ${label}: ${state.design.modules.length} module(s)`;
     selectModule(firstModule.name, { readyMessage, onRendered: restore?.onRendered });
     if (restore?.viewMode && restore.viewMode !== "whole" && restore.coneRootNodeId) {
-      state.viewMode = restore.viewMode;
+      state.viewMode = normalizeSingleViewMode(restore.viewMode);
       state.coneRootNodeId = restore.coneRootNodeId;
       renderCurrentModuleGraph({ readyMessage });
     }
@@ -919,7 +916,7 @@ function navigateModuleHistory(delta) {
 }
 
 function applyModuleHistoryEntry(entry) {
-  state.viewMode = entry.viewMode || "whole";
+  state.viewMode = normalizeSingleViewMode(entry.viewMode);
   state.coneRootNodeId = entry.coneRootNodeId || null;
   state.coneDepth = entry.coneDepth;
   state.faninDepth = entry.faninDepth;
@@ -1066,10 +1063,11 @@ function isPromise(value) {
 }
 
 function setViewMode(mode) {
+  mode = normalizeSingleViewMode(mode);
   if (mode !== "whole" && mode !== "search-first") {
     const rootNodeId = state.selectedNodeId || state.coneRootNodeId;
     if (!rootNodeId) {
-      setStatus(`Select a node before opening the ${mode} cone`);
+      setStatus("Select a cell before opening Focused view");
       return;
     }
     state.coneRootNodeId = rootNodeId;
@@ -1083,7 +1081,7 @@ function setViewMode(mode) {
     ? "Whole module overview"
     : mode === "focused"
       ? `Focused neighborhood: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`
-      : `${mode} cone depth ${state.coneDepth}`;
+      : "Search-first mode";
   setStatus(message);
 }
 
@@ -1135,12 +1133,8 @@ function updateViewControls() {
   const hasRoot = Boolean(state.selectedNodeId || state.coneRootNodeId);
   elements.wholeViewButton.classList.toggle("is-active", state.viewMode === "whole");
   elements.focusedViewButton.classList.toggle("is-active", state.viewMode === "focused");
-  elements.faninViewButton.classList.toggle("is-active", state.viewMode === "fanin");
-  elements.fanoutViewButton.classList.toggle("is-active", state.viewMode === "fanout");
-  elements.faninViewButton.disabled = !hasRoot;
-  elements.fanoutViewButton.disabled = !hasRoot;
   elements.focusedViewButton.disabled = !hasRoot;
-  elements.coneDepthInput.disabled = state.viewMode === "whole" || state.viewMode === "focused" || state.viewMode === "search-first";
+  elements.coneDepthInput.disabled = !state.compare.active || !state.compare.outputName;
   elements.faninDepthInput.disabled = state.viewMode !== "focused";
   elements.fanoutDepthInput.disabled = state.viewMode !== "focused";
   elements.showAliasesInput.checked = state.showAliases;

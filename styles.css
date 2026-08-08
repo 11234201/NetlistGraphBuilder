@@ -677,7 +677,7 @@ body.is-dragging-files .drop-overlay {
 
 .view-mode-control {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .view-mode-control button {

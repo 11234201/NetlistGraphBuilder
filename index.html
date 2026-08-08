@@ -57,13 +57,7 @@
             <div class="view-mode-control" role="group" aria-label="Schematic view mode">
               <button id="wholeViewButton" type="button">Whole</button>
               <button id="focusedViewButton" type="button">Focused</button>
-              <button id="faninViewButton" type="button">Fanin</button>
-              <button id="fanoutViewButton" type="button">Fanout</button>
             </div>
-            <label class="cone-depth-field" for="coneDepthInput">
-              <span>Depth</span>
-              <input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3">
-            </label>
             <div class="focused-depth-fields">
               <label for="faninDepthInput"><span>Fanin depth</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
               <label for="fanoutDepthInput"><span>Fanout depth</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
@@ -113,6 +107,7 @@
             <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked><span>Sync pan / zoom</span></label>
             <label><span>Layout</span><select id="compareLayoutSelect"><option value="vertical">Top / Bottom</option><option value="horizontal">Left / Right</option></select></label>
             <label><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label>
+            <label class="cone-depth-field" for="coneDepthInput"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
           </section>
           <section class="panel-section">
             <h2>Design</h2>

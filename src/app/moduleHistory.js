@@ -1,3 +1,5 @@
+import { normalizeSingleViewMode } from "./singleViewMode.js";
+
 export function createModuleHistory() {
   return { entries: [], index: -1 };
 }
@@ -5,7 +7,7 @@ export function createModuleHistory() {
 export function createModuleHistoryEntry(state) {
   return {
     moduleName: state.currentModule?.name || null,
-    viewMode: state.viewMode || "whole",
+    viewMode: normalizeSingleViewMode(state.viewMode),
     coneRootNodeId: state.coneRootNodeId || null,
     coneDepth: normalizeDepth(state.coneDepth, 3),
     faninDepth: normalizeDepth(state.faninDepth, 3),
@@ -59,7 +61,11 @@ function cloneHistory(history = createModuleHistory()) {
 }
 
 function cloneEntry(entry) {
-  return { ...entry, transform: normalizeTransform(entry.transform) };
+  return {
+    ...entry,
+    viewMode: normalizeSingleViewMode(entry.viewMode),
+    transform: normalizeTransform(entry.transform)
+  };
 }
 
 function normalizeDepth(value, fallback) {
