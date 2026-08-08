@@ -128,6 +128,28 @@ test("pan and client conversion use viewBox-to-viewport scale", () => {
   );
 });
 
+test("pan uses the limiting SVG meet scale on very wide schematics", () => {
+  const viewBox = { x: 0, y: 0, width: 200000, height: 1000 };
+  const viewport = { left: 100, top: 50, width: 1000, height: 500 };
+  const panned = getPannedTransform(
+    { x: 0, y: 0, scale: 400 },
+    { x: 500, y: 250 },
+    { x: 550, y: 270 },
+    viewBox,
+    viewport
+  );
+
+  assert.deepEqual(panned, { x: 10000, y: 4000, scale: 400 });
+  assert.deepEqual(
+    clientPointToViewBox(
+      { x: 600, y: 300 },
+      viewport,
+      viewBox
+    ),
+    { x: 100000, y: 500 }
+  );
+});
+
 test("malformed pointer snapshots cannot poison pan and zoom transforms", () => {
   const panned = getPannedTransform(
     { x: 10, y: 20, scale: 1 },

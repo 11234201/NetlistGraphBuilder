@@ -137,23 +137,43 @@ export function getSteppedZoomedTransform(
 export function getPannedTransform(transform, startClient, currentClient, viewBox, viewport) {
   const viewportWidth = positiveNumber(viewport?.width, 1);
   const viewportHeight = positiveNumber(viewport?.height, 1);
+  const viewBoxWidth = positiveNumber(viewBox?.width, viewportWidth);
+  const viewBoxHeight = positiveNumber(viewBox?.height, viewportHeight);
+  const viewportUnitRatio = getViewportUnitRatio(
+    viewBoxWidth,
+    viewportWidth,
+    viewBoxHeight,
+    viewportHeight
+  );
   const startX = finiteNumber(startClient?.x, 0);
   const startY = finiteNumber(startClient?.y, 0);
   const currentX = finiteNumber(currentClient?.x, startX);
   const currentY = finiteNumber(currentClient?.y, startY);
   return {
     ...transform,
-    x: finiteNumber(transform?.x, 0) + ((currentX - startX) * viewBox.width) / viewportWidth,
-    y: finiteNumber(transform?.y, 0) + ((currentY - startY) * viewBox.height) / viewportHeight
+    x: finiteNumber(transform?.x, 0) + (currentX - startX) * viewportUnitRatio,
+    y: finiteNumber(transform?.y, 0) + (currentY - startY) * viewportUnitRatio
   };
 }
 
 export function clientPointToViewBox(client, viewport, viewBox) {
-  const width = positiveNumber(viewport?.width, 1);
-  const height = positiveNumber(viewport?.height, 1);
+  const viewportWidth = positiveNumber(viewport?.width, 1);
+  const viewportHeight = positiveNumber(viewport?.height, 1);
+  const viewBoxWidth = positiveNumber(viewBox?.width, viewportWidth);
+  const viewBoxHeight = positiveNumber(viewBox?.height, viewportHeight);
+  const viewportUnitRatio = getViewportUnitRatio(
+    viewBoxWidth,
+    viewportWidth,
+    viewBoxHeight,
+    viewportHeight
+  );
+  const horizontalInset = (viewportWidth - viewBoxWidth / viewportUnitRatio) / 2;
+  const verticalInset = (viewportHeight - viewBoxHeight / viewportUnitRatio) / 2;
   return {
-    x: viewBox.x + ((client.x - viewport.left) / width) * viewBox.width,
-    y: viewBox.y + ((client.y - viewport.top) / height) * viewBox.height
+    x: finiteNumber(viewBox?.x, 0) +
+      (finiteNumber(client?.x, 0) - finiteNumber(viewport?.left, 0) - horizontalInset) * viewportUnitRatio,
+    y: finiteNumber(viewBox?.y, 0) +
+      (finiteNumber(client?.y, 0) - finiteNumber(viewport?.top, 0) - verticalInset) * viewportUnitRatio
   };
 }
 
