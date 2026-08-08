@@ -1,25 +1,29 @@
-const DEFAULT_MAX_SCALE = 4;
-const ABSOLUTE_MAX_SCALE = 2048;
+const DEFAULT_MAX_SCALE = 32;
+const MAX_ZOOM_MULTIPLIER = 32;
 
-export function getAdaptiveMaxScale(viewBoxWidth, viewportWidth) {
-  const ratio = safeRatio(viewBoxWidth, viewportWidth);
-  return clamp(Math.ceil(ratio * 4), DEFAULT_MAX_SCALE, ABSOLUTE_MAX_SCALE);
+export function getAdaptiveMaxScale(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight) {
+  const ratio = getViewportUnitRatio(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight);
+  return Math.max(DEFAULT_MAX_SCALE, Math.ceil(ratio * MAX_ZOOM_MULTIPLIER));
 }
 
 export function getReadableObjectScale(options) {
   const {
     viewBoxWidth,
     viewportWidth,
+    viewBoxHeight,
+    viewportHeight,
     objectWidth = 100,
     targetPixels = 140,
     currentScale = 1
   } = options;
   const width = Math.max(1, Number(objectWidth) || 1);
-  const readableScale = (targetPixels * safeRatio(viewBoxWidth, viewportWidth)) / width;
+  const readableScale = (
+    targetPixels * getViewportUnitRatio(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight)
+  ) / width;
   return clamp(
     Math.max(currentScale, readableScale),
     1.8,
-    getAdaptiveMaxScale(viewBoxWidth, viewportWidth)
+    getAdaptiveMaxScale(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight)
   );
 }
 
@@ -27,15 +31,23 @@ export function getFocusedObjectTransform(options) {
   const viewBoxWidth = positiveNumber(options?.viewBox?.width, 1);
   const viewBoxHeight = positiveNumber(options?.viewBox?.height, 1);
   const viewportWidth = positiveNumber(options?.viewportWidth, 1);
+  const viewportHeight = Number(options?.viewportHeight);
   const objectWidth = positiveNumber(options?.bounds?.width, 1);
-  const targetPixels = positiveNumber(options?.targetPixels, 220);
+  const targetPixels = positiveNumber(options?.targetPixels, 320);
   const minimumScale = positiveNumber(options?.minimumScale, 0.25);
   const maximumScale = positiveNumber(
     options?.maximumScale,
-    getAdaptiveMaxScale(viewBoxWidth, viewportWidth)
+    getAdaptiveMaxScale(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight)
   );
   const scale = clamp(
-    (targetPixels * safeRatio(viewBoxWidth, viewportWidth)) / objectWidth,
+    (
+      targetPixels * getViewportUnitRatio(
+        viewBoxWidth,
+        viewportWidth,
+        viewBoxHeight,
+        viewportHeight
+      )
+    ) / objectWidth,
     Math.min(minimumScale, maximumScale),
     Math.max(minimumScale, maximumScale)
   );
@@ -65,13 +77,20 @@ export function getZoomedTransform(
   deltaY,
   viewBoxWidth,
   viewportWidth,
-  minScale = 0.25
+  minScale = 0.25,
+  viewBoxHeight,
+  viewportHeight
 ) {
   const oldScale = positiveNumber(transform?.scale, 1);
   const oldX = finiteNumber(transform?.x, 0);
   const oldY = finiteNumber(transform?.y, 0);
   const zoomStep = getZoomStep(viewBoxWidth, viewportWidth);
-  const maxScale = getAdaptiveMaxScale(viewBoxWidth, viewportWidth);
+  const maxScale = getAdaptiveMaxScale(
+    viewBoxWidth,
+    viewportWidth,
+    viewBoxHeight,
+    viewportHeight
+  );
   const nextScale = clamp(
     oldScale * (deltaY < 0 ? zoomStep : 1 / zoomStep),
     minScale,
@@ -91,7 +110,9 @@ export function getSteppedZoomedTransform(
   steps,
   viewBoxWidth,
   viewportWidth,
-  minScale = 0.25
+  minScale = 0.25,
+  viewBoxHeight,
+  viewportHeight
 ) {
   const direction = steps < 0 ? -1 : 1;
   const count = Math.abs(Math.trunc(steps));
@@ -103,7 +124,9 @@ export function getSteppedZoomedTransform(
       direction,
       viewBoxWidth,
       viewportWidth,
-      minScale
+      minScale,
+      viewBoxHeight,
+      viewportHeight
     );
     if (candidate.scale === next.scale) break;
     next = candidate;
@@ -144,6 +167,15 @@ function safeRatio(viewBoxWidth, viewportWidth) {
   const rawViewBoxWidth = Number(viewBoxWidth);
   const graphWidth = Number.isFinite(rawViewBoxWidth) && rawViewBoxWidth > 0 ? rawViewBoxWidth : width;
   return Math.max(1, graphWidth / width);
+}
+
+function getViewportUnitRatio(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight) {
+  const hasHeightRatio = Number.isFinite(Number(viewBoxHeight)) && Number(viewBoxHeight) > 0 &&
+    Number.isFinite(Number(viewportHeight)) && Number(viewportHeight) > 0;
+  return Math.max(
+    safeRatio(viewBoxWidth, viewportWidth),
+    hasHeightRatio ? safeRatio(viewBoxHeight, viewportHeight) : 1
+  );
 }
 
 function clamp(value, min, max) {

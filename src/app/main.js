@@ -1302,13 +1302,20 @@ function focusSelectedCompareCell() {
 function focusPositionedCell(node, mount, currentTransform, commit) {
   const svg = mount.querySelector("svg");
   if (!svg) return;
+  const viewport = svg.getBoundingClientRect();
   commit(getFocusedObjectTransform({
     viewBox: svg.viewBox.baseVal,
-    viewportWidth: svg.getBoundingClientRect().width,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
     bounds: node,
-    targetPixels: 220,
+    targetPixels: 320,
     minimumScale: 0.25,
-    maximumScale: getAdaptiveMaxScale(svg.viewBox.baseVal.width, svg.getBoundingClientRect().width),
+    maximumScale: getAdaptiveMaxScale(
+      svg.viewBox.baseVal.width,
+      viewport.width,
+      svg.viewBox.baseVal.height,
+      viewport.height
+    ),
     currentTransform
   }));
 }
@@ -1773,9 +1780,12 @@ function centerGraphPoint(point, objectWidth = 100) {
     return;
   }
   const viewBox = svg.viewBox.baseVal;
+  const viewport = svg.getBoundingClientRect();
   const scale = getReadableObjectScale({
     viewBoxWidth: viewBox.width,
-    viewportWidth: svg.getBoundingClientRect().width,
+    viewportWidth: viewport.width,
+    viewBoxHeight: viewBox.height,
+    viewportHeight: viewport.height,
     objectWidth,
     currentScale: state.transform.scale
   });
@@ -1968,6 +1978,8 @@ function focusCompareSelection(kind, name) {
     const scale = getReadableObjectScale({
       viewBoxWidth: svg.viewBox.baseVal.width,
       viewportWidth: svg.getBoundingClientRect().width,
+      viewBoxHeight: svg.viewBox.baseVal.height,
+      viewportHeight: svg.getBoundingClientRect().height,
       objectWidth,
       currentScale: state.compare.transforms[side].scale
     });
@@ -2643,7 +2655,10 @@ function applyPendingWheelGesture(sample) {
       point,
       sample.steps,
       svg.viewBox.baseVal.width,
-      rect.width
+      rect.width,
+      0.25,
+      svg.viewBox.baseVal.height,
+      rect.height
     ));
     return;
   }
@@ -2656,7 +2671,10 @@ function applyPendingWheelGesture(sample) {
     point,
     sample.steps,
     svg.viewBox.baseVal.width,
-    rect.width
+    rect.width,
+    0.25,
+    svg.viewBox.baseVal.height,
+    rect.height
   );
   applyTransform(false);
 }

@@ -13,11 +13,11 @@ import {
 } from "../../src/ui/viewport.js";
 
 test("ordinary schematics retain the existing zoom behavior", () => {
-  assert.equal(getAdaptiveMaxScale(1000, 1000), 4);
+  assert.equal(getAdaptiveMaxScale(1000, 1000), 32);
   assert.equal(getZoomStep(1000, 1000), 1.12);
 });
 
-test("focused object transform centers a cell at a stable 220px reading width", () => {
+test("focused object transform centers a cell at the requested reading width", () => {
   const options = {
     viewBox: { x: 0, y: 0, width: 1000, height: 500 },
     viewportWidth: 500,
@@ -42,15 +42,29 @@ test("very wide schematics receive a usable adaptive zoom range", () => {
     objectWidth: 120
   });
 
-  assert.equal(maxScale, 800);
+  assert.equal(maxScale, 6400);
   assert.ok(focusScale >= 230);
   assert.ok(focusScale <= maxScale);
   assert.equal(getZoomStep(200000, 1000), 1.5);
 });
 
 test("adaptive zoom values remain bounded for malformed or extreme sizes", () => {
-  assert.equal(getAdaptiveMaxScale(Infinity, 0), 4);
-  assert.equal(getAdaptiveMaxScale(1e12, 1), 2048);
+  assert.equal(getAdaptiveMaxScale(Infinity, 0), 32);
+  assert.equal(getAdaptiveMaxScale(1e12, 1), 32e12);
+});
+
+test("focused object sizing uses the limiting viewport axis", () => {
+  const options = {
+    viewBox: { x: 0, y: 0, width: 1000, height: 4000 },
+    viewportWidth: 1000,
+    viewportHeight: 500,
+    bounds: { x: 100, y: 100, width: 100, height: 60 },
+    targetPixels: 320
+  };
+  const focused = getFocusedObjectTransform(options);
+
+  assert.equal(focused.scale, 25.6);
+  assert.equal((options.bounds.width * focused.scale) / 8, 320);
 });
 
 test("zoom keeps the pointer's graph position stationary", () => {

@@ -173,7 +173,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - 在画布空白处按住左键拖动：平移。
 - 顶部 `Fit`：把当前 Single 图或 Compare 两侧图适配到可视区域。
 
-超宽图会自动允许更高放大倍率。低缩放时，为保持性能和轮廓可读性，pin、net label、cell metadata 和 Timing 文本可能暂时隐藏；放大后会恢复。
+超宽或超高图会按实际画布宽高自动允许更高放大倍率，不再受固定倍率上限影响。低缩放时，为保持性能和轮廓可读性，pin、net label、cell metadata 和 Timing 文本可能暂时隐藏；放大后会恢复。
 
 ### 6.2 选择对象
 

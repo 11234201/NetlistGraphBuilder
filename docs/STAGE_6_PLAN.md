@@ -21,7 +21,7 @@
 | R6-7 | 大图改为搜索驱动的双向局部逻辑视图 | 已有 Whole/Fanin/Fanout 单向 cone；大图默认仍进入整图布局/渲染 | 新增 Focused neighborhood；Fanin depth 与 Fanout depth 独立可调，0 表示关闭该方向；搜索 cell 后自动设为 root；大图超过阈值时默认 Search-first，不自动布局/渲染整图；Overview 保留为显式入口 | 1024-cell 示例载入后无需先布局整图；搜索中间 cell 后只显示前后指定深度的并集；节点/边去重；增加深度只扩展对应方向；搜索和局部视图有性能预算 | P0 | 计划中 |
 | R6-8 | module 浏览增加后退和前进 | 双击 module instance 可以进入定义，但返回父 module 只能手动选择下拉框 | 新增 module 导航历史、Back/Forward 按钮和快捷键；记录 module、view、cone root/depth、selection 与 viewport；历史恢复不重复入栈；新导航清空 forward 分支 | 从父 module 连续进入多层子 module 后可逐级后退和前进，并恢复原视图位置与选择；按钮无历史时禁用；重新加载 design 后旧历史清空；失效 module 项安全跳过 | P0 | 计划中 |
 | R6-9 | 增加过程日志控件 | 当前状态栏只显示最后一条摘要，较早的解析、匹配、布局和渲染过程不可回看 | 新增底部可折叠 Process Log drawer；统一记录时间、级别、阶段、消息和可选详情；支持级别/阶段过滤、暂停自动滚动、清空、复制和导出；错误可自动展开；使用有上限的内存缓冲区 | 能连续查看 import、parse、timing match、graph、layout、render、navigation、export 和 launcher 过程；日志顺序稳定；高频渲染进度被节流/合并；达到容量上限后淘汰最旧记录且不拖慢千级图；默认不记录网表/时序原文 | P1 | 计划中 |
-| R6-10 | 定位并放大到所选 cell | 搜索命中时可以居中，但缺少对当前 selection 可重复调用的统一定位操作，普通点击选择后也没有明确的 Focus 控件 | 在 View 区增加 Focus selected cell 按钮和快捷键；将所选 cell 移到可视区域中心，并按目标屏幕宽度计算稳定缩放；复用 viewport 纯函数；cell 不在当前局部图时先以它建立 Focused neighborhood；异步 layout/render 完成后再提交定位 | 选中任意可搜索 cell 后一键居中，cell 屏幕宽度达到默认约 220px 并受全局最小/最大缩放限制；重复调用结果稳定；selection 保持不变；无 cell selection 时控件禁用；不在局部图或折叠组中的 cell 也能正确显示并定位；Single 和 Compare active side 行为一致 | P0 | 计划中 |
+| R6-10 | 定位并放大到所选 cell | 搜索命中时可以居中，但缺少对当前 selection 可重复调用的统一定位操作，普通点击选择后也没有明确的 Focus 控件 | 在 View 区增加 Focus selected cell 按钮和快捷键；将所选 cell 移到可视区域中心，并按目标屏幕宽度计算稳定缩放；复用 viewport 纯函数；cell 不在当前局部图时先以它建立 Focused neighborhood；异步 layout/render 完成后再提交定位 | 选中任意可搜索 cell 后一键居中，cell 屏幕宽度达到默认约 320px 并受全局最小/最大缩放限制；重复调用结果稳定；selection 保持不变；无 cell selection 时控件禁用；不在局部图或折叠组中的 cell 也能正确显示并定位；Single 和 Compare active side 行为一致 | P0 | 计划中 |
 | R6-11 | 可编辑并保存可复用 Cell Config | 当前可以对单个 instance 临时修改属性和 pin direction，但无法把未知 cell 的识别规则保存为按 cell type 复用的配置 | 新增 Cell Definition 编辑器；以 canonical cell type 为键设置受支持的 gate kind（AND/OR/MUX/INV/NAND/NOR/XOR/XNOR/BUF/REGISTER/BLACKBOX 等）和每个 pin 的 input/output/inout/unknown；应用到所有同类型实例；支持本地持久化、版本化 JSON 导入/导出、删除/重置和 `--cell-config` 启动参数 | 配置未知 cell 后当前 design 中所有同类型实例立即按新 gate/pin 语义重新构图；重新加载页面或其他网表仍可识别；导出后在新环境导入结果一致；不覆盖真实 submodule 定义；配置来源在 UI/诊断中标记为 `user-config`；非法 kind/direction/schema 被拒绝且不破坏已有配置 | P0 | 计划中 |
 
 ## 数据和状态设计
@@ -111,7 +111,7 @@ ProcessLogEntry
 
 ```text
 SelectionFocusPolicy
-  targetWidthPx: 220
+  targetWidthPx: 320
   minimumScale
   maximumScale
 ```
