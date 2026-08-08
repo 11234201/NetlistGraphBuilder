@@ -12,8 +12,8 @@ import {
   getZoomStep
 } from "../../src/ui/viewport.js";
 
-test("ordinary schematics retain the existing zoom behavior", () => {
-  assert.equal(getAdaptiveMaxScale(1000, 1000), 32);
+test("ordinary schematics cap zoom at twice the layout scale", () => {
+  assert.equal(getAdaptiveMaxScale(1000, 1000), 2);
   assert.equal(getZoomStep(1000, 1000), 1.12);
 });
 
@@ -42,15 +42,24 @@ test("very wide schematics receive a usable adaptive zoom range", () => {
     objectWidth: 120
   });
 
-  assert.equal(maxScale, 6400);
+  assert.equal(maxScale, 400);
   assert.ok(focusScale >= 230);
   assert.ok(focusScale <= maxScale);
   assert.equal(getZoomStep(200000, 1000), 1.5);
 });
 
 test("adaptive zoom values remain bounded for malformed or extreme sizes", () => {
-  assert.equal(getAdaptiveMaxScale(Infinity, 0), 32);
-  assert.equal(getAdaptiveMaxScale(1e12, 1), 32e12);
+  assert.equal(getAdaptiveMaxScale(Infinity, 0), 2);
+  assert.equal(getAdaptiveMaxScale(1e12, 1), 2e12);
+});
+
+test("maximum zoom renders a typical 220px cell at about twice its layout width", () => {
+  const viewBoxWidth = 200000;
+  const viewportWidth = 1000;
+  const maxScale = getAdaptiveMaxScale(viewBoxWidth, viewportWidth);
+  const renderedCellWidth = (220 * maxScale) / (viewBoxWidth / viewportWidth);
+
+  assert.equal(renderedCellWidth, 440);
 });
 
 test("focused object sizing uses the limiting viewport axis", () => {
@@ -63,8 +72,8 @@ test("focused object sizing uses the limiting viewport axis", () => {
   };
   const focused = getFocusedObjectTransform(options);
 
-  assert.equal(focused.scale, 25.6);
-  assert.equal((options.bounds.width * focused.scale) / 8, 320);
+  assert.equal(focused.scale, 16);
+  assert.equal((options.bounds.width * focused.scale) / 8, 200);
 });
 
 test("zoom keeps the pointer's graph position stationary", () => {

@@ -1,9 +1,9 @@
-const DEFAULT_MAX_SCALE = 32;
-const MAX_ZOOM_MULTIPLIER = 32;
+const MINIMUM_MAX_SCALE = 2;
+const MAX_CELL_MAGNIFICATION = 2;
 
 export function getAdaptiveMaxScale(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight) {
   const ratio = getViewportUnitRatio(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight);
-  return Math.max(DEFAULT_MAX_SCALE, Math.ceil(ratio * MAX_ZOOM_MULTIPLIER));
+  return Math.max(MINIMUM_MAX_SCALE, ratio * MAX_CELL_MAGNIFICATION);
 }
 
 export function getReadableObjectScale(options) {
