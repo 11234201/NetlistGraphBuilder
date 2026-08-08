@@ -48,7 +48,7 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.equal(imported.moduleName, "top");
   assert.deepEqual(imported.nodePositions.get("cell:u0"), { x: 160, y: 20 });
   assert.deepEqual(imported.nodeSizes.get("input:a"), { width: 80, height: 36 });
-  assert.equal(imported.layoutPolicy.spacing.wireLanePitch, 48);
+  assert.equal(imported.layoutPolicy.spacing.wireLanePitch, 96);
   assert.equal(imported.layoutPolicy.features.alignDrivenLinks, false);
   assert.equal(imported.graphOverrides.nodeProperties["cell:u0"].label, "renamed");
   assert.deepEqual(imported.timingBadgeChoices.u0, [{ pin: "Y", metric: "at" }]);

@@ -8,7 +8,7 @@ import {
 
 test("layout policy normalizes numeric values without mutating its input", () => {
   const input = {
-    spacing: { wireLanePitch: "32", cellSpacing: 200, cellPinPitch: 500, margin: "invalid" },
+    spacing: { wireLanePitch: "32", cellSpacing: 999, cellPinPitch: 500, margin: "invalid" },
     features: { alignDrivenLinks: "false" }
   };
   const policy = normalizeLayoutPolicy(input);
@@ -20,7 +20,7 @@ test("layout policy normalizes numeric values without mutating its input", () =>
   assert.equal(policy.features.alignDrivenLinks, false);
   assert.deepEqual(input.spacing, {
     wireLanePitch: "32",
-    cellSpacing: 200,
+    cellSpacing: 999,
     cellPinPitch: 500,
     margin: "invalid"
   });

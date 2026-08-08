@@ -254,8 +254,8 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 ### 9.2 Wire spacing 与 Cell spacing
 
-- `Wire spacing`：调整平行 net 的 lane pitch。
-- `Cell spacing`：调整同层 cell 间距和拥塞通道留白。
+- `Wire spacing`：调整平行 net 的 lane pitch，可在 `4–96 px` 间调节。
+- `Cell spacing`：调整同层 cell 间距和拥塞通道留白，可在 `4–320 px` 间调节；较大的数值会明显扩大画布。
 
 两个设置彼此独立，修改后立即重排当前图。大图中建议先使用局部视图，再调整间距。
 

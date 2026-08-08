@@ -5,7 +5,11 @@ import {
   createLayoutGolden,
   getLayoutGoldenState
 } from "../layout/layoutGolden.js";
-import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
+import {
+  DEFAULT_LAYOUT_POLICY,
+  LAYOUT_SPACING_LIMITS,
+  normalizeLayoutPolicy
+} from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
@@ -1322,7 +1326,10 @@ function rerenderActiveGraph() {
 
 function handleWireSpacingChange(event) {
   const value = Number(event.target.value);
-  state.layoutPolicy.spacing.wireLanePitch = clamp(value, 8, 40);
+  state.layoutPolicy.spacing.wireLanePitch = clamp(
+    value,
+    ...LAYOUT_SPACING_LIMITS.wireLanePitch
+  );
   elements.wireSpacingValue.value = String(state.layoutPolicy.spacing.wireLanePitch);
   if (!state.currentModule) {
     return;
@@ -1349,7 +1356,10 @@ function handleWireSpacingChange(event) {
 
 function handleCellSpacingChange(event) {
   const value = Number(event.target.value);
-  state.layoutPolicy.spacing.cellSpacing = clamp(value, 8, 120);
+  state.layoutPolicy.spacing.cellSpacing = clamp(
+    value,
+    ...LAYOUT_SPACING_LIMITS.cellSpacing
+  );
   elements.cellSpacingValue.value = String(state.layoutPolicy.spacing.cellSpacing);
   persistSession();
   if (!state.currentModule) return;
@@ -2391,9 +2401,15 @@ function loadLayoutGolden(imported, label) {
   applyLayoutGoldenState(state, imported);
 
   elements.coneDepthInput.value = String(state.coneDepth);
-  elements.wireSpacingInput.value = String(clamp(state.layoutPolicy.spacing.wireLanePitch, 8, 40));
+  elements.wireSpacingInput.value = String(clamp(
+    state.layoutPolicy.spacing.wireLanePitch,
+    ...LAYOUT_SPACING_LIMITS.wireLanePitch
+  ));
   elements.wireSpacingValue.value = elements.wireSpacingInput.value;
-  elements.cellSpacingInput.value = String(clamp(state.layoutPolicy.spacing.cellSpacing, 8, 120));
+  elements.cellSpacingInput.value = String(clamp(
+    state.layoutPolicy.spacing.cellSpacing,
+    ...LAYOUT_SPACING_LIMITS.cellSpacing
+  ));
   elements.cellSpacingValue.value = elements.cellSpacingInput.value;
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
