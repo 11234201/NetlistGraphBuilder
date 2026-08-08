@@ -171,6 +171,16 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /<details class="panel-section collapsible-panel timing-policy-panel" open>/);
 });
 
+test("app forwards both Focused depths into the module workspace", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const workspaceCall = source.match(/buildModuleWorkspace\(\{([\s\S]*?)\n  \}\);/)?.[1] || "";
+
+  assert.match(workspaceCall, /faninDepth: state\.faninDepth/);
+  assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);
+  assert.match(source, /faninDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
+  assert.match(source, /fanoutDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
+});
+
 test("process log renderer escapes messages and detail values", () => {
   const html = renderProcessLogEntries([{
     timestamp: "2026-08-07T00:00:00.000Z",

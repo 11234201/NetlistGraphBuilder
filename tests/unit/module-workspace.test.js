@@ -49,3 +49,28 @@ test("module workspace preserves asynchronous provider boundaries", async () => 
   assert.ok(workspace.graph.nodes.length > 0);
   assert.equal(workspace.graph, workspace.autoGraph);
 });
+
+test("module workspace applies independent Focused depths", () => {
+  const rootOnly = build({
+    viewMode: "focused",
+    coneRootNodeId: "cell:u0",
+    faninDepth: 0,
+    fanoutDepth: 0
+  });
+  const withFanin = build({
+    viewMode: "focused",
+    coneRootNodeId: "cell:u0",
+    faninDepth: 1,
+    fanoutDepth: 0
+  });
+
+  assert.deepEqual(rootOnly.graph.view, {
+    mode: "focused",
+    rootNodeId: "cell:u0",
+    faninDepth: 0,
+    fanoutDepth: 0
+  });
+  assert.deepEqual(rootOnly.graph.nodes.map((node) => node.id), ["cell:u0"]);
+  assert.ok(withFanin.graph.nodes.length > rootOnly.graph.nodes.length);
+  assert.equal(withFanin.graph.nodes.some((node) => node.id === "cell:u1"), false);
+});

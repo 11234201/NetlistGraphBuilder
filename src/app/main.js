@@ -115,6 +115,7 @@ const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
 let pendingWheelGesture = null;
+let focusedDepthChangeTimer = null;
 let wheelInteractionTimer = null;
 let textInputKind = "netlist";
 let activeCellDefinition = null;
@@ -248,8 +249,8 @@ elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
-elements.faninDepthInput.addEventListener("change", handleFocusedDepthChange);
-elements.fanoutDepthInput.addEventListener("change", handleFocusedDepthChange);
+elements.faninDepthInput.addEventListener("input", scheduleFocusedDepthChange);
+elements.fanoutDepthInput.addEventListener("input", scheduleFocusedDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
 elements.collapseGroupsInput.addEventListener("change", handleGraphSimplificationChange);
@@ -972,6 +973,8 @@ function renderCurrentModuleGraph(options = {}) {
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
     coneDepth: state.coneDepth,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth,
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds,
@@ -1106,6 +1109,11 @@ function handleFocusedDepthChange() {
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
   if (state.viewMode === "focused") setViewMode("focused");
   else persistSession();
+}
+
+function scheduleFocusedDepthChange() {
+  clearTimeout(focusedDepthChangeTimer);
+  focusedDepthChangeTimer = setTimeout(handleFocusedDepthChange, 120);
 }
 
 function handleAliasVisibilityChange(event) {
