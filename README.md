@@ -2,7 +2,7 @@
 
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v0.7.0`。阶段 6 已加入 Global/Local 时序、Focused 双向局部逻辑、可复用 Cell Config、可调布局间距、过程日志和 EDA 启动接口。
+当前版本：`v0.7.1`。阶段 6 已加入 Global/Local 时序、Focused 双向局部逻辑、可复用 Cell Config、可调布局间距、过程日志和 EDA 启动接口。
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
 
@@ -31,7 +31,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 ### Windows 正式版（无需安装 Node.js）
 
-从 Release 下载 `NetlistGraphBuilder-v0.7.0-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
+从 Release 下载 `NetlistGraphBuilder-v0.7.1-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
 
 发布包同时包含 `examples` 示例网表、README、CHANGELOG 和 ELKJS 许可证。不要只复制 exe：它需要同目录下的 `app` 资源目录。若默认端口 4173 被占用，启动器会自动尝试后续空闲端口。
 
