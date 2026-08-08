@@ -41,7 +41,7 @@ export function inferPinDirection(pinName, cellType = "") {
       direction: "input",
       source: "cell-rule",
       role: "select",
-      side: "top"
+      side: "left"
     };
   }
   if (pin === "S" && isAdderCellType(type)) {

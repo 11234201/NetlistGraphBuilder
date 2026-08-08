@@ -176,12 +176,12 @@ test("adjust keeps a short connection local instead of sending it around the gra
   assert.ok(edge.points.slice(1, -1).every((point) => point.x > 92 && point.x < 112));
 });
 
-test("adjust routes a mux select vertically into its top pin", () => {
+test("adjust routes an explicit top-side input vertically into its pin", () => {
   const graph = {
     nodes: [
       { id: "c", kind: "input", label: "c", x: 80, y: 20, width: 92, height: 28 },
       {
-        id: "mux", kind: "cell", label: "mux", gateKind: "mux",
+        id: "custom", kind: "cell", label: "custom", gateKind: "blackbox",
         x: 260, y: 120, width: 128, height: 108,
         pinDirections: {
           A: { direction: "input", side: "left" },
@@ -193,18 +193,18 @@ test("adjust routes a mux select vertically into its top pin", () => {
       }
     ],
     edges: [{
-      id: "c-mux-s", source: "c", target: "mux", sourcePin: "c", targetPin: "S", net: "c"
+      id: "c-custom-s", source: "c", target: "custom", sourcePin: "c", targetPin: "S", net: "c"
     }]
   };
   const adjusted = applyPositionedOverrides(graph, {
     nodePositions: new Map([["c", { x: 360, y: 44 }]])
   });
   const edge = adjusted.edges[0];
-  const mux = adjusted.nodes.find((node) => node.id === "mux");
+  const custom = adjusted.nodes.find((node) => node.id === "custom");
   const endpoint = edge.points.at(-1);
   const approach = edge.points.at(-2);
 
-  assert.equal(endpoint.y, mux.y);
+  assert.equal(endpoint.y, custom.y);
   assert.equal(approach.x, endpoint.x);
   assert.ok(approach.y < endpoint.y);
   assert.notEqual(approach.y, endpoint.y);

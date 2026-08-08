@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
-import { inferCellKind } from "../../src/infer/defaultCellRules.js";
+import { inferCellKind, inferPinDirection } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
@@ -33,6 +33,12 @@ test("cell inference maps common foundry-like names", () => {
   assert.equal(inferCellKind("DFFR_X1").kind, "dff");
   assert.equal(inferCellKind("SDFFRS_X2").kind, "dff");
   assert.equal(inferCellKind("UNKNOWN_CELL").kind, "blackbox");
+  assert.deepEqual(inferPinDirection("S", "MUX2X1"), {
+    direction: "input",
+    source: "cell-rule",
+    role: "select",
+    side: "left"
+  });
 });
 
 test("mapped resettable flip-flops render as dff cells", () => {
@@ -841,14 +847,14 @@ test("single-bit packed ports remain connected across hierarchical modules", asy
     direction: "input",
     source: "cell-rule",
     role: "select",
-    side: "top"
+    side: "left"
   });
   assert.equal(laidOutMux.gateKind, "mux");
-  assert.equal(laidOutMux.ports.find((port) => port.pin === "S").side, "top");
+  assert.equal(laidOutMux.ports.find((port) => port.pin === "S").side, "left");
   const muxSelectEdge = laidOutChild.edges.find((edge) =>
     edge.target === mux.id && edge.targetPin === "S");
   assert.equal(muxSelectEdge.routeKind, "direct");
-  assert.equal(muxSelectEdge.points[0].x, muxSelectEdge.points[1].x);
+  assert.equal(muxSelectEdge.points[0].y, muxSelectEdge.points[1].y);
   assert.deepEqual(validateLayoutGraph(laidOutChild), []);
   const childQuality = analyzeLayoutQuality(laidOutChild);
   assert.ok(childQuality.directRouteRatio >= 0.66);
