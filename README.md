@@ -1,8 +1,10 @@
 # Netlist Graph Builder
 
+Linux 单文件启动器、CMake 构建和 EDA/Tcl 集成说明见 [LINUX_SINGLE_FILE_LAUNCHER.md](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v0.7.1`。阶段 6 已加入 Global/Local 时序、Focused 双向局部逻辑、可复用 Cell Config、可调布局间距、过程日志和 EDA 启动接口。
+当前版本：`v0.7.2`。本版本增加跨平台端口自动分配、会话管理和 Linux 单文件 EDA 集成启动器。
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
 
@@ -31,7 +33,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 ### Windows 正式版（无需安装 Node.js）
 
-从 Release 下载 `NetlistGraphBuilder-v0.7.1-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
+从 Release 下载 `NetlistGraphBuilder-v0.7.2-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
 
 发布包同时包含 `examples` 示例网表、README、CHANGELOG 和 ELKJS 许可证。不要只复制 exe：它需要同目录下的 `app` 资源目录。若默认端口 4173 被占用，启动器会自动尝试后续空闲端口。
 
@@ -96,7 +98,18 @@ Python 用法只需将命令头替换为 `python3 -u tools/serve.py`；Windows �
 - `--netlist <path>`、`--timing <path>`、`--cell-config <path>`：启动输入；含空格的路径需要按 shell 规则加引号。
 - `--module <name>`、`--focus <instance>`：初始 module 与聚焦 cell。
 - `--fanin-depth <0-99>`、`--fanout-depth <0-99>`：Focused neighborhood 的独立深度，`0` 表示关闭该方向。
-- `--port <1-65535>`：本机端口；`--no-open`（兼容旧名 `--no-browser`）禁止自动打开浏览器。
+- `--port <0-65535>`：本机端口；传 `0` 让操作系统自动选择空闲端口；`--no-open`（兼容旧名 `--no-browser`）禁止自动打开浏览器。
+
+Node/Python 还支持用于脚本或 EDA 外层封装的会话管理：
+
+```bash
+node tools/serve.mjs start --netlist ./results/top.v --port 0 \
+  --state-file ./results/ngb-session.json --no-open
+node tools/serve.mjs status --state-file ./results/ngb-session.json
+node tools/serve.mjs stop --state-file ./results/ngb-session.json
+```
+
+Python 只需将命令头替换为 `python3 -u tools/serve.py`。`start` 可以省略以保持旧命令兼容；`stop` 只根据状态文件验证并关闭对应进程，不按端口号搜索或杀进程。
 
 ready 行不包含网表、时序或 Cell Config 原文，例如：
 

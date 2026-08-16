@@ -36,9 +36,23 @@ test("launcher arguments preserve paths with spaces and normalize targets", () =
   assert.equal(options.openBrowser, false);
 });
 
+test("launcher supports the shared session commands", () => {
+  const start = parseLauncherArgs(["start", "--port", "0", "--state-file", "run/session.json"], {
+    cwd: "C:/eda job", env: {}
+  });
+  assert.equal(start.command, "start");
+  assert.equal(start.port, 0);
+  assert.equal(start.stateFile, resolve("C:/eda job", "run/session.json"));
+  assert.equal(parseLauncherArgs(["status", "--state-file", "run/session.json"], {
+    cwd: "C:/eda job", env: {}
+  }).command, "status");
+});
+
 test("launcher rejects unknown options and invalid numeric ranges", () => {
   assert.throws(() => parseLauncherArgs(["--remote"]), /Unknown option/);
-  assert.throws(() => parseLauncherArgs(["--port", "0"]), /1 to 65535/);
+  assert.equal(parseLauncherArgs(["--port", "0"]).port, 0);
+  assert.throws(() => parseLauncherArgs(["--port", "-1"]), /0 to 65535/);
+  assert.throws(() => parseLauncherArgs(["--port", "65536"]), /0 to 65535/);
   assert.throws(() => parseLauncherArgs(["--fanin-depth", "100"]), /0 to 99/);
   assert.throws(() => parseLauncherArgs(["--netlist"]), /requires a value/);
 });

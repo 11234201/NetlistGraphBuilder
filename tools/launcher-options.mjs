@@ -17,10 +17,17 @@ export class LauncherArgumentError extends Error {
 export function parseLauncherArgs(argv, options = {}) {
   const cwd = options.cwd || process.cwd();
   const env = options.env || process.env;
+  const command = ["start", "stop", "status"].includes(argv[0]) ? argv[0] : "start";
+  const firstOption = command === "start" && argv[0] === "start" ? 1 : command === "start" ? 0 : 1;
   const result = {
+    command,
     port: parsePort(env.PORT || "4173", "PORT"),
     openBrowser: true,
     help: false,
+    force: false,
+    replaceExisting: false,
+    parentDeath: false,
+    stateFile: null,
     inputs: {},
     target: {}
   };
@@ -32,10 +39,11 @@ export function parseLauncherArgs(argv, options = {}) {
     ["--module", "module"],
     ["--focus", "focus"],
     ["--fanin-depth", "faninDepth"],
-    ["--fanout-depth", "fanoutDepth"]
+    ["--fanout-depth", "fanoutDepth"],
+    ["--state-file", "stateFile"]
   ]);
 
-  for (let index = 0; index < argv.length; index += 1) {
+  for (let index = firstOption; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--no-open" || argument === "--no-browser") {
       result.openBrowser = false;
@@ -43,6 +51,18 @@ export function parseLauncherArgs(argv, options = {}) {
     }
     if (argument === "--help" || argument === "-h") {
       result.help = true;
+      continue;
+    }
+    if (argument === "--force") {
+      result.force = true;
+      continue;
+    }
+    if (argument === "--replace") {
+      result.replaceExisting = true;
+      continue;
+    }
+    if (argument === "--parent-death") {
+      result.parentDeath = true;
       continue;
     }
     const key = valueOptions.get(argument);
@@ -53,8 +73,12 @@ export function parseLauncherArgs(argv, options = {}) {
     }
     if (key === "port") result.port = parsePort(value, argument);
     else if (key === "faninDepth" || key === "fanoutDepth") result.target[key] = parseDepth(value, argument);
+    else if (key === "stateFile") result.stateFile = resolve(cwd, value);
     else if (key === "module" || key === "focus") result.target[key] = value;
     else result.inputs[key] = resolve(cwd, value);
+  }
+  if (result.replaceExisting && !result.stateFile) {
+    throw new LauncherArgumentError("--replace requires --state-file");
   }
   return result;
 }
@@ -112,7 +136,7 @@ export function createReadyRecord(port, manifest) {
 }
 
 export function getLauncherHelp(command = "node tools/serve.mjs") {
-  return `Usage: ${command} [options]\n\n` +
+  return `Usage: ${command} [start|stop|status] [options]\n\n` +
     "  --netlist <path>       structural Verilog to load\n" +
     "  --timing <path>        Global/Local or LocResyn timing text\n" +
     "  --cell-config <path>   versioned Cell Config JSON\n" +
@@ -120,7 +144,11 @@ export function getLauncherHelp(command = "node tools/serve.mjs") {
     "  --focus <instance>     cell instance to open as a focused neighborhood\n" +
     "  --fanin-depth <0-99>   focused fanin depth\n" +
     "  --fanout-depth <0-99>  focused fanout depth\n" +
-    "  --port <1-65535>       localhost port (default: 4173)\n" +
+    "  --port <0-65535>       localhost port; 0 selects an idle port (default: 4173)\n" +
+    "  --state-file <path>    managed session state file\n" +
+    "  --replace              stop the verified session in state-file first\n" +
+    "  --parent-death         stop when the launching process exits\n" +
+    "  --force                force stop when used with stop\n" +
     "  --no-open              do not open the default browser\n" +
     "  -h, --help             show this help";
 }
@@ -144,8 +172,8 @@ function hasStartupRequest(manifest) {
 
 function parsePort(value, label) {
   const port = Number(value);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new LauncherArgumentError(`${label} must be an integer from 1 to 65535`);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new LauncherArgumentError(`${label} must be an integer from 0 to 65535`);
   }
   return port;
 }

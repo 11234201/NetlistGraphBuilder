@@ -53,7 +53,7 @@ namespace NetlistGraphBuilderLauncher
                 {
                     if (!RequireValue(args, ref index, argument)) return 2;
                     int parsedPort;
-                    if (!int.TryParse(args[index], out parsedPort) || parsedPort < 1 || parsedPort > 65535)
+                    if (!int.TryParse(args[index], out parsedPort) || parsedPort < 0 || parsedPort > 65535)
                     {
                         Console.Error.WriteLine("Invalid --port value.");
                         return 2;
@@ -160,7 +160,7 @@ namespace NetlistGraphBuilderLauncher
             Console.WriteLine("  --focus <instance>     cell instance to focus");
             Console.WriteLine("  --fanin-depth <0-99>   focused fanin depth");
             Console.WriteLine("  --fanout-depth <0-99>  focused fanout depth");
-            Console.WriteLine("  --port <1-65535>       localhost port");
+            Console.WriteLine("  --port <0-65535>       localhost port; 0 selects an idle port");
             Console.WriteLine("  --no-open              do not open the default browser");
         }
 
@@ -284,7 +284,9 @@ namespace NetlistGraphBuilderLauncher
                 {
                     TcpListener candidateListener = new TcpListener(IPAddress.Loopback, candidate);
                     candidateListener.Start();
-                    selectedPort = candidate;
+                    selectedPort = candidate == 0
+                        ? ((IPEndPoint)candidateListener.LocalEndpoint).Port
+                        : candidate;
                     return candidateListener;
                 }
                 catch (SocketException)

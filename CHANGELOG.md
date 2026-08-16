@@ -2,6 +2,21 @@
 
 本项目使用语义化版本号。
 
+## [0.7.2] - 2026-08-16
+
+跨平台启动协议和 Linux EDA 集成版本。
+
+### Added
+
+- Node、Python 和 Windows 启动器支持 `--port 0`，并在 ready JSON 中报告操作系统实际分配的端口。
+- Node/Python 支持 `start`、`status`、`stop`、状态文件和 `--replace`，可由脚本管理对应预览进程。
+- 增加 Linux CMake 单文件 `ngb` 启动器，将前端资源和 vendored ELK 嵌入二进制，支持 EDA/Tcl 启动、关闭和父进程退出清理。
+- 增加 [Linux 单文件启动器与 EDA/CMake 集成文档](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+
+### Changed
+
+- Node 启动命令作为跨入口启动协议的参考实现；Python 和 Linux `ngb` 保持独立运行并兼容同一端口、manifest、ready 和状态文件约定。
+
 ## [0.7.1] - 2026-08-08
 
 大图 viewport 交互修复版本。
