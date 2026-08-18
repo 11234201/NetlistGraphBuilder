@@ -273,6 +273,7 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 大图可以把结构分组折叠成紫色虚线组：
 
+- 默认关闭 `Collapse large groups`，需要时手动开启。
 - 单击折叠组：展开该组。
 - `Collapse all groups`：重新折叠所有已展开组。
 - 关闭 `Collapse large groups`：显示所有节点。

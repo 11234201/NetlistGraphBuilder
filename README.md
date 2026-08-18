@@ -171,7 +171,7 @@ node tools/generate-large-example.mjs
 
 1. 顶部 `Layout` 默认使用稳定的 `Simple Layered`；`ELK Layered (Experimental)` 仅作为大图初始排布的可选实验布局。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
 2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
-3. `Collapse large groups` 默认开启：300 个以上 cell 的图按 50 个 cell 自动折叠为紫色虚线组。点击组可展开，`Collapse all groups` 恢复全部折叠。
+3. `Collapse large groups` 默认关闭；开启后，300 个以上 cell 的图按 50 个 cell 自动折叠为紫色虚线组。点击组可展开，`Collapse all groups` 恢复全部折叠。
 4. 400 个以上可见节点/边使用分批 SVG 渲染，状态栏显示 rendering 进度。
 5. 缩放低于 0.65 时自动隐藏 pin、net、metadata 和 timing 文字，放大后恢复。
 6. 当前网表文本保存在浏览器 `sessionStorage`；刷新同一标签页会恢复网表和工作状态，关闭标签页后由浏览器清理。

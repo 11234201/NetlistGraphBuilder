@@ -29,6 +29,7 @@ import {
 test("app state reset helpers keep lifecycle boundaries explicit", () => {
   const state = createAppState(DEFAULT_LAYOUT_POLICY);
   assert.equal(state.showAliases, false);
+  assert.equal(state.collapseLargeGroups, false);
   assert.equal(state.compare.active, false);
   assert.equal(state.compare.synchronized, true);
   assert.equal(state.compare.layout, "vertical");
@@ -161,6 +162,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="wireSpacingInput"[^>]+min="4"[^>]+max="96"/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="4"[^>]+max="320"/);
   assert.match(html, /id="processLogDrawer"/);
+  assert.match(html, /id="collapseGroupsInput" type="checkbox"(?![^>]*checked)/);
   assert.match(html, /id="processLogLevelFilter"/);
   assert.match(html, /id="processLogPhaseFilter"/);
   assert.match(html, /id="exportProcessLogButton"/);

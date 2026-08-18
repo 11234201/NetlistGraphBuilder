@@ -22,7 +22,7 @@ export function buildModuleWorkspace(options) {
     faninDepth = 3,
     fanoutDepth = 3,
     useFanoutHubs = true,
-    collapseLargeGroups = true,
+    collapseLargeGroups = false,
     expandedGroupIds = new Set(),
     layoutProvider,
     layoutPolicy,

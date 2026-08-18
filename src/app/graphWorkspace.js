@@ -62,7 +62,7 @@ export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId
 export function applyWorkspaceGraphTransforms(graph, options = {}) {
   let result = graph;
   if (options.useFanoutHubs !== false) result = simplifyFanoutWithHubs(result);
-  if (options.collapseLargeGroups !== false) {
+  if (options.collapseLargeGroups === true) {
     result = collapseLargeGraph(result, {
       expandedGroupIds: options.expandedGroupIds || new Set()
     });

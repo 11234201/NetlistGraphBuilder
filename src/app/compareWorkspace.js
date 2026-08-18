@@ -24,7 +24,7 @@ export function buildCompareWorkspace(options) {
     nodePositions = { left: new Map(), right: new Map() },
     nodeSizes = { left: new Map(), right: new Map() },
     useFanoutHubs = true,
-    collapseLargeGroups = true,
+    collapseLargeGroups = false,
     expandedGroupIds = new Set(),
     moduleLibrary = []
   } = options;

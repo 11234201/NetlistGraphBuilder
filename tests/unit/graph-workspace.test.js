@@ -66,6 +66,28 @@ test("shared display transforms can be disabled independently", () => {
   assert.ok(simplified.nodes.length >= graph.nodes.length);
 });
 
+test("large-group collapse is opt-in by default", () => {
+  const graph = {
+    nodes: Array.from({ length: 301 }, (_, index) => ({
+      id: `cell:u${index}`,
+      kind: "cell",
+      label: `u${index}`
+    })),
+    edges: []
+  };
+
+  const defaultView = applyWorkspaceGraphTransforms(graph, { useFanoutHubs: false });
+  const collapsedView = applyWorkspaceGraphTransforms(graph, {
+    useFanoutHubs: false,
+    collapseLargeGroups: true
+  });
+
+  assert.equal(defaultView, graph);
+  assert.equal(defaultView.nodes.length, 301);
+  assert.equal(collapsedView.collapsedGroupCount, 7);
+  assert.ok(collapsedView.nodes.some((node) => node.kind === "group"));
+});
+
 test("search-first and focused views derive from the full graph without mutation", () => {
   const module = parseVerilog(source).modules[0];
   const fullGraph = buildWorkspaceGraph(module, { moduleLibrary: [module] });

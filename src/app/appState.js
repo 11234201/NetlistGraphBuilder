@@ -20,7 +20,7 @@ export function createAppState(layoutPolicy) {
     fanoutDepth: 3,
     showAliases: false,
     useFanoutHubs: true,
-    collapseLargeGroups: true,
+    collapseLargeGroups: false,
     expandedGroupIds: new Set(),
     searchIndex: [],
     searchQuery: "",

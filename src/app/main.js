@@ -2832,7 +2832,7 @@ function applySessionPreferences(session) {
     state.showAliases = Boolean(session.showAliases);
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
-    state.collapseLargeGroups = session.collapseLargeGroups !== false;
+    state.collapseLargeGroups = session.collapseLargeGroups === true;
     if (session.layoutPolicy) state.layoutPolicy = normalizeLayoutPolicy(session.layoutPolicy);
     const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
       ? session.timingDisplayPolicy.snapshot : "auto";
