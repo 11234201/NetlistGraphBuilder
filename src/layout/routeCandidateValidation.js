@@ -51,14 +51,22 @@ export function routeSegmentIsClear(
 export function routeOverlapsReserved(points, net, reservedSegments) {
   for (let index = 0; index < points.length - 1; index += 1) {
     const candidate = { start: points[index], end: points[index + 1] };
-    const reservedCandidates = typeof reservedSegments.querySegment === "function"
-      ? reservedSegments.querySegment(candidate)
-      : reservedSegments;
+    const isVertical = Math.abs(candidate.start.x - candidate.end.x) < 0.5;
+    const reservedCandidates = isVertical &&
+      typeof reservedSegments.queryVerticalSegment === "function"
+      ? reservedSegments.queryVerticalSegment(candidate)
+      : getReservedCandidates(reservedSegments, candidate);
     for (const reserved of reservedCandidates) {
       if (reserved.net !== net && collinearSegmentsOverlap(candidate, reserved)) return true;
     }
   }
   return false;
+}
+
+function getReservedCandidates(reservedSegments, candidate) {
+  return typeof reservedSegments.querySegment === "function"
+    ? reservedSegments.querySegment(candidate)
+    : reservedSegments;
 }
 
 function intersectsObstacle(start, end, box, allowPaddingBoundary) {

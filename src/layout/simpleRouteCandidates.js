@@ -4,6 +4,7 @@ import {
 } from "./orthogonalRouting.js";
 import {
   routeCandidateIsUsable,
+  routeOverlapsReserved,
   routeSegmentIsClear
 } from "./routeCandidateValidation.js";
 import {
@@ -181,7 +182,9 @@ export function findObstacleAvoidingRoute(context) {
     margin,
     lanePitch,
     nodeIndex,
-    globalLaneGeometry
+    globalLaneGeometry,
+    reservedSegments = [],
+    net
   } = context;
   const clearance = 24;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint, 9);
@@ -195,7 +198,6 @@ export function findObstacleAvoidingRoute(context) {
     clearance,
     globalLaneGeometry
   );
-
   for (const laneY of yCandidates) {
     const sourceLaneX = findClearVerticalLaneX(
       baseSourceLaneX,
@@ -203,7 +205,9 @@ export function findObstacleAvoidingRoute(context) {
       laneY,
       source,
       target,
-      nodeIndex
+      nodeIndex,
+      reservedSegments,
+      net
     );
     const targetLaneX = findClearVerticalLaneX(
       baseTargetLaneX,
@@ -211,17 +215,18 @@ export function findObstacleAvoidingRoute(context) {
       laneY,
       source,
       target,
-      nodeIndex
+      nodeIndex,
+      reservedSegments,
+      net
     );
-    const candidate = createRoute("obstacle-lane", [
+    const candidate = createGlobalLaneRoute(
       sourcePoint,
-      { x: sourceLaneX, y: sourcePoint.y },
-      { x: sourceLaneX, y: laneY },
-      { x: targetLaneX, y: laneY },
-      { x: targetLaneX, y: routeTargetPoint.y },
+      targetPoint,
       routeTargetPoint,
-      targetPoint
-    ]);
+      sourceLaneX,
+      targetLaneX,
+      laneY
+    );
     if (routeCandidateIsUsable(candidate.points, {
       source,
       target,
@@ -229,6 +234,41 @@ export function findObstacleAvoidingRoute(context) {
       targetPoint,
       nodeIndex
     })) return candidate;
+    // A reservation-aware x lane is only a preference until the complete route
+    // passes the shared geometry contract. Keep the original node-safe choice
+    // available so a dense graph cannot fall through to a node-crossing lane.
+    const sourceFallbackLaneX = findClearVerticalLaneX(
+      baseSourceLaneX,
+      sourcePoint.y,
+      laneY,
+      source,
+      target,
+      nodeIndex
+    );
+    const targetFallbackLaneX = findClearVerticalLaneX(
+      baseTargetLaneX,
+      routeTargetPoint.y,
+      laneY,
+      source,
+      target,
+      nodeIndex
+    );
+    if (sourceLaneX === sourceFallbackLaneX && targetLaneX === targetFallbackLaneX) continue;
+    const fallbackCandidate = createGlobalLaneRoute(
+      sourcePoint,
+      targetPoint,
+      routeTargetPoint,
+      sourceFallbackLaneX,
+      targetFallbackLaneX,
+      laneY
+    );
+    if (routeCandidateIsUsable(fallbackCandidate.points, {
+      source,
+      target,
+      sourcePoint,
+      targetPoint,
+      nodeIndex
+    })) return fallbackCandidate;
   }
 
   return createRoute("obstacle-lane", [
@@ -237,6 +277,25 @@ export function findObstacleAvoidingRoute(context) {
     { x: baseSourceLaneX, y: yCandidates[0] ?? preferredLaneY },
     { x: baseTargetLaneX, y: yCandidates[0] ?? preferredLaneY },
     { x: baseTargetLaneX, y: routeTargetPoint.y },
+    routeTargetPoint,
+    targetPoint
+  ]);
+}
+
+function createGlobalLaneRoute(
+  sourcePoint,
+  targetPoint,
+  routeTargetPoint,
+  sourceLaneX,
+  targetLaneX,
+  laneY
+) {
+  return createRoute("obstacle-lane", [
+    sourcePoint,
+    { x: sourceLaneX, y: sourcePoint.y },
+    { x: sourceLaneX, y: laneY },
+    { x: targetLaneX, y: laneY },
+    { x: targetLaneX, y: routeTargetPoint.y },
     routeTargetPoint,
     targetPoint
   ]);
@@ -318,15 +377,34 @@ export function prepareGlobalLaneGeometry(nodes, clearance) {
   };
 }
 
-function findClearVerticalLaneX(preferredX, y1, y2, source, target, nodeIndex) {
+function findClearVerticalLaneX(
+  preferredX,
+  y1,
+  y2,
+  source,
+  target,
+  nodeIndex,
+  reservedSegments = [],
+  net
+) {
   const offsets = [0, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
+  let firstClearX = null;
+  const hasReservedSegments = reservedSegments && reservedSegments.length > 0;
   for (const offset of offsets) {
     const x = preferredX + offset;
-    if (routeSegmentIsClear(
+    if (!routeSegmentIsClear(
       { x, y: y1 },
       { x, y: y2 },
       { nodeIndex, source, target }
-    )) return x;
+    )) continue;
+    // If every reserved-free alternative is occupied, preserve node clearance
+    // as the next-best bounded fallback instead of returning a node-crossing lane.
+    firstClearX ??= x;
+    if (!hasReservedSegments) return x;
+    if (!routeOverlapsReserved([
+      { x, y: y1 },
+      { x, y: y2 }
+    ], net, reservedSegments)) return x;
   }
-  return preferredX;
+  return firstClearX ?? preferredX;
 }

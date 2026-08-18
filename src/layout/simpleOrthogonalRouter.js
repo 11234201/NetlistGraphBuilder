@@ -161,7 +161,9 @@ function createGlobalFallback(context) {
     margin: context.margin,
     lanePitch: context.topWireLanePitch,
     nodeIndex: context.nodeIndex,
-    globalLaneGeometry: context.globalLaneGeometry
+    globalLaneGeometry: context.globalLaneGeometry,
+    reservedSegments: context.reservedSegments,
+    net: context.net
   });
 }
 

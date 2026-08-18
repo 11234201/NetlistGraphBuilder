@@ -5,9 +5,12 @@ import {
   createGlobalLaneYCandidates,
   createBasicSimpleRouteCandidates,
   createLocalObstacleCandidates,
+  findObstacleAvoidingRoute,
   MAX_GLOBAL_LANE_CANDIDATES,
   MAX_LOCAL_LANE_CANDIDATES
 } from "../../src/layout/simpleRouteCandidates.js";
+import { collinearSegmentsOverlap, getRouteSegments } from "../../src/layout/orthogonalRouting.js";
+import { createNodeSpatialIndex } from "../../src/layout/spatialIndex.js";
 
 const source = {
   id: "source", kind: "cell", level: 0,
@@ -88,4 +91,45 @@ test("global fallback lane candidates stay bounded on large graphs", () => {
 
   assert.ok(lanes.length <= MAX_GLOBAL_LANE_CANDIDATES);
   assert.equal(lanes[0], 20);
+});
+
+test("global fallback reserves vertical lanes used by earlier nets", () => {
+  const nodes = [source, target];
+  const sourcePoint = { x: 80, y: 54 };
+  const targetPoint = { x: 260, y: 100 };
+  const first = findObstacleAvoidingRoute({
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    preferredLaneY: 20,
+    margin: 48,
+    lanePitch: 16,
+    nodeIndex: createNodeSpatialIndex(nodes),
+    net: "first"
+  });
+  const reservedSegments = getRouteSegments(first.points, "first").slice(1, 2);
+  const second = findObstacleAvoidingRoute({
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    preferredLaneY: 20,
+    margin: 48,
+    lanePitch: 16,
+    nodeIndex: createNodeSpatialIndex(nodes),
+    reservedSegments,
+    net: "second"
+  });
+
+  assert.equal(
+    second.points.some((_, index) => index < second.points.length - 1 &&
+      reservedSegments.some((reserved) => collinearSegmentsOverlap(
+        { start: second.points[index], end: second.points[index + 1] },
+        reserved
+      ))),
+    false
+  );
 });

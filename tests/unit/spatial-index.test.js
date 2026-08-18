@@ -92,3 +92,14 @@ test("indexed route conflict counts stop at the requested maximum", () => {
   assert.equal(countRouteConflicts(candidate, index, "candidate", 2), 2);
   assert.equal(countRouteConflicts(candidate, index, "candidate"), 3);
 });
+
+test("vertical segment queries only return vertical lane candidates", () => {
+  const vertical = { start: { x: 100, y: 0 }, end: { x: 100, y: 200 }, net: "vertical" };
+  const horizontal = { start: { x: 20, y: 80 }, end: { x: 180, y: 80 }, net: "horizontal" };
+  const index = new RouteSegmentIndex([vertical, horizontal]);
+
+  assert.deepEqual(
+    index.queryVerticalSegment({ start: { x: 100, y: 40 }, end: { x: 100, y: 120 } }),
+    [vertical]
+  );
+});

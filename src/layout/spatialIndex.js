@@ -100,6 +100,19 @@ export class RouteSegmentIndex {
     return this.queryBox(segmentBox(segment, padding));
   }
 
+  queryVerticalSegment(segment, padding = 0) {
+    const box = segmentBox(segment, padding);
+    const found = new Set();
+    queryAxisBuckets(
+      this.verticalBuckets,
+      Math.floor(box.left / this.cellSize),
+      Math.floor(box.right / this.cellSize),
+      box,
+      found
+    );
+    return [...found].map((record) => record.segment);
+  }
+
   queryBox(box) {
     const found = new Set();
     queryAxisBuckets(
