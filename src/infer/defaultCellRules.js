@@ -53,12 +53,81 @@ export function inferPinDirection(pinName, cellType = "") {
   return { direction: "input", source: "fallback" };
 }
 
+export function ensureFallbackCellPinDirections(pinDirections) {
+  const directions = Object.fromEntries(Object.entries(pinDirections || {}).map(([pin, rule]) => [
+    pin,
+    { ...rule }
+  ]));
+  const entries = Object.entries(directions)
+    .sort(([left], [right]) => comparePinNames(left, right));
+  if (entries.length === 0) return directions;
+
+  if (entries.length === 1) {
+    const [pin, rule] = entries[0];
+    if (!isFallbackDirection(rule)) return directions;
+    directions[pin] = {
+      ...rule,
+      direction: "inout",
+      source: "fallback-guarantee"
+    };
+    return directions;
+  }
+
+  const hasInput = entries.some(([, rule]) => isInputDirection(rule.direction));
+  const hasOutput = entries.some(([, rule]) => isOutputDirection(rule.direction));
+  const fallbackEntries = entries.filter(([, rule]) => isFallbackDirection(rule));
+
+  if (!hasOutput) {
+    const candidate = fallbackEntries.at(-1);
+    if (candidate) {
+      const [pin, rule] = candidate;
+      directions[pin] = {
+        ...rule,
+        direction: "output",
+        source: "fallback-guarantee"
+      };
+    }
+  }
+
+  if (!hasInput) {
+    const candidate = fallbackEntries.find(([pin]) => directions[pin]?.direction !== "output");
+    if (candidate) {
+      const [pin, rule] = candidate;
+      directions[pin] = {
+        ...rule,
+        direction: "input",
+        source: "fallback-guarantee"
+      };
+    }
+  }
+
+  return directions;
+}
+
 export function isInvertingOutputGate(gateKind) {
   return INVERTING_OUTPUT_GATES.has(gateKind);
 }
 
 function inference(kind, source) {
   return { kind, source };
+}
+
+function isInputDirection(direction) {
+  return direction === "input" || direction === "inout";
+}
+
+function isOutputDirection(direction) {
+  return direction === "output" || direction === "inout";
+}
+
+function isFallbackDirection(rule) {
+  return rule?.direction === "unknown" || rule?.source === "fallback";
+}
+
+function comparePinNames(left, right) {
+  const a = String(left).replace(/^\\/, "");
+  const b = String(right).replace(/^\\/, "");
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function isMuxCellType(type) {

@@ -4,6 +4,7 @@ import test from "node:test";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inferCellKind, inferPinDirection } from "../../src/infer/defaultCellRules.js";
+import { ensureFallbackCellPinDirections } from "../../src/infer/defaultCellRules.js";
 import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
@@ -39,6 +40,40 @@ test("cell inference maps common foundry-like names", () => {
     role: "select",
     side: "left"
   });
+});
+
+test("unknown cell fallback guarantees input and output after inference", () => {
+  const inferred = {
+    B: inferPinDirection("B", "MYSTERY"),
+    A: inferPinDirection("A", "MYSTERY")
+  };
+  const guaranteed = ensureFallbackCellPinDirections(inferred);
+
+  assert.equal(guaranteed.A.direction, "input");
+  assert.equal(guaranteed.B.direction, "output");
+  assert.equal(guaranteed.B.source, "fallback-guarantee");
+  assert.equal(inferred.B.direction, "input");
+});
+
+test("unknown cell fallback preserves a determined output rule", () => {
+  const guaranteed = ensureFallbackCellPinDirections({
+    Q: { direction: "output", source: "rule" },
+    Z: { direction: "output", source: "rule" }
+  });
+
+  assert.equal(guaranteed.Q.direction, "output");
+  assert.equal(guaranteed.Z.direction, "output");
+  assert.equal(guaranteed.Q.source, "rule");
+});
+
+test("known cell inference does not use the unknown-cell guarantee", () => {
+  const source = "module m(a,b); input a; output b; BUF u0 (.A(a), .B(b)); endmodule";
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const cell = graph.nodes.find((node) => node.id === "cell:u0");
+
+  assert.equal(cell.inferenceSource, "rule");
+  assert.equal(cell.pinDirections.A.direction, "input");
+  assert.equal(cell.pinDirections.B.direction, "input");
 });
 
 test("mapped resettable flip-flops render as dff cells", () => {
@@ -898,6 +933,22 @@ test("cell pin direction overrides repair unknown cell connectivity", () => {
   assert.equal(outputEdge.sourcePin, "B");
   assert.equal(bPort.direction, "output");
   assert.equal(bPort.side, "right");
+});
+
+test("unknown cells use the final pin fallback to connect an inferred output", () => {
+  const source = "module m(a,y); input a; output y; MYSTERY u0 (.A(a), .B(y)); endmodule";
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const cell = graph.nodes.find((node) => node.id === "cell:u0");
+
+  assert.equal(cell.pinDirections.A.direction, "input");
+  assert.equal(cell.pinDirections.B.direction, "output");
+  assert.equal(cell.pinDirections.B.source, "fallback-guarantee");
+  assert.ok(graph.edges.some((edge) =>
+    edge.source === "input:a" && edge.target === "cell:u0" && edge.targetPin === "A"
+  ));
+  assert.ok(graph.edges.some((edge) =>
+    edge.source === "cell:u0" && edge.target === "output:y" && edge.sourcePin === "B"
+  ));
 });
 
 test("node property overrides update graph metadata", () => {

@@ -1,5 +1,6 @@
 ﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
 import { getNetDisplayName, getPortDisplayName } from "./model.js";
+import { ensureFallbackCellPinDirections } from "../infer/defaultCellRules.js";
 import { resolveCellConfigDefinition, toInternalGateKind } from "../infer/cellConfig.js";
 
 export function buildSchematicGraph(module, options = {}) {
@@ -86,7 +87,14 @@ export function buildSchematicGraph(module, options = {}) {
       : configuredDefinition
         ? { kind: toInternalGateKind(configuredDefinition.gateKind), source: "user-config" }
         : inferCellKind(cell.type);
-    const pinDirections = getCellPinDirections(cell, overrides, referencedModule, configuredDefinition);
+    const pinDirections = cellKind.source === "unknown"
+      ? ensureFallbackCellPinDirections(getCellPinDirections(
+        cell,
+        overrides,
+        referencedModule,
+        configuredDefinition
+      ))
+      : getCellPinDirections(cell, overrides, referencedModule, configuredDefinition);
     const node = addNode({
       id: makeId("cell", cell.instance),
       kind: "cell",
