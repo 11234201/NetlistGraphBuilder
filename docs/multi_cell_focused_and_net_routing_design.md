@@ -47,10 +47,10 @@
   仍以 provider 已生成的逻辑 edge 路径为候选，已能净化公共 trunk 和 provider 环路，但尚未替代
   逐 edge 的 candidate 搜索与 lane 预留。
 - 待实现：直接按 net 生成有界 trunk/tree candidate 与完整交互浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 263 项通过；Focused boundary、locality overlap、
-  bubble endpoint 和 physical wire obstacle 均有回归测试；dp_001、dp_007 等 mapped case 定向
-  检查通过既有预算。1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
-  70.5/427.3/1345.9 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
+- 当前验证：单进程 unit/determinism/fixture 共 265 项通过；Focused boundary、locality overlap、
+  bubble endpoint、physical wire obstacle 和 spacing 变更均有回归测试；dp_001、dp_007 等 mapped
+  case 定向检查通过既有预算。1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
+  71.6/433.8/1400.8 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
   `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。
 
 ## 2. 当前问题与结论

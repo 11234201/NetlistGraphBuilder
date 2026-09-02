@@ -1,7 +1,10 @@
 import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
 import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
-import { routeCandidateIsUsable } from "./routeCandidateValidation.js";
+import {
+  routeCandidateIsUsable,
+  routeOverlapsReserved
+} from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
 import {
   computeLevelBounds,
@@ -142,7 +145,33 @@ function routeEdge(context) {
     ...scoreCandidates(usableLocalCandidates, reservedSegments, net, edgeIntent)
   ];
   if (scoredCandidates.length > 0) {
-    return chooseBestScoredRoute(scoredCandidates);
+    const bestLocal = chooseBestScoredRoute(scoredCandidates);
+    const bestLocalScore = scoreRouteCandidate(bestLocal, {
+      reservedSegments,
+      net,
+      edgeIntent
+    });
+    // A usable local path may still overlap a previously routed net when all
+    // of its target-side lanes are occupied. Give the bounded global search a
+    // chance to remove that conflict before accepting the scored fallback.
+    if (bestLocalScore.crossings > 0) {
+      routingMetrics.globalFallbacks += 1;
+      const globalCandidate = createGlobalFallback(context);
+      const globalScore = scoreRouteCandidate(globalCandidate, {
+        reservedSegments,
+        net,
+        edgeIntent
+      });
+      const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments);
+      const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments);
+      if ((localHasOverlap && !globalHasOverlap) ||
+        globalScore.crossings < bestLocalScore.crossings ||
+        (globalScore.crossings === bestLocalScore.crossings &&
+          globalScore.total < bestLocalScore.total)) {
+        return globalCandidate;
+      }
+    }
+    return bestLocal;
   }
 
   routingMetrics.globalFallbacks += 1;

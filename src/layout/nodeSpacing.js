@@ -20,22 +20,22 @@ export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
  *
  * The regular source sweep also restores the requested visual gap, which can
  * move an otherwise intentional branch lane. A post-locality pass should be
- * a minimal repair: change a source only when it overlaps an earlier source.
+ * a minimal repair: change a source only when it overlaps another visible
+ * node, while preserving the target-aligned x position from locality.
  */
 export function resolvePostLocalitySourceOverlaps(nodes, margin, gap = 0) {
   const sources = nodes
     .filter(isExternalSourceNode)
     .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
-  const placed = [];
   for (const source of sources) {
-    const blockers = placed.filter((candidate) =>
+    const blockers = nodes.filter((candidate) =>
+      candidate.id !== source.id &&
       horizontalRangesOverlap(source, candidate) &&
       verticalRangesOverlap(source, candidate, gap)
     );
     if (blockers.length > 0) {
-      source.y = findNearestFreeY(source, source.y, blockers, new Set([source.id]), margin, gap);
+      source.y = findNearestFreeY(source, source.y, nodes, new Set([source.id]), margin, gap);
     }
-    placed.push(source);
   }
 }
 

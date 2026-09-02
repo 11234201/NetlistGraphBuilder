@@ -327,6 +327,23 @@ test("localized input remains separate from an unconnected input", () => {
   assert.equal(overlappingNodes(graph).length, 0);
 });
 
+test("wire and cell spacing changes preserve node and route separation", async () => {
+  const source = await readFile(vectorHierarchyUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) => item.name === "tc");
+  const graph = buildSchematicGraph(module, { moduleLibrary: design.modules });
+
+  for (const cellSpacing of [4, 32, 320]) {
+    for (const wireLanePitch of [4, 96]) {
+      const laidOut = layoutGraph(graph, {
+        layoutPolicy: { spacing: { cellSpacing, wireLanePitch } }
+      });
+      assert.deepEqual(validateLayoutGraph(laidOut), []);
+      assert.equal(overlappingNodes(laidOut).length, 0);
+    }
+  }
+});
+
 test("fanout routing space follows configurable wire lane spacing", () => {
   const source = `module m(a,y0,y1,y2); input a; output y0,y1,y2; wire n;
 BUF d (.A(a),.Z(n)); BUF u0 (.A(n),.Z(y0)); BUF u1 (.A(n),.Z(y1)); BUF u2 (.A(n),.Z(y2)); endmodule`;
