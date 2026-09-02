@@ -107,6 +107,36 @@ test("focused neighborhood unions independent fanin and fanout depths", () => {
   assert.deepEqual(fanoutOnly.view, { mode: "focused", rootNodeId: "cell:u0", faninDepth: 0, fanoutDepth: 1 });
 });
 
+test("focused neighborhood supports multiple roots with stable union and cut edges", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const focused = createFocusedNeighborhoodGraph(graph, ["cell:u2", "cell:u1", "cell:u1"], {
+    faninDepth: 1,
+    fanoutDepth: 1,
+    activeRootNodeId: "cell:u2"
+  });
+
+  assert.deepEqual(focused.view.rootNodeIds, ["cell:u1", "cell:u2"]);
+  assert.equal(focused.view.rootNodeId, null);
+  assert.deepEqual(
+    new Set(focused.nodes.map((node) => node.id)),
+    new Set(["cell:u0", "cell:u1", "cell:u2", "output:y1", "output:y2"])
+  );
+  assert.equal(focused.edges.length, 4);
+  assert.equal(focused.focusBoundary.length, 1);
+  assert.deepEqual(
+    focused.nodes.filter((node) => node.isFocusedRoot).map((node) => node.id).sort(),
+    ["cell:u1", "cell:u2"]
+  );
+  assert.equal(focused.nodes.find((node) => node.isActiveFocusedRoot)?.id, "cell:u2");
+
+  const limited = analyzeFocusedNeighborhood(graph, ["cell:u1", "cell:u2"], {
+    faninDepth: 0,
+    fanoutDepth: 1
+  });
+  assert.deepEqual(new Set(limited.nodeIds), new Set(["cell:u1", "cell:u2", "output:y1", "output:y2"]));
+  assert.deepEqual(new Set(limited.cutEdges.map((edge) => edge.net)), new Set(["n"]));
+});
+
 test("alias normalization collapses assign chains without changing parser IR", () => {
   const aliasSource = `module aliases(a, y); input a; output y; wire n1; wire n2;
 assign n1 = a; assign n2 = n1; assign y = n2; endmodule`;

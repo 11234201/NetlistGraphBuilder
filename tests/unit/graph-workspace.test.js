@@ -104,3 +104,31 @@ test("search-first and focused views derive from the full graph without mutation
   assert.equal(fullGraph.view, undefined);
   assert.ok(fullGraph.nodes.length > focused.nodes.length);
 });
+
+test("focused views project depth cut edges into explicit boundary nodes", () => {
+  const module = parseVerilog(
+    "module chain(a, y); input a; output y; wire n; BUF u0 (.A(a), .Y(n)); BUF u1 (.A(n), .Y(y)); endmodule"
+  ).modules[0];
+  const fullGraph = buildWorkspaceGraph(module, { moduleLibrary: [module] });
+  const focused = selectWorkspaceGraphView(fullGraph, {
+    viewMode: "focused",
+    rootNodeIds: ["cell:u0"],
+    faninDepth: 0,
+    fanoutDepth: 1
+  });
+
+  assert.ok(focused.nodes.some((node) => node.kind === "focus-output" && node.label === "y"));
+  assert.ok(focused.edges.some((edge) => edge.focusBoundaryDirection === "out"));
+  assert.equal(focused.nodes.some((node) => node.id === "output:y"), false);
+  assert.ok(fullGraph.nodes.some((node) => node.id === "output:y"));
+
+  const upstream = selectWorkspaceGraphView(fullGraph, {
+    viewMode: "focused",
+    rootNodeIds: ["cell:u1"],
+    faninDepth: 1,
+    fanoutDepth: 0
+  });
+  assert.ok(upstream.nodes.some((node) => node.kind === "focus-input" && node.label === "a"));
+  assert.ok(upstream.edges.some((edge) => edge.focusBoundaryDirection === "in"));
+  assert.equal(upstream.nodes.some((node) => node.id === "input:a"), false);
+});

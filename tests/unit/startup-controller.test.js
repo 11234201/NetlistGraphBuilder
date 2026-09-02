@@ -53,3 +53,14 @@ test("startup manifest fetch is opt-in and uses the same-origin endpoint", async
   assert.equal(requested.options.cache, "no-store");
   assert.equal(manifest.target.focus, "u0");
 });
+
+test("startup focus accepts a stable array and dispatches it as one multi-root action", async () => {
+  const focusRoots = [];
+  const manifest = { ...MANIFEST, target: { ...MANIFEST.target, focus: ["u1", "u0", "u1"] } };
+  const normalized = normalizeStartupManifest(manifest);
+  assert.deepEqual(normalized.target.focus, ["u1", "u0"]);
+  await executeStartupManifest(manifest, {
+    focusCells: async (roots) => focusRoots.push(roots)
+  });
+  assert.deepEqual(focusRoots, [["u1", "u0"]]);
+});

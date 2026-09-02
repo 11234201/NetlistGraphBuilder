@@ -66,6 +66,45 @@ export function validateLayoutGraph(graph, options = {}) {
   }
 
   if (checkOverlaps) violations.push(...findNetOverlaps(edges));
+  if (Array.isArray(graph.wireRoutes)) violations.push(...findWireRouteViolations(graph.wireRoutes));
+  return violations;
+}
+
+function findWireRouteViolations(wireRoutes) {
+  const violations = [];
+  for (const route of wireRoutes) {
+    const segments = route.segments || [];
+    const seen = new Set();
+    for (const segment of segments) {
+      const horizontal = near(segment.start?.y, segment.end?.y);
+      const vertical = near(segment.start?.x, segment.end?.x);
+      if (!horizontal && !vertical) {
+        violations.push(violation(route, "wire-route-non-orthogonal", "Wire route contains a diagonal segment"));
+        continue;
+      }
+      const coordinate = horizontal ? segment.start.y : segment.start.x;
+      const minimum = horizontal
+        ? Math.min(segment.start.x, segment.end.x)
+        : Math.min(segment.start.y, segment.end.y);
+      const maximum = horizontal
+        ? Math.max(segment.start.x, segment.end.x)
+        : Math.max(segment.start.y, segment.end.y);
+      const key = `${horizontal ? "h" : "v"}:${Math.round(coordinate * 100) / 100}:${minimum}:${maximum}`;
+      if (seen.has(key)) {
+        violations.push(violation(route, "wire-route-duplicate-segment", "Wire route contains a duplicate physical segment"));
+      }
+      seen.add(key);
+    }
+    for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
+        if (collinearSegmentsOverlap(segments[leftIndex], segments[rightIndex])) {
+          violations.push(violation(route, "wire-route-overlap", "Wire route contains overlapping physical segments"));
+          leftIndex = segments.length;
+          break;
+        }
+      }
+    }
+  }
   return violations;
 }
 

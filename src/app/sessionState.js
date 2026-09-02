@@ -19,12 +19,20 @@ export function saveSessionState(snapshot, storage = globalThis.sessionStorage) 
 }
 
 export function createSessionSnapshot(state) {
+  const focusedRootNodeIds = normalizeFocusedRootNodeIds(
+    state.focusedRootNodeIds,
+    state.coneRootNodeId
+  );
   return {
     source: state.currentSource,
     sourceLabel: state.currentSourceLabel,
     moduleName: state.currentModule?.name || null,
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
+    focusedRootNodeIds,
+    activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
+      ? state.activeFocusedRootNodeId
+      : focusedRootNodeIds[0] || null,
     coneDepth: state.coneDepth,
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
@@ -44,4 +52,16 @@ export function createSessionSnapshot(state) {
       metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]
     }
   };
+}
+
+function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
+  const values = Array.isArray(value) && value.length > 0
+    ? value
+    : value && !Array.isArray(value)
+      ? [value]
+      : legacyRootNodeId
+        ? [legacyRootNodeId]
+        : [];
+  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
 }

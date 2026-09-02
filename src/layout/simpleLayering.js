@@ -104,5 +104,6 @@ function averageRank(values, fallback) {
 }
 
 function isExternalLevelSource(node) {
-  return node.kind === "input" || node.kind === "implicit" || node.kind === "constant";
+  return node.kind === "input" || node.kind === "focus-input" ||
+    node.kind === "implicit" || node.kind === "constant";
 }

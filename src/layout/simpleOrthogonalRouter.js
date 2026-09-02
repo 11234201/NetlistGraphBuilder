@@ -208,7 +208,8 @@ function compareRouteScores(left, right) {
 
 function getLabelPlacement(edge, source, target, sourcePoint, targetPoint) {
   const labelWidth = Math.min(96, Math.max(28, String(edge.label || "").length * 6));
-  if (target.kind === "cell" || target.kind === "assign" || target.kind === "output") {
+  if (target.kind === "cell" || target.kind === "assign" ||
+    target.kind === "output" || target.kind === "focus-output") {
     return {
       point: { x: targetPoint.x - labelWidth - 8, y: targetPoint.y - 6 },
       anchor: "start"

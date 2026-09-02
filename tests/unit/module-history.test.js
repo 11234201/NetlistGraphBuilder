@@ -67,3 +67,30 @@ test("module history safely skips entries whose modules disappeared", () => {
   assert.equal(result.entry.moduleName, "top");
   assert.equal(result.history.index, 0);
 });
+
+test("module history normalizes and compares multiple Focused roots", () => {
+  const state = {
+    currentModule: { name: "top" },
+    viewMode: "focused",
+    coneRootNodeId: null,
+    focusedRootNodeIds: ["cell:u2", "cell:u1", "cell:u1"],
+    activeFocusedRootNodeId: "cell:u2",
+    coneDepth: 3,
+    faninDepth: 2,
+    fanoutDepth: 2,
+    selectedNodeId: "cell:u1",
+    selectedNet: null,
+    transform: { x: 0, y: 0, scale: 1 }
+  };
+  const first = createModuleHistoryEntry(state);
+  assert.deepEqual(first.focusedRootNodeIds, ["cell:u1", "cell:u2"]);
+  assert.equal(first.coneRootNodeId, "cell:u1");
+  assert.equal(first.activeFocusedRootNodeId, "cell:u2");
+
+  const same = pushModuleHistory(createModuleHistory(), first);
+  const equivalent = pushModuleHistory(same, {
+    ...first,
+    focusedRootNodeIds: ["cell:u1", "cell:u2"]
+  });
+  assert.equal(equivalent.entries.length, 1);
+});

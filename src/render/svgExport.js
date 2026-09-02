@@ -5,9 +5,13 @@ const EXPORT_CSS = `
 .wire-hit-area { fill: none; stroke: transparent; stroke-width: 14; }
 .wire-bridge-cutout { fill: none; stroke: #f4f6f8; stroke-width: 5; stroke-linecap: round; }
 .wire-label { font-size: 11px; fill: #475569; paint-order: stroke; stroke: #f8fafc; stroke-width: 4px; stroke-linejoin: round; }
+.wire-junction { fill: var(--wire); }
 .node-shape { fill: #fff; stroke: #334155; stroke-width: 1.4; }
 .node.input .node-shape { fill: #e7f3f4; stroke: #1f7a8c; }
 .node.output .node-shape { fill: #f8ecd8; stroke: #a15c00; }
+.node.focus-input .node-shape, .node.focus-output .node-shape { fill: #f5f3ff; stroke: #7c3aed; stroke-dasharray: 5 3; }
+.node.focused-root .node-shape { stroke: #7c3aed; stroke-width: 2.8; }
+.node.focused-root-active .node-shape { stroke: #5b21b6; stroke-width: 4; }
 .gate-kind { font-size: 12px; font-weight: 700; fill: #111827; }
 .node-label { font-size: 11px; fill: #475569; }
 .node-meta { font-size: 8px; fill: #687789; }

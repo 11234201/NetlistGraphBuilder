@@ -18,6 +18,8 @@ export function buildModuleWorkspace(options) {
     showAliases = false,
     viewMode = "whole",
     coneRootNodeId = null,
+    focusedRootNodeIds = null,
+    activeFocusedRootNodeId = null,
     coneDepth = 3,
     faninDepth = 3,
     fanoutDepth = 3,
@@ -41,7 +43,9 @@ export function buildModuleWorkspace(options) {
   });
   const sourceGraph = selectWorkspaceGraphView(fullGraph, {
     viewMode,
+    rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
     rootNodeId: coneRootNodeId,
+    activeRootNodeId: activeFocusedRootNodeId,
     maxDepth: coneDepth,
     faninDepth,
     fanoutDepth

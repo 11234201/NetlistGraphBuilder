@@ -112,6 +112,7 @@ export function createLocalObstacleCandidates(context) {
     levelBounds?.get(target.level)?.left ?? target.x
   );
   const sourceUsesLocalEscape = source.kind === "input" ||
+    source.kind === "focus-input" ||
     source.kind === "implicit" ||
     source.kind === "constant";
   const sourceLaneX = forward

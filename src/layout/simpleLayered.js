@@ -14,6 +14,7 @@ import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
 import { runSimplePlacementPipeline } from "./simplePlacementPipeline.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";
+import { buildWireRoutes } from "./wireRoutes.js";
 
 export const DEFAULT_WIRE_LANE_PITCH = 18;
 export const DEFAULT_TOP_WIRE_LANE_PITCH = 16;
@@ -93,11 +94,13 @@ export function layoutGraph(graph, options = {}) {
     onRoutingProgress: options.onRoutingProgress,
     onRoutingStage: options.onRoutingStage
   });
+  const wireRoutes = buildWireRoutes(positionedEdges);
   const bounds = computeBounds(positionedNodes);
   return {
     ...graph,
     nodes: positionedNodes,
     edges: positionedEdges,
+    wireRoutes,
     width: bounds.width + margin,
     height: bounds.height + margin
   };

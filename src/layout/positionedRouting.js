@@ -8,6 +8,7 @@ import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 import { createFanoutPriorityComparator } from "./layoutTopology.js";
 import { collectRerouteEdgeIds } from "./rerouteInvalidation.js";
+import { buildWireRoutes } from "./wireRoutes.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -70,11 +71,13 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   }
   const routedEdges = positionedGraph.edges.map((edge) => routedById.get(edge.id) || edge);
   const edges = placeWireLabels(routedEdges, nodes, { compareEdges });
+  const wireRoutes = buildWireRoutes(edges);
   const bounds = computeBounds(nodes);
   return {
     ...positionedGraph,
     nodes,
     edges,
+    wireRoutes,
     width: bounds.width + margin,
     height: bounds.height + margin,
     hasPositionOverrides: true

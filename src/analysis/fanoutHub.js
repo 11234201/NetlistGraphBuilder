@@ -49,7 +49,8 @@ export function simplifyFanoutWithHubs(graph, options = {}) {
 }
 
 function isExternalSource(node) {
-  return node?.kind === "input" || node?.kind === "implicit" || node?.kind === "constant";
+  return node?.kind === "input" || node?.kind === "focus-input" ||
+    node?.kind === "implicit" || node?.kind === "constant";
 }
 
 function safeId(value) {

@@ -2,6 +2,7 @@ import { normalizeGraphAliases } from "../analysis/aliasNormalizer.js";
 import { simplifyFanoutWithHubs } from "../analysis/fanoutHub.js";
 import { createFocusedNeighborhoodGraph } from "../analysis/graphCone.js";
 import { collapseLargeGraph } from "../analysis/groupCollapse.js";
+import { projectFocusedBoundaries } from "../analysis/focusBoundary.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
@@ -32,10 +33,15 @@ export function selectWorkspaceGraphView(fullGraph, options = {}) {
   }
   if (viewMode === "whole") return fullGraph;
   if (viewMode === "focused") {
-    return createFocusedNeighborhoodGraph(fullGraph, options.rootNodeId, {
+    const rootNodeIds = options.rootNodeIds === undefined
+      ? options.rootNodeId
+      : options.rootNodeIds;
+    return projectFocusedBoundaries(createFocusedNeighborhoodGraph(fullGraph, rootNodeIds, {
+      rootNodeIds,
+      activeRootNodeId: options.activeRootNodeId,
       faninDepth: options.faninDepth,
       fanoutDepth: options.fanoutDepth
-    });
+    }));
   }
   return fullGraph;
 }
@@ -48,13 +54,26 @@ export function shouldUseSearchFirst(value, threshold = 500) {
   return count > limit;
 }
 
-export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId, viewMode }, threshold = 500) {
+export function resolveCellConfigRefreshView({
+  module,
+  fullGraph,
+  selectedNodeId,
+  viewMode,
+  focusedRootNodeIds,
+  coneRootNodeId
+}, threshold = 500) {
   if (!shouldUseSearchFirst(module, threshold)) {
     return { viewMode: normalizeSingleViewMode(viewMode), coneRootNodeId: null };
   }
   const selected = fullGraph?.nodes?.find((node) => node.id === selectedNodeId);
   if (selected?.kind === "cell") {
-    return { viewMode: "focused", coneRootNodeId: selectedNodeId };
+    const rootNodeIds = normalizeRootIds(focusedRootNodeIds, coneRootNodeId);
+    const result = {
+      viewMode: "focused",
+      coneRootNodeId: rootNodeIds[0] || selectedNodeId
+    };
+    if (rootNodeIds.length > 1) result.rootNodeIds = rootNodeIds;
+    return result;
   }
   return { viewMode: "search-first", coneRootNodeId: null };
 }
@@ -68,4 +87,12 @@ export function applyWorkspaceGraphTransforms(graph, options = {}) {
     });
   }
   return result;
+}
+
+function normalizeRootIds(value, legacyRootNodeId) {
+  const values = Array.isArray(value) && value.length > 0
+    ? value
+    : legacyRootNodeId ? [legacyRootNodeId] : [];
+  return [...new Set(values.filter((id) => typeof id === "string" && id.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
 }

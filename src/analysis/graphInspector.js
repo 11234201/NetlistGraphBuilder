@@ -99,12 +99,12 @@ function getNodeConnections(graph, node) {
     ];
   }
 
-  if (node.kind === "input" || node.kind === "implicit" || node.kind === "constant") {
+  if (node.kind === "input" || node.kind === "focus-input" || node.kind === "implicit" || node.kind === "constant") {
     const netName = node.ref?.name || node.ports?.[0]?.pin || node.label;
     return [inspectPin(graph, node, node.label, node.label, netName, "output")];
   }
 
-  if (node.kind === "output") {
+  if (node.kind === "output" || node.kind === "focus-output") {
     const netName = node.ref?.name || node.ports?.[0]?.pin || node.label;
     return [inspectPin(graph, node, node.label, node.label, netName, "input")];
   }

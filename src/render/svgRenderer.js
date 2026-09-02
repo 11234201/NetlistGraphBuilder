@@ -25,14 +25,15 @@ export function createSchematicRenderPlan(graph, options = {}) {
 export function createProgressiveSchematicRenderPlan(graph, options = {}) {
   const width = Math.max(640, Math.ceil(graph.width || 640));
   const height = Math.max(420, Math.ceil(graph.height || 420));
+  const wireItems = createWireRenderItems(graph);
   const crossingByEdge = options.wireBridges === false
     ? new Map()
-    : findWireCrossings(graph.edges);
+    : findWireCrossings(wireItems);
   return {
-    edgeCount: graph.edges.length,
+    edgeCount: wireItems.length,
     nodeCount: graph.nodes.length,
     renderEdges(start, end) {
-      return renderRange(graph.edges, start, end, (edge) =>
+      return renderRange(wireItems, start, end, (edge) =>
         renderEdge(edge, crossingByEdge.get(edge.id) || []));
     },
     renderNodes(start, end) {
@@ -44,6 +45,24 @@ export function createProgressiveSchematicRenderPlan(graph, options = {}) {
     betweenGroups: `</g><g class="nodes">`,
     closeSvg: `</g></g></svg>`
   };
+}
+
+function createWireRenderItems(graph) {
+  if (!Array.isArray(graph.wireRoutes) || graph.wireRoutes.length === 0) {
+    return graph.edges || [];
+  }
+  return graph.wireRoutes.flatMap((route) => (route.segments || []).map((segment, index) => ({
+    id: segment.id || `${route.id}:${index}`,
+    points: [segment.start, segment.end],
+    net: route.net,
+    label: index === 0 ? route.label : "",
+    labelPoint: route.labelPoint || midpoint(segment.start, segment.end),
+    labelAnchor: route.labelAnchor || "middle",
+    showLabel: index === 0 && route.showLabel !== false,
+    logicalEdgeIds: route.logicalEdgeIds || segment.logicalEdgeIds || [],
+    routeId: route.id,
+    junctions: index === 0 ? route.junctions || [] : []
+  })));
 }
 
 function renderRange(items, start, end, renderItem) {
@@ -61,16 +80,28 @@ function renderEdge(edge, crossings) {
     .map((point, index) => `${index === 0 ? "M" : "L"} ${round(point.x)} ${round(point.y)}`)
     .join(" ");
   const bridges = crossings.map(renderWireBridge).join("");
+  const junctions = (edge.junctions || []).map((point) =>
+    `<circle class="wire-junction" cx="${round(point.x)}" cy="${round(point.y)}" r="2.8"></circle>`
+  ).join("");
   const label = edge.showLabel === false
     ? ""
     : `<text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>`;
+  const logicalEdgeIds = edge.logicalEdgeIds || [edge.id];
 
-  return `<g class="edge" data-edge-id="${escapeAttr(edge.id)}" data-net="${escapeAttr(edge.net)}">
+  return `<g class="edge" data-edge-id="${escapeAttr(logicalEdgeIds[0] || edge.id)}" data-edge-ids="${escapeAttr(logicalEdgeIds.join(","))}" data-wire-route-id="${escapeAttr(edge.routeId || "")}" data-net="${escapeAttr(edge.net)}">
     <path class="wire-hit-area" d="${path}" pointer-events="stroke"></path>
     <path class="wire" d="${path}"></path>
     ${bridges}
+    ${junctions}
     ${label}
   </g>`;
+}
+
+function midpoint(start, end) {
+  return {
+    x: (Number(start?.x) + Number(end?.x)) / 2,
+    y: (Number(start?.y) + Number(end?.y)) / 2 - 6
+  };
 }
 
 function renderWireBridge(crossing) {
@@ -82,11 +113,11 @@ function renderWireBridge(crossing) {
 }
 
 function renderNode(node) {
-  if (node.kind === "input") {
-    return renderPortNode(node, "input");
+  if (node.kind === "input" || node.kind === "focus-input") {
+    return renderPortNode(node, node.kind);
   }
-  if (node.kind === "output") {
-    return renderPortNode(node, "output");
+  if (node.kind === "output" || node.kind === "focus-output") {
+    return renderPortNode(node, node.kind);
   }
   if (node.kind === "implicit" || node.kind === "constant") {
     return renderSimpleNode(node, node.kind);
@@ -153,8 +184,9 @@ function renderPortNode(node, portKind) {
   const y = round(node.y);
   const width = round(node.width);
   const height = round(node.height);
+  const isInputPort = portKind === "input" || portKind === "focus-input";
   const points =
-    portKind === "input"
+    isInputPort
       ? `${x},${y} ${x + width - 14},${y} ${x + width},${y + height / 2} ${x + width - 14},${y + height} ${x},${y + height}`
       : `${x + 14},${y} ${x + width},${y} ${x + width},${y + height} ${x + 14},${y + height} ${x},${y + height / 2}`;
 
@@ -170,7 +202,11 @@ function renderPortNode(node, portKind) {
     : "";
   const timingClass = node.timing
     ? (node.timing.slack < 0 ? " timing-critical" : " timing-annotated") : "";
+  const boundaryTitle = node.boundaryDirection
+    ? `<title>${escapeHtml(`${node.title || "Focused boundary"}: ${node.label}; hidden endpoint(s): ${node.hiddenEndpointCount || 0}`)}</title>`
+    : "";
   return `<g class="node ${portKind}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
+    ${boundaryTitle}
     ${timingTitle}
     <polygon class="node-shape" points="${points}"></polygon>
     <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
@@ -198,6 +234,9 @@ function renderGateNode(node) {
   const ports = renderGatePorts(node, x, y, width, gateKind);
   const timingClass = getTimingClass(node);
   const timingBadge = renderTimingBadge(node, x, y, width, height);
+  const focusedRootClass = node.isActiveFocusedRoot
+    ? " focused-root focused-root-active"
+    : node.isFocusedRoot ? " focused-root" : "";
   const navigationHint = node.referencedModuleName
     ? `; double-click to open module ${node.referencedModuleName}`
     : "";
@@ -211,7 +250,7 @@ function renderGateNode(node) {
     ? ` data-referenced-module="${escapeAttr(node.referencedModuleName)}"`
     : "";
 
-  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${referencedModuleAttribute}>
+  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}${focusedRootClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${referencedModuleAttribute}>
     ${cellTitle}
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
     ${ports}

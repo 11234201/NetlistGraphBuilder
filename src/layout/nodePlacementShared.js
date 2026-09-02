@@ -56,7 +56,12 @@ export function findNearestFreeY(node, preferredY, nodes, ignoredIds, margin, ga
 }
 
 export function isExternalSourceNode(node) {
-  return node?.kind === "input" || node?.kind === "implicit" || node?.kind === "constant";
+  return node?.kind === "input" || node?.kind === "focus-input" ||
+    node?.kind === "implicit" || node?.kind === "constant";
+}
+
+export function isOutputNode(node) {
+  return node?.kind === "output" || node?.kind === "focus-output";
 }
 
 export function round(value) {

@@ -70,6 +70,15 @@
             <label class="alias-toggle" for="collapseGroupsInput"><input id="collapseGroupsInput" type="checkbox"><span>Collapse large groups</span></label>
             <button id="collapseAllButton" class="mini-button" type="button">Collapse all groups</button>
             <button id="setFocusedRootButton" class="mini-button" type="button" title="Rebuild Focused view around the selected cell" disabled>Set selected as Focused</button>
+            <div class="focused-roots-panel" aria-label="Focused roots">
+              <div class="focused-roots-heading"><span>Focused roots</span><output id="focusedRootCount">0</output></div>
+              <div id="focusedRootsList" class="focused-roots-list" aria-live="polite">No roots</div>
+              <div class="focused-roots-actions">
+                <button id="addFocusedRootButton" class="mini-button" type="button" title="Add the selected cell to Focused roots" disabled>Add selected</button>
+                <button id="removeFocusedRootButton" class="mini-button" type="button" title="Remove the selected cell from Focused roots" disabled>Remove selected</button>
+                <button id="clearFocusedRootsButton" class="mini-button" type="button" title="Clear all Focused roots" disabled>Clear</button>
+              </div>
+            </div>
             <button id="focusSelectedButton" class="mini-button" type="button" title="Center and zoom the selected cell (F)" disabled>Focus selected cell</button>
           </section>
           <details class="panel-section collapsible-panel layout-settings-panel" open>

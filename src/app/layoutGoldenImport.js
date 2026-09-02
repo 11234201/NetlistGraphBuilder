@@ -1,3 +1,6 @@
+import { normalizeFocusedRootNodeIds, setFocusedRootNodeIds } from "./appState.js";
+import { normalizeSingleViewMode } from "./singleViewMode.js";
+
 export function resolveLayoutGoldenModule(design, imported) {
   const module = design?.modules?.find((item) => item.name === imported.moduleName);
   if (!module) {
@@ -18,10 +21,13 @@ export function applyLayoutGoldenState(state, imported) {
   const viewMode = normalizeSingleViewMode(display.viewMode);
   if (viewMode === "whole") {
     state.viewMode = "whole";
-    state.coneRootNodeId = null;
-  } else if (display.viewMode && display.coneRootNodeId) {
+    setFocusedRootNodeIds(state, []);
+  } else if (display.viewMode && (display.focusedRootNodeIds?.length || display.coneRootNodeId)) {
     state.viewMode = viewMode;
-    state.coneRootNodeId = display.coneRootNodeId;
+    setFocusedRootNodeIds(state, normalizeFocusedRootNodeIds(
+      display.focusedRootNodeIds,
+      display.coneRootNodeId
+    ), display.activeFocusedRootNodeId);
   }
   if (display.coneDepth) state.coneDepth = clamp(display.coneDepth, 1, 99);
   if (display.useFanoutHubs !== null) state.useFanoutHubs = display.useFanoutHubs;
@@ -35,4 +41,3 @@ export function applyLayoutGoldenState(state, imported) {
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }
-import { normalizeSingleViewMode } from "./singleViewMode.js";

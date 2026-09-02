@@ -2,6 +2,7 @@ import { buildNodePorts, computeBounds, getConnectionPoint, getPort, measureNode
 import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
+import { buildWireRoutes } from "./wireRoutes.js";
 
 export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
 
@@ -73,11 +74,13 @@ export class ElkLayoutProvider {
       checkCollisions: false,
       includeEmpty: true
     });
+    const wireRoutes = buildWireRoutes(positionedEdges);
     const bounds = computeBounds(positionedNodes);
     const positionedGraph = {
       ...graph,
       nodes: positionedNodes,
       edges: positionedEdges,
+      wireRoutes,
       width: Math.max(result.width || 0, bounds.width),
       height: Math.max(result.height || 0, bounds.height),
       layoutProvider: this.id

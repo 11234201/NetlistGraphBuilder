@@ -1,5 +1,6 @@
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { applyPositionedOverrides } from "../layout/positionedRouting.js";
+import { shiftWireRoutes } from "../layout/wireRoutes.js";
 
 export function layoutWorkspaceGraph(graph, options) {
   const layoutOptions = { layoutPolicy: options.layoutPolicy };
@@ -31,6 +32,7 @@ export function addWorkspaceHeadroom(graph, layoutPolicy) {
         ? { ...edge.labelPoint, y: edge.labelPoint.y + topPadding }
         : edge.labelPoint
     })),
+    wireRoutes: shiftWireRoutes(graph.wireRoutes, { y: topPadding }),
     height: Number(graph.height || 0) + topPadding
   };
 }

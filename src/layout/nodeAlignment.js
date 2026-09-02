@@ -157,11 +157,13 @@ function markUpstreamLane(nodeId, lane, laneById, incomingByTarget) {
 }
 
 function isLanePositionedNode(node) {
-  return node?.kind === "cell" || node?.kind === "assign" || node?.kind === "output";
+  return node?.kind === "cell" || node?.kind === "assign" ||
+    node?.kind === "output" || node?.kind === "focus-output";
 }
 
 function isAlignableDrivenTarget(node) {
-  return node?.kind === "cell" || node?.kind === "assign" || node?.kind === "output";
+  return node?.kind === "cell" || node?.kind === "assign" ||
+    node?.kind === "output" || node?.kind === "focus-output";
 }
 
 function isAlignableDriver(node) {

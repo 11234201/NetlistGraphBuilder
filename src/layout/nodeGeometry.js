@@ -24,7 +24,7 @@ export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
       ? Math.max(58, cellPinPitch * (pinCount + 1))
       : node.kind === "assign"
         ? 58
-        : node.kind === "input" || node.kind === "implicit" || node.kind === "constant"
+        : node.kind === "input" || node.kind === "focus-input" || node.kind === "implicit" || node.kind === "constant"
           ? DEFAULT_INPUT_NODE_HEIGHT
           : DEFAULT_PIN_NODE_HEIGHT;
   return { width, height };
@@ -39,7 +39,7 @@ export function getLeafDisplayName(value) {
 }
 
 export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
-  if (node.kind === "input" || node.kind === "implicit" || node.kind === "constant") {
+  if (node.kind === "input" || node.kind === "focus-input" || node.kind === "implicit" || node.kind === "constant") {
     return [{
       pin: node.label,
       direction: "output",
@@ -48,7 +48,7 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
       y: size.height / 2
     }];
   }
-  if (node.kind === "output") {
+  if (node.kind === "output" || node.kind === "focus-output") {
     return [{
       pin: node.label,
       direction: "input",

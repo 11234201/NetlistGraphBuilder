@@ -82,6 +82,7 @@ export function getLayoutGoldenState(value) {
 
   const layoutOptions = isRecord(golden.layoutOptions) ? golden.layoutOptions : {};
   const display = isRecord(layoutOptions.display) ? layoutOptions.display : {};
+  const focusedRootNodeIds = normalizeRootIds(display.focusedRootNodeIds, display.coneRootNodeId);
   const graphOverrides = isRecord(layoutOptions.graphOverrides)
     ? layoutOptions.graphOverrides
     : {};
@@ -103,6 +104,10 @@ export function getLayoutGoldenState(value) {
     display: {
       viewMode: normalizeViewMode(display.viewMode),
       coneRootNodeId: typeof display.coneRootNodeId === "string" ? display.coneRootNodeId : null,
+      focusedRootNodeIds,
+      activeFocusedRootNodeId: focusedRootNodeIds.includes(display.activeFocusedRootNodeId)
+        ? display.activeFocusedRootNodeId
+        : focusedRootNodeIds[0] || null,
       coneDepth: positiveInteger(display.coneDepth),
       useFanoutHubs: optionalBoolean(display.useFanoutHubs),
       collapseLargeGroups: optionalBoolean(display.collapseLargeGroups),
@@ -111,6 +116,16 @@ export function getLayoutGoldenState(value) {
         : null
     }
   };
+}
+
+function normalizeRootIds(value, legacyRootNodeId = null) {
+  const values = Array.isArray(value) && value.length > 0
+    ? value
+    : legacyRootNodeId
+      ? [legacyRootNodeId]
+      : [];
+  return [...new Set(values.filter((id) => typeof id === "string" && id.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
 }
 
 export function compareLayoutGraphs(baseGraph, adjustedGraph) {

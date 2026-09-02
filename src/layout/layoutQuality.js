@@ -1,9 +1,11 @@
 import {
   collinearSegmentsOverlap,
   getRouteSegments,
+  near,
   segmentsConflict
 } from "./orthogonalRouting.js";
 import { RouteSegmentIndex } from "./spatialIndex.js";
+import { buildWireRoutes } from "./wireRoutes.js";
 
 export function analyzeLayoutQuality(graph) {
   const routeKinds = {};
@@ -43,6 +45,18 @@ export function analyzeLayoutQuality(graph) {
 
   const conflicts = countLayoutConflicts(graph.edges || []);
   const edgeCount = graph.edges?.length || 0;
+  const wireRoutes = Array.isArray(graph.wireRoutes) && graph.wireRoutes.length > 0
+    ? graph.wireRoutes
+    : buildWireRoutes(graph.edges || []);
+  const logicalWireLength = routeLengthFromEdges(graph.edges || []);
+  const uniqueWireLength = routeLengthFromRoutes(wireRoutes);
+  const wireSegmentCount = wireRoutes.reduce((count, route) => count + (route.segments?.length || 0), 0);
+  const junctionCount = wireRoutes.reduce((count, route) => count + (route.junctions?.length || 0), 0);
+  const eliminatedDuplicateLength = Math.max(0, logicalWireLength - uniqueWireLength);
+  const renderedDuplicateLength = wireRoutes.reduce(
+    (total, route) => total + overlappingSegmentLength(route.segments || []),
+    0
+  );
   return {
     nodeCount: graph.nodes?.length || 0,
     edgeCount,
@@ -60,7 +74,14 @@ export function analyzeLayoutQuality(graph) {
     outerRouteCount,
     outerRouteRatio: ratio(outerRouteCount, edgeCount),
     routeKinds,
-    routeStrategies
+    routeStrategies,
+    wireRouteCount: wireRoutes.length,
+    wireSegmentCount,
+    junctionCount,
+    logicalWireLength: round(logicalWireLength),
+    uniqueWireLength: round(uniqueWireLength),
+    eliminatedDuplicateLength: round(eliminatedDuplicateLength),
+    renderedDuplicateLength: round(renderedDuplicateLength)
   };
 }
 
@@ -79,7 +100,14 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
     "overlapCount",
     "hiddenLabelCount",
     "outerRouteCount",
-    "outerRouteRatio"
+    "outerRouteRatio",
+    "wireRouteCount",
+    "wireSegmentCount",
+    "junctionCount",
+    "logicalWireLength",
+    "uniqueWireLength",
+    "eliminatedDuplicateLength",
+    "renderedDuplicateLength"
   ];
   return {
     base,
@@ -115,6 +143,45 @@ function routeLength(points) {
   let length = 0;
   for (let index = 0; index < points.length - 1; index += 1) {
     length += manhattanDistance(points[index], points[index + 1]);
+  }
+  return length;
+}
+
+function routeLengthFromEdges(edges) {
+  return edges.reduce((total, edge) => total + routeLength(edge.points || []), 0);
+}
+
+function routeLengthFromRoutes(routes) {
+  return routes.reduce((total, route) => total + (route.segments || [])
+    .reduce((length, segment) => length + manhattanDistance(segment.start, segment.end), 0), 0);
+}
+
+function overlappingSegmentLength(segments) {
+  let length = 0;
+  for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
+      const left = segments[leftIndex];
+      const right = segments[rightIndex];
+      const horizontal = near(left.start.y, left.end.y) && near(right.start.y, right.end.y) &&
+        near(left.start.y, right.start.y);
+      const vertical = near(left.start.x, left.end.x) && near(right.start.x, right.end.x) &&
+        near(left.start.x, right.start.x);
+      if (!horizontal && !vertical) continue;
+      const leftMinimum = horizontal
+        ? Math.min(left.start.x, left.end.x)
+        : Math.min(left.start.y, left.end.y);
+      const leftMaximum = horizontal
+        ? Math.max(left.start.x, left.end.x)
+        : Math.max(left.start.y, left.end.y);
+      const rightMinimum = horizontal
+        ? Math.min(right.start.x, right.end.x)
+        : Math.min(right.start.y, right.end.y);
+      const rightMaximum = horizontal
+        ? Math.max(right.start.x, right.end.x)
+        : Math.max(right.start.y, right.end.y);
+      length += Math.max(0, Math.min(leftMaximum, rightMaximum) -
+        Math.max(leftMinimum, rightMinimum));
+    }
   }
   return length;
 }

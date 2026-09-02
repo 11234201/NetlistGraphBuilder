@@ -32,9 +32,11 @@ test("layout Golden import restores bounded layout and display state", () => {
       },
       timingBadgeChoices: { u0: [{ pin: "Y", metric: "at" }] },
       timingBadgePositions: { u0: "top-left", invalid: 42 },
-      display: {
-        viewMode: "fanin",
-        coneRootNodeId: "cell:u0",
+        display: {
+          viewMode: "fanin",
+          coneRootNodeId: "cell:u0",
+          focusedRootNodeIds: ["cell:u1", "cell:u0"],
+          activeFocusedRootNodeId: "cell:u1",
         coneDepth: 5,
         useFanoutHubs: false,
         collapseLargeGroups: true,
@@ -54,6 +56,8 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.deepEqual(imported.timingBadgeChoices.u0, [{ pin: "Y", metric: "at" }]);
   assert.deepEqual(imported.timingBadgePositions, { u0: "top-left" });
   assert.equal(imported.display.viewMode, "fanin");
+  assert.deepEqual(imported.display.focusedRootNodeIds, ["cell:u0", "cell:u1"]);
+  assert.equal(imported.display.activeFocusedRootNodeId, "cell:u1");
   assert.equal(imported.display.coneDepth, 5);
   assert.equal(imported.display.useFanoutHubs, false);
   assert.equal(imported.display.expandedGroupIds.has("group:cells-0-49"), true);
@@ -66,6 +70,7 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.deepEqual(state.nodePositions.get("cell:u0"), { x: 160, y: 20 });
   assert.equal(state.viewMode, "focused");
   assert.equal(state.coneRootNodeId, "cell:u0");
+  assert.equal(state.activeFocusedRootNodeId, "cell:u1");
   assert.equal(state.useFanoutHubs, false);
   assert.equal(state.expandedGroupIds.has("group:cells-0-49"), true);
   assert.equal(resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, imported).name, "top");

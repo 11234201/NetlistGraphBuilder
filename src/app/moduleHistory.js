@@ -5,10 +5,18 @@ export function createModuleHistory() {
 }
 
 export function createModuleHistoryEntry(state) {
+  const focusedRootNodeIds = normalizeFocusedRootNodeIds(
+    state.focusedRootNodeIds,
+    state.coneRootNodeId
+  );
   return {
     moduleName: state.currentModule?.name || null,
     viewMode: normalizeSingleViewMode(state.viewMode),
-    coneRootNodeId: state.coneRootNodeId || null,
+    coneRootNodeId: focusedRootNodeIds[0] || state.coneRootNodeId || null,
+    focusedRootNodeIds,
+    activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
+      ? state.activeFocusedRootNodeId
+      : focusedRootNodeIds[0] || null,
     coneDepth: normalizeDepth(state.coneDepth, 3),
     faninDepth: normalizeDepth(state.faninDepth, 3),
     fanoutDepth: normalizeDepth(state.fanoutDepth, 3),
@@ -53,7 +61,12 @@ export function canStepModuleHistory(history, delta, validModuleNames = null) {
 }
 
 function sameNavigationTarget(left, right) {
-  return left.moduleName === right.moduleName && left.viewMode === right.viewMode && left.coneRootNodeId === right.coneRootNodeId;
+  return left.moduleName === right.moduleName &&
+    left.viewMode === right.viewMode &&
+    arraysEqual(
+      normalizeFocusedRootNodeIds(left.focusedRootNodeIds, left.coneRootNodeId),
+      normalizeFocusedRootNodeIds(right.focusedRootNodeIds, right.coneRootNodeId)
+    );
 }
 
 function cloneHistory(history = createModuleHistory()) {
@@ -61,11 +74,33 @@ function cloneHistory(history = createModuleHistory()) {
 }
 
 function cloneEntry(entry) {
+  const focusedRootNodeIds = normalizeFocusedRootNodeIds(entry.focusedRootNodeIds, entry.coneRootNodeId);
   return {
     ...entry,
+    coneRootNodeId: focusedRootNodeIds[0] || null,
+    focusedRootNodeIds,
+    activeFocusedRootNodeId: focusedRootNodeIds.includes(entry.activeFocusedRootNodeId)
+      ? entry.activeFocusedRootNodeId
+      : focusedRootNodeIds[0] || null,
     viewMode: normalizeSingleViewMode(entry.viewMode),
     transform: normalizeTransform(entry.transform)
   };
+}
+
+function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
+  const values = Array.isArray(value) && value.length > 0
+    ? value
+    : value && !Array.isArray(value)
+      ? [value]
+      : legacyRootNodeId
+        ? [legacyRootNodeId]
+        : [];
+  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function arraysEqual(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function normalizeDepth(value, fallback) {

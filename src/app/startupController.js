@@ -23,7 +23,7 @@ export function normalizeStartupManifest(value) {
       .map((kind) => [kind, normalizeInput(inputs[kind], kind)])),
     target: {
       ...(target.module === undefined ? {} : { module: String(target.module) }),
-      ...(target.focus === undefined ? {} : { focus: String(target.focus) }),
+      ...(target.focus === undefined ? {} : { focus: normalizeFocusTargets(target.focus) }),
       ...(target.faninDepth === undefined ? {} : { faninDepth: normalizeDepth(target.faninDepth, "faninDepth") }),
       ...(target.fanoutDepth === undefined ? {} : { fanoutDepth: normalizeDepth(target.fanoutDepth, "fanoutDepth") })
     }
@@ -40,7 +40,12 @@ export async function executeStartupManifest(manifest, handlers) {
   await handlers.ensureDesign?.(normalized.target);
   if (normalized.inputs.timing) await handlers.loadTiming?.(normalized.inputs.timing, normalized.target);
   if (normalized.target.module) await handlers.selectModule?.(normalized.target.module);
-  if (normalized.target.focus) await handlers.focusCell?.(normalized.target.focus);
+  if (Array.isArray(normalized.target.focus)) {
+    if (handlers.focusCells) await handlers.focusCells(normalized.target.focus);
+    else for (const focus of normalized.target.focus) await handlers.focusCell?.(focus);
+  } else if (normalized.target.focus) {
+    await handlers.focusCell?.(normalized.target.focus);
+  }
   await handlers.ready?.(normalized);
   return normalized;
 }
@@ -58,6 +63,15 @@ function normalizeDepth(value, label) {
     throw new Error(`Startup ${label} must be an integer from 0 to 99`);
   }
   return depth;
+}
+
+function normalizeFocusTargets(value) {
+  const values = Array.isArray(value) ? value : [value];
+  const normalized = [...new Set(values
+    .filter((item) => item !== undefined && item !== null && String(item).trim())
+    .map((item) => String(item)))];
+  if (normalized.length === 0) throw new Error("Startup target.focus must contain a cell identifier");
+  return Array.isArray(value) ? normalized : normalized[0];
 }
 
 function capitalize(value) {

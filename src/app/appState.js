@@ -15,6 +15,8 @@ export function createAppState(layoutPolicy) {
     selectedNet: null,
     viewMode: "whole",
     coneRootNodeId: null,
+    focusedRootNodeIds: [],
+    activeFocusedRootNodeId: null,
     coneDepth: 3,
     faninDepth: 3,
     fanoutDepth: 3,
@@ -69,6 +71,8 @@ export function createCompareState() {
     timingBadgeChoices: { left: {}, right: {} },
     timingBadgePositions: { left: {}, right: {} },
     outputName: null,
+    focusedRootNodeIds: { left: [], right: [] },
+    activeFocusedRootNodeId: { left: null, right: null },
     analysis: null
   };
 }
@@ -93,6 +97,8 @@ export function saveModuleWorkspace(state, moduleName) {
     graphOverrides: cloneGraphOverrides(state.graphOverrides),
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
+    focusedRootNodeIds: normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId),
+    activeFocusedRootNodeId: state.activeFocusedRootNodeId,
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
     timingBadgeChoices: cloneRecord(state.timingBadgeChoices),
@@ -108,7 +114,11 @@ export function restoreModuleWorkspace(state, moduleName) {
   state.nodeSizes = new Map(saved.nodeSizes);
   state.graphOverrides = cloneGraphOverrides(saved.graphOverrides);
   state.viewMode = normalizeSingleViewMode(saved.viewMode);
-  state.coneRootNodeId = saved.coneRootNodeId || null;
+  state.focusedRootNodeIds = normalizeFocusedRootNodeIds(saved.focusedRootNodeIds, saved.coneRootNodeId);
+  state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
+  state.activeFocusedRootNodeId = state.focusedRootNodeIds.includes(saved.activeFocusedRootNodeId)
+    ? saved.activeFocusedRootNodeId
+    : state.coneRootNodeId;
   state.faninDepth = normalizeDepth(saved.faninDepth, state.faninDepth);
   state.fanoutDepth = normalizeDepth(saved.fanoutDepth, state.fanoutDepth);
   state.timingBadgeChoices = cloneRecord(saved.timingBadgeChoices);
@@ -139,6 +149,14 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName) 
     left: { ...fresh.timingBadgePositions.left },
     right: { ...fresh.timingBadgePositions.right }
   };
+  state.compare.focusedRootNodeIds = {
+    left: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.left),
+    right: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.right)
+  };
+  state.compare.activeFocusedRootNodeId = {
+    left: fresh.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
+    right: fresh.activeFocusedRootNodeId?.right || state.compare.focusedRootNodeIds.right[0] || null
+  };
   return Boolean(saved);
 }
 
@@ -149,6 +167,8 @@ export function resetModuleWorkspace(state) {
   state.expandedGroupIds = new Set();
   state.viewMode = "whole";
   state.coneRootNodeId = null;
+  state.focusedRootNodeIds = [];
+  state.activeFocusedRootNodeId = null;
   resetTimingPresentation(state);
 }
 
@@ -183,6 +203,14 @@ function cloneCompareAdjustments(compare) {
     timingBadgePositions: {
       left: { ...compare.timingBadgePositions.left },
       right: { ...compare.timingBadgePositions.right }
+    },
+    focusedRootNodeIds: {
+      left: normalizeFocusedRootNodeIds(compare.focusedRootNodeIds?.left),
+      right: normalizeFocusedRootNodeIds(compare.focusedRootNodeIds?.right)
+    },
+    activeFocusedRootNodeId: {
+      left: compare.activeFocusedRootNodeId?.left || null,
+      right: compare.activeFocusedRootNodeId?.right || null
     }
   };
 }
@@ -216,4 +244,28 @@ function cloneLayoutPolicy(policy) {
 function normalizeDepth(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
+}
+
+export function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
+  const values = Array.isArray(value) && value.length > 0
+    ? value
+    : value && !Array.isArray(value)
+      ? [value]
+      : legacyRootNodeId
+        ? [legacyRootNodeId]
+        : [];
+  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
+export function setFocusedRootNodeIds(state, value, activeRootNodeId = null) {
+  const previousActiveRootNodeId = state.activeFocusedRootNodeId;
+  state.focusedRootNodeIds = normalizeFocusedRootNodeIds(value);
+  state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
+  state.activeFocusedRootNodeId = state.focusedRootNodeIds.includes(activeRootNodeId)
+    ? activeRootNodeId
+    : state.focusedRootNodeIds.includes(previousActiveRootNodeId)
+      ? previousActiveRootNodeId
+      : state.coneRootNodeId;
+  return state.focusedRootNodeIds;
 }
