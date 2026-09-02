@@ -2,8 +2,8 @@
 
 ## 1. 文档状态
 
-- 状态：实施中。Multi-Focused、Focused boundary 与唯一物理 wire contract 已落地；原生 net-tree
-  candidate router、Compare 交互同步和完整浏览器回归仍在后续批次。
+- 状态：实施中。Multi-Focused、Focused boundary、Compare roots 同步与唯一物理 wire contract 已落地；
+  直接从 net topology 生成 candidate router 和完整浏览器回归仍在后续批次。
 - 范围：多 Cell Focused、Focused 截断边界显示、多扇出 net 的物理路由与渲染。
 - 关联现有能力：阶段 6 的 Focused neighborhood、Search-first、Focus selected cell、fanout hub、
   Simple/Adjust/ELK 布局与 SVG 渲染。
