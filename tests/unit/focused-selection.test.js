@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveFocusedRootTarget } from "../../src/app/focusedSelection.js";
+import {
+  normalizeFocusedRootNodeIds,
+  resolveFocusedRootTarget
+} from "../../src/app/focusedSelection.js";
 
 const graph = {
   nodes: [
@@ -22,4 +25,12 @@ test("selected cells can replace the current Focused root", () => {
   ), "cell:u0");
   assert.equal(resolveFocusedRootTarget(graph, "input:a", "cell:u0", "focused"), null);
   assert.equal(resolveFocusedRootTarget(graph, "cell:missing", "cell:u0", "focused"), null);
+});
+
+test("Focused root normalization applies a named maximum deterministically", () => {
+  const roots = Array.from({ length: 5 }, (_, index) => `cell:u${index}`);
+  assert.deepEqual(
+    normalizeFocusedRootNodeIds([...roots, "cell:u1"], { maximumRoots: 3 }),
+    ["cell:u0", "cell:u1", "cell:u2"]
+  );
 });

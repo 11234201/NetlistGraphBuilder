@@ -1,5 +1,6 @@
 import { analyzeLayoutQuality, compareLayoutQuality } from "./layoutQuality.js";
 import { normalizeLayoutPolicy } from "./layoutPolicy.js";
+import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "../app/focusedViewPolicy.js";
 
 export function createLayoutGolden(graph, options = {}) {
   return {
@@ -119,13 +120,7 @@ export function getLayoutGoldenState(value) {
 }
 
 function normalizeRootIds(value, legacyRootNodeId = null) {
-  const values = Array.isArray(value) && value.length > 0
-    ? value
-    : legacyRootNodeId
-      ? [legacyRootNodeId]
-      : [];
-  return [...new Set(values.filter((id) => typeof id === "string" && id.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+  return normalizePolicyRoots(value, legacyRootNodeId);
 }
 
 export function compareLayoutGraphs(baseGraph, adjustedGraph) {

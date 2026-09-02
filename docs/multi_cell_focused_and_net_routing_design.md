@@ -31,12 +31,14 @@
   边界投影和布局入口；未提供 roots 时继续兼容 output cone。
 - 已实现：Compare active side 的 Focused roots 交互（Set/Add/Remove/Clear、chip 激活、Shift-click、
   Whole/Focused 切换）；“Sync pan / zoom”仍只控制 viewport，不隐式改变另一侧 roots。
+- 已实现：`DEFAULT_FOCUSED_VIEW_POLICY.maximumRoots = 32`，Single/Compare、session、history、Golden、
+  startup 与 workspace boundary 共用稳定去重和上限截断，防止 root 集合把 Focused 查询放大到无界。
 - 待实现：直接从 net topology 和 node obstacle 生成 trunk/tree candidate。目前的 `netTreeRouter`
   仍以 provider 已生成的逻辑 edge 路径为候选，已能净化公共 trunk 和 provider 环路，但尚未替代
   逐 edge 的 candidate 搜索与 lane 预留。
-- 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的显式匹配同步、root 上限
-  策略与完整交互浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 257 项通过；47/47 mapped fixtures 通过，累计
+- 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的显式匹配同步与完整
+  交互浏览器回归。
+- 当前验证：单进程 unit/determinism/fixture 共 258 项通过；47/47 mapped fixtures 通过，累计
   violations 为 83/120；1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
   65.2/430.7/1295.7 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
   `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。

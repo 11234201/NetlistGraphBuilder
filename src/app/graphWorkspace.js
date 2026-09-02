@@ -6,6 +6,7 @@ import { projectFocusedBoundaries } from "../analysis/focusBoundary.js";
 import { buildSchematicGraph } from "../netlist/graph.js";
 import { annotateGraphTiming } from "../timing/timingAnnotation.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
@@ -90,9 +91,5 @@ export function applyWorkspaceGraphTransforms(graph, options = {}) {
 }
 
 function normalizeRootIds(value, legacyRootNodeId) {
-  const values = Array.isArray(value) && value.length > 0
-    ? value
-    : legacyRootNodeId ? [legacyRootNodeId] : [];
-  return [...new Set(values.filter((id) => typeof id === "string" && id.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+  return normalizeFocusedRootNodeIds(value, legacyRootNodeId);
 }

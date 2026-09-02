@@ -5,6 +5,7 @@ import {
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
 import { layoutWorkspaceGraph } from "./layoutWorkspace.js";
+import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 
 export function buildCompareWorkspace(options) {
   const {
@@ -109,9 +110,7 @@ export function buildCompareWorkspace(options) {
 }
 
 function normalizeRootNodeIds(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+  return normalizeFocusedRootNodeIds(value);
 }
 
 function isPromise(value) {

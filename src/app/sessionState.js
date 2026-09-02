@@ -1,3 +1,5 @@
+import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
+
 export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
 
 export function loadSessionState(storage = globalThis.sessionStorage) {
@@ -55,13 +57,5 @@ export function createSessionSnapshot(state) {
 }
 
 function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
-  const values = Array.isArray(value) && value.length > 0
-    ? value
-    : value && !Array.isArray(value)
-      ? [value]
-      : legacyRootNodeId
-        ? [legacyRootNodeId]
-        : [];
-  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+  return normalizePolicyRoots(value, legacyRootNodeId);
 }

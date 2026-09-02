@@ -1,3 +1,5 @@
+import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
+
 export function resolveFocusedRootTarget(fullGraph, selectedNodeId, currentRootNodeId, viewMode) {
   const selected = fullGraph?.nodes?.find(
     (node) => node.id === selectedNodeId && node.kind === "cell"
@@ -8,10 +10,8 @@ export function resolveFocusedRootTarget(fullGraph, selectedNodeId, currentRootN
   return selected.id;
 }
 
-export function normalizeFocusedRootNodeIds(value) {
-  const values = Array.isArray(value) ? value : value ? [value] : [];
-  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+export function normalizeFocusedRootNodeIds(value, policy = undefined) {
+  return normalizePolicyRoots(value, null, policy);
 }
 
 export function toggleFocusedRootNodeId(rootNodeIds, nodeId) {

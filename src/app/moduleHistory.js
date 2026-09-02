@@ -1,4 +1,5 @@
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 
 export function createModuleHistory() {
   return { entries: [], index: -1 };
@@ -88,15 +89,7 @@ function cloneEntry(entry) {
 }
 
 function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
-  const values = Array.isArray(value) && value.length > 0
-    ? value
-    : value && !Array.isArray(value)
-      ? [value]
-      : legacyRootNodeId
-        ? [legacyRootNodeId]
-        : [];
-  return [...new Set(values.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
-    .sort((left, right) => left.localeCompare(right));
+  return normalizePolicyRoots(value, legacyRootNodeId);
 }
 
 function arraysEqual(left, right) {
