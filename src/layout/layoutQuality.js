@@ -52,6 +52,10 @@ export function analyzeLayoutQuality(graph) {
   const uniqueWireLength = routeLengthFromRoutes(wireRoutes);
   const wireSegmentCount = wireRoutes.reduce((count, route) => count + (route.segments?.length || 0), 0);
   const junctionCount = wireRoutes.reduce((count, route) => count + (route.junctions?.length || 0), 0);
+  const treeRouteCount = wireRoutes.filter((route) => route.topology === "tree").length;
+  const forestRouteCount = wireRoutes.filter((route) => route.topology === "forest").length;
+  const treeFallbackCount = wireRoutes.filter((route) => route.treeFallback === true).length;
+  const cycleCount = wireRoutes.reduce((count, route) => count + (Number(route.cycleCount) || 0), 0);
   const eliminatedDuplicateLength = Math.max(0, logicalWireLength - uniqueWireLength);
   const renderedDuplicateLength = wireRoutes.reduce(
     (total, route) => total + overlappingSegmentLength(route.segments || []),
@@ -78,6 +82,10 @@ export function analyzeLayoutQuality(graph) {
     wireRouteCount: wireRoutes.length,
     wireSegmentCount,
     junctionCount,
+    treeRouteCount,
+    forestRouteCount,
+    treeFallbackCount,
+    cycleCount,
     logicalWireLength: round(logicalWireLength),
     uniqueWireLength: round(uniqueWireLength),
     eliminatedDuplicateLength: round(eliminatedDuplicateLength),
@@ -104,6 +112,10 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
     "wireRouteCount",
     "wireSegmentCount",
     "junctionCount",
+    "treeRouteCount",
+    "forestRouteCount",
+    "treeFallbackCount",
+    "cycleCount",
     "logicalWireLength",
     "uniqueWireLength",
     "eliminatedDuplicateLength",

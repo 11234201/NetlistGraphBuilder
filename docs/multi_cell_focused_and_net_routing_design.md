@@ -20,6 +20,9 @@
 - 已实现：Simple、Adjust 和 ELK 输出 `wireRoutes`；同一 `(source, net)` 的完全相同或共线重叠
   segment 在 layout 边界做区间规范化，保留逐段 `logicalEdgeIds`，renderer 只消费唯一 segment，
   并绘制 junction、单一 net label 与逻辑 edge hit metadata。
+- 已实现：`netTreeRouter` 在 wire route 边界对每个 net group 做一次多源最短路径树选择；只重用
+  provider 已产生的合法 segment，不新增穿过 node 的几何；所有 target endpoint 均可达时移除
+  provider 环路并沿物理树重标注逻辑 edge ownership，不连通时保留原几何并标记 `treeFallback`。
 - 已实现：wire route 重复/重叠 validator，以及 unique wire length、junction、eliminated duplicate
   length、rendered duplicate length 等质量指标；规范化后的 `renderedDuplicateLength` 为 0。
 - 已实现：Adjust 失效粒度提升到 `(source, net)` 整组；任一分支移动或被障碍阻挡时，同组旧 trunk/
@@ -28,11 +31,12 @@
   边界投影和布局入口；未提供 roots 时继续兼容 output cone。
 - 已实现：Compare active side 的 Focused roots 交互（Set/Add/Remove/Clear、chip 激活、Shift-click、
   Whole/Focused 切换）；“Sync pan / zoom”仍只控制 viewport，不隐式改变另一侧 roots。
-- 待实现：直接按 net 生成有界 trunk/tree 候选。目前的 `wireRoutes` 是对 provider 已生成的逻辑
-  edge 路径做物理规范化，已经消除重复绘制，但尚未替代逐 edge 的 candidate 搜索与 lane 预留。
+- 待实现：直接从 net topology 和 node obstacle 生成 trunk/tree candidate。目前的 `netTreeRouter`
+  仍以 provider 已生成的逻辑 edge 路径为候选，已能净化公共 trunk 和 provider 环路，但尚未替代
+  逐 edge 的 candidate 搜索与 lane 预留。
 - 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的显式匹配同步、root 上限
   策略与完整交互浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 255 项通过；47/47 mapped fixtures 通过，累计
+- 当前验证：单进程 unit/determinism/fixture 共 257 项通过；47/47 mapped fixtures 通过，累计
   violations 为 83/120；1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
   65.2/430.7/1295.7 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
   `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。

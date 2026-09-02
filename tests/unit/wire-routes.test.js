@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildWireRoutes } from "../../src/layout/wireRoutes.js";
+import { buildNetTreeSegments } from "../../src/layout/netTreeRouter.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
@@ -34,6 +35,8 @@ function fanoutEdges(order = ["a", "b"]) {
 test("wire routes union shared fanout trunks while preserving logical ownership", () => {
   const [route] = buildWireRoutes(fanoutEdges());
   assert.equal(route.netGroupKey, "driver\u0000shared");
+  assert.equal(route.topology, "tree");
+  assert.equal(route.treeFallback, false);
   assert.deepEqual(route.logicalEdgeIds, ["edge-a", "edge-b"]);
   assert.equal(route.segments.length, 3);
   assert.deepEqual(route.segments[0].start, { x: 20, y: 40 });
@@ -46,6 +49,37 @@ test("wire routes union shared fanout trunks while preserving logical ownership"
   assert.deepEqual(route.segments[2].end, { x: 120, y: 120 });
   assert.deepEqual(route.segments[2].logicalEdgeIds, ["edge-b"]);
   assert.deepEqual(route.junctions, [{ x: 120, y: 80 }]);
+});
+
+test("net tree selection removes a provider cycle while retaining every target path", () => {
+  const segments = [
+    { start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, logicalEdgeIds: ["a"] },
+    { start: { x: 10, y: 0 }, end: { x: 10, y: 10 }, logicalEdgeIds: ["b"] },
+    { start: { x: 10, y: 10 }, end: { x: 0, y: 10 }, logicalEdgeIds: ["b"] },
+    { start: { x: 0, y: 10 }, end: { x: 0, y: 0 }, logicalEdgeIds: ["a"] }
+  ];
+  const tree = buildNetTreeSegments(segments, [
+    { id: "a", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] },
+    { id: "b", points: [{ x: 0, y: 0 }, { x: 10, y: 10 }] }
+  ]);
+
+  assert.equal(tree.topology, "tree");
+  assert.equal(tree.treeFallback, false);
+  assert.equal(tree.cycleCount, 0);
+  assert.equal(tree.segments.length, 3);
+  assert.deepEqual(tree.segments.flatMap((segment) => segment.logicalEdgeIds).toSorted(), ["a", "b", "b"]);
+});
+
+test("net tree selection keeps disconnected provider geometry as a marked fallback", () => {
+  const tree = buildNetTreeSegments([
+    { start: { x: 0, y: 0 }, end: { x: 5, y: 0 }, logicalEdgeIds: ["a"] },
+    { start: { x: 8, y: 0 }, end: { x: 10, y: 0 }, logicalEdgeIds: ["a"] }
+  ], [{ id: "a", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] }]);
+
+  assert.equal(tree.topology, "forest");
+  assert.equal(tree.treeFallback, true);
+  assert.equal(tree.reachableTargetCount, 0);
+  assert.equal(tree.segments.length, 2);
 });
 
 test("wire route geometry is invariant to logical edge order", () => {
@@ -96,4 +130,8 @@ test("layout quality reports logical fanout duplication removed from rendered ge
   assert.equal(quality.renderedDuplicateLength, 0);
   assert.equal(quality.wireSegmentCount, 3);
   assert.equal(quality.junctionCount, 1);
+  assert.equal(quality.treeRouteCount, 1);
+  assert.equal(quality.forestRouteCount, 0);
+  assert.equal(quality.treeFallbackCount, 0);
+  assert.equal(quality.cycleCount, 0);
 });

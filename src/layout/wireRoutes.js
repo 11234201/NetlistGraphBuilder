@@ -1,5 +1,6 @@
 import { getRouteSegments } from "./orthogonalRouting.js";
 import { getNetGroupKey } from "./layoutTopology.js";
+import { buildNetTreeSegments } from "./netTreeRouter.js";
 
 const GEOMETRY_EPSILON = 0.01;
 
@@ -50,6 +51,7 @@ function createWireRoute(netKey, edges) {
     .filter(Boolean));
   const merged = mergeSegments(records);
   const normalizedSegments = splitSegmentsAtJunctions(merged);
+  const tree = buildNetTreeSegments(normalizedSegments, sortedEdges);
   const labelEdge = sortedEdges.find((edge) => edge.showLabel !== false && edge.label) ||
     sortedEdges.find((edge) => edge.label) || sortedEdges[0];
   const logicalEdgeIds = sortedEdges
@@ -57,7 +59,9 @@ function createWireRoute(netKey, edges) {
     .filter((id) => id !== undefined && id !== null)
     .map(String)
     .sort((left, right) => left.localeCompare(right));
-  const labelPoint = labelEdge?.labelPoint || chooseLabelPoint(merged);
+  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, tree.segments)
+    ? labelEdge.labelPoint
+    : chooseLabelPoint(tree.segments);
 
   return {
     id: `wire:${encodeKey(netKey)}`,
@@ -67,7 +71,12 @@ function createWireRoute(netKey, edges) {
     sourceNodeId: uniqueSorted(sortedEdges.map((edge) => edge.source))[0] || null,
     sourceNodeIds: uniqueSorted(sortedEdges.map((edge) => edge.source)),
     targetNodeIds: uniqueSorted(sortedEdges.map((edge) => edge.target)),
-    segments: normalizedSegments.map((segment, index) => ({
+    topology: tree.topology,
+    treeFallback: tree.treeFallback,
+    componentCount: tree.componentCount,
+    cycleCount: tree.cycleCount,
+    reachableTargetCount: tree.reachableTargetCount,
+    segments: tree.segments.map((segment, index) => ({
       id: `wire-segment:${encodeKey(netKey)}:${index}`,
       start: segment.start,
       end: segment.end,
@@ -80,6 +89,23 @@ function createWireRoute(netKey, edges) {
     labelAnchor: labelEdge?.labelAnchor || "middle",
     showLabel: Boolean(labelEdge?.label) && labelEdge?.showLabel !== false
   };
+}
+
+function isPointOnSegments(point, segments) {
+  if (!point || !Array.isArray(segments)) return false;
+  return segments.some((segment) => {
+    const horizontal = Math.abs(segment.start.y - segment.end.y) <= GEOMETRY_EPSILON;
+    const vertical = Math.abs(segment.start.x - segment.end.x) <= GEOMETRY_EPSILON;
+    if (horizontal && Math.abs(point.y - segment.start.y) <= GEOMETRY_EPSILON) {
+      return point.x >= Math.min(segment.start.x, segment.end.x) - GEOMETRY_EPSILON &&
+        point.x <= Math.max(segment.start.x, segment.end.x) + GEOMETRY_EPSILON;
+    }
+    if (vertical && Math.abs(point.x - segment.start.x) <= GEOMETRY_EPSILON) {
+      return point.y >= Math.min(segment.start.y, segment.end.y) - GEOMETRY_EPSILON &&
+        point.y <= Math.max(segment.start.y, segment.end.y) + GEOMETRY_EPSILON;
+    }
+    return false;
+  });
 }
 
 function findJunctions(segments) {
