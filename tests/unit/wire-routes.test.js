@@ -86,6 +86,29 @@ test("wire route geometry is invariant to logical edge order", () => {
   assert.deepEqual(buildWireRoutes(fanoutEdges()), buildWireRoutes(fanoutEdges(["b", "a"])));
 });
 
+test("junction markers follow the selected physical tree", () => {
+  const [route] = buildWireRoutes([
+    {
+      id: "edge-a",
+      source: "driver",
+      target: "sink-a",
+      net: "shared",
+      label: "shared",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }]
+    },
+    {
+      id: "edge-b",
+      source: "driver",
+      target: "sink-b",
+      net: "shared",
+      label: "shared",
+      points: [{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }]
+    }
+  ]);
+
+  assert.deepEqual(route.junctions, []);
+});
+
 test("same-named nets with different drivers remain separate physical routes", () => {
   const edges = fanoutEdges();
   edges[1] = { ...edges[1], source: "other-driver" };

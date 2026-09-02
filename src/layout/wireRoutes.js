@@ -83,7 +83,11 @@ function createWireRoute(netKey, edges) {
       kind: segment.logicalEdgeIds.length > 1 ? "trunk" : "branch",
       logicalEdgeIds: [...segment.logicalEdgeIds].sort((left, right) => left.localeCompare(right))
     })),
-    junctions: findJunctions(normalizedSegments),
+    // Junction markers describe the rendered physical tree, not provider
+    // candidate geometry that was removed while selecting the tree. Using
+    // the pre-tree segments can place dots on same-net crossings that are
+    // not electrically connected in the final route.
+    junctions: findJunctions(tree.segments),
     label: labelEdge?.label || labelEdge?.net || "",
     labelPoint,
     labelAnchor: labelEdge?.labelAnchor || "middle",

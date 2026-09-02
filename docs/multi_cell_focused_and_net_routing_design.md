@@ -39,6 +39,8 @@
   reserved lane 校验；局部 lane 耗尽时不再直接回退到可能穿过中间 cell 的基础折线。
 - 已实现：反相门 output bubble 点纳入 endpoint body 回穿校验；Focused boundary 和合并后的物理
   `wireRoutes` 均检查是否穿过具体 cell/port（collapsed group summary 作为派生摘要豁免）。
+- 已实现：junction 点只从最终保留的物理 net tree 计算，避免 provider 候选线段或被裁剪的
+  同网交叉在画布上留下漂浮的误标记。
 - 已实现：输入 locality 完成后追加最小 source-body overlap 修复，避免局部化输入重新压到未连接
   input 或其他 input 上，同时不改变已有的有效 branch lane 间距。
 - 待实现：直接从 net topology 和 node obstacle 生成 trunk/tree candidate。目前的 `netTreeRouter`
