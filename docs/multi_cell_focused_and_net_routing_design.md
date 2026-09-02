@@ -3,7 +3,7 @@
 ## 1. 文档状态
 
 - 状态：实施中。Multi-Focused、Focused boundary 与唯一物理 wire contract 已落地；原生 net-tree
-  candidate router、Compare 同步和完整 mapped-case 回归仍在后续批次。
+  candidate router、Compare 交互同步和完整浏览器回归仍在后续批次。
 - 范围：多 Cell Focused、Focused 截断边界显示、多扇出 net 的物理路由与渲染。
 - 关联现有能力：阶段 6 的 Focused neighborhood、Search-first、Focus selected cell、fanout hub、
   Simple/Adjust/ELK 布局与 SVG 渲染。
@@ -22,11 +22,15 @@
   并绘制 junction、单一 net label 与逻辑 edge hit metadata。
 - 已实现：wire route 重复/重叠 validator，以及 unique wire length、junction、eliminated duplicate
   length、rendered duplicate length 等质量指标；规范化后的 `renderedDuplicateLength` 为 0。
+- 已实现：Adjust 失效粒度提升到 `(source, net)` 整组；任一分支移动或被障碍阻挡时，同组旧 trunk/
+  branch 不再作为保留路径，避免新旧几何混绘。
+- 已实现：Compare workspace 接受左右两侧独立的 root 数组与 active root，并共享同一 Focused 提取、
+  边界投影和布局入口；未提供 roots 时继续兼容 output cone。
 - 待实现：直接按 net 生成有界 trunk/tree 候选。目前的 `wireRoutes` 是对 provider 已生成的逻辑
   edge 路径做物理规范化，已经消除重复绘制，但尚未替代逐 edge 的 candidate 搜索与 lane 预留。
-- 待实现：Adjust 以整棵 net tree 为失效单位、Compare 两侧 roots 同步、root 上限策略与完整交互
-  浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 252 项通过；47/47 mapped fixtures 通过，累计
+- 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的交互同步、root 上限策略
+  与完整交互浏览器回归。
+- 当前验证：单进程 unit/determinism/fixture 共 255 项通过；47/47 mapped fixtures 通过，累计
   violations 为 83/120；1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
   65.2/430.7/1295.7 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
   `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。

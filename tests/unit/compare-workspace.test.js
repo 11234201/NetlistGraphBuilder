@@ -74,3 +74,28 @@ test("compare workspace applies layout and graph overrides independently per sid
   assert.notEqual(autoLeftCell.width, 210);
   assert.notEqual(rightCell.label, "left-adjusted");
 });
+
+test("compare workspace preserves independent multi-cell focused roots per side", () => {
+  const leftSource = `module left (a, y1, y2); input a; output y1; output y2; BUF u0 (.A(a), .Z(y1)); INV u1 (.I(a), .ZN(y2)); endmodule`;
+  const rightSource = `module right (a, y1, y2); input a; output y1; output y2; INV u0 (.I(a), .ZN(y1)); BUF u1 (.A(a), .Z(y2)); endmodule`;
+  const [leftModule] = parseVerilog(leftSource).modules;
+  const [rightModule] = parseVerilog(rightSource).modules;
+  const workspace = buildCompareWorkspace({
+    leftModule,
+    rightModule,
+    layoutProvider: getLayoutProvider(),
+    focusedRootNodeIds: {
+      left: ["cell:u1", "cell:u0"],
+      right: ["cell:u1"]
+    },
+    activeFocusedRootNodeId: { left: "cell:u1", right: "cell:u1" },
+    faninDepth: 2,
+    fanoutDepth: 2
+  });
+
+  assert.deepEqual(workspace.graphs.left.view.rootNodeIds, ["cell:u0", "cell:u1"]);
+  assert.equal(workspace.graphs.right.view.rootNodeId, "cell:u1");
+  assert.ok(workspace.graphs.left.nodes.some((node) => node.id === "cell:u0" && node.isFocusedRoot));
+  assert.ok(workspace.graphs.left.nodes.some((node) => node.id === "cell:u1" && node.isActiveFocusedRoot));
+  assert.ok(workspace.graphs.left.nodes.some((node) => node.kind === "output"));
+});

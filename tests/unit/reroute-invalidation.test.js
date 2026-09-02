@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { collectRerouteEdgeIds } from "../../src/layout/rerouteInvalidation.js";
+import {
+  collectRerouteEdgeIds,
+  expandRerouteEdgeIdsByNetGroup
+} from "../../src/layout/rerouteInvalidation.js";
 
 test("reroute invalidation includes connected and newly blocked edges", () => {
   const edges = [
@@ -57,4 +60,15 @@ test("reroute invalidation indexes large sparse route sets", () => {
 
   assert.ok(invalidated.size <= 4);
   assert.ok(invalidated.has("e2000"));
+});
+
+test("reroute invalidation expands one changed branch to its complete driver/net group", () => {
+  const edges = [
+    { id: "trunk", source: "driver", target: "sink-a", net: "shared" },
+    { id: "branch", source: "driver", target: "sink-b", net: "shared" },
+    { id: "other-driver", source: "other", target: "sink-c", net: "shared" },
+    { id: "other-net", source: "driver", target: "sink-d", net: "other" }
+  ];
+  const expanded = expandRerouteEdgeIdsByNetGroup(edges, new Set(["branch"]));
+  assert.deepEqual([...expanded].toSorted(), ["branch", "trunk"]);
 });

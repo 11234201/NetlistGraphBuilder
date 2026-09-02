@@ -53,6 +53,25 @@ test("positioned routing returns the original graph when no overrides exist", ()
   assert.equal(applyPositionedOverrides(graph), graph);
 });
 
+test("adjust reroutes every branch in an affected driver/net group", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 40, width: 92, height: 28 },
+      { id: "y1", kind: "output", label: "y1", x: 500, y: 20, width: 92, height: 36 },
+      { id: "y2", kind: "output", label: "y2", x: 500, y: 120, width: 92, height: 36 }
+    ],
+    edges: [
+      { id: "ay1", source: "a", target: "y1", net: "shared", points: [{ x: 92, y: 54 }, { x: 500, y: 38 }] },
+      { id: "ay2", source: "a", target: "y2", net: "shared", points: [{ x: 92, y: 54 }, { x: 500, y: 138 }] }
+    ]
+  };
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["y1", { x: 520, y: 180 }]])
+  });
+  assert.ok(adjusted.edges.every((edge) => edge.routeKind === "positioned-override"));
+  assert.deepEqual(adjusted.wireRoutes[0].logicalEdgeIds, ["ay1", "ay2"]);
+});
+
 test("adjust rerouting is invariant to edge array order", () => {
   const graph = {
     nodes: [

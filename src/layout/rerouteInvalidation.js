@@ -3,6 +3,7 @@ import {
   segmentIntersectsBox
 } from "./orthogonalRouting.js";
 import { createEdgeRouteSegmentIndex } from "./routeSegmentIndex.js";
+import { getNetGroupKey } from "./layoutTopology.js";
 
 export function collectRerouteEdgeIds(edges, changedNodes, changedNodeIds = null) {
   const changedIds = changedNodeIds || new Set(changedNodes.map((node) => node.id));
@@ -28,4 +29,19 @@ export function collectRerouteEdgeIds(edges, changedNodes, changedNodeIds = null
     }
   }
   return rerouteEdgeIds;
+}
+
+/**
+ * A physical wire route is shared by every logical edge in a driver/net
+ * group. Once one member is invalidated, retain no stale trunk or branch from
+ * that group in the reserved geometry.
+ */
+export function expandRerouteEdgeIdsByNetGroup(edges, rerouteEdgeIds) {
+  const affectedGroups = new Set(
+    edges.filter((edge) => rerouteEdgeIds.has(edge.id)).map(getNetGroupKey)
+  );
+  if (affectedGroups.size === 0) return new Set(rerouteEdgeIds);
+  return new Set(edges
+    .filter((edge) => affectedGroups.has(getNetGroupKey(edge)))
+    .map((edge) => edge.id));
 }

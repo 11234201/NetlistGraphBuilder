@@ -14,6 +14,8 @@ export function buildCompareWorkspace(options) {
     layoutPolicy,
     outputName = null,
     coneDepth = 3,
+    faninDepth = coneDepth,
+    fanoutDepth = coneDepth,
     showAliases = false,
     timing = null,
     timingDisplayPolicy = null,
@@ -26,6 +28,8 @@ export function buildCompareWorkspace(options) {
     useFanoutHubs = true,
     collapseLargeGroups = false,
     expandedGroupIds = new Set(),
+    focusedRootNodeIds = { left: [], right: [] },
+    activeFocusedRootNodeId = { left: null, right: null },
     moduleLibrary = []
   } = options;
   const fullGraphs = {
@@ -49,13 +53,26 @@ export function buildCompareWorkspace(options) {
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
 
   const sourceGraphs = { ...fullGraphs };
-  if (outputName) {
-    for (const side of ["left", "right"]) {
+  for (const side of ["left", "right"]) {
+    const rootNodeIds = normalizeRootNodeIds(focusedRootNodeIds?.[side]);
+    if (rootNodeIds.length > 0) {
+      sourceGraphs[side] = selectWorkspaceGraphView(fullGraphs[side], {
+        viewMode: "focused",
+        rootNodeIds,
+        activeRootNodeId: activeFocusedRootNodeId?.[side] || rootNodeIds[0],
+        faninDepth,
+        fanoutDepth
+      });
+      continue;
+    }
+    if (outputName) {
       const outputNodeId = findCompareNode(fullGraphs[side], "port", outputName, "output")?.id;
       sourceGraphs[side] = selectWorkspaceGraphView(fullGraphs[side], {
         viewMode: "fanin",
         rootNodeId: outputNodeId,
-        maxDepth: coneDepth
+        maxDepth: coneDepth,
+        faninDepth: coneDepth,
+        fanoutDepth: 0
       });
     }
   }
@@ -89,6 +106,12 @@ export function buildCompareWorkspace(options) {
     ? Promise.all([leftLayout, rightLayout]).then(finalize)
     : finalize([leftLayout, rightLayout]);
 
+}
+
+function normalizeRootNodeIds(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((nodeId) => typeof nodeId === "string" && nodeId.length > 0))]
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function isPromise(value) {

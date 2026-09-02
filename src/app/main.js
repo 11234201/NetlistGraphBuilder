@@ -815,6 +815,8 @@ function renderCompareGraphs() {
     coneDepth: state.coneDepth,
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
+    focusedRootNodeIds: state.compare.focusedRootNodeIds,
+    activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
     showAliases: state.showAliases,
     timing: state.timing,
     timingDisplayPolicy: state.timingDisplayPolicy,

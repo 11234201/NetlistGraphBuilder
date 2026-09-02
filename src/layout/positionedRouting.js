@@ -7,7 +7,10 @@ import {
 import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 import { createFanoutPriorityComparator } from "./layoutTopology.js";
-import { collectRerouteEdgeIds } from "./rerouteInvalidation.js";
+import {
+  collectRerouteEdgeIds,
+  expandRerouteEdgeIdsByNetGroup
+} from "./rerouteInvalidation.js";
 import { buildWireRoutes } from "./wireRoutes.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
@@ -22,10 +25,14 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodeIndex = createNodeSpatialIndex(nodes);
   const changedNodeIds = new Set([...nodePositions.keys(), ...nodeSizes.keys()]);
   const changedNodes = nodes.filter((node) => changedNodeIds.has(node.id));
-  const rerouteEdgeIds = collectRerouteEdgeIds(
+  const initialRerouteEdgeIds = collectRerouteEdgeIds(
     positionedGraph.edges,
     changedNodes,
     changedNodeIds
+  );
+  const rerouteEdgeIds = expandRerouteEdgeIdsByNetGroup(
+    positionedGraph.edges,
+    initialRerouteEdgeIds
   );
   const reservedSegments = new RouteSegmentIndex(positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
