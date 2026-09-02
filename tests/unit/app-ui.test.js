@@ -32,6 +32,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   assert.equal(state.collapseLargeGroups, false);
   assert.equal(state.compare.active, false);
   assert.equal(state.compare.synchronized, true);
+  assert.equal(state.compare.focusedRootsSynchronized, true);
   assert.equal(state.compare.layout, "vertical");
   assert.equal(state.layoutProviderId, "simple-layered");
   state.design = { modules: [] };
@@ -89,12 +90,16 @@ test("module and compare workspace adjustments survive switching", () => {
   state.compare.rightModuleName = "right";
   state.compare.nodePositions.right.set("cell:u1", { x: 240, y: 160 });
   state.compare.timingBadgePositions.right.u1 = "top-left";
+  state.compare.focusedRootNodeIds.left = ["cell:u0"];
+  state.compare.focusedRootsSynchronized = false;
   saveCompareWorkspace(state);
   state.compare.nodePositions.right.clear();
   state.compare.timingBadgePositions.right = {};
   assert.equal(restoreCompareWorkspace(state, "left", "right"), true);
   assert.deepEqual(state.compare.nodePositions.right.get("cell:u1"), { x: 240, y: 160 });
   assert.equal(state.compare.timingBadgePositions.right.u1, "top-left");
+  assert.deepEqual(state.compare.focusedRootNodeIds.left, ["cell:u0"]);
+  assert.equal(state.compare.focusedRootsSynchronized, false);
 });
 
 test("timing panel helpers render and update badge choices without app state", () => {
@@ -158,6 +163,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="moduleBackButton"[^>]+disabled/);
   assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
+  assert.match(html, /id="syncCompareFocusInput" type="checkbox" checked/);
   assert.match(html, /id="setFocusedRootButton"[^>]+disabled/);
   assert.match(html, /id="wireSpacingInput"[^>]+min="4"[^>]+max="96"/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="4"[^>]+max="320"/);

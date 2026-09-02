@@ -62,6 +62,7 @@ export function createCompareState() {
       right: { x: 0, y: 0, scale: 1 }
     },
     synchronized: true,
+    focusedRootsSynchronized: true,
     layout: "vertical",
     selectedName: null,
     selectedKind: null,
@@ -158,6 +159,7 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName) 
     left: fresh.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
     right: fresh.activeFocusedRootNodeId?.right || state.compare.focusedRootNodeIds.right[0] || null
   };
+  state.compare.focusedRootsSynchronized = fresh.focusedRootsSynchronized !== false;
   return Boolean(saved);
 }
 
@@ -212,7 +214,8 @@ function cloneCompareAdjustments(compare) {
     activeFocusedRootNodeId: {
       left: compare.activeFocusedRootNodeId?.left || null,
       right: compare.activeFocusedRootNodeId?.right || null
-    }
+    },
+    focusedRootsSynchronized: compare.focusedRootsSynchronized !== false
   };
 }
 
