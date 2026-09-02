@@ -10,6 +10,7 @@ import {
 import { applyNodePositionOverrides } from "./nodeOverrides.js";
 import {
   resolveExternalSourceOverlaps,
+  resolvePostLocalitySourceOverlaps,
   resolveLevelOverlaps,
   resolveOutputOverlaps
 } from "./nodeSpacing.js";
@@ -23,6 +24,7 @@ export const SIMPLE_PLACEMENT_STAGES = Object.freeze([
   "resolve-source-overlaps",
   "localize-fanout-hubs",
   "localize-single-fanout-inputs",
+  "resolve-post-locality-source-overlaps",
   "resolve-output-overlaps",
   "apply-node-overrides"
 ]);
@@ -102,6 +104,14 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
       cellSpacing
     ));
   }
+  // Locality intentionally moves external sources after the regular level
+  // sweep. Re-run the shared source collision pass so a localized input
+  // cannot land on an unconnected input (or another localized source).
+  run("resolve-post-locality-source-overlaps", () => resolvePostLocalitySourceOverlaps(
+    positionedNodes,
+    margin,
+    cellSpacing
+  ));
   run("resolve-output-overlaps", () => resolveOutputOverlaps(
     positionedNodes,
     margin,

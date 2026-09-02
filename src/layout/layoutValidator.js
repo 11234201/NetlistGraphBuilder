@@ -66,15 +66,21 @@ export function validateLayoutGraph(graph, options = {}) {
   }
 
   if (checkOverlaps) violations.push(...findNetOverlaps(edges));
-  if (Array.isArray(graph.wireRoutes)) violations.push(...findWireRouteViolations(graph.wireRoutes));
+  if (Array.isArray(graph.wireRoutes)) {
+    violations.push(...findWireRouteViolations(graph.wireRoutes, nodes, { checkObstacles }));
+  }
   return violations;
 }
 
-function findWireRouteViolations(wireRoutes) {
+function findWireRouteViolations(wireRoutes, nodes = [], options = {}) {
   const violations = [];
+  const nodeIndex = options.checkObstacles !== false && nodes.length > 0
+    ? createNodeSpatialIndex(nodes)
+    : null;
   for (const route of wireRoutes) {
     const segments = route.segments || [];
     const seen = new Set();
+    const crossedNodes = new Set();
     for (const segment of segments) {
       const horizontal = near(segment.start?.y, segment.end?.y);
       const vertical = near(segment.start?.x, segment.end?.x);
@@ -94,6 +100,21 @@ function findWireRouteViolations(wireRoutes) {
         violations.push(violation(route, "wire-route-duplicate-segment", "Wire route contains a duplicate physical segment"));
       }
       seen.add(key);
+
+      for (const node of nodeIndex?.query(segmentBox(segment)) || []) {
+        // Collapsed groups are visual summaries of hidden cells. Their
+        // boundary routes are intentionally allowed to pass through the
+        // summary box; validate the concrete cell/port geometry instead.
+        if (node.kind === "group") continue;
+        if (crossedNodes.has(node.id) || !segmentCrossesNodeBody(segment, node)) continue;
+        crossedNodes.add(node.id);
+        violations.push(violation(
+          route,
+          "wire-route-node-crossing",
+          `Physical wire route crosses node ${node.id}`,
+          { nodeId: node.id }
+        ));
+      }
     }
     for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
       for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
@@ -106,6 +127,23 @@ function findWireRouteViolations(wireRoutes) {
     }
   }
   return violations;
+}
+
+function segmentCrossesNodeBody(segment, node) {
+  if (!segment?.start || !segment?.end || !node) return false;
+  if (near(segment.start.y, segment.end.y)) {
+    return segment.start.y > node.y &&
+      segment.start.y < node.y + node.height &&
+      Math.max(segment.start.x, segment.end.x) > node.x &&
+      Math.min(segment.start.x, segment.end.x) < node.x + node.width;
+  }
+  if (near(segment.start.x, segment.end.x)) {
+    return segment.start.x > node.x &&
+      segment.start.x < node.x + node.width &&
+      Math.max(segment.start.y, segment.end.y) > node.y &&
+      Math.min(segment.start.y, segment.end.y) < node.y + node.height;
+  }
+  return true;
 }
 
 function findBlockingNode(points, nodeIndex, source, target, padding) {

@@ -120,6 +120,43 @@ test("layout validation accepts normalized unique physical segments", () => {
   assert.deepEqual(violations, []);
 });
 
+test("layout validation rejects a physical route that crosses a node body", () => {
+  const [route] = buildWireRoutes([{
+    id: "edge-crossing",
+    source: "input:a",
+    target: "output:y",
+    net: "a",
+    label: "a",
+    points: [{ x: 20, y: 50 }, { x: 180, y: 50 }]
+  }]);
+  const violations = validateLayoutGraph({
+    nodes: [{ id: "cell:blocker", kind: "cell", x: 80, y: 20, width: 40, height: 60 }],
+    edges: [],
+    wireRoutes: [route]
+  }, { checkOverlaps: false });
+
+  assert.deepEqual(violations.map((violation) => violation.code), ["wire-route-node-crossing"]);
+  assert.equal(violations[0].nodeId, "cell:blocker");
+});
+
+test("physical route validation allows a segment that terminates at a node boundary", () => {
+  const [route] = buildWireRoutes([{
+    id: "edge-terminal",
+    source: "input:a",
+    target: "cell:u0",
+    net: "a",
+    label: "a",
+    points: [{ x: 20, y: 50 }, { x: 80, y: 50 }]
+  }]);
+  const violations = validateLayoutGraph({
+    nodes: [{ id: "cell:u0", kind: "cell", x: 80, y: 20, width: 40, height: 60 }],
+    edges: [],
+    wireRoutes: [route]
+  }, { checkOverlaps: false });
+
+  assert.deepEqual(violations, []);
+});
+
 test("layout quality reports logical fanout duplication removed from rendered geometry", () => {
   const edges = fanoutEdges();
   const wireRoutes = buildWireRoutes(edges);

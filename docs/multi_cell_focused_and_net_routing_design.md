@@ -35,13 +35,20 @@
   Add/Set/Remove/Clear/Shift-click 映射到另一侧，缺失匹配 cell 时保留 active side 并给出非阻塞状态提示。
 - 已实现：`DEFAULT_FOCUSED_VIEW_POLICY.maximumRoots = 32`，Single/Compare、session、history、Golden、
   startup 与 workspace boundary 共用稳定去重和上限截断，防止 root 集合把 Focused 查询放大到无界。
+- 已实现：Simple 路由的 bounded outer fallback 对完整候选重新执行 node obstacle、endpoint side 和
+  reserved lane 校验；局部 lane 耗尽时不再直接回退到可能穿过中间 cell 的基础折线。
+- 已实现：反相门 output bubble 点纳入 endpoint body 回穿校验；Focused boundary 和合并后的物理
+  `wireRoutes` 均检查是否穿过具体 cell/port（collapsed group summary 作为派生摘要豁免）。
+- 已实现：输入 locality 完成后追加最小 source-body overlap 修复，避免局部化输入重新压到未连接
+  input 或其他 input 上，同时不改变已有的有效 branch lane 间距。
 - 待实现：直接从 net topology 和 node obstacle 生成 trunk/tree candidate。目前的 `netTreeRouter`
   仍以 provider 已生成的逻辑 edge 路径为候选，已能净化公共 trunk 和 provider 环路，但尚未替代
   逐 edge 的 candidate 搜索与 lane 预留。
 - 待实现：直接按 net 生成有界 trunk/tree candidate 与完整交互浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 258 项通过；47/47 mapped fixtures 通过，累计
-  violations 为 83/120；1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
-  65.2/430.7/1295.7 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
+- 当前验证：单进程 unit/determinism/fixture 共 263 项通过；Focused boundary、locality overlap、
+  bubble endpoint 和 physical wire obstacle 均有回归测试；dp_001、dp_007 等 mapped case 定向
+  检查通过既有预算。1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
+  70.5/427.3/1345.9 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
   `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。
 
 ## 2. 当前问题与结论

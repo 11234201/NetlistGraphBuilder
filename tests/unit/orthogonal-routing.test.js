@@ -72,6 +72,16 @@ test("endpoint access rejects routes that re-enter either endpoint body", () => 
   ], source, target), true);
 });
 
+test("endpoint access rejects re-entry from an inverter bubble point", () => {
+  const bubbledSource = { ...source, kind: "cell" };
+  assert.equal(routePreservesEndpointAccess([
+    { x: 90, y: 54 },
+    { x: 40, y: 54 },
+    { x: 40, y: 136 },
+    { x: 200, y: 136 }
+  ], bubbledSource, target), false);
+});
+
 test("shared conflict counting treats crossings and overlaps consistently", () => {
   const reserved = [
     { start: { x: 100, y: 20 }, end: { x: 100, y: 80 }, net: "other" },

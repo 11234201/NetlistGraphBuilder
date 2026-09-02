@@ -272,15 +272,83 @@ export function findObstacleAvoidingRoute(context) {
     })) return fallbackCandidate;
   }
 
-  return createRoute("obstacle-lane", [
-    sourcePoint,
-    { x: baseSourceLaneX, y: sourcePoint.y },
-    { x: baseSourceLaneX, y: yCandidates[0] ?? preferredLaneY },
-    { x: baseTargetLaneX, y: yCandidates[0] ?? preferredLaneY },
-    { x: baseTargetLaneX, y: routeTargetPoint.y },
-    routeTargetPoint,
-    targetPoint
+  // The bounded offset search above is deliberately local. On a dense
+  // focused cone it can exhaust all offsets even though an unbounded outer
+  // corridor is available. Never return the old base-lane route here: that
+  // route may cut through an intermediate cell. Try constant-size outer
+  // combinations and validate the complete path before accepting one.
+  let firstNodeSafeCandidate = null;
+  for (const laneY of getOuterLaneYs(nodes, margin, clearance, globalLaneGeometry)) {
+    for (const sourceLaneX of getOuterLaneXs(
+      baseSourceLaneX,
+      source,
+      nodes,
+      clearance,
+      margin
+    )) {
+      for (const targetLaneX of getOuterLaneXs(
+        baseTargetLaneX,
+        target,
+        nodes,
+        clearance,
+        margin
+      )) {
+        const candidate = createGlobalLaneRoute(
+          sourcePoint,
+          targetPoint,
+          routeTargetPoint,
+          sourceLaneX,
+          targetLaneX,
+          laneY
+        );
+        if (!routeCandidateIsUsable(candidate.points, {
+          source,
+          target,
+          sourcePoint,
+          targetPoint,
+          nodeIndex
+        })) continue;
+        firstNodeSafeCandidate ??= candidate;
+        if (routeOverlapsReserved(candidate.points, net, reservedSegments)) continue;
+        return candidate;
+      }
+    }
+  }
+
+  // A dense reservation map can occupy every outer corridor while a route
+  // that is clear of node bodies still exists. Preserve the physical safety
+  // guarantee and accept that candidate rather than falling back to a direct
+  // segment through a visible cell.
+  if (firstNodeSafeCandidate) return firstNodeSafeCandidate;
+
+  // A graph with no valid outer candidate is geometrically unsatisfiable
+  // under the current endpoint-side contract. Keep the failure explicit and
+  // bounded rather than silently emitting a node-crossing route.
+  return createRoute("obstacle-lane", [sourcePoint, targetPoint]);
+}
+
+function getOuterLaneYs(nodes, margin, clearance, preparedGeometry) {
+  const geometry = preparedGeometry || prepareGlobalLaneGeometry(nodes, clearance);
+  const padding = Math.max(Number(margin) || 0, Number(clearance) || 0) + clearance;
+  return uniqueRoundedNumbers([
+    geometry.minTop - padding,
+    geometry.maxBottom + padding
   ]);
+}
+
+function getOuterLaneXs(baseLaneX, node, nodes, clearance, margin) {
+  let left = node.x;
+  let right = node.x + node.width;
+  for (const candidate of nodes || []) {
+    left = Math.min(left, candidate.x);
+    right = Math.max(right, candidate.x + candidate.width);
+  }
+  const padding = Math.max(Number(margin) || 0, Number(clearance) || 0) + clearance;
+  left -= padding;
+  right += padding;
+  const preferredSide = baseLaneX < node.x ? "left" : "right";
+  const directionalOuter = preferredSide === "left" ? left : right;
+  return uniqueRoundedNumbers([baseLaneX, directionalOuter, preferredSide === "left" ? right : left]);
 }
 
 function createGlobalLaneRoute(
@@ -388,7 +456,10 @@ function findClearVerticalLaneX(
   reservedSegments = [],
   net
 ) {
-  const offsets = [0, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
+  // Include small offsets so a lane can fit in the narrow gap between an
+  // endpoint and a nearby port node. The larger offsets remain the bounded
+  // escape path for dense layouts.
+  const offsets = [0, 4, -4, 8, -8, 12, -12, 16, -16, 20, -20, 24, -24, 48, -48, 72, -72, 96, -96, 144, -144, 192, -192];
   let firstClearX = null;
   const hasReservedSegments = reservedSegments && reservedSegments.length > 0;
   for (const offset of offsets) {

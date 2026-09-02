@@ -17,6 +17,7 @@ import { snapNodePosition, snapToGrid } from "../../src/layout/snap.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { selectWorkspaceGraphView } from "../../src/app/graphWorkspace.js";
 import { createStandaloneSvg } from "../../src/render/svgExport.js";
 import { annotateGraphTiming } from "../../src/timing/timingAnnotation.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
@@ -295,6 +296,35 @@ test("fixture input edges stay clear of intermediate cells", async () => {
 
   assert.ok(inputEdges.length >= 2);
   assert.equal(edgesCrossingNonEndpoints({ ...laidOut, edges: inputEdges }).length, 0);
+});
+
+test("focused boundary output routes around visible cells and ports", async () => {
+  const source = await readFile(hierarchicalFixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) =>
+    item.name === "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7"
+  );
+  const graph = selectWorkspaceGraphView(
+    buildSchematicGraph(module, { moduleLibrary: design.modules }),
+    {
+      viewMode: "focused",
+      rootNodeIds: ["cell:u_dp_add_0_GNUWA_DYNAMIC_ADDER_gen_1134_0"],
+      faninDepth: 2,
+      fanoutDepth: 2
+    }
+  );
+  const laidOut = layoutGraph(graph);
+
+  assert.equal(validateLayoutGraph(laidOut).length, 0);
+  assert.equal(overlappingNodes(laidOut).length, 0);
+});
+
+test("localized input remains separate from an unconnected input", () => {
+  const source = "module m(clk,data_in,y); input clk,data_in; output y; " +
+    "BUF u0 (.A(data_in),.Z(y)); endmodule";
+  const graph = layoutGraph(buildSchematicGraph(parseVerilog(source).modules[0]));
+
+  assert.equal(overlappingNodes(graph).length, 0);
 });
 
 test("fanout routing space follows configurable wire lane spacing", () => {

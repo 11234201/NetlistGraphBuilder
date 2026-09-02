@@ -15,6 +15,30 @@ export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
   stackNodesVertically(sources, margin, gap);
 }
 
+/**
+ * Resolve only actual source-body intersections after a locality pass.
+ *
+ * The regular source sweep also restores the requested visual gap, which can
+ * move an otherwise intentional branch lane. A post-locality pass should be
+ * a minimal repair: change a source only when it overlaps an earlier source.
+ */
+export function resolvePostLocalitySourceOverlaps(nodes, margin, gap = 0) {
+  const sources = nodes
+    .filter(isExternalSourceNode)
+    .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
+  const placed = [];
+  for (const source of sources) {
+    const blockers = placed.filter((candidate) =>
+      horizontalRangesOverlap(source, candidate) &&
+      verticalRangesOverlap(source, candidate, gap)
+    );
+    if (blockers.length > 0) {
+      source.y = findNearestFreeY(source, source.y, blockers, new Set([source.id]), margin, gap);
+    }
+    placed.push(source);
+  }
+}
+
 export function resolveLevelOverlaps(
   nodes,
   levelKeys,
@@ -174,4 +198,12 @@ function getLevelCongestion(leftNodes, rightNodes, pressure) {
   const maxPins = Math.max(0, ...[...leftNodes, ...rightNodes].map((node) => node.ref?.pins?.length || 0));
   const density = Math.max(leftNodes.length, rightNodes.length);
   return Math.min(64, Math.max(0, pressure - 1) * 2 + Math.max(0, maxPins - 4) * 2 + Math.max(0, density - 8));
+}
+
+function horizontalRangesOverlap(left, right, gap = 0) {
+  return left.x < right.x + right.width + gap && left.x + left.width + gap > right.x;
+}
+
+function verticalRangesOverlap(left, right, gap = 0) {
+  return left.y < right.y + right.height + gap && left.y + left.height + gap > right.y;
 }

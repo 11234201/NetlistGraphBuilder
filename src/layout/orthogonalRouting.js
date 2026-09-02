@@ -39,12 +39,16 @@ export function routePreservesEndpointAccess(points, source, target) {
   if (!Array.isArray(points) || points.length < 2) return false;
   const sourceBox = nodeBox(source);
   const targetBox = nodeBox(target);
+  const sourcePoint = points[0];
+  const targetPoint = points.at(-1);
   const lastSegment = points.length - 2;
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
     const end = points[index + 1];
-    if (index !== 0 && orthogonalSegmentIntersectsBox(start, end, sourceBox)) return false;
-    if (index !== lastSegment && orthogonalSegmentIntersectsBox(start, end, targetBox)) return false;
+    if (orthogonalSegmentIntersectsBox(start, end, sourceBox) &&
+      (index !== 0 || pointOutsideNode(sourcePoint, sourceBox))) return false;
+    if (orthogonalSegmentIntersectsBox(start, end, targetBox) &&
+      (index !== lastSegment || pointOutsideNode(targetPoint, targetBox))) return false;
   }
   return true;
 }
@@ -209,6 +213,11 @@ function entersBoundarySide(previous, node, point) {
 
 function inside(value, minimum, maximum) {
   return value > minimum + EPSILON && value < maximum - EPSILON;
+}
+
+function pointOutsideNode(point, box) {
+  return point.x < box.left - EPSILON || point.x > box.right + EPSILON ||
+    point.y < box.top - EPSILON || point.y > box.bottom + EPSILON;
 }
 
 function rangesOverlapStrict(a1, a2, b1, b2) {
