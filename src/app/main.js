@@ -1101,6 +1101,10 @@ function isPromise(value) {
 
 function setViewMode(mode) {
   mode = normalizeSingleViewMode(mode);
+  if (state.compare.active) {
+    setCompareViewMode(mode);
+    return;
+  }
   if (mode !== "whole" && mode !== "search-first") {
     const existingRootNodeIds = normalizeFocusedRootNodeIds(
       state.focusedRootNodeIds,
@@ -1130,6 +1134,35 @@ function setViewMode(mode) {
   setStatus(message);
 }
 
+function setCompareViewMode(mode) {
+  const context = getFocusedRootContext();
+  if (mode === "focused") {
+    if (context.roots.length === 0) {
+      const selected = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+      if (!selected) {
+        setStatus("Select a compare cell before opening Focused view");
+        return;
+      }
+      setCompareFocusedRootNodeIds(context.side, [selected.id], selected.id);
+    }
+    state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(`Compare ${context.side} Focused: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
+    return;
+  }
+  if (mode === "whole") {
+    for (const side of ["left", "right"]) {
+      setCompareFocusedRootNodeIds(side, []);
+      state.compare.transforms[side] = { x: 0, y: 0, scale: 1 };
+    }
+    state.compare.outputName = null;
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus("Whole compare modules");
+  }
+}
+
 function handleConeDepthChange(event) {
   state.coneDepth = clamp(Math.floor(Number(event.target.value) || 1), 1, 99);
   elements.coneDepthInput.value = String(state.coneDepth);
@@ -1149,7 +1182,12 @@ function handleFocusedDepthChange() {
   state.fanoutDepth = clamp(Math.floor(Number(elements.fanoutDepthInput.value) || 0), 0, 99);
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
-  if (state.viewMode === "focused") setViewMode("focused");
+  if (state.compare.active) {
+    if (state.compare.focusedRootNodeIds.left.length > 0 || state.compare.focusedRootNodeIds.right.length > 0) {
+      renderCompareGraphs();
+      renderStats();
+    }
+  } else if (state.viewMode === "focused") setViewMode("focused");
   else persistSession();
 }
 
@@ -1180,13 +1218,20 @@ function handleAliasVisibilityChange(event) {
 }
 
 function updateViewControls() {
-  const hasRoot = Boolean(state.selectedNodeId || state.focusedRootNodeIds.length || state.coneRootNodeId);
-  elements.wholeViewButton.classList.toggle("is-active", state.viewMode === "whole");
-  elements.focusedViewButton.classList.toggle("is-active", state.viewMode === "focused");
+  const focusedContext = getFocusedRootContext();
+  const selectedCompareCell = state.compare.active && state.compare.selectedKind === "cell";
+  const hasRoot = state.compare.active
+    ? focusedContext.roots.length > 0 || selectedCompareCell
+    : Boolean(state.selectedNodeId || state.focusedRootNodeIds.length || state.coneRootNodeId);
+  const isFocused = state.compare.active
+    ? focusedContext.roots.length > 0
+    : state.viewMode === "focused";
+  elements.wholeViewButton.classList.toggle("is-active", state.compare.active ? !isFocused : state.viewMode === "whole");
+  elements.focusedViewButton.classList.toggle("is-active", isFocused);
   elements.focusedViewButton.disabled = !hasRoot;
   elements.coneDepthInput.disabled = !state.compare.active || !state.compare.outputName;
-  elements.faninDepthInput.disabled = state.viewMode !== "focused";
-  elements.fanoutDepthInput.disabled = state.viewMode !== "focused";
+  elements.faninDepthInput.disabled = state.compare.active ? !isFocused : state.viewMode !== "focused";
+  elements.fanoutDepthInput.disabled = state.compare.active ? !isFocused : state.viewMode !== "focused";
   elements.showAliasesInput.checked = state.showAliases;
   elements.fanoutHubsInput.checked = state.useFanoutHubs;
   elements.collapseGroupsInput.checked = state.collapseLargeGroups;
@@ -1198,22 +1243,72 @@ function updateViewControls() {
 }
 
 function updateFocusedRootControl() {
-  const target = state.compare.active ? null : resolveFocusedRootTarget(
-    state.fullGraph,
-    state.selectedNodeId,
-    state.focusedRootNodeIds,
-    state.viewMode
-  );
+  const focusedContext = getFocusedRootContext();
+  const target = state.compare.active
+    ? (state.compare.selectedKind === "cell"
+      ? findCompareNode(focusedContext.fullGraph, "cell", state.compare.selectedName)?.id || null
+      : null)
+    : resolveFocusedRootTarget(
+      state.fullGraph,
+      state.selectedNodeId,
+      state.focusedRootNodeIds,
+      state.viewMode
+    );
   elements.setFocusedRootButton.disabled = !target;
-  const selectedCell = state.fullGraph?.nodes.some(
-    (node) => node.id === state.selectedNodeId && node.kind === "cell"
-  );
-  elements.addFocusedRootButton.disabled = state.compare.active || !selectedCell || state.focusedRootNodeIds.includes(state.selectedNodeId);
-  elements.removeFocusedRootButton.disabled = state.compare.active || !selectedCell || !state.focusedRootNodeIds.includes(state.selectedNodeId);
-  elements.clearFocusedRootsButton.disabled = state.compare.active || state.focusedRootNodeIds.length === 0;
+  const selectedCell = state.compare.active
+    ? Boolean(target)
+    : state.fullGraph?.nodes.some(
+      (node) => node.id === state.selectedNodeId && node.kind === "cell"
+    );
+  elements.addFocusedRootButton.disabled = !selectedCell || focusedContext.roots.includes(target || state.selectedNodeId);
+  elements.removeFocusedRootButton.disabled = !selectedCell || !focusedContext.roots.includes(target || state.selectedNodeId);
+  elements.clearFocusedRootsButton.disabled = focusedContext.roots.length === 0;
+}
+
+function getFocusedRootContext() {
+  if (state.compare.active) {
+    const side = state.compare.selectedSide || "left";
+    return {
+      compare: true,
+      side,
+      fullGraph: state.compare.fullGraphs?.[side] || state.compare.graphs?.[side],
+      graph: state.compare.graphs?.[side],
+      roots: normalizeFocusedSelectionRoots(state.compare.focusedRootNodeIds?.[side]),
+      activeRootNodeId: state.compare.activeFocusedRootNodeId?.[side] || null
+    };
+  }
+  return {
+    compare: false,
+    side: null,
+    fullGraph: state.fullGraph,
+    graph: state.graph,
+    roots: normalizeFocusedSelectionRoots(state.focusedRootNodeIds),
+    activeRootNodeId: state.activeFocusedRootNodeId
+  };
+}
+
+function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
+  if (!state.compare.focusedRootNodeIds[side]) state.compare.focusedRootNodeIds[side] = [];
+  if (!state.compare.activeFocusedRootNodeId) {
+    state.compare.activeFocusedRootNodeId = { left: null, right: null };
+  }
+  const previousActive = state.compare.activeFocusedRootNodeId[side];
+  const roots = normalizeFocusedSelectionRoots(value);
+  state.compare.focusedRootNodeIds[side] = roots;
+  state.compare.activeFocusedRootNodeId[side] = roots.includes(activeRootNodeId)
+    ? activeRootNodeId
+    : roots.includes(previousActive)
+      ? previousActive
+      : roots[0] || null;
+  state.compare.outputName = null;
+  return roots;
 }
 
 function setSelectedAsFocusedRoot() {
+  if (state.compare.active) {
+    setSelectedCompareAsFocusedRoot();
+    return;
+  }
   const nodeId = resolveFocusedRootTarget(
     state.fullGraph,
     state.selectedNodeId,
@@ -1240,11 +1335,26 @@ function setSelectedAsFocusedRoot() {
   });
 }
 
+function setSelectedCompareAsFocusedRoot() {
+  const context = getFocusedRootContext();
+  const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+  if (!node) return;
+  setCompareFocusedRootNodeIds(context.side, [node.id], node.id);
+  state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  renderCompareGraphs();
+  setStatus(`Focused compare ${context.side} view around ${node.label}`);
+}
+
 function addSelectedAsFocusedRoot() {
+  if (state.compare.active) {
+    addSelectedCompareAsFocusedRoot();
+    return;
+  }
   const node = state.fullGraph?.nodes.find(
     (item) => item.id === state.selectedNodeId && item.kind === "cell"
   );
-  if (!node || state.compare.active || state.focusedRootNodeIds.includes(node.id)) return;
+  if (!node || state.focusedRootNodeIds.includes(node.id)) return;
   const requestId = ++state.selectionFocusRequestId;
   setFocusedRootNodeIds(state, [...state.focusedRootNodeIds, node.id], node.id);
   state.viewMode = "focused";
@@ -1260,9 +1370,24 @@ function addSelectedAsFocusedRoot() {
   });
 }
 
+function addSelectedCompareAsFocusedRoot() {
+  const context = getFocusedRootContext();
+  const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+  if (!node || context.roots.includes(node.id)) return;
+  setCompareFocusedRootNodeIds(context.side, [...context.roots, node.id], node.id);
+  state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  renderCompareGraphs();
+  setStatus(`Added ${node.label} to Compare ${context.side} Focused roots`);
+}
+
 function removeSelectedFromFocusedRoots() {
+  if (state.compare.active) {
+    removeSelectedCompareFocusedRoot();
+    return;
+  }
   const nodeId = state.selectedNodeId;
-  if (state.compare.active || !state.focusedRootNodeIds.includes(nodeId)) return;
+  if (!state.focusedRootNodeIds.includes(nodeId)) return;
   const nextRoots = state.focusedRootNodeIds.filter((id) => id !== nodeId);
   setFocusedRootNodeIds(state, nextRoots);
   if (nextRoots.length === 0) {
@@ -1276,8 +1401,32 @@ function removeSelectedFromFocusedRoots() {
   setStatus(nextRoots.length ? "Removed selected Focused root" : "Cleared final Focused root");
 }
 
+function removeSelectedCompareFocusedRoot() {
+  const context = getFocusedRootContext();
+  const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+  if (!node || !context.roots.includes(node.id)) return;
+  const roots = context.roots.filter((nodeId) => nodeId !== node.id);
+  setCompareFocusedRootNodeIds(context.side, roots);
+  state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  renderCompareGraphs();
+  setStatus(roots.length
+    ? `Removed ${node.label} from Compare ${context.side} Focused roots`
+    : `Cleared Compare ${context.side} Focused roots`);
+}
+
 function clearFocusedRoots() {
-  if (state.compare.active || state.focusedRootNodeIds.length === 0) return;
+  if (state.compare.active) {
+    const context = getFocusedRootContext();
+    if (context.roots.length === 0) return;
+    setCompareFocusedRootNodeIds(context.side, []);
+    state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(`Compare ${context.side} Focused roots cleared`);
+    return;
+  }
+  if (state.focusedRootNodeIds.length === 0) return;
   setFocusedRootNodeIds(state, []);
   state.viewMode = shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD)
     ? "search-first" : "whole";
@@ -1287,6 +1436,10 @@ function clearFocusedRoots() {
 }
 
 function handleFocusedRootListClick(event) {
+  if (state.compare.active) {
+    handleCompareFocusedRootListClick(event);
+    return;
+  }
   const removeButton = event.target.closest?.("[data-focused-root-remove]");
   if (removeButton) {
     const nodeId = removeButton.dataset.focusedRootRemove;
@@ -1320,9 +1473,41 @@ function handleFocusedRootListClick(event) {
   });
 }
 
+function handleCompareFocusedRootListClick(event) {
+  const context = getFocusedRootContext();
+  const removeButton = event.target.closest?.("[data-focused-root-remove]");
+  if (removeButton) {
+    const nodeId = removeButton.dataset.focusedRootRemove;
+    if (!context.roots.includes(nodeId)) return;
+    setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId));
+    state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(`Removed Compare ${context.side} Focused root: ${nodeId}`);
+    return;
+  }
+  const chip = event.target.closest?.("[data-focused-root-activate]");
+  const nodeId = chip?.dataset.focusedRootActivate;
+  if (!context.roots.includes(nodeId)) return;
+  state.compare.activeFocusedRootNodeId[context.side] = nodeId;
+  state.compare.selectedSide = context.side;
+  const node = context.graph?.nodes.find((item) => item.id === nodeId);
+  if (node) {
+    const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
+    focusPositionedCell(node, mount, state.compare.transforms[context.side], (transform) => {
+      state.compare.transforms[context.side] = transform;
+    });
+    applyCompareTransforms();
+    selectCompareObject("cell", getCompareNodeName(node), false, context.side);
+  }
+  updateViewControls();
+  setStatus(`Active Compare ${context.side} Focused root: ${node?.label || nodeId}`);
+}
+
 function renderFocusedRootList() {
   if (!elements.focusedRootsList || !elements.focusedRootCount) return;
-  const roots = normalizeFocusedSelectionRoots(state.focusedRootNodeIds);
+  const context = getFocusedRootContext();
+  const roots = context.roots;
   elements.focusedRootCount.value = String(roots.length);
   elements.focusedRootCount.textContent = String(roots.length);
   if (roots.length === 0) {
@@ -1330,10 +1515,11 @@ function renderFocusedRootList() {
     return;
   }
   elements.focusedRootsList.innerHTML = roots.map((nodeId) => {
-    const node = state.fullGraph?.nodes.find((item) => item.id === nodeId);
+    const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
     const label = node?.label || nodeId.replace(/^cell:/, "");
-    const activeClass = nodeId === state.activeFocusedRootNodeId ? " is-active" : "";
-    return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(nodeId)}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${escapeHtml(label)}</span><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
+    const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
+    const title = context.compare ? `${context.side}: ${nodeId}` : nodeId;
+    return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${context.compare ? `${escapeHtml(context.side)}: ` : ""}${escapeHtml(label)}</span><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
   }).join("");
 }
 
@@ -2056,7 +2242,7 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
   state.compare.selectedKind = kind;
   state.compare.selectedName = name;
   state.compare.selectedSide = selectedSide;
-  updateFocusSelectedControl();
+  updateViewControls();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {
     const mount = side === "left" ? elements.leftMount : elements.rightMount;
@@ -2739,6 +2925,11 @@ function handleComparePointerDown(event) {
       startCompareNodeDrag(event, side, graphNode);
       return;
     }
+    if (event.shiftKey && graphNode?.kind === "cell") {
+      selectCompareObject("cell", getCompareNodeName(graphNode), false, side);
+      toggleCompareFocusedRoot(side, graphNode.id);
+      return;
+    }
     selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode), true, side);
     return;
   }
@@ -2760,6 +2951,19 @@ function handleComparePointerDown(event) {
     onMove: (moveEvent) => panFrames.schedule(pointerClientPoint(moveEvent)),
     onEnd: () => panFrames.flush()
   });
+}
+
+function toggleCompareFocusedRoot(side, nodeId) {
+  const roots = normalizeFocusedSelectionRoots(state.compare.focusedRootNodeIds?.[side]);
+  const nextRoots = toggleFocusedRootNodeId(roots, nodeId);
+  setCompareFocusedRootNodeIds(side, nextRoots, nextRoots.includes(nodeId) ? nodeId : null);
+  state.compare.transforms[side] = { x: 0, y: 0, scale: 1 };
+  updateViewControls();
+  renderCompareGraphs();
+  const node = state.compare.fullGraphs?.[side]?.nodes.find((item) => item.id === nodeId);
+  setStatus(nextRoots.includes(nodeId)
+    ? `Added Compare ${side} Focused root: ${node?.label || nodeId}`
+    : `Removed Compare ${side} Focused root: ${node?.label || nodeId}`);
 }
 
 function startCompareNodeDrag(event, side, node) {

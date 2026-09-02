@@ -26,10 +26,12 @@
   branch 不再作为保留路径，避免新旧几何混绘。
 - 已实现：Compare workspace 接受左右两侧独立的 root 数组与 active root，并共享同一 Focused 提取、
   边界投影和布局入口；未提供 roots 时继续兼容 output cone。
+- 已实现：Compare active side 的 Focused roots 交互（Set/Add/Remove/Clear、chip 激活、Shift-click、
+  Whole/Focused 切换）；“Sync pan / zoom”仍只控制 viewport，不隐式改变另一侧 roots。
 - 待实现：直接按 net 生成有界 trunk/tree 候选。目前的 `wireRoutes` 是对 provider 已生成的逻辑
   edge 路径做物理规范化，已经消除重复绘制，但尚未替代逐 edge 的 candidate 搜索与 lane 预留。
-- 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的交互同步、root 上限策略
-  与完整交互浏览器回归。
+- 待实现：直接按 net 生成有界 trunk/tree candidate、Compare 两侧 roots 的显式匹配同步、root 上限
+  策略与完整交互浏览器回归。
 - 当前验证：单进程 unit/determinism/fixture 共 255 项通过；47/47 mapped fixtures 通过，累计
   violations 为 83/120；1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
   65.2/430.7/1295.7 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
