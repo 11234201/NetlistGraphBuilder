@@ -40,6 +40,9 @@ export function shiftWireRoutes(wireRoutes = [], delta = {}) {
       start: shiftPoint(segment.start, dx, dy),
       end: shiftPoint(segment.end, dx, dy)
     })),
+    junctions: Array.isArray(route.junctions)
+      ? route.junctions.map((point) => shiftPoint(point, dx, dy))
+      : route.junctions,
     labelPoint: route.labelPoint ? shiftPoint(route.labelPoint, dx, dy) : route.labelPoint
   }));
 }

@@ -31,6 +31,12 @@ test("layout workspace adds top editing headroom without changing provider outpu
       id: "e",
       points: [{ x: 40, y: 10 }, { x: 80, y: 10 }],
       labelPoint: { x: 60, y: 10 }
+    }],
+    wireRoutes: [{
+      id: "wire:e",
+      segments: [{ start: { x: 40, y: 10 }, end: { x: 80, y: 10 } }],
+      junctions: [{ x: 60, y: 10 }],
+      labelPoint: { x: 60, y: 10 }
     }]
   };
   const adjusted = addWorkspaceHeadroom(providerGraph);
@@ -40,6 +46,12 @@ test("layout workspace adds top editing headroom without changing provider outpu
   assert.equal(adjusted.nodes[0].y, 160);
   assert.deepEqual(adjusted.edges[0].points.map((point) => point.y), [170, 170]);
   assert.equal(adjusted.edges[0].labelPoint.y, 170);
+  assert.deepEqual(adjusted.wireRoutes[0].segments[0], {
+    start: { x: 40, y: 170 },
+    end: { x: 80, y: 170 }
+  });
+  assert.deepEqual(adjusted.wireRoutes[0].junctions, [{ x: 60, y: 170 }]);
+  assert.deepEqual(adjusted.wireRoutes[0].labelPoint, { x: 60, y: 170 });
   assert.equal(adjusted.height, 180);
 });
 
