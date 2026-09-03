@@ -81,8 +81,10 @@ import { sampleNetlist } from "./sampleNetlist.js";
 import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import {
+  addFocusedRootNodeId,
   normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots,
   resolveFocusedRootTarget,
+  shouldPreserveFocusedRootsForSearch,
   toggleFocusedRootNodeId
 } from "./focusedSelection.js";
 import {
@@ -1062,17 +1064,20 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
   persistSession();
 }
 
-function renderGraphMount(mount, graph) {
+function renderGraphMount(mount, graph, renderOptions = {}) {
   if (graph?.view?.mode === "search-first") {
     mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;
     return Promise.resolve();
   }
   return renderSchematicIntoMount(mount, graph, {
-    onProgress: ({ phase, rendered, total }) => {
+    ...renderOptions,
+    onProgress: (progress) => {
+      const { phase, rendered, total } = progress;
       if (phase === "render") {
         setStatus(`Rendering ${rendered}/${total}…`);
         logProcess("debug", "render", `Rendering ${rendered}/${total}`, { rendered, total }, { progressKey: "svg-batch" });
       }
+      renderOptions.onProgress?.(progress);
     }
   });
 }
@@ -1266,12 +1271,17 @@ function updateFocusedRootControl() {
   elements.setFocusedRootButton.disabled = !target;
   const selectedCell = state.compare.active
     ? Boolean(target)
-    : state.fullGraph?.nodes.some(
-      (node) => node.id === state.selectedNodeId && node.kind === "cell"
-    );
-  elements.addFocusedRootButton.disabled = !selectedCell || focusedContext.roots.includes(target || state.selectedNodeId);
-  elements.removeFocusedRootButton.disabled = !selectedCell || !focusedContext.roots.includes(target || state.selectedNodeId);
+    : Boolean(getSelectedSingleCell());
+  const selectedNodeId = target || getSelectedSingleCell()?.id || state.selectedNodeId;
+  elements.addFocusedRootButton.disabled = !selectedCell || focusedContext.roots.includes(selectedNodeId);
+  elements.removeFocusedRootButton.disabled = !selectedCell || !focusedContext.roots.includes(selectedNodeId);
   elements.clearFocusedRootsButton.disabled = focusedContext.roots.length === 0;
+}
+
+function getSelectedSingleCell() {
+  return state.fullGraph?.nodes.find(
+    (node) => node.id === state.selectedNodeId && node.kind === "cell"
+  ) || null;
 }
 
 function getFocusedRootContext() {
@@ -1384,12 +1394,10 @@ function addSelectedAsFocusedRoot() {
     addSelectedCompareAsFocusedRoot();
     return;
   }
-  const node = state.fullGraph?.nodes.find(
-    (item) => item.id === state.selectedNodeId && item.kind === "cell"
-  );
+  const node = getSelectedSingleCell();
   if (!node || state.focusedRootNodeIds.includes(node.id)) return;
   const requestId = ++state.selectionFocusRequestId;
-  setFocusedRootNodeIds(state, [...state.focusedRootNodeIds, node.id], node.id);
+  setFocusedRootNodeIds(state, addFocusedRootNodeId(state.focusedRootNodeIds, node.id), node.id);
   state.viewMode = "focused";
   state.transform = { x: 0, y: 0, scale: 1 };
   updateViewControls();
@@ -1892,7 +1900,9 @@ function setSelectedNode(nodeId) {
     const nodeElement = elements.mount.querySelector(`[data-node-id="${cssEscape(nodeId)}"]`);
     nodeElement?.classList.add("is-selected");
   }
-  const node = state.graph?.nodes.find((item) => item.id === nodeId) || null;
+  const node = state.graph?.nodes.find((item) => item.id === nodeId)
+    || state.fullGraph?.nodes.find((item) => item.id === nodeId)
+    || null;
   renderSelection(node);
   updateViewControls();
 }
@@ -2121,6 +2131,11 @@ function activateSearchResult(result) {
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
+    if (shouldPreserveFocusedRootsForSearch(state.viewMode, state.focusedRootNodeIds)) {
+      setSelectedNode(fullNode.id);
+      setStatus(`Selected ${result.label}; use Add selected to keep current Focused roots`);
+      return;
+    }
     setFocusedRootNodeIds(state, [fullNode.id], fullNode.id);
     state.viewMode = "focused";
     state.transform = { x: 0, y: 0, scale: 1 };
@@ -2154,7 +2169,13 @@ function addSearchResultToFocus(result) {
   const fullNode = findSearchTargetNode(result.target, state.fullGraph);
   if (!fullNode) return;
   elements.searchResults.hidden = true;
-  setFocusedRootNodeIds(state, [...state.focusedRootNodeIds, fullNode.id], fullNode.id);
+  const rootNodeIds = addFocusedRootNodeId(state.focusedRootNodeIds, fullNode.id);
+  if (rootNodeIds.length === state.focusedRootNodeIds.length) {
+    setSelectedNode(fullNode.id);
+    setStatus(`${result.label} is already a Focused root`);
+    return;
+  }
+  setFocusedRootNodeIds(state, rootNodeIds, fullNode.id);
   state.viewMode = "focused";
   state.transform = { x: 0, y: 0, scale: 1 };
   renderCurrentModuleGraph({
@@ -3056,8 +3077,9 @@ function startCompareNodeDrag(event, side, node) {
       setStatus(`Rerouting ${side} ${node.label}…`);
       runAfterNextPaint(() => {
         preview.clear();
-        renderAdjustedCompareSide(side);
-        setStatus(`${side} ${node.label}: position adjusted`);
+        renderAdjustedCompareSide(side).then((result) => {
+          if (!result?.cancelled) setStatus(`${side} ${node.label}: position adjusted`);
+        });
       });
     }
   });
@@ -3135,7 +3157,7 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
   const autoGraph = state.compare.autoGraphs[side];
   if (!autoGraph) {
     renderCompareGraphs();
-    return;
+    return Promise.resolve();
   }
   const graph = applyWorkspaceOverrides(autoGraph, {
     nodePositions: state.compare.nodePositions[side],
@@ -3144,10 +3166,13 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
   });
   state.compare.graphs[side] = graph;
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
-  mount.innerHTML = renderSchematicSvg(graph, renderOptions);
-  applyCompareHighlights();
-  applyCompareTransforms();
-  updateCalibrationControls();
+  return renderGraphMount(mount, graph, renderOptions).then((result) => {
+    if (result?.cancelled) return result;
+    applyCompareHighlights();
+    applyCompareTransforms();
+    updateCalibrationControls();
+    return result;
+  });
 }
 
 function setCompareTransform(side, transform) {

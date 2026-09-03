@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  addFocusedRootNodeId,
   normalizeFocusedRootNodeIds,
-  resolveFocusedRootTarget
+  resolveFocusedRootTarget,
+  shouldPreserveFocusedRootsForSearch
 } from "../../src/app/focusedSelection.js";
 
 const graph = {
@@ -33,4 +35,22 @@ test("Focused root normalization applies a named maximum deterministically", () 
     normalizeFocusedRootNodeIds([...roots, "cell:u1"], { maximumRoots: 3 }),
     ["cell:u0", "cell:u1", "cell:u2"]
   );
+});
+
+test("adding a Focused root preserves existing roots and deduplicates hidden targets", () => {
+  assert.deepEqual(
+    addFocusedRootNodeId(["cell:u0"], "cell:u2"),
+    ["cell:u0", "cell:u2"]
+  );
+  assert.deepEqual(
+    addFocusedRootNodeId(["cell:u0", "cell:u2"], "cell:u0"),
+    ["cell:u0", "cell:u2"]
+  );
+  assert.deepEqual(addFocusedRootNodeId(["cell:u0"], ""), ["cell:u0"]);
+});
+
+test("searching in an active Focused view keeps roots available for Add selected", () => {
+  assert.equal(shouldPreserveFocusedRootsForSearch("focused", ["cell:u0"]), true);
+  assert.equal(shouldPreserveFocusedRootsForSearch("focused", []), false);
+  assert.equal(shouldPreserveFocusedRootsForSearch("whole", ["cell:u0"]), false);
 });

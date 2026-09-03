@@ -20,3 +20,17 @@ export function toggleFocusedRootNodeId(rootNodeIds, nodeId) {
   else if (typeof nodeId === "string" && nodeId.length > 0) roots.add(nodeId);
   return normalizeFocusedRootNodeIds([...roots]);
 }
+
+export function addFocusedRootNodeId(rootNodeIds, nodeId) {
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    return normalizeFocusedRootNodeIds(rootNodeIds);
+  }
+  return normalizeFocusedRootNodeIds([
+    ...normalizeFocusedRootNodeIds(rootNodeIds),
+    nodeId
+  ]);
+}
+
+export function shouldPreserveFocusedRootsForSearch(viewMode, rootNodeIds) {
+  return viewMode === "focused" && normalizeFocusedRootNodeIds(rootNodeIds).length > 0;
+}

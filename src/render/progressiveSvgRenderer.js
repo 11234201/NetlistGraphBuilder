@@ -10,13 +10,13 @@ const activeRenderIds = new WeakMap();
 export function renderSchematicIntoMount(mount, graph, options = {}) {
   const threshold = options.threshold || DEFAULT_THRESHOLD;
   if (graph.nodes.length < threshold) {
-    mount.innerHTML = renderSchematicSvg(graph);
+    mount.innerHTML = renderSchematicSvg(graph, options);
     options.onProgress?.({ phase: "complete", rendered: graph.nodes.length, total: graph.nodes.length });
     return Promise.resolve({ progressive: false });
   }
   const renderId = Symbol("progressive-render");
   activeRenderIds.set(mount, renderId);
-  const plan = createProgressiveSchematicRenderPlan(graph);
+  const plan = createProgressiveSchematicRenderPlan(graph, options);
   mount.innerHTML = `${plan.openSvg}${plan.betweenGroups}${plan.closeSvg}`;
   const edgeGroup = mount.querySelector(".edges");
   const nodeGroup = mount.querySelector(".nodes");
