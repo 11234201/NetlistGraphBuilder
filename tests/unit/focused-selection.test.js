@@ -49,7 +49,7 @@ test("adding a Focused root preserves existing roots and deduplicates hidden tar
   assert.deepEqual(addFocusedRootNodeId(["cell:u0"], ""), ["cell:u0"]);
 });
 
-test("searching in an active Focused view keeps roots available for Add selected", () => {
+test("searching in an active Focused view preserves roots for additive activation", () => {
   assert.equal(shouldPreserveFocusedRootsForSearch("focused", ["cell:u0"]), true);
   assert.equal(shouldPreserveFocusedRootsForSearch("focused", []), false);
   assert.equal(shouldPreserveFocusedRootsForSearch("whole", ["cell:u0"]), false);

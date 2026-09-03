@@ -2132,8 +2132,7 @@ function activateSearchResult(result) {
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
     if (shouldPreserveFocusedRootsForSearch(state.viewMode, state.focusedRootNodeIds)) {
-      setSelectedNode(fullNode.id);
-      setStatus(`Selected ${result.label}; use Add selected to keep current Focused roots`);
+      addSearchResultToFocus(result);
       return;
     }
     setFocusedRootNodeIds(state, [fullNode.id], fullNode.id);
