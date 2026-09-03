@@ -598,8 +598,8 @@ body.is-dragging-files .drop-overlay {
   gap: 7px;
 }
 
-.wire-spacing-field input,
-.cell-spacing-field input {
+.wire-spacing-field input[type="range"],
+.cell-spacing-field input[type="range"] {
   width: min(120px, 100%);
   accent-color: var(--accent);
 }
@@ -706,7 +706,7 @@ body.is-dragging-files .drop-overlay {
 
 .range-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 58px 30px;
   align-items: center;
   gap: 4px;
 }
@@ -714,6 +714,15 @@ body.is-dragging-files .drop-overlay {
 .range-control input {
   min-width: 0;
   width: 100%;
+}
+
+.spacing-number-input {
+  height: 30px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 1400px) {

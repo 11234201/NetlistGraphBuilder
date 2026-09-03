@@ -1,6 +1,9 @@
 import {
   compactOrthogonalPoints,
-  getTargetApproachPoint
+  ensureVisibleTargetCornerLaneY,
+  getTargetApproachPoint,
+  getTargetLaneInset,
+  isVerticalTargetPin
 } from "./orthogonalRouting.js";
 import {
   routeCandidateIsUsable,
@@ -62,7 +65,7 @@ export function createBasicSimpleRouteCandidates(context) {
   }
 
   if (horizontalGap > 0) {
-    const inset = Math.min(24, Math.max(2, horizontalGap / 4));
+    const inset = getTargetLaneInset(target, targetPoint, horizontalGap);
     const minLaneX = sourcePoint.x + inset;
     const maxLaneX = targetPoint.x - inset;
     for (const ratio of [0.5, 0.25, 0.75]) {
@@ -104,10 +107,16 @@ export function createLocalObstacleCandidates(context, options = {}) {
     wireLanePitch
   } = context;
   const padding = 9;
-  const routeTargetPoint = getTargetApproachPoint(target, targetPoint, padding);
+  const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
   const forward = sourcePoint.x < routeTargetPoint.x;
   const gap = Math.abs(routeTargetPoint.x - sourcePoint.x);
-  const inset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
+  const sourceInset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
+  const targetInset = getTargetLaneInset(
+    target,
+    targetPoint,
+    routeTargetPoint.x - sourcePoint.x
+  );
+  const verticalTargetPin = isVerticalTargetPin(target, targetPoint);
   const sourceColumnRight = Math.max(
     sourcePoint.x,
     levelBounds?.get(source.level)?.right ?? source.x + source.width
@@ -122,12 +131,14 @@ export function createLocalObstacleCandidates(context, options = {}) {
     source.kind === "constant";
   const sourceLaneX = forward
     ? sourceUsesLocalEscape
-      ? Math.min(routeTargetPoint.x - 2, sourcePoint.x + inset)
-      : Math.min(routeTargetPoint.x - 2, Math.max(sourcePoint.x + inset, sourceColumnRight + padding))
-    : sourcePoint.x + inset;
+      ? Math.min(routeTargetPoint.x - 2, sourcePoint.x + sourceInset)
+      : Math.min(routeTargetPoint.x - 2, Math.max(sourcePoint.x + sourceInset, sourceColumnRight + padding))
+    : sourcePoint.x + sourceInset;
   const targetLaneX = forward
-    ? Math.max(sourcePoint.x + 2, Math.min(routeTargetPoint.x - inset, targetColumnLeft - padding))
-    : routeTargetPoint.x - inset;
+    ? verticalTargetPin
+      ? routeTargetPoint.x - targetInset
+      : Math.max(sourcePoint.x + 2, Math.min(routeTargetPoint.x - targetInset, targetColumnLeft - padding))
+    : routeTargetPoint.x - targetInset;
   const minX = Math.min(sourceLaneX, targetLaneX);
   const maxX = Math.max(sourceLaneX, targetLaneX);
   const corridorTop = Math.min(
@@ -176,13 +187,20 @@ export function createLocalObstacleCandidates(context, options = {}) {
   const overlappingCandidates = [];
   let attempts = 0;
   const appendCandidate = (laneY, laneOffset) => {
+    const visibleLaneY = ensureVisibleTargetCornerLaneY(
+      laneY,
+      routeTargetPoint.y,
+      target,
+      targetPoint,
+      padding
+    );
     const candidateSourceLaneX = sourceLaneX + laneOffset.source;
     const candidateTargetLaneX = targetLaneX + laneOffset.target;
     const candidate = createRoute("obstacle-local", [
       sourcePoint,
       { x: candidateSourceLaneX, y: sourcePoint.y },
-      { x: candidateSourceLaneX, y: laneY },
-      { x: candidateTargetLaneX, y: laneY },
+      { x: candidateSourceLaneX, y: visibleLaneY },
+      { x: candidateTargetLaneX, y: visibleLaneY },
       { x: candidateTargetLaneX, y: routeTargetPoint.y },
       routeTargetPoint,
       targetPoint
@@ -256,7 +274,7 @@ export function findObstacleAvoidingRoute(context) {
     net
   } = context;
   const clearance = 24;
-  const routeTargetPoint = getTargetApproachPoint(target, targetPoint, 9);
+  const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
   const baseSourceLaneX = getEscapeLaneX(source, sourcePoint, "source", clearance);
   const baseTargetLaneX = getEscapeLaneX(target, targetPoint, "target", clearance);
   const yCandidates = createGlobalLaneYCandidates(

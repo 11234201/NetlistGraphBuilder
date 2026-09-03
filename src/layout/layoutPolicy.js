@@ -40,6 +40,24 @@ export const LAYOUT_SPACING_LIMITS = Object.freeze({
   fanoutYGap: Object.freeze([0, 400])
 });
 
+export const LAYOUT_SPACING_STEP = 4;
+
+export function snapLayoutSpacingValue(value, limits, step = LAYOUT_SPACING_STEP, fallback = null) {
+  const numeric = Number(value);
+  const minimum = Number(limits?.[0]);
+  const maximum = Number(limits?.[1]);
+  const increment = Number(step);
+  if (!Number.isFinite(numeric) || !Number.isFinite(minimum) ||
+    !Number.isFinite(maximum) || !Number.isFinite(increment) || increment <= 0) {
+    return fallback;
+  }
+  return clamp(
+    Math.round(clamp(numeric, minimum, maximum) / increment) * increment,
+    minimum,
+    maximum
+  );
+}
+
 export function normalizeLayoutPolicy(policy = {}, legacyOptions = {}) {
   const spacing = {
     ...DEFAULT_LAYOUT_POLICY.spacing,

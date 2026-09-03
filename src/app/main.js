@@ -8,7 +8,8 @@ import {
 import {
   DEFAULT_LAYOUT_POLICY,
   LAYOUT_SPACING_LIMITS,
-  normalizeLayoutPolicy
+  normalizeLayoutPolicy,
+  snapLayoutSpacingValue
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
@@ -181,8 +182,10 @@ const elements = {
   clearFocusedRootsButton: document.querySelector("#clearFocusedRootsButton"),
   focusSelectedButton: document.querySelector("#focusSelectedButton"),
   wireSpacingInput: document.querySelector("#wireSpacingInput"),
+  wireSpacingNumberInput: document.querySelector("#wireSpacingNumberInput"),
   wireSpacingValue: document.querySelector("#wireSpacingValue"),
   cellSpacingInput: document.querySelector("#cellSpacingInput"),
+  cellSpacingNumberInput: document.querySelector("#cellSpacingNumberInput"),
   cellSpacingValue: document.querySelector("#cellSpacingValue"),
   timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
   timingMetricSelect: document.querySelector("#timingMetricSelect"),
@@ -292,7 +295,9 @@ elements.clearFocusedRootsButton.addEventListener("click", clearFocusedRoots);
 elements.focusedRootsList.addEventListener("click", handleFocusedRootListClick);
 elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
 elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
+elements.wireSpacingNumberInput.addEventListener("change", handleWireSpacingChange);
 elements.cellSpacingInput.addEventListener("input", handleCellSpacingChange);
+elements.cellSpacingNumberInput.addEventListener("change", handleCellSpacingChange);
 elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
@@ -1714,12 +1719,14 @@ function rerenderActiveGraph() {
 }
 
 function handleWireSpacingChange(event) {
-  const value = Number(event.target.value);
-  state.layoutPolicy.spacing.wireLanePitch = clamp(
-    value,
-    ...LAYOUT_SPACING_LIMITS.wireLanePitch
+  state.layoutPolicy.spacing.wireLanePitch = snapLayoutSpacingValue(
+    event.target.value,
+    LAYOUT_SPACING_LIMITS.wireLanePitch,
+    undefined,
+    state.layoutPolicy.spacing.wireLanePitch
   );
-  elements.wireSpacingValue.value = String(state.layoutPolicy.spacing.wireLanePitch);
+  syncLayoutSpacingControls();
+  persistSession();
   if (!state.currentModule) {
     return;
   }
@@ -1744,12 +1751,13 @@ function handleWireSpacingChange(event) {
 }
 
 function handleCellSpacingChange(event) {
-  const value = Number(event.target.value);
-  state.layoutPolicy.spacing.cellSpacing = clamp(
-    value,
-    ...LAYOUT_SPACING_LIMITS.cellSpacing
+  state.layoutPolicy.spacing.cellSpacing = snapLayoutSpacingValue(
+    event.target.value,
+    LAYOUT_SPACING_LIMITS.cellSpacing,
+    undefined,
+    state.layoutPolicy.spacing.cellSpacing
   );
-  elements.cellSpacingValue.value = String(state.layoutPolicy.spacing.cellSpacing);
+  syncLayoutSpacingControls();
   persistSession();
   if (!state.currentModule) return;
   const selectedNodeId = state.selectedNodeId;
@@ -2857,16 +2865,7 @@ function loadLayoutGolden(imported, label) {
   applyLayoutGoldenState(state, imported);
 
   elements.coneDepthInput.value = String(state.coneDepth);
-  elements.wireSpacingInput.value = String(clamp(
-    state.layoutPolicy.spacing.wireLanePitch,
-    ...LAYOUT_SPACING_LIMITS.wireLanePitch
-  ));
-  elements.wireSpacingValue.value = elements.wireSpacingInput.value;
-  elements.cellSpacingInput.value = String(clamp(
-    state.layoutPolicy.spacing.cellSpacing,
-    ...LAYOUT_SPACING_LIMITS.cellSpacing
-  ));
-  elements.cellSpacingValue.value = elements.cellSpacingInput.value;
+  syncLayoutSpacingControls();
   state.transform = { x: 0, y: 0, scale: 1 };
   state.selectedNodeId = null;
   state.selectedNet = null;
@@ -3319,11 +3318,28 @@ function applySessionPreferences(session) {
   elements.coneDepthInput.value = String(state.coneDepth);
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
-  elements.cellSpacingInput.value = String(state.layoutPolicy.spacing.cellSpacing);
-  elements.cellSpacingValue.value = elements.cellSpacingInput.value;
+  syncLayoutSpacingControls();
   elements.timingSnapshotSelect.value = state.timingDisplayPolicy.snapshot;
   elements.timingMetricSelect.value = state.timingDisplayPolicy.metrics.length === 3
     ? "all" : state.timingDisplayPolicy.metrics[0];
+}
+
+function syncLayoutSpacingControls() {
+  const wireSpacing = String(clamp(
+    state.layoutPolicy.spacing.wireLanePitch,
+    ...LAYOUT_SPACING_LIMITS.wireLanePitch
+  ));
+  elements.wireSpacingInput.value = wireSpacing;
+  elements.wireSpacingNumberInput.value = wireSpacing;
+  elements.wireSpacingValue.value = wireSpacing;
+
+  const cellSpacing = String(clamp(
+    state.layoutPolicy.spacing.cellSpacing,
+    ...LAYOUT_SPACING_LIMITS.cellSpacing
+  ));
+  elements.cellSpacingInput.value = cellSpacing;
+  elements.cellSpacingNumberInput.value = cellSpacing;
+  elements.cellSpacingValue.value = cellSpacing;
 }
 
 function persistSession() {

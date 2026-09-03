@@ -1,3 +1,5 @@
+import { ROUTE_GEOMETRY_POLICY } from "./routeSearchPolicy.js";
+
 const EPSILON = 0.5;
 
 export function compactOrthogonalPoints(points) {
@@ -14,13 +16,51 @@ export function compactOrthogonalPoints(points) {
   });
 }
 
-export function getTargetApproachPoint(target, targetPoint, clearance = 8) {
+export function getTargetApproachPoint(
+  target,
+  targetPoint,
+  clearance = ROUTE_GEOMETRY_POLICY.targetApproachClearance
+) {
   const side = getBoundarySide(target, targetPoint);
   if (side === "top") return { x: targetPoint.x, y: target.y - clearance };
   if (side === "bottom") {
     return { x: targetPoint.x, y: target.y + target.height + clearance };
   }
   return targetPoint;
+}
+
+export function getTargetLaneInset(target, targetPoint, horizontalGap) {
+  const gap = Math.abs(Number(horizontalGap) || 0);
+  const forward = Number(horizontalGap) > 0;
+  const baseInset = forward
+    ? Math.min(
+      ROUTE_GEOMETRY_POLICY.maximumEndpointInset,
+      Math.max(ROUTE_GEOMETRY_POLICY.minimumEndpointInset, gap / 4)
+    )
+    : ROUTE_GEOMETRY_POLICY.reverseEndpointInset;
+  return isVerticalTargetPin(target, targetPoint)
+    ? Math.max(baseInset, ROUTE_GEOMETRY_POLICY.minimumVisibleTargetCornerGap)
+    : baseInset;
+}
+
+export function isVerticalTargetPin(target, targetPoint) {
+  const side = getBoundarySide(target, targetPoint);
+  return side === "top" || side === "bottom";
+}
+
+export function ensureVisibleTargetCornerLaneY(
+  laneY,
+  routeTargetY,
+  target,
+  targetPoint,
+  offset = 8
+) {
+  if (!isVerticalTargetPin(target, targetPoint) ||
+    Math.abs(laneY - routeTargetY) >= EPSILON) {
+    return laneY;
+  }
+  const side = getBoundarySide(target, targetPoint);
+  return routeTargetY + (side === "top" ? -Math.abs(offset) : Math.abs(offset));
 }
 
 export function routeFollowsEndpointSides(

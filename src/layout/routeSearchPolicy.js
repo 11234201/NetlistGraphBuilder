@@ -12,3 +12,13 @@ export const ROUTE_SELECTION_POLICY = Object.freeze({
   outerDetourWirePitchMultiplier: 4,
   maximumAdditionalLocalCrossings: 6
 });
+
+export const ROUTE_GEOMETRY_POLICY = Object.freeze({
+  // Keep the target approach outside the node padding; the horizontal corner
+  // has its own minimum visibility rule below.
+  targetApproachClearance: 9,
+  minimumVisibleTargetCornerGap: 16,
+  maximumEndpointInset: 24,
+  minimumEndpointInset: 2,
+  reverseEndpointInset: 12
+});

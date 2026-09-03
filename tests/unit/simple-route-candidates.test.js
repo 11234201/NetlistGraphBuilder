@@ -84,6 +84,29 @@ test("local obstacle candidates approach top pins vertically", () => {
   }
 });
 
+test("local obstacle candidates leave a visible corner before top pins", () => {
+  const mux = { ...target, y: 100, height: 80 };
+  const sourcePoint = { x: 240, y: 54 };
+  const targetPoint = { x: 250, y: 100 };
+  const candidates = createLocalObstacleCandidates({
+    source,
+    target: mux,
+    sourcePoint,
+    targetPoint,
+    nodes: [source, mux]
+  });
+
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((candidate) => {
+    const corner = candidate.points.at(-3);
+    const approach = candidate.points.at(-2);
+    const endpoint = candidate.points.at(-1);
+    return Math.abs(corner.x - approach.x) >= 16 &&
+      approach.x === endpoint.x &&
+      approach.y < endpoint.y;
+  }));
+});
+
 test("global fallback lane candidates stay bounded on large graphs", () => {
   const nodes = Array.from({ length: 5000 }, (_, index) => ({
     id: `n${index}`,

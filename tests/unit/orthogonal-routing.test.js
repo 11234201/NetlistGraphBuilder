@@ -4,6 +4,7 @@ import {
   compactOrthogonalPoints,
   countRouteConflicts,
   getTargetApproachPoint,
+  getTargetLaneInset,
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "../../src/layout/orthogonalRouting.js";
@@ -55,6 +56,16 @@ test("target approach points encode the declared boundary side", () => {
     getTargetApproachPoint(target, { x: 200, y: 136 }, 9),
     { x: 200, y: 136 }
   );
+});
+
+test("vertical target pins reserve a visible final corner", () => {
+  assert.equal(getTargetLaneInset(target, { x: 260, y: 100 }, 10), 16);
+  assert.equal(getTargetLaneInset(target, { x: 260, y: 100 }, 120), 24);
+  assert.equal(getTargetLaneInset(target, { x: 200, y: 136 }, 10), 2.5);
+  assert.deepEqual(getTargetApproachPoint(target, { x: 260, y: 100 }), {
+    x: 260,
+    y: 91
+  });
 });
 
 test("endpoint access rejects routes that re-enter either endpoint body", () => {

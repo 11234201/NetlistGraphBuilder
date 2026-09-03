@@ -1,6 +1,8 @@
 import {
   compactOrthogonalPoints,
-  getTargetApproachPoint
+  ensureVisibleTargetCornerLaneY,
+  getTargetApproachPoint,
+  getTargetLaneInset
 } from "./orthogonalRouting.js";
 import {
   collectLocalLaneYs,
@@ -29,8 +31,7 @@ export function* iterateLocalRouteCandidates(context) {
   }
 
   if (start.x < routeEnd.x) {
-    const horizontalGap = routeEnd.x - start.x;
-    const endpointClearance = Math.min(24, Math.max(2, horizontalGap / 4));
+    const endpointClearance = getTargetLaneInset(target, end, routeEnd.x - start.x);
     const minChannelX = start.x + endpointClearance;
     const maxChannelX = routeEnd.x - endpointClearance;
     if (minChannelX <= maxChannelX) {
@@ -56,6 +57,7 @@ export function* iterateLocalRouteCandidates(context) {
     start,
     routeEnd,
     end,
+    target,
     nodes,
     nodeIndex,
     reservedSegments,
@@ -68,6 +70,7 @@ function* iterateLocalDetours(
   start,
   end,
   finalEnd,
+  target,
   nodes,
   nodeIndex,
   reservedSegments,
@@ -76,9 +79,10 @@ function* iterateLocalDetours(
   const padding = 8;
   const forward = start.x < end.x;
   const horizontalGap = Math.abs(end.x - start.x);
-  const endpointClearance = forward ? Math.min(24, Math.max(2, horizontalGap / 4)) : 12;
-  const sourceLaneX = start.x + endpointClearance;
-  const targetLaneX = end.x - endpointClearance;
+  const sourceInset = forward ? Math.min(24, Math.max(2, horizontalGap / 4)) : 12;
+  const targetInset = getTargetLaneInset(target, finalEnd, end.x - start.x);
+  const sourceLaneX = start.x + sourceInset;
+  const targetLaneX = end.x - targetInset;
   const minRouteX = Math.min(sourceLaneX, targetLaneX);
   const maxRouteX = Math.max(sourceLaneX, targetLaneX);
   const minNodeY = Math.min(...nodes.map((node) => node.y));
@@ -104,11 +108,18 @@ function* iterateLocalDetours(
   });
 
   for (const laneY of laneYs) {
+    const visibleLaneY = ensureVisibleTargetCornerLaneY(
+      laneY,
+      end.y,
+      target,
+      finalEnd,
+      padding
+    );
     yield candidate("local-detour", [
       start,
       { x: sourceLaneX, y: start.y },
-      { x: sourceLaneX, y: laneY },
-      { x: targetLaneX, y: laneY },
+      { x: sourceLaneX, y: visibleLaneY },
+      { x: targetLaneX, y: visibleLaneY },
       { x: targetLaneX, y: end.y },
       end,
       finalEnd

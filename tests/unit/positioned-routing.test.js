@@ -222,11 +222,13 @@ test("adjust routes an explicit top-side input vertically into its pin", () => {
   const custom = adjusted.nodes.find((node) => node.id === "custom");
   const endpoint = edge.points.at(-1);
   const approach = edge.points.at(-2);
+  const corner = edge.points.at(-3);
 
   assert.equal(endpoint.y, custom.y);
   assert.equal(approach.x, endpoint.x);
   assert.ok(approach.y < endpoint.y);
   assert.notEqual(approach.y, endpoint.y);
+  assert.ok(Math.abs(corner.x - approach.x) >= 16);
 });
 
 test("adjust places a net label away from a nearby net", () => {

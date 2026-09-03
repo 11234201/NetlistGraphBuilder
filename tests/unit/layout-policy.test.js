@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_LAYOUT_POLICY,
+  LAYOUT_SPACING_STEP,
   LAYOUT_SPACING_LIMITS,
-  normalizeLayoutPolicy
+  normalizeLayoutPolicy,
+  snapLayoutSpacingValue
 } from "../../src/layout/layoutPolicy.js";
 import {
   DEFAULT_TOP_WIRE_LANE_PITCH,
@@ -14,6 +16,15 @@ test("default routing channels use 24-pixel lane spacing", () => {
   assert.equal(DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch, 24);
   assert.equal(DEFAULT_WIRE_LANE_PITCH, 24);
   assert.equal(DEFAULT_TOP_WIRE_LANE_PITCH, 24);
+});
+
+test("direct spacing values snap to the nearest configured step", () => {
+  assert.equal(LAYOUT_SPACING_STEP, 4);
+  assert.equal(snapLayoutSpacingValue(29, LAYOUT_SPACING_LIMITS.wireLanePitch), 28);
+  assert.equal(snapLayoutSpacingValue(30, LAYOUT_SPACING_LIMITS.wireLanePitch), 32);
+  assert.equal(snapLayoutSpacingValue(2, LAYOUT_SPACING_LIMITS.wireLanePitch), 4);
+  assert.equal(snapLayoutSpacingValue(319, LAYOUT_SPACING_LIMITS.cellSpacing), 320);
+  assert.equal(snapLayoutSpacingValue("invalid", LAYOUT_SPACING_LIMITS.cellSpacing, 4, 24), 24);
 });
 
 test("layout policy normalizes numeric values without mutating its input", () => {
