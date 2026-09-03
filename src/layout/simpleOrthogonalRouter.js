@@ -6,6 +6,7 @@ import {
   routeOverlapsReserved
 } from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
+import { ROUTE_SELECTION_POLICY } from "./routeSearchPolicy.js";
 import {
   computeLevelBounds,
   createBasicSimpleRouteCandidates,
@@ -140,12 +141,47 @@ function routeEdge(context) {
       return candidate;
     }
   }
+  // Cell spacing can expose clear horizontal corridors while the default
+  // local vertical escape line is still blocked by a nearby boundary node.
+  // Try a bounded set of small x shifts before escalating to a graph-wide
+  // outer lane, which otherwise produces a large rectangular detour.
+  const expandedLocalCandidates = basicCandidates.length === 0 &&
+    source.kind === "focus-input" &&
+    edgeIntent?.fanout > 1 &&
+    edgeIntent.isPrimary === false
+    ? createLocalObstacleCandidates(context, { expandXLanes: true })
+    : [];
+  routingMetrics.localCandidates += expandedLocalCandidates.length;
+  const usableExpandedLocalCandidates = expandedLocalCandidates.filter((candidate) =>
+    candidateIsUsable(candidate, context));
+  const scoredExpandedLocal = scoreCandidates(
+    usableExpandedLocalCandidates,
+    reservedSegments,
+    net,
+    edgeIntent
+  );
+  const conflictFreeExpandedLocal = scoredExpandedLocal.filter(({ score }) => score.crossings === 0);
+  if (conflictFreeExpandedLocal.length > 0) {
+    return chooseBestScoredRoute(conflictFreeExpandedLocal);
+  }
   const scoredCandidates = [
     ...scoredBasic,
-    ...scoreCandidates(usableLocalCandidates, reservedSegments, net, edgeIntent)
+    ...scoreCandidates(usableLocalCandidates, reservedSegments, net, edgeIntent),
+    ...scoredExpandedLocal
   ];
   if (scoredCandidates.length > 0) {
-    const bestLocal = chooseBestScoredRoute(scoredCandidates);
+    // Collinear overlap is a hard routing error. Prefer a clear local route
+    // even when it crosses a few perpendicular wires; crossings receive
+    // bridges in the renderer and remain a soft visual cost.
+    const nonOverlappingLocalCandidates = expandedLocalCandidates.length > 0
+      ? scoredCandidates.filter(({ candidate }) =>
+        !routeOverlapsReserved(candidate.points, net, reservedSegments))
+      : [];
+    const bestLocal = chooseBestScoredRoute(
+      nonOverlappingLocalCandidates.length > 0
+        ? nonOverlappingLocalCandidates
+        : scoredCandidates
+    );
     const bestLocalScore = scoreRouteCandidate(bestLocal, {
       reservedSegments,
       net,
@@ -164,10 +200,18 @@ function routeEdge(context) {
       });
       const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments);
       const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments);
-      if ((localHasOverlap && !globalHasOverlap) ||
+      const avoidsLargeOuterDetour = !localHasOverlap &&
+        globalScore.length - bestLocalScore.length >= Math.max(
+          ROUTE_SELECTION_POLICY.minimumOuterDetourSavings,
+          (Number(context.wireLanePitch) || 24) *
+            ROUTE_SELECTION_POLICY.outerDetourWirePitchMultiplier
+        ) &&
+        bestLocalScore.crossings - globalScore.crossings <=
+          ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
+      if (!avoidsLargeOuterDetour && ((localHasOverlap && !globalHasOverlap) ||
         globalScore.crossings < bestLocalScore.crossings ||
         (globalScore.crossings === bestLocalScore.crossings &&
-          globalScore.total < bestLocalScore.total)) {
+          globalScore.total < bestLocalScore.total))) {
         return globalCandidate;
       }
     }

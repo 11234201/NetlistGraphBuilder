@@ -5,9 +5,13 @@ import {
   getInputPortIndex,
   groupEdges,
   isExternalSourceNode,
-  round,
-  stackNodesVertically
+  round
 } from "./nodePlacementShared.js";
+
+// A small two-load input can still benefit from a primary straight branch.
+// Wider fanout nets need a shared source-column trunk instead of being
+// aligned to one arbitrary consumer (reset/clock nets are the common case).
+export const MAX_LOCALIZED_INPUT_LOADS = 2;
 
 export function applySingleFanoutInputLocality(
   nodes,
@@ -21,6 +25,7 @@ export function applySingleFanoutInputLocality(
   const outgoingBySource = groupEdges(edges, "source");
   const primaryEdgeBySource = new Map();
   for (const [sourceId, outgoing] of outgoingBySource) {
+    if (outgoing.length > MAX_LOCALIZED_INPUT_LOADS) continue;
     if (outgoing.length > 1 && new Set(outgoing.map((edge) => edge.net)).size > 1) continue;
     const primary = outgoing.length === 1
       ? outgoing[0]
@@ -38,6 +43,10 @@ export function applySingleFanoutInputLocality(
     if (!isExternalSourceNode(node)) continue;
     const outgoing = outgoingBySource.get(node.id) || [];
     if (outgoing.length === 0) continue;
+    if (outgoing.length > MAX_LOCALIZED_INPUT_LOADS) {
+      alignSharedInputToTargetMedian(node, outgoing, nodeById);
+      continue;
+    }
     const edge = primaryEdgeBySource.get(node.id);
     if (!edge) continue;
     const target = nodeById.get(edge.target);
@@ -70,6 +79,28 @@ export function applySingleFanoutInputLocality(
   if ((Number(cellSpacing) || 8) > 8) {
     preserveExpandedSourceSpacing(nodes, margin, Number(cellSpacing));
   }
+}
+
+function alignSharedInputToTargetMedian(source, outgoing, nodeById) {
+  const sourcePort = getPort(source, outgoing[0]?.sourcePin, "source");
+  const targetYs = outgoing
+    .map((edge) => {
+      const target = nodeById.get(edge.target);
+      if (!target || (target.kind !== "cell" && target.kind !== "assign" &&
+        target.kind !== "hub" && target.kind !== "output" && target.kind !== "focus-output")) {
+        return null;
+      }
+      const targetPort = getPort(target, edge.targetPin, "target");
+      return target.y + (targetPort?.y ?? target.height / 2);
+    })
+    .filter(Number.isFinite)
+    .toSorted((left, right) => left - right);
+  if (targetYs.length === 0) return;
+  const middle = Math.floor(targetYs.length / 2);
+  const median = targetYs.length % 2 === 0
+    ? (targetYs[middle - 1] + targetYs[middle]) / 2
+    : targetYs[middle];
+  source.y = round(median - (sourcePort?.y ?? source.height / 2));
 }
 
 export function applyFanoutHubLocality(nodes, edges, margin) {
@@ -132,5 +163,16 @@ function preserveExpandedSourceSpacing(nodes, margin, gap) {
   const sources = nodes
     .filter(isExternalSourceNode)
     .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
-  stackNodesVertically(sources, margin, gap);
+  const placed = [];
+  for (const source of sources) {
+    source.y = findNearestFreeY(
+      source,
+      Math.max(margin, source.y),
+      placed,
+      new Set([source.id]),
+      margin,
+      gap
+    );
+    placed.push(source);
+  }
 }

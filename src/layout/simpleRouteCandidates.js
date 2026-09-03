@@ -18,6 +18,10 @@ export const MAX_GLOBAL_LANE_CANDIDATES =
   ROUTE_SEARCH_LIMITS.maximumGlobalLaneCandidates;
 export const MAX_LOCAL_LANE_CANDIDATES =
   ROUTE_SEARCH_LIMITS.localChannelAlternatives;
+export const MAX_EXPANDED_LOCAL_LANE_CANDIDATES =
+  ROUTE_SEARCH_LIMITS.expandedLocalChannelAlternatives;
+export const MAX_EXPANDED_LOCAL_CANDIDATE_ATTEMPTS =
+  ROUTE_SEARCH_LIMITS.maximumExpandedLocalCandidateAttempts;
 
 export function createBasicSimpleRouteCandidates(context) {
   const {
@@ -85,7 +89,7 @@ export function createBasicSimpleRouteCandidates(context) {
   return candidates;
 }
 
-export function createLocalObstacleCandidates(context) {
+export function createLocalObstacleCandidates(context, options = {}) {
   const {
     source,
     target,
@@ -96,7 +100,8 @@ export function createLocalObstacleCandidates(context) {
     nodeBounds,
     levelBounds,
     reservedSegments,
-    net
+    net,
+    wireLanePitch
   } = context;
   const padding = 9;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint, padding);
@@ -161,15 +166,78 @@ export function createLocalObstacleCandidates(context) {
     padding
   });
 
-  return laneYs.slice(0, MAX_LOCAL_LANE_CANDIDATES).map((laneY) => createRoute("obstacle-local", [
-    sourcePoint,
-    { x: sourceLaneX, y: sourcePoint.y },
-    { x: sourceLaneX, y: laneY },
-    { x: targetLaneX, y: laneY },
-    { x: targetLaneX, y: routeTargetPoint.y },
-    routeTargetPoint,
-    targetPoint
-  ]));
+  const laneOffsets = options.expandXLanes === true
+    ? createExpandedLocalLaneOffsets(wireLanePitch)
+    : [{ source: 0, target: 0 }];
+  const maximumCandidates = options.expandXLanes === true
+    ? MAX_EXPANDED_LOCAL_LANE_CANDIDATES
+    : MAX_LOCAL_LANE_CANDIDATES;
+  const candidates = [];
+  const overlappingCandidates = [];
+  let attempts = 0;
+  const appendCandidate = (laneY, laneOffset) => {
+    const candidateSourceLaneX = sourceLaneX + laneOffset.source;
+    const candidateTargetLaneX = targetLaneX + laneOffset.target;
+    const candidate = createRoute("obstacle-local", [
+      sourcePoint,
+      { x: candidateSourceLaneX, y: sourcePoint.y },
+      { x: candidateSourceLaneX, y: laneY },
+      { x: candidateTargetLaneX, y: laneY },
+      { x: candidateTargetLaneX, y: routeTargetPoint.y },
+      routeTargetPoint,
+      targetPoint
+    ]);
+    if (options.expandXLanes === true && !routeCandidateIsUsable(candidate.points, {
+      source,
+      target,
+      sourcePoint,
+      targetPoint,
+      nodeIndex
+    })) return;
+    if (options.expandXLanes === true && routeOverlapsReserved(
+      candidate.points,
+      net,
+      reservedSegments || []
+    )) {
+      overlappingCandidates.push(candidate);
+      return;
+    }
+    candidates.push(candidate);
+  };
+  const firstDimension = options.expandXLanes === true ? laneOffsets : laneYs;
+  const secondDimension = options.expandXLanes === true ? laneYs : laneOffsets;
+  for (const first of firstDimension) {
+    for (const second of secondDimension) {
+      attempts += 1;
+      if (attempts > MAX_EXPANDED_LOCAL_CANDIDATE_ATTEMPTS ||
+        candidates.length >= maximumCandidates) {
+        return [...candidates, ...overlappingCandidates].slice(0, maximumCandidates);
+      }
+      appendCandidate(
+        options.expandXLanes === true ? second : first,
+        options.expandXLanes === true ? first : second
+      );
+    }
+  }
+  return [...candidates, ...overlappingCandidates].slice(0, maximumCandidates);
+}
+
+function createExpandedLocalLaneOffsets(wireLanePitch) {
+  const pitch = Math.max(4, Math.min(24, Number(wireLanePitch) || 18));
+  const halfPitch = Math.max(4, Math.round(pitch / 2));
+  const distances = uniqueRoundedNumbers([halfPitch, 8, 12, 16, 4, 20, pitch, 24]);
+  return [
+    ...distances.flatMap((distance) => [
+      { source: -distance, target: -distance },
+      { source: distance, target: distance },
+      { source: -distance, target: distance },
+      { source: distance, target: -distance },
+      { source: -distance, target: 0 },
+      { source: distance, target: 0 },
+      { source: 0, target: -distance },
+      { source: 0, target: distance }
+    ])
+  ];
 }
 
 export function findObstacleAvoidingRoute(context) {
@@ -321,10 +389,18 @@ export function findObstacleAvoidingRoute(context) {
   // segment through a visible cell.
   if (firstNodeSafeCandidate) return firstNodeSafeCandidate;
 
-  // A graph with no valid outer candidate is geometrically unsatisfiable
-  // under the current endpoint-side contract. Keep the failure explicit and
-  // bounded rather than silently emitting a node-crossing route.
-  return createRoute("obstacle-lane", [sourcePoint, targetPoint]);
+  // A graph with no node-safe outer candidate is geometrically unsatisfiable
+  // under the current placement. Keep the failure bounded, but preserve
+  // orthogonality and endpoint sides so validation reports only the remaining
+  // obstacle conflict instead of multiplying it into diagonal/side errors.
+  return createGlobalLaneRoute(
+    sourcePoint,
+    targetPoint,
+    routeTargetPoint,
+    baseSourceLaneX,
+    baseTargetLaneX,
+    preferredLaneY
+  );
 }
 
 function getOuterLaneYs(nodes, margin, clearance, preparedGeometry) {

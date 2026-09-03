@@ -7,6 +7,7 @@ import {
   round,
   stackNodesVertically
 } from "./nodePlacementShared.js";
+import { MAX_LOCALIZED_INPUT_LOADS } from "./nodeLocality.js";
 
 export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
   const sources = nodes
@@ -88,23 +89,36 @@ export function computeLevelXs(
 ) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const outgoingCounts = new Map();
+  const outgoingNets = new Map();
   for (const edge of graph.edges) {
     outgoingCounts.set(edge.source, (outgoingCounts.get(edge.source) || 0) + 1);
+    if (!outgoingNets.has(edge.source)) outgoingNets.set(edge.source, new Set());
+    outgoingNets.get(edge.source).add(edge.net);
   }
   const localizedInputWidths = new Map();
   if (localizeSingleFanoutInputs) {
     for (const edge of graph.edges) {
       const source = nodeById.get(edge.source);
       const target = nodeById.get(edge.target);
+      const outgoingCount = outgoingCounts.get(edge.source) || 0;
       if (
         (target?.kind === "cell" || target?.kind === "hub") &&
         isExternalSourceNode(source) &&
-        outgoingCounts.get(edge.source) === 1
+        outgoingCount > 0 &&
+        outgoingCount <= MAX_LOCALIZED_INPUT_LOADS &&
+        (outgoingCount === 1 || outgoingNets.get(edge.source)?.size === 1)
       ) {
         const targetLevel = levels.get(edge.target);
+        const cellSpacing = Number(adaptiveSpacing?.cellSpacing) || 8;
+        const branchLanePitch = Number(adaptiveSpacing?.branchLanePitch) || 16;
+        const targetGap = Math.max(4, 24 + cellSpacing - 8) +
+          (outgoingCount > 1 ? 4 + branchLanePitch : 0);
         localizedInputWidths.set(
           targetLevel,
-          Math.max(localizedInputWidths.get(targetLevel) || 0, nodeSizes.get(edge.source)?.width || 0)
+          Math.max(
+            localizedInputWidths.get(targetLevel) || 0,
+            (nodeSizes.get(edge.source)?.width || 0) + targetGap
+          )
         );
       }
     }
@@ -120,18 +134,18 @@ export function computeLevelXs(
       ...(buckets.get(level) || []).map((node) => nodeSizes.get(node.id).width),
       0
     );
-    const localizedInputWidth = localizedInputWidths.get(nextLevel) || 0;
-    const localizedInputSpacing = localizedInputWidth > 0
+    const localizedInputReservation = localizedInputWidths.get(nextLevel) || 0;
+    const cellSpacing = Number(adaptiveSpacing?.cellSpacing) || 8;
+    const localizedInputSpacing = localizedInputReservation > 0
       ? nextLevel <= 1
-        ? Math.max(levelWidth, localizedInputWidth) + 32
-        : levelWidth + localizedInputWidth + 32
+        ? Math.max(levelWidth, localizedInputReservation) + cellSpacing
+        : levelWidth + localizedInputReservation + cellSpacing
       : 0;
     const pressure = layoutIntent?.getBoundaryPressure(level) || 1;
     const compactX = Number(adaptiveSpacing?.compactX) || baseSpacing;
     const fanoutX = Number(adaptiveSpacing?.fanoutX) || baseSpacing;
     const lanePitch = Number(adaptiveSpacing?.wireLanePitch) || 18;
     const requestedStep = pressure > 1 ? fanoutX + pressure * lanePitch : compactX;
-    const cellSpacing = Number(adaptiveSpacing?.cellSpacing) || 8;
     const congestion = getLevelCongestion(buckets.get(level) || [], buckets.get(nextLevel) || [], pressure);
     const routingClearance = (pressure > 1 ? 72 : 40) + Math.max(0, cellSpacing - 8) + congestion;
     const adaptiveStep = Math.max(requestedStep, levelWidth + routingClearance);

@@ -9,7 +9,11 @@ import {
   MAX_GLOBAL_LANE_CANDIDATES,
   MAX_LOCAL_LANE_CANDIDATES
 } from "../../src/layout/simpleRouteCandidates.js";
-import { collinearSegmentsOverlap, getRouteSegments } from "../../src/layout/orthogonalRouting.js";
+import {
+  collinearSegmentsOverlap,
+  getRouteSegments,
+  routeFollowsEndpointSides
+} from "../../src/layout/orthogonalRouting.js";
 import { createNodeSpatialIndex } from "../../src/layout/spatialIndex.js";
 
 const source = {
@@ -132,4 +136,38 @@ test("global fallback reserves vertical lanes used by earlier nets", () => {
       ))),
     false
   );
+});
+
+test("unsatisfiable global fallback remains orthogonal and follows endpoint sides", () => {
+  const blockedSource = { ...source, y: 40, height: 20 };
+  const blockedTarget = { ...target, x: 220, y: 40, height: 20 };
+  const blocker = { id: "blocker", kind: "cell", x: 88, y: 0, width: 100, height: 100 };
+  const nodes = [blockedSource, blockedTarget, blocker];
+  const sourcePoint = { x: 80, y: 50 };
+  const targetPoint = { x: 220, y: 50 };
+  const route = findObstacleAvoidingRoute({
+    source: blockedSource,
+    target: blockedTarget,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    preferredLaneY: 20,
+    margin: 48,
+    lanePitch: 16,
+    nodeIndex: createNodeSpatialIndex(nodes),
+    net: "blocked"
+  });
+
+  assert.ok(route.points.length >= 2);
+  assert.ok(route.points.slice(0, -1).every((point, index) => {
+    const next = route.points[index + 1];
+    return point.x === next.x || point.y === next.y;
+  }));
+  assert.equal(routeFollowsEndpointSides(
+    route.points,
+    blockedSource,
+    blockedTarget,
+    sourcePoint,
+    targetPoint
+  ), true);
 });

@@ -165,7 +165,8 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
   assert.match(html, /id="syncCompareFocusInput" type="checkbox" checked/);
   assert.match(html, /id="setFocusedRootButton"[^>]+disabled/);
-  assert.match(html, /id="wireSpacingInput"[^>]+min="4"[^>]+max="96"/);
+  assert.match(html, /id="wireSpacingInput"[^>]+min="4"[^>]+max="96"[^>]+value="24"/);
+  assert.match(html, /id="wireSpacingValue">24<\/output>/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="4"[^>]+max="320"/);
   assert.match(html, /id="processLogDrawer"/);
   assert.match(html, /id="collapseGroupsInput" type="checkbox"(?![^>]*checked)/);

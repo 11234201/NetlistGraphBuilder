@@ -5,7 +5,9 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     y: 88,
     margin: 48,
     topPadding: 160,
-    wireLanePitch: 18,
+    // Keep parallel net lanes readable at the default zoom. Routing and
+    // congested channel-width calculations consume the same value.
+    wireLanePitch: 24,
     cellSpacing: 8,
     cellPinPitch: 36,
     branchTopY: 80,

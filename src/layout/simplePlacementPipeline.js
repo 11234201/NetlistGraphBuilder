@@ -87,7 +87,10 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
   run("resolve-source-overlaps", () => resolveExternalSourceOverlaps(
     positionedNodes,
     margin,
-    cellSpacing
+    // Keep the first source sweep compact. Locality below may move
+    // single-load inputs to different columns; the post-locality pass then
+    // applies the requested cell spacing only where bodies actually overlap.
+    compactGap
   ));
   run("localize-fanout-hubs", () => applyFanoutHubLocality(
     positionedNodes,

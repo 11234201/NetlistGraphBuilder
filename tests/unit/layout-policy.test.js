@@ -5,6 +5,16 @@ import {
   LAYOUT_SPACING_LIMITS,
   normalizeLayoutPolicy
 } from "../../src/layout/layoutPolicy.js";
+import {
+  DEFAULT_TOP_WIRE_LANE_PITCH,
+  DEFAULT_WIRE_LANE_PITCH
+} from "../../src/layout/simpleLayered.js";
+
+test("default routing channels use 24-pixel lane spacing", () => {
+  assert.equal(DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch, 24);
+  assert.equal(DEFAULT_WIRE_LANE_PITCH, 24);
+  assert.equal(DEFAULT_TOP_WIRE_LANE_PITCH, 24);
+});
 
 test("layout policy normalizes numeric values without mutating its input", () => {
   const input = {

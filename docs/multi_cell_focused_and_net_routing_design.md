@@ -9,7 +9,7 @@
   Simple/Adjust/ELK 布局与 SVG 渲染。
 - 不改变 parser 和 Netlist IR；本文中的 Focused graph、边界节点和 wire route 均为派生数据。
 
-### 1.1 当前实现进度（2026-09-02）
+### 1.1 当前实现进度（2026-09-03）
 
 - 已实现：`focusedRootNodeIds` / `activeFocusedRootNodeId` 状态、旧 `coneRootNodeId` 迁移、module
   history/session/Golden/startup manifest 数组 round trip。
@@ -43,15 +43,33 @@
   变换坐标，避免 provider 候选线段、被裁剪的同网交叉或旧坐标在画布上留下漂浮误标记。
 - 已实现：输入 locality 完成后追加最小 source-body overlap 修复，避免局部化输入重新压到未连接
   input 或其他 input 上，同时不改变已有的有效 branch lane 间距。
+- 已实现：高扇出外部输入不再绑定到任意单一 load；输入保留在源列并按可见 target pin 的中位数
+  对齐。Focused 中的真实 module input 与 `focus-input` 使用同一规则，避免 reset/clock 输入看似悬空。
+- 已实现：默认 Wire spacing 从 18 px 提升到 24 px，普通通道宽度和顶部 lane 使用同一默认 pitch；
+  Cell spacing 仍是独立参数，不隐式改写 Wire spacing。
+- 已实现：Cell spacing 扩大时，为一到两个同 net load 的局部化 Focused 输入预留完整节点宽度和
+  target gap；Focused 次级 fanout 在普通局部候选失败后可执行最多 512 次、最多保留 64 条候选的
+  有界横向 escape 搜索。不同 net 共线重叠仍是硬错误；少量垂直交叉与整图外侧大矩形绕路按命名
+  policy 比较，不使用 fixture 名称或坐标特判。
 - 待实现：直接从 net topology 和 node obstacle 生成 trunk/tree candidate。目前的 `netTreeRouter`
   仍以 provider 已生成的逻辑 edge 路径为候选，已能净化公共 trunk 和 provider 环路，但尚未替代
   逐 edge 的 candidate 搜索与 lane 预留。
 - 待实现：直接按 net 生成有界 trunk/tree candidate 与完整交互浏览器回归。
-- 当前验证：单进程 unit/determinism/fixture 共 265 项通过；Focused boundary、locality overlap、
-  bubble endpoint、physical wire obstacle 和 spacing 变更均有回归测试；dp_001、dp_007 等 mapped
-  case 定向检查通过既有预算。1024/4096/8192-cell benchmark 完成，pipeline 中位数约为
-  71.6/433.8/1400.8 ms。Windows 沙箱中的默认并行 `npm test` 和 mapped runner 会因子进程
-  `spawn EPERM` 失败，因此 unit 使用 `--test-isolation=none`，mapped cases 使用同一 worker 顺序执行。
+- 当前验证：单进程 unit/determinism/fixture 共 270 项通过；`sop_015` 的 `_4558_` Focused reset
+  连接和 Cell spacing 84 局部路由有独立回归测试。Mapped runner 的 47 个案例中 45 个在 45 秒
+  预算内完成，`dp_020`、`sop_004` 超时；其中 `dp_020` 在未修改基线同样超过 120 秒，
+  因此超时作为既有大图性能问题单独跟踪。1024/4096/8192-cell benchmark 完成，pipeline 中位数
+  约为 70.5/484.8/1349.3 ms。Windows 沙箱中的默认并行 `npm test` 会因子进程 `spawn EPERM`
+  失败，因此 unit 使用 `--test-isolation=none`。
+
+### 1.2 本批三个独立问题的设计边界
+
+1. `rst_n` 可见连接属于外部输入 locality：只决定共享输入的显示位置，不改变 net topology、Focused
+   cut edge 或 DFF pin 语义。
+2. 默认垂直线间距属于 layout policy：只提高默认 `wireLanePitch` 和由它驱动的通道宽度，不借用
+   Cell spacing，也不改变用户设置的取值范围。
+3. Cell spacing 84 的矩形绕路属于候选生成与选择：先为局部化边界输入预留横向空间，再对 Focused
+   次级 fanout 启用固定上限的局部横向 escape 候选；不能用移动 `rst_n` 或继续增加全局间距掩盖。
 
 ## 2. 当前问题与结论
 

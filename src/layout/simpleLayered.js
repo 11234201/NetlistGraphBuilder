@@ -16,8 +16,8 @@ import { runSimplePlacementPipeline } from "./simplePlacementPipeline.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";
 import { buildWireRoutes } from "./wireRoutes.js";
 
-export const DEFAULT_WIRE_LANE_PITCH = 18;
-export const DEFAULT_TOP_WIRE_LANE_PITCH = 16;
+export const DEFAULT_WIRE_LANE_PITCH = DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch;
+export const DEFAULT_TOP_WIRE_LANE_PITCH = DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch;
 export { DEFAULT_LAYOUT_POLICY };
 export {
   DEFAULT_CELL_PIN_PITCH,
@@ -32,7 +32,7 @@ export function layoutGraph(graph, options = {}) {
   const cellPinPitch = policy.spacing.cellPinPitch;
   const wireLanePitch = policy.spacing.wireLanePitch;
   const topWireLanePitch = clamp(
-    Number(options.topWireLanePitch) || Math.max(8, wireLanePitch - 2),
+    Number(options.topWireLanePitch) || Math.max(12, wireLanePitch),
     8,
     48
   );
