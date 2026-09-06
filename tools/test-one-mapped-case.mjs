@@ -12,20 +12,24 @@ if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist
 
 const source = await readFile(input, "utf8");
 const parseStarted = performance.now();
+console.error("stage=parse");
 const design = parseVerilog(source);
 const parseMs = performance.now() - parseStarted;
 const module = design.modules.find((item) => item.name === "tc") ?? design.modules[0];
 if (!module) throw new Error(`No Verilog module found in ${input}`);
 
 const graphStarted = performance.now();
+console.error("stage=graph");
 const rawGraph = buildSchematicGraph(module);
 const graph = applyWorkspaceGraphTransforms(rawGraph, {
   collapseLargeGroups: !noCollapse
 });
 const graphMs = performance.now() - graphStarted;
 const layoutStarted = performance.now();
+console.error("stage=layout");
 const laidOut = getLayoutProvider().layout(graph);
 const layoutMs = performance.now() - layoutStarted;
+console.error("stage=validate");
 const violations = validateLayoutGraph(laidOut, { checkOverlaps: false });
 const routedEdges = laidOut.edges.filter((edge) => edge.routeKind).length;
 

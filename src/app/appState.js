@@ -1,6 +1,7 @@
 import { createModuleHistory } from "./moduleHistory.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
+import { resolveFocusedRootState } from "./focusedSelection.js";
 
 export function createAppState(layoutPolicy) {
   return {
@@ -255,13 +256,9 @@ export function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
 }
 
 export function setFocusedRootNodeIds(state, value, activeRootNodeId = null) {
-  const previousActiveRootNodeId = state.activeFocusedRootNodeId;
-  state.focusedRootNodeIds = normalizeFocusedRootNodeIds(value);
+  const resolved = resolveFocusedRootState(value, activeRootNodeId, state.activeFocusedRootNodeId);
+  state.focusedRootNodeIds = resolved.rootNodeIds;
   state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
-  state.activeFocusedRootNodeId = state.focusedRootNodeIds.includes(activeRootNodeId)
-    ? activeRootNodeId
-    : state.focusedRootNodeIds.includes(previousActiveRootNodeId)
-      ? previousActiveRootNodeId
-      : state.coneRootNodeId;
+  state.activeFocusedRootNodeId = resolved.activeRootNodeId;
   return state.focusedRootNodeIds;
 }

@@ -45,6 +45,7 @@ Structural Verilog
 - 阶段 4：`docs/STAGE_4_PLAN.md`
 - 阶段 5：`docs/STAGE_5_PLAN.md`
 - 阶段 6：`docs/STAGE_6_PLAN.md`
+- 阶段 7：应用编排与路由边界重构（计划中），见 [阶段 7 计划](STAGE_7_PLAN.md)。
 
 ## 需求拆解与完成状态
 

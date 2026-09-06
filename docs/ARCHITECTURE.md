@@ -293,6 +293,15 @@ UI 通过明确 API 调用 parser/netlist/layout/render，不直接操作内部�
 
 ### `src/app/`
 
+- `workspaceRequest.js` captures workspace identity and guards asynchronous success, failure,
+  progress and render completion against superseded requests. It discards stale work; it does not
+  interrupt synchronous provider computation. The renderer invalidates pending batches when any
+  replacement render starts, including small synchronous graphs and Search-first empty views.
+- `focusedSelection.js` owns shared root actions and active-root fallback. Add rejects capacity
+  overflow without evicting an existing root. Single/Compare adapters retain their own state scopes.
+- `src/ui/searchControls.js` owns search result markup and keyboard/click dispatch through injected
+  index/action callbacks. `spacingControls.js` owns spacing input parsing and control synchronization.
+
 - `appState.js` 定义应用初始状态，以及 design/module/timing 三种生命周期 reset。
 - `moduleWorkspace.js` composes graph extraction, timing, aliases, cone/group transforms, provider layout
   and manual overrides for the single-module view without reading DOM or global application state.

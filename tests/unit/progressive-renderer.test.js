@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderSchematicIntoMount } from "../../src/render/progressiveSvgRenderer.js";
+import { cancelSchematicRender, renderSchematicIntoMount } from "../../src/render/progressiveSvgRenderer.js";
 import {
   createProgressiveSchematicRenderPlan,
   createSchematicRenderPlan
@@ -25,6 +25,32 @@ const graph = {
     labelAnchor: "start"
   }]
 };
+
+test("small renders and explicit cancellation supersede pending batches", async () => {
+  for (const replace of [
+    (mount) => renderSchematicIntoMount(mount, graph),
+    (mount) => cancelSchematicRender(mount)
+  ]) {
+    const insertions = [];
+    const mount = { innerHTML: "", querySelector: () => ({
+      insertAdjacentHTML: (...args) => insertions.push(args)
+    }) };
+    const pending = renderSchematicIntoMount(mount, graph, { threshold: 1 });
+    await replace(mount);
+    assert.equal((await pending).cancelled, true);
+    assert.deepEqual(insertions, []);
+  }
+});
+
+test("invalid workspace prevents pending renderer writes", async () => {
+  const mount = { innerHTML: "", querySelector: () => ({
+    insertAdjacentHTML() { assert.fail("stale batch"); }
+  }) };
+  let current = true;
+  const pending = renderSchematicIntoMount(mount, graph, { threshold: 1, isCurrent: () => current });
+  current = false;
+  assert.equal((await pending).cancelled, true);
+});
 
 test("progressive render plan produces the same item markup lazily", () => {
   const eager = createSchematicRenderPlan(graph);

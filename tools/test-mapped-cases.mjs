@@ -70,7 +70,13 @@ console.log(
 if (failed.length > 0 || totalViolations > maximumTotalViolations) {
   for (const result of failed) {
     console.error(`\n${result.caseName}:`);
-    console.error(result.execution.stderr.slice(-2000) || JSON.stringify(result.metrics));
+    const reason = result.execution.timedOut ? "timeout"
+      : result.execution.code !== 0 ? "worker-exit"
+        : !result.metrics ? "invalid-json"
+          : result.metrics.routedEdges !== result.metrics.edges ? "incomplete-routing" : "violation-budget";
+    console.error(JSON.stringify({ reason, code: result.execution.code,
+      elapsedMs: result.execution.elapsedMs, timeoutMs, noCollapse, metrics: result.metrics }));
+    if (result.execution.stderr) console.error(result.execution.stderr.slice(-2000));
   }
   process.exitCode = 1;
 }
@@ -87,6 +93,7 @@ async function findMappedNetlists(root) {
 
 function runWorker(netlist, timeout) {
   return new Promise((resolve) => {
+    const started = Date.now();
     const workerArguments = noCollapse
       ? [worker, netlist, "--no-collapse"]
       : [worker, netlist];
@@ -104,7 +111,7 @@ function runWorker(netlist, timeout) {
     }, timeout);
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ code, stdout, stderr, timedOut });
+      resolve({ code, stdout, stderr, timedOut, elapsedMs: Date.now() - started });
     });
   });
 }

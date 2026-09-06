@@ -7,19 +7,17 @@ import {
 } from "../layout/layoutGolden.js";
 import {
   DEFAULT_LAYOUT_POLICY,
-  LAYOUT_SPACING_LIMITS,
-  normalizeLayoutPolicy,
-  snapLayoutSpacingValue
+  normalizeLayoutPolicy
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
 import { renderSchematicSvg } from "../render/svgRenderer.js";
-import { renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
+import { cancelSchematicRender, renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
+import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
+import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
-import {
-  buildDesignSearchIndex,
-  searchDesignIndex
-} from "../search/designSearch.js";
+import { buildDesignSearchIndex } from "../search/designSearch.js";
+import { createSearchControls } from "../ui/searchControls.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
   createEmptyCellConfig,
@@ -85,6 +83,8 @@ import {
   addFocusedRootNodeId,
   normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots,
   resolveFocusedRootTarget,
+  resolveFocusedRootState,
+  resolveFocusedRootAction,
   shouldPreserveFocusedRootsForSearch,
   toggleFocusedRootNodeId
 } from "./focusedSelection.js";
@@ -269,6 +269,17 @@ elements.compareOutputSelect.addEventListener("change", (event) => {
   elements.coneDepthInput.disabled = !state.compare.outputName;
   renderCompareGraphs();
   renderStats();
+});
+const { handleSearchInput, handleSearchKeydown, handleSearchResultClick, clearSearch } = createSearchControls({
+  elements: {
+    searchInput: elements.searchInput,
+    searchResults: elements.searchResults,
+    searchClearButton: elements.searchClearButton
+  },
+  getIndex: () => state.searchIndex,
+  onActivate: activateSearchResult,
+  onAdd: addSearchResultToFocus,
+  onChange: (search) => { state.searchQuery = search.searchQuery; }
 });
 elements.searchInput.addEventListener("input", handleSearchInput);
 elements.searchInput.addEventListener("keydown", handleSearchKeydown);
@@ -818,7 +829,8 @@ function renderCompareGraphs() {
   const leftModule = getCompareModule("left");
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
-  const requestId = ++state.layoutRequestId;
+  const request = beginWorkspaceRequest(state);
+  const requestId = request.id;
   logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
     provider: getCurrentLayoutProvider().id
   });
@@ -850,9 +862,9 @@ function renderCompareGraphs() {
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
     setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
-    workspace.then((result) => {
-      if (requestId === state.layoutRequestId) commitCompareWorkspace(result, leftModule, rightModule);
-    }).catch(handleLayoutFailure);
+    workspace.then(request.guard((result) => {
+      commitCompareWorkspace(result, leftModule, rightModule);
+    })).catch(request.guard(handleLayoutFailure));
     return;
   }
   commitCompareWorkspace(workspace, leftModule, rightModule);
@@ -873,7 +885,8 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
   Promise.all([
     renderGraphMount(elements.leftMount, state.compare.graphs.left),
     renderGraphMount(elements.rightMount, state.compare.graphs.right)
-  ]).then(() => {
+  ]).then((results) => {
+    if (results.some((result) => result?.cancelled)) return;
     applyCompareHighlights();
     applyCompareTransforms();
     logProcess("info", "render", "Compare render completed", {
@@ -1002,7 +1015,8 @@ function updateModuleHistoryControls() {
 }
 
 function renderCurrentModuleGraph(options = {}) {
-  const requestId = ++state.layoutRequestId;
+  const request = beginWorkspaceRequest(state);
+  const requestId = request.id;
   const layoutProvider = getCurrentLayoutProvider();
   logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
     viewMode: state.viewMode,
@@ -1036,11 +1050,9 @@ function renderCurrentModuleGraph(options = {}) {
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId });
     setStatus(`Layout (${layoutProvider.label})…`);
-    workspace.then((result) => {
-      if (requestId === state.layoutRequestId) {
-        commitCurrentWorkspace(result, options);
-      }
-    }).catch(handleLayoutFailure);
+    workspace.then(request.guard((result) => {
+      commitCurrentWorkspace(result, options);
+    })).catch(request.guard(handleLayoutFailure));
     return;
   }
   commitCurrentWorkspace(workspace, options);
@@ -1059,7 +1071,8 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
   const { readyMessage = null, onRendered = null } = options;
   state.autoGraph = autoGraph;
   state.graph = graph;
-  renderGraphMount(elements.mount, graph).then(() => {
+  renderGraphMount(elements.mount, graph).then((result) => {
+    if (result?.cancelled) return;
     applyTransform();
     setStatus(readyMessage || `Ready (${getCurrentLayoutProvider().label})`);
     onRendered?.(graph);
@@ -1070,13 +1083,17 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
 }
 
 function renderGraphMount(mount, graph, renderOptions = {}) {
+  const request = captureWorkspaceRequest(state);
   if (graph?.view?.mode === "search-first") {
+    cancelSchematicRender(mount);
     mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;
-    return Promise.resolve();
+    return Promise.resolve().then(() => ({ cancelled: !request.isCurrent() }));
   }
   return renderSchematicIntoMount(mount, graph, {
     ...renderOptions,
+    isCurrent: request.isCurrent,
     onProgress: (progress) => {
+      if (!request.isCurrent()) return;
       const { phase, rendered, total } = progress;
       if (phase === "render") {
         setStatus(`Rendering ${rendered}/${total}…`);
@@ -1084,7 +1101,7 @@ function renderGraphMount(mount, graph, renderOptions = {}) {
       }
       renderOptions.onProgress?.(progress);
     }
-  });
+  }).then((result) => request.isCurrent() ? result : { ...result, cancelled: true });
 }
 
 function renderLayoutProviderOptions() {
@@ -1317,14 +1334,10 @@ function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
   if (!state.compare.activeFocusedRootNodeId) {
     state.compare.activeFocusedRootNodeId = { left: null, right: null };
   }
-  const previousActive = state.compare.activeFocusedRootNodeId[side];
-  const roots = normalizeFocusedSelectionRoots(value);
+  const resolved = resolveFocusedRootState(value, activeRootNodeId, state.compare.activeFocusedRootNodeId[side]);
+  const roots = resolved.rootNodeIds;
   state.compare.focusedRootNodeIds[side] = roots;
-  state.compare.activeFocusedRootNodeId[side] = roots.includes(activeRootNodeId)
-    ? activeRootNodeId
-    : roots.includes(previousActive)
-      ? previousActive
-      : roots[0] || null;
+  state.compare.activeFocusedRootNodeId[side] = resolved.activeRootNodeId;
   state.compare.outputName = null;
   return roots;
 }
@@ -1346,7 +1359,7 @@ function syncCompareFocusedRootNode(side, nodeId, operation) {
   } else if (operation === "remove") {
     setCompareFocusedRootNodeIds(oppositeSide, currentRoots.filter((id) => id !== oppositeNode.id));
   } else if (operation === "add") {
-    setCompareFocusedRootNodeIds(oppositeSide, [...currentRoots, oppositeNode.id], oppositeNode.id);
+    setCompareFocusedRootNodeIds(oppositeSide, addFocusedRootNodeId(currentRoots, oppositeNode.id), oppositeNode.id);
   }
   return oppositeNode;
 }
@@ -1401,8 +1414,10 @@ function addSelectedAsFocusedRoot() {
   }
   const node = getSelectedSingleCell();
   if (!node || state.focusedRootNodeIds.includes(node.id)) return;
+  const action = resolveFocusedRootAction({ rootNodeIds: state.focusedRootNodeIds }, { type: "add", nodeId: node.id });
+  if (action.rejected) { setStatus("Focused root limit reached"); return; }
   const requestId = ++state.selectionFocusRequestId;
-  setFocusedRootNodeIds(state, addFocusedRootNodeId(state.focusedRootNodeIds, node.id), node.id);
+  setFocusedRootNodeIds(state, action.rootNodeIds, node.id);
   state.viewMode = "focused";
   state.transform = { x: 0, y: 0, scale: 1 };
   updateViewControls();
@@ -1420,7 +1435,9 @@ function addSelectedCompareAsFocusedRoot() {
   const context = getFocusedRootContext();
   const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
   if (!node || context.roots.includes(node.id)) return;
-  setCompareFocusedRootNodeIds(context.side, [...context.roots, node.id], node.id);
+  const action = resolveFocusedRootAction({ rootNodeIds: context.roots }, { type: "add", nodeId: node.id });
+  if (action.rejected) { setStatus("Focused root limit reached"); return; }
+  setCompareFocusedRootNodeIds(context.side, action.rootNodeIds, node.id);
   const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "add");
   state.compare.transforms[context.side] = { x: 0, y: 0, scale: 1 };
   updateViewControls();
@@ -1509,6 +1526,15 @@ function handleFocusedRootListClick(event) {
   if (!state.focusedRootNodeIds.includes(nodeId)) return;
   state.activeFocusedRootNodeId = nodeId;
   state.selectedNodeId = nodeId;
+  const positioned = state.graph?.nodes.find((node) => node.id === nodeId);
+  if (positioned) {
+    setSelectedNode(nodeId);
+    focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+    applyTransform();
+    updateViewControls();
+    setStatus(`Active Focused root: ${positioned.label}`);
+    return;
+  }
   const requestId = ++state.selectionFocusRequestId;
   renderCurrentModuleGraph({
     onRendered: (graph) => {
@@ -1719,10 +1745,9 @@ function rerenderActiveGraph() {
 }
 
 function handleWireSpacingChange(event) {
-  state.layoutPolicy.spacing.wireLanePitch = snapLayoutSpacingValue(
+  state.layoutPolicy.spacing.wireLanePitch = readSpacingInput(
     event.target.value,
-    LAYOUT_SPACING_LIMITS.wireLanePitch,
-    undefined,
+    "wireLanePitch",
     state.layoutPolicy.spacing.wireLanePitch
   );
   syncLayoutSpacingControls();
@@ -1751,10 +1776,9 @@ function handleWireSpacingChange(event) {
 }
 
 function handleCellSpacingChange(event) {
-  state.layoutPolicy.spacing.cellSpacing = snapLayoutSpacingValue(
+  state.layoutPolicy.spacing.cellSpacing = readSpacingInput(
     event.target.value,
-    LAYOUT_SPACING_LIMITS.cellSpacing,
-    undefined,
+    "cellSpacing",
     state.layoutPolicy.spacing.cellSpacing
   );
   syncLayoutSpacingControls();
@@ -2019,97 +2043,6 @@ function navigateCompareSelectionTarget(target) {
   setStatus(`Connected ${node.kind}: ${node.label}`);
 }
 
-function handleSearchInput() {
-  const query = elements.searchInput.value;
-  state.searchQuery = query;
-  state.searchResults = searchDesignIndex(state.searchIndex, query);
-  state.activeSearchResult = state.searchResults.length > 0 ? 0 : -1;
-  renderSearchResults();
-}
-
-function handleSearchKeydown(event) {
-  if (event.key === "Escape") {
-    elements.searchResults.hidden = true;
-    state.activeSearchResult = -1;
-    return;
-  }
-  if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") {
-    return;
-  }
-  if (state.searchResults.length === 0) {
-    return;
-  }
-
-  event.preventDefault();
-  if (event.key === "Enter") {
-    activateSearchResult(state.searchResults[Math.max(0, state.activeSearchResult)]);
-    return;
-  }
-
-  const direction = event.key === "ArrowDown" ? 1 : -1;
-  state.activeSearchResult = (
-    state.activeSearchResult + direction + state.searchResults.length
-  ) % state.searchResults.length;
-  renderSearchResults();
-  elements.searchResults.querySelector(".search-result.is-active")?.scrollIntoView({ block: "nearest" });
-}
-
-function handleSearchResultClick(event) {
-  const addButton = event.target.closest("[data-search-add-index]");
-  if (addButton) {
-    addSearchResultToFocus(state.searchResults[Number(addButton.dataset.searchAddIndex)]);
-    return;
-  }
-  const button = event.target.closest("[data-search-index]");
-  if (!button) {
-    return;
-  }
-  activateSearchResult(state.searchResults[Number(button.dataset.searchIndex)]);
-}
-
-function renderSearchResults() {
-  const hasQuery = elements.searchInput.value.trim() !== "";
-  elements.searchClearButton.hidden = !hasQuery;
-  if (!hasQuery) {
-    elements.searchResults.hidden = true;
-    elements.searchResults.innerHTML = "";
-    return;
-  }
-
-  elements.searchResults.hidden = false;
-  if (state.searchResults.length === 0) {
-    elements.searchResults.innerHTML = `<div class="search-empty">No matches</div>`;
-    return;
-  }
-
-  elements.searchResults.innerHTML = state.searchResults
-    .map((result, index) => {
-      const active = index === state.activeSearchResult;
-      const context = result.kind === "module"
-        ? result.detail
-        : `${result.detail} / ${result.moduleName}`;
-      const addAction = result.kind === "cell"
-        ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">+ Focus</button>`
-        : "";
-      return `<div class="search-result${active ? " is-active" : ""}" role="option" aria-selected="${active}" title="${escapeAttr(result.label)}">
-        <button class="search-result-main" type="button" data-search-index="${escapeAttr(index)}">
-          <span class="search-result-kind">${escapeHtml(result.kind)}</span>
-          <span class="search-result-label">${escapeHtml(result.label)}</span>
-          <span class="search-result-context">${escapeHtml(context)}</span>
-        </button>
-        ${addAction}
-      </div>`;
-    })
-    .join("");
-}
-
-function clearSearch() {
-  elements.searchInput.value = "";
-  state.searchQuery = "";
-  state.searchResults = [];
-  state.activeSearchResult = -1;
-  renderSearchResults();
-}
 
 function activateSearchResult(result) {
   if (!result) {
@@ -2176,8 +2109,13 @@ function addSearchResultToFocus(result) {
   const fullNode = findSearchTargetNode(result.target, state.fullGraph);
   if (!fullNode) return;
   elements.searchResults.hidden = true;
-  const rootNodeIds = addFocusedRootNodeId(state.focusedRootNodeIds, fullNode.id);
-  if (rootNodeIds.length === state.focusedRootNodeIds.length) {
+  const action = resolveFocusedRootAction({
+    rootNodeIds: state.focusedRootNodeIds,
+    activeRootNodeId: state.activeFocusedRootNodeId
+  }, { type: "add", nodeId: fullNode.id });
+  if (action.rejected) { setStatus("Focused root limit reached"); return; }
+  const rootNodeIds = action.rootNodeIds;
+  if (!action.changed) {
     setSelectedNode(fullNode.id);
     setStatus(`${result.label} is already a Focused root`);
     return;
@@ -2791,7 +2729,8 @@ function commitNodeDrag(nodeId, preview) {
     layoutPolicy: state.layoutPolicy
   });
   preview.clear();
-  renderGraphMount(elements.mount, state.graph).then(() => {
+  renderGraphMount(elements.mount, state.graph).then((result) => {
+    if (result?.cancelled) return;
     setSelectedNode(nodeId);
     applyTransform();
     updateCalibrationControls();
@@ -3325,21 +3264,7 @@ function applySessionPreferences(session) {
 }
 
 function syncLayoutSpacingControls() {
-  const wireSpacing = String(clamp(
-    state.layoutPolicy.spacing.wireLanePitch,
-    ...LAYOUT_SPACING_LIMITS.wireLanePitch
-  ));
-  elements.wireSpacingInput.value = wireSpacing;
-  elements.wireSpacingNumberInput.value = wireSpacing;
-  elements.wireSpacingValue.value = wireSpacing;
-
-  const cellSpacing = String(clamp(
-    state.layoutPolicy.spacing.cellSpacing,
-    ...LAYOUT_SPACING_LIMITS.cellSpacing
-  ));
-  elements.cellSpacingInput.value = cellSpacing;
-  elements.cellSpacingNumberInput.value = cellSpacing;
-  elements.cellSpacingValue.value = cellSpacing;
+  syncSpacingControls(elements, state.layoutPolicy.spacing);
 }
 
 function persistSession() {
