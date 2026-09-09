@@ -1,6 +1,6 @@
 # 阶段 7：向多领域图形工作台迁移
 
-更新日期：2026-09-09。状态：首批局部重构已提交；目标架构迁移尚未完成。
+更新日期：2026-09-09。状态：S7-1 首个兼容切片已实现并验证；目标架构迁移尚未完成。
 
 架构依据：[面向 Netlist 与 AIG 的可扩展工作台架构](architecture_evolution.md)。本计划是该设计的执行拆分；现行代码边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -55,7 +55,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | 工作包 | 当前状态 | 成本/风险 | 可审查产物 |
 | --- | --- | --- | --- |
 | S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
-| S7-1 | 计划中 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
+| S7-1 | 进行中（首个兼容切片完成） | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 部分基础已完成 | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 计划中 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 计划中 | 大 / 高 | measured graph、Scene、符号适配、renderer |
@@ -184,4 +184,6 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 阶段完成需满足架构文档第 11 节的五项结构验收，并完成关键功能/兼容验证。mapped 或浏览器验证仍未通过时，记录为具体未完成项；不能因为 main 变短或出现 AIG 文件夹而宣布完成。
 
-下一批建议执行 **S7-0 的应用行为基线 + S7-1 契约/Netlist adapter**；随后迁移 S7-2 的完整 Focused/Reveal command，逐步移除旧 handler。大案例版本对照作为并行诊断工作推进。当前这次工作只交付架构文档和更新后的计划，未开始上述新架构实现。
+当前已完成 S7-1 的首个兼容切片：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口开始经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist feature 暂时保留对 `app/graphWorkspace.js` 的唯一反向依赖，归 S7-3 统一 pipeline 时移除；边界测试禁止扩大该例外。验证记录为 `npm test` 290/290 通过，未涉及布局算法，因此本批未重跑 mapped 与 benchmark。
+
+下一批执行 **S7-2 的 DocumentStore/ViewSession 与 Focused/Reveal commands**，并继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。

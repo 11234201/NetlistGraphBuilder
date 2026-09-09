@@ -1,9 +1,9 @@
-import { parseVerilog } from "../parser/verilogParser.js";
+import { netlistFeature } from "../domains/netlist/netlist_feature.js";
 
-export function parseDesignSource(source) {
-  const design = parseVerilog(source);
-  if (design.modules.length === 0) {
-    throw new Error("No module declarations found");
-  }
-  return design;
+export function importDesignSource(source, context = {}) {
+  return netlistFeature.importSource({ name: context.name || "Verilog", text: source }, context);
+}
+
+export function parseDesignSource(source, context = {}) {
+  return importDesignSource(source, context).model;
 }
