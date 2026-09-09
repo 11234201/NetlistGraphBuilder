@@ -57,7 +57,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
 | S7-1 | 进行中（首个兼容切片完成） | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
-| S7-3 | 计划中 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
+| S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 计划中 | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 计划中 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
@@ -191,5 +191,7 @@ S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 
 真实浏览器验收记录：在内置双模块样例的 Whole 视图搜索已绘制 cell，仅发生选择与居中，Focused roots 保持 0；显式 Set 建立一个 root 后，搜索当前 Focused 图中未绘制的 cell，roots 从 1 追加为 2，原 root 保留；浏览器控制台无 warning/error。对应全量单元回归为 302/302。
 
 S7-5 的 module 层次结构列表已提前形成独立切片：Netlist 领域查询识别顶层模块和子模块实例，保留重复实例并有界标记递归 cycle；折叠面板由独立 renderer 转义名称，只通过 moduleName 导航端口切换视图。浏览器验证折叠/展开、点击切换和当前项 `aria-current` 同步通过，控制台无 warning/error。
+
+S7-3 已建立通用的 `query -> project -> measure -> layout -> overrides -> scene` 顺序执行器，支持同步与异步 stage；Single 和 Compare 的两侧均通过 `buildModuleWorkspace` 执行该 pipeline，Compare 不再维护第二份选择/变换/布局编排。ComparisonSession/Coordinator 已表达左右普通 session、viewport/roots/selection 独立同步开关、transactionId 去回声，以及 matched/unmatched/ambiguous 结果边界；旧 main Compare 状态和同步 handler 尚待迁移。
 
 下一批迁移 Compare 的普通 ViewSession/command 协调并开始统一 pipeline；S7-5 新增可开关 module 层次结构列表。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

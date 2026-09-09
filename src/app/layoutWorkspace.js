@@ -3,11 +3,8 @@ import { applyPositionedOverrides } from "../layout/positionedRouting.js";
 import { shiftWireRoutes } from "../layout/wireRoutes.js";
 
 export function layoutWorkspaceGraph(graph, options) {
-  const layoutOptions = { layoutPolicy: options.layoutPolicy };
-  const layoutResult = options.layoutProvider.layout(graph, layoutOptions);
-  const finalize = (providerGraph) => {
-    const autoGraph = addWorkspaceHeadroom(providerGraph, options.layoutPolicy);
-    return ({
+  const layoutResult = layoutWorkspaceGraphAutomatically(graph, options);
+  const finalize = (autoGraph) => ({
       autoGraph,
       graph: applyWorkspaceOverrides(autoGraph, {
         layoutPolicy: options.layoutPolicy,
@@ -15,7 +12,12 @@ export function layoutWorkspaceGraph(graph, options) {
         nodeSizes: options.nodeSizes
       })
     });
-  };
+  return isPromise(layoutResult) ? layoutResult.then(finalize) : finalize(layoutResult);
+}
+
+export function layoutWorkspaceGraphAutomatically(graph, options) {
+  const layoutResult = options.layoutProvider.layout(graph, { layoutPolicy: options.layoutPolicy });
+  const finalize = (providerGraph) => addWorkspaceHeadroom(providerGraph, options.layoutPolicy);
   return isPromise(layoutResult) ? layoutResult.then(finalize) : finalize(layoutResult);
 }
 

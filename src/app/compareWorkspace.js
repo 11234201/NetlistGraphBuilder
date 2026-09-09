@@ -1,11 +1,9 @@
 import { alignModulePorts, compareModules } from "../analysis/moduleCompare.js";
 import {
-  applyWorkspaceGraphTransforms,
-  buildWorkspaceGraph,
-  selectWorkspaceGraphView
+  buildWorkspaceGraph
 } from "./graphWorkspace.js";
-import { layoutWorkspaceGraph } from "./layoutWorkspace.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
+import { buildModuleWorkspace } from "./moduleWorkspace.js";
 
 export function buildCompareWorkspace(options) {
   const {
@@ -53,55 +51,49 @@ export function buildCompareWorkspace(options) {
   };
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
 
-  const sourceGraphs = { ...fullGraphs };
+  const workspaceInputs = {};
   for (const side of ["left", "right"]) {
     const rootNodeIds = normalizeRootNodeIds(focusedRootNodeIds?.[side]);
     if (rootNodeIds.length > 0) {
-      sourceGraphs[side] = selectWorkspaceGraphView(fullGraphs[side], {
+      workspaceInputs[side] = {
         viewMode: "focused",
-        rootNodeIds,
-        activeRootNodeId: activeFocusedRootNodeId?.[side] || rootNodeIds[0],
+        focusedRootNodeIds: rootNodeIds,
+        activeFocusedRootNodeId: activeFocusedRootNodeId?.[side] || rootNodeIds[0],
         faninDepth,
         fanoutDepth
-      });
+      };
       continue;
     }
     if (outputName) {
       const outputNodeId = findCompareNode(fullGraphs[side], "port", outputName, "output")?.id;
-      sourceGraphs[side] = selectWorkspaceGraphView(fullGraphs[side], {
+      workspaceInputs[side] = {
         viewMode: "fanin",
-        rootNodeId: outputNodeId,
-        maxDepth: coneDepth,
+        coneRootNodeId: outputNodeId,
+        coneDepth,
         faninDepth: coneDepth,
         fanoutDepth: 0
-      });
+      };
     }
   }
-  for (const side of ["left", "right"]) {
-    sourceGraphs[side] = applyWorkspaceGraphTransforms(sourceGraphs[side], {
-      useFanoutHubs,
-      collapseLargeGroups,
-      expandedGroupIds
-    });
-  }
-
-  const leftLayout = layoutWorkspaceGraph(sourceGraphs.left, {
+  const buildSide = (side, module) => buildModuleWorkspace({
+    module,
+    preparedFullGraph: fullGraphs[side],
     layoutProvider,
     layoutPolicy,
-    nodePositions: nodePositions.left,
-    nodeSizes: nodeSizes.left
+    nodePositions: nodePositions[side],
+    nodeSizes: nodeSizes[side],
+    useFanoutHubs,
+    collapseLargeGroups,
+    expandedGroupIds,
+    ...(workspaceInputs[side] || {})
   });
-  const rightLayout = layoutWorkspaceGraph(sourceGraphs.right, {
-    layoutProvider,
-    layoutPolicy,
-    nodePositions: nodePositions.right,
-    nodeSizes: nodeSizes.right
-  });
+  const leftLayout = buildSide("left", leftModule);
+  const rightLayout = buildSide("right", rightModule);
   const finalize = ([left, right]) => ({
     fullGraphs,
     autoGraphs: { left: left.autoGraph, right: right.autoGraph },
     graphs: { left: left.graph, right: right.graph },
-    analysis: compareModules(leftModule, rightModule, sourceGraphs.left, sourceGraphs.right)
+    analysis: compareModules(leftModule, rightModule, left.sourceGraph, right.sourceGraph)
   });
   return isPromise(leftLayout) || isPromise(rightLayout)
     ? Promise.all([leftLayout, rightLayout]).then(finalize)

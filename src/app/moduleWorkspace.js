@@ -3,7 +3,8 @@ import {
   buildWorkspaceGraph,
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
-import { layoutWorkspaceGraph } from "./layoutWorkspace.js";
+import { createIdentityStage, runViewPipeline } from "../application/view_pipeline.js";
+import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -29,9 +30,10 @@ export function buildModuleWorkspace(options) {
     layoutProvider,
     layoutPolicy,
     nodePositions = new Map(),
-    nodeSizes = new Map()
+    nodeSizes = new Map(),
+    preparedFullGraph = null
   } = options;
-  const fullGraph = buildWorkspaceGraph(module, {
+  const fullGraph = preparedFullGraph || buildWorkspaceGraph(module, {
     moduleLibrary,
     graphOverrides,
     cellConfig,
@@ -41,29 +43,36 @@ export function buildModuleWorkspace(options) {
     timingBadgePositions,
     showAliases
   });
-  const sourceGraph = selectWorkspaceGraphView(fullGraph, {
-    viewMode,
-    rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
-    rootNodeId: coneRootNodeId,
-    activeRootNodeId: activeFocusedRootNodeId,
-    maxDepth: coneDepth,
-    faninDepth,
-    fanoutDepth
+  const pipeline = runViewPipeline({
+    query: () => ({
+      fullGraph,
+      graph: selectWorkspaceGraphView(fullGraph, {
+        viewMode,
+        rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
+        rootNodeId: coneRootNodeId,
+        activeRootNodeId: activeFocusedRootNodeId,
+        maxDepth: coneDepth,
+        faninDepth,
+        fanoutDepth
+      })
+    }),
+    project: (result) => applyWorkspaceGraphTransforms(result.graph, {
+      useFanoutHubs,
+      collapseLargeGroups,
+      expandedGroupIds
+    }),
+    measure: createIdentityStage(),
+    layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
+    applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
+    createScene: createIdentityStage()
+  }, options);
+  const finalize = (result) => ({
+    fullGraph: result.queryResult.fullGraph,
+    sourceGraph: result.diagram,
+    autoGraph: result.autoGraph,
+    graph: result.graph
   });
-  const displayGraph = applyWorkspaceGraphTransforms(sourceGraph, {
-    useFanoutHubs,
-    collapseLargeGroups,
-    expandedGroupIds
-  });
-
-  const layoutResult = layoutWorkspaceGraph(displayGraph, {
-    layoutProvider,
-    layoutPolicy,
-    nodePositions,
-    nodeSizes
-  });
-  const finalize = (layout) => ({ fullGraph, ...layout });
-  return isPromise(layoutResult) ? layoutResult.then(finalize) : finalize(layoutResult);
+  return isPromise(pipeline) ? pipeline.then(finalize) : finalize(pipeline);
 }
 
 function isPromise(value) {
