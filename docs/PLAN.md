@@ -45,11 +45,13 @@ Structural Verilog
 - 阶段 4：`docs/STAGE_4_PLAN.md`
 - 阶段 5：`docs/STAGE_5_PLAN.md`
 - 阶段 6：`docs/STAGE_6_PLAN.md`
-- 阶段 7：应用编排与路由边界重构（计划中），见 [阶段 7 计划](STAGE_7_PLAN.md)。
+- 阶段 7：向多领域图形工作台迁移（首批局部重构已完成，架构迁移待实施），见 [阶段 7 计划](STAGE_7_PLAN.md) 和 [目标架构](architecture_evolution.md)。
 
 ## 需求拆解与完成状态
 
 当前里程碑：阶段 6 已完成 Global/Local 时序、可复用 Cell Config、聚焦式大图浏览、所选 cell 定位、module 前进/后退、过程日志和 EDA 启动集成。阶段 5 的可选 Liberty 增强继续保留为后续计划。
+
+下一条工程主线是阶段 7：独立领域模型、统一 ViewSession/commands 和共享图形流水线，为未来 AIG 浏览准备扩展边界。阶段 7 使用内存 AIG 样例验证架构；生产级 AIG 输入、转换与分析另行规划。
 
 状态口径：
 

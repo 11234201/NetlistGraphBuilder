@@ -1,108 +1,187 @@
-# 阶段 7：应用编排与路由边界重构计划
+# 阶段 7：向多领域图形工作台迁移
 
-日期：2026-09-06。状态：首批实施中，完成范围见下方记录。
+更新日期：2026-09-09。状态：首批局部重构已提交；目标架构迁移尚未完成。
 
-## 执行记录（2026-09-06）
+架构依据：[面向 Netlist 与 AIG 的可扩展工作台架构](architecture_evolution.md)。本计划是该设计的执行拆分；现行代码边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-状态：首批实施中，不能将整个阶段视为完成。
+## 1. 本阶段目标与交付边界
 
-- 批次 0：mapped runner 已增加失败分类、退出码、耗时、模式和最后阶段；远端普通连接及授权重试均为 SSH timeout。同环境两版本/default 与 no-collapse 对照仍未完成，历史 violation 归属仍未确定。
-- 批次 1：已引入 workspaceRequest，保护旧布局成功/失败、渲染进度和完成回调；修复大图切小图/空态未取消旧批次。增加可控失效及取消测试。浏览器真实连续操作验证仍待补充。
-- 批次 2：已共享 roots 状态归一化与动作结果，修复 Add 达上限后驱逐已有 root/误报已存在的问题；已绘制 Single root 激活直接定位。完整业务控制层（包括跨 module 和 Compare 同步反馈）仍需继续收敛。
-- 批次 3：先抽取 searchControls 和 spacingControls，主入口只提供搜索索引、动作和持久化查询回调。空数字输入保留上次有效值；旧存档非 4 倍数不改写。输入/Cell Config、画布与日志控制的进一步拆分尚未实施。
-- 批次 4：未修改布局几何，等待批次 0 的版本对照结论。
-- 批次 5：尚无新浏览器性能证据，不引入缓存或 Worker。
+把以单个 Netlist 应用全局状态为中心的代码，迁移到“独立领域模型 + ViewSession/commands + 共享图形流水线”。完成后，新增 AIG 等图类型主要新增领域适配器与注册项，Single/Compare、画布、任务管理和通用渲染不再复制。
 
-本地替代验证原因：mfs-remote 两次连接超时，不能运行远端测试；轻量单元测试在 Windows 本地执行，mapped 输出保持在进程日志中，没有新增大型磁盘产物。
+保留离线原生 ES modules、现有 parser/IR 和成熟布局算法；每批给出独立可验证结果。新接口用 JSDoc、边界校验和行为测试约束，不以拆文件数量或 main 行数作为验收标准。
 
-已执行验证：`npm test` 285/285 通过；`node --check src/app/main.js` 与 `git diff --check` 通过。真实浏览器交互与两版本性能对照尚未执行，不将单元测试视为这些项目的替代。
+本阶段包含最小内存 AIG 样例作为架构验证，不交付生产级 AIGER parser、Netlist→AIG 转换、逻辑等价或时序展开。Worker、全图缓存、Canvas/Wasm 仍是按性能证据决定的后续工作。
 
-`npm run test:mapped-cases`：退出码 1，45/47 通过，dp_020 与 sop_004 均在 layout 阶段超过 45000ms；已完成案例累计 violations=59/120，最大 layout=30832ms、最大 heap=125MiB。超时案例没有完整质量数据，因此整套回归未通过。首批保留现有布局算法；下一轮先补版本对照与浏览器交互，再继续扩大重构范围。
+## 2. 已有成果与基线
 
-## 目标与范围
+### 2.1 已提交成果
 
-在现有离线原生 ES modules 架构上，收敛应用状态操作、异步任务提交和路由几何策略，让后续增加交互时可以复用明确的边界。按可独立审查、可独立回退的小批次实施，不以文件数量或行数作为完成标准。
+`8d53bfc`（承接 `5d65f38`）包含：
 
-本次只交付计划；不修改功能代码。沿用已建立的 graphWorkspace、layoutWorkspace、viewport、pointerSession 和路由共享模块，不重新搭建同类框架。Liberty、Worker、Canvas/Wasm 继续属于独立功能或性能决策。
+- workspaceRequest：保护旧布局成功/失败、渲染进度及完成回调。
+- progressive renderer：大图切小图/空态时取消旧批次。
+- roots 归一化与动作 helper、Add 上限处理、已绘制 root 的直接定位。
+- searchControls、spacingControls：搜索控件和数字间距输入边界抽取。
+- mapped runner：失败分类、退出码、耗时、模式和阶段信息。
 
-## 已观察到的事实与待验证问题
+这些是可复用的迁移基础，不等于完整 commands、ViewSession 或领域适配器已经实现。原计划中的批次 0～3 均仅部分落地，原批次 4/5 未实施。
 
-| 证据位置 | 已观察到的事实 | 重构价值或待验证问题 |
-| --- | --- | --- |
-| `src/app/main.js` | 约 3400 行，同时管理导入、搜索、Focused roots、布局提交、画布交互和持久化 | 按业务动作抽取控制层，降低一次交互改动跨越多个处理函数的成本 |
-| `renderCurrentModuleGraph` / `renderCompareGraphs` | 成功回调检查 layoutRequestId；catch 直接调用 handleLayoutFailure | 旧请求失败可能影响新视图状态；须用可控 Promise 顺序复现后修正 |
-| `commitCurrentGraph` / `renderGraphMount` | 渲染后的 transform/status/onRendered 回调另行编排 | 须检查取消渲染和切换 module 后是否仍会执行旧回调，不能仅凭代码位置判定已发生缺陷 |
-| `focusedSelection.js` / `focusedViewPolicy.js` 与 main 的 Single/Compare handlers | 已共享 roots 归一化和集合操作，状态提交、同步侧选择、布局后定位仍分散 | 继续抽取完整业务动作，保留 Single/Compare 各自状态语义 |
-| `localRouteCandidates.js` / `simpleRouteCandidates.js` | source inset 公式重复；局部 padding 分别为 8、9；目标可见间距已有共享 policy | 明确每种距离的语义和拥有者；不能因为数值接近就直接合并 |
-| `tests/unit/app-ui.test.js` | 部分测试读取 HTML 或 main 源码并正则匹配 | 能验证控件存在，但不能证明连续搜索、旧请求失效和输入提交的行为正确 |
-| `tools/test-mapped-cases.mjs` | 默认每例 45 秒；超时后 metrics 可能为 null，失败详情缺少阶段信息 | 增加可诊断结果，避免性能问题只能看到 TIMEOUT/null |
+### 2.2 历史验证与尚缺证据
 
-上一轮对 `5d65f38` 所含改动的验证记录：276 项单元测试通过；mapped 45/47 完成，dp_020、sop_004 超时。该记录是历史结果，本次未重跑。此前单独 dp_020 的 no-collapse 结果存在 1481 个 violation；不同模式结果不能直接比较，也不能据此断言是既有问题或此次回归。必须补做同环境、同模式的版本对照。
+- 本轮首批验证记录：`npm test` 285/285 通过；main 语法检查、diff whitespace 检查通过。
+- mapped：45/47 通过，dp_020、sop_004 在 layout 阶段超过 45000ms；已完成案例 violations=59/120，最大 layout=30832ms、最大 heap=125MiB；整套回归退出码为 1。
+- 此前 dp_020 的 no-collapse 诊断报告 1481 个 violation；它不能与默认 collapse 结果直接比较。历史文档对超时存在基线解释，但完整的同环境/同模式版本对照仍未固化。
+- mfs-remote 两次 SSH 连接超时，因此首批使用本地轻量测试和本地 mapped 回归。真实浏览器连续操作、两版本 default/no-collapse 对照尚未完成。
 
-## 实施顺序
+未来记录必须区分“历史结果、当前执行结果、尚未验证”；不得把 45/47 或单元通过描述成全验证通过。
 
-### 批次 0：固定行为与大案例基线（P0，小至中等成本）
+## 3. 依赖顺序与工作包
 
-- 在 mfs-remote 的 `/home/wzh/my_code/netlistGraphBuilder` 下使用隔离 checkout，记录 commit、Node 版本、操作系统、collapse 模式和预算。日志与大型产物保留远端。
-- 比较 `45e4e12` 与 `5d65f38` 的 dp_020、sop_004：默认模式与 no-collapse 分开；如当前 HEAD 已变化，同时记录实际 HEAD。
-- 默认 45 秒门禁保持不变。延长超时只用于单例诊断，不作为门禁通过依据；报告完成布线比例、violation 分类和阶段耗时。
-- 改善 mapped runner 的失败输出：区分 timeout、非零退出、无效 JSON、布线不全和预算超限；保留退出码、已用时间与最后阶段。
-- 把现有“搜索未绘制 cell 默认追加 roots”“显式 Set 才替换”的行为固化为控制层行为用例。
+```text
+S7-0 行为基线/失败记录
+  -> S7-1 契约 + Netlist legacy adapter
+  -> S7-2 Document/ViewSession + commands + jobs
+  -> S7-3 统一 view pipeline / Compare
+  -> S7-4 测量与 Scene 边界
+  -> S7-5 UI/领域能力/存档迁移
+  -> S7-6 第二领域样例验证与收尾
 
-验收：历史问题与新增回归有可比较证据；所有失败都有明确分类。若确认正确性回归，先另行修复并验证，再进入路由策略重构，不能通过放宽预算推进。
+S7-R 路由语义保持提取：在 S7-4 基础上，取得布局对照证据后进行
+S7-P 性能扩展：仅在测量表明需要时立项，不阻塞本阶段架构验收
+```
 
-### 批次 1：统一异步请求生命周期（P0，中等成本）
+S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立推进，不阻塞不改变布局算法的应用层迁移。涉及几何/复杂度变更的工作包必须先补足对应基线。每批提交均更新本文件执行记录，不把所有工作攒成一个无法审查的大提交。
 
-- 在 app 层引入小型请求协调模块，统一 workspace 构建、结果提交、失败回调和渲染完成检查。
-- 用 design/module/view 所属请求上下文识别过期结果；Compare 双侧作为同一次 workspace 提交，selection focus 使用独立但关联的请求身份。
-- 成功、失败、进度和 onRendered 均只允许当前任务影响可见状态。明确“丢弃结果”与“取消计算”的区别；暂不承诺中断同步布局。
-- 继续消费现有 progressive renderer 的取消机制，先核实其 resolve/cancel 语义，再连接协调模块。
+| 工作包 | 当前状态 | 成本/风险 | 可审查产物 |
+| --- | --- | --- | --- |
+| S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
+| S7-1 | 计划中 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
+| S7-2 | 部分基础已完成 | 中至大 / 高 | 分域状态、commands、job coordinator |
+| S7-3 | 计划中 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
+| S7-4 | 计划中 | 大 / 高 | measured graph、Scene、符号适配、renderer |
+| S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
+| S7-6 | 计划中 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
+| S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
+| S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
 
-验收：旧请求后成功、后失败、渲染中切 module、Single/Compare 切换、连续 focus 等可控时序测试通过；旧回调不改变当前图、selection、viewport 或 Ready/error 状态。
+## 4. 工作包验收
 
-### 批次 2：收敛 Focused 与搜索业务动作（P0，中等成本）
+### S7-0：固化行为、模式和失败基线
 
-- 在现有 focusedSelection / focusedViewPolicy 基础上建立不依赖 DOM 的动作入口：Set、Add、Remove、Clear、Activate、Reveal search target。
-- 每个动作显式返回 roots、active root、selection、是否需要重建和是否需要定位；副作用由控制层执行。
-- Single 与 Compare 共用动作语义，Compare adapter 负责 active side 和同步匹配；另一侧不存在匹配目标时保留其已有有效状态。
-- 同 module 搜索未绘制 cell 默认追加；重复 Add 幂等；跨 module roots 不混用。root 上限仍遵循现有 policy，并明确拒绝/截断时的反馈。
-- Session、Golden、历史恢复继续接受旧单 root 字段，在输入边界归一化为多 root 状态，不扩大持久化范围。
+实施：
 
-验收：连续加入 A/B/C、删除 active root、清空、重复加入、跨 module、同步开关、旧 session/Golden 恢复均有行为验证；已绘制对象的纯定位不额外调用 provider。
+1. 固定关键路径：搜索未绘制 cell 追加 roots、显式 Set 替换、跨 module reveal、上限拒绝、Compare 单侧/同步、历史和旧 session/Golden 恢复。
+2. 使用可控 Promise 与分批 renderer 验证旧成功、旧失败、progress、selection reveal、关闭视图和导入替换时序；补真实浏览器快速操作记录。
+3. 在可用执行环境比较 `45e4e12`、`5d65f38`、`8d53bfc`（必要时另加当前 HEAD）的两个慢案例；default 与 no-collapse 分开，记录环境、预算、耗时与质量。
+4. 45 秒门禁不改变。延长超时只作为单例诊断，超时及 violation 保留为失败；原始日志放远端工作目录或 ignored `dc_runs/`。
 
-### 批次 3：拆分 main 的控制职责（P1，中等成本）
+验收：每项行为都有对应测试/操作步骤；已知失败可以重现且有分类，未查明原因明确记录。布局正确性回归如被证实，须单独修复后再扩大几何改动。
 
-- 在前两批形成稳定接口后，依次抽取搜索控制、输入/Cell Config 控制、Layout 控件绑定、画布控制和日志/导出绑定。
-- main 最终主要负责创建 state、取得 DOM、组装依赖和启动；模块通过明确参数/回调协作，避免把整个全局 state 和全部 handlers 重新注入每个模块。
-- 复用现有 UI panel 与 pointer/frame helpers，Single/Compare 用 adapter 表达差异。
-- 数字输入、滑块和 session/Golden 恢复由同一个控件绑定边界同步；检查空输入、非法数字、上下限、最近 4 倍数与失焦提交。兼容旧非 4 倍数存档的行为需明确记录，不能静默改写源数据。
+### S7-1：定义契约，包装现有 Netlist 能力
 
-验收：入口无需了解各个面板的内部事件；没有循环依赖；浏览器验证搜索、数字输入、模块前后退、Compare、拖动与缩放。纯抽取提交保持布局输出不变。
+实施：
 
-### 批次 4：统一端点几何策略（P1，中至高风险）
+1. 引入 Document envelope、ObjectRef、ViewQuery、Diagnostic、DomainFeature、Executor、Diagram/MeasuredGraph/Scene 的最小契约与 JSDoc。
+2. 明确 canonical/display、document/unit/object/terminal 身份；维护投影映射，不用 label 做身份。
+3. Netlist feature 用 legacy adapter 包装现有 parser、inference、graphWorkspace、搜索、详情和 provider；先跑通现有导入到展示链，不同时搬动算法。
+4. bootstrap 静态注册具体实现；application 只接收领域端口，公共代码不通过 service locator 取得任意实现。
+5. 添加 import 边界检查；旧反向依赖列为精确且有工作包归属的例外，新公共目录无例外。
 
-- 盘点 source escape、target approach、node padding、可见转角间距的含义与所有消费方。
-- 将重复端点 inset 公式归入共享几何边界；先保持原数值与输出，几何调优使用单独提交。
-- 检查 Simple 基础/局部/全局 fallback、Adjust 与 ELK 归一化路径对 top/bottom pin 的一致性。
-- 将可见转角视为可读性目标；不得为了凑足 16px 破坏正交、端点进入和节点避障。若要升级为硬约束，先定义可行条件并接入共享 validator。
-- 用 top/bottom、近距离、反向边、拥塞、退化共线和输入排列变化覆盖边界，不加 fixture 特判，不扩大候选搜索规模。
+验收：未更改 Netlist IR；原样例通过 adapter 得到等价对象/连线/诊断；端口明确拒绝非法输入。Diagram 契约能表达无 cell/pin 的最小样例，尚不必提供完整第二领域。
 
-验收：纯提取前后 fixture 几何一致；行为调整另有质量指标与 determinism、fixture、mapped 回归。no-collapse 报告单独列出，失败不得称为通过。
+### S7-2：建立 Document/ViewSession 与 command/job 边界
 
-### 批次 5：按证据选择缓存与异步计算（P2，条件性工作）
+实施：
 
-- 先测量 focused 深度/spacing/timing 改变分别消耗在建图、布局和 DOM 的时间，再决定是否缓存 full graph。
-- 如缓存有收益，定义 design、module、Cell Config、alias、timing 和 overrides 的版本键及失效矩阵；缓存不能修改 IR 或复用过期注释。
-- 只有浏览器仍出现明显计算阻塞时，再沿已有性能计划评估 Worker；成本需包含离线启动、数据复制、取消、错误传播和 Windows 包验证。
+1. 从 appState 分出 DocumentStore、ViewSession、ArtifactStore；源数据、持久化设置和 pointer/DOM/任务句柄各有归属。
+2. 先迁移 `focus.*` 与 `selection.reveal`，再迁移 unit 导航、layout policy 和 overrides；所有命令显式带 sessionId，状态决策返回需执行的 effect。
+3. roots 动作与 selection 分开；已绘制对象只定位。达到上限不驱逐旧 root；跨 module 不复用旧作用域的 ID。
+4. 将 workspaceRequest 升级为按 document/session/job revision 的协调器；纯 pan/zoom 不取消 layout，source reload 会失效所有相关任务。
+5. 同时保护导入 generation、错误/进度、selectionRevision、render completion；关闭 session/document 清理任务、监听和 artifact 引用。
 
-验收：同环境多次测量显示目标操作改善，缓存命中与失效有明确行为测试；无明确收益则不实施。本批不阻塞前四批交付。
+验收：两份独立 session 的选择、roots、override、任务互不污染；快速切换和旧任务失败不会抢占状态；UI 无直接 store mutation。命令行为测试调用真实 handler，不只测试集合 helper 或源码正则。
 
-## 验证、提交与收尾
+### S7-3：统一流水线与 Compare 协调
 
-- 普通代码批次运行 focused tests 与 `npm test`；布局/图变更补 determinism、layout-fixtures、mapped，复杂度变更补 benchmark。
-- 完整测试与性能工作优先远端；浏览器交互和 Windows 专有打包检查按需要本地进行。每次保留真实环境与命令。
-- 将源码正则测试中涉及业务语义的断言逐步替换为控制层行为测试；保留有价值的静态 HTML/安全转义检查，不为文件拆分机械增加测试。
-- 每批独立提交，纯重构与行为修复分开；记录涉及文件、验证结果、已知失败和下一批入口。文档状态只随真实交付更新。
-- 需要更新架构/设计文档时，在实现边界实际改变的批次更新；本计划不是现行架构声明。
+实施：
 
-建议首轮范围：批次 0、1、2。先稳住快速切换与多 root 搜索，再拆 main 和收敛几何策略。此顺序优先覆盖最近反复调整的用户路径。
+1. 用一条 `query -> project/measure -> layout -> overrides -> scene` pipeline 逐步替代 moduleWorkspace 编排，保留 auto/adjusted 两份产物。
+2. Compare 由两个普通 ViewSession 加 ComparisonSession 组成，删除左右两份专用图构建状态和重复流水线。
+3. 独立管理 viewport、roots、selection 同步；匹配返回 matched/unmatched/ambiguous。
+4. 同步意图携带 transactionId/originSessionId，避免回声；成对展示等待同一事务双方结果，单侧操作不取消另一侧计算。
+5. pipeline 明确阶段依赖；selection/viewport 不重跑 provider，spacing 从必要的 measurement/layout 阶段开始。
+
+验收：Single 与 Compare 执行同一 use case 行为矩阵；缺失匹配不清空另一侧；同步开关彼此独立；异步双侧失败及单侧关闭有验证。旧 API adapter 在调用方迁完后删除。
+
+### S7-4：分离领域展示、测量、通用几何和 Scene
+
+实施：
+
+1. 把 nodeGeometry 中读取 cell pins、gate kind、推断规则的逻辑移到 Netlist presentation，输出完整 measured ports、法线、bubble 留白与 node bounds。
+2. 将 Simple/ELK 从 legacy adapter 逐步迁至明确的几何输入，保存 topology key、route ownership、labels 和 overrides 契约。
+3. 将 svgRenderer 的门符号和领域分支移到 presentation；Scene renderer 只消费图元、文字、装饰和 hit targets。
+4. 保留惰性 scene plan、progressive/cancel、导出与 screen 几何一致性；通用 renderer 不 import infer 或读取 `node.ref`。
+5. 在通用几何、领域语义和 profile 可读性三层分别校验；所有新层不反向依赖 application。
+
+验收：迁移前后代表 fixture 的节点、端口、路径、极性装饰及映射等价；排列不变性、几何硬约束和 mapped 回归完成并如实记录；拖动不运行 provider，所有完成态恢复完整 labels/hit areas。此包需布局前后对照，不能仅靠 UI 测试放行。
+
+### S7-5：迁移功能贡献、面板、存档与启动
+
+实施：
+
+1. bootstrap 按 feature capability 注册 commands、panels、profiles、formats；searchControls/spacingControls 接受限定 query/command API。
+2. 将输入、Cell Config、timing、日志/导出、canvas 的剩余职责从 main 移入所属 use case/controller；不通过注入整个全局 state 换个文件继续耦合。
+3. detail panel 以 ObjectRef 查询结构化数据；特殊 UI factory 只获得容器和限定端口。
+4. 在 persistence 边界分离 session、Golden、Cell Config、startup codecs；清除 layoutGolden 对 app 的 import。
+5. 旧单 root、session v1、Golden v1/v2 和 startup v1 用固定 fixture 迁移；新数据带 domain/unit/source identity，错误源上的 overrides 明确失效。
+6. 文件输入契约允许 text/bytes；现有 Node/Python/Windows launcher 仍兼容，记录新格式如何扩展而不复制领域逻辑。
+
+验收：main 主要组装与启动；控件通过 command 真正影响状态；空/非法数字、4 倍数吸附和旧非 4 倍数存档行为明确；三种启动路径与旧存档 round trip 通过。
+
+### S7-6：第二领域样例与架构收尾
+
+实施：
+
+1. 在 `tests/support/` 提供独立的内存 AIG model/query/presentation feature，包含二输入 AND、正/反相分支、重复 fanin、常量、共享子图与 latch Q/D 边界。
+2. 通过公共 Document/ViewSession/commands/pipeline 完成搜索、Focused、选择、布局、场景和 SVG 导出；检查 sourceMap、fanin slot、polarity 未丢失。
+3. 验证无 Cell Config/timing 能力时相关命令和面板不可用；Netlist/AIG 同时打开不串状态。
+4. 清除已完成迁移的 legacy adapter/例外；保留的例外必须列出具体理由和移除计划，核心扩展性门禁不允许靠例外通过。
+5. 更新现行 ARCHITECTURE、README、领域 skill 和开发规则；文档中的已实现状态逐项与代码核对。
+6. 执行离线启动与 Windows release 检查，确认新目录被打包、ELK 许可证仍在、没有隐式联网资源。
+
+验收：加入该 AIG 样例仅需其领域模块和一个注册项，通用 application/canvas/renderer 不添加 AIG 条件分支；现有 Netlist 工作流保持。AIG 样例验收成功不宣称产品已支持 `.aag/.aig` 文件。
+
+### S7-R：路由策略收敛（独立于功能扩展）
+
+在 S7-4 和对应基线就绪后，命名并提取 source escape、target approach、node padding、端点 inset 和可见转角规则。先保留原数值/输出；Simple/Adjust/ELK profile 的确有语义差异则保留显式策略。
+
+16px 转角属于软偏好，不能突破几何硬约束。不得增加图规模相关候选、实例名/坐标特判或放宽 validator。直接按 net 生成 tree candidate 等算法优化继续放在 [多 root 与 routing 设计](multi_cell_focused_and_net_routing_design.md) 的独立任务中。
+
+验收：纯提取保持 geometry signature；调优提交另列 quality/determinism/mapped/benchmark 前后证据。
+
+### S7-P：性能决策（条件项）
+
+先测 query、测量、layout、首批/完整 DOM 与复制成本；确认瓶颈后才增加版本化缓存或 Worker executor。缓存必须有依赖失效矩阵、容量/释放策略；Worker 需实测取消、复制、错误传播与离线包。
+
+依据 [性能优化计划](PERFORMANCE_OPTIMIZATION_PLAN.md) 独立安排，不把缓存命中率或新接口当成性能改善。生产 AIG 导入、转换、跨周期展开也单独立项。
+
+## 5. 验证和合并规则
+
+| 变更 | 必须取得的证据 |
+| --- | --- |
+| 文档/契约设计 | 链接、身份/状态/依赖定义一致；现状与目标明确区分 |
+| 应用状态、command、jobs、Compare | 真实 handler 行为矩阵、可控异步顺序、`npm test` |
+| 图、投影、layout、Scene | 输入不变性、projection/ownership、determinism、fixture、mapped |
+| 热路径/复杂度 | 相同环境和模式的 benchmark、候选预算；无新增全图平方扫描 |
+| UI/画布生命周期 | 浏览器导入、连续搜索、切换、拖动/取消、缩放、关闭视图与导出 |
+| 存档/启动/发布 | 旧格式 fixture、launcher e2e、Windows 离线资源及许可证 |
+
+构建、测试、性能和大日志优先 mfs-remote；不可用时先记录原因，再选择有界本地替代。缺失某项证据时将对应工作包标为未验收，不把不相关批次也永久冻结。
+
+每批提交前：检查 git status、仅暂存明确文件、运行适用检查、记录失败。纯提取、行为修复和性能调整分别提交；代码和调用方同时迁移，避免长期双写状态。每次迁移的 adapter 必须有负责工作包及退出条件。
+
+## 6. 阶段完成定义与下一步
+
+阶段完成需满足架构文档第 11 节的五项结构验收，并完成关键功能/兼容验证。mapped 或浏览器验证仍未通过时，记录为具体未完成项；不能因为 main 变短或出现 AIG 文件夹而宣布完成。
+
+下一批建议执行 **S7-0 的应用行为基线 + S7-1 契约/Netlist adapter**；随后迁移 S7-2 的完整 Focused/Reveal command，逐步移除旧 handler。大案例版本对照作为并行诊断工作推进。当前这次工作只交付架构文档和更新后的计划，未开始上述新架构实现。

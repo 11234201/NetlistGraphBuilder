@@ -198,6 +198,10 @@ npm test
 
 ## 项目结构
 
+现行边界见 [架构说明](docs/ARCHITECTURE.md)。后续功能和 AIG 扩展采用的目标设计见
+[可扩展工作台架构](docs/architecture_evolution.md)，迁移顺序见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
+目标设计中的 AIG 适配尚未成为正式产品功能。
+
 ```text
 docs/                 路线图、阶段计划、架构和设计规范
 examples/             示例输入与输出
