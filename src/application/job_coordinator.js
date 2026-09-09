@@ -1,0 +1,92 @@
+export function createJobCoordinator({ documents, sessions, artifacts }) {
+  const activeByKey = new Map();
+  let nextJobId = 1;
+
+  function start({ sessionId, kind, run, onProgress = () => {} }) {
+    if (typeof run !== "function") throw new Error("Job run function is required");
+    const session = sessions.require(sessionId);
+    const document = documents.require(session.documentId);
+    const key = jobKey(sessionId, kind);
+    activeByKey.get(key)?.controller.abort();
+    const controller = new AbortController();
+    const context = Object.freeze({
+      documentId: document.documentId,
+      sourceRevision: document.sourceRevision,
+      sessionId,
+      sessionRevision: session.sessionRevision,
+      kind,
+      jobId: `job:${nextJobId++}`,
+      signal: controller.signal,
+      reportProgress(value) {
+        if (isCurrent(context)) onProgress(value, context);
+      }
+    });
+    activeByKey.set(key, { context, controller });
+
+    const promise = Promise.resolve().then(() => run(context)).then(
+      (value) => {
+        if (!isCurrent(context)) return Object.freeze({ status: "stale", context });
+        activeByKey.delete(key);
+        const artifact = artifacts.put({ kind, context, value });
+        return Object.freeze({ status: "committed", context, artifact });
+      },
+      (error) => {
+        if (!isCurrent(context)) return Object.freeze({ status: "stale", context, error });
+        activeByKey.delete(key);
+        throw error;
+      }
+    );
+    return Object.freeze({ context, promise, cancel: () => cancelContext(context) });
+  }
+
+  function isCurrent(context) {
+    const active = activeByKey.get(jobKey(context.sessionId, context.kind));
+    if (active?.context !== context) return false;
+    const session = sessions.get(context.sessionId);
+    const document = documents.get(context.documentId);
+    return Boolean(session && document && !context.signal.aborted &&
+      session.documentId === context.documentId &&
+      session.sessionRevision === context.sessionRevision &&
+      document.sourceRevision === context.sourceRevision);
+  }
+
+  function cancelContext(context) {
+    const key = jobKey(context.sessionId, context.kind);
+    const active = activeByKey.get(key);
+    if (active?.context !== context) return false;
+    active.controller.abort();
+    activeByKey.delete(key);
+    return true;
+  }
+
+  function cancelSession(sessionId) {
+    let cancelled = 0;
+    for (const [key, active] of activeByKey) {
+      if (active.context.sessionId !== sessionId) continue;
+      active.controller.abort();
+      activeByKey.delete(key);
+      cancelled += 1;
+    }
+    artifacts.clearSession(sessionId);
+    return cancelled;
+  }
+
+  function cancelDocument(documentId) {
+    let cancelled = 0;
+    for (const [key, active] of activeByKey) {
+      if (active.context.documentId !== documentId) continue;
+      active.controller.abort();
+      activeByKey.delete(key);
+      cancelled += 1;
+    }
+    artifacts.clearDocument(documentId);
+    return cancelled;
+  }
+
+  return Object.freeze({ start, isCurrent, cancelSession, cancelDocument });
+}
+
+function jobKey(sessionId, kind) {
+  if (!sessionId || !kind) throw new Error("Job sessionId and kind are required");
+  return `${sessionId}:${kind}`;
+}
