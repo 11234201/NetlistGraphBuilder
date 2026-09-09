@@ -14,6 +14,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
       sourceRevision: document.sourceRevision,
       sessionId,
       sessionRevision: session.sessionRevision,
+      computationRevision: session.computationRevision,
       kind,
       jobId: `job:${nextJobId++}`,
       signal: controller.signal,
@@ -46,7 +47,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     const document = documents.get(context.documentId);
     return Boolean(session && document && !context.signal.aborted &&
       session.documentId === context.documentId &&
-      session.sessionRevision === context.sessionRevision &&
+      session.computationRevision === context.computationRevision &&
       document.sourceRevision === context.sourceRevision);
   }
 

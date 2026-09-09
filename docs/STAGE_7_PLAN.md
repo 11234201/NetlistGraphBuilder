@@ -186,6 +186,6 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 当前已完成 S7-1 的首个兼容切片：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口开始经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist feature 暂时保留对 `app/graphWorkspace.js` 的唯一反向依赖，归 S7-3 统一 pipeline 时移除；边界测试禁止扩大该例外。验证记录为 `npm test` 290/290 通过，未涉及布局算法，因此本批未重跑 mapped 与 benchmark。
 
-S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect；尚未接管旧 `main.js` 调用方。JobCoordinator 已按 document/source/session/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。
+S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect；尚未接管旧 `main.js` 调用方。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
 
-下一批通过兼容 controller 迁移旧 Focused/Reveal 调用方，并区分不会使 layout 失效的 viewport revision；同时继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。
+下一批通过兼容 controller 迁移旧 Focused/Reveal 调用方；同时继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。

@@ -60,3 +60,20 @@ test("session revisions, source reloads, and close invalidate pending commits", 
     assert.equal(state.artifacts.get("view:1", "render"), null);
   }
 });
+
+test("viewport revisions do not cancel computation but semantic session changes do", async () => {
+  const state = setup();
+  const firstTask = deferred();
+  const first = state.jobs.start({ sessionId: "view:1", kind: "layout", run: () => firstTask.promise });
+  await Promise.resolve();
+  state.sessions.updateViewport("view:1", { x: 20, y: 10, scale: 2 });
+  firstTask.resolve("layout-after-pan");
+  assert.equal((await first.promise).status, "committed");
+
+  const secondTask = deferred();
+  const second = state.jobs.start({ sessionId: "view:1", kind: "layout", run: () => secondTask.promise });
+  await Promise.resolve();
+  state.sessions.update("view:1", () => ({ viewMode: "focused" }));
+  secondTask.resolve("obsolete-layout");
+  assert.equal((await second.promise).status, "stale");
+});

@@ -27,6 +27,14 @@ test("document and session stores close related state explicitly", () => {
   assert.equal(documents.close("doc:1"), true);
 });
 
+test("viewport updates advance UI revision without invalidating computation revision", () => {
+  const { sessions } = setup();
+  const before = sessions.require("left");
+  const after = sessions.updateViewport("left", { x: 8, y: 4, scale: 1.5 });
+  assert.equal(after.sessionRevision, before.sessionRevision + 1);
+  assert.equal(after.computationRevision, before.computationRevision);
+});
+
 test("focused commands isolate sessions and reject capacity without replacing roots", () => {
   const { sessions, bus } = setup();
   bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u1") });
