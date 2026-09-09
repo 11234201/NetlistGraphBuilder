@@ -56,7 +56,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | --- | --- | --- | --- |
 | S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
 | S7-1 | 进行中（首个兼容切片完成） | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
-| S7-2 | 部分基础已完成 | 中至大 / 高 | 分域状态、commands、job coordinator |
+| S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 计划中 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 计划中 | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
@@ -186,4 +186,6 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 当前已完成 S7-1 的首个兼容切片：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口开始经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist feature 暂时保留对 `app/graphWorkspace.js` 的唯一反向依赖，归 S7-3 统一 pipeline 时移除；边界测试禁止扩大该例外。验证记录为 `npm test` 290/290 通过，未涉及布局算法，因此本批未重跑 mapped 与 benchmark。
 
-下一批执行 **S7-2 的 DocumentStore/ViewSession 与 Focused/Reveal commands**，并继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。
+S7-2 已建立 DocumentStore、独立 ViewSessionStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect；尚未接管旧 `main.js` 调用方。
+
+下一批为 command 增加 JobCoordinator/ArtifactStore 的 revision 保护和关闭清理，再通过兼容 controller 迁移旧 Focused/Reveal 调用方；同时继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。
