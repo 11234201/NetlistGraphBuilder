@@ -120,6 +120,10 @@
             <label><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label>
             <label class="cone-depth-field" for="coneDepthInput"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
           </section>
+          <details id="moduleHierarchyPanel" class="panel-section collapsible-panel module-hierarchy-panel">
+            <summary>Module hierarchy</summary>
+            <div id="moduleHierarchyTree" class="panel-section-body module-hierarchy-body">No modules</div>
+          </details>
           <section class="panel-section">
             <h2>Design</h2>
             <dl id="designStats" class="stats-list"></dl>

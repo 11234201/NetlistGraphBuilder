@@ -14,6 +14,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 在没有 `.lib` 时，根据 cell/pin 命名推断 gate kind 与 pin direction；未知 cell 显示为 blackbox。
 - 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
 - 搜索 module、port、net、instance 和 cell type，并定位图中对象。
+- 可展开 Module hierarchy 列表查看模块实例层次，点击节点切换当前 module。
 - 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
 - Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
 - 切换 Whole 和 Focused；Focused 的前后向深度可独立设置，大 module 默认 Search-first。

@@ -686,6 +686,59 @@ body.is-dragging-files .drop-overlay {
   margin-top: 11px;
 }
 
+.module-hierarchy-body {
+  max-height: 280px;
+  overflow: auto;
+}
+
+.module-hierarchy-tree,
+.module-hierarchy-tree ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.module-hierarchy-tree ul {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.module-hierarchy-link {
+  width: 100%;
+  padding: 4px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-hierarchy-link:hover,
+.module-hierarchy-link:focus-visible {
+  background: #eef6f7;
+  color: var(--accent-strong);
+}
+
+.module-hierarchy-link.is-current {
+  background: #dceff1;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.module-hierarchy-cycle {
+  color: var(--danger);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .panel-field,
 .timing-policy-panel label {
   display: grid;

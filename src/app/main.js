@@ -18,6 +18,8 @@ import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js"
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { netlistFeature } from "../domains/netlist/netlist_feature.js";
+import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
+import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
   createEmptyCellConfig,
@@ -165,6 +167,7 @@ const elements = {
   syncCompareInput: document.querySelector("#syncCompareInput"),
   compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
   compareOutputSelect: document.querySelector("#compareOutputSelect"),
+  moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),
   syncCompareFocusInput: document.querySelector("#syncCompareFocusInput"),
   searchInput: document.querySelector("#searchInput"),
   searchClearButton: document.querySelector("#searchClearButton"),
@@ -290,6 +293,7 @@ elements.searchInput.addEventListener("keydown", handleSearchKeydown);
 elements.searchInput.addEventListener("focus", handleSearchInput);
 elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
+elements.moduleHierarchyTree.addEventListener("click", handleModuleHierarchyClick);
 elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
@@ -742,6 +746,20 @@ function renderModuleOptions() {
     elements.moduleSelect.append(option);
   }
   renderCompareModuleOptions();
+  renderModuleHierarchy();
+}
+
+function renderModuleHierarchy() {
+  elements.moduleHierarchyTree.innerHTML = renderModuleHierarchyPanel(
+    buildModuleHierarchy(state.design),
+    state.currentModule?.name || null
+  );
+}
+
+function handleModuleHierarchyClick(event) {
+  const moduleName = getModuleHierarchyTarget(event);
+  if (!moduleName || moduleName === state.currentModule?.name) return;
+  selectModule(moduleName);
 }
 
 function renderCompareModuleOptions() {
@@ -937,6 +955,7 @@ function selectModule(moduleName, options = {}) {
   state.currentModule = module;
   if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
   elements.moduleSelect.value = module.name;
+  renderModuleHierarchy();
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
   if (historyEntry) {
     applyModuleHistoryEntry(historyEntry);

@@ -190,4 +190,6 @@ S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 
 
 真实浏览器验收记录：在内置双模块样例的 Whole 视图搜索已绘制 cell，仅发生选择与居中，Focused roots 保持 0；显式 Set 建立一个 root 后，搜索当前 Focused 图中未绘制的 cell，roots 从 1 追加为 2，原 root 保留；浏览器控制台无 warning/error。对应全量单元回归为 302/302。
 
+S7-5 的 module 层次结构列表已提前形成独立切片：Netlist 领域查询识别顶层模块和子模块实例，保留重复实例并有界标记递归 cycle；折叠面板由独立 renderer 转义名称，只通过 moduleName 导航端口切换视图。浏览器验证折叠/展开、点击切换和当前项 `aria-current` 同步通过，控制台无 warning/error。
+
 下一批迁移 Compare 的普通 ViewSession/command 协调并开始统一 pipeline；S7-5 新增可开关 module 层次结构列表。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
