@@ -6,6 +6,7 @@ import { resolveFocusedRootState } from "./focusedSelection.js";
 export function createAppState(layoutPolicy) {
   return {
     design: null,
+    document: null,
     currentSource: null,
     currentSourceLabel: null,
     currentModule: null,

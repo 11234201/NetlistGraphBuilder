@@ -16,8 +16,8 @@ import { cancelSchematicRender, renderSchematicIntoMount } from "../render/progr
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
-import { buildDesignSearchIndex } from "../search/designSearch.js";
 import { createSearchControls } from "../ui/searchControls.js";
+import { netlistFeature } from "../domains/netlist/netlist_feature.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
   createEmptyCellConfig,
@@ -85,7 +85,6 @@ import {
   resolveFocusedRootTarget,
   resolveFocusedRootState,
   resolveFocusedRootAction,
-  shouldPreserveFocusedRootsForSearch,
   toggleFocusedRootNodeId
 } from "./focusedSelection.js";
 import {
@@ -95,7 +94,8 @@ import {
 } from "./compareWorkspace.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
 import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
-import { parseDesignSource } from "./designInput.js";
+import { importDesignSource } from "./designInput.js";
+import { createLegacyViewCommandAdapter } from "./legacy_view_command_adapter.js";
 import {
   applyLayoutGoldenState,
   resolveLayoutGoldenModule
@@ -123,6 +123,10 @@ import {
 } from "./moduleHistory.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
+const legacyViewCommands = createLegacyViewCommandAdapter({
+  state,
+  getDocumentId: () => state.document?.documentId || null
+});
 state.cellConfig = loadStoredCellConfig();
 const processLog = createProcessLog({ capacity: 500 });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
@@ -675,9 +679,13 @@ function isEditablePasteTarget(target) {
 
 function loadDesign(source, label, restore = null) {
   logProcess("info", "import", `Loading design ${label}`);
-  let design;
+  let documentEnvelope;
   try {
-    design = parseDesignSource(source);
+    documentEnvelope = importDesignSource(source, {
+      name: label,
+      documentId: "document:primary",
+      sourceRevision: (state.document?.sourceRevision || 0) + 1
+    });
   } catch (error) {
     logProcess("error", "parse", `Design parse failed: ${error.message}`, { label });
     setStatus(`Parse failed: ${error.message}`);
@@ -685,16 +693,18 @@ function loadDesign(source, label, restore = null) {
   }
 
   try {
+    const design = documentEnvelope.model;
     logProcess("info", "parse", `Parsed ${design.modules.length} module(s)`, {
       label,
       diagnostics: design.diagnostics?.length || 0
     });
+    state.document = documentEnvelope;
     state.design = design;
     state.currentSource = source;
     state.currentSourceLabel = label;
     resetDesignWorkspace(state);
     state.currentModule = null;
-    state.searchIndex = buildDesignSearchIndex(state.design);
+    state.searchIndex = netlistFeature.buildSearchIndex(documentEnvelope);
     clearSearch();
     if (restore?.searchQuery) {
       state.searchQuery = restore.searchQuery;
@@ -1376,9 +1386,13 @@ function setSelectedAsFocusedRoot() {
     state.viewMode
   );
   if (!nodeId || state.compare.active) return;
+  const fullNode = state.fullGraph.nodes.find((node) => node.id === nodeId);
+  const commandResult = legacyViewCommands.dispatch({
+    type: "focus.set",
+    objectRef: legacyViewCommands.objectRefForNode(fullNode)
+  });
+  if (commandResult.rejected) return;
   const requestId = ++state.selectionFocusRequestId;
-  state.viewMode = "focused";
-  setFocusedRootNodeIds(state, [nodeId], nodeId);
   state.transform = { x: 0, y: 0, scale: 1 };
   updateViewControls();
   setStatus("Rebuilding Focused view around selected cell…");
@@ -1414,11 +1428,12 @@ function addSelectedAsFocusedRoot() {
   }
   const node = getSelectedSingleCell();
   if (!node || state.focusedRootNodeIds.includes(node.id)) return;
-  const action = resolveFocusedRootAction({ rootNodeIds: state.focusedRootNodeIds }, { type: "add", nodeId: node.id });
+  const action = legacyViewCommands.dispatch({
+    type: "focus.add",
+    objectRef: legacyViewCommands.objectRefForNode(node)
+  });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   const requestId = ++state.selectionFocusRequestId;
-  setFocusedRootNodeIds(state, action.rootNodeIds, node.id);
-  state.viewMode = "focused";
   state.transform = { x: 0, y: 0, scale: 1 };
   updateViewControls();
   renderCurrentModuleGraph({
@@ -1452,8 +1467,13 @@ function removeSelectedFromFocusedRoots() {
   }
   const nodeId = state.selectedNodeId;
   if (!state.focusedRootNodeIds.includes(nodeId)) return;
-  const nextRoots = state.focusedRootNodeIds.filter((id) => id !== nodeId);
-  setFocusedRootNodeIds(state, nextRoots);
+  const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
+  if (!fullNode) return;
+  legacyViewCommands.dispatch({
+    type: "focus.remove",
+    objectRef: legacyViewCommands.objectRefForNode(fullNode)
+  });
+  const nextRoots = state.focusedRootNodeIds;
   if (nextRoots.length === 0) {
     state.viewMode = shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD)
       ? "search-first" : "whole";
@@ -2072,12 +2092,18 @@ function activateSearchResult(result) {
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
-    if (shouldPreserveFocusedRootsForSearch(state.viewMode, state.focusedRootNodeIds)) {
-      addSearchResultToFocus(result);
+    const reveal = legacyViewCommands.dispatch({
+      type: "selection.reveal",
+      objectRef: result.objectRef || legacyViewCommands.objectRefForNode(fullNode),
+      visibleObjectKeys: legacyViewCommands.visibleObjectKeys()
+    });
+    if (!reveal.effects.layout) {
+      setSelectedNode(fullNode.id);
+      const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
+      if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
+      setStatus(`Search: ${result.kind} ${result.label}`);
       return;
     }
-    setFocusedRootNodeIds(state, [fullNode.id], fullNode.id);
-    state.viewMode = "focused";
     state.transform = { x: 0, y: 0, scale: 1 };
     renderCurrentModuleGraph({
       onRendered: (graph) => {
@@ -2109,19 +2135,16 @@ function addSearchResultToFocus(result) {
   const fullNode = findSearchTargetNode(result.target, state.fullGraph);
   if (!fullNode) return;
   elements.searchResults.hidden = true;
-  const action = resolveFocusedRootAction({
-    rootNodeIds: state.focusedRootNodeIds,
-    activeRootNodeId: state.activeFocusedRootNodeId
-  }, { type: "add", nodeId: fullNode.id });
+  const action = legacyViewCommands.dispatch({
+    type: "focus.add",
+    objectRef: result.objectRef || legacyViewCommands.objectRefForNode(fullNode)
+  });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
-  const rootNodeIds = action.rootNodeIds;
-  if (!action.changed) {
+  if (!action.effects.layout) {
     setSelectedNode(fullNode.id);
     setStatus(`${result.label} is already a Focused root`);
     return;
   }
-  setFocusedRootNodeIds(state, rootNodeIds, fullNode.id);
-  state.viewMode = "focused";
   state.transform = { x: 0, y: 0, scale: 1 };
   renderCurrentModuleGraph({
     onRendered: (graph) => {

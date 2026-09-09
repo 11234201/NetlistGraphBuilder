@@ -131,7 +131,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 1. bootstrap 按 feature capability 注册 commands、panels、profiles、formats；searchControls/spacingControls 接受限定 query/command API。
 2. 将输入、Cell Config、timing、日志/导出、canvas 的剩余职责从 main 移入所属 use case/controller；不通过注入整个全局 state 换个文件继续耦合。
-3. detail panel 以 ObjectRef 查询结构化数据；特殊 UI factory 只获得容器和限定端口。
+3. detail panel 以 ObjectRef 查询结构化数据；增加可开关的 module 层次结构列表，按模块实例关系展开并与当前 module 导航/选择同步；特殊 UI factory 只获得容器和限定端口。
 4. 在 persistence 边界分离 session、Golden、Cell Config、startup codecs；清除 layoutGolden 对 app 的 import。
 5. 旧单 root、session v1、Golden v1/v2 和 startup v1 用固定 fixture 迁移；新数据带 domain/unit/source identity，错误源上的 overrides 明确失效。
 6. 文件输入契约允许 text/bytes；现有 Node/Python/Windows launcher 仍兼容，记录新格式如何扩展而不复制领域逻辑。
@@ -186,6 +186,8 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 当前已完成 S7-1 的首个兼容切片：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口开始经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist feature 暂时保留对 `app/graphWorkspace.js` 的唯一反向依赖，归 S7-3 统一 pipeline 时移除；边界测试禁止扩大该例外。验证记录为 `npm test` 290/290 通过，未涉及布局算法，因此本批未重跑 mapped 与 benchmark。
 
-S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect；尚未接管旧 `main.js` 调用方。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
+S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect。Single 的导入、搜索索引、Set/Add/Remove 与搜索 reveal 已经通过显式 legacy adapter 接入该 command 边界；该 adapter 在 S7-3 统一 pipeline 后移除。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
 
-下一批通过兼容 controller 迁移旧 Focused/Reveal 调用方；同时继续补 S7-0 的可控异步行为矩阵。大案例版本对照作为并行诊断推进。
+真实浏览器验收记录：在内置双模块样例的 Whole 视图搜索已绘制 cell，仅发生选择与居中，Focused roots 保持 0；显式 Set 建立一个 root 后，搜索当前 Focused 图中未绘制的 cell，roots 从 1 追加为 2，原 root 保留；浏览器控制台无 warning/error。对应全量单元回归为 302/302。
+
+下一批迁移 Compare 的普通 ViewSession/command 协调并开始统一 pipeline；S7-5 新增可开关 module 层次结构列表。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
