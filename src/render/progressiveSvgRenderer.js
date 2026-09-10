@@ -1,6 +1,3 @@
-import {
-  createSchematicScene
-} from "./svgRenderer.js";
 import { createProgressiveSvgSceneRenderPlan, renderSvgScene } from "./svg_scene_renderer.js";
 
 const DEFAULT_THRESHOLD = 400;
@@ -9,10 +6,6 @@ const activeRenderIds = new WeakMap();
 
 export function cancelSchematicRender(mount) {
   activeRenderIds.delete(mount);
-}
-
-export function renderSchematicIntoMount(mount, graph, options = {}) {
-  return renderSvgSceneIntoMount(mount, createSchematicScene(graph, options), options);
 }
 
 export function renderSvgSceneIntoMount(mount, scene, options = {}) {

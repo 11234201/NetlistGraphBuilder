@@ -11,7 +11,7 @@ import {
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
-import { createSchematicScene } from "../render/svgRenderer.js";
+import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
@@ -20,7 +20,6 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { netlistFeature } from "../domains/netlist/netlist_feature.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
-import { createNetlistNodePrimitive } from "../domains/netlist/netlist_scene_presentation.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
@@ -2777,7 +2776,7 @@ function commitNodeDrag(nodeId, preview) {
     nodeSizes: state.nodeSizes,
     layoutPolicy: state.layoutPolicy
   });
-  state.scene = createSchematicScene(state.graph, { createNodePrimitive: createNetlistNodePrimitive });
+  state.scene = createNetlistScene(state.graph);
   preview.clear();
   renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
     if (result?.cancelled) return;
@@ -3152,7 +3151,7 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
     layoutPolicy: state.layoutPolicy
   });
   state.compare.graphs[side] = graph;
-  state.compare.scenes[side] = createSchematicScene(graph, { createNodePrimitive: createNetlistNodePrimitive });
+  state.compare.scenes[side] = createNetlistScene(graph);
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
   return renderGraphMount(mount, graph, { ...renderOptions, scene: state.compare.scenes[side] }).then((result) => {
     if (result?.cancelled) return result;

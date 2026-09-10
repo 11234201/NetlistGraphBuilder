@@ -7,7 +7,7 @@ import {
   loadSessionState,
   saveSessionState
 } from "../../src/app/sessionState.js";
-import { createSchematicRenderPlan } from "../../src/render/svgRenderer.js";
+import { createSchematicRenderPlan } from "../../src/domains/netlist/netlist_scene.js";
 
 test("fanout simplification inserts a shared hub", () => {
   const graph = {

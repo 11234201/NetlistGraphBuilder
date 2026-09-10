@@ -16,7 +16,7 @@ import {
 import { snapNodePosition, snapToGrid } from "../../src/layout/snap.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
-import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import { selectWorkspaceGraphView } from "../../src/app/graphWorkspace.js";
 import { createStandaloneSvg } from "../../src/render/svgExport.js";
 import { annotateGraphTiming } from "../../src/timing/timingAnnotation.js";

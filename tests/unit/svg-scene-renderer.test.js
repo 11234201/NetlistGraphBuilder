@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSchematicScene, renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { createSchematicScene } from "../../src/render/svgRenderer.js";
+import { createNetlistScene, renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import {
   createProgressiveSvgSceneRenderPlan,
   renderSvgScene,
@@ -19,7 +20,7 @@ const graph = {
 };
 
 test("schematic scene is lazy and shares the generic SVG scene renderer", () => {
-  const scene = createSchematicScene(graph);
+  const scene = createNetlistScene(graph);
   const plan = createProgressiveSvgSceneRenderPlan(scene);
 
   assert.equal(scene.nodeCount, 1);
@@ -30,6 +31,7 @@ test("schematic scene is lazy and shares the generic SVG scene renderer", () => 
 
 test("generic SVG scene renderer rejects graph-shaped input", () => {
   assert.throws(() => renderSvgScene(graph), /Expected an SVG scene/);
+  assert.throws(() => createSchematicScene(graph), /node presentation/);
 });
 
 test("structured SVG primitives escape attributes and text centrally", () => {
@@ -47,7 +49,7 @@ test("generic renderer rejects raw SVG fragments", () => {
 });
 
 test("Netlist presentation injection preserves legacy node geometry and markup", () => {
-  const legacy = renderSvgScene(createSchematicScene(graph));
+  const legacy = renderSvgScene(createNetlistScene(graph));
   const injected = renderSvgScene(createSchematicScene(graph, { createNodePrimitive: createNetlistNodePrimitive }));
 
   assert.equal(injected, legacy);

@@ -4,7 +4,7 @@ import { buildWireRoutes } from "../../src/layout/wireRoutes.js";
 import { buildNetTreeSegments } from "../../src/layout/netTreeRouter.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
-import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 
 function fanoutEdges(order = ["a", "b"]) {
   const byId = {

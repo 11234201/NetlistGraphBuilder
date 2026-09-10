@@ -7,7 +7,7 @@ import { applyWorkspaceOverrides } from "../../src/app/layoutWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
-import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
 
 const largeExampleUrl = new URL("../../examples/large_buffer_chain_1024.v", import.meta.url);

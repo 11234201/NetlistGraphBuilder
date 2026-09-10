@@ -6,8 +6,7 @@ import {
 import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
-import { createSchematicScene } from "../render/svgRenderer.js";
-import { createNetlistNodePrimitive } from "../domains/netlist/netlist_scene_presentation.js";
+import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -67,10 +66,7 @@ export function buildModuleWorkspace(options) {
     measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
-    createScene: (graph) => createSchematicScene(graph, {
-      wireBridges: false,
-      createNodePrimitive: createNetlistNodePrimitive
-    })
+    createScene: (graph) => createNetlistScene(graph, { wireBridges: false })
   }, options);
   const finalize = (result) => ({
     fullGraph: result.queryResult.fullGraph,

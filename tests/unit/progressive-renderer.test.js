@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cancelSchematicRender, renderSchematicIntoMount, renderSvgSceneIntoMount } from "../../src/render/progressiveSvgRenderer.js";
+import { cancelSchematicRender, renderSvgSceneIntoMount } from "../../src/render/progressiveSvgRenderer.js";
 import {
-  createSchematicScene,
   createProgressiveSchematicRenderPlan,
-  createSchematicRenderPlan
-} from "../../src/render/svgRenderer.js";
+  createSchematicRenderPlan,
+  createNetlistScene,
+  renderSchematicIntoMount
+} from "../../src/domains/netlist/netlist_scene.js";
 
 const graph = {
   moduleDisplayName: "progressive",
@@ -65,7 +66,7 @@ test("progressive render plan produces the same item markup lazily", () => {
 });
 
 test("progressive mount accepts the pipeline scene without rebuilding a graph", async () => {
-  const scene = createSchematicScene(graph);
+  const scene = createNetlistScene(graph);
   const mount = { innerHTML: "" };
 
   assert.deepEqual(await renderSvgSceneIntoMount(mount, scene), { progressive: false });

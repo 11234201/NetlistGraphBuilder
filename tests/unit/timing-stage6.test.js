@@ -7,7 +7,7 @@ import {
   resolveTimingSnapshot
 } from "../../src/timing/timingAnnotation.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
-import { renderSchematicSvg } from "../../src/render/svgRenderer.js";
+import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 
 function makeBoundaryTiming() {
   const rows = (offset) => Array.from({ length: 20 }, (_, index) => {
