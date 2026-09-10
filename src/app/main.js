@@ -23,14 +23,11 @@ import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
 import { importTimingSource } from "../application/timing_import.js";
 import {
-  createEmptyCellConfig,
-  mergeCellConfigs,
   parseCellConfig,
-  removeCellConfigDefinition,
   serializeCellConfig,
-  setCellConfigDefinition
 } from "../infer/cellConfig.js";
 import { loadStoredCellConfig, saveStoredCellConfig } from "../persistence/cell_config_storage.js";
+import { createCellConfigUseCases } from "../application/cell_config_use_cases.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
   collectCellTypeSummary,
@@ -137,6 +134,7 @@ const legacyCompareSessions = createLegacyCompareSessionAdapter({
   getDocumentId: () => state.document?.documentId || null
 });
 state.cellConfig = loadStoredCellConfig();
+const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
 const processLog = createProcessLog({ capacity: 500 });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
@@ -1886,8 +1884,7 @@ function saveActiveCellDefinition(event) {
   if (!activeCellDefinition) return;
   try {
     const definition = readCellDefinitionEditor(elements.cellDefinitionForm, activeCellDefinition);
-    const next = setCellConfigDefinition(state.cellConfig, activeCellDefinition.cellType, definition);
-    state.cellConfig = saveStoredCellConfig(next);
+    state.cellConfig = cellConfigUseCases.set(state.cellConfig, activeCellDefinition.cellType, definition);
     const cellType = activeCellDefinition.cellType;
     closeCellDefinitionDialog();
     rebuildAfterCellConfigChange(`${cellType}: Cell Config saved`);
@@ -1899,7 +1896,7 @@ function saveActiveCellDefinition(event) {
 function deleteActiveCellDefinition() {
   if (!activeCellDefinition) return;
   const cellType = activeCellDefinition.cellType;
-  state.cellConfig = saveStoredCellConfig(removeCellConfigDefinition(state.cellConfig, cellType));
+  state.cellConfig = cellConfigUseCases.remove(state.cellConfig, cellType);
   closeCellDefinitionDialog();
   rebuildAfterCellConfigChange(`${cellType}: saved Cell Config deleted`);
 }
@@ -1908,11 +1905,10 @@ async function handleCellConfigImport(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   try {
-    const incoming = parseCellConfig(await file.text());
-    const { bundle, conflicts } = mergeCellConfigs(state.cellConfig, incoming);
-    if (conflicts.length && !window.confirm(`Replace ${conflicts.length} existing Cell Config definition(s): ${conflicts.join(", ")}?`)) return;
-    state.cellConfig = saveStoredCellConfig(bundle);
-    rebuildAfterCellConfigChange(`Imported Cell Config ${file.name}: ${Object.keys(incoming.cells).length} definition(s)`);
+    const prepared = cellConfigUseCases.prepareImport(state.cellConfig, await file.text());
+    if (prepared.conflicts.length && !window.confirm(`Replace ${prepared.conflicts.length} existing Cell Config definition(s): ${prepared.conflicts.join(", ")}?`)) return;
+    state.cellConfig = cellConfigUseCases.commitImport(prepared);
+    rebuildAfterCellConfigChange(`Imported Cell Config ${file.name}: ${Object.keys(prepared.incoming.cells).length} definition(s)`);
   } catch (error) {
     setStatus(`Cell Config import failed ${file.name}: ${error.message}`);
   } finally {
@@ -1929,7 +1925,7 @@ function resetAllCellConfig() {
   const count = Object.keys(state.cellConfig.cells).length;
   if (count === 0) return;
   if (!window.confirm(`Remove all ${count} saved Cell Config definition(s)?`)) return;
-  state.cellConfig = saveStoredCellConfig(createEmptyCellConfig());
+  state.cellConfig = cellConfigUseCases.reset();
   rebuildAfterCellConfigChange("All saved Cell Config definitions reset");
 }
 
