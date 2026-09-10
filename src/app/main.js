@@ -20,6 +20,7 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { netlistFeature } from "../domains/netlist/netlist_feature.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
+import { createNetlistNodePrimitive } from "../domains/netlist/netlist_scene_presentation.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
@@ -2776,7 +2777,7 @@ function commitNodeDrag(nodeId, preview) {
     nodeSizes: state.nodeSizes,
     layoutPolicy: state.layoutPolicy
   });
-  state.scene = createSchematicScene(state.graph);
+  state.scene = createSchematicScene(state.graph, { createNodePrimitive: createNetlistNodePrimitive });
   preview.clear();
   renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
     if (result?.cancelled) return;
@@ -3151,7 +3152,7 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
     layoutPolicy: state.layoutPolicy
   });
   state.compare.graphs[side] = graph;
-  state.compare.scenes[side] = createSchematicScene(graph);
+  state.compare.scenes[side] = createSchematicScene(graph, { createNodePrimitive: createNetlistNodePrimitive });
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
   return renderGraphMount(mount, graph, { ...renderOptions, scene: state.compare.scenes[side] }).then((result) => {
     if (result?.cancelled) return result;

@@ -8,6 +8,7 @@ import {
   svgElement,
   svgText
 } from "../../src/render/svg_scene_renderer.js";
+import { createNetlistNodePrimitive } from "../../src/domains/netlist/netlist_scene_presentation.js";
 
 const graph = {
   moduleDisplayName: "scene & module",
@@ -43,4 +44,11 @@ test("structured SVG primitives escape attributes and text centrally", () => {
 test("generic renderer rejects raw SVG fragments", () => {
   assert.throws(() => serializeSvgPrimitive('<script id="unsafe"></script>'), /Unknown SVG scene primitive/);
   assert.throws(() => serializeSvgPrimitive({ type: "fragment", markup: "<path></path>" }), /Unknown SVG scene primitive/);
+});
+
+test("Netlist presentation injection preserves legacy node geometry and markup", () => {
+  const legacy = renderSvgScene(createSchematicScene(graph));
+  const injected = renderSvgScene(createSchematicScene(graph, { createNodePrimitive: createNetlistNodePrimitive }));
+
+  assert.equal(injected, legacy);
 });

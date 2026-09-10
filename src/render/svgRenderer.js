@@ -48,7 +48,7 @@ export function createSchematicScene(graph, options = {}) {
         renderEdge(edge, crossingByEdge.get(edge.id) || []));
     },
     readNodes(start, end) {
-      return renderRange(graph.nodes, start, end, renderNode);
+      return renderRange(graph.nodes, start, end, options.createNodePrimitive || renderNode);
     }
   });
 }

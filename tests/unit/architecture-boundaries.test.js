@@ -24,4 +24,8 @@ test("shared layout and renderer do not interpret Netlist inference or parser re
     const source = readFileSync(join(projectRoot, ...relativePath.split("/")), "utf8");
     assert.doesNotMatch(source, /infer\/defaultCellRules|node\.ref/, `${relativePath} must consume presentation fields`);
   }
+  const renderer = readFileSync(join(projectRoot, "src", "render", "svgRenderer.js"), "utf8");
+  const workspace = readFileSync(join(projectRoot, "src", "app", "moduleWorkspace.js"), "utf8");
+  assert.doesNotMatch(renderer, /domains\/netlist/, "shared renderer must not import Netlist presentation");
+  assert.match(workspace, /createNodePrimitive:\s*createNetlistNodePrimitive/, "Netlist workspace must inject its presentation");
 });
