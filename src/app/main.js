@@ -15,7 +15,7 @@ import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
-import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js";
+import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
@@ -261,6 +261,11 @@ const moduleHierarchyController = createModuleHierarchyController({
   getCurrentModuleName: () => state.currentModule?.name || null,
   navigate: selectModule
 });
+const layoutSpacingController = createLayoutSpacingController({
+  elements,
+  getSpacing: () => state.layoutPolicy.spacing,
+  onCommit: commitLayoutSpacing
+});
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
@@ -339,10 +344,6 @@ elements.removeFocusedRootButton.addEventListener("click", removeSelectedFromFoc
 elements.clearFocusedRootsButton.addEventListener("click", clearFocusedRoots);
 elements.focusedRootsList.addEventListener("click", handleFocusedRootListClick);
 elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
-elements.wireSpacingInput.addEventListener("input", handleWireSpacingChange);
-elements.wireSpacingNumberInput.addEventListener("change", handleWireSpacingChange);
-elements.cellSpacingInput.addEventListener("input", handleCellSpacingChange);
-elements.cellSpacingNumberInput.addEventListener("change", handleCellSpacingChange);
 elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
@@ -1797,22 +1798,30 @@ function rerenderActiveGraph() {
   else renderCurrentModuleGraph();
 }
 
-function handleWireSpacingChange(event) {
-  state.layoutPolicy.spacing.wireLanePitch = readSpacingInput(
-    event.target.value,
-    "wireLanePitch",
-    state.layoutPolicy.spacing.wireLanePitch
-  );
+function commitLayoutSpacing(key, value) {
+  state.layoutPolicy.spacing[key] = value;
   syncLayoutSpacingControls();
   persistSession();
-  if (!state.currentModule) {
+  if (!state.currentModule) return;
+
+  if (key === "wireLanePitch" && state.compare.active) {
+    renderCompareGraphs();
+    renderStats();
+    setStatus(`Wire spacing: ${value}px`);
     return;
   }
 
-  if (state.compare.active) {
-    renderCompareGraphs();
-    renderStats();
-    setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
+  if (key === "cellSpacing") {
+    const selectedNodeId = state.selectedNodeId;
+    const previousTransform = { ...state.transform };
+    rerenderActiveGraph();
+    if (!state.compare.active) {
+      state.transform = previousTransform;
+      state.selectedNodeId = null;
+      setSelectedNode(selectedNodeId);
+      applyTransform();
+    }
+    setStatus(`Cell spacing: ${value}px`);
     return;
   }
 
@@ -1825,28 +1834,7 @@ function handleWireSpacingChange(event) {
   state.selectedNodeId = null;
   setSelectedNode(selectedNode);
   applyTransform();
-  setStatus(`Wire spacing: ${state.layoutPolicy.spacing.wireLanePitch}px`);
-}
-
-function handleCellSpacingChange(event) {
-  state.layoutPolicy.spacing.cellSpacing = readSpacingInput(
-    event.target.value,
-    "cellSpacing",
-    state.layoutPolicy.spacing.cellSpacing
-  );
-  syncLayoutSpacingControls();
-  persistSession();
-  if (!state.currentModule) return;
-  const selectedNodeId = state.selectedNodeId;
-  const previousTransform = { ...state.transform };
-  rerenderActiveGraph();
-  if (!state.compare.active) {
-    state.transform = previousTransform;
-    state.selectedNodeId = null;
-    setSelectedNode(selectedNodeId);
-    applyTransform();
-  }
-  setStatus(`Cell spacing: ${state.layoutPolicy.spacing.cellSpacing}px`);
+  setStatus(`Wire spacing: ${value}px`);
 }
 
 function handleTimingDisplayPolicyChange() {
@@ -3278,7 +3266,7 @@ function applySessionPreferences(session) {
 }
 
 function syncLayoutSpacingControls() {
-  syncSpacingControls(elements, state.layoutPolicy.spacing);
+  layoutSpacingController.sync();
 }
 
 function persistSession() {
