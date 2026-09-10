@@ -60,7 +60,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
-| S7-6 | 计划中 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
+| S7-6 | 进行中（内存 AIG 公共链路已验证） | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
 
@@ -203,5 +203,9 @@ S7-4 Scene 首个切片已将 identity stage 替换为独立的惰性 SVG Scene 
 Single、Compare、拖动后重绘、普通 SVG 导出与 Golden SVG snapshot 已改为消费各自流水线或 override commit 产生的 Scene；主界面 graph mount 不再回退到现场解释 graph。屏幕、渐进批次和导出由同一 Scene serializer 生成，compare 两侧 scene 生命周期独立。相关定向测试 23/23 通过；本机并行 Node test runner 偶发对所有测试 worker 返回 `spawn EPERM`，同一批文件直接单进程执行均通过，最近一次成功的完整并行回归仍为 311/311。
 
 通用 Scene renderer 已定义 element/text item，并集中处理属性和文本转义；wire path、hit target、bridge、junction、label，以及节点、端口、时序 badge、导航属性均已从拼接字符串迁为结构化 element tree。raw string/fragment 输入已被删除并由测试明确拒绝，完整单元回归为 314/314。节点类型分派目前仍在旧 schematic presentation 文件中；下一切片将其移入 Netlist 领域并倒置 scene builder 依赖。
+
+S7-6 已加入仅位于 `tests/support/` 的独立内存 AIG feature，覆盖二输入 AND、正/反相边、重复 fanin slot、常量、共享子图及 latch Q/D 边界。该 feature 通过公共 registry、DocumentStore、ViewSession command、view pipeline、measurement、Simple layout、结构化 Scene 和 SVG renderer 完成 Focused 搜索到导出；Netlist/AIG 同时打开与跨 document ref 拒绝均已验证，公共 application/layout/render 源码门禁未出现 AIG 条件分支。AIG 不注册 timing/Cell Config 能力；这仅证明架构扩展性，不代表产品支持 AIGER 文件。
+
+为消除 Windows `node --test <glob>` 为每个文件创建 worker 时反复出现的 `spawn EPERM`，`npm test` 改为单进程、稳定排序地导入同一组 `tests/unit/*.test.js`，仍由 `node:test` 执行和报告。当前完整回归为 318/318。
 
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

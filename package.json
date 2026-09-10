@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
-    "test": "node --test tests/unit/*.test.js",
+    "test": "node tools/run-unit-tests.mjs",
     "test:launcher": "node tests/e2e/launcher-e2e.mjs",
     "test:mapped-cases": "node tools/test-mapped-cases.mjs",
     "benchmark": "node tools/benchmark-large.mjs",
