@@ -21,7 +21,9 @@ export class ElkLayoutProvider {
   async layout(graph, options = {}) {
     const cellSpacing = Number(options.layoutPolicy?.spacing?.cellSpacing) || 8;
     const measuredNodes = graph.nodes.map((node) => {
-      const measured = measureNode(node, options.layoutPolicy?.spacing?.cellPinPitch);
+      const measured = Number.isFinite(node.width) && Number.isFinite(node.height)
+        ? { width: node.width, height: node.height }
+        : measureNode(node, options.layoutPolicy?.spacing?.cellPinPitch);
       const override = options.nodeSizes?.get(node.id);
       const sized = { ...node, width: override?.width || measured.width, height: override?.height || measured.height };
       sized.ports = buildNodePorts(sized, sized, options.layoutPolicy?.spacing?.cellPinPitch);

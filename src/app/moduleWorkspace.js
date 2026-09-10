@@ -4,6 +4,7 @@ import {
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
 import { createIdentityStage, runViewPipeline } from "../application/view_pipeline.js";
+import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 
 export function buildModuleWorkspace(options) {
@@ -61,7 +62,7 @@ export function buildModuleWorkspace(options) {
       collapseLargeGroups,
       expandedGroupIds
     }),
-    measure: createIdentityStage(),
+    measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
     createScene: createIdentityStage()

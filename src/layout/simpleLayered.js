@@ -47,7 +47,7 @@ export function layoutGraph(graph, options = {}) {
 
   const nodeSizes = new Map(graph.nodes.map((node) => [
     node.id,
-    applyNodeSizeOverride(measureNode(node, cellPinPitch), options.nodeSizes, node.id)
+    applyNodeSizeOverride(readMeasuredSize(node, cellPinPitch), options.nodeSizes, node.id)
   ]));
   const levelXs = computeLevelXs(
     graph,
@@ -104,6 +104,12 @@ export function layoutGraph(graph, options = {}) {
     width: bounds.width + margin,
     height: bounds.height + margin
   };
+}
+
+function readMeasuredSize(node, cellPinPitch) {
+  return Number.isFinite(node.width) && Number.isFinite(node.height)
+    ? { width: node.width, height: node.height }
+    : measureNode(node, cellPinPitch);
 }
 
 function bucketNodesByLevel(nodes, levels) {

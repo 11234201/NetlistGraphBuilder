@@ -196,4 +196,6 @@ S7-3 已建立通用的 `query -> project -> measure -> layout -> overrides -> s
 
 S7-4 首个纯提取切片已将 Netlist pin direction/side/role 和反相输出语义固化为 `portDescriptors`、`outputBubble`，子模块跳转改为通用 `navigationTarget`。共享 `nodeGeometry`、`nodeSpacing`、`svgRenderer` 不再 import inference 或读取 parser `node.ref`，边界测试阻止回流。几何/渲染全量单测 307/307；mapped 45/47、violations 59/120，仍仅 dp_020 与 sop_004 在 layout 阶段超过 45000ms，与既有基线一致。benchmark 中位数（1024/4096/8192 cells）pipeline 为 71.7/530.1/1358.5ms，首个 progressive batch 均为 0.3ms；本切片未调整路由策略。
 
+S7-4 measurement 切片已让 pipeline 在 layout 前物化节点 bounds 与 ports；Simple/ELK 优先消费 measured graph，旧 provider 直接调用仍在入口执行兼容测量。Diagram 输入保持不变，单元回归提升为 308/308；下一步把 SVG 输出拆为 Scene primitives 与通用 renderer。
+
 下一批迁移 Compare 的普通 ViewSession/command 协调并开始统一 pipeline；S7-5 新增可开关 module 层次结构列表。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
