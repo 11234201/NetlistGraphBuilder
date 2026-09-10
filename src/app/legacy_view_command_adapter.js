@@ -4,21 +4,35 @@ import { createViewSessionStore } from "../application/view_session_store.js";
 import { createObjectRef, objectRefKey } from "../contracts/object_ref.js";
 
 export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocusedRoots = 8 }) {
+  const sessions = createViewSessionStore();
+  const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }));
+
+  function synchronizeSession() {
+    const documentId = getDocumentId();
+    const unitId = state.currentModule?.name;
+    if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
+    const value = {
+      sessionId: "legacy:single",
+      documentId,
+      domainId: "netlist",
+      unitId,
+      viewMode: state.viewMode,
+      focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
+      activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId)
+    };
+    const current = sessions.get(value.sessionId);
+    if (!current || current.documentId !== documentId || current.unitId !== unitId) {
+      if (current) sessions.close(value.sessionId);
+      return sessions.create(value);
+    }
+    return sessions.update(value.sessionId, () => value);
+  }
+
   return Object.freeze({
+    sessions,
     dispatch(command) {
-      const documentId = getDocumentId();
-      const unitId = state.currentModule?.name;
-      if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
-      const sessions = createViewSessionStore([{
-        sessionId: "legacy:single",
-        documentId,
-        domainId: "netlist",
-        unitId,
-        viewMode: state.viewMode,
-        focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
-        activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId)
-      }]);
-      const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }));
+      const synchronized = synchronizeSession();
+      const unitId = synchronized.unitId;
       const result = bus.dispatch({ ...command, sessionId: "legacy:single" });
       const graph = result.session.unitId === unitId ? state.fullGraph : null;
       state.viewMode = result.session.viewMode;

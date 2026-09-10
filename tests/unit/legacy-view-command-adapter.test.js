@@ -37,3 +37,20 @@ test("legacy adapter keeps visible selection layout-free and supports explicit r
   assert.equal(replaced.effects.layout, true);
   assert.deepEqual(state.focusedRootNodeIds, ["cell:u3"]);
 });
+
+test("legacy adapter keeps one ViewSession until document or unit identity changes", () => {
+  const { state, adapter } = setup();
+  adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
+  const first = adapter.sessions.require("legacy:single");
+  adapter.dispatch({ type: "focus.add", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
+  const second = adapter.sessions.require("legacy:single");
+  assert.equal(second.sessionId, first.sessionId);
+  assert.ok(second.sessionRevision > first.sessionRevision);
+  state.currentModule = { name: "replacement" };
+  state.fullGraph = { nodes: [{ id: "cell:x", kind: "cell", ref: { instance: "x" } }] };
+  state.graph = state.fullGraph;
+  state.focusedRootNodeIds = [];
+  state.activeFocusedRootNodeId = null;
+  adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
+  assert.equal(adapter.sessions.require("legacy:single").unitId, "replacement");
+});

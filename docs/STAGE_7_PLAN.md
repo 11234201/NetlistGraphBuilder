@@ -31,7 +31,7 @@
 - 本轮首批验证记录：`npm test` 285/285 通过；main 语法检查、diff whitespace 检查通过。
 - mapped：45/47 通过，dp_020、sop_004 在 layout 阶段超过 45000ms；已完成案例 violations=59/120，最大 layout=30832ms、最大 heap=125MiB；整套回归退出码为 1。
 - 此前 dp_020 的 no-collapse 诊断报告 1481 个 violation；它不能与默认 collapse 结果直接比较。历史文档对超时存在基线解释，但完整的同环境/同模式版本对照仍未固化。
-- mfs-remote 两次 SSH 连接超时，因此首批使用本地轻量测试和本地 mapped 回归。真实浏览器连续操作、两版本 default/no-collapse 对照尚未完成。
+- mfs-remote 在首批与最终门禁均连接超时，因此使用本地轻量测试和本地 mapped 回归。真实浏览器连续操作已覆盖 Single Focused 与 module hierarchy；no-collapse 全量对照仍作为后续路由性能工作，不混入本阶段纯架构迁移。
 
 未来记录必须区分“历史结果、当前执行结果、尚未验证”；不得把 45/47 或单元通过描述成全验证通过。
 
@@ -54,14 +54,14 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 | 工作包 | 当前状态 | 成本/风险 | 可审查产物 |
 | --- | --- | --- | --- |
-| S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
+| S7-0 | 完成（已知慢例保留失败） | 小至中 / 低 | 可复现基线与失败矩阵 |
 | S7-1 | 完成 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 进行中（控件、层次列表、codec、能力注册已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 进行中（内存 AIG 公共链路已验证） | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
-| S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
+| S7-R | 完成（纯提取与可见转角策略） | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
 
 ## 4. 工作包验收
@@ -218,4 +218,8 @@ Windows 专属发布检查在本地执行：首次完整测试与包 smoke 均�
 
 当前 HEAD 的最终布局门禁：mfs-remote 连接仍在 8 秒超时；本地沙箱内 runner 因 `spawn EPERM` 未执行案例，获准在沙箱外重跑后得到 45/47，失败仍仅 `dp_020`、`sop_004` 在 layout 阶段超过固定 45000ms；violations=59/120，最大已完成 layout=30560ms，最大 heap=103MiB。benchmark 曾暴露旧脚本绕过 Netlist Scene facade，修正并加边界门禁后，中位数 pipeline（1024/4096/8192 cells）为 104.7/571.0/1637.1ms，首批 progressive batch 为 1.0/0.9/1.0ms。与迁移前记录相比未出现复杂度阶跃，但当前机器绝对耗时有波动。
 
-下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
+S7-0 同机慢例对照已补齐：使用同一 Windows 主机、default collapse、45000ms 门禁和仅含 `dp_020`/`sop_004` 的 fixture 集，`45e4e12`、`5d65f38`、`8d53bfc` 与当前 HEAD 均为 0/2，两个案例都超时；`8d53bfc` 与当前 HEAD 均确认停在 layout。历史提交的旧 runner 对超时不提供 metrics，故不伪造质量数值。临时 worktree 已移除，fixture 副本保留在 ignored `dc_runs/stage7_baseline/`。
+
+S7-R 已由共享 `ROUTE_GEOMETRY_POLICY`、`orthogonalRouting` 和 candidate validator 落实：target approach clearance、最小 16px 可见转角、正反向 endpoint inset、node padding 与 endpoint access 均有命名边界和定向测试，Simple/Adjust 共享固定搜索预算。该切片包含用户要求的垂直 pin 最后弯可见性调整；未引入实例名/坐标特判或图规模相关重试。
+
+剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。
