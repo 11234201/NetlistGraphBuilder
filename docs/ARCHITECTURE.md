@@ -285,7 +285,9 @@ and flushes the final pointer position on gesture completion.
 - 缩放平移。
 - 导出。
 
-UI 通过明确 API 调用 parser/netlist/layout/render，不直接操作内部临时结构。
+UI 通过明确 API 调用 application command、领域 feature 和共享 pipeline，不直接操作 parser IR
+或 renderer 内部临时结构。`bootstrap/default_domains.js` 是产品领域实现的静态注册点；界面按
+feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要复制 Netlist 主流程。
 
 当前面板边界：
 
@@ -309,17 +311,20 @@ UI 通过明确 API 调用 parser/netlist/layout/render，不直接操作内部�
 - `appState.js` 定义应用初始状态，以及 design/module/timing 三种生命周期 reset。
 - `moduleWorkspace.js` composes graph extraction, timing, aliases, cone/group transforms, provider layout
   and manual overrides for the single-module view without reading DOM or global application state.
-- `graphWorkspace.js` owns the graph preparation stages shared by single and Compare views, preventing
-  timing, alias, cone and display-transform behavior from drifting between the two workspaces.
+- `graphWorkspace.js` 是旧调用方的兼容导出；实现位于
+  `domains/netlist/netlist_graph_projection.js`，避免领域 feature 反向依赖应用层。
 - `layoutWorkspace.js` is the shared provider/override boundary. It preserves both the automatic graph
   and the adjusted graph so manual edits never become implicit provider behavior.
-- `startupController.js` validates the versioned localhost startup manifest and sequences Cell Config,
+- `startupController.js` sequences the versioned localhost startup manifest through injected handlers;
+  decoding belongs to `persistence/startup_codec.js`. Cell Config storage, session and Golden codecs also
+  live behind `persistence/` boundaries. It sequences Cell Config,
   netlist, timing, module and focus actions through injected handlers. It has no DOM dependency; browser
   bindings remain in `main.js`.
 - Single and Compare Adjust drags call `applyWorkspaceOverrides` on cached automatic graphs for every
   provider, including Simple Layered. Pointer movement must not invoke a layout provider; provider
   execution belongs to workspace rebuilds only.
-- `main.js` 负责应用编排、状态变更、布局/渲染调用和画布交互，不内嵌面板 HTML。
+- `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
+  commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。

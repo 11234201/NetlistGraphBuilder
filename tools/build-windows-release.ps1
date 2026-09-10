@@ -142,7 +142,17 @@ if (-not $ready) {
 
 Reset-BuildPath $buildRoot
 Compress-Archive -LiteralPath $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
-$hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $stream = [System.IO.File]::OpenRead($zipPath)
+  try {
+    $hash = ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "").ToLowerInvariant()
+  } finally {
+    $stream.Dispose()
+  }
+} finally {
+  $sha256.Dispose()
+}
 Set-Content -LiteralPath $checksumPath -Encoding ASCII -Value "$hash  $([System.IO.Path]::GetFileName($zipPath))"
 
 Write-Host "Release package: $zipPath"

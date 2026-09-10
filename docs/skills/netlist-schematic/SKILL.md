@@ -31,6 +31,8 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 - 先确认改动属于 parser、IR/inference、display transform、layout、render 还是 UI；在拥有该
   约束的最低层实现并测试，不跨层打补丁。
 - 优先扩展共享边界，使 Single/Compare、Simple/Adjust/ELK 同时获得一致行为。
+- 新领域能力通过 `bootstrap` 静态注册和 `DomainFeature` contributions 接入；application、layout、
+  render 不得按 `domainId` 添加 Netlist/AIG 条件分支。领域目录不得反向 import `src/app/`。
 
 ## 实现约束
 
@@ -71,7 +73,8 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 
 ### Render 与交互
 
-- render 只消费 positioned graph，不解析 Verilog、不重新布局、不计算 cone。
+- 领域 presentation 把 positioned graph 转为结构化 Scene；通用 render 只消费 Scene，不解析
+  Verilog、不读取 gate kind/pin 私有字段、不重新布局、不计算 cone。
 - 大图用惰性 render plan 和可取消的分批 DOM 提交，不能预先生成全部批次再假装渐进渲染。
 - pan、zoom、drag 用共享 viewport/pointer/frame helpers。高频事件每帧最多提交一次轻量 DOM
   更新；gesture 中不做整图 innerHTML、provider layout 或 session persistence。

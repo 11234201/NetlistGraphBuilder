@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建和 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v0.7.3`。本版本改进 Focused 搜索结果的 cell 追加行为。
+当前版本：`v0.7.3`。本版本改进 Focused 搜索结果追加、布局间距输入和 module 层次浏览，并完成面向多图领域的工作台边界重构；生产级 AIG 导入尚未提供。
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
 

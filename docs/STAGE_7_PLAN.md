@@ -214,4 +214,6 @@ S7-5 persistence 已建立独立 session codec v2：新记录带 domain/document
 
 bootstrap 现在是产品入口取得领域 feature 的唯一静态注册点；DomainFeature 标准化 formats、capabilities、commands、panels 与 layoutProfiles，registry 提供能力与贡献查询。应用导入入口支持注入 registry，默认产品仍仅注册 Netlist；内存 AIG 经同一 registry 明确不提供 timing/Cell Config。完整回归为 326/326。
 
+Windows 专属发布检查在本地执行：首次完整测试与包 smoke 均通过，但旧 PowerShell 缺少 `Get-FileHash`，因此校验步骤失败；脚本改用 .NET SHA256 流式实现后重跑成功。生成 `NetlistGraphBuilder-v0.7.3-win-x64.zip`，SHA-256 为 `f9ea456a7ca490d12d9569535e54d706335a0d293ff88979f352d07bd5a690de`；包内 app 新目录、localhost smoke 与 ELKJS 许可证复制均由脚本门禁验证，dist 产物保持忽略。
+
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
