@@ -234,4 +234,6 @@ Module hierarchy 的领域查询、HTML 渲染、点击解析及导航协调已�
 
 Wire/Cell spacing 的 range 与 number 事件、空值保留、最近 4 倍数吸附及三控件同步已组合进 `ui/layout_spacing_controller.js`；controller 只通过 spacing query 和 `onCommit(key,value)` command 影响应用，main 不再读取原始输入。完整回归为 338/338。
 
+Timing snapshot/metric 的事件、未知值回退、`all` 展开和 DOM 同步已进入 `ui/timing_display_controller.js`；main 只接收规范化且不可变的完整 display policy 并执行 persist/rerender effect。完整回归为 340/340。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

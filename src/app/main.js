@@ -16,6 +16,7 @@ import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progre
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
+import { createTimingDisplayController } from "../ui/timing_display_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
@@ -266,6 +267,14 @@ const layoutSpacingController = createLayoutSpacingController({
   getSpacing: () => state.layoutPolicy.spacing,
   onCommit: commitLayoutSpacing
 });
+const timingDisplayController = createTimingDisplayController({
+  elements: {
+    snapshotSelect: elements.timingSnapshotSelect,
+    metricSelect: elements.timingMetricSelect
+  },
+  getPolicy: () => state.timingDisplayPolicy,
+  onCommit: commitTimingDisplayPolicy
+});
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
@@ -344,8 +353,6 @@ elements.removeFocusedRootButton.addEventListener("click", removeSelectedFromFoc
 elements.clearFocusedRootsButton.addEventListener("click", clearFocusedRoots);
 elements.focusedRootsList.addEventListener("click", handleFocusedRootListClick);
 elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
-elements.timingSnapshotSelect.addEventListener("change", handleTimingDisplayPolicyChange);
-elements.timingMetricSelect.addEventListener("change", handleTimingDisplayPolicyChange);
 elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
 elements.cellConfigInput.addEventListener("change", handleCellConfigImport);
 elements.exportCellConfigButton.addEventListener("click", exportCellConfig);
@@ -1837,15 +1844,12 @@ function commitLayoutSpacing(key, value) {
   setStatus(`Wire spacing: ${value}px`);
 }
 
-function handleTimingDisplayPolicyChange() {
-  const metric = elements.timingMetricSelect.value;
-  state.timingDisplayPolicy = {
-    snapshot: elements.timingSnapshotSelect.value,
-    metrics: metric === "all" ? ["at", "rt", "slack"] : [metric]
-  };
+function commitTimingDisplayPolicy(policy) {
+  state.timingDisplayPolicy = policy;
   persistSession();
   if (state.timing && state.currentModule) rerenderActiveGraph();
-  setStatus(`Timing: ${state.timingDisplayPolicy.snapshot} / ${metric}`);
+  const metric = policy.metrics.length === 3 ? "all" : policy.metrics[0];
+  setStatus(`Timing: ${policy.snapshot} / ${metric}`);
 }
 
 function openSelectedCellDefinition() {
@@ -3260,9 +3264,7 @@ function applySessionPreferences(session) {
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
   syncLayoutSpacingControls();
-  elements.timingSnapshotSelect.value = state.timingDisplayPolicy.snapshot;
-  elements.timingMetricSelect.value = state.timingDisplayPolicy.metrics.length === 3
-    ? "all" : state.timingDisplayPolicy.metrics[0];
+  timingDisplayController.sync();
 }
 
 function syncLayoutSpacingControls() {
