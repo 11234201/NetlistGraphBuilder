@@ -226,4 +226,6 @@ S7-5 timing 输入解析与“至少一个有效 scope/instance”校验已移�
 
 Cell Config 的 set/remove/import/reset 已收敛到 `application/cell_config_use_cases.js`：prepare import 只解析并报告冲突，用户确认后才发生一次显式 persistence commit；main 不再组合领域更新与 storage 写入。无效输入不会落盘，定向事务测试与完整回归 332/332 通过。
 
+Process Log 的过滤、drawer、自动滚动、复制、导出和清空事件已移入 `ui/process_log_controller.js`；controller 只接收受限 DOM 元素与 status/copy/download 端口，不读取全局 state。main 仅保留统一 `logProcess` 调用入口，交互测试和完整回归 333/333 通过。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

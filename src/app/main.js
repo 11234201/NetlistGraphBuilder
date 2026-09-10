@@ -106,8 +106,7 @@ import {
 } from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { resolveCellConfigRefreshView, shouldUseSearchFirst } from "./graphWorkspace.js";
-import { createProcessLog } from "./processLog.js";
-import { renderProcessLogEntries } from "../ui/processLogPanel.js";
+import { createProcessLogController } from "../ui/process_log_controller.js";
 import {
   closeAllDisclosures,
   closeDisclosuresOutside,
@@ -135,7 +134,6 @@ const legacyCompareSessions = createLegacyCompareSessionAdapter({
 });
 state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
-const processLog = createProcessLog({ capacity: 500 });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
@@ -239,6 +237,23 @@ const elements = {
   clearProcessLogButton: document.querySelector("#clearProcessLogButton"),
   processLogList: document.querySelector("#processLogList")
 };
+const processLogController = createProcessLogController({
+  elements: {
+    toggleButton: elements.toggleProcessLogButton,
+    count: elements.processLogCount,
+    controls: elements.processLogControls,
+    levelFilter: elements.processLogLevelFilter,
+    phaseFilter: elements.processLogPhaseFilter,
+    autoScroll: elements.processLogAutoScroll,
+    copyButton: elements.copyProcessLogButton,
+    exportButton: elements.exportProcessLogButton,
+    clearButton: elements.clearProcessLogButton,
+    list: elements.processLogList
+  },
+  setStatus,
+  copyText: (text) => navigator.clipboard.writeText(text),
+  downloadText
+});
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
@@ -337,12 +352,6 @@ elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
 elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
 elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
 elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
-elements.toggleProcessLogButton.addEventListener("click", () => toggleProcessLogDrawer());
-elements.processLogLevelFilter.addEventListener("change", renderProcessLog);
-elements.processLogPhaseFilter.addEventListener("change", renderProcessLog);
-elements.copyProcessLogButton.addEventListener("click", copyProcessLog);
-elements.exportProcessLogButton.addEventListener("click", exportProcessLog);
-elements.clearProcessLogButton.addEventListener("click", clearProcessLog);
 for (const menu of toolbarMenus) {
   menu.addEventListener("toggle", () => closeOtherDisclosures(toolbarMenus, menu));
   menu.addEventListener("click", (event) => {
@@ -3237,62 +3246,7 @@ function setStatus(message) {
 }
 
 function logProcess(level, phase, message, details = undefined, options = {}) {
-  if (options.progressKey) {
-    processLog.progress({ level, phase, message, details, key: options.progressKey });
-  } else {
-    processLog.append({ level, phase, message, details });
-  }
-  if (level === "error") toggleProcessLogDrawer(true);
-  renderProcessLog();
-}
-
-function toggleProcessLogDrawer(forceOpen = null) {
-  const open = forceOpen === null
-    ? elements.processLogList.hidden
-    : Boolean(forceOpen);
-  elements.processLogList.hidden = !open;
-  elements.processLogControls.hidden = !open;
-  elements.toggleProcessLogButton.setAttribute("aria-expanded", String(open));
-  if (open) renderProcessLog();
-}
-
-function getProcessLogFilters() {
-  return {
-    level: elements.processLogLevelFilter.value,
-    phase: elements.processLogPhaseFilter.value
-  };
-}
-
-function renderProcessLog() {
-  elements.processLogCount.textContent = String(processLog.size);
-  if (elements.processLogList.hidden) return;
-  const entries = processLog.entries(getProcessLogFilters());
-  elements.processLogList.innerHTML = renderProcessLogEntries(entries);
-  if (elements.processLogAutoScroll.checked) {
-    elements.processLogList.scrollTop = elements.processLogList.scrollHeight;
-  }
-}
-
-async function copyProcessLog() {
-  const text = processLog.toJsonLines(getProcessLogFilters());
-  try {
-    await navigator.clipboard.writeText(text);
-    setStatus(`Copied ${processLog.entries(getProcessLogFilters()).length} log entry(s)`);
-  } catch (error) {
-    setStatus(`Copy log failed: ${error.message}`);
-  }
-}
-
-function exportProcessLog() {
-  const text = processLog.toJsonLines(getProcessLogFilters());
-  downloadText(`${text}${text ? "\n" : ""}`, "netlist-process-log.jsonl", "application/x-ndjson");
-  setStatus(`Exported ${processLog.entries(getProcessLogFilters()).length} log entry(s)`);
-}
-
-function clearProcessLog() {
-  processLog.clear();
-  renderProcessLog();
-  setStatus("Process Log cleared");
+  processLogController.append(level, phase, message, details, options);
 }
 
 function applySessionPreferences(session) {
