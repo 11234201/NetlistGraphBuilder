@@ -228,4 +228,6 @@ Cell Config 的 set/remove/import/reset 已收敛到 `application/cell_config_us
 
 Process Log 的过滤、drawer、自动滚动、复制、导出和清空事件已移入 `ui/process_log_controller.js`；controller 只接收受限 DOM 元素与 status/copy/download 端口，不读取全局 state。main 仅保留统一 `logProcess` 调用入口，交互测试和完整回归 333/333 通过。
 
+Module hierarchy 的领域查询、HTML 渲染、点击解析及导航协调已组合进 `ui/module_hierarchy_controller.js`；controller 仅获得 tree 容器、design/current-module 查询和 navigate 端口，空文档与当前 module 点击不会产生导航。main 只在生命周期变化时调用 `render()`，完整回归为 335/335。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

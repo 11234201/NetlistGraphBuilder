@@ -19,8 +19,7 @@ import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js"
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
-import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
-import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
+import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
 import { importTimingSource } from "../application/timing_import.js";
 import {
   parseCellConfig,
@@ -254,6 +253,12 @@ const processLogController = createProcessLogController({
   copyText: (text) => navigator.clipboard.writeText(text),
   downloadText
 });
+const moduleHierarchyController = createModuleHierarchyController({
+  container: elements.moduleHierarchyTree,
+  getDesign: () => state.design,
+  getCurrentModuleName: () => state.currentModule?.name || null,
+  navigate: selectModule
+});
 const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
@@ -313,7 +318,6 @@ elements.searchInput.addEventListener("keydown", handleSearchKeydown);
 elements.searchInput.addEventListener("focus", handleSearchInput);
 elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
-elements.moduleHierarchyTree.addEventListener("click", handleModuleHierarchyClick);
 elements.details.addEventListener("click", handleSelectionNavigationClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
@@ -761,16 +765,7 @@ function renderModuleOptions() {
 }
 
 function renderModuleHierarchy() {
-  elements.moduleHierarchyTree.innerHTML = renderModuleHierarchyPanel(
-    buildModuleHierarchy(state.design),
-    state.currentModule?.name || null
-  );
-}
-
-function handleModuleHierarchyClick(event) {
-  const moduleName = getModuleHierarchyTarget(event);
-  if (!moduleName || moduleName === state.currentModule?.name) return;
-  selectModule(moduleName);
+  moduleHierarchyController.render();
 }
 
 function renderCompareModuleOptions() {
