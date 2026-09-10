@@ -222,4 +222,6 @@ S7-0 同机慢例对照已补齐：使用同一 Windows 主机、default collaps
 
 S7-R 已由共享 `ROUTE_GEOMETRY_POLICY`、`orthogonalRouting` 和 candidate validator 落实：target approach clearance、最小 16px 可见转角、正反向 endpoint inset、node padding 与 endpoint access 均有命名边界和定向测试，Simple/Adjust 共享固定搜索预算。该切片包含用户要求的垂直 pin 最后弯可见性调整；未引入实例名/坐标特判或图规模相关重试。
 
+S7-5 timing 输入解析与“至少一个有效 scope/instance”校验已移入 `application/timing_import.js`，返回不可变 source/summary 结果；main 只负责提交 timing、日志和选择重绘路径。文本类型、空识别结果和 legacy 格式均有边界测试，完整回归为 330/330。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

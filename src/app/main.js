@@ -21,7 +21,7 @@ import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
-import { parseTimingLog } from "../timing/timingParser.js";
+import { importTimingSource } from "../application/timing_import.js";
 import {
   createEmptyCellConfig,
   mergeCellConfigs,
@@ -566,21 +566,18 @@ function loadQuickInputText(text, options = {}) {
 
 function loadTimingText(text, label) {
   logProcess("info", "timing", `Parsing timing ${label}`);
-  let timing;
+  let imported;
   try {
-    timing = parseTimingLog(text);
+    imported = importTimingSource(text, { name: label });
   } catch (error) {
     logProcess("error", "timing", `Timing parse failed: ${error.message}`, { label });
     throw error;
   }
-  if ((timing.scopeCount || timing.instanceCount || 0) === 0) {
-    throw new Error("no timing scope or instance record was recognized");
-  }
-  state.timing = timing;
-  logProcess("info", "timing", `Loaded ${timing.scopeCount || timing.instanceCount} timing scope(s)`, {
+  state.timing = imported.timing;
+  logProcess("info", "timing", `Loaded ${imported.summary.recordCount} timing scope(s)`, {
     label,
-    format: timing.format,
-    diagnostics: timing.diagnostics?.length || 0
+    format: imported.summary.format,
+    diagnostics: imported.summary.diagnosticCount
   });
   resetTimingPresentation(state);
   if (state.compare.active) {
