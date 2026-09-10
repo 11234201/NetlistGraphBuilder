@@ -16,6 +16,9 @@ export function defineDomainFeature(value) {
   return Object.freeze({
     ...value,
     inputFormats: Object.freeze([...(value.inputFormats || [])]),
-    capabilities: Object.freeze({ ...(value.capabilities || {}) })
+    capabilities: Object.freeze({ ...(value.capabilities || {}) }),
+    commands: Object.freeze([...(value.commands || [])]),
+    panels: Object.freeze([...(value.panels || [])]),
+    layoutProfiles: Object.freeze([...(value.layoutProfiles || [])])
   });
 }

@@ -59,7 +59,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
-| S7-5 | 进行中（控件、层次列表、session/Golden codec 已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
+| S7-5 | 进行中（控件、层次列表、codec、能力注册已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 进行中（内存 AIG 公共链路已验证） | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
@@ -211,5 +211,7 @@ S7-6 已加入仅位于 `tests/support/` 的独立内存 AIG feature，覆盖二
 为消除 Windows `node --test <glob>` 为每个文件创建 worker 时反复出现的 `spawn EPERM`，`npm test` 改为单进程、稳定排序地导入同一组 `tests/unit/*.test.js`，仍由 `node:test` 执行和报告。当前完整回归为 318/318。
 
 S7-5 persistence 已建立独立 session codec v2：新记录带 domain/document/unit/source identity，读取时优先 v2 key 并兼容迁移旧 v1 key、moduleName 和单 root 字段。Layout Golden 升级为 v3 并带相同身份；v1/v2 fixture 仍可导入，新 v3 在 domain/document/source 不匹配时于应用 overrides 前拒绝。Cell Config 的 localStorage 读写与 startup v1 解码也已移入 persistence 边界，原公开 startup API 保持兼容，并覆盖损坏数据、读失败和写失败。完整回归结果见后续持续验证记录。
+
+bootstrap 现在是产品入口取得领域 feature 的唯一静态注册点；DomainFeature 标准化 formats、capabilities、commands、panels 与 layoutProfiles，registry 提供能力与贡献查询。应用导入入口支持注入 registry，默认产品仍仅注册 Netlist；内存 AIG 经同一 registry 明确不提供 timing/Cell Config。完整回归为 326/326。
 
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

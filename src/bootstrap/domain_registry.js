@@ -7,6 +7,13 @@ export function createDomainRegistry(features = []) {
   }
   return Object.freeze({
     get: (domainId) => featureById.get(domainId) || null,
+    hasCapability(domainId, capabilityId) {
+      return featureById.get(domainId)?.capabilities?.[capabilityId] === true;
+    },
+    contributions(domainId, kind) {
+      const values = featureById.get(domainId)?.[kind];
+      return Array.isArray(values) ? [...values] : [];
+    },
     require(domainId) {
       const feature = featureById.get(domainId);
       if (!feature) throw new Error(`Unknown domain feature: ${domainId}`);

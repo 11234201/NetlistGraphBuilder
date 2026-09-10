@@ -55,10 +55,21 @@ test("domain features and registry reject incomplete or duplicate registrations"
   const methods = Object.fromEntries([
     "importSource", "listUnits", "buildSearchIndex", "search", "queryView", "projectDiagram"
   ].map((name) => [name, () => null]));
-  const feature = defineDomainFeature({ id: "test", ...methods });
+  const feature = defineDomainFeature({
+    id: "test",
+    ...methods,
+    capabilities: { timing: true },
+    commands: [{ id: "focus.add" }],
+    panels: [{ id: "details" }],
+    layoutProfiles: [{ id: "compact" }]
+  });
   const registry = createDomainRegistry([feature]);
   assert.equal(registry.require("test"), feature);
   assert.deepEqual(registry.list(), [feature]);
+  assert.equal(registry.hasCapability("test", "timing"), true);
+  assert.equal(registry.hasCapability("test", "cellConfig"), false);
+  assert.deepEqual(registry.contributions("test", "commands"), [{ id: "focus.add" }]);
+  assert.deepEqual(registry.contributions("missing", "panels"), []);
   assert.throws(() => createDomainRegistry([feature, feature]), /Duplicate/);
   assert.throws(() => registry.require("missing"), /Unknown/);
   assert.equal(createDefaultDomainRegistry().require("netlist").id, "netlist");

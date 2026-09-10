@@ -1,9 +1,10 @@
-import { netlistFeature } from "../domains/netlist/netlist_feature.js";
+import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 
-export function importDesignSource(source, context = {}) {
-  return netlistFeature.importSource({ name: context.name || "Verilog", text: source }, context);
+export function importDesignSource(source, context = {}, registry = createDefaultDomainRegistry()) {
+  const feature = registry.require(context.domainId || "netlist");
+  return feature.importSource({ name: context.name || "Verilog", text: source }, context);
 }
 
-export function parseDesignSource(source, context = {}) {
-  return importDesignSource(source, context).model;
+export function parseDesignSource(source, context = {}, registry) {
+  return importDesignSource(source, context, registry).model;
 }

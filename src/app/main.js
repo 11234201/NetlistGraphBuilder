@@ -18,7 +18,7 @@ import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceReque
 import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
-import { netlistFeature } from "../domains/netlist/netlist_feature.js";
+import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/module_hierarchy_panel.js";
 import { parseTimingLog } from "../timing/timingParser.js";
@@ -125,6 +125,8 @@ import {
 } from "./moduleHistory.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
+const domainRegistry = createDefaultDomainRegistry();
+const netlistFeature = domainRegistry.require("netlist");
 const legacyViewCommands = createLegacyViewCommandAdapter({
   state,
   getDocumentId: () => state.document?.documentId || null
