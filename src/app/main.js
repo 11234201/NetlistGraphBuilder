@@ -98,6 +98,7 @@ import { buildModuleWorkspace } from "./moduleWorkspace.js";
 import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
 import { importDesignSource } from "./designInput.js";
 import { createLegacyViewCommandAdapter } from "./legacy_view_command_adapter.js";
+import { createLegacyCompareSessionAdapter } from "./legacy_compare_session_adapter.js";
 import {
   applyLayoutGoldenState,
   resolveLayoutGoldenModule
@@ -128,6 +129,10 @@ const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
 const legacyViewCommands = createLegacyViewCommandAdapter({
+  state,
+  getDocumentId: () => state.document?.documentId || null
+});
+const legacyCompareSessions = createLegacyCompareSessionAdapter({
   state,
   getDocumentId: () => state.document?.documentId || null
 });
@@ -1371,9 +1376,10 @@ function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
     state.compare.activeFocusedRootNodeId = { left: null, right: null };
   }
   const resolved = resolveFocusedRootState(value, activeRootNodeId, state.compare.activeFocusedRootNodeId[side]);
-  const roots = resolved.rootNodeIds;
+  const mirrored = legacyCompareSessions.replaceRoots(side, resolved.rootNodeIds, resolved.activeRootNodeId);
+  const roots = mirrored.rootNodeIds;
   state.compare.focusedRootNodeIds[side] = roots;
-  state.compare.activeFocusedRootNodeId[side] = resolved.activeRootNodeId;
+  state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
   state.compare.outputName = null;
   return roots;
 }

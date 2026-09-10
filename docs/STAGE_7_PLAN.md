@@ -192,7 +192,7 @@ S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 
 
 S7-5 的 module 层次结构列表已提前形成独立切片：Netlist 领域查询识别顶层模块和子模块实例，保留重复实例并有界标记递归 cycle；折叠面板由独立 renderer 转义名称，只通过 moduleName 导航端口切换视图。浏览器验证折叠/展开、点击切换和当前项 `aria-current` 同步通过，控制台无 warning/error。
 
-S7-3 已建立通用的 `query -> project -> measure -> layout -> overrides -> scene` 顺序执行器，支持同步与异步 stage；Single 和 Compare 的两侧均通过 `buildModuleWorkspace` 执行该 pipeline，Compare 不再维护第二份选择/变换/布局编排。ComparisonSession/Coordinator 已表达左右普通 session、viewport/roots/selection 独立同步开关、transactionId 去回声，以及 matched/unmatched/ambiguous 结果边界；旧 main Compare 状态和同步 handler 尚待迁移。
+S7-3 已建立通用的 `query -> project -> measure -> layout -> overrides -> scene` 顺序执行器，支持同步与异步 stage；Single 和 Compare 的两侧均通过 `buildModuleWorkspace` 执行该 pipeline，Compare 不再维护第二份选择/变换/布局编排。ComparisonSession/Coordinator 已表达左右普通 session、viewport/roots/selection 独立同步开关、transactionId 去回声，以及 matched/unmatched/ambiguous 结果边界。主界面 Compare 的 Focused roots 现由两个普通 ViewSession 持有，旧左右字段仅作为 DOM/存档兼容镜像；module/document identity 改变会重建对应 session。完整回归为 328/328。
 
 S7-4 首个纯提取切片已将 Netlist pin direction/side/role 和反相输出语义固化为 `portDescriptors`、`outputBubble`，子模块跳转改为通用 `navigationTarget`。共享 `nodeGeometry`、`nodeSpacing`、`svgRenderer` 不再 import inference 或读取 parser `node.ref`，边界测试阻止回流。几何/渲染全量单测 307/307；mapped 45/47、violations 59/120，仍仅 dp_020 与 sop_004 在 layout 阶段超过 45000ms，与既有基线一致。benchmark 中位数（1024/4096/8192 cells）pipeline 为 71.7/530.1/1358.5ms，首个 progressive batch 均为 0.3ms；本切片未调整路由策略。
 
