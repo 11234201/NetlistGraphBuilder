@@ -34,6 +34,8 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   assert.equal(state.compare.synchronized, true);
   assert.equal(state.compare.focusedRootsSynchronized, true);
   assert.equal(state.compare.layout, "vertical");
+  assert.equal(state.scene, null);
+  assert.deepEqual(state.compare.scenes, { left: null, right: null });
   assert.equal(state.layoutProviderId, "simple-layered");
   state.design = { modules: [] };
   state.timing = { instanceCount: 1 };
@@ -43,6 +45,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   state.nodePositions.set("cell:u0", { x: 10, y: 20 });
   state.timingBadgeChoices.u0 = [{ pin: "Z", metric: "at" }];
   state.timingBadgePositions.u0 = "top-left";
+  state.scene = { kind: "svg-scene.v1" };
 
   resetTimingPresentation(state);
   assert.deepEqual(state.timingBadgeChoices, {});
@@ -60,6 +63,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   resetDesignWorkspace(state);
   assert.equal(state.timing, null);
   assert.equal(state.selectedNodeId, null);
+  assert.equal(state.scene, null);
   assert.deepEqual(state.design, { modules: [] });
 });
 
@@ -192,6 +196,14 @@ test("app forwards both Focused depths into the module workspace", async () => {
   assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);
   assert.match(source, /faninDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
   assert.match(source, /fanoutDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
+});
+
+test("screen rendering and exports consume prepared scenes", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+
+  assert.match(source, /renderSvgSceneIntoMount\(mount, renderOptions\.scene/);
+  assert.match(source, /svgSnapshot: renderSvgScene\(state\.scene\)/);
+  assert.doesNotMatch(source, /renderSchematicSvg/);
 });
 
 test("process log renderer escapes messages and detail values", () => {

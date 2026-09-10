@@ -13,6 +13,7 @@ export function createAppState(layoutPolicy) {
     fullGraph: null,
     autoGraph: null,
     graph: null,
+    scene: null,
     transform: { x: 0, y: 0, scale: 1 },
     selectedNodeId: null,
     selectedNet: null,
@@ -57,6 +58,7 @@ export function createCompareState() {
     leftModuleName: null,
     rightModuleName: null,
     graphs: { left: null, right: null },
+    scenes: { left: null, right: null },
     autoGraphs: { left: null, right: null },
     fullGraphs: { left: null, right: null },
     transforms: {
@@ -83,6 +85,10 @@ export function createCompareState() {
 
 export function resetDesignWorkspace(state) {
   resetModuleWorkspace(state);
+  state.fullGraph = null;
+  state.autoGraph = null;
+  state.graph = null;
+  state.scene = null;
   state.selectedNodeId = null;
   state.selectedNet = null;
   state.searchResults = [];

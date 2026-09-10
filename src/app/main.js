@@ -11,8 +11,9 @@ import {
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { snapNodePosition } from "../layout/snap.js";
-import { renderSchematicSvg } from "../render/svgRenderer.js";
-import { cancelSchematicRender, renderSchematicIntoMount } from "../render/progressiveSvgRenderer.js";
+import { createSchematicScene } from "../render/svgRenderer.js";
+import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
+import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { readSpacingInput, syncSpacingControls } from "../ui/spacingControls.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
@@ -902,6 +903,7 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
   state.compare.fullGraphs = workspace.fullGraphs;
   state.compare.autoGraphs = workspace.autoGraphs;
   state.compare.graphs = workspace.graphs;
+  state.compare.scenes = workspace.scenes;
   state.compare.analysis = workspace.analysis;
   logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
     leftModule: leftModule.name,
@@ -911,8 +913,8 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
   elements.compareMount.querySelector('[data-compare-side="right"] > header').textContent = rightModule.displayName;
   renderCompareOutputOptions(leftModule, rightModule);
   Promise.all([
-    renderGraphMount(elements.leftMount, state.compare.graphs.left),
-    renderGraphMount(elements.rightMount, state.compare.graphs.right)
+    renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left }),
+    renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right })
   ]).then((results) => {
     if (results.some((result) => result?.cancelled)) return;
     applyCompareHighlights();
@@ -1089,18 +1091,19 @@ function renderCurrentModuleGraph(options = {}) {
 
 function commitCurrentWorkspace(workspace, options = {}) {
   state.fullGraph = workspace.fullGraph;
+  state.scene = workspace.scene;
   logProcess("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
     fullNodes: workspace.fullGraph.nodes.length,
     viewMode: workspace.graph.view?.mode || state.viewMode
   });
-  commitCurrentGraph(workspace.autoGraph, workspace.graph, options);
+  commitCurrentGraph(workspace.autoGraph, workspace.graph, { ...options, scene: workspace.scene });
 }
 
 function commitCurrentGraph(autoGraph, graph, options = {}) {
-  const { readyMessage = null, onRendered = null } = options;
+  const { readyMessage = null, onRendered = null, scene = null } = options;
   state.autoGraph = autoGraph;
   state.graph = graph;
-  renderGraphMount(elements.mount, graph).then((result) => {
+  renderGraphMount(elements.mount, graph, { scene }).then((result) => {
     if (result?.cancelled) return;
     applyTransform();
     setStatus(readyMessage || `Ready (${getCurrentLayoutProvider().label})`);
@@ -1118,7 +1121,10 @@ function renderGraphMount(mount, graph, renderOptions = {}) {
     mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;
     return Promise.resolve().then(() => ({ cancelled: !request.isCurrent() }));
   }
-  return renderSchematicIntoMount(mount, graph, {
+  if (!renderOptions.scene) {
+    return Promise.reject(new Error("Graph mount requires a prepared scene"));
+  }
+  return renderSvgSceneIntoMount(mount, renderOptions.scene, {
     ...renderOptions,
     isCurrent: request.isCurrent,
     onProgress: (progress) => {
@@ -2770,8 +2776,9 @@ function commitNodeDrag(nodeId, preview) {
     nodeSizes: state.nodeSizes,
     layoutPolicy: state.layoutPolicy
   });
+  state.scene = createSchematicScene(state.graph);
   preview.clear();
-  renderGraphMount(elements.mount, state.graph).then((result) => {
+  renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
     if (result?.cancelled) return;
     setSelectedNode(nodeId);
     applyTransform();
@@ -2800,7 +2807,7 @@ function exportCurrentSvg() {
     ? "whole"
     : `${state.viewMode}-depth-${state.coneDepth}`;
   const fileName = `${sanitizeFileName(state.currentModule.name)}-${viewSuffix}.svg`;
-  downloadText(createStandaloneSvg(renderSchematicSvg(state.graph)), fileName, "image/svg+xml");
+  downloadText(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
   logProcess("info", "export", `Exported SVG: ${fileName}`, {
     nodeCount: state.graph.nodes.length,
     edgeCount: state.graph.edges.length
@@ -2883,7 +2890,7 @@ function saveLayoutGolden() {
         expandedGroupIds: [...state.expandedGroupIds]
       }
     },
-    svgSnapshot: renderSchematicSvg(state.graph)
+    svgSnapshot: renderSvgScene(state.scene)
   });
   downloadJson(
     {
@@ -3144,8 +3151,9 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
     layoutPolicy: state.layoutPolicy
   });
   state.compare.graphs[side] = graph;
+  state.compare.scenes[side] = createSchematicScene(graph);
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
-  return renderGraphMount(mount, graph, renderOptions).then((result) => {
+  return renderGraphMount(mount, graph, { ...renderOptions, scene: state.compare.scenes[side] }).then((result) => {
     if (result?.cancelled) return result;
     applyCompareHighlights();
     applyCompareTransforms();

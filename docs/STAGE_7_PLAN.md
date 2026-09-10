@@ -200,4 +200,6 @@ S7-4 measurement 切片已让 pipeline 在 layout 前物化节点 bounds 与 por
 
 S7-4 Scene 首个切片已将 identity stage 替换为独立的惰性 SVG Scene 契约；同步与 progressive 路径共同消费通用 renderer，scene reader 继续按边/节点范围分批且保留取消机制。通用 renderer 明确拒绝 graph-shaped 输入，模块工作区同时返回 graph 与 scene 供兼容迁移；单元回归为 310/310。当前 Scene item 仍由 Netlist schematic presentation 生成 SVG fragment，下一切片继续把节点符号拆成结构化图元，不能将此兼容形态视为 S7-4 完成。
 
+Single、Compare、拖动后重绘、普通 SVG 导出与 Golden SVG snapshot 已改为消费各自流水线或 override commit 产生的 Scene；主界面 graph mount 不再回退到现场解释 graph。屏幕、渐进批次和导出由同一 Scene serializer 生成，compare 两侧 scene 生命周期独立。相关定向测试 23/23 通过；本机并行 Node test runner 偶发对所有测试 worker 返回 `spawn EPERM`，同一批文件直接单进程执行均通过，最近一次成功的完整并行回归仍为 311/311。
+
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

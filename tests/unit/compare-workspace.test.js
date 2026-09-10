@@ -22,6 +22,8 @@ test("compare workspace composes escaped output cones through provider boundary"
   assert.ok(workspace.graphs.left.nodes.length > 0);
   assert.ok(workspace.graphs.right.nodes.length > 0);
   assert.ok(workspace.graphs.left.nodes.some((node) => node.kind === "output"));
+  assert.equal(workspace.scenes.left.nodeCount, workspace.graphs.left.nodes.length);
+  assert.equal(workspace.scenes.right.nodeCount, workspace.graphs.right.nodes.length);
   assert.equal(workspace.analysis.left.cells, 1);
   assert.equal(workspace.analysis.right.cells, 1);
 });
