@@ -6,7 +6,7 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 import {
   createProgressiveSchematicRenderPlan,
   renderSchematicSvg
-} from "../src/render/svgRenderer.js";
+} from "../src/domains/netlist/netlist_scene.js";
 
 const sizes = parseSizes(process.env.BENCHMARK_SIZES);
 const runs = clampInteger(process.env.BENCHMARK_RUNS, 3, 1, 20);

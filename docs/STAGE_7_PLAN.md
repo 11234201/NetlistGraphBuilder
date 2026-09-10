@@ -216,4 +216,6 @@ bootstrap 现在是产品入口取得领域 feature 的唯一静态注册点；D
 
 Windows 专属发布检查在本地执行：首次完整测试与包 smoke 均通过，但旧 PowerShell 缺少 `Get-FileHash`，因此校验步骤失败；脚本改用 .NET SHA256 流式实现后重跑成功。生成 `NetlistGraphBuilder-v0.7.3-win-x64.zip`，SHA-256 为 `f9ea456a7ca490d12d9569535e54d706335a0d293ff88979f352d07bd5a690de`；包内 app 新目录、localhost smoke 与 ELKJS 许可证复制均由脚本门禁验证，dist 产物保持忽略。
 
+当前 HEAD 的最终布局门禁：mfs-remote 连接仍在 8 秒超时；本地沙箱内 runner 因 `spawn EPERM` 未执行案例，获准在沙箱外重跑后得到 45/47，失败仍仅 `dp_020`、`sop_004` 在 layout 阶段超过固定 45000ms；violations=59/120，最大已完成 layout=30560ms，最大 heap=103MiB。benchmark 曾暴露旧脚本绕过 Netlist Scene facade，修正并加边界门禁后，中位数 pipeline（1024/4096/8192 cells）为 104.7/571.0/1637.1ms，首批 progressive batch 为 1.0/0.9/1.0ms。与迁移前记录相比未出现复杂度阶跃，但当前机器绝对耗时有波动。
+
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

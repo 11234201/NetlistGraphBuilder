@@ -28,4 +28,7 @@ test("shared layout and renderer do not interpret Netlist inference or parser re
   const workspace = readFileSync(join(projectRoot, "src", "app", "moduleWorkspace.js"), "utf8");
   assert.doesNotMatch(renderer, /domains\/netlist/, "shared renderer must not import Netlist presentation");
   assert.match(workspace, /createNetlistScene/, "Netlist workspace must use its domain scene facade");
+  const benchmark = readFileSync(join(projectRoot, "tools", "benchmark-large.mjs"), "utf8");
+  assert.match(benchmark, /domains\/netlist\/netlist_scene\.js/, "Netlist benchmark must inject domain presentation");
+  assert.doesNotMatch(benchmark, /from\s+["']\.\.\/src\/render\/svgRenderer\.js["']/);
 });
