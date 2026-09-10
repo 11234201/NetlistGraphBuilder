@@ -59,7 +59,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
-| S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
+| S7-5 | 进行中（控件、层次列表、session/Golden codec 已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 进行中（内存 AIG 公共链路已验证） | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
@@ -209,5 +209,7 @@ Netlist 节点类型、端口、时序和导航 presentation 已提取到 `src/d
 S7-6 已加入仅位于 `tests/support/` 的独立内存 AIG feature，覆盖二输入 AND、正/反相边、重复 fanin slot、常量、共享子图及 latch Q/D 边界。该 feature 通过公共 registry、DocumentStore、ViewSession command、view pipeline、measurement、Simple layout、结构化 Scene 和 SVG renderer 完成 Focused 搜索到导出；Netlist/AIG 同时打开与跨 document ref 拒绝均已验证，公共 application/layout/render 源码门禁未出现 AIG 条件分支。AIG 不注册 timing/Cell Config 能力；这仅证明架构扩展性，不代表产品支持 AIGER 文件。
 
 为消除 Windows `node --test <glob>` 为每个文件创建 worker 时反复出现的 `spawn EPERM`，`npm test` 改为单进程、稳定排序地导入同一组 `tests/unit/*.test.js`，仍由 `node:test` 执行和报告。当前完整回归为 318/318。
+
+S7-5 persistence 首批已建立独立 session codec v2：新记录带 domain/document/unit/source identity，读取时优先 v2 key 并兼容迁移旧 v1 key、moduleName 和单 root 字段。Layout Golden 升级为 v3 并带相同身份；v1/v2 fixture 仍可导入，新 v3 在 domain/document/source 不匹配时于应用 overrides 前拒绝。session、Golden 和来源失效定向测试已加入，完整回归为 324/324；Cell Config 与 startup codec 边界仍待归并。
 
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

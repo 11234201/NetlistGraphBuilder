@@ -1,11 +1,13 @@
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
+import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/session_codec.js";
 
-export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
+export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
+export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
 
 export function loadSessionState(storage = globalThis.sessionStorage) {
   try {
-    const value = JSON.parse(storage?.getItem(SESSION_STATE_KEY) || "null");
-    return value && value.version === 1 ? value : null;
+    const encoded = storage?.getItem(SESSION_STATE_KEY) || storage?.getItem(LEGACY_SESSION_STATE_KEY);
+    return encoded ? decodeSessionSnapshot(encoded) : null;
   } catch {
     return null;
   }
@@ -13,7 +15,7 @@ export function loadSessionState(storage = globalThis.sessionStorage) {
 
 export function saveSessionState(snapshot, storage = globalThis.sessionStorage) {
   try {
-    storage?.setItem(SESSION_STATE_KEY, JSON.stringify({ version: 1, ...snapshot }));
+    storage?.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
     return true;
   } catch {
     return false;
@@ -26,6 +28,13 @@ export function createSessionSnapshot(state) {
     state.coneRootNodeId
   );
   return {
+    domainId: state.document?.domainId || "netlist",
+    documentId: state.document?.documentId || null,
+    unitId: state.currentModule?.name || null,
+    sourceIdentity: {
+      name: state.currentSourceLabel || state.document?.source?.name || "source",
+      size: String(state.currentSource || "").length
+    },
     source: state.currentSource,
     sourceLabel: state.currentSourceLabel,
     moduleName: state.currentModule?.name || null,

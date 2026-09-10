@@ -99,3 +99,34 @@ test("layout Golden import rejects unrelated or unusable JSON", () => {
     /load its Verilog netlist first/
   );
 });
+
+test("Golden v1/v2 remain compatible while v3 rejects a different source", () => {
+  for (const version of [1, 2]) {
+    const imported = getLayoutGoldenState({
+      kind: "netlist-layout-golden",
+      version,
+      moduleName: "top",
+      nodes: [{ id: "cell:u0", x: 1, y: 2 }]
+    });
+    assert.equal(resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, imported, {
+      domainId: "netlist",
+      documentId: "current"
+    }).name, "top");
+  }
+
+  const imported = getLayoutGoldenState({
+    kind: "netlist-layout-golden",
+    version: 3,
+    domainId: "netlist",
+    documentId: "netlist:old",
+    unitId: "top",
+    sourceIdentity: { name: "old.v", size: 100 },
+    moduleName: "top",
+    nodes: [{ id: "cell:u0", x: 1, y: 2 }]
+  });
+  assert.throws(() => resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, imported, {
+    domainId: "netlist",
+    documentId: "netlist:new",
+    sourceIdentity: { name: "new.v", size: 100 }
+  }), /another document/);
+});

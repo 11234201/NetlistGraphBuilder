@@ -2846,7 +2846,7 @@ function resetLayoutOverrides() {
 }
 
 function loadLayoutGolden(imported, label) {
-  const module = resolveLayoutGoldenModule(state.design, imported);
+  const module = resolveLayoutGoldenModule(state.design, imported, currentPersistenceIdentity());
 
   if (state.compare.active) exitCompareView();
   if (state.currentModule?.name !== module.name) selectModule(module.name);
@@ -2874,6 +2874,7 @@ function saveLayoutGolden() {
 
   const diff = compareLayoutGraphs(state.autoGraph, state.graph);
   const golden = createLayoutGolden(state.graph, {
+    identity: currentPersistenceIdentity(),
     layoutOptions: {
       layoutPolicy: state.layoutPolicy,
       graphOverrides: state.graphOverrides,
@@ -2904,6 +2905,18 @@ function saveLayoutGolden() {
     maxMove: diff.maxMove
   });
   setStatus(`Saved layout golden: ${diff.movedNodeCount} moved node(s), max move ${diff.maxMove}px`);
+}
+
+function currentPersistenceIdentity() {
+  return {
+    domainId: state.document?.domainId || "netlist",
+    documentId: state.document?.documentId || null,
+    unitId: state.currentModule?.name || null,
+    sourceIdentity: {
+      name: state.currentSourceLabel || state.document?.source?.name || "source",
+      size: String(state.currentSource || "").length
+    }
+  };
 }
 
 function updateCalibrationControls() {

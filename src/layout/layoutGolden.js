@@ -3,9 +3,14 @@ import { normalizeLayoutPolicy } from "./layoutPolicy.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "../app/focusedViewPolicy.js";
 
 export function createLayoutGolden(graph, options = {}) {
+  const identity = options.identity || {};
   return {
     kind: "netlist-layout-golden",
-    version: 2,
+    version: 3,
+    domainId: identity.domainId || "netlist",
+    documentId: identity.documentId || null,
+    unitId: identity.unitId || graph.moduleName,
+    sourceIdentity: identity.sourceIdentity || null,
     moduleName: graph.moduleName,
     moduleDisplayName: graph.moduleDisplayName,
     layoutOptions: { ...(options.layoutOptions || {}) },
@@ -51,7 +56,7 @@ export function parseLayoutGolden(value) {
     throw new Error("Not a Netlist Graph Builder layout Golden");
   }
   const version = Number(golden.version);
-  if (!Number.isInteger(version) || version < 1 || version > 2) {
+  if (!Number.isInteger(version) || version < 1 || version > 3) {
     throw new Error(`Unsupported Golden version: ${golden.version ?? "missing"}`);
   }
   if (typeof golden.moduleName !== "string" || golden.moduleName.length === 0) {
@@ -90,6 +95,15 @@ export function getLayoutGoldenState(value) {
 
   return {
     golden,
+    identity: {
+      domainId: golden.domainId || "netlist",
+      documentId: typeof golden.documentId === "string" ? golden.documentId : null,
+      unitId: golden.unitId || golden.moduleName,
+      sourceIdentity: isRecord(golden.sourceIdentity) ? {
+        name: String(golden.sourceIdentity.name || "source"),
+        size: finiteNumber(golden.sourceIdentity.size)
+      } : null
+    },
     moduleName: golden.moduleName,
     nodePositions,
     nodeSizes,

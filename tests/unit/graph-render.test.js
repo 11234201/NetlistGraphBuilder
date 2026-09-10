@@ -812,7 +812,7 @@ test("layout golden records moved nodes and diff summary", async () => {
   const diff = compareLayoutGraphs(base, adjusted);
 
   assert.equal(golden.kind, "netlist-layout-golden");
-  assert.equal(golden.version, 2);
+  assert.equal(golden.version, 3);
   assert.equal(golden.layoutOptions.wireLanePitch, 18);
   assert.ok(golden.nodes.some((item) => item.id === node.id && item.x === node.x + 20));
   assert.ok(golden.nodes.every((item) => Number.isFinite(item.width) && Number.isFinite(item.height)));
