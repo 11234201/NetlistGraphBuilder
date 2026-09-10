@@ -18,3 +18,10 @@ test("contracts stay independent and the Netlist adapter has one explicit legacy
   const legacyImports = [...adapter.matchAll(/from\s+["'](\.\.\/\.\.\/app\/[^"']+)["']/g)].map((match) => match[1]);
   assert.deepEqual(legacyImports, ["../../app/graphWorkspace.js"]);
 });
+
+test("shared layout and renderer do not interpret Netlist inference or parser references", () => {
+  for (const relativePath of ["src/layout/nodeGeometry.js", "src/layout/nodeSpacing.js", "src/render/svgRenderer.js"]) {
+    const source = readFileSync(join(projectRoot, ...relativePath.split("/")), "utf8");
+    assert.doesNotMatch(source, /infer\/defaultCellRules|node\.ref/, `${relativePath} must consume presentation fields`);
+  }
+});

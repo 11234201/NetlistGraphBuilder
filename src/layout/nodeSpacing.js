@@ -201,7 +201,7 @@ export function computeAdaptiveCellGap(node, levelNodes, layoutIntent, compactGa
   const base = Math.max(Number(compactGap) || 0, Number(cellSpacing) || 8);
   const fanout = layoutIntent?.getNodeFanout(node) || 0;
   const pressure = layoutIntent?.getBoundaryPressure(node.level) || 1;
-  const pinCount = node.ports?.length || node.ref?.pins?.length || 0;
+  const pinCount = node.ports?.length || node.portDescriptors?.length || 0;
   const density = Math.max(0, (levelNodes?.length || 1) - 4);
   const congestion = Math.min(48,
     Math.max(0, pressure - 1) * 2 + Math.max(0, pinCount - 4) * 2 + Math.min(12, density));
@@ -209,7 +209,7 @@ export function computeAdaptiveCellGap(node, levelNodes, layoutIntent, compactGa
 }
 
 function getLevelCongestion(leftNodes, rightNodes, pressure) {
-  const maxPins = Math.max(0, ...[...leftNodes, ...rightNodes].map((node) => node.ref?.pins?.length || 0));
+  const maxPins = Math.max(0, ...[...leftNodes, ...rightNodes].map((node) => node.portDescriptors?.length || 0));
   const density = Math.max(leftNodes.length, rightNodes.length);
   return Math.min(64, Math.max(0, pressure - 1) * 2 + Math.max(0, maxPins - 4) * 2 + Math.max(0, density - 8));
 }

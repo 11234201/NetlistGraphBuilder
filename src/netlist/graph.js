@@ -1,6 +1,7 @@
 ﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
 import { getNetDisplayName, getPortDisplayName } from "./model.js";
 import { ensureFallbackCellPinDirections } from "../infer/defaultCellRules.js";
+import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { resolveCellConfigDefinition, toInternalGateKind } from "../infer/cellConfig.js";
 
 export function buildSchematicGraph(module, options = {}) {
@@ -104,7 +105,20 @@ export function buildSchematicGraph(module, options = {}) {
       title: getCellTitle(cell, cellKind),
       subtitle: cell.typeDisplayName || cell.type,
       pinDirections,
+      portDescriptors: cell.pins.map((pin) => {
+        const pinName = pin.pinDisplayName || pin.pin;
+        const rule = pinDirections[pinName] || pinDirections[pin.pin] || inferPinDirection(pin.pin, cell.type);
+        return {
+          pin: pinName,
+          rawPin: pin.pin,
+          direction: rule.direction,
+          role: rule.role,
+          side: rule.side || (rule.direction === "output" ? "right" : "left")
+        };
+      }),
+      outputBubble: isInvertingOutputGate(cellKind.kind),
       referencedModuleName: referencedModule?.name || null,
+      navigationTarget: referencedModule ? { kind: "unit", id: referencedModule.name } : null,
       ref: cell
     });
     applyNodePropertyOverrides(node, overrides);

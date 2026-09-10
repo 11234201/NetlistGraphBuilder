@@ -1,4 +1,3 @@
-import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { getLeafDisplayName } from "../layout/nodeGeometry.js";
 import { segmentsConflict } from "../layout/orthogonalRouting.js";
 import { getEdgeRouteSegments } from "../layout/routeSegmentIndex.js";
@@ -237,8 +236,8 @@ function renderGateNode(node) {
   const focusedRootClass = node.isActiveFocusedRoot
     ? " focused-root focused-root-active"
     : node.isFocusedRoot ? " focused-root" : "";
-  const navigationHint = node.referencedModuleName
-    ? `; double-click to open module ${node.referencedModuleName}`
+  const navigationHint = node.navigationTarget?.kind === "unit"
+    ? `; double-click to open ${node.navigationTarget.id}`
     : "";
   const cellTitle = node.subtitle
     ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`)}</title>`
@@ -246,11 +245,11 @@ function renderGateNode(node) {
   const metadata = node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0
     ? `<text class="node-meta" x="${x + width / 2}" y="${y + height - 6}" text-anchor="middle">${escapeHtml(truncateText(node.metadataText, 34))}</text>`
     : "";
-  const referencedModuleAttribute = node.referencedModuleName
-    ? ` data-referenced-module="${escapeAttr(node.referencedModuleName)}"`
+  const navigationAttribute = node.navigationTarget
+    ? ` data-navigation-kind="${escapeAttr(node.navigationTarget.kind)}" data-navigation-id="${escapeAttr(node.navigationTarget.id)}"`
     : "";
 
-  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}${focusedRootClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${referencedModuleAttribute}>
+  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}${focusedRootClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${navigationAttribute}>
     ${cellTitle}
     <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
     ${ports}
@@ -281,7 +280,7 @@ function renderGatePorts(node, x, y, width, gateKind) {
       const timingTitle = timing
         ? `<title>${escapeHtml(`${port.pin}: at ${formatTimingValue(timing.at)}, rt ${formatTimingValue(timing.rt)}, slack ${formatTimingValue(timing.slack)}`)}</title>`
         : "";
-      const marker = isOutput && isInvertingOutputGate(gateKind)
+      const marker = isOutput && node.outputBubble === true
         ? `<circle class="pin-bubble${timingClass}" cx="${round(x + width + 5)}" cy="${py}" r="5">${timingTitle}</circle>`
         : `<circle class="pin-dot${timingClass}" cx="${px}" cy="${py}" r="2.4">${timingTitle}</circle>`;
 

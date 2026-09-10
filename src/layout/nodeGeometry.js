@@ -1,5 +1,3 @@
-import { inferPinDirection, isInvertingOutputGate } from "../infer/defaultCellRules.js";
-
 export const DEFAULT_PIN_NODE_HEIGHT = 36;
 export const DEFAULT_INPUT_NODE_HEIGHT = 28;
 export const DEFAULT_CELL_PIN_PITCH = 36;
@@ -68,16 +66,14 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
   const outputPins = [];
   const topPins = [];
   const bottomPins = [];
-  for (const pin of node.ref?.pins || []) {
-    const pinName = pin.pinDisplayName || pin.pin;
-    const pinRule = getNodePinRule(node, pinName, pin.pin);
-    const direction = pinRule.direction;
-    const side = pinRule.side || (direction === "output" ? "right" : "left");
+  for (const descriptor of node.portDescriptors || []) {
+    const direction = descriptor.direction;
+    const side = descriptor.side || (direction === "output" ? "right" : "left");
     const port = {
-      pin: pinName,
-      rawPin: pin.pin,
+      pin: descriptor.pin,
+      rawPin: descriptor.rawPin,
       direction,
-      role: pinRule.role,
+      role: descriptor.role,
       side,
       x: side === "right" ? size.width : 0,
       y: 0
@@ -102,7 +98,7 @@ export function getConnectionPoint(node, pin, role) {
   const bubbleOffset =
     role === "source" &&
     node.kind === "cell" &&
-    isInvertingOutputGate(node.gateKind)
+    node.outputBubble === true
       ? 10
       : 0;
   return { x: x + bubbleOffset, y };
@@ -169,19 +165,12 @@ function getMaxPinCount(node) {
 
   let leftPins = 0;
   let rightPins = 0;
-  for (const pin of node.ref?.pins || []) {
-    const rule = getNodePinRule(node, pin.pinDisplayName || pin.pin, pin.pin);
-    const side = rule.side || (rule.direction === "output" ? "right" : "left");
+  for (const descriptor of node.portDescriptors || []) {
+    const side = descriptor.side || (descriptor.direction === "output" ? "right" : "left");
     if (side === "left") leftPins += 1;
     if (side === "right") rightPins += 1;
   }
   return Math.max(leftPins, rightPins, 1);
-}
-
-function getNodePinRule(node, displayName, rawName) {
-  return node.pinDirections?.[displayName] ||
-    node.pinDirections?.[rawName] ||
-    inferPinDirection(rawName, node.ref?.type);
 }
 
 function clamp(value, min, max) {

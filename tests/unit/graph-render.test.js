@@ -101,6 +101,7 @@ test("simple layout bounds levels when a sequential graph contains a large feedb
     label: `u${index}`,
     gateKind: "buffer",
     pinDirections: { A: { direction: "input" }, Z: { direction: "output" } },
+    portDescriptors: testPortDescriptors({ A: { direction: "input" }, Z: { direction: "output" } }),
     ref: { pins: [{ pin: "A", net: `n${index}` }, { pin: "Z", net: `n${index + 1}` }] }
   }));
   const edges = nodes.map((node, index) => ({
@@ -273,7 +274,12 @@ test("many tall cells in one level keep height-aware vertical spacing", () => {
         A1: { direction: "input" }, A2: { direction: "input" },
         A3: { direction: "input" }, A4: { direction: "input" },
         A5: { direction: "input" }, ZN: { direction: "output" }
-      }
+      },
+      portDescriptors: testPortDescriptors({
+        A1: { direction: "input" }, A2: { direction: "input" },
+        A3: { direction: "input" }, A4: { direction: "input" },
+        A5: { direction: "input" }, ZN: { direction: "output" }
+      })
     })),
     edges: [],
     diagnostics: [],
@@ -867,8 +873,8 @@ endmodule`;
   const svg = renderSchematicSvg(positionedGraph);
   assert.equal(positionedInstance.ports.find((port) => port.pin === "request").side, "left");
   assert.equal(positionedInstance.ports.find((port) => port.pin === "response").side, "right");
-  assert.match(svg, /data-referenced-module="leaf"/);
-  assert.match(svg, /double-click to open module leaf/);
+  assert.match(svg, /data-navigation-kind="unit" data-navigation-id="leaf"/);
+  assert.match(svg, /double-click to open leaf/);
 });
 
 test("packed vector ports drive and load their selected bits without implicit nodes", () => {
@@ -1418,6 +1424,7 @@ function createRoutingTestGraph() {
         label: "u0",
         title: "BUF",
         subtitle: "BUF",
+        portDescriptors: testPortDescriptors({ A: { direction: "input" }, Z: { direction: "output" } }),
         ref: {
           pins: [
             { pin: "A", pinDisplayName: "A" },
@@ -1433,6 +1440,7 @@ function createRoutingTestGraph() {
         label: "u1",
         title: "BUF",
         subtitle: "BUF",
+        portDescriptors: testPortDescriptors({ A: { direction: "input" }, Z: { direction: "output" } }),
         ref: {
           pins: [
             { pin: "A", pinDisplayName: "A" },
@@ -1507,6 +1515,7 @@ function createLocalityTestGraph() {
         label: "u0",
         title: "AND",
         subtitle: "AND",
+        portDescriptors: testPortDescriptors({ A1: { direction: "input" }, A2: { direction: "input" }, Z: { direction: "output" } }),
         ref: {
           pins: [
             { pin: "A1", pinDisplayName: "A1" },
@@ -1546,6 +1555,15 @@ function minGap(values) {
     gap = Math.min(gap, sorted[index] - sorted[index - 1]);
   }
   return gap;
+}
+
+function testPortDescriptors(pinDirections) {
+  return Object.entries(pinDirections).map(([pin, rule]) => ({
+    pin,
+    rawPin: pin,
+    direction: rule.direction,
+    side: rule.direction === "output" ? "right" : "left"
+  }));
 }
 
 function edgesCrossingNonEndpoints(graph) {

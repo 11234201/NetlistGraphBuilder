@@ -81,7 +81,11 @@ test("ELK fanout edges share the exact source pin instead of splitting on the no
         label: "u0",
         gateKind: "buffer",
         ref: { pins: [{ pin: "A", net: "a" }, { pin: "ZN", net: "n" }] },
-        pinDirections: { A: { direction: "input" }, ZN: { direction: "output" } }
+        pinDirections: { A: { direction: "input" }, ZN: { direction: "output" } },
+        portDescriptors: [
+          { pin: "A", rawPin: "A", direction: "input", side: "left" },
+          { pin: "ZN", rawPin: "ZN", direction: "output", side: "right" }
+        ]
       },
       { id: "output:y0", kind: "output", label: "y0", ref: { name: "y0" } },
       { id: "output:y1", kind: "output", label: "y1", ref: { name: "y1" } }

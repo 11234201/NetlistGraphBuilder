@@ -30,6 +30,10 @@ test("feedback cycle breaking is invariant to node array order", () => {
     label: id,
     gateKind: "buffer",
     pinDirections: { A: { direction: "input" }, Y: { direction: "output" } },
+    portDescriptors: [
+      { pin: "A", rawPin: "A", direction: "input", side: "left" },
+      { pin: "Y", rawPin: "Y", direction: "output", side: "right" }
+    ],
     ref: { pins: [{ pin: "A", net: `in-${id}` }, { pin: "Y", net: `out-${id}` }] }
   }));
   const edges = [

@@ -208,6 +208,12 @@ test("adjust routes an explicit top-side input vertically into its pin", () => {
           S: { direction: "input", side: "top", role: "select" },
           Y: { direction: "output", side: "right" }
         },
+        portDescriptors: [
+          { pin: "A", rawPin: "A", direction: "input", side: "left" },
+          { pin: "B", rawPin: "B", direction: "input", side: "left" },
+          { pin: "S", rawPin: "S", direction: "input", side: "top", role: "select" },
+          { pin: "Y", rawPin: "Y", direction: "output", side: "right" }
+        ],
         ref: { pins: [{ pin: "A" }, { pin: "B" }, { pin: "S" }, { pin: "Y" }] }
       }
     ],
