@@ -18,8 +18,8 @@ export function createProgressiveSvgSceneRenderPlan(scene) {
   return Object.freeze({
     edgeCount: checked.edgeCount,
     nodeCount: checked.nodeCount,
-    renderEdges: checked.readEdges,
-    renderNodes: checked.readNodes,
+    renderEdges: (start, end) => checked.readEdges(start, end).map(serializeSvgPrimitive),
+    renderNodes: (start, end) => checked.readNodes(start, end).map(serializeSvgPrimitive),
     openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${checked.ariaLabel}">
   <g id="schematicContent">
     <g class="edges">`,
@@ -34,3 +34,45 @@ export function renderSvgScene(scene) {
 }
 
 export const SVG_SCENE_CONTRACT = SVG_SCENE_KIND;
+
+export function svgElement(tag, attributes = {}, children = []) {
+  if (!/^[a-z][a-z0-9-]*$/i.test(tag)) throw new Error(`Invalid SVG element: ${tag}`);
+  return Object.freeze({
+    type: "element",
+    tag,
+    attributes: Object.freeze({ ...attributes }),
+    children: Object.freeze([...(children || [])])
+  });
+}
+
+export function svgText(value) {
+  return Object.freeze({ type: "text", value: String(value ?? "") });
+}
+
+export function svgFragment(markup) {
+  return Object.freeze({ type: "fragment", markup: String(markup ?? "") });
+}
+
+export function serializeSvgPrimitive(primitive) {
+  if (typeof primitive === "string") return primitive;
+  if (primitive?.type === "text") return escapeText(primitive.value);
+  if (primitive?.type === "fragment") return primitive.markup;
+  if (primitive?.type !== "element") throw new Error("Unknown SVG scene primitive");
+  const attributes = Object.entries(primitive.attributes || {})
+    .filter(([, value]) => value !== null && value !== undefined && value !== false)
+    .map(([name, value]) => ` ${name}="${escapeAttribute(value === true ? "" : value)}"`)
+    .join("");
+  const children = (primitive.children || []).map(serializeSvgPrimitive).join("");
+  return `<${primitive.tag}${attributes}>${children}</${primitive.tag}>`;
+}
+
+function escapeText(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeAttribute(value) {
+  return escapeText(value).replaceAll('"', "&quot;");
+}

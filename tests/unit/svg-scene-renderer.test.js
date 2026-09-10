@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSchematicScene, renderSchematicSvg } from "../../src/render/svgRenderer.js";
-import { createProgressiveSvgSceneRenderPlan, renderSvgScene } from "../../src/render/svg_scene_renderer.js";
+import {
+  createProgressiveSvgSceneRenderPlan,
+  renderSvgScene,
+  serializeSvgPrimitive,
+  svgElement,
+  svgText
+} from "../../src/render/svg_scene_renderer.js";
 
 const graph = {
   moduleDisplayName: "scene & module",
@@ -23,4 +29,13 @@ test("schematic scene is lazy and shares the generic SVG scene renderer", () => 
 
 test("generic SVG scene renderer rejects graph-shaped input", () => {
   assert.throws(() => renderSvgScene(graph), /Expected an SVG scene/);
+});
+
+test("structured SVG primitives escape attributes and text centrally", () => {
+  const primitive = svgElement("text", { class: "label", "data-name": 'a"&b' }, [svgText("<unsafe>")]);
+
+  assert.equal(
+    serializeSvgPrimitive(primitive),
+    '<text class="label" data-name="a&quot;&amp;b">&lt;unsafe&gt;</text>'
+  );
 });

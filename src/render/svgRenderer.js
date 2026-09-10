@@ -6,7 +6,9 @@ import {
   createProgressiveSvgSceneRenderPlan,
   createSvgScene,
   renderSvgScene,
-  SVG_SCENE_CONTRACT
+  SVG_SCENE_CONTRACT,
+  svgElement,
+  svgText
 } from "./svg_scene_renderer.js";
 
 const MAX_WIRE_BRIDGES = 2000;
@@ -83,22 +85,30 @@ function renderEdge(edge, crossings) {
   const path = edge.points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${round(point.x)} ${round(point.y)}`)
     .join(" ");
-  const bridges = crossings.map(renderWireBridge).join("");
-  const junctions = (edge.junctions || []).map((point) =>
-    `<circle class="wire-junction" cx="${round(point.x)}" cy="${round(point.y)}" r="2.8"></circle>`
-  ).join("");
-  const label = edge.showLabel === false
-    ? ""
-    : `<text class="wire-label" x="${round(edge.labelPoint.x)}" y="${round(edge.labelPoint.y)}" text-anchor="${escapeAttr(edge.labelAnchor || "start")}">${escapeHtml(edge.label)}</text>`;
   const logicalEdgeIds = edge.logicalEdgeIds || [edge.id];
-
-  return `<g class="edge" data-edge-id="${escapeAttr(logicalEdgeIds[0] || edge.id)}" data-edge-ids="${escapeAttr(logicalEdgeIds.join(","))}" data-wire-route-id="${escapeAttr(edge.routeId || "")}" data-net="${escapeAttr(edge.net)}">
-    <path class="wire-hit-area" d="${path}" pointer-events="stroke"></path>
-    <path class="wire" d="${path}"></path>
-    ${bridges}
-    ${junctions}
-    ${label}
-  </g>`;
+  const children = [
+    svgElement("path", { class: "wire-hit-area", d: path, "pointer-events": "stroke" }),
+    svgElement("path", { class: "wire", d: path }),
+    ...crossings.flatMap(createWireBridgePrimitives),
+    ...(edge.junctions || []).map((point) => svgElement("circle", {
+      class: "wire-junction", cx: round(point.x), cy: round(point.y), r: 2.8
+    }))
+  ];
+  if (edge.showLabel !== false) {
+    children.push(svgElement("text", {
+      class: "wire-label",
+      x: round(edge.labelPoint.x),
+      y: round(edge.labelPoint.y),
+      "text-anchor": edge.labelAnchor || "start"
+    }, [svgText(edge.label)]));
+  }
+  return svgElement("g", {
+    class: "edge",
+    "data-edge-id": logicalEdgeIds[0] || edge.id,
+    "data-edge-ids": logicalEdgeIds.join(","),
+    "data-wire-route-id": edge.routeId || "",
+    "data-net": edge.net
+  }, children);
 }
 
 function midpoint(start, end) {
@@ -108,12 +118,15 @@ function midpoint(start, end) {
   };
 }
 
-function renderWireBridge(crossing) {
+function createWireBridgePrimitives(crossing) {
   const radius = 5;
   const x = round(crossing.x);
   const y = round(crossing.y);
   const d = `M ${x - radius} ${y} Q ${x} ${y - radius} ${x + radius} ${y}`;
-  return `<path class="wire-bridge-cutout" d="${d}"></path><path class="wire-bridge" d="${d}"></path>`;
+  return [
+    svgElement("path", { class: "wire-bridge-cutout", d }),
+    svgElement("path", { class: "wire-bridge", d })
+  ];
 }
 
 function renderNode(node) {
