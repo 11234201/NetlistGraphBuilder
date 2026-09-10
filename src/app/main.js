@@ -17,6 +17,7 @@ import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
+import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
@@ -139,9 +140,7 @@ const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let fileDragDepth = 0;
-let pendingWheelGesture = null;
 let focusedDepthChangeTimer = null;
-let wheelInteractionTimer = null;
 let textInputKind = "netlist";
 let activeCellDefinition = null;
 
@@ -275,7 +274,11 @@ const timingDisplayController = createTimingDisplayController({
   getPolicy: () => state.timingDisplayPolicy,
   onCommit: commitTimingDisplayPolicy
 });
-const wheelFrames = createLatestFrameScheduler(applyPendingWheelGesture);
+const wheelGestureController = createWheelGestureController({
+  canvas: elements.canvas,
+  apply: applyPendingWheelGesture,
+  onSettled: persistSession
+});
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
 elements.fileInput.addEventListener("change", handleFileChange);
@@ -3083,32 +3086,11 @@ function startCompareNodeDrag(event, side, node) {
 }
 
 function queueWheelGesture(sample) {
-  const sameTarget = pendingWheelGesture &&
-    pendingWheelGesture.mode === sample.mode &&
-    pendingWheelGesture.side === sample.side;
-  if (sameTarget) {
-    pendingWheelGesture.clientX = sample.clientX;
-    pendingWheelGesture.clientY = sample.clientY;
-    pendingWheelGesture.steps += sample.deltaY < 0 ? -1 : 1;
-  } else {
-    wheelFrames.flush();
-    pendingWheelGesture = {
-      ...sample,
-      steps: sample.deltaY < 0 ? -1 : 1
-    };
-  }
-  elements.canvas.classList.add("is-view-interacting");
-  clearTimeout(wheelInteractionTimer);
-  wheelInteractionTimer = setTimeout(() => {
-    elements.canvas.classList.remove("is-view-interacting");
-    persistSession();
-  }, 140);
-  wheelFrames.schedule(pendingWheelGesture);
+  wheelGestureController.queue(sample);
 }
 
 function applyPendingWheelGesture(sample) {
   if (!sample) return;
-  if (pendingWheelGesture === sample) pendingWheelGesture = null;
   if (sample.mode === "compare") {
     const mount = sample.side === "left" ? elements.leftMount : elements.rightMount;
     const svg = mount.querySelector("svg");

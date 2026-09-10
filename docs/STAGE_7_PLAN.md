@@ -236,4 +236,6 @@ Wire/Cell spacing 的 range 与 number 事件、空值保留、最近 4 倍数�
 
 Timing snapshot/metric 的事件、未知值回退、`all` 展开和 DOM 同步已进入 `ui/timing_display_controller.js`；main 只接收规范化且不可变的完整 display policy 并执行 persist/rerender effect。完整回归为 340/340。
 
+Single/Compare wheel 的目标切换、滚轮步数累计、每帧合并、交互 class 与 140ms 最终持久化已统一到 `ui/wheel_gesture_controller.js`；controller 不读取 graph/session，只把规范化 sample 交给 viewport commit 端口。切换画布前会 flush 原目标，完整回归为 341/341。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。
