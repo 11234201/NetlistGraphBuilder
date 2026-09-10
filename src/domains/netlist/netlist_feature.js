@@ -1,4 +1,4 @@
-import { applyWorkspaceGraphTransforms, buildWorkspaceGraph, selectWorkspaceGraphView } from "../../app/graphWorkspace.js";
+import { applyWorkspaceGraphTransforms, buildWorkspaceGraph, selectWorkspaceGraphView } from "./netlist_graph_projection.js";
 import { createDocumentEnvelope, normalizeSourceInput } from "../../contracts/document.js";
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createObjectRef } from "../../contracts/object_ref.js";

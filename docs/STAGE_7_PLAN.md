@@ -55,7 +55,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | 工作包 | 当前状态 | 成本/风险 | 可审查产物 |
 | --- | --- | --- | --- |
 | S7-0 | 部分完成 | 小至中 / 低 | 可复现基线与失败矩阵 |
-| S7-1 | 进行中（首个兼容切片完成） | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
+| S7-1 | 完成 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
@@ -184,7 +184,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 阶段完成需满足架构文档第 11 节的五项结构验收，并完成关键功能/兼容验证。mapped 或浏览器验证仍未通过时，记录为具体未完成项；不能因为 main 变短或出现 AIG 文件夹而宣布完成。
 
-当前已完成 S7-1 的首个兼容切片：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口开始经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist feature 暂时保留对 `app/graphWorkspace.js` 的唯一反向依赖，归 S7-3 统一 pipeline 时移除；边界测试禁止扩大该例外。验证记录为 `npm test` 290/290 通过，未涉及布局算法，因此本批未重跑 mapped 与 benchmark。
+S7-1 已完成：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist 图投影已下沉到领域目录，`app/graphWorkspace.js` 仅保留兼容导出；公共 view policy 进入 foundation，Netlist domain 与通用 layout 不再反向依赖 app。边界测试不再保留 legacy 例外，完整回归为 326/326。
 
 S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect。Single 的导入、搜索索引、Set/Add/Remove 与搜索 reveal 已经通过显式 legacy adapter 接入该 command 边界；该 adapter 在 S7-3 统一 pipeline 后移除。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
 

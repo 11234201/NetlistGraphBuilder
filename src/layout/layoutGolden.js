@@ -1,6 +1,6 @@
 import { analyzeLayoutQuality, compareLayoutQuality } from "./layoutQuality.js";
 import { normalizeLayoutPolicy } from "./layoutPolicy.js";
-import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "../app/focusedViewPolicy.js";
+import { normalizeFocusedRootIds as normalizePolicyRoots } from "../foundation/view_policy.js";
 
 export function createLayoutGolden(graph, options = {}) {
   const identity = options.identity || {};

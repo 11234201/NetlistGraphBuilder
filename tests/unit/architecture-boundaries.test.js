@@ -6,7 +6,7 @@ import test from "node:test";
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-test("contracts stay independent and the Netlist adapter has one explicit legacy app dependency", () => {
+test("contracts and Netlist domain stay independent from application implementations", () => {
   const contractDir = join(projectRoot, "src", "contracts");
   for (const name of readdirSync(contractDir)) {
     if (extname(name) !== ".js") continue;
@@ -16,7 +16,7 @@ test("contracts stay independent and the Netlist adapter has one explicit legacy
 
   const adapter = readFileSync(join(projectRoot, "src", "domains", "netlist", "netlist_feature.js"), "utf8");
   const legacyImports = [...adapter.matchAll(/from\s+["'](\.\.\/\.\.\/app\/[^"']+)["']/g)].map((match) => match[1]);
-  assert.deepEqual(legacyImports, ["../../app/graphWorkspace.js"]);
+  assert.deepEqual(legacyImports, []);
 });
 
 test("shared layout and renderer do not interpret Netlist inference or parser references", () => {
