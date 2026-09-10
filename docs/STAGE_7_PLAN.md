@@ -58,7 +58,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-1 | 进行中（首个兼容切片完成） | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
-| S7-4 | 进行中（presentation 字段已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
+| S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 控件抽取部分完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 计划中 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 未实施 | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
@@ -198,4 +198,6 @@ S7-4 首个纯提取切片已将 Netlist pin direction/side/role 和反相输出
 
 S7-4 measurement 切片已让 pipeline 在 layout 前物化节点 bounds 与 ports；Simple/ELK 优先消费 measured graph，旧 provider 直接调用仍在入口执行兼容测量。Diagram 输入保持不变，单元回归提升为 308/308；下一步把 SVG 输出拆为 Scene primitives 与通用 renderer。
 
-下一批迁移 Compare 的普通 ViewSession/command 协调并开始统一 pipeline；S7-5 新增可开关 module 层次结构列表。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
+S7-4 Scene 首个切片已将 identity stage 替换为独立的惰性 SVG Scene 契约；同步与 progressive 路径共同消费通用 renderer，scene reader 继续按边/节点范围分批且保留取消机制。通用 renderer 明确拒绝 graph-shaped 输入，模块工作区同时返回 graph 与 scene 供兼容迁移；单元回归为 310/310。当前 Scene item 仍由 Netlist schematic presentation 生成 SVG fragment，下一切片继续把节点符号拆成结构化图元，不能将此兼容形态视为 S7-4 完成。
+
+下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。

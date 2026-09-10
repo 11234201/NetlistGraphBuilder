@@ -2,12 +2,17 @@ import { getLeafDisplayName } from "../layout/nodeGeometry.js";
 import { segmentsConflict } from "../layout/orthogonalRouting.js";
 import { getEdgeRouteSegments } from "../layout/routeSegmentIndex.js";
 import { RouteSegmentIndex } from "../layout/spatialIndex.js";
+import {
+  createProgressiveSvgSceneRenderPlan,
+  createSvgScene,
+  renderSvgScene,
+  SVG_SCENE_CONTRACT
+} from "./svg_scene_renderer.js";
 
 const MAX_WIRE_BRIDGES = 2000;
 
 export function renderSchematicSvg(graph, options = {}) {
-  const plan = createSchematicRenderPlan(graph, options);
-  return `${plan.openSvg}${plan.edges.join("")}${plan.betweenGroups}${plan.nodes.join("")}${plan.closeSvg}`;
+  return renderSvgScene(createSchematicScene(graph, options));
 }
 
 export function createSchematicRenderPlan(graph, options = {}) {
@@ -22,28 +27,28 @@ export function createSchematicRenderPlan(graph, options = {}) {
 }
 
 export function createProgressiveSchematicRenderPlan(graph, options = {}) {
-  const width = Math.max(640, Math.ceil(graph.width || 640));
-  const height = Math.max(420, Math.ceil(graph.height || 420));
+  return createProgressiveSvgSceneRenderPlan(createSchematicScene(graph, options));
+}
+
+export function createSchematicScene(graph, options = {}) {
   const wireItems = createWireRenderItems(graph);
   const crossingByEdge = options.wireBridges === false
     ? new Map()
     : findWireCrossings(wireItems);
-  return {
+  return createSvgScene({
+    kind: SVG_SCENE_CONTRACT,
+    bounds: { width: graph.width || 640, height: graph.height || 420 },
+    ariaLabel: `${escapeAttr(graph.moduleDisplayName)} schematic`,
     edgeCount: wireItems.length,
     nodeCount: graph.nodes.length,
-    renderEdges(start, end) {
+    readEdges(start, end) {
       return renderRange(wireItems, start, end, (edge) =>
         renderEdge(edge, crossingByEdge.get(edge.id) || []));
     },
-    renderNodes(start, end) {
+    readNodes(start, end) {
       return renderRange(graph.nodes, start, end, renderNode);
-    },
-    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(graph.moduleDisplayName)} schematic">
-  <g id="schematicContent">
-    <g class="edges">`,
-    betweenGroups: `</g><g class="nodes">`,
-    closeSvg: `</g></g></svg>`
-  };
+    }
+  });
 }
 
 function createWireRenderItems(graph) {

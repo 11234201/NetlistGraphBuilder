@@ -3,9 +3,10 @@ import {
   buildWorkspaceGraph,
   selectWorkspaceGraphView
 } from "./graphWorkspace.js";
-import { createIdentityStage, runViewPipeline } from "../application/view_pipeline.js";
+import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
+import { createSchematicScene } from "../render/svgRenderer.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -65,13 +66,14 @@ export function buildModuleWorkspace(options) {
     measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
-    createScene: createIdentityStage()
+    createScene: (graph) => createSchematicScene(graph, { wireBridges: false })
   }, options);
   const finalize = (result) => ({
     fullGraph: result.queryResult.fullGraph,
     sourceGraph: result.diagram,
     autoGraph: result.autoGraph,
-    graph: result.graph
+    graph: result.graph,
+    scene: result.scene
   });
   return isPromise(pipeline) ? pipeline.then(finalize) : finalize(pipeline);
 }
