@@ -1,7 +1,7 @@
 import {
-  createProgressiveSchematicRenderPlan,
-  renderSchematicSvg
+  createSchematicScene
 } from "./svgRenderer.js";
+import { createProgressiveSvgSceneRenderPlan, renderSvgScene } from "./svg_scene_renderer.js";
 
 const DEFAULT_THRESHOLD = 400;
 const DEFAULT_BATCH_SIZE = 120;
@@ -12,17 +12,21 @@ export function cancelSchematicRender(mount) {
 }
 
 export function renderSchematicIntoMount(mount, graph, options = {}) {
+  return renderSvgSceneIntoMount(mount, createSchematicScene(graph, options), options);
+}
+
+export function renderSvgSceneIntoMount(mount, scene, options = {}) {
   const renderId = Symbol("schematic-render");
   activeRenderIds.set(mount, renderId);
   const threshold = options.threshold || DEFAULT_THRESHOLD;
-  if (graph.nodes.length < threshold) {
-    mount.innerHTML = renderSchematicSvg(graph, options);
-    options.onProgress?.({ phase: "complete", rendered: graph.nodes.length, total: graph.nodes.length });
+  if (scene.nodeCount < threshold) {
+    mount.innerHTML = renderSvgScene(scene);
+    options.onProgress?.({ phase: "complete", rendered: scene.nodeCount, total: scene.nodeCount });
     return Promise.resolve().then(() => activeRenderIds.get(mount) === renderId
       ? { progressive: false }
       : { progressive: false, cancelled: true });
   }
-  const plan = createProgressiveSchematicRenderPlan(graph, options);
+  const plan = createProgressiveSvgSceneRenderPlan(scene);
   mount.innerHTML = `${plan.openSvg}${plan.betweenGroups}${plan.closeSvg}`;
   const edgeGroup = mount.querySelector(".edges");
   const nodeGroup = mount.querySelector(".nodes");

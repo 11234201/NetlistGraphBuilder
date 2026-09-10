@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cancelSchematicRender, renderSchematicIntoMount } from "../../src/render/progressiveSvgRenderer.js";
+import { cancelSchematicRender, renderSchematicIntoMount, renderSvgSceneIntoMount } from "../../src/render/progressiveSvgRenderer.js";
 import {
+  createSchematicScene,
   createProgressiveSchematicRenderPlan,
   createSchematicRenderPlan
 } from "../../src/render/svgRenderer.js";
@@ -61,6 +62,14 @@ test("progressive render plan produces the same item markup lazily", () => {
   assert.deepEqual(progressive.renderEdges(0, 1), eager.edges);
   assert.deepEqual(progressive.renderNodes(0, 2), eager.nodes);
   assert.deepEqual(progressive.renderNodes(2, 3), []);
+});
+
+test("progressive mount accepts the pipeline scene without rebuilding a graph", async () => {
+  const scene = createSchematicScene(graph);
+  const mount = { innerHTML: "" };
+
+  assert.deepEqual(await renderSvgSceneIntoMount(mount, scene), { progressive: false });
+  assert.match(mount.innerHTML, /input:a/);
 });
 
 test("large mount rendering submits edge and node markup in bounded batches", async () => {

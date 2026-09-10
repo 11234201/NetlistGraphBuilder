@@ -93,6 +93,7 @@ export function buildCompareWorkspace(options) {
     fullGraphs,
     autoGraphs: { left: left.autoGraph, right: right.autoGraph },
     graphs: { left: left.graph, right: right.graph },
+    scenes: { left: left.scene, right: right.scene },
     analysis: compareModules(leftModule, rightModule, left.sourceGraph, right.sourceGraph)
   });
   return isPromise(leftLayout) || isPromise(rightLayout)
