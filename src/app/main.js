@@ -24,14 +24,13 @@ import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "../ui/modu
 import { parseTimingLog } from "../timing/timingParser.js";
 import {
   createEmptyCellConfig,
-  loadStoredCellConfig,
   mergeCellConfigs,
   parseCellConfig,
   removeCellConfigDefinition,
-  saveStoredCellConfig,
   serializeCellConfig,
   setCellConfigDefinition
 } from "../infer/cellConfig.js";
+import { loadStoredCellConfig, saveStoredCellConfig } from "../persistence/cell_config_storage.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
   collectCellTypeSummary,

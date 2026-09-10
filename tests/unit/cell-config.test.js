@@ -3,14 +3,13 @@ import test from "node:test";
 import {
   CELL_CONFIG_STORAGE_KEY,
   createEmptyCellConfig,
-  loadStoredCellConfig,
   mergeCellConfigs,
   parseCellConfig,
   removeCellConfigDefinition,
-  saveStoredCellConfig,
   serializeCellConfig,
   setCellConfigDefinition
 } from "../../src/infer/cellConfig.js";
+import { loadStoredCellConfig, saveStoredCellConfig } from "../../src/persistence/cell_config_storage.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 
@@ -64,6 +63,15 @@ test("Cell Config persistence keeps the last valid bundle", () => {
   values.set(CELL_CONFIG_STORAGE_KEY, "{broken");
   assert.deepEqual(loadStoredCellConfig(storage), createEmptyCellConfig());
   assert.equal(saved.kind, "netlist-cell-config");
+});
+
+test("Cell Config persistence contains storage failures at its boundary", () => {
+  const unavailableStorage = {
+    getItem: () => { throw new Error("read denied"); },
+    setItem: () => { throw new Error("write denied"); }
+  };
+  assert.deepEqual(loadStoredCellConfig(unavailableStorage), createEmptyCellConfig());
+  assert.throws(() => saveStoredCellConfig(configSource, unavailableStorage), /write denied/);
 });
 
 test("Cell Config updates, deletes and reports import conflicts immutably", () => {

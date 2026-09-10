@@ -210,6 +210,6 @@ S7-6 已加入仅位于 `tests/support/` 的独立内存 AIG feature，覆盖二
 
 为消除 Windows `node --test <glob>` 为每个文件创建 worker 时反复出现的 `spawn EPERM`，`npm test` 改为单进程、稳定排序地导入同一组 `tests/unit/*.test.js`，仍由 `node:test` 执行和报告。当前完整回归为 318/318。
 
-S7-5 persistence 首批已建立独立 session codec v2：新记录带 domain/document/unit/source identity，读取时优先 v2 key 并兼容迁移旧 v1 key、moduleName 和单 root 字段。Layout Golden 升级为 v3 并带相同身份；v1/v2 fixture 仍可导入，新 v3 在 domain/document/source 不匹配时于应用 overrides 前拒绝。session、Golden 和来源失效定向测试已加入，完整回归为 324/324；Cell Config 与 startup codec 边界仍待归并。
+S7-5 persistence 已建立独立 session codec v2：新记录带 domain/document/unit/source identity，读取时优先 v2 key 并兼容迁移旧 v1 key、moduleName 和单 root 字段。Layout Golden 升级为 v3 并带相同身份；v1/v2 fixture 仍可导入，新 v3 在 domain/document/source 不匹配时于应用 overrides 前拒绝。Cell Config 的 localStorage 读写与 startup v1 解码也已移入 persistence 边界，原公开 startup API 保持兼容，并覆盖损坏数据、读失败和写失败。完整回归结果见后续持续验证记录。
 
 下一批把节点符号从旧 schematic renderer 移入 Netlist presentation，并将 Scene item 收敛为结构化图元；随后迁移 Compare 的普通 ViewSession/command 协调。与此同时继续补 S7-0 的可控异步行为矩阵，大案例版本对照作为并行诊断推进。
