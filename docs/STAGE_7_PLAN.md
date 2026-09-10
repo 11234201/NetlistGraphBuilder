@@ -230,4 +230,6 @@ Process Log 的过滤、drawer、自动滚动、复制、导出和清空事件�
 
 Module hierarchy 的领域查询、HTML 渲染、点击解析及导航协调已组合进 `ui/module_hierarchy_controller.js`；controller 仅获得 tree 容器、design/current-module 查询和 navigate 端口，空文档与当前 module 点击不会产生导航。main 只在生命周期变化时调用 `render()`，完整回归为 335/335。
 
+浏览器 Blob/URL/link 下载副作用已移入 `platform/browser_download.js`，SVG、Golden、Cell Config 与 Process Log 共享 text/json 端口及文件名规范化；URL 在成功或失败路径均于 adapter 内释放。main 不再直接创建下载 DOM，完整回归为 337/337。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

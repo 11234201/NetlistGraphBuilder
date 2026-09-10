@@ -20,6 +20,7 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
+import { createBrowserDownload, sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { importTimingSource } from "../application/timing_import.js";
 import {
   parseCellConfig,
@@ -121,6 +122,7 @@ import {
 } from "./moduleHistory.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
+const browserDownload = createBrowserDownload();
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
 const legacyViewCommands = createLegacyViewCommandAdapter({
@@ -251,7 +253,7 @@ const processLogController = createProcessLogController({
   },
   setStatus,
   copyText: (text) => navigator.clipboard.writeText(text),
-  downloadText
+  downloadText: (text, fileName, type) => browserDownload.text(text, fileName, type)
 });
 const moduleHierarchyController = createModuleHierarchyController({
   container: elements.moduleHierarchyTree,
@@ -1921,7 +1923,7 @@ async function handleCellConfigImport(event) {
 }
 
 function exportCellConfig() {
-  downloadText(`${serializeCellConfig(state.cellConfig)}\n`, "netlist-cell-config.json", "application/json");
+  browserDownload.text(`${serializeCellConfig(state.cellConfig)}\n`, "netlist-cell-config.json", "application/json");
   setStatus(`Exported ${Object.keys(state.cellConfig.cells).length} Cell Config definition(s)`);
 }
 
@@ -2810,8 +2812,8 @@ function exportCurrentSvg() {
   const viewSuffix = state.viewMode === "whole"
     ? "whole"
     : `${state.viewMode}-depth-${state.coneDepth}`;
-  const fileName = `${sanitizeFileName(state.currentModule.name)}-${viewSuffix}.svg`;
-  downloadText(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
+  const fileName = `${sanitizeDownloadFileName(state.currentModule.name)}-${viewSuffix}.svg`;
+  browserDownload.text(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
   logProcess("info", "export", `Exported SVG: ${fileName}`, {
     nodeCount: state.graph.nodes.length,
     edgeCount: state.graph.edges.length
@@ -2897,12 +2899,12 @@ function saveLayoutGolden() {
     },
     svgSnapshot: renderSvgScene(state.scene)
   });
-  downloadJson(
+  browserDownload.json(
     {
       ...golden,
       diff
     },
-    `layout-golden-${sanitizeFileName(state.currentModule.name)}.json`
+    `layout-golden-${sanitizeDownloadFileName(state.currentModule.name)}.json`
   );
   logProcess("info", "export", `Exported layout Golden for ${state.currentModule.displayName}`, {
     movedNodeCount: diff.movedNodeCount,
@@ -3322,22 +3324,4 @@ function clamp(value, min, max) {
 
 function round(value) {
   return Math.round(value * 1000) / 1000;
-}
-
-function downloadJson(value, fileName) {
-  downloadText(`${JSON.stringify(value, null, 2)}\n`, fileName, "application/json");
-}
-
-function downloadText(value, fileName, type) {
-  const blob = new Blob([value], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function sanitizeFileName(value) {
-  return String(value).replace(/[^A-Za-z0-9_.-]+/g, "_");
 }
