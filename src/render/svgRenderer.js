@@ -148,10 +148,10 @@ function renderNode(node) {
 function renderHubNode(node) {
   const cx = round(node.x + node.width / 2);
   const cy = round(node.y + node.height / 2);
-  return `<g class="node hub" data-node-id="${escapeAttr(node.id)}" data-kind="hub" data-label="${escapeAttr(node.label)}">
-    <title>${escapeHtml(`Fanout: ${node.label}`)}</title>
-    <circle class="node-shape" cx="${cx}" cy="${cy}" r="5"></circle>
-  </g>`;
+  return svgElement("g", nodeAttributes(node, "node hub"), [
+    svgElement("title", {}, [svgText(`Fanout: ${node.label}`)]),
+    svgElement("circle", { class: "node-shape", cx, cy, r: 5 })
+  ]);
 }
 
 function findWireCrossings(edges) {
@@ -213,21 +213,23 @@ function renderPortNode(node, portKind) {
     slack: node.timing.slack
   } : null);
   const timingTitle = timingMetrics
-    ? `<title>${escapeHtml(`${node.label}: ${Object.entries(timingMetrics)
+    ? svgElement("title", {}, [svgText(`${node.label}: ${Object.entries(timingMetrics)
       .filter(([, value]) => Number.isFinite(value))
-      .map(([name, value]) => `${name} ${formatTimingValue(value)}`).join(", ")}`)}</title>`
-    : "";
+      .map(([name, value]) => `${name} ${formatTimingValue(value)}`).join(", ")}`)])
+    : null;
   const timingClass = node.timing
     ? (node.timing.slack < 0 ? " timing-critical" : " timing-annotated") : "";
   const boundaryTitle = node.boundaryDirection
-    ? `<title>${escapeHtml(`${node.title || "Focused boundary"}: ${node.label}; hidden endpoint(s): ${node.hiddenEndpointCount || 0}`)}</title>`
-    : "";
-  return `<g class="node ${portKind}${timingClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
-    ${boundaryTitle}
-    ${timingTitle}
-    <polygon class="node-shape" points="${points}"></polygon>
-    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
-  </g>`;
+    ? svgElement("title", {}, [svgText(`${node.title || "Focused boundary"}: ${node.label}; hidden endpoint(s): ${node.hiddenEndpointCount || 0}`)])
+    : null;
+  return svgElement("g", nodeAttributes(node, `node ${portKind}${timingClass}`), [
+    boundaryTitle,
+    timingTitle,
+    svgElement("polygon", { class: "node-shape", points }),
+    svgElement("text", {
+      class: "node-label", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
+    }, [svgText(getLeafDisplayName(node.label))])
+  ].filter(Boolean));
 }
 
 function renderSimpleNode(node, className) {
@@ -236,10 +238,12 @@ function renderSimpleNode(node, className) {
   const width = round(node.width);
   const height = round(node.height);
 
-  return `<g class="node ${className}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}">
-    <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
-    <text class="node-label" x="${x + width / 2}" y="${y + height / 2 + 4}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
-  </g>`;
+  return svgElement("g", nodeAttributes(node, `node ${className}`), [
+    svgElement("rect", { class: "node-shape", x, y, width, height }),
+    svgElement("text", {
+      class: "node-label", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
+    }, [svgText(getLeafDisplayName(node.label))])
+  ]);
 }
 
 function renderGateNode(node) {
@@ -248,7 +252,7 @@ function renderGateNode(node) {
   const width = round(node.width);
   const height = round(node.height);
   const gateKind = node.gateKind || "blackbox";
-  const ports = renderGatePorts(node, x, y, width, gateKind);
+  const ports = renderGatePorts(node, x, y, width);
   const timingClass = getTimingClass(node);
   const timingBadge = renderTimingBadge(node, x, y, width, height);
   const focusedRootClass = node.isActiveFocusedRoot
@@ -258,24 +262,40 @@ function renderGateNode(node) {
     ? `; double-click to open ${node.navigationTarget.id}`
     : "";
   const cellTitle = node.subtitle
-    ? `<title>${escapeHtml(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`)}</title>`
-    : "";
+    ? svgElement("title", {}, [svgText(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`)])
+    : null;
   const metadata = node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0
-    ? `<text class="node-meta" x="${x + width / 2}" y="${y + height - 6}" text-anchor="middle">${escapeHtml(truncateText(node.metadataText, 34))}</text>`
-    : "";
-  const navigationAttribute = node.navigationTarget
-    ? ` data-navigation-kind="${escapeAttr(node.navigationTarget.kind)}" data-navigation-id="${escapeAttr(node.navigationTarget.id)}"`
-    : "";
+    ? svgElement("text", {
+      class: "node-meta", x: x + width / 2, y: y + height - 6, "text-anchor": "middle"
+    }, [svgText(truncateText(node.metadataText, 34))])
+    : null;
+  const attributes = nodeAttributes(node, `node ${gateKind} ${node.kind}${timingClass}${focusedRootClass}`);
+  if (node.navigationTarget) {
+    attributes["data-navigation-kind"] = node.navigationTarget.kind;
+    attributes["data-navigation-id"] = node.navigationTarget.id;
+  }
+  return svgElement("g", attributes, [
+    cellTitle,
+    svgElement("rect", { class: "node-shape", x, y, width, height }),
+    ...ports,
+    timingBadge,
+    svgElement("text", {
+      class: "gate-kind", x: x + width / 2, y: y + 22, "text-anchor": "middle"
+    }, [svgText(node.title || gateKind.toUpperCase())]),
+    svgElement("text", {
+      class: "node-label", x: x + width / 2, y: y + 42, "text-anchor": "middle"
+    }, [svgText(getLeafDisplayName(node.label))]),
+    metadata
+  ].filter(Boolean));
+}
 
-  return `<g class="node ${escapeAttr(gateKind)} ${escapeAttr(node.kind)}${timingClass}${focusedRootClass}" data-node-id="${escapeAttr(node.id)}" data-kind="${escapeAttr(node.kind)}" data-label="${escapeAttr(node.label)}"${navigationAttribute}>
-    ${cellTitle}
-    <rect class="node-shape" x="${x}" y="${y}" width="${width}" height="${height}"></rect>
-    ${ports}
-    ${timingBadge}
-    <text class="gate-kind" x="${x + width / 2}" y="${y + 22}" text-anchor="middle">${escapeHtml(node.title || gateKind.toUpperCase())}</text>
-    <text class="node-label" x="${x + width / 2}" y="${y + 42}" text-anchor="middle">${escapeHtml(getLeafDisplayName(node.label))}</text>
-    ${metadata}
-  </g>`;
+function nodeAttributes(node, className) {
+  return {
+    class: className,
+    "data-node-id": node.id,
+    "data-kind": node.kind,
+    "data-label": node.label
+  };
 }
 
 function truncateText(value, maxLength) {
@@ -283,9 +303,9 @@ function truncateText(value, maxLength) {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 }
 
-function renderGatePorts(node, x, y, width, gateKind) {
+function renderGatePorts(node, x, y, width) {
   return (node.ports || [])
-    .map((port) => {
+    .flatMap((port) => {
       const px = round(x + port.x);
       const py = round(y + port.y);
       const isOutput = port.direction === "output";
@@ -296,15 +316,16 @@ function renderGatePorts(node, x, y, width, gateKind) {
       const timing = node.timing?.pins?.[port.pin];
       const timingClass = timing ? (timing.slack < 0 ? " pin-critical" : " pin-timing") : "";
       const timingTitle = timing
-        ? `<title>${escapeHtml(`${port.pin}: at ${formatTimingValue(timing.at)}, rt ${formatTimingValue(timing.rt)}, slack ${formatTimingValue(timing.slack)}`)}</title>`
-        : "";
+        ? svgElement("title", {}, [svgText(`${port.pin}: at ${formatTimingValue(timing.at)}, rt ${formatTimingValue(timing.rt)}, slack ${formatTimingValue(timing.slack)}`)])
+        : null;
       const marker = isOutput && node.outputBubble === true
-        ? `<circle class="pin-bubble${timingClass}" cx="${round(x + width + 5)}" cy="${py}" r="5">${timingTitle}</circle>`
-        : `<circle class="pin-dot${timingClass}" cx="${px}" cy="${py}" r="2.4">${timingTitle}</circle>`;
+        ? svgElement("circle", { class: `pin-bubble${timingClass}`, cx: round(x + width + 5), cy: py, r: 5 }, timingTitle ? [timingTitle] : [])
+        : svgElement("circle", { class: `pin-dot${timingClass}`, cx: px, cy: py, r: 2.4 }, timingTitle ? [timingTitle] : []);
 
-      return `${marker}<text class="pin-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHtml(port.pin)}</text>`;
-    })
-    .join("");
+      return [marker, svgElement("text", {
+        class: "pin-label", x: labelX, y: labelY, "text-anchor": anchor
+      }, [svgText(port.pin)])];
+    });
 }
 
 function getTimingClass(node) {
@@ -317,7 +338,7 @@ function getTimingClass(node) {
 function renderTimingBadge(node, x, y, width, height) {
   const lines = getTimingBadgeLines(node);
   if (lines.length === 0) {
-    return "";
+    return null;
   }
   const position = node.timing?.badgePosition || "bottom-right";
   const isLeft = position.endsWith("left");
@@ -325,10 +346,12 @@ function renderTimingBadge(node, x, y, width, height) {
   const badgeX = round(isLeft ? x + 6 : x + width - 6);
   const badgeY = round(isBottom ? y + height - 8 - (lines.length - 1) * 11 : y + 14);
   const anchor = isLeft ? "start" : "end";
-  const tspans = lines
-    .map((line, index) => `<tspan x="${badgeX}" dy="${index === 0 ? 0 : 11}">${escapeHtml(line)}</tspan>`)
-    .join("");
-  return `<text class="timing-badge timing-badge-${position}" x="${badgeX}" y="${badgeY}" text-anchor="${anchor}">${tspans}</text>`;
+  const tspans = lines.map((line, index) => svgElement("tspan", {
+    x: badgeX, dy: index === 0 ? 0 : 11
+  }, [svgText(line)]));
+  return svgElement("text", {
+    class: `timing-badge timing-badge-${position}`, x: badgeX, y: badgeY, "text-anchor": anchor
+  }, tspans);
 }
 
 function getTimingBadgeLines(node) {

@@ -39,3 +39,8 @@ test("structured SVG primitives escape attributes and text centrally", () => {
     '<text class="label" data-name="a&quot;&amp;b">&lt;unsafe&gt;</text>'
   );
 });
+
+test("generic renderer rejects raw SVG fragments", () => {
+  assert.throws(() => serializeSvgPrimitive('<script id="unsafe"></script>'), /Unknown SVG scene primitive/);
+  assert.throws(() => serializeSvgPrimitive({ type: "fragment", markup: "<path></path>" }), /Unknown SVG scene primitive/);
+});

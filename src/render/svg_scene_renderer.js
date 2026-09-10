@@ -49,14 +49,8 @@ export function svgText(value) {
   return Object.freeze({ type: "text", value: String(value ?? "") });
 }
 
-export function svgFragment(markup) {
-  return Object.freeze({ type: "fragment", markup: String(markup ?? "") });
-}
-
 export function serializeSvgPrimitive(primitive) {
-  if (typeof primitive === "string") return primitive;
   if (primitive?.type === "text") return escapeText(primitive.value);
-  if (primitive?.type === "fragment") return primitive.markup;
   if (primitive?.type !== "element") throw new Error("Unknown SVG scene primitive");
   const attributes = Object.entries(primitive.attributes || {})
     .filter(([, value]) => value !== null && value !== undefined && value !== false)
