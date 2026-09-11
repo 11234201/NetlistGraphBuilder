@@ -1,6 +1,6 @@
 # 阶段 7：向多领域图形工作台迁移
 
-更新日期：2026-09-09。状态：S7-1 首个兼容切片已实现并验证；目标架构迁移尚未完成。
+更新日期：2026-09-11。状态：S7-0/1/3/4/6/R 已完成；S7-2/5 收尾中，目标架构迁移尚未完成。
 
 架构依据：[面向 Netlist 与 AIG 的可扩展工作台架构](architecture_evolution.md)。本计划是该设计的执行拆分；现行代码边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -57,10 +57,10 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | S7-0 | 完成（已知慢例保留失败） | 小至中 / 低 | 可复现基线与失败矩阵 |
 | S7-1 | 完成 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
 | S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
-| S7-3 | 进行中（共享 pipeline 已接入） | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
-| S7-4 | 进行中（measured graph 与惰性 Scene 已接入） | 大 / 高 | measured graph、Scene、符号适配、renderer |
+| S7-3 | 完成 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
+| S7-4 | 完成（已知 mapped 慢例保留失败） | 大 / 高 | measured graph、Scene、符号适配、renderer |
 | S7-5 | 进行中（控件、层次列表、codec、能力注册已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
-| S7-6 | 进行中（内存 AIG 公共链路已验证） | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
+| S7-6 | 完成 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 完成（纯提取与可见转角策略） | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
 
