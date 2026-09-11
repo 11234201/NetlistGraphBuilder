@@ -54,3 +54,16 @@ test("legacy adapter keeps one ViewSession until document or unit identity chang
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
   assert.equal(adapter.sessions.require("legacy:single").unitId, "replacement");
 });
+
+test("legacy adapter projects selection commands back to compatibility fields", () => {
+  const { state, adapter } = setup();
+  adapter.dispatch({ type: "selection.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
+  assert.equal(state.selectedNodeId, "cell:u2");
+  assert.equal(state.selectedNet, null);
+  adapter.dispatch({ type: "selection.set", objectRef: adapter.objectRefForNet("n1") });
+  assert.equal(state.selectedNodeId, null);
+  assert.equal(state.selectedNet, "n1");
+  adapter.dispatch({ type: "selection.clear" });
+  assert.equal(state.selectedNodeId, null);
+  assert.equal(state.selectedNet, null);
+});

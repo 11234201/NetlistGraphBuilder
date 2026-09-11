@@ -246,4 +246,6 @@ Netlist/Timing/Golden 三个文件入口、批量拖放排序、拖放遮罩生�
 
 ViewSession command 已补齐 `selection.set/clear`、`viewport.set`、`layout.policy.set` 与 `overrides.set`；viewport 更新只推进 UI revision，layout policy/override 更新推进 computation revision，非法跨 unit selection 与非有限 viewport 在边界拒绝。完整回归为 350/350。下一切片将 main 的对应直接写入切换到这些 handler 后删除 legacy 镜像。
 
+Single 的 node/net/clear 选择入口已切换到 `selection.set/clear`；互斥决策与 session revision 由 ViewSession handler 持有，`selectedNodeId/selectedNet` 仅作为当前 DOM 与旧存档的 adapter 投影。完整回归为 351/351。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

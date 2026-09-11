@@ -18,7 +18,8 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       unitId,
       viewMode: state.viewMode,
       focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
-      activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId)
+      activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
+      selectedObjectRef: selectedToRef(state, documentId, unitId)
     };
     const current = sessions.get(value.sessionId);
     if (!current || current.documentId !== documentId || current.unitId !== unitId) {
@@ -39,10 +40,17 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);
       state.activeFocusedRootNodeId = refToNodeId(result.session.activeFocusedRootRef, graph);
       state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
+      state.selectedNodeId = refToNodeId(result.session.selectedObjectRef, graph);
+      state.selectedNet = result.session.selectedObjectRef?.kind === "net"
+        ? result.session.selectedObjectRef.localId
+        : null;
       return result;
     },
     objectRefForNode(node) {
       return nodeToRef(node, getDocumentId(), state.currentModule?.name);
+    },
+    objectRefForNet(netName) {
+      return valueToRef("net", netName, getDocumentId(), state.currentModule?.name);
     },
     visibleObjectKeys() {
       const documentId = getDocumentId();
@@ -50,6 +58,17 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       return (state.graph?.nodes || []).map((node) => objectRefKey(nodeToRef(node, documentId, unitId)));
     }
   });
+}
+
+function selectedToRef(state, documentId, unitId) {
+  if (state.selectedNodeId) return nodeIdToRef(state.selectedNodeId, state.fullGraph, documentId, unitId);
+  if (state.selectedNet) return valueToRef("net", state.selectedNet, documentId, unitId);
+  return null;
+}
+
+function valueToRef(kind, localId, documentId, unitId) {
+  if (!kind || !localId || !documentId || !unitId) return null;
+  return createObjectRef({ documentId, unitId, kind, localId });
 }
 
 function rootsToRefs(nodeIds, graph, documentId, unitId) {

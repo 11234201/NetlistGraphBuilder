@@ -1805,24 +1805,28 @@ function updateCellDefinitionControls(node = null) {
 
 function setSelectedNode(nodeId) {
   state.selectionFocusRequestId += 1;
-  state.selectedNodeId = nodeId;
-  state.selectedNet = null;
-  clearSchematicSelection();
-  if (nodeId) {
-    const nodeElement = elements.mount.querySelector(`[data-node-id="${cssEscape(nodeId)}"]`);
-    nodeElement?.classList.add("is-selected");
-  }
   const node = state.graph?.nodes.find((item) => item.id === nodeId)
     || state.fullGraph?.nodes.find((item) => item.id === nodeId)
     || null;
+  legacyViewCommands.dispatch(node ? {
+    type: "selection.set",
+    objectRef: legacyViewCommands.objectRefForNode(node)
+  } : { type: "selection.clear" });
+  clearSchematicSelection();
+  if (state.selectedNodeId) {
+    const nodeElement = elements.mount.querySelector(`[data-node-id="${cssEscape(state.selectedNodeId)}"]`);
+    nodeElement?.classList.add("is-selected");
+  }
   renderSelection(node);
   updateViewControls();
 }
 
 function setSelectedNet(netName) {
   state.selectionFocusRequestId += 1;
-  state.selectedNodeId = null;
-  state.selectedNet = netName;
+  legacyViewCommands.dispatch(netName ? {
+    type: "selection.set",
+    objectRef: legacyViewCommands.objectRefForNet(netName)
+  } : { type: "selection.clear" });
   clearSchematicSelection();
   for (const edgeElement of elements.mount.querySelectorAll(".edge")) {
     if (edgeElement.dataset.net === netName) {
