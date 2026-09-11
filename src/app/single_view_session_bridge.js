@@ -12,7 +12,7 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
     const unitId = state.currentModule?.name;
     if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
     const value = {
-      sessionId: "legacy:single",
+      sessionId: "single:primary",
       documentId,
       domainId: "netlist",
       unitId,
@@ -37,7 +37,7 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
     dispatch(command) {
       const synchronized = synchronizeSession();
       const unitId = synchronized.unitId;
-      const result = bus.dispatch({ ...command, sessionId: "legacy:single" });
+      const result = bus.dispatch({ ...command, sessionId: "single:primary" });
       const graph = result.session.unitId === unitId ? state.fullGraph : null;
       state.viewMode = result.session.viewMode;
       state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);

@@ -20,7 +20,7 @@ function setup() {
   return { state, adapter: createSingleViewSessionBridge({ state, getDocumentId: () => "doc:1" }) };
 }
 
-test("legacy adapter routes hidden search selection through selection.reveal", () => {
+test("single view session bridge routes hidden search selection through selection.reveal", () => {
   const { state, adapter } = setup();
   const result = adapter.dispatch({
     type: "selection.reveal",
@@ -32,7 +32,7 @@ test("legacy adapter routes hidden search selection through selection.reveal", (
   assert.equal(state.activeFocusedRootNodeId, "cell:u2");
 });
 
-test("legacy adapter keeps visible selection layout-free and supports explicit replacement", () => {
+test("single view session bridge keeps visible selection layout-free and supports explicit replacement", () => {
   const { state, adapter } = setup();
   const u1 = adapter.objectRefForNode(state.fullGraph.nodes[0]);
   const visible = adapter.dispatch({ type: "selection.reveal", objectRef: u1, visibleObjectKeys: adapter.visibleObjectKeys() });
@@ -42,12 +42,12 @@ test("legacy adapter keeps visible selection layout-free and supports explicit r
   assert.deepEqual(state.focusedRootNodeIds, ["cell:u3"]);
 });
 
-test("legacy adapter keeps one ViewSession until document or unit identity changes", () => {
+test("single view session bridge keeps one ViewSession until document or unit identity changes", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
-  const first = adapter.sessions.require("legacy:single");
+  const first = adapter.sessions.require("single:primary");
   adapter.dispatch({ type: "focus.add", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
-  const second = adapter.sessions.require("legacy:single");
+  const second = adapter.sessions.require("single:primary");
   assert.equal(second.sessionId, first.sessionId);
   assert.ok(second.sessionRevision > first.sessionRevision);
   state.currentModule = { name: "replacement" };
@@ -56,10 +56,10 @@ test("legacy adapter keeps one ViewSession until document or unit identity chang
   state.focusedRootNodeIds = [];
   state.activeFocusedRootNodeId = null;
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
-  assert.equal(adapter.sessions.require("legacy:single").unitId, "replacement");
+  assert.equal(adapter.sessions.require("single:primary").unitId, "replacement");
 });
 
-test("legacy adapter projects selection commands back to compatibility fields", () => {
+test("single view session bridge projects selection commands back to compatibility fields", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "selection.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
   assert.equal(state.selectedNodeId, "cell:u2");
@@ -72,26 +72,26 @@ test("legacy adapter projects selection commands back to compatibility fields", 
   assert.equal(state.selectedNet, null);
 });
 
-test("legacy adapter projects viewport without invalidating computation", () => {
+test("single view session bridge projects viewport without invalidating computation", () => {
   const { state, adapter } = setup();
   state.transform = { x: 0, y: 0, scale: 1 };
   adapter.dispatch({ type: "selection.clear" });
-  const before = adapter.sessions.require("legacy:single").computationRevision;
+  const before = adapter.sessions.require("single:primary").computationRevision;
   const result = adapter.dispatch({ type: "viewport.set", viewport: { x: 12, y: 8, scale: 1.25 } });
   assert.deepEqual(state.transform, { x: 12, y: 8, scale: 1.25 });
   assert.equal(result.session.computationRevision, before);
 });
 
-test("legacy adapter projects layout policy and invalidates computation", () => {
+test("single view session bridge projects layout policy and invalidates computation", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "selection.clear" });
-  const before = adapter.sessions.require("legacy:single").computationRevision;
+  const before = adapter.sessions.require("single:primary").computationRevision;
   const result = adapter.dispatch({ type: "layout.policy.set", layoutPolicy: { name: "custom", spacing: { cellSpacing: 80 } } });
   assert.equal(state.layoutPolicy.name, "custom");
   assert.equal(result.session.computationRevision, before + 1);
 });
 
-test("legacy adapter owns immutable-style override replacement", () => {
+test("single view session bridge owns immutable-style override replacement", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "overrides.set", overrides: {
     nodePositions: new Map([["cell:u1", { x: 24, y: 32 }]]),

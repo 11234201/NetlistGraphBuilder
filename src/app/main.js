@@ -120,11 +120,11 @@ const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const browserDownload = createBrowserDownload();
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
-const legacyViewCommands = createSingleViewSessionBridge({
+const singleViewSession = createSingleViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null
 });
-const legacyCompareSessions = createCompareViewSessionBridge({
+const compareViewSessions = createCompareViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null
 });
@@ -1221,7 +1221,7 @@ function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
     state.compare.activeFocusedRootNodeId = { left: null, right: null };
   }
   const resolved = resolveFocusedRootState(value, activeRootNodeId, state.compare.activeFocusedRootNodeId[side]);
-  const mirrored = legacyCompareSessions.replaceRoots(side, resolved.rootNodeIds, resolved.activeRootNodeId);
+  const mirrored = compareViewSessions.replaceRoots(side, resolved.rootNodeIds, resolved.activeRootNodeId);
   const roots = mirrored.rootNodeIds;
   state.compare.focusedRootNodeIds[side] = roots;
   state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
@@ -1264,9 +1264,9 @@ function setSelectedAsFocusedRoot() {
   );
   if (!nodeId || state.compare.active) return;
   const fullNode = state.fullGraph.nodes.find((node) => node.id === nodeId);
-  const commandResult = legacyViewCommands.dispatch({
+  const commandResult = singleViewSession.dispatch({
     type: "focus.set",
-    objectRef: legacyViewCommands.objectRefForNode(fullNode)
+    objectRef: singleViewSession.objectRefForNode(fullNode)
   });
   if (commandResult.rejected) return;
   const requestId = ++state.selectionFocusRequestId;
@@ -1305,9 +1305,9 @@ function addSelectedAsFocusedRoot() {
   }
   const node = getSelectedSingleCell();
   if (!node || state.focusedRootNodeIds.includes(node.id)) return;
-  const action = legacyViewCommands.dispatch({
+  const action = singleViewSession.dispatch({
     type: "focus.add",
-    objectRef: legacyViewCommands.objectRefForNode(node)
+    objectRef: singleViewSession.objectRefForNode(node)
   });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   const requestId = ++state.selectionFocusRequestId;
@@ -1346,9 +1346,9 @@ function removeSelectedFromFocusedRoots() {
   if (!state.focusedRootNodeIds.includes(nodeId)) return;
   const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
   if (!fullNode) return;
-  legacyViewCommands.dispatch({
+  singleViewSession.dispatch({
     type: "focus.remove",
-    objectRef: legacyViewCommands.objectRefForNode(fullNode)
+    objectRef: singleViewSession.objectRefForNode(fullNode)
   });
   const nextRoots = state.focusedRootNodeIds;
   if (nextRoots.length === 0) {
@@ -1809,9 +1809,9 @@ function setSelectedNode(nodeId) {
   const node = state.graph?.nodes.find((item) => item.id === nodeId)
     || state.fullGraph?.nodes.find((item) => item.id === nodeId)
     || null;
-  legacyViewCommands.dispatch(node ? {
+  singleViewSession.dispatch(node ? {
     type: "selection.set",
-    objectRef: legacyViewCommands.objectRefForNode(node)
+    objectRef: singleViewSession.objectRefForNode(node)
   } : { type: "selection.clear" });
   clearSchematicSelection();
   if (state.selectedNodeId) {
@@ -1824,9 +1824,9 @@ function setSelectedNode(nodeId) {
 
 function setSelectedNet(netName) {
   state.selectionFocusRequestId += 1;
-  legacyViewCommands.dispatch(netName ? {
+  singleViewSession.dispatch(netName ? {
     type: "selection.set",
-    objectRef: legacyViewCommands.objectRefForNet(netName)
+    objectRef: singleViewSession.objectRefForNet(netName)
   } : { type: "selection.clear" });
   clearSchematicSelection();
   for (const edgeElement of elements.mount.querySelectorAll(".edge")) {
@@ -1957,10 +1957,10 @@ function activateSearchResult(result) {
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
-    const reveal = legacyViewCommands.dispatch({
+    const reveal = singleViewSession.dispatch({
       type: "selection.reveal",
-      objectRef: result.objectRef || legacyViewCommands.objectRefForNode(fullNode),
-      visibleObjectKeys: legacyViewCommands.visibleObjectKeys()
+      objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode),
+      visibleObjectKeys: singleViewSession.visibleObjectKeys()
     });
     if (!reveal.effects.layout) {
       setSelectedNode(fullNode.id);
@@ -2000,9 +2000,9 @@ function addSearchResultToFocus(result) {
   const fullNode = findSearchTargetNode(result.target, state.fullGraph);
   if (!fullNode) return;
   elements.searchResults.hidden = true;
-  const action = legacyViewCommands.dispatch({
+  const action = singleViewSession.dispatch({
     type: "focus.add",
-    objectRef: result.objectRef || legacyViewCommands.objectRefForNode(fullNode)
+    objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
   });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   if (!action.effects.layout) {
@@ -2134,14 +2134,14 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
   if (!selectedSide) return;
   const peerSide = selectedSide === "left" ? "right" : "left";
   if (compareObjectExists(peerSide, kind, name)) {
-    legacyCompareSessions.dispatch(peerSide, {
+    compareViewSessions.dispatch(peerSide, {
       type: "selection.set",
-      objectRef: legacyCompareSessions.objectRef(peerSide, kind, name)
+      objectRef: compareViewSessions.objectRef(peerSide, kind, name)
     });
   }
-  legacyCompareSessions.dispatch(selectedSide, {
+  compareViewSessions.dispatch(selectedSide, {
     type: "selection.set",
-    objectRef: legacyCompareSessions.objectRef(selectedSide, kind, name)
+    objectRef: compareViewSessions.objectRef(selectedSide, kind, name)
   });
   updateViewControls();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
@@ -2168,7 +2168,7 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
 
 function clearCompareSelection() {
   for (const side of ["left", "right"]) {
-    legacyCompareSessions.dispatch(side, { type: "selection.clear" });
+    compareViewSessions.dispatch(side, { type: "selection.clear" });
   }
 }
 
@@ -2785,7 +2785,7 @@ function setSingleTransform(transform) {
     state.transform = { ...transform };
     return state.transform;
   }
-  return legacyViewCommands.dispatch({
+  return singleViewSession.dispatch({
     type: "viewport.set",
     viewport: transform
   }).session.viewport;
@@ -2797,7 +2797,7 @@ function setSingleLayoutPolicy(layoutPolicy) {
     state.layoutPolicy = normalized;
     return state.layoutPolicy;
   }
-  legacyViewCommands.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
+  singleViewSession.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
   return state.layoutPolicy;
 }
 
@@ -2808,7 +2808,7 @@ function setSingleOverrides(overrides) {
     state.graphOverrides = overrides?.graphOverrides || createEmptyGraphOverrides();
     return;
   }
-  legacyViewCommands.dispatch({ type: "overrides.set", overrides });
+  singleViewSession.dispatch({ type: "overrides.set", overrides });
 }
 
 function updateSingleOverrides(update) {
@@ -2825,7 +2825,7 @@ function updateSingleOverrides(update) {
 }
 
 function setCompareOverrides(side, overrides) {
-  legacyCompareSessions.dispatch(side, { type: "overrides.set", overrides });
+  compareViewSessions.dispatch(side, { type: "overrides.set", overrides });
 }
 
 function updateCompareOverrides(side, update) {
@@ -3007,9 +3007,9 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
 }
 
 function setCompareTransform(side, transform, synchronize = state.compare.synchronized) {
-  legacyCompareSessions.dispatch(side, { type: "viewport.set", viewport: transform });
+  compareViewSessions.dispatch(side, { type: "viewport.set", viewport: transform });
   if (synchronize) {
-    legacyCompareSessions.dispatch(side === "left" ? "right" : "left", {
+    compareViewSessions.dispatch(side === "left" ? "right" : "left", {
       type: "viewport.set",
       viewport: transform
     });
