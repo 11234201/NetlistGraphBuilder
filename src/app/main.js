@@ -18,6 +18,7 @@ import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceReque
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
 import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
+import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
@@ -46,14 +47,12 @@ import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
 import { createNodeDragPreview } from "../ui/nodeDragPreview.js";
 import { createLatestFrameScheduler } from "../ui/frameScheduler.js";
-import { hasPointerDragged } from "../ui/pointerGesture.js";
 import { startPointerSession } from "../ui/pointerSession.js";
 import {
   clientPointToViewBox,
   formatViewportTransform,
   getAdaptiveMaxScale,
   getFocusedObjectTransform,
-  getPannedTransform,
   getReadableObjectScale,
   getSteppedZoomedTransform,
   getZoomedTransform
@@ -2648,32 +2647,18 @@ function handlePointerDown(event) {
     return;
   }
 
-  const start = {
-    x: event.clientX,
-    y: event.clientY,
-    transform: { ...state.transform }
-  };
-  let didPan = false;
-  const panFrames = createLatestFrameScheduler((point) => {
-    const viewBox = svg.viewBox.baseVal;
-    const rect = svg.getBoundingClientRect();
-    state.transform = getPannedTransform(start.transform, start, point, viewBox, rect);
-    applyTransform(false);
-  });
-
-  startPointerSession({
+  startCanvasPan({
+    event,
     target: elements.canvas,
-    pointerId: event.pointerId,
-    className: "is-panning",
-    onMove: (moveEvent) => {
-      const point = pointerClientPoint(moveEvent);
-      didPan ||= hasPointerDragged(start, point);
-      panFrames.schedule(point);
+    svg,
+    transform: state.transform,
+    commit(transform) {
+      state.transform = transform;
+      applyTransform(false);
     },
-    onEnd: (endEvent) => {
-      panFrames.flush();
+    onEnd({ didPan, cancelled }) {
       persistSession();
-      if (!didPan && endEvent?.type !== "pointercancel") setSelectedNode(null);
+      if (!didPan && !cancelled) setSelectedNode(null);
     }
   });
 }
@@ -2997,18 +2982,12 @@ function handleComparePointerDown(event) {
     selectCompareObject("net", edgeElement.dataset.net, true, side);
     return;
   }
-  const start = { x: event.clientX, y: event.clientY, transform: { ...state.compare.transforms[side] } };
-  const panFrames = createLatestFrameScheduler((point) => {
-    const rect = svg.getBoundingClientRect();
-    const viewBox = svg.viewBox.baseVal;
-    setCompareTransform(side, getPannedTransform(start.transform, start, point, viewBox, rect));
-  });
-  startPointerSession({
+  startCanvasPan({
+    event,
     target: elements.canvas,
-    pointerId: event.pointerId,
-    className: "is-panning",
-    onMove: (moveEvent) => panFrames.schedule(pointerClientPoint(moveEvent)),
-    onEnd: () => panFrames.flush()
+    svg,
+    transform: state.compare.transforms[side],
+    commit: (transform) => setCompareTransform(side, transform)
   });
 }
 

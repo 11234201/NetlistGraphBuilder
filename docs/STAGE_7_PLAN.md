@@ -238,4 +238,6 @@ Timing snapshot/metric 的事件、未知值回退、`all` 展开和 DOM 同步�
 
 Single/Compare wheel 的目标切换、滚轮步数累计、每帧合并、交互 class 与 140ms 最终持久化已统一到 `ui/wheel_gesture_controller.js`；controller 不读取 graph/session，只把规范化 sample 交给 viewport commit 端口。切换画布前会 flush 原目标，完整回归为 341/341。
 
+Single/Compare 空白画布平移的 pointer capture、按帧合并、坐标校验、最终 flush 与取消语义已统一到 `ui/canvas_pan_controller.js`；main 只提供当前 viewport、轻量 transform commit，以及 Single 侧的持久化/点击清选 effect。完整回归为 343/343。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。
