@@ -256,4 +256,6 @@ Single manual override 已建立完整 snapshot 的 `overrides.set` 投影；节
 
 Single 的节点尺寸、展示属性和 Cell pin direction 修改/重置也已改为复制 override snapshot 后经 `overrides.set` 提交；除无 document/module 的初始化 fallback 外，main 不再直接修改 Single override map 或嵌套 graph override。完整回归保持 354/354。
 
+Compare 左右 viewport 已接入各自普通 ViewSession 的 `viewport.set`；同步缩放/平移通过向两个 session 分别提交同一 transform 实现，单侧操作保持隔离，main 不再直接写 Compare transform。完整回归为 355/355。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

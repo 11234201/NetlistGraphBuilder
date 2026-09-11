@@ -38,3 +38,27 @@ test("compare session identity resets when its module changes", () => {
   assert.equal(replacement.session.unitId, "replacement");
   assert.deepEqual(replacement.session.focusedRootRefs, []);
 });
+
+test("compare viewport commands stay isolated and preserve computation revision", () => {
+  const state = {
+    layoutPolicy: { name: "default" },
+    compare: {
+      leftModuleName: "before", rightModuleName: "after",
+      transforms: { left: { x: 0, y: 0, scale: 1 }, right: { x: 0, y: 0, scale: 1 } },
+      nodePositions: { left: new Map(), right: new Map() },
+      nodeSizes: { left: new Map(), right: new Map() },
+      graphOverrides: {
+        left: { nodeProperties: {}, cellPinDirections: {} },
+        right: { nodeProperties: {}, cellPinDirections: {} }
+      },
+      fullGraphs: { left: { nodes: [] }, right: { nodes: [] } }
+    }
+  };
+  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  adapter.dispatch("left", { type: "selection.clear" });
+  const before = adapter.sessions.require("compare:left").computationRevision;
+  const result = adapter.dispatch("left", { type: "viewport.set", viewport: { x: 9, y: 5, scale: 1.2 } });
+  assert.deepEqual(state.compare.transforms.left, { x: 9, y: 5, scale: 1.2 });
+  assert.deepEqual(state.compare.transforms.right, { x: 0, y: 0, scale: 1 });
+  assert.equal(result.session.computationRevision, before);
+});
