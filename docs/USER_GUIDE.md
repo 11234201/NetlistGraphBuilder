@@ -2,7 +2,21 @@
 
 本教程面向使用 Netlist Graph Builder 阅读、追踪和对比门级 structural Verilog 的工程师。内容覆盖当前版本的全部用户功能，包括数据导入、搜索、大图局部浏览、时序、Cell Config、布局调整、双 module 对比、过程日志、导出和 EDA 集成。
 
+## v0.7.3 新增功能速览
+
+| 新功能 | 从哪里使用 | 要点 |
+| --- | --- | --- |
+| 多 cell Focused | 顶部 Search、左侧 View | 搜索未绘制 cell 默认追加 root；`+ Focus`/`Add selected` 追加，`Set selected as Focused` 替换 |
+| Focused roots 管理 | View 区 root chips | 点击 chip 激活，`×` 或 `Remove selected` 移除，`Clear` 清空；最多保留 32 个 roots |
+| Compare roots 同步 | Module Compare | `Sync Focus roots` 控制匹配 cell 的追加、移除和清空是否同步到另一侧 |
+| Module hierarchy | 左侧折叠列表 | 按实例层次浏览并切换 module；关闭时惰性加载，递归/超大设计有界截断 |
+| 间距数字输入 | Layout | Wire/Cell spacing 除滑块外可直接输入，提交后吸附到最近的 4 的倍数 |
+| 垂直 pin 转角 | 自动布局与 Adjust | top/bottom pin 的最后连接段预留可见转角，近距离连线也能辨认方向 |
+| 更可靠的恢复 | Golden、Session、快速输入 | Golden v3 校验网表内容并恢复 Focused 深度；批量输入严格按依赖顺序完成 |
+
 ## 目录
+
+- [v0.7.3 新增功能速览](#v073-新增功能速览)
 
 1. [软件定位与运行方式](#1-软件定位与运行方式)
 2. [界面总览](#2-界面总览)
@@ -37,7 +51,7 @@ Netlist Graph Builder 是离线 structural Verilog schematic browser。它不依
 - 为工具无法自动识别的标准单元补充可复用定义。
 - 从 EDA 脚本直接打开指定网表、module 和 instance。
 
-它不是完整的 Verilog/SystemVerilog 编译器，也不提供形式等价验证。
+它不是完整的 Verilog/SystemVerilog 编译器，也不提供形式等价验证。当前产品只开放 Netlist 工作流；阶段 7 的内存 AIG 样例用于验证扩展架构，不能导入 `.aag/.aig`，也没有正式 AIG 浏览界面。
 
 ### 1.1 Windows 离线版
 
@@ -77,7 +91,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 界面由四个区域组成：
 
 - **顶部工具栏**：Import、Module、前进/后退、Search、Compare、Fit 和 More。
-- **左侧面板**：视图模式、布局、Timing、Cell Config、Compare 设置、设计统计、Selection 和 Diagnostics。
+- **左侧面板**：视图模式、布局、Timing、Cell Config、Compare 设置、Module hierarchy、设计统计、Selection 和 Diagnostics。
 - **中央画布**：当前 schematic 或左右/上下 Compare 画布。
 - **底部区域**：可折叠 Process Log 和最新状态信息。
 
@@ -106,7 +120,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - Timing 文本。
 - Layout Golden JSON。
 
-一次拖入多个文件时，程序会先加载网表，再应用与之配套的 Timing 或 Golden。Cell Config 使用左侧 `Cell Config > Import` 的专用入口，或通过启动参数加载。
+一次拖入多个文件时，程序会先加载网表，再应用与之配套的 Timing 或 Golden；每一步都会等待前一步成功完成。某一步失败时状态栏会报告错误，不会把后续依赖文件当作已成功应用。Cell Config 使用左侧 `Cell Config > Import` 的专用入口，或通过启动参数加载。
 
 ### 3.3 支持的 Verilog 范围
 
@@ -128,13 +142,17 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 
 顶部 `Module` 列出 design 中的全部 module。选择新 module 后会显示其结构；超过大图阈值的 module 会进入 Search-first，而不会立即布局整张图。
 
-`Module hierarchy` 是可开关的层次列表，默认折叠。展开后可查看 module instance 路径并点击切换 module；大型或递归层次按明确的节点数/深度上限截断，不会无界展开。
+### 4.2 Module hierarchy 列表
 
-### 4.2 进入子 module
+`Module hierarchy` 是可开关的层次列表，默认折叠。展开后可查看 module instance 路径并点击切换 module；大型或递归层次最多展开 2000 个节点、嵌套深度 64，达到上限后显示截断提示，不会无界展开。
+
+列表中的 `instance : module` 表示某个实例引用的 module definition；顶层项只显示 module。当前打开的 module 会高亮。出现 `cycle` 或 `More instances omitted` 时，表示递归引用或显示上限已生效，并不代表网表解析失败。
+
+### 4.3 进入子 module
 
 当某个 cell instance 引用了当前 design 中真实存在的 module definition 时，双击该实例会进入对应子 module。真实子 module 的 port direction 来自其定义，不会被 Cell Config 覆盖。
 
-### 4.3 前进和后退
+### 4.4 前进和后退
 
 顶部 `←`、`→` 保存并恢复：
 
@@ -165,7 +183,12 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - `Esc`：收起结果列表。
 - 输入框右侧 `×`：清除搜索。
 
-激活 cell 结果后，程序会把 cell 居中放大：若它已绘制，只更新选择和 viewport；若它未绘制，则进入 Focused，并把它追加到已有 roots 而不是替换原 root。激活 net 或 port 时会进入对象所在视图并显示连接信息。
+cell 搜索结果有两种操作：
+
+- 点击结果主体或按 `Enter`：若 cell 已绘制，只更新选择和 viewport；若未绘制，则进入 Focused，并把它追加到已有 roots，而不是替换原 root。
+- 点击 `+ Focus`：无论 cell 当前是否绘制，都明确把它追加到 Focused roots，并进入 Focused。已经是 root 时不会重复添加。
+
+激活 net 或 port 时会进入对象所在视图并显示连接信息。跨 module 的结果会先切换 module：来源 module 的 roots、selection 和手工 override 不会串入目标 module；如果目标 module 以前访问过，则恢复它自己的 workspace。
 
 ## 6. 画布、选择和连接追踪
 
@@ -196,18 +219,21 @@ Selection 中以按钮显示的 net、driver/load、Connected、Fanin 和 Fanout
 选中 cell 后，点击 View 区的 `Focus selected cell`，或在非输入框状态按 `F`：
 
 - 如果 cell 已经可见，只调整 viewport。
-- 如果 cell 不在当前局部图，先建立 Focused neighborhood，再定位。
+- 如果 cell 不在当前局部图，以它建立新的 Focused neighborhood，再定位。
 - 目标 cell 会以稳定的阅读尺寸居中显示。
 
-### 6.4 切换 Focused root
+### 6.4 管理 Focused roots
 
-在 Whole 或当前 Focused 局部图中选中另一个 cell 后，点击 `Set selected as Focused`：
+View 区提供四个明确操作：
 
-- 所选 cell 会成为新的 Focused root。
-- 当前 fanin/fanout depth 会继续使用。
-- 局部图重建完成后，新 root 会保持选中并居中放大。
+- `Set selected as Focused`：用当前 cell 替换全部 roots，适合重新开始分析。
+- `Add selected`：保留已有 roots，再追加当前 cell。
+- `Remove selected`：只移除当前选中的 root。
+- `Clear`：清空全部 roots；大 module 返回 Search-first，小 module 返回 Whole。
 
-当所选 cell 已经是当前 root 时按钮禁用。`Focus selected cell` 只调整 viewport，`Set selected as Focused` 才会改变局部图的 root。
+root chips 展示当前集合。点击 chip 会把它设为 active root 并重新定位，不重排局部图；点击 chip 内的 `×` 只移除该 root。当前 fanin/fanout depth 在这些操作之间保持不变。
+
+`Focus selected cell` 与 root 操作不同：目标已绘制时只调整 viewport；目标不在当前图时，会以它建立新的 Focused neighborhood。`Set selected as Focused` 始终是明确的替换操作。
 
 ## 7. Whole 和 Focused 视图
 
@@ -225,7 +251,7 @@ Focused 是以所选 cell 为 root 的双向局部图：
 
 两侧结果会合并并去重。修改一个深度只扩展对应方向。
 
-Focused 可同时保留多个 root。搜索另一个未绘制 cell 会追加 root；`Set selected as Focused` 是明确的替换操作，root chip 上的移除/激活操作则只影响指定 root。
+Focused 可同时保留最多 32 个 roots。每个 root 分别扩展 fanin/fanout，结果合并去重；达到上限时新 root 会被拒绝，已有 roots 不会被排序截断或替换。搜索另一个未绘制 cell 会追加 root；`Set selected as Focused` 是明确的替换操作，root chip 上的移除/激活操作则只影响指定 root。
 
 Focused 同时覆盖 fanin 与 fanout，因此界面不再提供重复的单向模式。需要只看一个方向时，把另一个方向的深度设为 `0` 即可。
 
@@ -265,15 +291,23 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 两个设置都同时提供滑块和数字输入。数字提交时会吸附到最近的 4 的倍数，并限制在各自范围内；两个设置彼此独立，修改后立即重排当前图。大图中建议先使用局部视图，再调整间距。
 
-### 9.3 Show aliases
+示例：输入 `29` 会变为 `28`，输入 `30` 会变为 `32`；空值或非法文本不会覆盖上一次有效值。
+
+### 9.3 垂直 pin 的最后转角
+
+连接位于 cell 顶部或底部的 pin 时，即使起点在水平方向上非常接近目标 pin，Simple 和 Adjust routing 也会为最后一次转弯保留可见距离。该规则用于避免最后的水平短段与垂直进线重合，看起来像没有转弯。
+
+这是自动布线规则，没有独立开关。它只改变显示路线，不修改 netlist topology 或 pin direction；Adjust 移动节点并释放鼠标后也会重新应用。
+
+### 9.4 Show aliases
 
 默认会规范化 `assign` alias 链，减少中间节点。开启 `Show aliases` 后可查看显式 assign/alias 结构。实例化的 buffer cell 不会被当作 assign alias 删除。
 
-### 9.4 Fanout hubs
+### 9.5 Fanout hubs
 
 开启后，高 fanout net 会使用共享 hub 表示，减少重复长线。关闭后显示原始分支连接。
 
-### 9.5 Collapse large groups
+### 9.6 Collapse large groups
 
 大图可以把结构分组折叠成紫色虚线组：
 
@@ -281,6 +315,8 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 - 单击折叠组：展开该组。
 - `Collapse all groups`：重新折叠所有已展开组。
 - 关闭 `Collapse large groups`：显示所有节点。
+
+当可见节点与连线总量达到渐进渲染阈值时，页面会分批提交 SVG。交互预览可以暂时省略装饰性 bridge，但操作完成后的画面与 SVG 导出会恢复完整 wire、bridge、label 和命中区域。
 
 ## 10. Adjust 手工校准
 
@@ -471,9 +507,24 @@ Cell Config 保存在浏览器本地存储中。刷新页面或加载其他网�
 
 绿色表示可建立基础结构对应，红色虚线表示 unmatched 或只有一侧存在。橙色表示当前选择。绿色不代表逻辑等价，红色也不代表电路一定不等价。
 
-### 13.4 Output cone
+### 13.4 Compare Focused roots
+
+Compare 左右两侧各自保存普通、独立的 Focused roots、active root、selection 和 viewport。先点击某一侧 cell，再使用 View 区的 Set/Add/Remove/Clear；操作只以当前选择侧为起点。
+
+`Sync Focus roots` 默认开启：
+
+- Add/Set：若另一侧找到匹配 cell，则同步追加或替换；找不到时只修改当前侧，并在状态栏提示。
+- Remove：只在另一侧存在对应 root 时同步移除。
+- Clear：清空两侧 roots。
+- 关闭后：两侧 roots 完全独立；`Sync pan / zoom` 仍只控制 viewport，不隐式修改 roots。
+
+Compare root chip 会带 `left:` 或 `right:` 标识。点击 chip 只激活并定位该 root；点击 `×` 移除它。
+
+### 13.5 Output cone
 
 `Output cone` 列出两侧共有的 output。选择某项后，同时显示两侧对应 output 的 fanin cone；选择 `Whole module` 返回整图。
+
+选择 Output cone 会清除两侧 Focused roots，避免两种局部视图同时生效；重新 Set/Add Focused root 则会退出 Output cone。
 
 Design 统计会显示 cell count、gate kind count、logic depth 粗估、max fanout、差值和 unmatched 数量。
 
@@ -485,9 +536,11 @@ Design 统计会显示 cell count、gate kind count、logic depth 粗估、max f
 
 ### 14.2 Layout Golden
 
-- `More > Save Golden`：保存当前 module、视图、节点位置/尺寸和 route override。
+- `More > Save Golden`：保存当前 module、Whole/Focused/Search-first 状态、Focused roots、fanin/fanout depth、节点位置/尺寸和 route override。
 - `More > Load Golden`：载入 JSON。应先加载与 Golden 对应的网表。
 - `More > Reset layout`：清除手工 override 并恢复自动布局。
+
+当前 Golden v3 记录 source fingerprint：同名、同大小但内容不同的网表不会误用布局；文件改名但内容相同仍可匹配。旧 v1/v2 Golden 继续支持导入，但只能使用其原有的较弱身份信息。Focused Golden 缺少有效 root 时会安全回退 Whole，Search-first Golden 不会继承旧 roots。
 
 Golden 与 Cell Config 是不同格式：Golden 保存布局与显示 override；Cell Config 保存可复用的 cell type 语义。
 
@@ -496,7 +549,7 @@ Golden 与 Cell Config 是不同格式：Golden 保存布局与显示 override�
 同一标签页刷新后会恢复：
 
 - 当前网表文本和 module。
-- View mode、depth 和 search。
+- Whole/Focused/Search-first、Focused roots、前后向 depth 和 search。
 - Layout provider、间距和简化选项。
 - Selection、pan/zoom 和部分 workspace 状态。
 
@@ -632,7 +685,7 @@ Ready 行只包含文件名和目标摘要，不包含网表、时序或配置�
 2. 移动/调整节点和必要属性。
 3. 退出 Adjust，检查最终 route。
 4. `More > Save Golden`。
-5. 下次先导入相同网表，再 `Load Golden`。
+5. 下次先导入相同网表，再使用 `More > Load Golden`。
 
 ### 18.5 对比 resyn 与 Flex module
 
@@ -668,7 +721,7 @@ Pin direction 会改变 driver/load 关系，因此重新构图是必要行为�
 
 ### 19.5 Whole 大图很慢或很细
 
-Whole 会布局和渲染全部可见结构。大图优先使用 Search-first、Focused 或有限深度 cone；必要时启用 fanout hubs 和 group collapse。
+Whole 会布局和渲染全部可见结构。大图优先使用 Search-first 或有限深度的 Focused；必要时启用 fanout hubs 和 group collapse。
 
 ### 19.6 Compare 的红色是否表示逻辑不等价
 
@@ -676,7 +729,7 @@ Whole 会布局和渲染全部可见结构。大图优先使用 Search-first、F
 
 ### 19.7 Golden 无法载入
 
-先加载 Golden 对应的网表/module。Golden 会验证目标和可用布局数据；不相关或损坏的 JSON 会被拒绝。
+先加载 Golden 对应的网表/module。Golden v3 会验证 domain、document、module 和网表内容 fingerprint；网表内容发生变化后，即使文件名和大小相同也会拒绝旧 Golden。旧 v1/v2 或损坏、缺少有效节点位置的 JSON 也可能被拒绝，并在状态栏显示原因。
 
 ### 19.8 页面刷新后的数据范围
 
@@ -688,5 +741,14 @@ Whole 会布局和渲染全部可见结构。大图优先使用 Search-first、F
 - 服务只监听 localhost。
 - 用户控制的名称在 HTML/SVG 中会转义。
 - 日志和 ready 输出不包含完整输入原文。
+
+### 19.10 搜索、Add 和 Set 为什么结果不同
+
+- 点击已绘制的搜索结果：只选择并居中，不改变 roots。
+- 点击未绘制的 cell 搜索结果：把它追加到现有 roots 后显示。
+- 点击搜索结果的 `+ Focus` 或 View 区的 `Add selected`：明确追加。
+- 点击 `Set selected as Focused`：明确清空旧集合并只保留当前 cell。
+
+如果 root 数达到 32，追加会被拒绝；先移除不需要的 root。跨 module 搜索会切换 workspace，不会把来源 module 的 roots 带到目标 module；目标 module 若已有自己的历史 workspace，则恢复该状态。
 
 如需确认某次操作是否成功，优先查看底部状态栏与 Process Log。

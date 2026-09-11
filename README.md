@@ -8,25 +8,46 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
 
+## v0.7.3 新增与调整
+
+| 能力 | 使用位置 | 当前行为 |
+| --- | --- | --- |
+| 多 cell Focused | Search、View 区和 Focused root chips | 点击未绘制的 cell 搜索结果会追加为 root，不替换已有 roots；`+ Focus`/`Add selected` 显式追加，`Set selected as Focused` 显式替换 |
+| Module hierarchy | 左侧可折叠 `Module hierarchy` | 展示实例层次并可点击切换 module；关闭时不构建列表，递归或超大层次会有界截断 |
+| 间距直接输入 | Layout 区的 Wire/Cell spacing | 滑块旁可输入数字，提交后吸附到最近的 4 的倍数并限制在合法范围 |
+| 垂直 pin 连线可读性 | Simple 与 Adjust 布线 | top/bottom pin 的最后一段会预留可见转角，避免横向距离过小时折线看不清 |
+| 恢复与导入可靠性 | Session、Layout Golden、拖放和 Paste | Golden v3 使用内容 fingerprint 并恢复 Focused 深度；批量输入按网表、Timing、Golden 顺序等待完成，失败不会伪装成成功 |
+| 大图完成态渲染 | Whole、Focused 和 Compare | 渐进阈值按节点与连线总量计算；完成态恢复 wire bridge、label 和命中区域 |
+
 ## 主要功能
+
+### 浏览与追踪
 
 - 解析常见 structural Verilog：module、port、wire、assign、cell instance 和 escaped identifier。
 - 在没有 `.lib` 时，根据 cell/pin 命名推断 gate kind 与 pin direction；未知 cell 显示为 blackbox。
-- 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
 - 搜索 module、port、net、instance 和 cell type，并定位图中对象。
 - 可展开 Module hierarchy 列表查看模块实例层次，点击节点切换当前 module。
 - 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
 - Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
-- 切换 Whole 和 Focused；Focused 的前后向深度可独立设置，大 module 默认 Search-first。
+- 切换 Whole 和 Focused；Focused 支持多个 roots 和独立的前后向深度，大 module 默认 Search-first。
 - module 前进/后退恢复视图、选择与 viewport；可将所选 cell 一键居中放大，或设为新的 Focused root。
+
+### 布局与展示
+
+- 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
+- Simple/ELK 布局 provider 离线切换，Wire/Cell spacing 支持滑块和数字输入。
+- Adjust 模式下调整节点位置、尺寸、显示属性和 pin direction；相连 wire 在操作结束后重新布线。
+- 大图支持渐进渲染、fanout hub、结构分组折叠和低缩放降细节。
+- 支持保存、校验和载入 layout Golden，并导出带完整样式的离线 SVG。
+
+### 对比、时序与集成
+
 - 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
+- Compare 两侧保持独立 Focused roots，并可选择同步匹配 cell 的 add/remove/clear 操作。
 - 导入旧 LocResyn 与新 Global/Local 边界 timing，按全图 snapshot/metric 策略显示 cell/port badge 和 critical 标记。
 - 支持文件选择、拖放、全局粘贴和 Paste 文本框，自动识别 Verilog、layout Golden 与 LocResyn timing 日志。
-- 支持保存和载入 layout Golden，快速复用人工调整后的节点、pin 和布线布局。
 - 识别层次化子 module 实例，双击实例可直接跳转到对应 module 定义。
-- Adjust 模式下调整节点、属性和 pin direction，并导出 SVG 或 layout Golden。
-- Simple/ELK 布局 provider 离线切换，大图渐进渲染、fanout hub、结构分组折叠和低缩放降细节。
-- 同一浏览器标签页刷新后恢复网表、module、cone、搜索、provider、布局选项和 pan/zoom。
+- 同一浏览器标签页刷新后恢复网表、module、Focused roots/depth、搜索、provider、布局选项和 pan/zoom。
 - 编辑、持久化和导入导出未知 cell type 的 gate/pin 定义；Process Log 可过滤、复制和导出。
 - Node、Python 和 Windows 启动器可由 EDA 工具直接指定 netlist、timing、module、focus 与局部深度。
 
@@ -127,8 +148,9 @@ ready 行不包含网表、时序或 Cell Config 原文，例如：
 1. 点击“打开网表”、将文件拖到页面，或在页面上直接粘贴 Verilog 文本，均可快速载入网表。
 2. `Paste` 文本框适合复制一段小型 structural Verilog 后立即查看，不需要先保存成本地文件。
 3. 拖放和全局粘贴会自动区分 Verilog、layout Golden 与 LocResyn timing；同时提供多个文件时，会先载入网表，再应用与之配套的 Golden 和 timing。
-4. 点击 `Save G` 保存当前 layout Golden；先载入对应网表，再点击 `Load G`，即可恢复布局。Golden 必须与目标 module 匹配。
+4. 使用 `More > Save Golden` 保存当前 layout Golden；先载入对应网表，再使用 `More > Load Golden` 恢复布局。Golden 必须与目标 module 和网表内容匹配。
 5. 层次化网表中的子 module 实例可通过双击进入其 module 定义；使用 Module 下拉框可随时切换到其他 module。
+6. 展开左侧 `Module hierarchy` 可查看完整实例路径并点击切换 module；关闭列表不会持续构建层次树。
 
 ## 示例文件
 
@@ -150,10 +172,10 @@ node tools/generate-large-example.mjs
 1. 载入 structural Verilog，然后从 Module 下拉框选择 module。
 2. 点击 node 或 wire，在 Selection 面板查看连接关系；点击其中的 net、Connected、Fanin 或 Fanout 项可快速选中并居中对应对象。选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
 3. 双击子 module 实例可直接跳转到对应 module 定义。
-4. 使用 Whole 查看整图；搜索 cell 会进入或追加到 Focused，Fanin/Fanout depth 分别控制两侧上下文。显式点击 `Set selected as Focused` 才会替换现有 roots。
+4. 使用 Whole 查看整图；搜索未绘制 cell 会进入或追加到 Focused，Fanin/Fanout depth 分别控制两侧上下文。搜索结果的 `+ Focus` 和 `Add selected` 追加 root，`Set selected as Focused` 替换全部 roots。
 5. 使用 `Show aliases` 控制 assign alias 是否显示。
-6. 点击 Adjust 后可拖动节点；使用 `Save G` 保存布局，使用 `Load G` 恢复与当前网表匹配的布局。
-7. 点击 SVG 导出当前完整 module 或 cone schematic。
+6. 点击 Adjust 后可拖动节点；使用 `More > Save Golden` 保存布局，使用 `More > Load Golden` 恢复与当前网表匹配的布局。
+7. 使用 `More > Export SVG` 导出当前完整 module 或局部 schematic。
 
 ## Compare View 使用方法
 
@@ -165,18 +187,20 @@ node tools/generate-large-example.mjs
 6. `Sync pan / zoom` 默认开启：在任一视图缩放或平移时，另一侧使用相同变换。关闭后可单独操作两侧。
 7. 点击 `Fit` 会同时重置两侧视图。
 8. 点击任一侧的同名 port、net 或 cell，会在两侧高亮对应对象；port/cell 会自动居中聚焦。
-9. 在 `Output cone` 中选择两侧共有的 output，例如内置示例的 `sco_891`，即可同时显示两侧 fanin cone。Depth 控制 cone 深度，选择 `Whole module` 返回整图。
-10. Design 面板显示两侧 cell count、gate kind count、logic depth 粗估、max fanout、差值和 unmatched 数量。
+9. `Sync Focus roots` 默认开启；在一侧追加、移除或清空 root 时，会对另一侧的匹配 cell 执行同类操作，无匹配对象时只修改当前侧。
+10. 在 `Output cone` 中选择两侧共有的 output，例如内置示例的 `sco_891`，即可同时显示两侧 fanin cone。Depth 控制 cone 深度，选择 `Whole module` 返回整图。
+11. Design 面板显示两侧 cell count、gate kind count、logic depth 粗估、max fanout、差值和 unmatched 数量。
 
-## Stage 4 大图功能
+## 大图与布局功能
 
 1. 顶部 `Layout` 默认使用稳定的 `Simple Layered`；`ELK Layered (Experimental)` 仅作为大图初始排布的可选实验布局。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
 2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
 3. `Collapse large groups` 默认关闭；开启后，300 个以上 cell 的图按 50 个 cell 自动折叠为紫色虚线组。点击组可展开，`Collapse all groups` 恢复全部折叠。
-4. 400 个以上可见节点/边使用分批 SVG 渲染，状态栏显示 rendering 进度。
+4. 可见节点与连线总量达到 400 后使用分批 SVG 渲染，状态栏显示 rendering 进度；最终画面仍包含完整 wire bridge、label 和命中区域。
 5. 缩放低于 0.65 时自动隐藏 pin、net、metadata 和 timing 文字，放大后恢复。
 6. 当前网表文本保存在浏览器 `sessionStorage`；刷新同一标签页会恢复网表和工作状态，关闭标签页后由浏览器清理。
 7. ELK 模式支持混合 Adjust：ELK 生成基础布局，手动位置/尺寸覆盖只修改目标节点，相连 edge 自动进行 Manhattan 重布线；Reset 恢复 ELK 自动坐标。
+8. Wire/Cell spacing 可用滑块或数字输入；数字会吸附到最近的 4 的倍数。连接 top/bottom pin 时会保留可辨认的最后转角。
 
 ## 结构差异高亮
 
@@ -233,7 +257,8 @@ tools/                本地开发工具与大图示例生成器
 
 - 只支持 structural Verilog 常用子集，不是完整 Verilog/SystemVerilog 前端。
 - 不解析 Liberty `.lib`，复杂或定制 cell 可能需要手动修正 pin direction。
-- Balanced/Folded 深层 DAG 布局仍是实验性遗留方向，当前大图主要通过 ELK、bounded cone 和 group collapse 浏览。
+- Balanced/Folded 深层 DAG 布局仍是实验性遗留方向，当前大图主要通过 ELK、有限深度 Focused 和 group collapse 浏览。
 - Compare 是名称、gate kind 和图统计驱动的启发式分析，不提供形式等价或逻辑等价证明。
+- 内存 AIG 样例只用于验证架构扩展性；尚未提供生产级 AIGER 导入、AIG 浏览界面或等价分析。
 
-详细路线图见 [docs/PLAN.md](docs/PLAN.md)，阶段 4 完成记录见 [docs/STAGE_4_PLAN.md](docs/STAGE_4_PLAN.md)。
+详细路线图见 [docs/PLAN.md](docs/PLAN.md)；大图基线见 [阶段 4](docs/STAGE_4_PLAN.md)，当前工作台架构与审计证据见 [阶段 7](docs/STAGE_7_PLAN.md)。
