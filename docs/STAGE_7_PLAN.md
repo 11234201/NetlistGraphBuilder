@@ -244,4 +244,6 @@ Single/Compare 节点拖拽的 SVG 坐标换算、吸附、位置规范化、按
 
 Netlist/Timing/Golden 三个文件入口、批量拖放排序、拖放遮罩生命周期、全局文件/文本粘贴和文本输入对话框已统一到 `ui/quick_input_controller.js`；controller 只向应用提交已识别的 `{text, kind, label}`，不读取设计或工作区状态。完整回归为 349/349。
 
+ViewSession command 已补齐 `selection.set/clear`、`viewport.set`、`layout.policy.set` 与 `overrides.set`；viewport 更新只推进 UI revision，layout policy/override 更新推进 computation revision，非法跨 unit selection 与非有限 viewport 在边界拒绝。完整回归为 350/350。下一切片将 main 的对应直接写入切换到这些 handler 后删除 legacy 镜像。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

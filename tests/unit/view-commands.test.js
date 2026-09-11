@@ -68,3 +68,21 @@ test("cross-unit reveal changes scope and never reuses roots from the old unit",
   assert.deepEqual(session.focusedRootRefs.map((item) => item.localId), ["x1"]);
   assert.throws(() => bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("foreign", "child", "doc:2") }), /another document/);
 });
+
+test("selection, viewport, layout policy and overrides have explicit command ownership", () => {
+  const { sessions, bus } = setup();
+  const selected = bus.dispatch({ type: "selection.set", sessionId: "left", objectRef: ref("u1") });
+  assert.equal(selected.session.selectedObjectRef.localId, "u1");
+  assert.equal(selected.effects.render, true);
+  const beforeViewport = selected.session.computationRevision;
+  const viewport = bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 4, y: 8, scale: 1.5 } });
+  assert.deepEqual(viewport.session.viewport, { x: 4, y: 8, scale: 1.5 });
+  assert.equal(viewport.session.computationRevision, beforeViewport);
+  const policy = bus.dispatch({ type: "layout.policy.set", sessionId: "left", layoutPolicy: { name: "test" } });
+  assert.equal(policy.effects.layout, true);
+  assert.equal(policy.session.computationRevision, beforeViewport + 1);
+  const overrides = bus.dispatch({ type: "overrides.set", sessionId: "left", overrides: { nodePositions: [] } });
+  assert.deepEqual(overrides.session.overrides, { nodePositions: [] });
+  assert.equal(bus.dispatch({ type: "selection.clear", sessionId: "left" }).session.selectedObjectRef, null);
+  assert.throws(() => bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 0, y: 0, scale: 0 } }), /finite positive viewport/);
+});

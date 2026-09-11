@@ -43,6 +43,31 @@ export function createViewCommandHandlers({ sessions, maxFocusedRoots = 8 }) {
     "focus.set": focus("set"),
     "focus.remove": focus("remove"),
     "focus.activate": focus("activate"),
+    "selection.set": (command) => withSession(command, (session) => ({
+      patch: { selectedObjectRef: requireSessionRef(session, command.objectRef) },
+      effects: computeEffects({ render: true })
+    })),
+    "selection.clear": (command) => withSession(command, () => ({
+      patch: { selectedObjectRef: null },
+      effects: computeEffects({ render: true })
+    })),
+    "viewport.set": (command) => {
+      if (!command.sessionId) throw new Error(`${command.type} requires sessionId`);
+      const viewport = requireViewport(command.viewport);
+      return {
+        session: sessions.updateViewport(command.sessionId, viewport),
+        rejected: null,
+        effects: computeEffects({ viewport: true, persist: true })
+      };
+    },
+    "layout.policy.set": (command) => withSession(command, () => ({
+      patch: { layoutPolicy: requireRecord(command.layoutPolicy, "layoutPolicy") },
+      effects: computeEffects({ layout: true, render: true, persist: true })
+    })),
+    "overrides.set": (command) => withSession(command, () => ({
+      patch: { overrides: command.overrides ?? null },
+      effects: computeEffects({ render: true, persist: true })
+    })),
     "selection.reveal": (command) => withSession(command, (session) => {
       const ref = requireDocumentRef(session, command.objectRef);
       const visible = new Set(command.visibleObjectKeys || []).has(objectRefKey(ref));
@@ -67,6 +92,19 @@ export function createViewCommandHandlers({ sessions, maxFocusedRoots = 8 }) {
       };
     })
   });
+}
+
+function requireViewport(value) {
+  const viewport = { x: Number(value?.x), y: Number(value?.y), scale: Number(value?.scale) };
+  if (!Object.values(viewport).every(Number.isFinite) || viewport.scale <= 0) {
+    throw new Error("Command requires a finite positive viewport");
+  }
+  return viewport;
+}
+
+function requireRecord(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Command requires ${label}`);
+  return value;
 }
 
 function requireDocumentRef(session, ref) {
