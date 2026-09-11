@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLegacyCompareSessionAdapter } from "../../src/app/legacy_compare_session_adapter.js";
+import { createCompareViewSessionBridge } from "../../src/app/compare_view_session_bridge.js";
 
 test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
   const state = {
@@ -13,7 +13,7 @@ test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
       }
     }
   };
-  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
   const left = adapter.replaceRoots("left", ["cell:a"], "cell:a");
   const right = adapter.replaceRoots("right", ["cell:b"], "cell:b");
   assert.equal(left.session.sessionId, "compare:left");
@@ -31,7 +31,7 @@ test("compare session identity resets when its module changes", () => {
       fullGraphs: { left: { nodes: [{ id: "cell:x", kind: "cell" }] }, right: { nodes: [] } }
     }
   };
-  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
   adapter.replaceRoots("left", ["cell:x"]);
   state.compare.leftModuleName = "replacement";
   const replacement = adapter.replaceRoots("left", []);
@@ -54,7 +54,7 @@ test("compare viewport commands stay isolated and preserve computation revision"
       fullGraphs: { left: { nodes: [] }, right: { nodes: [] } }
     }
   };
-  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
   adapter.dispatch("left", { type: "selection.clear" });
   const before = adapter.sessions.require("compare:left").computationRevision;
   const result = adapter.dispatch("left", { type: "viewport.set", viewport: { x: 9, y: 5, scale: 1.2 } });
@@ -75,7 +75,7 @@ test("compare selection commands project the active side without clearing its pe
       selectedKind: null, selectedName: null, selectedSide: null
     }
   };
-  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
   adapter.dispatch("right", { type: "selection.set", objectRef: adapter.objectRef("right", "cell", "u2") });
   adapter.dispatch("left", { type: "selection.set", objectRef: adapter.objectRef("left", "cell", "u1") });
   assert.equal(state.compare.selectedSide, "left");
@@ -95,7 +95,7 @@ test("compare override commands replace only their owning side", () => {
       fullGraphs: { left: { nodes: [] }, right: { nodes: [] } }
     }
   };
-  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
   adapter.dispatch("left", { type: "overrides.set", overrides: {
     nodePositions: new Map([["move", { x: 20, y: 24 }]]), nodeSizes: new Map(),
     graphOverrides: { nodeProperties: {}, cellPinDirections: {} }

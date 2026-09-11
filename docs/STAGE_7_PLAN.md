@@ -264,4 +264,6 @@ Compare manual overrides 已接入左右 ViewSession 的 `overrides.set`；节�
 
 ViewSession 新增 `focus.replace/clear` 批量命令，统一去重、容量、active root 和 viewMode 决策；Compare 的 roots 恢复/清空不再绕过 command handler 直接调用 store.update。完整回归为 358/358。
 
+原 `legacy_view_command_adapter` 与 `legacy_compare_session_adapter` 已重命名为 Single/Compare `view_session_bridge`；它们只负责 ObjectRef 转换和旧 DOM/存档字段投影，selection、roots、viewport、layout policy 与 overrides 的决策均由公共 command handler 持有，不再存在第二套 legacy 业务实现。完整回归保持 358/358。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

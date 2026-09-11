@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLegacyViewCommandAdapter } from "../../src/app/legacy_view_command_adapter.js";
+import { createSingleViewSessionBridge } from "../../src/app/single_view_session_bridge.js";
 
 function setup() {
   const nodes = ["u1", "u2", "u3"].map((instance) => ({ id: `cell:${instance}`, kind: "cell", ref: { instance } }));
@@ -17,7 +17,7 @@ function setup() {
     nodePositions: new Map(), nodeSizes: new Map(),
     graphOverrides: { nodeProperties: {}, cellPinDirections: {} }
   };
-  return { state, adapter: createLegacyViewCommandAdapter({ state, getDocumentId: () => "doc:1" }) };
+  return { state, adapter: createSingleViewSessionBridge({ state, getDocumentId: () => "doc:1" }) };
 }
 
 test("legacy adapter routes hidden search selection through selection.reveal", () => {

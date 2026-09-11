@@ -3,7 +3,7 @@ import { createCommandBus } from "../application/command_bus.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createObjectRef } from "../contracts/object_ref.js";
 
-export function createLegacyCompareSessionAdapter({ state, getDocumentId }) {
+export function createCompareViewSessionBridge({ state, getDocumentId }) {
   const sessions = createViewSessionStore();
   const bus = createCommandBus(createViewCommandHandlers({ sessions }));
   const sessionIdFor = (side) => `compare:${side}`;

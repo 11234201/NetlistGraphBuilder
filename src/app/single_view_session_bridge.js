@@ -3,7 +3,7 @@ import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createObjectRef, objectRefKey } from "../contracts/object_ref.js";
 
-export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocusedRoots = 8 }) {
+export function createSingleViewSessionBridge({ state, getDocumentId, maxFocusedRoots = 8 }) {
   const sessions = createViewSessionStore();
   const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }));
 

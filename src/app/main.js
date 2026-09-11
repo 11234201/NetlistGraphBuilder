@@ -93,8 +93,8 @@ import {
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
 import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
 import { importDesignSource } from "./designInput.js";
-import { createLegacyViewCommandAdapter } from "./legacy_view_command_adapter.js";
-import { createLegacyCompareSessionAdapter } from "./legacy_compare_session_adapter.js";
+import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
+import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
 import {
   applyLayoutGoldenState,
   resolveLayoutGoldenModule
@@ -120,11 +120,11 @@ const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const browserDownload = createBrowserDownload();
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
-const legacyViewCommands = createLegacyViewCommandAdapter({
+const legacyViewCommands = createSingleViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null
 });
-const legacyCompareSessions = createLegacyCompareSessionAdapter({
+const legacyCompareSessions = createCompareViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null
 });
