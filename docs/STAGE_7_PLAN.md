@@ -250,4 +250,6 @@ Single 的 node/net/clear 选择入口已切换到 `selection.set/clear`；互�
 
 Single 的平移、缩放、fit、module history 恢复、Focused 重置和对象居中已统一经 `viewport.set`；adapter 同步本身不推进 computation revision，运行期不再直接写 `state.transform`，仅保留 document/module 尚未建立时的初始化 fallback。完整回归为 352/352。
 
+Single layout policy 的 spacing 更新、Golden 导入和 session 恢复已统一经 `layout.policy.set`；spacing 使用不可变副本并在命令边界整体规范化，不再原地修改嵌套 policy。仅保留 document/module 尚未建立时的启动 fallback，完整回归为 353/353。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

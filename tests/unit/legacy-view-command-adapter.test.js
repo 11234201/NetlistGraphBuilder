@@ -11,7 +11,9 @@ function setup() {
     viewMode: "focused",
     focusedRootNodeIds: ["cell:u1"],
     activeFocusedRootNodeId: "cell:u1",
-    coneRootNodeId: "cell:u1"
+    coneRootNodeId: "cell:u1",
+    transform: { x: 0, y: 0, scale: 1 },
+    layoutPolicy: { name: "default", spacing: { cellSpacing: 40 } }
   };
   return { state, adapter: createLegacyViewCommandAdapter({ state, getDocumentId: () => "doc:1" }) };
 }
@@ -76,4 +78,13 @@ test("legacy adapter projects viewport without invalidating computation", () => 
   const result = adapter.dispatch({ type: "viewport.set", viewport: { x: 12, y: 8, scale: 1.25 } });
   assert.deepEqual(state.transform, { x: 12, y: 8, scale: 1.25 });
   assert.equal(result.session.computationRevision, before);
+});
+
+test("legacy adapter projects layout policy and invalidates computation", () => {
+  const { state, adapter } = setup();
+  adapter.dispatch({ type: "selection.clear" });
+  const before = adapter.sessions.require("legacy:single").computationRevision;
+  const result = adapter.dispatch({ type: "layout.policy.set", layoutPolicy: { name: "custom", spacing: { cellSpacing: 80 } } });
+  assert.equal(state.layoutPolicy.name, "custom");
+  assert.equal(result.session.computationRevision, before + 1);
 });

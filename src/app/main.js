@@ -1643,7 +1643,10 @@ function rerenderActiveGraph() {
 }
 
 function commitLayoutSpacing(key, value) {
-  state.layoutPolicy.spacing[key] = value;
+  setSingleLayoutPolicy(normalizeLayoutPolicy({
+    ...state.layoutPolicy,
+    spacing: { ...state.layoutPolicy.spacing, [key]: value }
+  }));
   syncLayoutSpacingControls();
   persistSession();
   if (!state.currentModule) return;
@@ -2647,6 +2650,7 @@ function loadLayoutGolden(imported, label) {
   if (state.compare.active) exitCompareView();
   if (state.currentModule?.name !== module.name) selectModule(module.name);
   applyLayoutGoldenState(state, imported);
+  setSingleLayoutPolicy(state.layoutPolicy);
 
   elements.coneDepthInput.value = String(state.coneDepth);
   syncLayoutSpacingControls();
@@ -2755,6 +2759,16 @@ function setSingleTransform(transform) {
     type: "viewport.set",
     viewport: transform
   }).session.viewport;
+}
+
+function setSingleLayoutPolicy(layoutPolicy) {
+  const normalized = normalizeLayoutPolicy(layoutPolicy);
+  if (!state.document?.documentId || !state.currentModule?.name) {
+    state.layoutPolicy = normalized;
+    return state.layoutPolicy;
+  }
+  legacyViewCommands.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
+  return state.layoutPolicy;
 }
 
 function handleCompareWheel(event) {
@@ -2975,7 +2989,7 @@ function applySessionPreferences(session) {
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
     state.collapseLargeGroups = session.collapseLargeGroups === true;
-    if (session.layoutPolicy) state.layoutPolicy = normalizeLayoutPolicy(session.layoutPolicy);
+    if (session.layoutPolicy) setSingleLayoutPolicy(session.layoutPolicy);
     const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
       ? session.timingDisplayPolicy.snapshot : "auto";
     const metrics = session.timingDisplayPolicy?.metrics;

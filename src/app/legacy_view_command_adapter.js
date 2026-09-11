@@ -20,7 +20,8 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
       activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
-      viewport: state.transform
+      viewport: state.transform,
+      layoutPolicy: state.layoutPolicy
     };
     const current = sessions.get(value.sessionId);
     if (!current || current.documentId !== documentId || current.unitId !== unitId) {
@@ -46,6 +47,7 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
         ? result.session.selectedObjectRef.localId
         : null;
       state.transform = { ...result.session.viewport };
+      state.layoutPolicy = result.session.layoutPolicy;
       return result;
     },
     objectRefForNode(node) {
