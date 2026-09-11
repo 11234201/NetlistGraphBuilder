@@ -268,4 +268,8 @@ ViewSession 新增 `focus.replace/clear` 批量命令，统一去重、容量、
 
 Single ViewSession 已进一步以 `single:primary` 取代 legacy session identity，main 调用方统一使用 Single/Compare bridge 命名。`view.mode.set` 与 `view.depths.set` 现由公共 command handler 校验并推进 computation revision，Focused 无 root 会稳定拒绝，深度统一限制为 0～99；主视图按钮和深度输入已通过该边界提交。完整回归为 359/359。
 
+Focused 清除、root 列表删除/激活、启动聚焦、Shift 点击切换及连接对象导航等交互已统一进入 command bridge；重绘时不再靠直接清空 selection 镜像强制刷新。SVG 选择态由独立 `schematic_selection_controller` 管理，controller 只接收容器与 node/net 选择端口，不获得全局 state。完整回归为 361/361。
+
+当前 HEAD 浏览器复验：Module hierarchy 可折叠，点击第二个 module 后 module selector、Design 与画布同步；Focused 已有一个 root 时搜索另一未绘制 cell，roots 从 1 追加为 2 且原 root 保留；选择详情随新 cell 更新，浏览器控制台无 warning/error。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。
