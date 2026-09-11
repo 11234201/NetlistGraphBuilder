@@ -24,6 +24,7 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
+import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
 import { createBrowserDownload, sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { importTimingSource } from "../application/timing_import.js";
 import {
@@ -251,6 +252,28 @@ const moduleHierarchyController = createModuleHierarchyController({
   getDesign: () => state.design,
   getCurrentModuleName: () => state.currentModule?.name || null,
   navigate: selectModule
+});
+const schematicSelectionController = createSchematicSelectionController({
+  container: elements.mount,
+  onNodeSelection(nodeId) {
+    const node = state.graph?.nodes.find((item) => item.id === nodeId)
+      || state.fullGraph?.nodes.find((item) => item.id === nodeId)
+      || null;
+    singleViewSession.dispatch(node ? {
+      type: "selection.set",
+      objectRef: singleViewSession.objectRefForNode(node)
+    } : { type: "selection.clear" });
+    renderSelection(node);
+    updateViewControls();
+  },
+  onNetSelection(netName) {
+    singleViewSession.dispatch(netName ? {
+      type: "selection.set",
+      objectRef: singleViewSession.objectRefForNet(netName)
+    } : { type: "selection.clear" });
+    renderNetSelection(netName);
+    updateViewControls();
+  }
 });
 const layoutSpacingController = createLayoutSpacingController({
   elements,
@@ -1815,42 +1838,16 @@ function updateCellDefinitionControls(node = null) {
 
 function setSelectedNode(nodeId) {
   state.selectionFocusRequestId += 1;
-  const node = state.graph?.nodes.find((item) => item.id === nodeId)
-    || state.fullGraph?.nodes.find((item) => item.id === nodeId)
-    || null;
-  singleViewSession.dispatch(node ? {
-    type: "selection.set",
-    objectRef: singleViewSession.objectRefForNode(node)
-  } : { type: "selection.clear" });
-  clearSchematicSelection();
-  if (state.selectedNodeId) {
-    const nodeElement = elements.mount.querySelector(`[data-node-id="${cssEscape(state.selectedNodeId)}"]`);
-    nodeElement?.classList.add("is-selected");
-  }
-  renderSelection(node);
-  updateViewControls();
+  schematicSelectionController.selectNode(nodeId);
 }
 
 function setSelectedNet(netName) {
   state.selectionFocusRequestId += 1;
-  singleViewSession.dispatch(netName ? {
-    type: "selection.set",
-    objectRef: singleViewSession.objectRefForNet(netName)
-  } : { type: "selection.clear" });
-  clearSchematicSelection();
-  for (const edgeElement of elements.mount.querySelectorAll(".edge")) {
-    if (edgeElement.dataset.net === netName) {
-      edgeElement.classList.add("is-selected");
-    }
-  }
-  renderNetSelection(netName);
-  updateViewControls();
+  schematicSelectionController.selectNet(netName);
 }
 
 function clearSchematicSelection() {
-  for (const element of elements.mount.querySelectorAll(".node.is-selected, .edge.is-selected")) {
-    element.classList.remove("is-selected");
-  }
+  schematicSelectionController.clearDomSelection();
 }
 
 function handleSelectionNavigationClick(event) {
