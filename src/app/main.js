@@ -16,6 +16,7 @@ import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
+import { createQuickInputController, isEditableInputTarget } from "../ui/quick_input_controller.js";
 import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
 import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
@@ -98,10 +99,6 @@ import {
   applyLayoutGoldenState,
   resolveLayoutGoldenModule
 } from "./layoutGoldenImport.js";
-import {
-  detectQuickInputKind,
-  getQuickInputPriority
-} from "./quickInput.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { resolveCellConfigRefreshView, shouldUseSearchFirst } from "./graphWorkspace.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
@@ -135,9 +132,7 @@ state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
-let fileDragDepth = 0;
 let focusedDepthChangeTimer = null;
-let textInputKind = "netlist";
 let activeCellDefinition = null;
 
 const elements = {
@@ -277,15 +272,27 @@ const wheelGestureController = createWheelGestureController({
 });
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
-elements.fileInput.addEventListener("change", handleFileChange);
-elements.pasteNetlistButton.addEventListener("click", () => openTextInputDialog("netlist"));
-elements.pasteTimingButton.addEventListener("click", () => openTextInputDialog("timing"));
-elements.netlistTextForm.addEventListener("submit", handleNetlistTextSubmit);
-elements.netlistTextInput.addEventListener("keydown", handleNetlistTextKeydown);
-elements.closeNetlistTextButton.addEventListener("click", closeNetlistTextDialog);
-elements.cancelNetlistTextButton.addEventListener("click", closeNetlistTextDialog);
-elements.timingInput.addEventListener("change", handleTimingFileChange);
-elements.goldenInput.addEventListener("change", handleGoldenFileChange);
+createQuickInputController({
+  elements: {
+    netlistInput: elements.fileInput,
+    timingInput: elements.timingInput,
+    goldenInput: elements.goldenInput,
+    pasteNetlistButton: elements.pasteNetlistButton,
+    pasteTimingButton: elements.pasteTimingButton,
+    textDialog: elements.netlistTextDialog,
+    textForm: elements.netlistTextForm,
+    textInput: elements.netlistTextInput,
+    textTitle: elements.netlistTextTitle,
+    textDescription: elements.netlistTextDescription,
+    closeTextButton: elements.closeNetlistTextButton,
+    cancelTextButton: elements.cancelNetlistTextButton,
+    dropOverlay: elements.dropOverlay,
+    body: document.body
+  },
+  windowTarget: window,
+  loadText: loadQuickInputText,
+  setStatus
+});
 elements.moduleSelect.addEventListener("change", () => {
   selectModule(elements.moduleSelect.value);
 });
@@ -380,12 +387,6 @@ elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeyd
 elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
 elements.canvas.addEventListener("dblclick", handleCanvasDoubleClick);
-window.addEventListener("dragenter", handleWindowDragEnter);
-window.addEventListener("dragover", handleWindowDragOver);
-window.addEventListener("dragleave", handleWindowDragLeave);
-window.addEventListener("drop", handleWindowDrop);
-window.addEventListener("dragend", clearFileDragState);
-window.addEventListener("paste", handleGlobalPaste);
 window.addEventListener("keydown", handleModuleHistoryShortcut);
 window.addEventListener("keydown", handleFocusSelectedShortcut);
 window.addEventListener("beforeunload", () => {
@@ -497,79 +498,8 @@ function setSidebarWidth(width) {
   elements.sidebarResizeHandle.setAttribute("aria-valuenow", String(nextWidth));
 }
 
-async function handleFileChange(event) {
-  await handleInputFileChange(event, "netlist");
-}
-
-function openTextInputDialog(kind) {
-  textInputKind = kind === "timing" ? "timing" : "netlist";
-  const timingMode = textInputKind === "timing";
-  elements.netlistTextTitle.textContent = timingMode ? "Paste timing" : "Paste Verilog";
-  elements.netlistTextDescription.textContent = timingMode
-    ? "粘贴 Global/Local 表格或 LocResyn timing，解析成功后应用到当前设计。"
-    : "粘贴 structural Verilog，解析成功后立即画图。";
-  if (!elements.netlistTextDialog.open) elements.netlistTextDialog.showModal();
-  requestAnimationFrame(() => elements.netlistTextInput.focus());
-}
-
-function closeNetlistTextDialog() {
-  if (elements.netlistTextDialog.open) elements.netlistTextDialog.close();
-}
-
-function handleNetlistTextKeydown(event) {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-    event.preventDefault();
-    elements.netlistTextForm.requestSubmit();
-  }
-}
-
-function handleNetlistTextSubmit(event) {
-  event.preventDefault();
-  const source = elements.netlistTextInput.value.trim();
-  if (!source) {
-    setStatus(`Paste failed: ${textInputKind} text is empty`);
-    elements.netlistTextInput.focus();
-    return;
-  }
-  try {
-    loadQuickInputText(source, {
-      kind: textInputKind,
-      label: textInputKind === "timing" ? "pasted timing" : "pasted Verilog"
-    });
-    closeNetlistTextDialog();
-  } catch {
-    elements.netlistTextInput.focus();
-  }
-}
-
-async function handleGoldenFileChange(event) {
-  await handleInputFileChange(event, "golden");
-}
-
-async function handleTimingFileChange(event) {
-  await handleInputFileChange(event, "timing");
-}
-
-async function handleInputFileChange(event, preferredKind) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  try {
-    await loadQuickInputFile(file, preferredKind);
-  } catch (error) {
-    setStatus(`Load failed ${file.name}: ${error.message}`);
-  } finally {
-    event.target.value = "";
-  }
-}
-
-async function loadQuickInputFile(file, preferredKind = null) {
-  const text = await file.text();
-  const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
-  loadQuickInputText(text, { kind, label: file.name });
-}
-
 function loadQuickInputText(text, options = {}) {
-  const kind = options.kind || detectQuickInputKind(text, { name: options.name });
+  const kind = options.kind;
   const label = options.label || options.name || "quick input";
   if (kind === "netlist") {
     loadDesign(text, label);
@@ -611,98 +541,6 @@ function loadTimingText(text, label) {
     renderStats();
   }
   setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
-}
-
-function handleWindowDragEnter(event) {
-  if (!carriesFiles(event)) return;
-  event.preventDefault();
-  fileDragDepth += 1;
-  showFileDropOverlay();
-}
-
-function handleWindowDragOver(event) {
-  if (!carriesFiles(event)) return;
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-  showFileDropOverlay();
-}
-
-function handleWindowDragLeave(event) {
-  if (fileDragDepth === 0) return;
-  fileDragDepth = Math.max(0, fileDragDepth - 1);
-  if (fileDragDepth === 0) clearFileDragState();
-}
-
-function handleWindowDrop(event) {
-  if (!carriesFiles(event)) return;
-  event.preventDefault();
-  const files = Array.from(event.dataTransfer?.files || []);
-  clearFileDragState();
-  if (files.length === 0) return;
-  loadDroppedFiles(files).catch((error) => setStatus(`Drop failed: ${error.message}`));
-}
-
-async function loadDroppedFiles(files) {
-  const entries = await Promise.all(files.map(async (file, order) => {
-    const text = await file.text();
-    const kind = detectQuickInputKind(text, { name: file.name });
-    return { file, text, kind, order };
-  }));
-  entries.sort((left, right) =>
-    getQuickInputPriority(left.kind) - getQuickInputPriority(right.kind) || left.order - right.order);
-  for (const entry of entries) {
-    loadQuickInputText(entry.text, { kind: entry.kind, label: entry.file.name });
-  }
-}
-
-function handleGlobalPaste(event) {
-  if (elements.netlistTextDialog.open || isEditablePasteTarget(event.target)) return;
-  const files = Array.from(event.clipboardData?.files || []);
-  if (files.length > 0) {
-    event.preventDefault();
-    loadDroppedFiles(files).catch((error) => setStatus(`Paste failed: ${error.message}`));
-    return;
-  }
-
-  const text = event.clipboardData?.getData("text/plain") || "";
-  if (!text.trim()) return;
-  let kind;
-  try {
-    kind = detectQuickInputKind(text);
-  } catch {
-    return;
-  }
-  event.preventDefault();
-  const label = kind === "netlist"
-    ? "pasted Verilog"
-    : kind === "golden" ? "pasted Golden" : "pasted timing";
-  try {
-    loadQuickInputText(text, { kind, label });
-  } catch (error) {
-    setStatus(`Paste failed: ${error.message}`);
-  }
-}
-
-function showFileDropOverlay() {
-  document.body.classList.add("is-dragging-files");
-  elements.dropOverlay.setAttribute("aria-hidden", "false");
-}
-
-function clearFileDragState() {
-  fileDragDepth = 0;
-  document.body.classList.remove("is-dragging-files");
-  elements.dropOverlay.setAttribute("aria-hidden", "true");
-}
-
-function carriesFiles(event) {
-  return Array.from(event.dataTransfer?.types || []).includes("Files") ||
-    (event.dataTransfer?.files?.length || 0) > 0;
-}
-
-function isEditablePasteTarget(target) {
-  return target instanceof Element && Boolean(
-    target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")
-  );
 }
 
 function loadDesign(source, label, restore = null) {
@@ -1047,7 +885,7 @@ function restoreModuleHistorySelection(entry, graph) {
 }
 
 function handleModuleHistoryShortcut(event) {
-  if (!event.altKey || event.ctrlKey || event.metaKey || isEditablePasteTarget(event.target)) return;
+  if (!event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   event.preventDefault();
   navigateModuleHistory(event.key === "ArrowLeft" ? -1 : 1);
@@ -1669,7 +1507,7 @@ function updateFocusSelectedControl() {
 }
 
 function handleFocusSelectedShortcut(event) {
-  if (event.key.toLowerCase() !== "f" || event.altKey || event.ctrlKey || event.metaKey || isEditablePasteTarget(event.target)) return;
+  if (event.key.toLowerCase() !== "f" || event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
   if (elements.focusSelectedButton.disabled) return;
   event.preventDefault();
   focusSelectedCell();
