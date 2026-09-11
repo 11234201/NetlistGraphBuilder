@@ -13,7 +13,9 @@ function setup() {
     activeFocusedRootNodeId: "cell:u1",
     coneRootNodeId: "cell:u1",
     transform: { x: 0, y: 0, scale: 1 },
-    layoutPolicy: { name: "default", spacing: { cellSpacing: 40 } }
+    layoutPolicy: { name: "default", spacing: { cellSpacing: 40 } },
+    nodePositions: new Map(), nodeSizes: new Map(),
+    graphOverrides: { nodeProperties: {}, cellPinDirections: {} }
   };
   return { state, adapter: createLegacyViewCommandAdapter({ state, getDocumentId: () => "doc:1" }) };
 }
@@ -87,4 +89,15 @@ test("legacy adapter projects layout policy and invalidates computation", () => 
   const result = adapter.dispatch({ type: "layout.policy.set", layoutPolicy: { name: "custom", spacing: { cellSpacing: 80 } } });
   assert.equal(state.layoutPolicy.name, "custom");
   assert.equal(result.session.computationRevision, before + 1);
+});
+
+test("legacy adapter owns immutable-style override replacement", () => {
+  const { state, adapter } = setup();
+  adapter.dispatch({ type: "overrides.set", overrides: {
+    nodePositions: new Map([["cell:u1", { x: 24, y: 32 }]]),
+    nodeSizes: new Map(),
+    graphOverrides: { nodeProperties: { "cell:u1": { label: "A" } }, cellPinDirections: {} }
+  } });
+  assert.deepEqual(state.nodePositions.get("cell:u1"), { x: 24, y: 32 });
+  assert.equal(state.graphOverrides.nodeProperties["cell:u1"].label, "A");
 });

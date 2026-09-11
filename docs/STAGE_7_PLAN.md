@@ -252,4 +252,6 @@ Single 的平移、缩放、fit、module history 恢复、Focused 重置和对�
 
 Single layout policy 的 spacing 更新、Golden 导入和 session 恢复已统一经 `layout.policy.set`；spacing 使用不可变副本并在命令边界整体规范化，不再原地修改嵌套 policy。仅保留 document/module 尚未建立时的启动 fallback，完整回归为 353/353。
 
+Single manual override 已建立完整 snapshot 的 `overrides.set` 投影；节点拖动帧内只维护局部预览位置，手势结束后一次提交，reset 与 Golden 接管也经过相同命令。adapter 深拷贝 map 和 graph override，避免 session/兼容字段共享可变嵌套对象。完整回归为 354/354。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

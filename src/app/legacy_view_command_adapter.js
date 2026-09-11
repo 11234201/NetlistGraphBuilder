@@ -21,7 +21,8 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
       viewport: state.transform,
-      layoutPolicy: state.layoutPolicy
+      layoutPolicy: state.layoutPolicy,
+      overrides: snapshotOverrides(state)
     };
     const current = sessions.get(value.sessionId);
     if (!current || current.documentId !== documentId || current.unitId !== unitId) {
@@ -48,6 +49,7 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
         : null;
       state.transform = { ...result.session.viewport };
       state.layoutPolicy = result.session.layoutPolicy;
+      applyOverridesSnapshot(state, result.session.overrides);
       return result;
     },
     objectRefForNode(node) {
@@ -62,6 +64,28 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       return (state.graph?.nodes || []).map((node) => objectRefKey(nodeToRef(node, documentId, unitId)));
     }
   });
+}
+
+function snapshotOverrides(state) {
+  return {
+    nodePositions: new Map(state.nodePositions || []),
+    nodeSizes: new Map(state.nodeSizes || []),
+    graphOverrides: cloneGraphOverrides(state.graphOverrides)
+  };
+}
+
+function applyOverridesSnapshot(state, snapshot) {
+  if (!snapshot) return;
+  state.nodePositions = new Map(snapshot.nodePositions || []);
+  state.nodeSizes = new Map(snapshot.nodeSizes || []);
+  state.graphOverrides = cloneGraphOverrides(snapshot.graphOverrides);
+}
+
+function cloneGraphOverrides(value) {
+  return {
+    nodeProperties: Object.fromEntries(Object.entries(value?.nodeProperties || {}).map(([id, properties]) => [id, { ...properties }])),
+    cellPinDirections: Object.fromEntries(Object.entries(value?.cellPinDirections || {}).map(([id, pins]) => [id, { ...pins }]))
+  };
 }
 
 function selectedToRef(state, documentId, unitId) {

@@ -2542,14 +2542,15 @@ function startNodeDrag(event, nodeId) {
   }
 
   setSelectedNode(nodeId);
+  let draggedPosition = state.nodePositions.get(nodeId);
   startCanvasNodeDrag({
     event,
     target: elements.canvas,
     mount: elements.mount,
     graph: state.graph,
     node,
-    getPreviousPosition: () => state.nodePositions.get(nodeId),
-    updatePosition: (position) => state.nodePositions.set(nodeId, position),
+    getPreviousPosition: () => draggedPosition,
+    updatePosition: (position) => { draggedPosition = position; },
     onPreview({ position, snap }) {
       if (snap) {
         setStatus(`${node.label}: snapped ${snap.net} to y=${snap.targetY}`);
@@ -2558,6 +2559,7 @@ function startNodeDrag(event, nodeId) {
       }
     },
     onCommit({ preview }) {
+      updateSingleOverrides((overrides) => overrides.nodePositions.set(nodeId, draggedPosition));
       setStatus(`Rerouting ${node.label}…`);
       runAfterNextPaint(() => commitNodeDrag(nodeId, preview));
     }
@@ -2635,9 +2637,11 @@ function resetLayoutOverrides() {
   }
 
   const selectedNode = state.selectedNodeId;
-  state.nodePositions = new Map();
-  state.nodeSizes = new Map();
-  state.graphOverrides = createEmptyGraphOverrides();
+  setSingleOverrides({
+    nodePositions: new Map(),
+    nodeSizes: new Map(),
+    graphOverrides: createEmptyGraphOverrides()
+  });
   renderCurrentModuleGraph();
   setSelectedNode(selectedNode);
   applyTransform();
@@ -2650,6 +2654,11 @@ function loadLayoutGolden(imported, label) {
   if (state.compare.active) exitCompareView();
   if (state.currentModule?.name !== module.name) selectModule(module.name);
   applyLayoutGoldenState(state, imported);
+  setSingleOverrides({
+    nodePositions: state.nodePositions,
+    nodeSizes: state.nodeSizes,
+    graphOverrides: state.graphOverrides
+  });
   setSingleLayoutPolicy(state.layoutPolicy);
 
   elements.coneDepthInput.value = String(state.coneDepth);
@@ -2769,6 +2778,29 @@ function setSingleLayoutPolicy(layoutPolicy) {
   }
   legacyViewCommands.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
   return state.layoutPolicy;
+}
+
+function setSingleOverrides(overrides) {
+  if (!state.document?.documentId || !state.currentModule?.name) {
+    state.nodePositions = new Map(overrides?.nodePositions || []);
+    state.nodeSizes = new Map(overrides?.nodeSizes || []);
+    state.graphOverrides = overrides?.graphOverrides || createEmptyGraphOverrides();
+    return;
+  }
+  legacyViewCommands.dispatch({ type: "overrides.set", overrides });
+}
+
+function updateSingleOverrides(update) {
+  const overrides = {
+    nodePositions: new Map(state.nodePositions),
+    nodeSizes: new Map(state.nodeSizes),
+    graphOverrides: {
+      nodeProperties: Object.fromEntries(Object.entries(state.graphOverrides.nodeProperties).map(([id, value]) => [id, { ...value }])),
+      cellPinDirections: Object.fromEntries(Object.entries(state.graphOverrides.cellPinDirections).map(([id, value]) => [id, { ...value }]))
+    }
+  };
+  update(overrides);
+  setSingleOverrides(overrides);
 }
 
 function handleCompareWheel(event) {
