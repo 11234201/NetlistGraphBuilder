@@ -63,11 +63,13 @@ export function createLegacyCompareSessionAdapter({ state, getDocumentId }) {
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
     const refs = nodeIds.map((nodeId) => nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), current));
     const activeIndex = nodeIds.indexOf(activeNodeId);
-    const session = sessions.update(current.sessionId, () => ({
-      viewMode: refs.length > 0 ? "focused" : "whole",
-      focusedRootRefs: refs,
-      activeFocusedRootRef: refs[activeIndex >= 0 ? activeIndex : 0] || null
-    }));
+    const result = bus.dispatch({
+      type: "focus.replace",
+      sessionId: current.sessionId,
+      objectRefs: refs,
+      activeObjectRef: refs[activeIndex >= 0 ? activeIndex : 0] || null
+    });
+    const session = result.session;
     return {
       rootNodeIds: refs.map((ref) => ref.localId),
       activeRootNodeId: session.activeFocusedRootRef?.localId || null,

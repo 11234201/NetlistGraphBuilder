@@ -43,6 +43,28 @@ export function createViewCommandHandlers({ sessions, maxFocusedRoots = 8 }) {
     "focus.set": focus("set"),
     "focus.remove": focus("remove"),
     "focus.activate": focus("activate"),
+    "focus.replace": (command) => withSession(command, (session) => {
+      const roots = (command.objectRefs || []).map((ref) => requireSessionRef(session, ref));
+      const unique = roots.filter((ref, index) => roots.findIndex((item) => objectRefKey(item) === objectRefKey(ref)) === index);
+      if (unique.length > maxFocusedRoots) return { rejected: "focused-root-capacity", effects: NO_EFFECTS };
+      const requestedActive = command.activeObjectRef
+        ? requireSessionRef(session, command.activeObjectRef)
+        : null;
+      const activeKey = objectRefKeyOrNull(requestedActive);
+      const active = unique.find((ref) => objectRefKey(ref) === activeKey) || unique[0] || null;
+      return {
+        patch: {
+          focusedRootRefs: unique,
+          activeFocusedRootRef: active,
+          viewMode: unique.length > 0 ? "focused" : "whole"
+        },
+        effects: computeEffects({ query: true, layout: true, render: true, persist: true })
+      };
+    }),
+    "focus.clear": (command) => withSession(command, () => ({
+      patch: { focusedRootRefs: [], activeFocusedRootRef: null, viewMode: "whole" },
+      effects: computeEffects({ query: true, layout: true, render: true, persist: true })
+    })),
     "selection.set": (command) => withSession(command, (session) => ({
       patch: { selectedObjectRef: requireSessionRef(session, command.objectRef) },
       effects: computeEffects({ render: true })

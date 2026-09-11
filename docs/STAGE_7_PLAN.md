@@ -262,4 +262,6 @@ Compare selection 已接入左右 ViewSession 的 `selection.set/clear`；匹配
 
 Compare manual overrides 已接入左右 ViewSession 的 `overrides.set`；节点尺寸、属性、pin direction、拖动最终位置和双侧 reset 均提交 side-local 深拷贝 snapshot，拖动帧内仅更新局部预览。完整回归为 357/357。
 
+ViewSession 新增 `focus.replace/clear` 批量命令，统一去重、容量、active root 和 viewMode 决策；Compare 的 roots 恢复/清空不再绕过 command handler 直接调用 store.update。完整回归为 358/358。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

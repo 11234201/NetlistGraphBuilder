@@ -86,3 +86,16 @@ test("selection, viewport, layout policy and overrides have explicit command own
   assert.equal(bus.dispatch({ type: "selection.clear", sessionId: "left" }).session.selectedObjectRef, null);
   assert.throws(() => bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 0, y: 0, scale: 0 } }), /finite positive viewport/);
 });
+
+test("focused root replacement and clear are owned by commands", () => {
+  const { sessions, bus } = setup();
+  const replaced = bus.dispatch({
+    type: "focus.replace", sessionId: "left",
+    objectRefs: [ref("u2"), ref("u1"), ref("u2")], activeObjectRef: ref("u1")
+  });
+  assert.deepEqual(replaced.session.focusedRootRefs.map((item) => item.localId), ["u2", "u1"]);
+  assert.equal(replaced.session.activeFocusedRootRef.localId, "u1");
+  const cleared = bus.dispatch({ type: "focus.clear", sessionId: "left" });
+  assert.equal(cleared.session.viewMode, "whole");
+  assert.deepEqual(sessions.require("left").focusedRootRefs, []);
+});
