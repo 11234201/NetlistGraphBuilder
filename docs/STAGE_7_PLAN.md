@@ -258,4 +258,6 @@ Single 的节点尺寸、展示属性和 Cell pin direction 修改/重置也已�
 
 Compare 左右 viewport 已接入各自普通 ViewSession 的 `viewport.set`；同步缩放/平移通过向两个 session 分别提交同一 transform 实现，单侧操作保持隔离，main 不再直接写 Compare transform。完整回归为 355/355。
 
+Compare selection 已接入左右 ViewSession 的 `selection.set/clear`；匹配对象分别写入两侧 session，未匹配对象不清空另一侧已有选择，兼容字段仅投影当前操作侧供旧 DOM 使用。完整回归为 356/356。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

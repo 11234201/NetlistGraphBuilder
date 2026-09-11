@@ -62,3 +62,23 @@ test("compare viewport commands stay isolated and preserve computation revision"
   assert.deepEqual(state.compare.transforms.right, { x: 0, y: 0, scale: 1 });
   assert.equal(result.session.computationRevision, before);
 });
+
+test("compare selection commands project the active side without clearing its peer session", () => {
+  const state = {
+    layoutPolicy: {},
+    compare: {
+      leftModuleName: "before", rightModuleName: "after",
+      transforms: { left: { x: 0, y: 0, scale: 1 }, right: { x: 0, y: 0, scale: 1 } },
+      nodePositions: { left: new Map(), right: new Map() }, nodeSizes: { left: new Map(), right: new Map() },
+      graphOverrides: { left: { nodeProperties: {}, cellPinDirections: {} }, right: { nodeProperties: {}, cellPinDirections: {} } },
+      fullGraphs: { left: { nodes: [] }, right: { nodes: [] } },
+      selectedKind: null, selectedName: null, selectedSide: null
+    }
+  };
+  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  adapter.dispatch("right", { type: "selection.set", objectRef: adapter.objectRef("right", "cell", "u2") });
+  adapter.dispatch("left", { type: "selection.set", objectRef: adapter.objectRef("left", "cell", "u1") });
+  assert.equal(state.compare.selectedSide, "left");
+  assert.equal(state.compare.selectedName, "u1");
+  assert.equal(adapter.sessions.require("compare:right").selectedObjectRef.localId, "u2");
+});

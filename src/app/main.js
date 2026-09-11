@@ -658,8 +658,7 @@ function applyCompareSelection() {
   state.compare.leftModuleName = left.name;
   state.compare.rightModuleName = right.name;
   state.compare.outputName = null;
-  state.compare.selectedName = null;
-  state.compare.selectedSide = null;
+  clearCompareSelection();
   updateFocusSelectedControl();
   setCompareTransform("left", { x: 0, y: 0, scale: 1 }, false);
   setCompareTransform("right", { x: 0, y: 0, scale: 1 }, false);
@@ -1465,7 +1464,6 @@ function handleCompareFocusedRootListClick(event) {
   const nodeId = chip?.dataset.focusedRootActivate;
   if (!context.roots.includes(nodeId)) return;
   state.compare.activeFocusedRootNodeId[context.side] = nodeId;
-  state.compare.selectedSide = context.side;
   const node = context.graph?.nodes.find((item) => item.id === nodeId);
   if (node) {
     const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
@@ -2133,9 +2131,18 @@ function applyCompareHighlights() {
 }
 
 function selectCompareObject(kind, name, focus = true, selectedSide = state.compare.selectedSide) {
-  state.compare.selectedKind = kind;
-  state.compare.selectedName = name;
-  state.compare.selectedSide = selectedSide;
+  if (!selectedSide) return;
+  const peerSide = selectedSide === "left" ? "right" : "left";
+  if (compareObjectExists(peerSide, kind, name)) {
+    legacyCompareSessions.dispatch(peerSide, {
+      type: "selection.set",
+      objectRef: legacyCompareSessions.objectRef(peerSide, kind, name)
+    });
+  }
+  legacyCompareSessions.dispatch(selectedSide, {
+    type: "selection.set",
+    objectRef: legacyCompareSessions.objectRef(selectedSide, kind, name)
+  });
   updateViewControls();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {
@@ -2157,6 +2164,17 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
   }
   elements.details.className = "details-block";
   elements.details.innerHTML = statsRows([["Compare object", name], ["Kind", kind], ["Present", "highlighted on both sides where available"]]);
+}
+
+function clearCompareSelection() {
+  for (const side of ["left", "right"]) {
+    legacyCompareSessions.dispatch(side, { type: "selection.clear" });
+  }
+}
+
+function compareObjectExists(side, kind, name) {
+  if (kind === "net") return Boolean(state.compare.graphs?.[side]?.edges?.some((edge) => edge.net === name));
+  return Boolean(findCompareNode(state.compare.graphs?.[side], kind, name));
 }
 
 function renderCompareSelection(side, node) {
