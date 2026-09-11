@@ -2208,38 +2208,42 @@ function bindCompareSelectionControls(side, node) {
   });
   bindAdjustPanel(elements.details, node, state.calibrationMode, {
     onSizeChange: (size) => {
-      state.compare.nodeSizes[side].set(node.id, {
+      updateCompareOverrides(side, (overrides) => overrides.nodeSizes.set(node.id, {
         width: clamp(Number(size.width), 24, 420),
         height: clamp(Number(size.height), 12, 260)
-      });
+      }));
       renderCompareGraphs();
     },
     onResetSize: () => {
-      state.compare.nodeSizes[side].delete(node.id);
+      updateCompareOverrides(side, (overrides) => overrides.nodeSizes.delete(node.id));
       renderCompareGraphs();
     },
     onPropertyChange: (property, value) => {
       if (!isEditableNodeProperty(property)) return;
-      const overrides = state.compare.graphOverrides[side].nodeProperties;
-      overrides[node.id] ||= {};
       const trimmed = String(value ?? "").trim();
-      if (trimmed) overrides[node.id][property] = trimmed;
-      else delete overrides[node.id][property];
-      if (Object.keys(overrides[node.id]).length === 0) delete overrides[node.id];
+      updateCompareOverrides(side, (snapshot) => {
+        const overrides = snapshot.graphOverrides.nodeProperties;
+        overrides[node.id] ||= {};
+        if (trimmed) overrides[node.id][property] = trimmed;
+        else delete overrides[node.id][property];
+        if (Object.keys(overrides[node.id]).length === 0) delete overrides[node.id];
+      });
       renderCompareGraphs();
     },
     onResetProperties: () => {
-      delete state.compare.graphOverrides[side].nodeProperties[node.id];
+      updateCompareOverrides(side, (overrides) => delete overrides.graphOverrides.nodeProperties[node.id]);
       renderCompareGraphs();
     },
     onPinDirectionChange: (pin, direction) => {
       if (!instance) return;
-      state.compare.graphOverrides[side].cellPinDirections[instance] ||= {};
-      state.compare.graphOverrides[side].cellPinDirections[instance][pin] = direction;
+      updateCompareOverrides(side, (overrides) => {
+        const pins = overrides.graphOverrides.cellPinDirections[instance] ||= {};
+        pins[pin] = direction;
+      });
       renderCompareGraphs();
     },
     onResetPinDirections: () => {
-      if (instance) delete state.compare.graphOverrides[side].cellPinDirections[instance];
+      if (instance) updateCompareOverrides(side, (overrides) => delete overrides.graphOverrides.cellPinDirections[instance]);
       renderCompareGraphs();
     }
   });
@@ -2637,9 +2641,13 @@ function toggleCalibrationMode() {
 
 function resetLayoutOverrides() {
   if (state.compare.active) {
-    state.compare.nodePositions = { left: new Map(), right: new Map() };
-    state.compare.nodeSizes = { left: new Map(), right: new Map() };
-    state.compare.graphOverrides = { left: createEmptyGraphOverrides(), right: createEmptyGraphOverrides() };
+    for (const side of ["left", "right"]) {
+      setCompareOverrides(side, {
+        nodePositions: new Map(),
+        nodeSizes: new Map(),
+        graphOverrides: createEmptyGraphOverrides()
+      });
+    }
     renderCompareGraphs();
     updateCalibrationControls();
     setStatus("Compare Adjust overrides cleared");
@@ -2816,6 +2824,23 @@ function updateSingleOverrides(update) {
   setSingleOverrides(overrides);
 }
 
+function setCompareOverrides(side, overrides) {
+  legacyCompareSessions.dispatch(side, { type: "overrides.set", overrides });
+}
+
+function updateCompareOverrides(side, update) {
+  const overrides = {
+    nodePositions: new Map(state.compare.nodePositions[side]),
+    nodeSizes: new Map(state.compare.nodeSizes[side]),
+    graphOverrides: {
+      nodeProperties: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].nodeProperties).map(([id, value]) => [id, { ...value }])),
+      cellPinDirections: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].cellPinDirections).map(([id, value]) => [id, { ...value }]))
+    }
+  };
+  update(overrides);
+  setCompareOverrides(side, overrides);
+}
+
 function handleCompareWheel(event) {
   const sideElement = event.target.closest("[data-compare-side]");
   const side = sideElement?.dataset.compareSide;
@@ -2889,15 +2914,17 @@ function toggleCompareFocusedRoot(side, nodeId) {
 function startCompareNodeDrag(event, side, node) {
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
   selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side);
+  let draggedPosition = state.compare.nodePositions[side].get(node.id);
   startCanvasNodeDrag({
     event,
     target: elements.canvas,
     mount,
     graph: state.compare.graphs[side],
     node,
-    getPreviousPosition: () => state.compare.nodePositions[side].get(node.id),
-    updatePosition: (position) => state.compare.nodePositions[side].set(node.id, position),
+    getPreviousPosition: () => draggedPosition,
+    updatePosition: (position) => { draggedPosition = position; },
     onCommit({ preview }) {
+      updateCompareOverrides(side, (overrides) => overrides.nodePositions.set(node.id, draggedPosition));
       setStatus(`Rerouting ${side} ${node.label}…`);
       runAfterNextPaint(() => {
         preview.clear();

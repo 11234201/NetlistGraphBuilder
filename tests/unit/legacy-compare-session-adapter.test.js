@@ -82,3 +82,24 @@ test("compare selection commands project the active side without clearing its pe
   assert.equal(state.compare.selectedName, "u1");
   assert.equal(adapter.sessions.require("compare:right").selectedObjectRef.localId, "u2");
 });
+
+test("compare override commands replace only their owning side", () => {
+  const state = {
+    layoutPolicy: {},
+    compare: {
+      leftModuleName: "before", rightModuleName: "after",
+      transforms: { left: { x: 0, y: 0, scale: 1 }, right: { x: 0, y: 0, scale: 1 } },
+      nodePositions: { left: new Map(), right: new Map([["keep", { x: 1, y: 2 }]]) },
+      nodeSizes: { left: new Map(), right: new Map() },
+      graphOverrides: { left: { nodeProperties: {}, cellPinDirections: {} }, right: { nodeProperties: {}, cellPinDirections: {} } },
+      fullGraphs: { left: { nodes: [] }, right: { nodes: [] } }
+    }
+  };
+  const adapter = createLegacyCompareSessionAdapter({ state, getDocumentId: () => "doc:1" });
+  adapter.dispatch("left", { type: "overrides.set", overrides: {
+    nodePositions: new Map([["move", { x: 20, y: 24 }]]), nodeSizes: new Map(),
+    graphOverrides: { nodeProperties: {}, cellPinDirections: {} }
+  } });
+  assert.deepEqual(state.compare.nodePositions.left.get("move"), { x: 20, y: 24 });
+  assert.deepEqual(state.compare.nodePositions.right.get("keep"), { x: 1, y: 2 });
+});
