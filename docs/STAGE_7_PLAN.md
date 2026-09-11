@@ -1,6 +1,6 @@
 # 阶段 7：向多领域图形工作台迁移
 
-更新日期：2026-09-11。状态：S7-0/1/3/4/6/R 已完成；S7-2/5 收尾中，目标架构迁移尚未完成。
+更新日期：2026-09-11。状态：S7-0～S7-6 与 S7-R 已完成；S7-P 依据测量保持为后续条件项。
 
 架构依据：[面向 Netlist 与 AIG 的可扩展工作台架构](architecture_evolution.md)。本计划是该设计的执行拆分；现行代码边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -56,10 +56,10 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 | --- | --- | --- | --- |
 | S7-0 | 完成（已知慢例保留失败） | 小至中 / 低 | 可复现基线与失败矩阵 |
 | S7-1 | 完成 | 中 / 中 | 数据契约、领域接口、兼容 adapter、依赖检查 |
-| S7-2 | 进行中（store/command 核心已建立） | 中至大 / 高 | 分域状态、commands、job coordinator |
+| S7-2 | 完成 | 中至大 / 高 | 分域状态、commands、job coordinator |
 | S7-3 | 完成 | 中至大 / 高 | 同一 pipeline 支撑 Single/Compare |
 | S7-4 | 完成（已知 mapped 慢例保留失败） | 大 / 高 | measured graph、Scene、符号适配、renderer |
-| S7-5 | 进行中（控件、层次列表、codec、能力注册已迁移） | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
+| S7-5 | 完成 | 中至大 / 中 | 受限 UI 接口、存档与启动兼容、能力注册 |
 | S7-6 | 完成 | 中 / 中 | 内存 AIG 契约验收、兼容收尾与发布验证 |
 | S7-R | 完成（纯提取与可见转角策略） | 中至大 / 高 | 路由纯提取；策略调优独立提交 |
 | S7-P | 待测量决策 | 未估算 | 缓存/Worker 的独立设计与实测 |
@@ -186,7 +186,7 @@ S7-0 的应用行为基线是后续前置条件；大案例性能对照可独立
 
 S7-1 已完成：新增 Document/ObjectRef/ViewQuery/Diagnostic/Executor 与 Diagram/MeasuredGraph/Scene 最小契约；bootstrap 静态注册 Netlist feature；现有解析入口经过该 feature；搜索和图节点通过 projection map 回到稳定对象身份。Netlist 图投影已下沉到领域目录，`app/graphWorkspace.js` 仅保留兼容导出；公共 view policy 进入 foundation，Netlist domain 与通用 layout 不再反向依赖 app。边界测试不再保留 legacy 例外，完整回归为 326/326。
 
-S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus，以及 `focus.*`/`selection.reveal` 的首组真实 handler。当前 handler 已覆盖 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除旧作用域 roots，并返回 query/layout/render/viewport/persist effect。Single 的导入、搜索索引、Set/Add/Remove 与搜索 reveal 已经通过显式 legacy adapter 接入该 command 边界；该 adapter 在 S7-3 统一 pipeline 后移除。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
+S7-2 已建立 DocumentStore、独立 ViewSessionStore、ArtifactStore、显式 command bus。handler 覆盖 `unit.set`、`focus.*`、`selection.*`、`view.*`、viewport、layout policy 与 overrides，包含 session 隔离、上限拒绝不替换、已绘制对象仅定位、隐藏对象追加 Focused、跨 unit 清除 roots/selection/overrides，并返回 query/layout/render/viewport/persist effect。Single/Compare 仅由 view-session bridge 做 ObjectRef 和旧 DOM/存档字段投影，不保留第二套业务决策。JobCoordinator 已按 document/source/session/computation/job revision 隔离任务，同一 session/stage 的新任务淘汰旧成功、旧失败和旧进度，关闭 session/document 时取消任务并清理 artifact。viewport 只推进 UI session revision，不推进 computation revision，因此纯 pan/zoom 不会淘汰正在运行的 layout。
 
 真实浏览器验收记录：在内置双模块样例的 Whole 视图搜索已绘制 cell，仅发生选择与居中，Focused roots 保持 0；显式 Set 建立一个 root 后，搜索当前 Focused 图中未绘制的 cell，roots 从 1 追加为 2，原 root 保留；浏览器控制台无 warning/error。对应全量单元回归为 302/302。
 
@@ -272,4 +272,8 @@ Focused 清除、root 列表删除/激活、启动聚焦、Shift 点击切换及
 
 当前 HEAD 浏览器复验：Module hierarchy 可折叠，点击第二个 module 后 module selector、Design 与画布同步；Focused 已有一个 root 时搜索另一未绘制 cell，roots 从 1 追加为 2 且原 root 保留；选择详情随新 cell 更新，浏览器控制台无 warning/error。
 
-剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。
+`unit.set` 最终补齐 unit navigation 所有权：切换 module 在一个 command 中清除 unit-scoped roots、selection、overrides 与 viewport，同时保持另一 session 不变。当前 HEAD 浏览器复验从带 2 个 roots 的 Flex module 切换到另一 module 后 roots=0、selection 为空，控制台无 warning/error；完整回归为 363/363。
+
+最终门禁（当前 HEAD）：`npm test` 363/363；launcher e2e 首次受本机 `spawn EPERM` 影响，非沙箱原命令重跑后 Node/Python 均通过；benchmark 中位数 pipeline 为 102.8/570.6/1589.0ms（1024/4096/8192 cells），首批 progressive batch 均为 1.0ms；Windows 离线包构建成功，`NetlistGraphBuilder-v0.7.3-win-x64.zip` SHA-256 为 `1d027ce9843a4b485e89694c72cc012aa7dc41fa283bb63916092dd09d6a2b0f`。mapped 仍采用本阶段已记录的同模式 45/47 证据，只有 dp_020/sop_004 保持既有 45 秒 layout 超时；最终应用状态/UI 切片未改变 parser、graph、layout 或 renderer。
+
+阶段 7 完成：结构验收五项均有代码、契约测试或运行证据。main 保留 bootstrap、浏览器事件编排以及初始化/codec hydration 的兼容投影；正常用户交互的 view 状态决策已进入 commands/controllers。S7-P 的 Worker/缓存与生产 AIGER 支持继续作为有独立性能证据和产品范围的后续阶段，不属于本阶段未完成项。
