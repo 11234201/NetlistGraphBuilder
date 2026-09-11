@@ -8,7 +8,7 @@ import {
 import {
   getLayoutGoldenState,
   parseLayoutGolden
-} from "../../src/layout/layoutGolden.js";
+} from "../../src/domains/netlist/layout_golden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 
 test("layout Golden import restores bounded layout and display state", () => {
@@ -38,6 +38,8 @@ test("layout Golden import restores bounded layout and display state", () => {
           focusedRootNodeIds: ["cell:u1", "cell:u0"],
           activeFocusedRootNodeId: "cell:u1",
         coneDepth: 5,
+        faninDepth: 0,
+        fanoutDepth: 7,
         useFanoutHubs: false,
         collapseLargeGroups: true,
         expandedGroupIds: ["group:cells-0-49"]
@@ -59,6 +61,8 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.deepEqual(imported.display.focusedRootNodeIds, ["cell:u0", "cell:u1"]);
   assert.equal(imported.display.activeFocusedRootNodeId, "cell:u1");
   assert.equal(imported.display.coneDepth, 5);
+  assert.equal(imported.display.faninDepth, 0);
+  assert.equal(imported.display.fanoutDepth, 7);
   assert.equal(imported.display.useFanoutHubs, false);
   assert.equal(imported.display.expandedGroupIds.has("group:cells-0-49"), true);
 
@@ -71,6 +75,8 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.equal(state.viewMode, "focused");
   assert.equal(state.coneRootNodeId, "cell:u0");
   assert.equal(state.activeFocusedRootNodeId, "cell:u1");
+  assert.equal(state.faninDepth, 0);
+  assert.equal(state.fanoutDepth, 7);
   assert.equal(state.useFanoutHubs, false);
   assert.equal(state.expandedGroupIds.has("group:cells-0-49"), true);
   assert.equal(resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, imported).name, "top");
@@ -129,4 +135,66 @@ test("Golden v1/v2 remain compatible while v3 rejects a different source", () =>
     documentId: "netlist:new",
     sourceIdentity: { name: "new.v", size: 100 }
   }), /another document/);
+});
+
+test("Golden v3 restores current Focused modes and fingerprints source content", () => {
+  const focused = getLayoutGoldenState({
+    kind: "netlist-layout-golden",
+    version: 3,
+    domainId: "netlist",
+    documentId: "document:primary",
+    unitId: "top",
+    sourceIdentity: { name: "same.v", size: 4, fingerprint: "fnv1a32:aaaa0000" },
+    moduleName: "top",
+    nodes: [{ id: "cell:u0", x: 1, y: 2 }],
+    layoutOptions: { display: {
+      viewMode: "focused",
+      focusedRootNodeIds: ["cell:u0"],
+      activeFocusedRootNodeId: "cell:u0"
+    } }
+  });
+  assert.equal(focused.display.viewMode, "focused");
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  applyLayoutGoldenState(state, focused);
+  assert.equal(state.viewMode, "focused");
+  assert.deepEqual(state.focusedRootNodeIds, ["cell:u0"]);
+  assert.throws(() => resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, focused, {
+    domainId: "netlist",
+    documentId: "document:primary",
+    sourceIdentity: { name: "same.v", size: 4, fingerprint: "fnv1a32:bbbb0000" }
+  }), /another source/);
+});
+
+test("Search-first Golden display state restores without stale roots", () => {
+  const imported = getLayoutGoldenState({
+    kind: "netlist-layout-golden",
+    version: 3,
+    moduleName: "top",
+    nodes: [{ id: "cell:u0", x: 1, y: 2 }],
+    layoutOptions: { display: { viewMode: "search-first", focusedRootNodeIds: ["cell:stale"] } }
+  });
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  applyLayoutGoldenState(state, imported);
+  assert.equal(state.viewMode, "search-first");
+  assert.deepEqual(state.focusedRootNodeIds, []);
+});
+
+test("Focused Golden without a usable root cannot retain stale focused state", () => {
+  const imported = getLayoutGoldenState({
+    kind: "netlist-layout-golden",
+    version: 3,
+    moduleName: "top",
+    nodes: [{ id: "cell:u0", x: 1, y: 2 }],
+    layoutOptions: { display: { viewMode: "focused" } }
+  });
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.viewMode = "focused";
+  state.focusedRootNodeIds = ["cell:stale"];
+  state.activeFocusedRootNodeId = "cell:stale";
+
+  applyLayoutGoldenState(state, imported);
+
+  assert.equal(state.viewMode, "whole");
+  assert.deepEqual(state.focusedRootNodeIds, []);
+  assert.equal(state.activeFocusedRootNodeId, null);
 });

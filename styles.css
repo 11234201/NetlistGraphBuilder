@@ -739,6 +739,13 @@ body.is-dragging-files .drop-overlay {
   text-transform: uppercase;
 }
 
+.module-hierarchy-truncated {
+  display: block;
+  padding: 4px 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .panel-field,
 .timing-policy-panel label {
   display: grid;

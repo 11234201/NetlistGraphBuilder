@@ -2,13 +2,20 @@ const SVG_SCENE_KIND = "svg-scene.v1";
 
 export function createSvgScene(value) {
   if (!value || value.kind !== SVG_SCENE_KIND) throw new Error("Expected an SVG scene");
-  if (!value.bounds || !Number.isFinite(value.bounds.width) || !Number.isFinite(value.bounds.height)) {
+  if (!value.bounds || !Number.isFinite(value.bounds.width) || !Number.isFinite(value.bounds.height) ||
+      value.bounds.width < 0 || value.bounds.height < 0) {
     throw new Error("SVG scene bounds are required");
   }
   if (typeof value.readEdges !== "function" || typeof value.readNodes !== "function") {
     throw new Error("SVG scene requires lazy edge and node readers");
   }
-  return Object.freeze({ ...value });
+  return Object.freeze({
+    ...value,
+    bounds: Object.freeze({ width: value.bounds.width, height: value.bounds.height }),
+    ariaLabel: String(value.ariaLabel || "Diagram"),
+    edgeCount: normalizeCount(value.edgeCount, "edgeCount"),
+    nodeCount: normalizeCount(value.nodeCount, "nodeCount")
+  });
 }
 
 export function createProgressiveSvgSceneRenderPlan(scene) {
@@ -20,7 +27,7 @@ export function createProgressiveSvgSceneRenderPlan(scene) {
     nodeCount: checked.nodeCount,
     renderEdges: (start, end) => checked.readEdges(start, end).map(serializeSvgPrimitive),
     renderNodes: (start, end) => checked.readNodes(start, end).map(serializeSvgPrimitive),
-    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${checked.ariaLabel}">
+    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttribute(checked.ariaLabel)}">
   <g id="schematicContent">
     <g class="edges">`,
     betweenGroups: `</g><g class="nodes">`,
@@ -54,7 +61,12 @@ export function serializeSvgPrimitive(primitive) {
   if (primitive?.type !== "element") throw new Error("Unknown SVG scene primitive");
   const attributes = Object.entries(primitive.attributes || {})
     .filter(([, value]) => value !== null && value !== undefined && value !== false)
-    .map(([name, value]) => ` ${name}="${escapeAttribute(value === true ? "" : value)}"`)
+    .map(([name, value]) => {
+      if (!/^[a-z_:][a-z0-9_.:-]*$/i.test(name) || /^on/i.test(name)) {
+        throw new Error(`Invalid SVG attribute: ${name}`);
+      }
+      return ` ${name}="${escapeAttribute(value === true ? "" : value)}"`;
+    })
     .join("");
   const children = (primitive.children || []).map(serializeSvgPrimitive).join("");
   return `<${primitive.tag}${attributes}>${children}</${primitive.tag}>`;
@@ -69,4 +81,9 @@ function escapeText(value) {
 
 function escapeAttribute(value) {
   return escapeText(value).replaceAll('"', "&quot;");
+}
+
+function normalizeCount(value, label) {
+  if (!Number.isInteger(value) || value < 0) throw new Error(`SVG scene ${label} must be a non-negative integer`);
+  return value;
 }

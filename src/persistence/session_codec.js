@@ -1,3 +1,5 @@
+import { createSourceIdentity, normalizeSourceIdentity } from "./source_identity.js";
+
 export const SESSION_CODEC_VERSION = 2;
 
 export function encodeSessionSnapshot(snapshot) {
@@ -46,25 +48,6 @@ function normalizeVersion2(value) {
   };
 }
 
-function normalizeSourceIdentity(value, sourceLabel, source) {
-  if (value && typeof value === "object") {
-    return Object.freeze({
-      name: String(value.name || sourceLabel || "source"),
-      size: nonNegativeInteger(value.size, String(source || "").length)
-    });
-  }
-  return createSourceIdentity(sourceLabel, source);
-}
-
-function createSourceIdentity(label, source) {
-  return Object.freeze({ name: String(label || "source"), size: String(source || "").length });
-}
-
 function optionalString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function nonNegativeInteger(value, fallback) {
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 0 ? number : fallback;
 }

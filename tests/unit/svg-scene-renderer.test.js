@@ -3,6 +3,7 @@ import test from "node:test";
 import { createSchematicScene } from "../../src/render/svgRenderer.js";
 import { createNetlistScene, renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import {
+  createSvgScene,
   createProgressiveSvgSceneRenderPlan,
   renderSvgScene,
   serializeSvgPrimitive,
@@ -32,6 +33,10 @@ test("schematic scene is lazy and shares the generic SVG scene renderer", () => 
 test("generic SVG scene renderer rejects graph-shaped input", () => {
   assert.throws(() => renderSvgScene(graph), /Expected an SVG scene/);
   assert.throws(() => createSchematicScene(graph), /node presentation/);
+  assert.throws(() => createSvgScene({
+    kind: "svg-scene.v1", bounds: { width: 10, height: 10 }, edgeCount: -1, nodeCount: 0,
+    readEdges() { return []; }, readNodes() { return []; }
+  }), /edgeCount/);
 });
 
 test("structured SVG primitives escape attributes and text centrally", () => {
@@ -41,6 +46,22 @@ test("structured SVG primitives escape attributes and text centrally", () => {
     serializeSvgPrimitive(primitive),
     '<text class="label" data-name="a&quot;&amp;b">&lt;unsafe&gt;</text>'
   );
+});
+
+test("scene metadata is escaped at the generic renderer boundary", () => {
+  const scene = createSvgScene({
+    kind: "svg-scene.v1",
+    bounds: { width: 10, height: 10 },
+    ariaLabel: 'unsafe" onload="alert(1)',
+    edgeCount: 0,
+    nodeCount: 0,
+    readEdges: () => [],
+    readNodes: () => []
+  });
+  const svg = renderSvgScene(scene);
+  assert.match(svg, /aria-label="unsafe&quot; onload=&quot;alert\(1\)"/);
+  assert.doesNotMatch(svg, /"\s+onload=/);
+  assert.throws(() => serializeSvgPrimitive(svgElement("g", { onload: "alert(1)" })), /Invalid SVG attribute/);
 });
 
 test("generic renderer rejects raw SVG fragments", () => {

@@ -5,21 +5,22 @@ export function createBrowserDownload(environment = {}) {
   if (!BlobImpl || !URLImpl?.createObjectURL || typeof createElement !== "function") {
     throw new Error("Browser download environment is unavailable");
   }
+  const downloadText = (value, fileName, type = "text/plain") => {
+    const blob = new BlobImpl([String(value)], { type });
+    const url = URLImpl.createObjectURL(blob);
+    try {
+      const link = createElement("a");
+      link.href = url;
+      link.download = String(fileName);
+      link.click();
+    } finally {
+      URLImpl.revokeObjectURL?.(url);
+    }
+  };
   return Object.freeze({
-    text(value, fileName, type = "text/plain") {
-      const blob = new BlobImpl([String(value)], { type });
-      const url = URLImpl.createObjectURL(blob);
-      try {
-        const link = createElement("a");
-        link.href = url;
-        link.download = String(fileName);
-        link.click();
-      } finally {
-        URLImpl.revokeObjectURL(url);
-      }
-    },
+    text: downloadText,
     json(value, fileName) {
-      this.text(`${JSON.stringify(value, null, 2)}\n`, fileName, "application/json");
+      downloadText(`${JSON.stringify(value, null, 2)}\n`, fileName, "application/json");
     }
   });
 }

@@ -1,7 +1,10 @@
+import { defineDomainFeature } from "../contracts/domain_feature.js";
+
 export function createDomainRegistry(features = []) {
   const featureById = new Map();
-  for (const feature of features) {
-    if (!feature?.id) throw new Error("Cannot register a domain without an id");
+  for (const candidate of features) {
+    if (!candidate?.id) throw new Error("Cannot register a domain without an id");
+    const feature = defineDomainFeature(candidate);
     if (featureById.has(feature.id)) throw new Error(`Duplicate domain feature: ${feature.id}`);
     featureById.set(feature.id, feature);
   }

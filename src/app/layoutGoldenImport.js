@@ -1,5 +1,6 @@
 import { normalizeFocusedRootNodeIds, setFocusedRootNodeIds } from "./appState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { sourceIdentitiesMatch } from "../persistence/source_identity.js";
 
 export function resolveLayoutGoldenModule(design, imported, currentIdentity = null) {
   validateGoldenIdentity(imported.identity, currentIdentity);
@@ -20,10 +21,7 @@ function validateGoldenIdentity(goldenIdentity, currentIdentity) {
   }
   const goldenSource = goldenIdentity.sourceIdentity;
   const currentSource = currentIdentity.sourceIdentity;
-  if (goldenSource && currentSource && (
-    goldenSource.name !== currentSource.name ||
-    (goldenSource.size !== null && goldenSource.size !== currentSource.size)
-  )) {
+  if (!sourceIdentitiesMatch(goldenSource, currentSource)) {
     throw new Error("Golden belongs to another source");
   }
 }
@@ -38,17 +36,20 @@ export function applyLayoutGoldenState(state, imported) {
 
   const display = imported.display;
   const viewMode = normalizeSingleViewMode(display.viewMode);
-  if (viewMode === "whole") {
-    state.viewMode = "whole";
-    setFocusedRootNodeIds(state, []);
-  } else if (display.viewMode && (display.focusedRootNodeIds?.length || display.coneRootNodeId)) {
+  if (viewMode === "whole" || viewMode === "search-first") {
     state.viewMode = viewMode;
-    setFocusedRootNodeIds(state, normalizeFocusedRootNodeIds(
+    setFocusedRootNodeIds(state, []);
+  } else if (display.viewMode) {
+    const roots = normalizeFocusedRootNodeIds(
       display.focusedRootNodeIds,
       display.coneRootNodeId
-    ), display.activeFocusedRootNodeId);
+    );
+    state.viewMode = roots.length > 0 ? viewMode : "whole";
+    setFocusedRootNodeIds(state, roots, display.activeFocusedRootNodeId);
   }
   if (display.coneDepth) state.coneDepth = clamp(display.coneDepth, 1, 99);
+  if (display.faninDepth !== null) state.faninDepth = clamp(display.faninDepth, 0, 99);
+  if (display.fanoutDepth !== null) state.fanoutDepth = clamp(display.fanoutDepth, 0, 99);
   if (display.useFanoutHubs !== null) state.useFanoutHubs = display.useFanoutHubs;
   if (display.collapseLargeGroups !== null) {
     state.collapseLargeGroups = display.collapseLargeGroups;

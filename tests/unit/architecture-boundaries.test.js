@@ -19,6 +19,23 @@ test("contracts and Netlist domain stay independent from application implementat
   assert.deepEqual(legacyImports, []);
 });
 
+test("shared application and layout layers do not import Netlist-only implementations", () => {
+  const forbidden = /from\s+["']\.\.\/(?:domains\/netlist|infer|netlist|parser|timing)\//;
+  for (const directory of ["application", "layout"]) {
+    const absoluteDirectory = join(projectRoot, "src", directory);
+    for (const name of readdirSync(absoluteDirectory)) {
+      if (extname(name) !== ".js") continue;
+      const source = readFileSync(join(absoluteDirectory, name), "utf8");
+      assert.doesNotMatch(source, forbidden, `${directory}/${name} must remain domain-neutral`);
+    }
+  }
+  const layoutFiles = readdirSync(join(projectRoot, "src", "layout"))
+    .filter((name) => extname(name) === ".js")
+    .map((name) => readFileSync(join(projectRoot, "src", "layout", name), "utf8"))
+    .join("\n");
+  assert.doesNotMatch(layoutFiles, /cellPinDirections|netlist-layout-golden/);
+});
+
 test("shared layout and renderer do not interpret Netlist inference or parser references", () => {
   for (const relativePath of ["src/layout/nodeGeometry.js", "src/layout/nodeSpacing.js", "src/render/svgRenderer.js"]) {
     const source = readFileSync(join(projectRoot, ...relativePath.split("/")), "utf8");

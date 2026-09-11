@@ -34,4 +34,7 @@ test("download names and JSON serialization are deterministic", () => {
   });
   adapter.json({ b: 2, a: 1 }, "state.json");
   assert.equal(created[0], '{\n  "b": 2,\n  "a": 1\n}\n');
+  const { json } = adapter;
+  json({ ok: true }, "detached.json");
+  assert.equal(created[1], '{\n  "ok": true\n}\n');
 });

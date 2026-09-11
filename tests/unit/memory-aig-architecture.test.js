@@ -37,6 +37,11 @@ test("independent memory AIG runs through shared document, command, pipeline, la
 
   assert.equal(result.diagram.domainId, "memory-aig");
   assert.ok(result.graph.nodes.some((item) => item.id === "and0"));
+  assert.equal(document.model.sourceMap.and0.record, 4);
+  assert.equal(result.diagram.projectionMap.get("and0").localId, "and0");
+  assert.equal(result.scene.objectRefs.get("and0").localId, "and0");
+  assert.deepEqual(result.diagram.edges.filter((item) => item.source === "and0" && item.target === "and1").map((item) => item.targetPin), ["in0", "in1"]);
+  assert.equal(result.diagram.edges.find((item) => item.id === "e1").inverted, true);
   assert.match(svg, /aig-and/);
   assert.match(svg, /aig-inversion/);
   assert.equal(feature.capabilities.timing, false);

@@ -40,7 +40,7 @@ export function createSchematicScene(graph, options = {}) {
   return createSvgScene({
     kind: SVG_SCENE_CONTRACT,
     bounds: { width: graph.width || 640, height: graph.height || 420 },
-    ariaLabel: `${escapeAttribute(graph.moduleDisplayName)} schematic`,
+    ariaLabel: `${String(graph.moduleDisplayName || "Diagram")} schematic`,
     edgeCount: wireItems.length,
     nodeCount: graph.nodes.length,
     readEdges: (start, end) => renderRange(wireItems, start, end, (edge) =>
@@ -145,14 +145,6 @@ function findWireCrossings(edges) {
 function addCrossing(crossings, edgeId, crossing) {
   if (!crossings.has(edgeId)) crossings.set(edgeId, []);
   crossings.get(edgeId).push(crossing);
-}
-
-function escapeAttribute(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
 function round(value) {

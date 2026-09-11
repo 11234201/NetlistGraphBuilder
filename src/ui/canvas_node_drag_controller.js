@@ -49,7 +49,7 @@ export function startCanvasNodeDrag({
     onMove: (moveEvent) => frames.schedule(clientPoint(moveEvent)),
     onEnd: (endEvent) => {
       frames.flush();
-      if (!moved) {
+      if (!moved || endEvent?.type === "pointercancel") {
         preview.clear();
         return;
       }
@@ -57,7 +57,7 @@ export function startCanvasNodeDrag({
         position: latestPosition,
         snap: latestSnap,
         preview,
-        cancelled: endEvent?.type === "pointercancel"
+        cancelled: false
       });
     }
   });

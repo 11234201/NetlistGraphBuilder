@@ -16,7 +16,7 @@ test("session v2 codec preserves domain, unit and source identity", () => {
   assert.equal(decoded.version, SESSION_CODEC_VERSION);
   assert.equal(decoded.documentId, "netlist:example");
   assert.equal(decoded.unitId, "top");
-  assert.deepEqual(decoded.sourceIdentity, { name: "top.v", size: 42 });
+  assert.deepEqual(decoded.sourceIdentity, { name: "top.v", size: 42, fingerprint: "fnv1a32:d94b1d8a" });
 });
 
 test("legacy session v1 fixture migrates a single module identity", () => {
@@ -31,7 +31,9 @@ test("legacy session v1 fixture migrates a single module identity", () => {
   assert.equal(migrated.version, 2);
   assert.equal(migrated.domainId, "netlist");
   assert.equal(migrated.unitId, "old");
-  assert.deepEqual(migrated.sourceIdentity, { name: "old.v", size: 21 });
+  assert.equal(migrated.sourceIdentity.name, "old.v");
+  assert.equal(migrated.sourceIdentity.size, 21);
+  assert.match(migrated.sourceIdentity.fingerprint, /^fnv1a32:/);
 });
 
 test("session storage prefers v2 and falls back to the legacy key", () => {

@@ -1,15 +1,16 @@
-import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { getModuleHierarchyTarget, renderModuleHierarchyPanel } from "./module_hierarchy_panel.js";
 
-export function createModuleHierarchyController({ container, getDesign, getCurrentModuleName, navigate }) {
-  if (!container || typeof getDesign !== "function" || typeof navigate !== "function") {
-    throw new Error("Module hierarchy controller requires container, design query and navigation port");
+export function createModuleHierarchyController({ container, panel = null, getHierarchy, getCurrentModuleName, navigate }) {
+  if (!container || typeof getHierarchy !== "function" || typeof navigate !== "function") {
+    throw new Error("Module hierarchy controller requires container, hierarchy query and navigation port");
   }
   function render() {
-    const design = getDesign();
-    container.innerHTML = design
-      ? renderModuleHierarchyPanel(buildModuleHierarchy(design), getCurrentModuleName?.() || null)
+    if (panel && !panel.open) return false;
+    const hierarchy = getHierarchy();
+    container.innerHTML = hierarchy
+      ? renderModuleHierarchyPanel(hierarchy, getCurrentModuleName?.() || null)
       : "";
+    return true;
   }
   function handleClick(event) {
     const moduleName = getModuleHierarchyTarget(event);
@@ -18,5 +19,14 @@ export function createModuleHierarchyController({ container, getDesign, getCurre
     return true;
   }
   container.addEventListener("click", handleClick);
-  return Object.freeze({ render, handleClick });
+  const handleToggle = () => { if (panel?.open) render(); };
+  panel?.addEventListener("toggle", handleToggle);
+  return Object.freeze({
+    render,
+    handleClick,
+    dispose() {
+      container.removeEventListener?.("click", handleClick);
+      panel?.removeEventListener?.("toggle", handleToggle);
+    }
+  });
 }

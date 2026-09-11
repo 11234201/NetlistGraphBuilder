@@ -222,9 +222,9 @@ S7-0 同机慢例对照已补齐：使用同一 Windows 主机、default collaps
 
 S7-R 已由共享 `ROUTE_GEOMETRY_POLICY`、`orthogonalRouting` 和 candidate validator 落实：target approach clearance、最小 16px 可见转角、正反向 endpoint inset、node padding 与 endpoint access 均有命名边界和定向测试，Simple/Adjust 共享固定搜索预算。该切片包含用户要求的垂直 pin 最后弯可见性调整；未引入实例名/坐标特判或图规模相关重试。
 
-S7-5 timing 输入解析与“至少一个有效 scope/instance”校验已移入 `application/timing_import.js`，返回不可变 source/summary 结果；main 只负责提交 timing、日志和选择重绘路径。文本类型、空识别结果和 legacy 格式均有边界测试，完整回归为 330/330。
+S7-5 timing 输入解析与“至少一个有效 scope/instance”校验已移入 `domains/netlist/timing_import.js`，返回不可变 source/summary 结果；main 只负责提交 timing、日志和选择重绘路径。文本类型、空识别结果和 legacy 格式均有边界测试，完整回归为 330/330。
 
-Cell Config 的 set/remove/import/reset 已收敛到 `application/cell_config_use_cases.js`：prepare import 只解析并报告冲突，用户确认后才发生一次显式 persistence commit；main 不再组合领域更新与 storage 写入。无效输入不会落盘，定向事务测试与完整回归 332/332 通过。
+Cell Config 的 set/remove/import/reset 已收敛到 `domains/netlist/cell_config_use_cases.js`：prepare import 只解析并报告冲突，用户确认后才发生一次显式 persistence commit；main 不再组合领域更新与 storage 写入。无效输入不会落盘，定向事务测试与完整回归 332/332 通过。
 
 Process Log 的过滤、drawer、自动滚动、复制、导出和清空事件已移入 `ui/process_log_controller.js`；controller 只接收受限 DOM 元素与 status/copy/download 端口，不读取全局 state。main 仅保留统一 `logProcess` 调用入口，交互测试和完整回归 333/333 通过。
 
@@ -277,3 +277,17 @@ Focused 清除、root 列表删除/激活、启动聚焦、Shift 点击切换及
 最终门禁（当前 HEAD）：`npm test` 363/363；launcher e2e 首次受本机 `spawn EPERM` 影响，非沙箱原命令重跑后 Node/Python 均通过；benchmark 中位数 pipeline 为 102.8/570.6/1589.0ms（1024/4096/8192 cells），首批 progressive batch 均为 1.0ms；Windows 离线包构建成功，`NetlistGraphBuilder-v0.7.3-win-x64.zip` SHA-256 为 `1d027ce9843a4b485e89694c72cc012aa7dc41fa283bb63916092dd09d6a2b0f`。mapped 仍采用本阶段已记录的同模式 45/47 证据，只有 dp_020/sop_004 保持既有 45 秒 layout 超时；最终应用状态/UI 切片未改变 parser、graph、layout 或 renderer。
 
 阶段 7 完成：结构验收五项均有代码、契约测试或运行证据。main 保留 bootstrap、浏览器事件编排以及初始化/codec hydration 的兼容投影；正常用户交互的 view 状态决策已进入 commands/controllers。S7-P 的 Worker/缓存与生产 AIGER 支持继续作为有独立性能证据和产品范围的后续阶段，不属于本阶段未完成项。
+
+## 2026-09-11 全量功能代码审计
+
+本轮按阶段 7 的结构验收逐项回看，不把“文件已拆分”当作完成。修正了 ViewSession 的 no-op/revision/effect 语义、Focused/Whole/Search-first 恢复、Compare canonical ObjectRef 与共享 store、Document source revision、任务过期释放、异步快速输入顺序、完成态 wire bridge、Scene 属性与统计校验、渐进渲染总量阈值、手势取消/最终持久化，以及 source fingerprint 和 Golden v3 的视图深度兼容。Netlist 专属 Timing、Cell Config 和 Golden 已移入 `domains/netlist/`；module hierarchy 改为关闭时惰性构建，并以 2000 节点/64 层的显式策略有界展开。内存 AIG 的 source/projection map、重复 fanin slot、极性与 latch 边界均继续通过公共 pipeline/Scene 门禁。
+
+审计后的实现口径如下：
+
+- `main.js` 仍是浏览器 bootstrap 和兼容 hydration 入口；`single_view_session_bridge.js`、`compare_view_session_bridge.js` 仍向旧 DOM/session 字段投影。只有当 UI 初始化、恢复和所有交互都能直接消费 Document/ViewSession snapshot 时才移除这些 bridge。
+- 产品异步布局目前仍由 `workspaceRequest.js` 保护；`JobCoordinator`/`ArtifactStore` 已通过契约测试，但只有 provider、渐进 render、错误和 progress 全部按 job token 提交后才替换前者。
+- `ComparisonCoordinator` 已定义同步事务边界，产品主路径仍由 Compare bridge 协调两个普通 ViewSession；完成匹配/同步 command 迁移后再接管。
+- 旧 Netlist graph、measurement、layout/routing 仍由 `domains/netlist` facade 接入共享 pipeline。只有 provider 能直接消费中性 MeasuredGraph 且 mapped/determinism/benchmark 不退化时，才继续下沉通用几何。
+- 生产 AIGER parser、正式 AIG UI 与 S7-P Worker/缓存不属于阶段 7 完成条件，不能由内存样例的扩展性验证代替。
+
+最终门禁：`npm test` 通过 385/385；mapped cases 为 45/47，仍只有历史 `dp_020`、`sop_004` 在固定 45 秒 layout 门禁超时，violations=59/120，最大已完成 layout=34752ms，最大 heap=106MiB。benchmark 中位数 pipeline 为 110.5/558.5/1601.5ms（1024/4096/8192 cells），progressive plan 为 2.5/37.8/152.4ms，首批 batch 为 1.1/1.0/1.0ms；没有发现新的复杂度阶跃。Windows 离线包构建和 package smoke 通过，`NetlistGraphBuilder-v0.7.3-win-x64.zip` SHA-256 为 `3373e4ee18b3654a5d8d34ce2aa1d77e6b0b38308eae8f1bc546cf926a07d6a8`。本轮没有放宽 route、fixture、超时或发布门禁。

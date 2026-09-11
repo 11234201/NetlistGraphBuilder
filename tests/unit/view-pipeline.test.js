@@ -41,3 +41,33 @@ test("comparison sync channels avoid echoes and preserve unmatched peer state", 
   assert.equal(commands[0].sessionId, "right");
   assert.equal(coordinator.forward({ channel: "selection", transactionId: "t2", originSessionId: "right" }).status, "echo");
 });
+
+test("comparison sync validates policies and bounds remembered transactions", () => {
+  assert.throws(() => createComparisonSession({
+    comparisonId: "cmp:invalid", leftSessionId: "left", rightSessionId: "right",
+    sync: { viewport: "false" }
+  }), /must be boolean/);
+  assert.throws(() => createComparisonSession({
+    comparisonId: "cmp:unknown", leftSessionId: "left", rightSessionId: "right",
+    sync: { zoom: true }
+  }), /Unknown comparison sync channel/);
+  assert.throws(() => createComparisonSession({
+    comparisonId: "cmp:revision", leftSessionId: "left", rightSessionId: "right", revision: 0
+  }), /positive integer/);
+  const commands = [];
+  const coordinator = createComparisonCoordinator({
+    comparison: createComparisonSession({ comparisonId: "cmp:bounded", leftSessionId: "left", rightSessionId: "right" }),
+    match: () => ({ status: "matched", objectRef: { localId: "u1" } }),
+    dispatch: (command) => commands.push(command),
+    maxSeenTransactions: 2
+  });
+  for (const transactionId of ["t1", "t2", "t3"]) {
+    assert.equal(coordinator.forward({
+      channel: "selection", transactionId, originSessionId: "left", command: { type: "selection.set" }
+    }).status, "forwarded");
+  }
+  assert.equal(coordinator.forward({
+    channel: "selection", transactionId: "t1", originSessionId: "left", command: { type: "selection.set" }
+  }).status, "forwarded");
+  assert.equal(commands.length, 4);
+});

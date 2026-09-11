@@ -7,13 +7,18 @@ import { createSvgScene, SVG_SCENE_CONTRACT, svgElement, svgText } from "../../s
 export const MEMORY_AIG_DOMAIN_ID = "memory-aig";
 
 export function createMemoryAigModel() {
+  const nodes = Object.freeze([
+    node("a", "input"), node("b", "input"), node("const0", "constant"),
+    node("and0", "and"), node("and1", "and"), node("latch0", "latch"), node("y", "output")
+  ]);
   return Object.freeze({
+    sourceMap: Object.freeze(Object.fromEntries(nodes.map((item, index) => [
+      item.id,
+      Object.freeze({ sourceName: "memory-aig", record: index + 1 })
+    ]))),
     units: Object.freeze([Object.freeze({
       id: "top",
-      nodes: Object.freeze([
-        node("a", "input"), node("b", "input"), node("const0", "constant"),
-        node("and0", "and"), node("and1", "and"), node("latch0", "latch"), node("y", "output")
-      ]),
+      nodes,
       edges: Object.freeze([
         edge("e0", "a", "and0", 0), edge("e1", "b", "and0", 1, true),
         edge("e2", "and0", "and1", 0), edge("e3", "and0", "and1", 1),
@@ -62,7 +67,9 @@ export const memoryAigFeature = defineDomainFeature({
       unit,
       nodes: unit.nodes.filter((item) => visibleIds.has(item.id)),
       edges: unit.edges.filter((item) => visibleIds.has(item.source) && visibleIds.has(item.target)),
-      projectionMap: new Map(unit.nodes.map((item) => [item.id, ref(document, unit.id, item.kind, item.id)]))
+      projectionMap: new Map(unit.nodes
+        .filter((item) => visibleIds.has(item.id))
+        .map((item) => [item.id, ref(document, unit.id, item.kind, item.id)]))
     };
   },
   projectDiagram(result) {
@@ -71,6 +78,7 @@ export const memoryAigFeature = defineDomainFeature({
       domainId: MEMORY_AIG_DOMAIN_ID,
       unitId: result.unit.id,
       moduleDisplayName: result.unit.id,
+      projectionMap: result.projectionMap,
       nodes: result.nodes.map(projectNode),
       edges: result.edges.map((item) => ({
         ...item,
@@ -88,6 +96,7 @@ export function createMemoryAigScene(graph) {
     kind: SVG_SCENE_CONTRACT,
     bounds: { width: graph.width, height: graph.height },
     ariaLabel: "AIG scene",
+    objectRefs: graph.projectionMap,
     edgeCount: graph.edges.length,
     nodeCount: graph.nodes.length,
     readEdges: (start, end) => graph.edges.slice(start, end).map(aigEdgePrimitive),

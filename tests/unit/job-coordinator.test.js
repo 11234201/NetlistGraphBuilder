@@ -58,7 +58,18 @@ test("session revisions, source reloads, and close invalidate pending commits", 
     task.resolve("obsolete");
     assert.equal((await job.promise).status, "stale");
     assert.equal(state.artifacts.get("view:1", "render"), null);
+    assert.equal(state.jobs.cancelSession("view:1"), 0);
   }
+});
+
+test("document replacement requires a strictly newer source revision", () => {
+  const state = setup();
+  assert.throws(() => state.documents.open(createDocumentEnvelope({
+    documentId: "doc:1", domainId: "netlist", sourceRevision: 1, model: { replacement: true }
+  })), /revision must advance/);
+  assert.equal(state.documents.open(createDocumentEnvelope({
+    documentId: "doc:1", domainId: "netlist", sourceRevision: 2, model: { replacement: true }
+  })).sourceRevision, 2);
 });
 
 test("viewport revisions do not cancel computation but semantic session changes do", async () => {

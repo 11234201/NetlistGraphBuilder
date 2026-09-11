@@ -1,5 +1,6 @@
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/session_codec.js";
+import { createSourceIdentity } from "../persistence/source_identity.js";
 
 export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
 export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
@@ -31,10 +32,10 @@ export function createSessionSnapshot(state) {
     domainId: state.document?.domainId || "netlist",
     documentId: state.document?.documentId || null,
     unitId: state.currentModule?.name || null,
-    sourceIdentity: {
-      name: state.currentSourceLabel || state.document?.source?.name || "source",
-      size: String(state.currentSource || "").length
-    },
+    sourceIdentity: state.sourceIdentity || createSourceIdentity(
+      state.currentSourceLabel || state.document?.source?.name,
+      state.currentSource
+    ),
     source: state.currentSource,
     sourceLabel: state.currentSourceLabel,
     moduleName: state.currentModule?.name || null,

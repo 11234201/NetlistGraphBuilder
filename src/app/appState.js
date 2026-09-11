@@ -9,6 +9,7 @@ export function createAppState(layoutPolicy) {
     document: null,
     currentSource: null,
     currentSourceLabel: null,
+    sourceIdentity: null,
     currentModule: null,
     fullGraph: null,
     autoGraph: null,

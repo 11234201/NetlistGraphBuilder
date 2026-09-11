@@ -4,7 +4,7 @@ import {
   parseCellConfig,
   removeCellConfigDefinition,
   setCellConfigDefinition
-} from "../infer/cellConfig.js";
+} from "../../infer/cellConfig.js";
 
 export function createCellConfigUseCases({ save }) {
   if (typeof save !== "function") throw new Error("Cell Config use cases require save()");

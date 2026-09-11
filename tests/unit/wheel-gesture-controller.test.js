@@ -33,3 +33,24 @@ test("wheel controller coalesces one target and flushes before switching canvase
   assert.equal(settled, 1);
   assert.equal(classes.has("is-view-interacting"), false);
 });
+
+test("wheel settling flushes the last queued zoom before persistence", () => {
+  const calls = [];
+  let timeoutTask;
+  let pending;
+  const controller = createWheelGestureController({
+    canvas: { classList: { add() {}, remove() {} } },
+    apply: (sample) => calls.push(["apply", sample.steps]),
+    onSettled: () => calls.push(["persist"]),
+    schedulerFactory(callback) {
+      return {
+        schedule(value) { pending = value; },
+        flush() { if (pending) callback(pending); pending = null; }
+      };
+    },
+    timers: { clearTimeout() {}, setTimeout(task) { timeoutTask = task; return 1; } }
+  });
+  controller.queue({ mode: "single", clientX: 1, clientY: 2, deltaY: -1 });
+  timeoutTask();
+  assert.deepEqual(calls, [["apply", -1], ["persist"]]);
+});

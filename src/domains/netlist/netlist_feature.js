@@ -88,10 +88,11 @@ export const netlistFeature = defineDomainFeature({
       fanoutDepth: normalizedQuery.fanoutDepth,
       maxDepth: normalizedQuery.maxDepth
     });
+    const transformedGraph = applyWorkspaceGraphTransforms(visibleGraph, options.transforms);
     return {
       fullGraph,
-      visibleGraph: applyWorkspaceGraphTransforms(visibleGraph, options.transforms),
-      projectionMap: createProjectionMap(document.documentId, module.name, fullGraph)
+      visibleGraph: transformedGraph,
+      projectionMap: createProjectionMap(document.documentId, module.name, fullGraph, transformedGraph)
     };
   },
 
@@ -115,13 +116,34 @@ function searchEntryObjectRef(documentId, entry) {
   });
 }
 
-function createProjectionMap(documentId, unitId, graph) {
-  return new Map(graph.nodes.map((node) => [node.id, createObjectRef({
+function createProjectionMap(documentId, unitId, sourceGraph, visibleGraph) {
+  const sourceRefById = new Map(sourceGraph.nodes.map((node) => [node.id, createObjectRef({
     documentId,
     unitId,
     kind: node.kind === "cell" ? "cell" : node.kind,
     localId: node.ref?.instance || node.ref?.name || node.id
   })]));
+  const projectionMap = new Map();
+  for (const node of visibleGraph.nodes) {
+    const sourceRef = sourceRefById.get(node.id);
+    if (sourceRef) {
+      projectionMap.set(node.id, sourceRef);
+      continue;
+    }
+    if (["focus-input", "focus-output", "hub"].includes(node.kind) && node.ref?.name) {
+      projectionMap.set(node.id, createObjectRef({ documentId, unitId, kind: "net", localId: node.ref.name }));
+      continue;
+    }
+    const group = visibleGraph.groups?.find((item) => item.id === node.id);
+    if (group) {
+      projectionMap.set(node.id, Object.freeze(group.members.map((member) => sourceRefById.get(member.id)).filter(Boolean)));
+    }
+  }
+  for (const edge of visibleGraph.edges) {
+    if (!edge.net) continue;
+    projectionMap.set(edge.id, createObjectRef({ documentId, unitId, kind: "net", localId: edge.net }));
+  }
+  return projectionMap;
 }
 
 function assertNetlistDocument(document) {

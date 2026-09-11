@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCellConfigUseCases } from "../../src/application/cell_config_use_cases.js";
+import { createCellConfigUseCases } from "../../src/domains/netlist/cell_config_use_cases.js";
 import { createEmptyCellConfig } from "../../src/infer/cellConfig.js";
 
 const definition = { displayName: "X", gateKind: "BUF", pins: { A: "input", Z: "output" } };

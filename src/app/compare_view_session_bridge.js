@@ -2,9 +2,9 @@ import { createViewSessionStore } from "../application/view_session_store.js";
 import { createCommandBus } from "../application/command_bus.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createObjectRef } from "../contracts/object_ref.js";
+import { hasProjectedValueChange } from "../foundation/structured_value.js";
 
-export function createCompareViewSessionBridge({ state, getDocumentId }) {
-  const sessions = createViewSessionStore();
+export function createCompareViewSessionBridge({ state, getDocumentId, sessions = createViewSessionStore() }) {
   const bus = createCommandBus(createViewCommandHandlers({ sessions }));
   const sessionIdFor = (side) => `compare:${side}`;
 
@@ -15,8 +15,16 @@ export function createCompareViewSessionBridge({ state, getDocumentId }) {
     const current = sessions.get(sessionId);
     if (current && current.documentId === documentId && current.unitId === unitId) return current;
     if (current) sessions.close(sessionId);
+    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
+    const focusedRootRefs = rootsToRefs(state.compare.focusedRootNodeIds?.[side], graph, { documentId, unitId });
+    const activeFocusedRootRef = focusedRootRefs.find((ref) =>
+      refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
+    ) || focusedRootRefs[0] || null;
     return sessions.create({
       sessionId, documentId, domainId: "netlist", unitId,
+      viewMode: focusedRootRefs.length > 0 ? "focused" : "whole",
+      focusedRootRefs,
+      activeFocusedRootRef,
       viewport: state.compare.transforms?.[side] || { x: 0, y: 0, scale: 1 },
       layoutPolicy: state.layoutPolicy,
       overrides: snapshotOverrides(state.compare, side)
@@ -25,7 +33,15 @@ export function createCompareViewSessionBridge({ state, getDocumentId }) {
 
   function synchronize(side) {
     const current = ensure(side);
-    return sessions.update(current.sessionId, () => ({
+    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
+    const focusedRootRefs = rootsToRefs(state.compare.focusedRootNodeIds?.[side], graph, current);
+    const activeFocusedRootRef = focusedRootRefs.find((ref) =>
+      refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
+    ) || focusedRootRefs[0] || null;
+    const projection = {
+      viewMode: focusedRootRefs.length > 0 ? "focused" : "whole",
+      focusedRootRefs,
+      activeFocusedRootRef,
       viewport: state.compare.transforms?.[side] || current.viewport,
       layoutPolicy: state.layoutPolicy,
       overrides: snapshotOverrides(state.compare, side),
@@ -37,15 +53,26 @@ export function createCompareViewSessionBridge({ state, getDocumentId }) {
           localId: state.compare.selectedName
         })
         : null
-    }), { invalidateComputation: false });
+    };
+    return hasProjectedValueChange(current, projection)
+      ? sessions.update(current.sessionId, () => projection, { invalidateComputation: false })
+      : current;
   }
 
   function dispatch(side, command) {
     const current = synchronize(side);
     const result = bus.dispatch({ ...command, sessionId: current.sessionId });
+    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
+    ensureProjectionContainers(state.compare);
     state.compare.transforms[side] = { ...result.session.viewport };
     state.layoutPolicy = result.session.layoutPolicy;
     applyOverridesSnapshot(state.compare, side, result.session.overrides);
+    if (!state.compare.focusedRootNodeIds) state.compare.focusedRootNodeIds = { left: [], right: [] };
+    if (!state.compare.activeFocusedRootNodeId) state.compare.activeFocusedRootNodeId = { left: null, right: null };
+    state.compare.focusedRootNodeIds[side] = result.session.focusedRootRefs
+      .map((ref) => refToNodeId(ref, graph))
+      .filter(Boolean);
+    state.compare.activeFocusedRootNodeId[side] = refToNodeId(result.session.activeFocusedRootRef, graph);
     if (result.session.selectedObjectRef) {
       state.compare.selectedKind = result.session.selectedObjectRef.kind;
       state.compare.selectedName = result.session.selectedObjectRef.localId;
@@ -70,20 +97,39 @@ export function createCompareViewSessionBridge({ state, getDocumentId }) {
       activeObjectRef: refs[activeIndex >= 0 ? activeIndex : 0] || null
     });
     const session = result.session;
-    return {
-      rootNodeIds: refs.map((ref) => ref.localId),
-      activeRootNodeId: session.activeFocusedRootRef?.localId || null,
+    const mirrored = {
+      rootNodeIds: session.focusedRootRefs.map((ref) => refToNodeId(ref, graph)).filter(Boolean),
+      activeRootNodeId: refToNodeId(session.activeFocusedRootRef, graph),
       session
     };
+    ensureProjectionContainers(state.compare);
+    state.compare.focusedRootNodeIds[side] = mirrored.rootNodeIds;
+    state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
+    return mirrored;
   }
 
   return Object.freeze({
     sessions, ensure, replaceRoots, dispatch,
     objectRef(side, kind, localId) {
       const session = ensure(side);
+      const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
+      const node = graph?.nodes?.find((item) => item.id === localId);
+      if (node) return nodeToRef(node, session);
       return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind, localId });
     }
   });
+}
+
+function ensureProjectionContainers(compare) {
+  compare.transforms ||= { left: { x: 0, y: 0, scale: 1 }, right: { x: 0, y: 0, scale: 1 } };
+  compare.nodePositions ||= { left: new Map(), right: new Map() };
+  compare.nodeSizes ||= { left: new Map(), right: new Map() };
+  compare.graphOverrides ||= {
+    left: { nodeProperties: {}, cellPinDirections: {} },
+    right: { nodeProperties: {}, cellPinDirections: {} }
+  };
+  compare.focusedRootNodeIds ||= { left: [], right: [] };
+  compare.activeFocusedRootNodeId ||= { left: null, right: null };
 }
 
 function snapshotOverrides(compare, side) {
@@ -114,6 +160,21 @@ function nodeToRef(node, session) {
     documentId: session.documentId,
     unitId: session.unitId,
     kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.id
+    localId: node.ref?.instance || node.ref?.name || node.id
   });
+}
+
+function rootsToRefs(nodeIds, graph, session) {
+  return (nodeIds || [])
+    .map((nodeId) => graph?.nodes?.find((node) => node.id === nodeId))
+    .filter(Boolean)
+    .map((node) => nodeToRef(node, session));
+}
+
+function refToNodeId(ref, graph) {
+  if (!ref || !graph) return null;
+  return graph.nodes.find((node) =>
+    (node.ref?.instance || node.ref?.name || node.id) === ref.localId &&
+    (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell"))
+  )?.id || null;
 }

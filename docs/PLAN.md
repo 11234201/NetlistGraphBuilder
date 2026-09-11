@@ -45,13 +45,13 @@ Structural Verilog
 - 阶段 4：`docs/STAGE_4_PLAN.md`
 - 阶段 5：`docs/STAGE_5_PLAN.md`
 - 阶段 6：`docs/STAGE_6_PLAN.md`
-- 阶段 7：向多领域图形工作台迁移（首批局部重构已完成，架构迁移待实施），见 [阶段 7 计划](STAGE_7_PLAN.md) 和 [目标架构](architecture_evolution.md)。
+- 阶段 7：向多领域图形工作台迁移（架构基线与全量审计已完成），见 [阶段 7 计划](STAGE_7_PLAN.md) 和 [目标架构](architecture_evolution.md)。
 
 ## 需求拆解与完成状态
 
-当前里程碑：阶段 6 已完成 Global/Local 时序、可复用 Cell Config、聚焦式大图浏览、所选 cell 定位、module 前进/后退、过程日志和 EDA 启动集成。阶段 5 的可选 Liberty 增强继续保留为后续计划。
+当前里程碑：阶段 7 已完成模块化单体的第一条产品路径：领域契约与注册、Document/ViewSession/commands、共享 pipeline/Scene renderer、UI controller、版本化存档边界，以及内存 AIG 扩展性门禁均已落地。阶段 5 的可选 Liberty 增强继续保留为后续计划。
 
-下一条工程主线是阶段 7：独立领域模型、统一 ViewSession/commands 和共享图形流水线，为未来 AIG 浏览准备扩展边界。阶段 7 使用内存 AIG 样例验证架构；生产级 AIG 输入、转换与分析另行规划。
+下一条工程主线不再是继续横向拆文件，而是在真实新能力进入时沿已建立边界扩展：生产级 AIG 输入/转换/分析另行规划；Worker、产物缓存与彻底移除 `main.js` 兼容投影只在有明确性能或产品证据时实施。
 
 状态口径：
 
@@ -92,6 +92,9 @@ Structural Verilog
 | R6-9 | 阶段 6 | 过程日志控件 | 可折叠日志面板、阶段/级别过滤、容量控制、复制和导出 | 已完成 | `docs/STAGE_6_PLAN.md` |
 | R6-10 | 阶段 6 | 定位并放大所选 cell | View 定位控件、稳定阅读尺度、局部图自动揭示和 Compare 一致行为 | 已完成 | `docs/STAGE_6_PLAN.md` |
 | R6-11 | 阶段 6 | 可复用 Cell Config | 编辑 gate kind/pin direction、本地持久化、JSON 导入导出和 EDA 加载 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R7-1 | 阶段 7 | 多领域工作台核心 | DomainFeature/registry、DocumentStore、ViewSession commands、任务与 Compare 契约 | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R7-2 | 阶段 7 | 共享图形与交互边界 | query-to-Scene pipeline、安全/渐进 SVG、Single/Compare controller 与版本化存档 | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R7-3 | 阶段 7 | AIG 扩展性验证 | 内存 AIG 经公共搜索、Focused、布局、选择和导出链路，公共层无领域分支 | 已完成 | `docs/STAGE_7_PLAN.md` |
 
 ### 阶段 0：项目准备
 

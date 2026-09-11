@@ -83,6 +83,24 @@ test("node drag without movement clears preview without committing", () => {
   assert.equal(commits, 0);
 });
 
+test("cancelled node drag discards its preview without committing overrides", () => {
+  const target = pointerTarget();
+  const graph = { nodes: [{ id: "n1", x: 16, y: 16, width: 20, height: 20 }], edges: [] };
+  let commits = 0;
+  startCanvasNodeDrag({
+    event: { clientX: 10, clientY: 10, pointerId: 5 },
+    target,
+    mount: dragMount("n1"),
+    graph,
+    node: graph.nodes[0],
+    updatePosition() {},
+    onCommit: () => { commits += 1; }
+  });
+  target.listeners.pointermove({ clientX: 31, clientY: 19 });
+  target.listeners.pointercancel({ type: "pointercancel" });
+  assert.equal(commits, 0);
+});
+
 test("node drag rejects an unavailable SVG coordinate surface", () => {
   assert.equal(startCanvasNodeDrag({}), false);
 });

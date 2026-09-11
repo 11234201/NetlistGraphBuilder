@@ -5,6 +5,11 @@ export function createDocumentStore() {
   return Object.freeze({
     open(document) {
       if (!isDocumentEnvelope(document)) throw new Error("DocumentStore requires a document envelope");
+      const previous = documents.get(document.documentId);
+      if (previous === document) return document;
+      if (previous && document.sourceRevision <= previous.sourceRevision) {
+        throw new Error(`Document revision must advance for ${document.documentId}`);
+      }
       documents.set(document.documentId, document);
       return document;
     },

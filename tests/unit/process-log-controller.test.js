@@ -50,3 +50,21 @@ test("process log controller owns filtering, disclosure and export interactions"
   assert.equal(controller.model.size, 0);
   assert.equal(statuses.at(-1), "Process Log cleared");
 });
+
+test("process log controller contains download failures at its port boundary", () => {
+  const elements = {
+    toggleButton: control(), count: control(), controls: control(), levelFilter: control(""),
+    phaseFilter: control(""), autoScroll: control(), copyButton: control(), exportButton: control(),
+    clearButton: control(), list: control()
+  };
+  const statuses = [];
+  const controller = createProcessLogController({
+    elements,
+    setStatus: (message) => statuses.push(message),
+    copyText: async () => {},
+    downloadText: () => { throw new Error("blocked"); }
+  });
+  controller.append("info", "export", "ready");
+  controller.export();
+  assert.match(statuses.at(-1), /Export log failed: blocked/);
+});

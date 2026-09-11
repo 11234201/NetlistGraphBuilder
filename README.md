@@ -150,7 +150,7 @@ node tools/generate-large-example.mjs
 1. 载入 structural Verilog，然后从 Module 下拉框选择 module。
 2. 点击 node 或 wire，在 Selection 面板查看连接关系；点击其中的 net、Connected、Fanin 或 Fanout 项可快速选中并居中对应对象。选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
 3. 双击子 module 实例可直接跳转到对应 module 定义。
-4. 选中 node 后使用 Whole、Fanin、Fanout 和 Depth 查看逻辑 cone。
+4. 使用 Whole 查看整图；搜索 cell 会进入或追加到 Focused，Fanin/Fanout depth 分别控制两侧上下文。显式点击 `Set selected as Focused` 才会替换现有 roots。
 5. 使用 `Show aliases` 控制 assign alias 是否显示。
 6. 点击 Adjust 后可拖动节点；使用 `Save G` 保存布局，使用 `Load G` 恢复与当前网表匹配的布局。
 7. 点击 SVG 导出当前完整 module 或 cone schematic。
@@ -199,19 +199,27 @@ npm test
 
 ## 项目结构
 
-现行边界见 [架构说明](docs/ARCHITECTURE.md)。后续功能和 AIG 扩展采用的目标设计见
-[可扩展工作台架构](docs/architecture_evolution.md)，迁移顺序见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
-目标设计中的 AIG 适配尚未成为正式产品功能。
+现行边界见 [架构说明](docs/ARCHITECTURE.md)。已实现的多领域工作台设计见
+[可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
+测试用内存 AIG 已验证扩展边界，但生产级 AIG 输入仍不是正式产品功能。
 
 ```text
 docs/                 路线图、阶段计划、架构和设计规范
 examples/             示例输入与输出
 src/analysis/         cone、alias、对象连接和 module compare 分析
-src/app/              应用状态和浏览器入口
+src/app/              浏览器入口、工作区组合与兼容投影
+src/application/      Document/ViewSession、commands、jobs 和 Compare 协调
+src/bootstrap/        静态领域注册与产品组装
+src/contracts/        ObjectRef、领域、查询和视图契约
+src/diagram/          中性显示图、共享 view pipeline 与测量契约
+src/domains/netlist/  Netlist feature、领域投影、Timing/Cell Config/Golden 用例
+src/foundation/       无领域含义的 identity、结构值与图/几何基础能力
 src/infer/            无 Liberty 的 cell/pin 推断规则
 src/layout/           Simple/ELK provider、节点几何、routing 和 snap
 src/netlist/          Netlist IR 与 graph extraction
 src/parser/           Structural Verilog tokenizer/parser
+src/persistence/      session/startup/source identity 等版本化 codec
+src/platform/         浏览器下载与存储等副作用适配
 src/render/           SVG 渲染与独立 SVG 导出
 src/search/           设计对象索引与搜索
 src/timing/           LocResyn timing 解析与图标注

@@ -2,6 +2,9 @@ import { createProcessLog } from "../app/processLog.js";
 import { renderProcessLogEntries } from "./processLogPanel.js";
 
 export function createProcessLogController({ elements, setStatus, copyText, downloadText, capacity = 500 }) {
+  if (typeof setStatus !== "function" || typeof copyText !== "function" || typeof downloadText !== "function") {
+    throw new Error("Process Log controller requires status, copy and download ports");
+  }
   const log = createProcessLog({ capacity });
   const filters = () => ({ level: elements.levelFilter.value, phase: elements.phaseFilter.value });
   const matchingCount = () => log.entries(filters()).length;
@@ -31,9 +34,13 @@ export function createProcessLogController({ elements, setStatus, copyText, down
   }
 
   function exportEntries() {
-    const text = log.toJsonLines(filters());
-    downloadText(`${text}${text ? "\n" : ""}`, "netlist-process-log.jsonl", "application/x-ndjson");
-    setStatus(`Exported ${matchingCount()} log entry(s)`);
+    try {
+      const text = log.toJsonLines(filters());
+      downloadText(`${text}${text ? "\n" : ""}`, "netlist-process-log.jsonl", "application/x-ndjson");
+      setStatus(`Exported ${matchingCount()} log entry(s)`);
+    } catch (error) {
+      setStatus(`Export log failed: ${error.message}`);
+    }
   }
 
   function clear() {

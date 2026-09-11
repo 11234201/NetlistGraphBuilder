@@ -1,6 +1,6 @@
-import { analyzeLayoutQuality, compareLayoutQuality } from "./layoutQuality.js";
-import { normalizeLayoutPolicy } from "./layoutPolicy.js";
-import { normalizeFocusedRootIds as normalizePolicyRoots } from "../foundation/view_policy.js";
+import { analyzeLayoutQuality, compareLayoutQuality } from "../../layout/layoutQuality.js";
+import { normalizeLayoutPolicy } from "../../layout/layoutPolicy.js";
+import { normalizeFocusedRootIds as normalizePolicyRoots } from "../../foundation/view_policy.js";
 
 export function createLayoutGolden(graph, options = {}) {
   const identity = options.identity || {};
@@ -101,7 +101,10 @@ export function getLayoutGoldenState(value) {
       unitId: golden.unitId || golden.moduleName,
       sourceIdentity: isRecord(golden.sourceIdentity) ? {
         name: String(golden.sourceIdentity.name || "source"),
-        size: finiteNumber(golden.sourceIdentity.size)
+        size: finiteNumber(golden.sourceIdentity.size),
+        ...(typeof golden.sourceIdentity.fingerprint === "string" && golden.sourceIdentity.fingerprint
+          ? { fingerprint: golden.sourceIdentity.fingerprint }
+          : {})
       } : null
     },
     moduleName: golden.moduleName,
@@ -124,6 +127,8 @@ export function getLayoutGoldenState(value) {
         ? display.activeFocusedRootNodeId
         : focusedRootNodeIds[0] || null,
       coneDepth: positiveInteger(display.coneDepth),
+      faninDepth: nonNegativeInteger(display.faninDepth),
+      fanoutDepth: nonNegativeInteger(display.fanoutDepth),
       useFanoutHubs: optionalBoolean(display.useFanoutHubs),
       collapseLargeGroups: optionalBoolean(display.collapseLargeGroups),
       expandedGroupIds: Array.isArray(display.expandedGroupIds)
@@ -290,12 +295,17 @@ function positiveInteger(value) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
+function nonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? Math.min(99, number) : null;
+}
+
 function optionalBoolean(value) {
   return typeof value === "boolean" ? value : null;
 }
 
 function normalizeViewMode(value) {
-  return ["whole", "fanin", "fanout"].includes(value) ? value : null;
+  return ["whole", "focused", "search-first", "fanin", "fanout"].includes(value) ? value : null;
 }
 
 function cloneJsonRecord(value) {

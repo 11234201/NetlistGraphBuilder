@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompareViewSessionBridge } from "../../src/app/compare_view_session_bridge.js";
+import { createSingleViewSessionBridge } from "../../src/app/single_view_session_bridge.js";
+import { createViewSessionStore } from "../../src/application/view_session_store.js";
 
 test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
   const state = {
@@ -21,6 +23,13 @@ test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
   assert.deepEqual(left.rootNodeIds, ["cell:a"]);
   assert.deepEqual(right.rootNodeIds, ["cell:b"]);
   assert.notEqual(adapter.sessions.require("compare:left"), adapter.sessions.require("compare:right"));
+  const before = adapter.sessions.require("compare:left").computationRevision;
+  const activated = adapter.dispatch("left", {
+    type: "focus.activate",
+    objectRef: adapter.objectRef("left", "cell", "cell:a")
+  });
+  assert.equal(state.compare.activeFocusedRootNodeId.left, "cell:a");
+  assert.equal(activated.session.computationRevision, before);
 });
 
 test("compare session identity resets when its module changes", () => {
@@ -37,6 +46,62 @@ test("compare session identity resets when its module changes", () => {
   const replacement = adapter.replaceRoots("left", []);
   assert.equal(replacement.session.unitId, "replacement");
   assert.deepEqual(replacement.session.focusedRootRefs, []);
+});
+
+test("compare roots keep canonical ObjectRefs while projecting escaped graph node ids", () => {
+  const state = {
+    compare: {
+      leftModuleName: "before", rightModuleName: "after",
+      fullGraphs: {
+        left: { nodes: [{ id: "cell:u_0_", kind: "cell", ref: { instance: "u[0]" } }] },
+        right: { nodes: [] }
+      }
+    }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const result = adapter.replaceRoots("left", ["cell:u_0_"], "cell:u_0_");
+  assert.deepEqual(result.rootNodeIds, ["cell:u_0_"]);
+  assert.equal(result.session.focusedRootRefs[0].localId, "u[0]");
+  adapter.dispatch("left", {
+    type: "focus.activate",
+    objectRef: adapter.objectRef("left", "cell", "cell:u_0_")
+  });
+  assert.equal(state.compare.activeFocusedRootNodeId.left, "cell:u_0_");
+});
+
+test("compare bridge imports restored root mirrors before the first command", () => {
+  const state = {
+    compare: {
+      leftModuleName: "before", rightModuleName: "after",
+      focusedRootNodeIds: { left: ["cell:a"], right: [] },
+      activeFocusedRootNodeId: { left: "cell:a", right: null },
+      fullGraphs: {
+        left: { nodes: [{ id: "cell:a", kind: "cell", ref: { instance: "a" } }] },
+        right: { nodes: [] }
+      }
+    }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const session = adapter.ensure("left");
+  assert.equal(session.viewMode, "focused");
+  assert.equal(session.focusedRootRefs[0].localId, "a");
+});
+
+test("single and compare bridges can share the application ViewSession store", () => {
+  const sessions = createViewSessionStore();
+  const state = {
+    currentModule: { name: "top" }, viewMode: "whole", faninDepth: 3, fanoutDepth: 3,
+    focusedRootNodeIds: [], activeFocusedRootNodeId: null, fullGraph: { nodes: [] },
+    transform: { x: 0, y: 0, scale: 1 }, layoutPolicy: {}, nodePositions: new Map(), nodeSizes: new Map(),
+    graphOverrides: { nodeProperties: {}, cellPinDirections: {} },
+    compare: { leftModuleName: "before", rightModuleName: "after", fullGraphs: { left: { nodes: [] }, right: { nodes: [] } } }
+  };
+  const getDocumentId = () => "doc:1";
+  const single = createSingleViewSessionBridge({ state, getDocumentId, sessions });
+  const compare = createCompareViewSessionBridge({ state, getDocumentId, sessions });
+  single.dispatch({ type: "selection.clear" });
+  compare.ensure("left");
+  assert.deepEqual(sessions.list().map((session) => session.sessionId).sort(), ["compare:left", "single:primary"]);
 });
 
 test("compare viewport commands stay isolated and preserve computation revision", () => {

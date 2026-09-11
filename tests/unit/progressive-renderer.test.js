@@ -68,9 +68,11 @@ test("progressive render plan produces the same item markup lazily", () => {
 test("progressive mount accepts the pipeline scene without rebuilding a graph", async () => {
   const scene = createNetlistScene(graph);
   const mount = { innerHTML: "" };
+  const progress = [];
 
-  assert.deepEqual(await renderSvgSceneIntoMount(mount, scene), { progressive: false });
+  assert.deepEqual(await renderSvgSceneIntoMount(mount, scene, { onProgress: (value) => progress.push(value) }), { progressive: false });
   assert.match(mount.innerHTML, /input:a/);
+  assert.deepEqual(progress, [{ phase: "complete", rendered: 3, total: 3 }]);
 });
 
 test("large mount rendering submits edge and node markup in bounded batches", async () => {
@@ -107,6 +109,52 @@ test("large mount rendering submits edge and node markup in bounded batches", as
   assert.match(insertions[0].html, /edge:a-y/);
   assert.deepEqual(progress.map((item) => item.rendered), [0, 1, 2, 3]);
   assert.ok(progress.every((item) => item.total === 3));
+});
+
+test("edge-heavy scenes use the combined scene size for progressive rendering", async () => {
+  const edgeOnlyGraph = { ...graph, nodes: [] };
+  const insertions = [];
+  const groups = {
+    ".edges": {
+      insertAdjacentHTML(position, html) {
+        insertions.push({ position, html });
+      }
+    },
+    ".nodes": {
+      insertAdjacentHTML() {}
+    }
+  };
+  const mount = {
+    innerHTML: "",
+    querySelector(selector) {
+      return groups[selector];
+    }
+  };
+
+  const result = await renderSchematicIntoMount(mount, edgeOnlyGraph, {
+    threshold: 1,
+    batchSize: 1
+  });
+
+  assert.deepEqual(result, { progressive: true, cancelled: false });
+  assert.equal(insertions.length, 1);
+  assert.match(insertions[0].html, /edge:a-y/);
+});
+
+test("progressive rendering rejects mounts without the required SVG groups", async () => {
+  const mount = { innerHTML: "", querySelector: () => null };
+  await assert.rejects(
+    renderSchematicIntoMount(mount, graph, { threshold: 1 }),
+    /did not create edge and node groups/
+  );
+
+  mount.querySelector = (selector) => ({
+    insertAdjacentHTML() {}
+  });
+  assert.deepEqual(
+    await renderSchematicIntoMount(mount, graph, { threshold: 1 }),
+    { progressive: true, cancelled: false }
+  );
 });
 
 test("render options are preserved in synchronous and progressive paths", async () => {

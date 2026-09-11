@@ -128,6 +128,8 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 
 顶部 `Module` 列出 design 中的全部 module。选择新 module 后会显示其结构；超过大图阈值的 module 会进入 Search-first，而不会立即布局整张图。
 
+`Module hierarchy` 是可开关的层次列表，默认折叠。展开后可查看 module instance 路径并点击切换 module；大型或递归层次按明确的节点数/深度上限截断，不会无界展开。
+
 ### 4.2 进入子 module
 
 当某个 cell instance 引用了当前 design 中真实存在的 module definition 时，双击该实例会进入对应子 module。真实子 module 的 port direction 来自其定义，不会被 Cell Config 覆盖。
@@ -137,8 +139,8 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 顶部 `←`、`→` 保存并恢复：
 
 - Module。
-- Whole/Focused/Fanin/Fanout 模式。
-- Cone root 和深度。
+- Whole/Focused/Search-first 模式。
+- Focused roots 和前后向深度。
 - 当前 selection。
 - Pan/zoom viewport。
 
@@ -163,7 +165,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - `Esc`：收起结果列表。
 - 输入框右侧 `×`：清除搜索。
 
-激活 cell 结果后，程序会建立以该 cell 为中心的 Focused neighborhood，并把 cell 居中放大。激活 net 或 port 时会进入对象所在视图并显示连接信息。
+激活 cell 结果后，程序会把 cell 居中放大：若它已绘制，只更新选择和 viewport；若它未绘制，则进入 Focused，并把它追加到已有 roots 而不是替换原 root。激活 net 或 port 时会进入对象所在视图并显示连接信息。
 
 ## 6. 画布、选择和连接追踪
 
@@ -223,6 +225,8 @@ Focused 是以所选 cell 为 root 的双向局部图：
 
 两侧结果会合并并去重。修改一个深度只扩展对应方向。
 
+Focused 可同时保留多个 root。搜索另一个未绘制 cell 会追加 root；`Set selected as Focused` 是明确的替换操作，root chip 上的移除/激活操作则只影响指定 root。
+
 Focused 同时覆盖 fanin 与 fanout，因此界面不再提供重复的单向模式。需要只看一个方向时，把另一个方向的深度设为 `0` 即可。
 
 ## 8. 大图 Search-first 工作流
@@ -259,7 +263,7 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 - `Wire spacing`：调整平行 net 的 lane pitch，默认 `24 px`，可在 `4–96 px` 间调节。
 - `Cell spacing`：调整 cell、输入端口、输出端口之间的间距和拥塞通道留白，可在 `4–320 px` 间调节；较大的数值会明显扩大画布。
 
-两个设置彼此独立，修改后立即重排当前图。大图中建议先使用局部视图，再调整间距。
+两个设置都同时提供滑块和数字输入。数字提交时会吸附到最近的 4 的倍数，并限制在各自范围内；两个设置彼此独立，修改后立即重排当前图。大图中建议先使用局部视图，再调整间距。
 
 ### 9.3 Show aliases
 
@@ -611,7 +615,7 @@ Ready 行只包含文件名和目标摘要，不包含网表、时序或配置�
 2. Timing Snapshot 选择 `Global` 或 `Local`。
 3. Metric 选择 `Slack`。
 4. 搜索 timing 中的 cell/port。
-5. 用 Focused 或 Fanin 观察局部连接。
+5. 用 Focused 观察局部连接；如只需 fanin，把 Fanout depth 设为 `0`。
 6. 在 Selection 中查看所有 pin 的 AT/RT/Slack。
 
 ### 18.3 修复未知标准单元

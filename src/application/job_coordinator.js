@@ -26,14 +26,20 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
 
     const promise = Promise.resolve().then(() => run(context)).then(
       (value) => {
-        if (!isCurrent(context)) return Object.freeze({ status: "stale", context });
-        activeByKey.delete(key);
+        if (!isCurrent(context)) {
+          release(context);
+          return Object.freeze({ status: "stale", context });
+        }
+        release(context);
         const artifact = artifacts.put({ kind, context, value });
         return Object.freeze({ status: "committed", context, artifact });
       },
       (error) => {
-        if (!isCurrent(context)) return Object.freeze({ status: "stale", context, error });
-        activeByKey.delete(key);
+        if (!isCurrent(context)) {
+          release(context);
+          return Object.freeze({ status: "stale", context, error });
+        }
+        release(context);
         throw error;
       }
     );
@@ -58,6 +64,11 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     active.controller.abort();
     activeByKey.delete(key);
     return true;
+  }
+
+  function release(context) {
+    const key = jobKey(context.sessionId, context.kind);
+    if (activeByKey.get(key)?.context === context) activeByKey.delete(key);
   }
 
   function cancelSession(sessionId) {
@@ -89,5 +100,5 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
 
 function jobKey(sessionId, kind) {
   if (!sessionId || !kind) throw new Error("Job sessionId and kind are required");
-  return `${sessionId}:${kind}`;
+  return `${encodeURIComponent(sessionId)}/${encodeURIComponent(kind)}`;
 }

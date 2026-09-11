@@ -19,7 +19,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       return { text, kind: detectQuickInputKind(text, { name: file.name }), name: file.name, order };
     }));
     entries.sort((a, b) => getQuickInputPriority(a.kind) - getQuickInputPriority(b.kind) || a.order - b.order);
-    for (const entry of entries) loadText(entry.text, { kind: entry.kind, label: entry.name });
+    for (const entry of entries) {
+      await loadText(entry.text, { kind: entry.kind, label: entry.name });
+    }
   };
   const loadInputFile = async (event, preferredKind) => {
     const input = event.target;
@@ -28,7 +30,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     try {
       const text = await file.text();
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
-      loadText(text, { kind, label: file.name });
+      await loadText(text, { kind, label: file.name });
     } catch (error) {
       setStatus(`Load failed ${file.name}: ${error.message}`);
     } finally {
@@ -62,7 +64,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       elements.textForm.requestSubmit();
     }
   });
-  elements.textForm?.addEventListener("submit", (event) => {
+  elements.textForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const source = elements.textInput.value.trim();
     if (!source) {
@@ -71,9 +73,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       return;
     }
     try {
-      loadText(source, { kind: textKind, label: textKind === "timing" ? "pasted timing" : "pasted Verilog" });
+      await loadText(source, { kind: textKind, label: textKind === "timing" ? "pasted timing" : "pasted Verilog" });
       closeDialog();
-    } catch {
+    } catch (error) {
+      setStatus(`Paste failed: ${error.message}`);
       elements.textInput.focus();
     }
   });
@@ -103,7 +106,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     if (files.length > 0) loadFiles(files).catch((error) => setStatus(`Drop failed: ${error.message}`));
   });
   windowTarget?.addEventListener("dragend", clearDrag);
-  windowTarget?.addEventListener("paste", (event) => {
+  windowTarget?.addEventListener("paste", async (event) => {
     if (elements.textDialog?.open || isEditableInputTarget(event.target)) return;
     const files = [...(event.clipboardData?.files || [])];
     if (files.length > 0) {
@@ -117,7 +120,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     try { kind = detectQuickInputKind(text); } catch { return; }
     event.preventDefault();
     const label = kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
-    try { loadText(text, { kind, label }); } catch (error) { setStatus(`Paste failed: ${error.message}`); }
+    try { await loadText(text, { kind, label }); } catch (error) { setStatus(`Paste failed: ${error.message}`); }
   });
 
   return Object.freeze({ openDialog, closeDialog, clearDrag, loadFiles });

@@ -1,8 +1,8 @@
 # 面向 Netlist 与 AIG 的可扩展工作台架构
 
-日期：2026-09-09。设计基线：`8d53bfc`。状态：目标架构，尚未整体实现。
+日期：2026-09-09；2026-09-11 全量审计。设计基线：`8d53bfc`。状态：阶段 7 架构基线已实现。
 
-本文定义后续架构与迁移约束；当前实现说明仍见 [ARCHITECTURE.md](ARCHITECTURE.md)，实施任务与真实进度见 [阶段 7](STAGE_7_PLAN.md)。文中的新增目录、接口与类型是待实施设计，不代表现有 API。
+本文定义后续架构与迁移约束；当前实现说明见 [ARCHITECTURE.md](ARCHITECTURE.md)，实施记录与验证证据见 [阶段 7](STAGE_7_PLAN.md)。文中的核心目录、接口和契约已经落地；示意类型不保证与 JavaScript 导出逐字一致。
 
 ## 1. 结论与目标
 
@@ -12,7 +12,9 @@ Netlist schematic 与未来 AIG 是两个领域功能。它们分别拥有输入
 
 衡量成功的方式是“新增功能要改哪些边界”：增加一种图类型应主要新增一个领域包及注册项；增加一项领域分析应主要扩展该领域；调整缩放行为应只改公共画布。不能把遍布各层的 `if (kind === 'aig')` 作为接入方式。
 
-阶段 7 建立并验证这些边界。生产级 AIG 导入和浏览属于后续功能交付；本阶段使用最小内存 AIG 样例验证扩展性，避免为未明确的输入格式实现完整产品。
+阶段 7 已建立并验证这些边界。生产级 AIG 导入和浏览属于后续功能交付；本阶段使用最小内存 AIG 样例验证扩展性，避免为未明确的输入格式实现完整产品。
+
+当前产品仍有三类明确的过渡层：`main.js` 负责浏览器组装及少量旧状态 hydration，Single/Compare view-session bridge 向旧 DOM/存档字段投影，`workspaceRequest.js` 仍是产品中的异步失效保护。`JobCoordinator`、`ArtifactStore` 和 `ComparisonCoordinator` 已有契约与测试，但尚未替换所有产品编排；旧 Netlist graph/layout 实现也仍由领域 facade 适配。它们不是第二套业务规则，新功能不得绕过 commands、pipeline 或 Scene 边界。移除条件见阶段 7 审计记录。
 
 ## 2. 当前拖累来自哪里
 

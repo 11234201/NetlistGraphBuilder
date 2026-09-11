@@ -22,6 +22,11 @@ test("netlist feature imports, searches and projects through stable object refer
   }, { transforms: { useFanoutHubs: false } });
   assert.ok(query.visibleGraph.nodes.some((node) => node.id === "cell:u_0_"));
   assert.equal(query.projectionMap.get("cell:u_0_").localId, "u[0]");
+  assert.deepEqual(
+    query.visibleGraph.nodes.filter((node) => node.kind !== "group").map((node) => query.projectionMap.has(node.id)),
+    query.visibleGraph.nodes.filter((node) => node.kind !== "group").map(() => true)
+  );
+  assert.ok(query.visibleGraph.edges.every((edge) => query.projectionMap.get(edge.id)?.kind === "net"));
   const diagram = netlistFeature.projectDiagram(query);
   assert.equal(diagram.contract, NETLIST_LEGACY_DIAGRAM_CONTRACT);
   assert.equal(diagram.graph, query.visibleGraph);

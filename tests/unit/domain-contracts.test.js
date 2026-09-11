@@ -31,6 +31,8 @@ test("view, diagnostic, and executor ports reject malformed boundary values", as
   assert.equal(diagnostic.code, "W1");
   assert.equal(result, 42);
   assert.throws(() => createViewQuery({ unitId: "top", mode: "unknown" }), /Unsupported/);
+  assert.throws(() => createViewQuery({ unitId: "top", rootNodeIds: "cell:u1" }), /must be an array/);
+  assert.throws(() => createViewQuery({ unitId: "top", rootNodeIds: [""] }), /non-empty strings/);
   assert.throws(() => createDiagnostic({ severity: "fatal", code: "X", message: "x" }), /severity/);
 });
 
@@ -64,13 +66,15 @@ test("domain features and registry reject incomplete or duplicate registrations"
     layoutProfiles: [{ id: "compact" }]
   });
   const registry = createDomainRegistry([feature]);
-  assert.equal(registry.require("test"), feature);
+  assert.equal(registry.require("test").id, feature.id);
   assert.deepEqual(registry.list(), [feature]);
   assert.equal(registry.hasCapability("test", "timing"), true);
   assert.equal(registry.hasCapability("test", "cellConfig"), false);
   assert.deepEqual(registry.contributions("test", "commands"), [{ id: "focus.add" }]);
   assert.deepEqual(registry.contributions("missing", "panels"), []);
   assert.throws(() => createDomainRegistry([feature, feature]), /Duplicate/);
+  assert.throws(() => createDomainRegistry([{ id: "incomplete" }]), /requires importSource/);
+  assert.throws(() => defineDomainFeature({ id: "bad-list", ...methods, panels: "details" }), /panels must be an array/);
   assert.throws(() => registry.require("missing"), /Unknown/);
   assert.equal(createDefaultDomainRegistry().require("netlist").id, "netlist");
 });

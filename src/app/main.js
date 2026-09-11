@@ -4,7 +4,7 @@ import {
   compareLayoutGraphs,
   createLayoutGolden,
   getLayoutGoldenState
-} from "../layout/layoutGolden.js";
+} from "../domains/netlist/layout_golden.js";
 import {
   DEFAULT_LAYOUT_POLICY,
   normalizeLayoutPolicy
@@ -24,15 +24,17 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
+import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
 import { createBrowserDownload, sanitizeDownloadFileName } from "../platform/browser_download.js";
-import { importTimingSource } from "../application/timing_import.js";
+import { importTimingSource } from "../domains/netlist/timing_import.js";
 import {
   parseCellConfig,
   serializeCellConfig,
 } from "../infer/cellConfig.js";
 import { loadStoredCellConfig, saveStoredCellConfig } from "../persistence/cell_config_storage.js";
-import { createCellConfigUseCases } from "../application/cell_config_use_cases.js";
+import { createSourceIdentity } from "../persistence/source_identity.js";
+import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cases.js";
 import { bindAdjustPanel, renderAdjustPanel } from "../ui/adjustPanel.js";
 import {
   collectCellTypeSummary,
@@ -109,6 +111,8 @@ import {
   closeOtherDisclosures
 } from "../ui/disclosure.js";
 import { executeStartupManifest, fetchStartupManifest } from "./startupController.js";
+import { createDocumentStore } from "../application/document_store.js";
+import { createViewSessionStore } from "../application/view_session_store.js";
 import {
   canStepModuleHistory,
   createModuleHistoryEntry,
@@ -121,13 +125,17 @@ const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const browserDownload = createBrowserDownload();
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
+const documents = createDocumentStore();
+const viewSessions = createViewSessionStore();
 const singleViewSession = createSingleViewSessionBridge({
   state,
-  getDocumentId: () => state.document?.documentId || null
+  getDocumentId: () => state.document?.documentId || null,
+  sessions: viewSessions
 });
 const compareViewSessions = createCompareViewSessionBridge({
   state,
-  getDocumentId: () => state.document?.documentId || null
+  getDocumentId: () => state.document?.documentId || null,
+  sessions: viewSessions
 });
 state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
@@ -163,6 +171,7 @@ const elements = {
   syncCompareInput: document.querySelector("#syncCompareInput"),
   compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
   compareOutputSelect: document.querySelector("#compareOutputSelect"),
+  moduleHierarchyPanel: document.querySelector("#moduleHierarchyPanel"),
   moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),
   syncCompareFocusInput: document.querySelector("#syncCompareFocusInput"),
   searchInput: document.querySelector("#searchInput"),
@@ -249,7 +258,8 @@ const processLogController = createProcessLogController({
 });
 const moduleHierarchyController = createModuleHierarchyController({
   container: elements.moduleHierarchyTree,
-  getDesign: () => state.design,
+  panel: elements.moduleHierarchyPanel,
+  getHierarchy: () => state.design ? buildModuleHierarchy(state.design) : null,
   getCurrentModuleName: () => state.currentModule?.name || null,
   navigate: selectModule
 });
@@ -340,8 +350,7 @@ elements.compareLayoutSelect.addEventListener("change", (event) => {
 elements.compareOutputSelect.addEventListener("change", (event) => {
   state.compare.outputName = event.target.value || null;
   if (state.compare.outputName) {
-    state.compare.focusedRootNodeIds = { left: [], right: [] };
-    state.compare.activeFocusedRootNodeId = { left: null, right: null };
+    for (const side of ["left", "right"]) compareViewSessions.dispatch(side, { type: "focus.clear" });
   }
   elements.coneDepthInput.disabled = !state.compare.outputName;
   renderCompareGraphs();
@@ -587,10 +596,12 @@ function loadDesign(source, label, restore = null) {
       label,
       diagnostics: design.diagnostics?.length || 0
     });
-    state.document = documentEnvelope;
+    state.document = documents.open(documentEnvelope);
+    viewSessions.closeByDocument(documentEnvelope.documentId);
     state.design = design;
     state.currentSource = source;
     state.currentSourceLabel = label;
+    state.sourceIdentity = createSourceIdentity(label, source);
     resetDesignWorkspace(state);
     state.currentModule = null;
     state.searchIndex = netlistFeature.buildSearchIndex(documentEnvelope);
@@ -609,9 +620,14 @@ function loadDesign(source, label, restore = null) {
       restore?.focusedRootNodeIds,
       restore?.coneRootNodeId
     );
-    if (restore?.viewMode && restore.viewMode !== "whole" && restoredFocusedRoots.length > 0) {
-      state.viewMode = normalizeSingleViewMode(restore.viewMode);
-      setFocusedRootNodeIds(state, restoredFocusedRoots, restore.activeFocusedRootNodeId);
+    const restoredViewMode = restore?.viewMode ? normalizeSingleViewMode(restore.viewMode) : null;
+    if (restoredViewMode && (restoredViewMode !== "focused" || restoredFocusedRoots.length > 0)) {
+      state.viewMode = restoredViewMode;
+      setFocusedRootNodeIds(
+        state,
+        restoredViewMode === "focused" ? restoredFocusedRoots : [],
+        restore.activeFocusedRootNodeId
+      );
       renderCurrentModuleGraph({ readyMessage });
     }
     if (restore?.transform) setSingleTransform(restore.transform);
@@ -822,6 +838,7 @@ function selectModule(moduleName, options = {}) {
   const historyMode = options.historyMode || "push";
   const historyEntry = options.historyEntry || null;
   const switchingModule = state.currentModule?.name !== module.name;
+  const defaultViewMode = shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole";
   if (state.currentModule && switchingModule) {
     if (historyMode === "push") {
       state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
@@ -830,7 +847,7 @@ function selectModule(moduleName, options = {}) {
     singleViewSession.dispatch({
       type: "unit.set",
       unitId: module.name,
-      viewMode: shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole"
+      viewMode: defaultViewMode
     });
   }
   state.currentModule = module;
@@ -838,6 +855,7 @@ function selectModule(moduleName, options = {}) {
   elements.moduleSelect.value = module.name;
   renderModuleHierarchy();
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
+  if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;
   if (historyEntry) {
     applyModuleHistoryEntry(historyEntry);
   }
@@ -1494,7 +1512,10 @@ function handleCompareFocusedRootListClick(event) {
   const chip = event.target.closest?.("[data-focused-root-activate]");
   const nodeId = chip?.dataset.focusedRootActivate;
   if (!context.roots.includes(nodeId)) return;
-  state.compare.activeFocusedRootNodeId[context.side] = nodeId;
+  compareViewSessions.dispatch(context.side, {
+    type: "focus.activate",
+    objectRef: compareViewSessions.objectRef(context.side, "cell", nodeId)
+  });
   const node = context.graph?.nodes.find((item) => item.id === nodeId);
   if (node) {
     const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
@@ -2687,6 +2708,8 @@ function loadLayoutGolden(imported, label) {
   setSingleLayoutPolicy(state.layoutPolicy);
 
   elements.coneDepthInput.value = String(state.coneDepth);
+  elements.faninDepthInput.value = String(state.faninDepth);
+  elements.fanoutDepthInput.value = String(state.fanoutDepth);
   syncLayoutSpacingControls();
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   setSelectedNode(null);
@@ -2718,6 +2741,8 @@ function saveLayoutGolden() {
         focusedRootNodeIds: state.focusedRootNodeIds,
         activeFocusedRootNodeId: state.activeFocusedRootNodeId,
         coneDepth: state.coneDepth,
+        faninDepth: state.faninDepth,
+        fanoutDepth: state.fanoutDepth,
         useFanoutHubs: state.useFanoutHubs,
         collapseLargeGroups: state.collapseLargeGroups,
         expandedGroupIds: [...state.expandedGroupIds]
@@ -2744,10 +2769,10 @@ function currentPersistenceIdentity() {
     domainId: state.document?.domainId || "netlist",
     documentId: state.document?.documentId || null,
     unitId: state.currentModule?.name || null,
-    sourceIdentity: {
-      name: state.currentSourceLabel || state.document?.source?.name || "source",
-      size: String(state.currentSource || "").length
-    }
+    sourceIdentity: state.sourceIdentity || createSourceIdentity(
+      state.currentSourceLabel || state.document?.source?.name,
+      state.currentSource
+    )
   };
 }
 
@@ -2928,7 +2953,8 @@ function handleComparePointerDown(event) {
     target: elements.canvas,
     svg,
     transform: state.compare.transforms[side],
-    commit: (transform) => setCompareTransform(side, transform)
+    commit: (transform) => setCompareTransform(side, transform),
+    onEnd: persistSession
   });
 }
 

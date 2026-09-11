@@ -33,6 +33,24 @@ test("viewport updates advance UI revision without invalidating computation revi
   const after = sessions.updateViewport("left", { x: 8, y: 4, scale: 1.5 });
   assert.equal(after.sessionRevision, before.sessionRevision + 1);
   assert.equal(after.computationRevision, before.computationRevision);
+  assert.equal(sessions.updateViewport("left", { x: 8, y: 4, scale: 1.5 }), after);
+});
+
+test("view session boundary rejects malformed state and immutable identity changes", () => {
+  const sessions = createViewSessionStore();
+  assert.throws(() => sessions.create({
+    sessionId: "bad", documentId: "doc:1", domainId: "netlist", unitId: "top", viewMode: "cone"
+  }), /unsupported/);
+  assert.throws(() => sessions.create({
+    sessionId: "bad-ref", documentId: "doc:1", domainId: "netlist", unitId: "top",
+    focusedRootRefs: [ref("u1", "other")]
+  }), /another document or unit/);
+  sessions.create({ sessionId: "stable", documentId: "doc:1", domainId: "netlist", unitId: "top" });
+  assert.throws(() => sessions.update("stable", () => ({ documentId: "doc:2" })), /identity cannot change/);
+  assert.throws(() => createViewSessionStore([
+    { sessionId: "same", documentId: "doc:1", domainId: "netlist", unitId: "top" },
+    { sessionId: "same", documentId: "doc:1", domainId: "netlist", unitId: "top" }
+  ]), /Duplicate/);
 });
 
 test("focused commands isolate sessions and reject capacity without replacing roots", () => {
@@ -48,9 +66,11 @@ test("focused commands isolate sessions and reject capacity without replacing ro
 test("selection reveal only centers visible objects and adds hidden objects to Focused", () => {
   const { sessions, bus } = setup();
   const u1 = ref("u1");
+  const beforeVisible = sessions.require("left").computationRevision;
   const visible = bus.dispatch({ type: "selection.reveal", sessionId: "left", objectRef: u1, visibleObjectKeys: [objectRefKey(u1)] });
   assert.deepEqual(visible.effects, { query: false, layout: false, render: false, viewport: true, persist: false });
   assert.equal(sessions.require("left").viewMode, "whole");
+  assert.equal(visible.session.computationRevision, beforeVisible);
 
   const hidden = bus.dispatch({ type: "selection.reveal", sessionId: "left", objectRef: ref("u2"), visibleObjectKeys: [] });
   assert.equal(hidden.effects.layout, true);
@@ -71,9 +91,11 @@ test("cross-unit reveal changes scope and never reuses roots from the old unit",
 
 test("selection, viewport, layout policy and overrides have explicit command ownership", () => {
   const { sessions, bus } = setup();
+  const beforeSelection = sessions.require("left").computationRevision;
   const selected = bus.dispatch({ type: "selection.set", sessionId: "left", objectRef: ref("u1") });
   assert.equal(selected.session.selectedObjectRef.localId, "u1");
   assert.equal(selected.effects.render, true);
+  assert.equal(selected.session.computationRevision, beforeSelection);
   const beforeViewport = selected.session.computationRevision;
   const viewport = bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 4, y: 8, scale: 1.5 } });
   assert.deepEqual(viewport.session.viewport, { x: 4, y: 8, scale: 1.5 });
@@ -83,8 +105,33 @@ test("selection, viewport, layout policy and overrides have explicit command own
   assert.equal(policy.session.computationRevision, beforeViewport + 1);
   const overrides = bus.dispatch({ type: "overrides.set", sessionId: "left", overrides: { nodePositions: [] } });
   assert.deepEqual(overrides.session.overrides, { nodePositions: [] });
-  assert.equal(bus.dispatch({ type: "selection.clear", sessionId: "left" }).session.selectedObjectRef, null);
+  const cleared = bus.dispatch({ type: "selection.clear", sessionId: "left" });
+  assert.equal(cleared.session.selectedObjectRef, null);
+  assert.equal(cleared.session.computationRevision, overrides.session.computationRevision);
   assert.throws(() => bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 0, y: 0, scale: 0 } }), /finite positive viewport/);
+});
+
+test("active-root changes preserve Whole view and do not invalidate layout", () => {
+  const { sessions, bus } = setup();
+  bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u1") });
+  bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u2") });
+  bus.dispatch({ type: "view.mode.set", sessionId: "left", viewMode: "whole" });
+  const before = sessions.require("left").computationRevision;
+  const activated = bus.dispatch({ type: "focus.activate", sessionId: "left", objectRef: ref("u1") });
+  assert.equal(activated.session.viewMode, "whole");
+  assert.equal(activated.session.activeFocusedRootRef.localId, "u1");
+  assert.equal(activated.session.computationRevision, before);
+  assert.equal(activated.effects.layout, false);
+});
+
+test("default Focused root capacity follows the shared 32-root policy", () => {
+  const sessions = createViewSessionStore();
+  sessions.create({ sessionId: "left", documentId: "doc:1", domainId: "netlist", unitId: "top" });
+  const bus = createCommandBus(createViewCommandHandlers({ sessions }));
+  for (let index = 0; index < 32; index += 1) {
+    assert.equal(bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref(`u${index}`) }).rejected, null);
+  }
+  assert.equal(bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("overflow") }).rejected, "focused-root-capacity");
 });
 
 test("focused root replacement and clear are owned by commands", () => {

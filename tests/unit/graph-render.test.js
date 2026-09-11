@@ -5,7 +5,7 @@ import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { normalizeGraphAliases } from "../../src/analysis/aliasNormalizer.js";
 import { inferCellKind, inferPinDirection } from "../../src/infer/defaultCellRules.js";
 import { ensureFallbackCellPinDirections } from "../../src/infer/defaultCellRules.js";
-import { compareLayoutGraphs, createLayoutGolden } from "../../src/layout/layoutGolden.js";
+import { compareLayoutGraphs, createLayoutGolden } from "../../src/domains/netlist/layout_golden.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";

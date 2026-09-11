@@ -1,4 +1,4 @@
-import { parseTimingLog } from "../timing/timingParser.js";
+import { parseTimingLog } from "../../timing/timingParser.js";
 
 export function importTimingSource(text, options = {}) {
   if (typeof text !== "string") throw new Error("Timing source must be text");

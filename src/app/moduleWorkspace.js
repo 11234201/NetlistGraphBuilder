@@ -66,7 +66,7 @@ export function buildModuleWorkspace(options) {
     measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
-    createScene: (graph) => createNetlistScene(graph, { wireBridges: false })
+    createScene: (graph) => createNetlistScene(graph)
   }, options);
   const finalize = (result) => ({
     fullGraph: result.queryResult.fullGraph,

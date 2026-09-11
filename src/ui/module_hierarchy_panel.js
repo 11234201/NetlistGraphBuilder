@@ -2,7 +2,10 @@ import { escapeAttr, escapeHtml } from "./html.js";
 
 export function renderModuleHierarchyPanel(roots, currentModuleName) {
   if (!roots?.length) return '<div class="module-hierarchy-empty">No modules</div>';
-  return `<ul class="module-hierarchy-tree">${roots.map((node) => renderNode(node, currentModuleName)).join("")}</ul>`;
+  const truncated = roots.truncated
+    ? '<div class="module-hierarchy-truncated">Hierarchy truncated at the configured display limit.</div>'
+    : "";
+  return `<ul class="module-hierarchy-tree">${roots.map((node) => renderNode(node, currentModuleName)).join("")}</ul>${truncated}`;
 }
 
 export function getModuleHierarchyTarget(event) {
@@ -18,5 +21,8 @@ function renderNode(node, currentModuleName) {
   const children = node.children.length
     ? `<ul>${node.children.map((child) => renderNode(child, currentModuleName)).join("")}</ul>`
     : "";
-  return `<li>${button}${children}</li>`;
+  const truncated = node.truncated
+    ? '<span class="module-hierarchy-truncated">More instances omitted</span>'
+    : "";
+  return `<li>${button}${children}${truncated}</li>`;
 }

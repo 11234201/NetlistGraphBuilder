@@ -22,11 +22,20 @@ export function createWheelGestureController({ canvas, apply, onSettled, settleD
     canvas.classList.add("is-view-interacting");
     timers.clearTimeout(settleTimer);
     settleTimer = timers.setTimeout(() => {
+      frames.flush();
       canvas.classList.remove("is-view-interacting");
       onSettled?.();
     }, settleDelay);
     frames.schedule(pending);
   }
 
-  return Object.freeze({ queue, flush: () => frames.flush() });
+  return Object.freeze({
+    queue,
+    flush() {
+      frames.flush();
+      timers.clearTimeout(settleTimer);
+      settleTimer = null;
+      canvas.classList.remove("is-view-interacting");
+    }
+  });
 }

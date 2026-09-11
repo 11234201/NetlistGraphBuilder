@@ -49,7 +49,7 @@ test("single view session bridge keeps one ViewSession until document or unit id
   adapter.dispatch({ type: "focus.add", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
   const second = adapter.sessions.require("single:primary");
   assert.equal(second.sessionId, first.sessionId);
-  assert.ok(second.sessionRevision > first.sessionRevision);
+  assert.equal(second.sessionRevision, first.sessionRevision + 1);
   state.currentModule = { name: "replacement" };
   state.fullGraph = { nodes: [{ id: "cell:x", kind: "cell", ref: { instance: "x" } }] };
   state.graph = state.fullGraph;

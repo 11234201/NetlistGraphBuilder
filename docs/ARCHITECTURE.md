@@ -2,7 +2,7 @@
 
 本文记录现行实现与已建立的约束。面向后续功能和 AIG 的目标边界、数据契约与迁移决策见
 [可扩展工作台架构](architecture_evolution.md)，实施顺序与进度见 [阶段 7](STAGE_7_PLAN.md)。
-目标目录和接口在迁移完成前不应被当作已实现能力；以下现行说明按实际落地逐批更新。
+阶段 7 的模块化单体基线已经落地；以下同时记录现行实现和仍有明确移除条件的兼容层。
 
 ## 分层原则
 
@@ -13,6 +13,11 @@ parser -> netlist IR -> inference -> graph extraction -> layout -> render -> UI
 ```
 
 每层只依赖左侧稳定数据结构，不直接读取 Verilog 原文，除非它就是 parser 层。
+
+公共工作台把这条 Netlist 数据流包在稳定边界内：`contracts/` 定义 ObjectRef、领域和视图契约，
+`application/` 拥有 Document/ViewSession/commands 与任务协调，`domains/netlist/` 负责领域投影，
+`diagram/` 和 `render/` 消费中性显示图与 Scene，`bootstrap/` 组装具体领域。公共 application、layout
+和 render 不得反向读取 Netlist/AIG 私有字段；静态边界测试固定这一依赖方向。
 
 ## 模块边界
 
@@ -183,7 +188,8 @@ Layout policy:
 - `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,
   bends, length, detour, crossings, overlaps, outer-lane use and hidden labels. Golden comparisons report
   metric deltas; repository fixtures cap outer/global fallback routes independently of hard legality.
-- `src/layout/layoutGolden.js` version 2 stores stable node order plus per-edge route geometry and strategy.
+- `src/domains/netlist/layout_golden.js` version 3 stores stable node order plus per-edge route geometry,
+  strategy, view state and source identity while preserving v1/v2 import compatibility.
   Golden diffs report changed edges so one bad net cannot disappear inside aggregate quality metrics.
 - `src/layout/routeScoring.js` owns named route costs and candidate comparison. Candidate generators must
   not embed crossing/bend/length magic numbers.
@@ -299,6 +305,13 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 
 ### `src/app/`
 
+- `DocumentStore` 和共享 `ViewSessionStore` 是文档、画布及其 revision 的所有者；Single/Compare
+  bridge 只负责 ObjectRef 与旧 UI/session 字段之间的兼容投影。
+- `view_commands.js` 统一处理 unit、Focused roots、selection、viewport、layout policy 与 overrides，
+  并显式返回 query/layout/render/viewport/persist effects。纯 viewport 或相同值提交不会错误推进
+  computation revision。
+- `view_pipeline.js` 固定 `query -> project -> measure -> layout -> overrides -> scene` 顺序；
+  Netlist 与测试用内存 AIG 都经该路径，公共层不含领域类型分支。
 - `workspaceRequest.js` captures workspace identity and guards asynchronous success, failure,
   progress and render completion against superseded requests. It discards stale work; it does not
   interrupt synchronous provider computation. The renderer invalidates pending batches when any
@@ -325,6 +338,8 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   execution belongs to workspace rebuilds only.
 - `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
+- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 当前是经过测试的下一步产品端口，
+  还没有完整替换 `workspaceRequest.js` 和主入口中的全部异步/Compare 编排，不能把端口存在误写成产品已接管。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。

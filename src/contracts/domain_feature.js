@@ -13,6 +13,14 @@ export function defineDomainFeature(value) {
   for (const method of REQUIRED_METHODS) {
     if (typeof value[method] !== "function") throw new Error(`Domain feature ${value.id} requires ${method}()`);
   }
+  for (const field of ["inputFormats", "commands", "panels", "layoutProfiles"]) {
+    if (value[field] !== undefined && !Array.isArray(value[field])) {
+      throw new Error(`Domain feature ${value.id} ${field} must be an array`);
+    }
+  }
+  if (value.capabilities !== undefined && (!value.capabilities || typeof value.capabilities !== "object" || Array.isArray(value.capabilities))) {
+    throw new Error(`Domain feature ${value.id} capabilities must be an object`);
+  }
   return Object.freeze({
     ...value,
     inputFormats: Object.freeze([...(value.inputFormats || [])]),

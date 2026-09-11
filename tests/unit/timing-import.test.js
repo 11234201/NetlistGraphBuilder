@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importTimingSource } from "../../src/application/timing_import.js";
+import { importTimingSource } from "../../src/domains/netlist/timing_import.js";
 
 test("timing import validates input and returns an immutable application result", () => {
   const source = "inst <top/u0> pin <A>, at 1.0, rat 0.1, slack -0.2";

@@ -2,9 +2,15 @@ import { createCommandBus } from "../application/command_bus.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createObjectRef, objectRefKey } from "../contracts/object_ref.js";
+import { DEFAULT_FOCUSED_VIEW_POLICY } from "../foundation/view_policy.js";
+import { hasProjectedValueChange } from "../foundation/structured_value.js";
 
-export function createSingleViewSessionBridge({ state, getDocumentId, maxFocusedRoots = 8 }) {
-  const sessions = createViewSessionStore();
+export function createSingleViewSessionBridge({
+  state,
+  getDocumentId,
+  sessions = createViewSessionStore(),
+  maxFocusedRoots = DEFAULT_FOCUSED_VIEW_POLICY.maximumRoots
+}) {
   const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }));
 
   function synchronizeSession() {
@@ -31,7 +37,9 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
       if (current) sessions.close(value.sessionId);
       return sessions.create(value);
     }
-    return sessions.update(value.sessionId, () => value, { invalidateComputation: false });
+    return hasProjectedValueChange(current, value)
+      ? sessions.update(value.sessionId, () => value, { invalidateComputation: false })
+      : current;
   }
 
   return Object.freeze({
