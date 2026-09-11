@@ -1041,7 +1041,8 @@ function setViewMode(mode) {
     }
     setFocusedRootNodeIds(state, rootNodeIds);
   }
-  state.viewMode = mode;
+  const modeResult = setSingleViewMode(mode);
+  if (modeResult?.rejected) return;
   renderCurrentModuleGraph();
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   if (mode === "focused" && !state.selectedNodeId && state.coneRootNodeId) {
@@ -1100,8 +1101,10 @@ function handleConeDepthChange(event) {
 }
 
 function handleFocusedDepthChange() {
-  state.faninDepth = clamp(Math.floor(Number(elements.faninDepthInput.value) || 0), 0, 99);
-  state.fanoutDepth = clamp(Math.floor(Number(elements.fanoutDepthInput.value) || 0), 0, 99);
+  setSingleFocusedDepths(
+    clamp(Math.floor(Number(elements.faninDepthInput.value) || 0), 0, 99),
+    clamp(Math.floor(Number(elements.fanoutDepthInput.value) || 0), 0, 99)
+  );
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
   if (state.compare.active) {
@@ -2799,6 +2802,24 @@ function setSingleLayoutPolicy(layoutPolicy) {
   }
   singleViewSession.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
   return state.layoutPolicy;
+}
+
+function setSingleViewMode(viewMode) {
+  const normalized = normalizeSingleViewMode(viewMode);
+  if (!state.document?.documentId || !state.currentModule?.name) {
+    state.viewMode = normalized;
+    return { rejected: null };
+  }
+  return singleViewSession.dispatch({ type: "view.mode.set", viewMode: normalized });
+}
+
+function setSingleFocusedDepths(faninDepth, fanoutDepth) {
+  if (!state.document?.documentId || !state.currentModule?.name) {
+    state.faninDepth = faninDepth;
+    state.fanoutDepth = fanoutDepth;
+    return null;
+  }
+  return singleViewSession.dispatch({ type: "view.depths.set", faninDepth, fanoutDepth });
 }
 
 function setSingleOverrides(overrides) {
