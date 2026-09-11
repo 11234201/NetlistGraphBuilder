@@ -266,4 +266,6 @@ ViewSession 新增 `focus.replace/clear` 批量命令，统一去重、容量、
 
 原 `legacy_view_command_adapter` 与 `legacy_compare_session_adapter` 已重命名为 Single/Compare `view_session_bridge`；它们只负责 ObjectRef 转换和旧 DOM/存档字段投影，selection、roots、viewport、layout policy 与 overrides 的决策均由公共 command handler 持有，不再存在第二套 legacy 业务实现。完整回归保持 358/358。
 
+Single ViewSession 已进一步以 `single:primary` 取代 legacy session identity，main 调用方统一使用 Single/Compare bridge 命名。`view.mode.set` 与 `view.depths.set` 现由公共 command handler 校验并推进 computation revision，Focused 无 root 会稳定拒绝，深度统一限制为 0～99；主视图按钮和深度输入已通过该边界提交。完整回归为 359/359。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。
