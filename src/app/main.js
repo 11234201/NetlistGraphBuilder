@@ -2320,20 +2320,20 @@ function bindSelectionControls(node) {
   bindAdjustPanel(elements.details, node, state.calibrationMode, {
     onSizeChange: (size) => updateNodeSize(node.id, size),
     onResetSize: () => {
-      state.nodeSizes.delete(node.id);
+      updateSingleOverrides((overrides) => overrides.nodeSizes.delete(node.id));
       rerenderPreservingView(node.id);
       setStatus(`${node.label}: size reset`);
     },
     onPropertyChange: (property, value) => updateNodeProperty(node.id, property, value),
     onResetProperties: () => {
-      delete state.graphOverrides.nodeProperties[node.id];
+      updateSingleOverrides((overrides) => delete overrides.graphOverrides.nodeProperties[node.id]);
       rerenderPreservingView(node.id);
       setStatus(`${node.label}: properties reset`);
     },
     onPinDirectionChange: (pin, direction) => updateCellPinDirection(node, pin, direction),
     onResetPinDirections: () => {
       if (instance) {
-        delete state.graphOverrides.cellPinDirections[instance];
+        updateSingleOverrides((overrides) => delete overrides.graphOverrides.cellPinDirections[instance]);
       }
       rerenderPreservingView(node.id);
       setStatus(`${node.label}: pin directions reset`);
@@ -2366,7 +2366,7 @@ function updateNodeSize(nodeId, size) {
     return;
   }
 
-  state.nodeSizes.set(nodeId, nextSize);
+  updateSingleOverrides((overrides) => overrides.nodeSizes.set(nodeId, nextSize));
   rerenderPreservingView(nodeId);
   setStatus(`${node.label}: width=${nextSize.width}, height=${nextSize.height}`);
 }
@@ -2377,17 +2377,12 @@ function updateNodeProperty(nodeId, property, value) {
     return;
   }
   const trimmed = String(value ?? "").trim();
-  if (!state.graphOverrides.nodeProperties[nodeId]) {
-    state.graphOverrides.nodeProperties[nodeId] = {};
-  }
-  if (trimmed === "") {
-    delete state.graphOverrides.nodeProperties[nodeId][property];
-  } else {
-    state.graphOverrides.nodeProperties[nodeId][property] = trimmed;
-  }
-  if (Object.keys(state.graphOverrides.nodeProperties[nodeId]).length === 0) {
-    delete state.graphOverrides.nodeProperties[nodeId];
-  }
+  updateSingleOverrides((overrides) => {
+    const properties = overrides.graphOverrides.nodeProperties[nodeId] ||= {};
+    if (trimmed === "") delete properties[property];
+    else properties[property] = trimmed;
+    if (Object.keys(properties).length === 0) delete overrides.graphOverrides.nodeProperties[nodeId];
+  });
   rerenderPreservingView(nodeId);
   setStatus(`${node.label}: ${property} updated`);
 }
@@ -2397,10 +2392,10 @@ function updateCellPinDirection(node, pinName, direction) {
   if (!instance || (direction !== "input" && direction !== "output")) {
     return;
   }
-  if (!state.graphOverrides.cellPinDirections[instance]) {
-    state.graphOverrides.cellPinDirections[instance] = {};
-  }
-  state.graphOverrides.cellPinDirections[instance][pinName] = direction;
+  updateSingleOverrides((overrides) => {
+    const pins = overrides.graphOverrides.cellPinDirections[instance] ||= {};
+    pins[pinName] = direction;
+  });
   rerenderPreservingView(node.id);
   setStatus(`${node.label}.${pinName}: ${direction}`);
 }
