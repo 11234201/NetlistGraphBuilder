@@ -827,6 +827,11 @@ function selectModule(moduleName, options = {}) {
       state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
     }
     saveModuleWorkspace(state, state.currentModule.name);
+    singleViewSession.dispatch({
+      type: "unit.set",
+      unitId: module.name,
+      viewMode: shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole"
+    });
   }
   state.currentModule = module;
   if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
@@ -835,14 +840,9 @@ function selectModule(moduleName, options = {}) {
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
   if (historyEntry) {
     applyModuleHistoryEntry(historyEntry);
-  } else if (switchingModule && !restoredWorkspace && shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD)) {
-    state.viewMode = "search-first";
-    setFocusedRootNodeIds(state, []);
   }
   if (!historyEntry) {
     setSingleTransform({ x: 0, y: 0, scale: 1 });
-    state.selectedNodeId = null;
-    state.selectedNet = null;
   }
   const requestedOnRendered = options.onRendered;
   renderCurrentModuleGraph({

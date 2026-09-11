@@ -101,3 +101,14 @@ test("single view session bridge owns immutable-style override replacement", () 
   assert.deepEqual(state.nodePositions.get("cell:u1"), { x: 24, y: 32 });
   assert.equal(state.graphOverrides.nodeProperties["cell:u1"].label, "A");
 });
+
+test("single view session bridge projects unit navigation and clears scoped mirrors", () => {
+  const { state, adapter } = setup();
+  state.nodePositions.set("cell:u0", { x: 1, y: 2 });
+  const result = adapter.dispatch({ type: "unit.set", unitId: "replacement", viewMode: "search-first" });
+  assert.equal(result.session.unitId, "replacement");
+  assert.equal(state.viewMode, "search-first");
+  assert.deepEqual(state.focusedRootNodeIds, []);
+  assert.equal(state.selectedNodeId, null);
+  assert.equal(state.nodePositions.size, 0);
+});

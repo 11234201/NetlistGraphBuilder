@@ -117,3 +117,20 @@ test("view mode and focused depths are validated and owned by commands", () => {
   assert.throws(() => bus.dispatch({ type: "view.mode.set", sessionId: "left", viewMode: "cone" }), /valid viewMode/);
   assert.throws(() => bus.dispatch({ type: "view.depths.set", sessionId: "left", faninDepth: "bad", fanoutDepth: 2 }), /finite faninDepth/);
 });
+
+test("unit navigation clears unit-scoped state in one command", () => {
+  const { sessions, bus } = setup();
+  bus.dispatch({ type: "focus.set", sessionId: "left", objectRef: ref("u1") });
+  bus.dispatch({ type: "overrides.set", sessionId: "left", overrides: { nodePositions: [["u1", { x: 1, y: 2 }]] } });
+  bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 5, y: 6, scale: 2 } });
+  const result = bus.dispatch({ type: "unit.set", sessionId: "left", unitId: "child", viewMode: "search-first" });
+  assert.equal(result.session.unitId, "child");
+  assert.equal(result.session.viewMode, "search-first");
+  assert.deepEqual(result.session.focusedRootRefs, []);
+  assert.equal(result.session.selectedObjectRef, null);
+  assert.equal(result.session.overrides, null);
+  assert.deepEqual(result.session.viewport, { x: 0, y: 0, scale: 1 });
+  assert.equal(result.effects.layout, true);
+  assert.equal(sessions.require("right").unitId, "top");
+  assert.throws(() => bus.dispatch({ type: "unit.set", sessionId: "left", unitId: "", viewMode: "whole" }), /requires unitId/);
+});

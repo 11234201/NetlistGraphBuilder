@@ -53,7 +53,9 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
         : null;
       state.transform = { ...result.session.viewport };
       state.layoutPolicy = result.session.layoutPolicy;
-      applyOverridesSnapshot(state, result.session.overrides);
+      applyOverridesSnapshot(state, result.session.overrides || {
+        nodePositions: [], nodeSizes: [], graphOverrides: null
+      });
       return result;
     },
     objectRefForNode(node) {

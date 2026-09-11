@@ -39,6 +39,23 @@ export function createViewCommandHandlers({ sessions, maxFocusedRoots = 8 }) {
   });
 
   return Object.freeze({
+    "unit.set": (command) => withSession(command, (session) => {
+      const unitId = requireId(command.unitId, "unitId");
+      const viewMode = requireViewMode(command.viewMode || "whole");
+      if (unitId === session.unitId && viewMode === session.viewMode) return { effects: NO_EFFECTS };
+      return {
+        patch: {
+          unitId,
+          viewMode,
+          focusedRootRefs: [],
+          activeFocusedRootRef: null,
+          selectedObjectRef: null,
+          overrides: null,
+          viewport: { x: 0, y: 0, scale: 1 }
+        },
+        effects: computeEffects({ query: true, layout: true, render: true, viewport: true, persist: true })
+      };
+    }),
     "focus.add": focus("add"),
     "focus.set": focus("set"),
     "focus.remove": focus("remove"),
@@ -145,6 +162,11 @@ function requireViewport(value) {
 
 function requireRecord(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Command requires ${label}`);
+  return value;
+}
+
+function requireId(value, label) {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`Command requires ${label}`);
   return value;
 }
 
