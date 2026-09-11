@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildModuleHierarchy } from "../../src/domains/netlist/module_hierarchy.js";
+import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { renderModuleHierarchyPanel } from "../../src/ui/module_hierarchy_panel.js";
 
 const module = (name, cells = [], displayName = name) => ({ name, displayName, cells });
@@ -47,4 +49,26 @@ test("module hierarchy bounds repeated expansion and reports truncation", () => 
   assert.equal(roots.truncated, true);
   assert.equal(roots[0].truncated, true);
   assert.match(renderModuleHierarchyPanel(roots, "top"), /More instances omitted/);
+});
+
+test("module hierarchy demonstration fixture has repeated occurrences and one bounded recursive branch", async () => {
+  const source = await readFile(new URL("../../examples/module_hierarchy_demo.v", import.meta.url), "utf8");
+  const roots = buildModuleHierarchy(parseVerilog(source));
+  const top = roots.find((node) => node.moduleName === "hierarchy_demo_top");
+  const left = top.children.find((node) => node.instanceName === "u_compute_left");
+  const right = top.children.find((node) => node.instanceName === "u_compute_right");
+  const control = left.children.find((node) => node.instanceName === "u_control");
+  const decode = control.children.find((node) => node.instanceName === "u_decode");
+  const decodeLeaf = decode.children.find((node) => node.instanceName === "u_decode_leaf");
+  const diagnostic = top.children.find((node) => node.instanceName === "u_diagnostic");
+  const cycle = diagnostic.children.find((node) => node.instanceName === "u_cycle").children[0];
+
+  assert.equal(roots.length, 1);
+  assert.ok(top);
+  assert.ok(decodeLeaf);
+  assert.notEqual(left.id, right.id);
+  assert.match(decodeLeaf.id, /u_compute_left:compute_cluster\/u_control:control_block\/u_decode:decode_stage\/u_decode_leaf:logic_leaf$/);
+  assert.equal(cycle.instanceName, "u_self");
+  assert.equal(cycle.cycle, true);
+  assert.equal(cycle.children.length, 0);
 });
