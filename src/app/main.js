@@ -1039,7 +1039,7 @@ function setViewMode(mode) {
       setStatus("Select a cell before opening Focused view");
       return;
     }
-    setFocusedRootNodeIds(state, rootNodeIds);
+    replaceSingleFocusedRoots(rootNodeIds);
   }
   const modeResult = setSingleViewMode(mode);
   if (modeResult?.rejected) return;
@@ -1132,11 +1132,9 @@ function handleAliasVisibilityChange(event) {
   }
   const selectedNodeId = state.selectedNodeId;
   if (!state.showAliases && selectedNode?.kind === "assign") {
-    state.viewMode = "whole";
-    setFocusedRootNodeIds(state, []);
+    singleViewSession.dispatch({ type: "focus.clear" });
   }
   renderCurrentModuleGraph();
-  state.selectedNodeId = null;
   setSelectedNode(state.graph.nodes.some((node) => node.id === selectedNodeId) ? selectedNodeId : null);
   applyTransform();
   setStatus(state.showAliases ? "Alias nodes shown" : `Collapsed ${state.fullGraph.aliases?.length || 0} alias node(s)`);
@@ -1673,7 +1671,6 @@ function commitLayoutSpacing(key, value) {
     rerenderActiveGraph();
     if (!state.compare.active) {
       setSingleTransform(previousTransform);
-      state.selectedNodeId = null;
       setSelectedNode(selectedNodeId);
       applyTransform();
     }
@@ -1687,7 +1684,6 @@ function commitLayoutSpacing(key, value) {
   renderStats();
   renderDiagnostics();
   const selectedNode = state.selectedNodeId;
-  state.selectedNodeId = null;
   setSelectedNode(selectedNode);
   applyTransform();
   setStatus(`Wire spacing: ${value}px`);
@@ -1790,10 +1786,12 @@ function rebuildAfterCellConfigChange(message) {
       focusedRootNodeIds: state.focusedRootNodeIds,
       coneRootNodeId: state.coneRootNodeId
     }, SEARCH_FIRST_NODE_THRESHOLD);
-    state.viewMode = refreshView.viewMode;
     if (refreshView.viewMode === "focused" || refreshView.viewMode === "search-first") {
-      setFocusedRootNodeIds(state, refreshView.rootNodeIds ||
+      replaceSingleFocusedRoots(refreshView.rootNodeIds ||
         (refreshView.coneRootNodeId ? [refreshView.coneRootNodeId] : []));
+      if (refreshView.viewMode === "search-first") setSingleViewMode("search-first");
+    } else {
+      singleViewSession.dispatch({ type: "focus.clear" });
     }
     renderCurrentModuleGraph({
       readyMessage: message,
@@ -2448,7 +2446,6 @@ function rerenderPreservingView(selectedNodeId) {
   const previousTransform = { ...state.transform };
   renderCurrentModuleGraph();
   setSingleTransform(previousTransform);
-  state.selectedNodeId = null;
   setSelectedNode(selectedNodeId);
   applyTransform();
 }
@@ -2695,9 +2692,7 @@ function loadLayoutGolden(imported, label) {
   elements.coneDepthInput.value = String(state.coneDepth);
   syncLayoutSpacingControls();
   setSingleTransform({ x: 0, y: 0, scale: 1 });
-  state.selectedNodeId = null;
-  state.selectedNet = null;
-  renderSelection(null);
+  setSelectedNode(null);
   updateViewControls();
   renderCurrentModuleGraph({
     readyMessage: `Loaded Golden ${label}: ${state.nodePositions.size} node position(s)`
