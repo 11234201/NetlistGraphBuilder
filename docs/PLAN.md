@@ -46,12 +46,13 @@ Structural Verilog
 - 阶段 5：`docs/STAGE_5_PLAN.md`
 - 阶段 6：`docs/STAGE_6_PLAN.md`
 - 阶段 7：向多领域图形工作台迁移（架构基线与全量审计已完成），见 [阶段 7 计划](STAGE_7_PLAN.md) 和 [目标架构](architecture_evolution.md)。
+- 阶段 8：层次追踪、对象聚焦与大图交互收敛（计划中），见 [阶段 8 计划](STAGE_8_PLAN.md)。
 
 ## 需求拆解与完成状态
 
-当前里程碑：阶段 7 已完成模块化单体的第一条产品路径：领域契约与注册、Document/ViewSession/commands、共享 pipeline/Scene renderer、UI controller、版本化存档边界，以及内存 AIG 扩展性门禁均已落地。阶段 5 的可选 Liberty 增强继续保留为后续计划。
+当前里程碑：阶段 7 已完成模块化单体的第一条产品路径：领域契约与注册、Document/ViewSession/commands、共享 pipeline/Scene renderer、UI controller、版本化存档边界，以及内存 AIG 扩展性门禁均已落地。阶段 8 已进入规划，聚焦跨层 Fanin/Fanout、Cell/Net Focused、大图交互性能、标准门符号、通用 View History、Search 解耦与 Compare 按需加载。阶段 5 的可选 Liberty 增强继续保留为后续计划。
 
-下一条工程主线不再是继续横向拆文件，而是在真实新能力进入时沿已建立边界扩展：生产级 AIG 输入/转换/分析另行规划；Worker、产物缓存与彻底移除 `main.js` 兼容投影只在有明确性能或产品证据时实施。
+下一条工程主线是阶段 8：先固化真实浏览器与大图基线，再沿阶段 7 边界实施最小失效、按需 Compare、统一 Cell/Net root 和 occurrence-aware 层次查询；Worker 只在消除重复工作后仍有明确主线程瓶颈时立项。生产级 AIG 输入/转换/分析继续另行规划。
 
 状态口径：
 
@@ -95,6 +96,13 @@ Structural Verilog
 | R7-1 | 阶段 7 | 多领域工作台核心 | DomainFeature/registry、DocumentStore、ViewSession commands、任务与 Compare 契约 | 已完成 | `docs/STAGE_7_PLAN.md` |
 | R7-2 | 阶段 7 | 共享图形与交互边界 | query-to-Scene pipeline、安全/渐进 SVG、Single/Compare controller 与版本化存档 | 已完成 | `docs/STAGE_7_PLAN.md` |
 | R7-3 | 阶段 7 | AIG 扩展性验证 | 内存 AIG 经公共搜索、Focused、布局、选择和导出链路，公共层无领域分支 | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R8-1 | 阶段 8 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、可穿 hinst 的双向 cone 与边界信息 | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-2 | 阶段 8 | Net Focused | Cell/Net 统一 root、driver/load seed、高扇出有界局部图 | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-3 | 阶段 8 | 交互性能与最小失效 | artifact cache、阶段失效矩阵、局部 reroute/Scene/DOM 更新与性能证据 | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-4 | 阶段 8 | 标准逻辑门符号 | AND/OR/XOR/BUF 族结构化 Scene 符号、反相 bubble 与 fallback | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-5 | 阶段 8 | 通用 View History | selection/navigation/focus/viewport/override 的事务化 Back/Forward | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-6 | 阶段 8 | Search 与 Focused 解耦 | Locate-only 默认语义、显式 Add Focus、Search-first 自动 fallback | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-7 | 阶段 8 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job 与显式 Whole | 计划中 | `docs/STAGE_8_PLAN.md` |
 
 ### 阶段 0：项目准备
 
@@ -305,6 +313,23 @@ Structural Verilog
 - 外部 EDA 工具能打开指定 netlist、module 和 focus cell。
 
 详细任务、接口约定和验证矩阵见 `docs/STAGE_6_PLAN.md`。
+
+### 阶段 8：层次追踪、对象聚焦与大图交互收敛
+
+目标：把局部结构浏览扩展到真实 instance occurrence 上下文，并让 Search、Focused、Compare、
+View History 和画布交互在大型网表上按最小必要范围工作。
+
+计划交付：
+
+- Cell/Net 统一 Focused root，以及可穿越 hinst/port 的层次 Fanin/Fanout。
+- Search 默认只定位；仅 Search-first 大图无法使用 Whole 位置时自动加入 Focused roots。
+- 分阶段 artifact 复用、最小失效和 Compare 双侧按需 layout/render。
+- AND/NAND、OR/NOR、XOR/XNOR、BUF/INV 的标准逻辑门符号。
+- 覆盖 selection、层次导航、Focused、Compare、viewport 和 layout override 的通用 Back/Forward。
+
+完成标准：跨层与 Net cone 正确、有界且不修改源 IR；大图默认路径不触发无必要 Whole layout；
+轻量交互不运行 provider；符号不改变既有端口和 routing geometry；历史事务、分支、兼容和异步恢复
+均通过验证。详细分批、性能基线、风险和验证矩阵见 `docs/STAGE_8_PLAN.md`。
 
 ## 每次写代码前必须通读
 

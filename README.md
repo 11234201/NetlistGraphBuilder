@@ -225,6 +225,7 @@ npm test
 
 现行边界见 [架构说明](docs/ARCHITECTURE.md)。已实现的多领域工作台设计见
 [可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
+后续的层次追踪、Cell/Net Focused、大图交互与 Compare 按需加载见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。
 测试用内存 AIG 已验证扩展边界，但生产级 AIG 输入仍不是正式产品功能。
 
 ```text
@@ -261,4 +262,4 @@ tools/                本地开发工具与大图示例生成器
 - Compare 是名称、gate kind 和图统计驱动的启发式分析，不提供形式等价或逻辑等价证明。
 - 内存 AIG 样例只用于验证架构扩展性；尚未提供生产级 AIGER 导入、AIG 浏览界面或等价分析。
 
-详细路线图见 [docs/PLAN.md](docs/PLAN.md)；大图基线见 [阶段 4](docs/STAGE_4_PLAN.md)，当前工作台架构与审计证据见 [阶段 7](docs/STAGE_7_PLAN.md)。
+详细路线图见 [docs/PLAN.md](docs/PLAN.md)；大图基线见 [阶段 4](docs/STAGE_4_PLAN.md)，当前工作台架构与审计证据见 [阶段 7](docs/STAGE_7_PLAN.md)，下一阶段产品计划见 [阶段 8](docs/STAGE_8_PLAN.md)。
