@@ -240,4 +240,6 @@ Single/Compare wheel 的目标切换、滚轮步数累计、每帧合并、交�
 
 Single/Compare 空白画布平移的 pointer capture、按帧合并、坐标校验、最终 flush 与取消语义已统一到 `ui/canvas_pan_controller.js`；main 只提供当前 viewport、轻量 transform commit，以及 Single 侧的持久化/点击清选 effect。完整回归为 343/343。
 
+Single/Compare 节点拖拽的 SVG 坐标换算、吸附、位置规范化、按帧预览、pointer session 清理与最终一次提交已统一到 `ui/canvas_node_drag_controller.js`；热路径仅写 override map 和移动现有 DOM，昂贵 reroute 仍在手势结束后由各 workspace effect 执行。完整回归为 346/346。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并把输入、timing、Cell Config 与 canvas 事件编排移入受限 controller；已完成的 Scene、Compare、基线和路由项目不再重复迁移。

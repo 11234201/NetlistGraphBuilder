@@ -10,7 +10,6 @@ import {
   normalizeLayoutPolicy
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
-import { snapNodePosition } from "../layout/snap.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
@@ -19,6 +18,7 @@ import { createLayoutSpacingController } from "../ui/layout_spacing_controller.j
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
 import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
 import { startCanvasPan } from "../ui/canvas_pan_controller.js";
+import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
@@ -44,9 +44,6 @@ import {
   renderDefinitionRows as statsRows
 } from "../ui/html.js";
 import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
-import { getDraggedNodePosition, sameNodePosition } from "../ui/nodeDrag.js";
-import { createNodeDragPreview } from "../ui/nodeDragPreview.js";
-import { createLatestFrameScheduler } from "../ui/frameScheduler.js";
 import { startPointerSession } from "../ui/pointerSession.js";
 import {
   clientPointToViewBox,
@@ -2699,52 +2696,23 @@ function startNodeDrag(event, nodeId) {
     return;
   }
 
-  event.preventDefault();
   setSelectedNode(nodeId);
-
-  const startPoint = eventPointToContent(event);
-  const startPosition = { x: node.x, y: node.y };
-  const preview = createNodeDragPreview(
-    elements.mount,
-    state.graph,
-    nodeId,
-    startPosition
-  );
-  let moved = false;
-  const dragFrames = createLatestFrameScheduler((pointer) => {
-    const point = eventPointToContent(pointer);
-    if (!point || !startPoint) return;
-
-    const candidatePosition = getDraggedNodePosition(startPosition, startPoint, point);
-    const snapResult = snapNodePosition(state.graph, nodeId, candidatePosition);
-    const nextPosition = {
-      x: round(Math.max(16, snapResult.position.x)),
-      y: round(Math.max(16, snapResult.position.y))
-    };
-    const previous = state.nodePositions.get(nodeId);
-    if (sameNodePosition(previous, nextPosition)) return;
-
-    moved = true;
-    state.nodePositions.set(nodeId, nextPosition);
-    preview.update(nextPosition);
-    if (snapResult.snap) {
-      setStatus(`${node.label}: snapped ${snapResult.snap.net} to y=${snapResult.snap.targetY}`);
-    } else {
-      setStatus(`${node.label}: x=${nextPosition.x}, y=${nextPosition.y}`);
-    }
-  });
-
-  startPointerSession({
+  startCanvasNodeDrag({
+    event,
     target: elements.canvas,
-    pointerId: event.pointerId,
-    className: "is-node-dragging",
-    onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
-    onEnd: () => {
-      dragFrames.flush();
-      if (!moved) {
-        preview.clear();
-        return;
+    mount: elements.mount,
+    graph: state.graph,
+    node,
+    getPreviousPosition: () => state.nodePositions.get(nodeId),
+    updatePosition: (position) => state.nodePositions.set(nodeId, position),
+    onPreview({ position, snap }) {
+      if (snap) {
+        setStatus(`${node.label}: snapped ${snap.net} to y=${snap.targetY}`);
+      } else {
+        setStatus(`${node.label}: x=${position.x}, y=${position.y}`);
       }
+    },
+    onCommit({ preview }) {
       setStatus(`Rerouting ${node.label}…`);
       runAfterNextPaint(() => commitNodeDrag(nodeId, preview));
     }
@@ -3008,51 +2976,16 @@ function toggleCompareFocusedRoot(side, nodeId) {
 
 function startCompareNodeDrag(event, side, node) {
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
-  const content = mount.querySelector("#schematicContent");
-  const matrix = content?.getScreenCTM();
-  if (!matrix) return;
-  event.preventDefault();
   selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side);
-  const toContent = (pointerEvent) => {
-    const svg = mount.querySelector("svg");
-    const currentMatrix = mount.querySelector("#schematicContent")?.getScreenCTM();
-    if (!svg || !currentMatrix) return null;
-    const point = svg.createSVGPoint();
-    point.x = pointerEvent.clientX;
-    point.y = pointerEvent.clientY;
-    return point.matrixTransform(currentMatrix.inverse());
-  };
-  const startPoint = toContent(event);
-  const startPosition = { x: node.x, y: node.y };
-  const preview = createNodeDragPreview(
-    mount,
-    state.compare.graphs[side],
-    node.id,
-    startPosition
-  );
-  let moved = false;
-  const dragFrames = createLatestFrameScheduler((pointer) => {
-    const point = toContent(pointer);
-    if (!point || !startPoint) return;
-    const candidate = getDraggedNodePosition(startPosition, startPoint, point);
-    const snapped = snapNodePosition(state.compare.graphs[side], node.id, candidate);
-    const previous = state.compare.nodePositions[side].get(node.id);
-    if (sameNodePosition(previous, snapped.position)) return;
-    moved = true;
-    state.compare.nodePositions[side].set(node.id, snapped.position);
-    preview.update(snapped.position);
-  });
-  startPointerSession({
+  startCanvasNodeDrag({
+    event,
     target: elements.canvas,
-    pointerId: event.pointerId,
-    className: "is-node-dragging",
-    onMove: (moveEvent) => dragFrames.schedule(pointerClientPoint(moveEvent)),
-    onEnd: () => {
-      dragFrames.flush();
-      if (!moved) {
-        preview.clear();
-        return;
-      }
+    mount,
+    graph: state.compare.graphs[side],
+    node,
+    getPreviousPosition: () => state.compare.nodePositions[side].get(node.id),
+    updatePosition: (position) => state.compare.nodePositions[side].set(node.id, position),
+    onCommit({ preview }) {
       setStatus(`Rerouting ${side} ${node.label}…`);
       runAfterNextPaint(() => {
         preview.clear();
@@ -3158,29 +3091,6 @@ function eventPointToSvg(svg, event) {
     rect,
     svg.viewBox.baseVal
   );
-}
-
-function eventPointToContent(event) {
-  const svg = getSvg();
-  const content = elements.mount.querySelector("#schematicContent");
-  const matrix = content?.getScreenCTM();
-  if (!svg || !matrix) {
-    return null;
-  }
-
-  const point = svg.createSVGPoint();
-  point.x = event.clientX;
-  point.y = event.clientY;
-  return point.matrixTransform(matrix.inverse());
-}
-
-function pointerClientPoint(event) {
-  return {
-    x: event.clientX,
-    y: event.clientY,
-    clientX: event.clientX,
-    clientY: event.clientY
-  };
 }
 
 function getSvg() {
