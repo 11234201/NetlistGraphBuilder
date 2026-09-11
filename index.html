@@ -23,10 +23,17 @@
             <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴 Global/Local 或 LocResyn 时序文本">Paste timing</button>
           </div>
         </details>
-        <label class="toolbar-field">
-          <span>Module</span>
-          <select id="moduleSelect"></select>
-        </label>
+        <details id="moduleHierarchyMenu" class="toolbar-menu module-hierarchy-menu">
+          <summary id="moduleHierarchySummary" title="Browse module hierarchy">
+            <span class="module-hierarchy-summary-prefix">Module:</span>
+            <span id="moduleHierarchyCurrent" class="module-hierarchy-current">No module</span>
+          </summary>
+          <div class="toolbar-menu-popover module-hierarchy-popover">
+            <label class="module-hierarchy-filter-label" for="moduleHierarchyFilter">Find module or instance</label>
+            <input id="moduleHierarchyFilter" class="module-hierarchy-filter" type="search" placeholder="Module or instance…" autocomplete="off" aria-controls="moduleHierarchyTree">
+            <div id="moduleHierarchyTree" class="module-hierarchy-body" aria-live="polite">No modules</div>
+          </div>
+        </details>
         <button id="moduleBackButton" class="icon-button compact-button" type="button" title="返回上一个 module 视图 (Alt+Left)" disabled>&larr;</button>
         <button id="moduleForwardButton" class="icon-button compact-button" type="button" title="前进到下一个 module 视图 (Alt+Right)" disabled>&rarr;</button>
         <div class="topbar-search">
@@ -120,10 +127,6 @@
             <label><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label>
             <label class="cone-depth-field" for="coneDepthInput"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
           </section>
-          <details id="moduleHierarchyPanel" class="panel-section collapsible-panel module-hierarchy-panel">
-            <summary>Module hierarchy</summary>
-            <div id="moduleHierarchyTree" class="panel-section-body module-hierarchy-body">No modules</div>
-          </details>
           <section class="panel-section">
             <h2>Design</h2>
             <dl id="designStats" class="stats-list"></dl>

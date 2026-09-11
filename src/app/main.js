@@ -158,7 +158,10 @@ const elements = {
   dropOverlay: document.querySelector("#dropOverlay"),
   timingInput: document.querySelector("#timingInput"),
   goldenInput: document.querySelector("#goldenInput"),
-  moduleSelect: document.querySelector("#moduleSelect"),
+  moduleHierarchyMenu: document.querySelector("#moduleHierarchyMenu"),
+  moduleHierarchySummary: document.querySelector("#moduleHierarchySummary"),
+  moduleHierarchyCurrent: document.querySelector("#moduleHierarchyCurrent"),
+  moduleHierarchyFilter: document.querySelector("#moduleHierarchyFilter"),
   moduleBackButton: document.querySelector("#moduleBackButton"),
   moduleForwardButton: document.querySelector("#moduleForwardButton"),
   layoutProviderSelect: document.querySelector("#layoutProviderSelect"),
@@ -171,7 +174,6 @@ const elements = {
   syncCompareInput: document.querySelector("#syncCompareInput"),
   compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
   compareOutputSelect: document.querySelector("#compareOutputSelect"),
-  moduleHierarchyPanel: document.querySelector("#moduleHierarchyPanel"),
   moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),
   syncCompareFocusInput: document.querySelector("#syncCompareFocusInput"),
   searchInput: document.querySelector("#searchInput"),
@@ -258,7 +260,8 @@ const processLogController = createProcessLogController({
 });
 const moduleHierarchyController = createModuleHierarchyController({
   container: elements.moduleHierarchyTree,
-  panel: elements.moduleHierarchyPanel,
+  panel: elements.moduleHierarchyMenu,
+  filterInput: elements.moduleHierarchyFilter,
   getHierarchy: () => state.design ? buildModuleHierarchy(state.design) : null,
   getCurrentModuleName: () => state.currentModule?.name || null,
   navigate: selectModule
@@ -325,9 +328,6 @@ createQuickInputController({
   windowTarget: window,
   loadText: loadQuickInputText,
   setStatus
-});
-elements.moduleSelect.addEventListener("change", () => {
-  selectModule(elements.moduleSelect.value);
 });
 elements.moduleBackButton.addEventListener("click", () => navigateModuleHistory(-1));
 elements.moduleForwardButton.addEventListener("click", () => navigateModuleHistory(1));
@@ -639,19 +639,24 @@ function loadDesign(source, label, restore = null) {
 }
 
 function renderModuleOptions() {
-  elements.moduleSelect.innerHTML = "";
-  for (const module of state.design.modules) {
-    const option = document.createElement("option");
-    option.value = module.name;
-    option.textContent = module.displayName;
-    elements.moduleSelect.append(option);
-  }
+  elements.moduleHierarchyFilter.value = "";
+  updateModuleHierarchyPicker();
   renderCompareModuleOptions();
   renderModuleHierarchy();
 }
 
 function renderModuleHierarchy() {
   moduleHierarchyController.render();
+}
+
+function updateModuleHierarchyPicker() {
+  const label = state.currentModule?.displayName || "No module";
+  elements.moduleHierarchyCurrent.textContent = label;
+  elements.moduleHierarchySummary.title = state.currentModule
+    ? `Browse module hierarchy (current: ${label})`
+    : "Browse module hierarchy";
+  elements.moduleHierarchyMenu.hidden = state.compare.active;
+  if (state.compare.active) elements.moduleHierarchyMenu.open = false;
 }
 
 function renderCompareModuleOptions() {
@@ -702,6 +707,7 @@ function applyCompareSelection() {
   setCompareTransform("left", { x: 0, y: 0, scale: 1 }, false);
   setCompareTransform("right", { x: 0, y: 0, scale: 1 }, false);
   elements.comparePanel.hidden = false;
+  updateModuleHierarchyPicker();
   elements.mount.hidden = true;
   elements.compareMount.hidden = false;
   elements.compareButton.classList.add("is-active");
@@ -725,6 +731,7 @@ function exitCompareView() {
   state.compare.active = false;
   updateFocusSelectedControl();
   elements.comparePanel.hidden = true;
+  updateModuleHierarchyPicker();
   elements.compareMount.hidden = true;
   elements.mount.hidden = false;
   elements.compareButton.classList.remove("is-active");
@@ -852,7 +859,7 @@ function selectModule(moduleName, options = {}) {
   }
   state.currentModule = module;
   if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
-  elements.moduleSelect.value = module.name;
+  updateModuleHierarchyPicker();
   renderModuleHierarchy();
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
   if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;

@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildModuleHierarchy } from "../../src/domains/netlist/module_hierarchy.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
-import { renderModuleHierarchyPanel } from "../../src/ui/module_hierarchy_panel.js";
+import {
+  filterModuleHierarchy,
+  renderModuleHierarchyPanel
+} from "../../src/ui/module_hierarchy_panel.js";
 
 const module = (name, cells = [], displayName = name) => ({ name, displayName, cells });
 const instance = (name, type) => ({ instance: name, instanceDisplayName: name, type });
@@ -49,6 +52,24 @@ test("module hierarchy bounds repeated expansion and reports truncation", () => 
   assert.equal(roots.truncated, true);
   assert.equal(roots[0].truncated, true);
   assert.match(renderModuleHierarchyPanel(roots, "top"), /More instances omitted/);
+});
+
+test("module hierarchy filtering keeps matching occurrences and their ancestor path", () => {
+  const roots = buildModuleHierarchy({ modules: [
+    module("leaf"),
+    module("mid", [instance("u_leaf0", "leaf"), instance("u_leaf1", "leaf")]),
+    module("top", [instance("u_mid", "mid")])
+  ] });
+  const filtered = filterModuleHierarchy(roots, "u_leaf1");
+
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].moduleName, "top");
+  assert.equal(filtered[0].children[0].moduleName, "mid");
+  assert.deepEqual(filtered[0].children[0].children.map((node) => node.instanceName), ["u_leaf1"]);
+  assert.equal(roots[0].children[0].children.length, 2);
+  assert.match(renderModuleHierarchyPanel(filterModuleHierarchy(roots, "missing"), null, {
+    emptyMessage: "No matching module or instance"
+  }), /No matching module or instance/);
 });
 
 test("module hierarchy demonstration fixture has repeated occurrences and one bounded recursive branch", async () => {

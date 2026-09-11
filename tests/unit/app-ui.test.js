@@ -166,6 +166,8 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="fanoutDepthInput"[^>]+min="0"/);
   assert.match(html, /id="moduleBackButton"[^>]+disabled/);
   assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
+  assert.match(topbar, /id="moduleHierarchyMenu"[\s\S]*id="moduleHierarchyFilter"[\s\S]*id="moduleHierarchyTree"/);
+  assert.doesNotMatch(html, /id="moduleSelect"|id="moduleHierarchyPanel"/);
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
   assert.match(html, /id="syncCompareFocusInput" type="checkbox" checked/);
   assert.match(html, /id="setFocusedRootButton"[^>]+disabled/);
