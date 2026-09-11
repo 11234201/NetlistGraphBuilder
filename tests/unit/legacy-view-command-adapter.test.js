@@ -67,3 +67,13 @@ test("legacy adapter projects selection commands back to compatibility fields", 
   assert.equal(state.selectedNodeId, null);
   assert.equal(state.selectedNet, null);
 });
+
+test("legacy adapter projects viewport without invalidating computation", () => {
+  const { state, adapter } = setup();
+  state.transform = { x: 0, y: 0, scale: 1 };
+  adapter.dispatch({ type: "selection.clear" });
+  const before = adapter.sessions.require("legacy:single").computationRevision;
+  const result = adapter.dispatch({ type: "viewport.set", viewport: { x: 12, y: 8, scale: 1.25 } });
+  assert.deepEqual(state.transform, { x: 12, y: 8, scale: 1.25 });
+  assert.equal(result.session.computationRevision, before);
+});

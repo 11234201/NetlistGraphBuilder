@@ -248,4 +248,6 @@ ViewSession command 已补齐 `selection.set/clear`、`viewport.set`、`layout.p
 
 Single 的 node/net/clear 选择入口已切换到 `selection.set/clear`；互斥决策与 session revision 由 ViewSession handler 持有，`selectedNodeId/selectedNet` 仅作为当前 DOM 与旧存档的 adapter 投影。完整回归为 351/351。
 
+Single 的平移、缩放、fit、module history 恢复、Focused 重置和对象居中已统一经 `viewport.set`；adapter 同步本身不推进 computation revision，运行期不再直接写 `state.transform`，仅保留 document/module 尚未建立时的初始化 fallback。完整回归为 352/352。
+
 剩余收尾聚焦 S7-2/S7-5：继续缩减 main 对兼容状态镜像的直接写入，并迁移残余 selection/layout override 状态命令；已完成的输入、canvas、Scene、Compare、基线和路由项目不再重复迁移。

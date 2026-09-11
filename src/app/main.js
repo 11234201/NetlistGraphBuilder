@@ -591,7 +591,7 @@ function loadDesign(source, label, restore = null) {
       setFocusedRootNodeIds(state, restoredFocusedRoots, restore.activeFocusedRootNodeId);
       renderCurrentModuleGraph({ readyMessage });
     }
-    if (restore?.transform) state.transform = { ...restore.transform };
+    if (restore?.transform) setSingleTransform(restore.transform);
     setStatus(readyMessage);
   } catch (error) {
     setStatus(`Load failed: ${error.message}`);
@@ -818,7 +818,7 @@ function selectModule(moduleName, options = {}) {
     setFocusedRootNodeIds(state, []);
   }
   if (!historyEntry) {
-    state.transform = { x: 0, y: 0, scale: 1 };
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
     state.selectedNodeId = null;
     state.selectedNet = null;
   }
@@ -868,11 +868,11 @@ function applyModuleHistoryEntry(entry) {
   state.fanoutDepth = entry.fanoutDepth;
   state.selectedNodeId = entry.selectedNodeId || null;
   state.selectedNet = entry.selectedNet || null;
-  state.transform = { ...entry.transform };
+  setSingleTransform(entry.transform);
 }
 
 function restoreModuleHistorySelection(entry, graph) {
-  state.transform = { ...entry.transform };
+  setSingleTransform(entry.transform);
   if (entry.selectedNet && graph.edges.some((edge) => edge.net === entry.selectedNet)) {
     setSelectedNet(entry.selectedNet);
   } else if (entry.selectedNodeId && graph.nodes.some((node) => node.id === entry.selectedNodeId)) {
@@ -1000,7 +1000,7 @@ function renderLayoutProviderOptions() {
 
 function handleLayoutProviderChange(event) {
   state.layoutProviderId = event.target.value;
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   if (state.layoutProviderId === "elk-layered") {
     setStatus("ELK Layered is experimental; Simple Layered is recommended for schematic editing");
   }
@@ -1044,7 +1044,7 @@ function setViewMode(mode) {
   }
   state.viewMode = mode;
   renderCurrentModuleGraph();
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   if (mode === "focused" && !state.selectedNodeId && state.coneRootNodeId) {
     setSelectedNode(state.coneRootNodeId);
   }
@@ -1271,7 +1271,7 @@ function setSelectedAsFocusedRoot() {
   });
   if (commandResult.rejected) return;
   const requestId = ++state.selectionFocusRequestId;
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   updateViewControls();
   setStatus("Rebuilding Focused view around selected cell…");
   renderCurrentModuleGraph({
@@ -1280,7 +1280,7 @@ function setSelectedAsFocusedRoot() {
       const node = graph.nodes.find((item) => item.id === nodeId);
       if (!node) return;
       setSelectedNode(nodeId);
-      focusPositionedCell(node, elements.mount, state.transform, (transform) => { state.transform = transform; });
+      focusPositionedCell(node, elements.mount, state.transform, setSingleTransform);
       applyTransform();
       setStatus(`Focused neighborhood root: ${node.label}`);
     }
@@ -1312,7 +1312,7 @@ function addSelectedAsFocusedRoot() {
   });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   const requestId = ++state.selectionFocusRequestId;
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   updateViewControls();
   renderCurrentModuleGraph({
     onRendered: (graph) => {
@@ -1358,7 +1358,7 @@ function removeSelectedFromFocusedRoots() {
   } else {
     state.viewMode = "focused";
   }
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   renderCurrentModuleGraph();
   setStatus(nextRoots.length ? "Removed selected Focused root" : "Cleared final Focused root");
 }
@@ -1395,7 +1395,7 @@ function clearFocusedRoots() {
   setFocusedRootNodeIds(state, []);
   state.viewMode = shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD)
     ? "search-first" : "whole";
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   renderCurrentModuleGraph();
   setStatus("Focused roots cleared");
 }
@@ -1414,7 +1414,7 @@ function handleFocusedRootListClick(event) {
       state.viewMode = shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD)
         ? "search-first" : "whole";
     }
-    state.transform = { x: 0, y: 0, scale: 1 };
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
     renderCurrentModuleGraph();
     setStatus(`Removed Focused root: ${nodeId}`);
     return;
@@ -1427,7 +1427,7 @@ function handleFocusedRootListClick(event) {
   const positioned = state.graph?.nodes.find((node) => node.id === nodeId);
   if (positioned) {
     setSelectedNode(nodeId);
-    focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+    focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
     applyTransform();
     updateViewControls();
     setStatus(`Active Focused root: ${positioned.label}`);
@@ -1440,7 +1440,7 @@ function handleFocusedRootListClick(event) {
       const node = graph.nodes.find((item) => item.id === nodeId);
       if (!node) return;
       setSelectedNode(nodeId);
-      focusPositionedCell(node, elements.mount, state.transform, (transform) => { state.transform = transform; });
+      focusPositionedCell(node, elements.mount, state.transform, setSingleTransform);
       applyTransform();
       setStatus(`Active Focused root: ${node.label}`);
     }
@@ -1523,7 +1523,7 @@ function focusSelectedCell() {
   if (!fullNode) return;
   const positioned = state.graph?.nodes.find((node) => node.id === selectedNodeId);
   if (positioned) {
-    focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+    focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
     applyTransform();
     setStatus(`Focused ${fullNode.label}`);
     return;
@@ -1537,7 +1537,7 @@ function focusSelectedCell() {
       if (requestId !== state.selectionFocusRequestId || state.selectedNodeId !== selectedNodeId) return;
       const node = graph.nodes.find((item) => item.id === selectedNodeId);
       if (!node) return;
-      focusPositionedCell(node, elements.mount, state.transform, (transform) => { state.transform = transform; });
+      focusPositionedCell(node, elements.mount, state.transform, setSingleTransform);
       setSelectedNode(selectedNodeId);
       applyTransform();
       setStatus(`Focused ${node.label} in a new neighborhood`);
@@ -1577,7 +1577,7 @@ function focusStartupCells(values) {
   state.selectedNodeId = nodeId;
   state.viewMode = "focused";
   setFocusedRootNodeIds(state, rootNodeIds, nodeId);
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   updateViewControls();
   return new Promise((resolve) => {
     renderCurrentModuleGraph({
@@ -1585,7 +1585,7 @@ function focusStartupCells(values) {
         const positioned = graph.nodes.find((item) => item.id === nodeId);
         setSelectedNode(positioned?.id || null);
         if (positioned) {
-          focusPositionedCell(positioned, elements.mount, state.transform, (transform) => { state.transform = transform; });
+          focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
           applyTransform();
         }
         resolve();
@@ -1660,7 +1660,7 @@ function commitLayoutSpacing(key, value) {
     const previousTransform = { ...state.transform };
     rerenderActiveGraph();
     if (!state.compare.active) {
-      state.transform = previousTransform;
+      setSingleTransform(previousTransform);
       state.selectedNodeId = null;
       setSelectedNode(selectedNodeId);
       applyTransform();
@@ -1671,7 +1671,7 @@ function commitLayoutSpacing(key, value) {
 
   const previousTransform = { ...state.transform };
   renderCurrentModuleGraph();
-  state.transform = previousTransform;
+  setSingleTransform(previousTransform);
   renderStats();
   renderDiagnostics();
   const selectedNode = state.selectedNodeId;
@@ -1786,7 +1786,7 @@ function rebuildAfterCellConfigChange(message) {
     renderCurrentModuleGraph({
       readyMessage: message,
       onRendered: (graph) => {
-        state.transform = previousTransform;
+        setSingleTransform(previousTransform);
         setSelectedNode(graph.nodes.some((node) => node.id === selectedNodeId) ? selectedNodeId : null);
         applyTransform();
       }
@@ -1866,7 +1866,7 @@ function navigateSingleSelectionTarget(target) {
   }
 
   state.viewMode = "whole";
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   updateViewControls();
   setStatus("Opening whole module to reveal the connected object…");
   renderCurrentModuleGraph({
@@ -1968,7 +1968,7 @@ function activateSearchResult(result) {
       setStatus(`Search: ${result.kind} ${result.label}`);
       return;
     }
-    state.transform = { x: 0, y: 0, scale: 1 };
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
     renderCurrentModuleGraph({
       onRendered: (graph) => {
         const node = graph.nodes.find((item) => item.id === fullNode.id);
@@ -2009,7 +2009,7 @@ function addSearchResultToFocus(result) {
     setStatus(`${result.label} is already a Focused root`);
     return;
   }
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   renderCurrentModuleGraph({
     onRendered: (graph) => {
       const node = graph.nodes.find((item) => item.id === fullNode.id);
@@ -2052,11 +2052,11 @@ function centerGraphPoint(point, objectWidth = 100) {
     objectWidth,
     currentScale: state.transform.scale
   });
-  state.transform = {
+  setSingleTransform({
     x: viewBox.width / 2 - point.x * scale,
     y: viewBox.height / 2 - point.y * scale,
     scale
-  };
+  });
   applyTransform();
 }
 
@@ -2416,7 +2416,7 @@ function updateTimingBadgeChoice(node, pin, metric, checked) {
 function rerenderPreservingView(selectedNodeId) {
   const previousTransform = { ...state.transform };
   renderCurrentModuleGraph();
-  state.transform = previousTransform;
+  setSingleTransform(previousTransform);
   state.selectedNodeId = null;
   setSelectedNode(selectedNodeId);
   applyTransform();
@@ -2469,7 +2469,7 @@ function handlePointerDown(event) {
       setFocusedRootNodeIds(state, nextRoots,
         nextRoots.includes(clickedNode.id) ? clickedNode.id : null);
       state.viewMode = nextRoots.length > 0 ? "focused" : "whole";
-      state.transform = { x: 0, y: 0, scale: 1 };
+      setSingleTransform({ x: 0, y: 0, scale: 1 });
       renderCurrentModuleGraph();
       setStatus(nextRoots.includes(clickedNode.id)
         ? `Added Focused root: ${clickedNode.label}`
@@ -2492,7 +2492,7 @@ function handlePointerDown(event) {
     svg,
     transform: state.transform,
     commit(transform) {
-      state.transform = transform;
+      setSingleTransform(transform);
       applyTransform(false);
     },
     onEnd({ didPan, cancelled }) {
@@ -2591,7 +2591,7 @@ function fitToView() {
     setStatus("Fit both compare views");
     return;
   }
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   applyTransform();
 }
 
@@ -2650,7 +2650,7 @@ function loadLayoutGolden(imported, label) {
 
   elements.coneDepthInput.value = String(state.coneDepth);
   syncLayoutSpacingControls();
-  state.transform = { x: 0, y: 0, scale: 1 };
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   state.selectedNodeId = null;
   state.selectedNet = null;
   renderSelection(null);
@@ -2744,6 +2744,17 @@ function applyTransform(shouldPersist = true) {
   content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
   elements.canvas.classList.toggle("is-low-detail", scale < 0.65);
   if (shouldPersist) persistSession();
+}
+
+function setSingleTransform(transform) {
+  if (!state.document?.documentId || !state.currentModule?.name) {
+    state.transform = { ...transform };
+    return state.transform;
+  }
+  return legacyViewCommands.dispatch({
+    type: "viewport.set",
+    viewport: transform
+  }).session.viewport;
 }
 
 function handleCompareWheel(event) {
@@ -2867,7 +2878,7 @@ function applyPendingWheelGesture(sample) {
   if (!svg) return;
   const rect = svg.getBoundingClientRect();
   const point = eventPointToSvg(svg, sample);
-  state.transform = getSteppedZoomedTransform(
+  setSingleTransform(getSteppedZoomedTransform(
     state.transform,
     point,
     sample.steps,
@@ -2876,7 +2887,7 @@ function applyPendingWheelGesture(sample) {
     0.25,
     svg.viewBox.baseVal.height,
     rect.height
-  );
+  ));
   applyTransform(false);
 }
 

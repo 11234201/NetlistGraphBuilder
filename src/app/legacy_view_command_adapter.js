@@ -19,14 +19,15 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       viewMode: state.viewMode,
       focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
       activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
-      selectedObjectRef: selectedToRef(state, documentId, unitId)
+      selectedObjectRef: selectedToRef(state, documentId, unitId),
+      viewport: state.transform
     };
     const current = sessions.get(value.sessionId);
     if (!current || current.documentId !== documentId || current.unitId !== unitId) {
       if (current) sessions.close(value.sessionId);
       return sessions.create(value);
     }
-    return sessions.update(value.sessionId, () => value);
+    return sessions.update(value.sessionId, () => value, { invalidateComputation: false });
   }
 
   return Object.freeze({
@@ -44,6 +45,7 @@ export function createLegacyViewCommandAdapter({ state, getDocumentId, maxFocuse
       state.selectedNet = result.session.selectedObjectRef?.kind === "net"
         ? result.session.selectedObjectRef.localId
         : null;
+      state.transform = { ...result.session.viewport };
       return result;
     },
     objectRefForNode(node) {
