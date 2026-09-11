@@ -12,6 +12,8 @@ export function createViewSession(value) {
     sessionRevision: Number.isInteger(value.sessionRevision) ? value.sessionRevision : 1,
     computationRevision: Number.isInteger(value.computationRevision) ? value.computationRevision : 1,
     viewMode: value.viewMode || "whole",
+    faninDepth: normalizeDepth(value.faninDepth, 3),
+    fanoutDepth: normalizeDepth(value.fanoutDepth, 3),
     focusedRootRefs: Object.freeze([...(value.focusedRootRefs || [])]),
     activeFocusedRootRef: value.activeFocusedRootRef || null,
     selectedObjectRef: value.selectedObjectRef || null,
@@ -19,6 +21,11 @@ export function createViewSession(value) {
     overrides: value.overrides || null,
     viewport: Object.freeze({ ...(value.viewport || { x: 0, y: 0, scale: 1 }) })
   });
+}
+
+function normalizeDepth(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(99, Math.max(0, Math.floor(number))) : fallback;
 }
 
 export function createViewSessionStore(initialSessions = []) {

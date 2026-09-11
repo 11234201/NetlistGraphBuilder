@@ -73,6 +73,25 @@ export function createViewCommandHandlers({ sessions, maxFocusedRoots = 8 }) {
       patch: { selectedObjectRef: null },
       effects: computeEffects({ render: true })
     })),
+    "view.mode.set": (command) => withSession(command, (session) => {
+      const viewMode = requireViewMode(command.viewMode);
+      if (viewMode === "focused" && session.focusedRootRefs.length === 0) {
+        return { rejected: "focused-root-missing", effects: NO_EFFECTS };
+      }
+      return viewMode === session.viewMode ? { effects: NO_EFFECTS } : {
+        patch: { viewMode },
+        effects: computeEffects({ query: true, layout: true, render: true, viewport: true, persist: true })
+      };
+    }),
+    "view.depths.set": (command) => withSession(command, (session) => {
+      const faninDepth = requireDepth(command.faninDepth, "faninDepth");
+      const fanoutDepth = requireDepth(command.fanoutDepth, "fanoutDepth");
+      if (faninDepth === session.faninDepth && fanoutDepth === session.fanoutDepth) return { effects: NO_EFFECTS };
+      return {
+        patch: { faninDepth, fanoutDepth },
+        effects: computeEffects({ query: true, layout: true, render: true, persist: true })
+      };
+    }),
     "viewport.set": (command) => {
       if (!command.sessionId) throw new Error(`${command.type} requires sessionId`);
       const viewport = requireViewport(command.viewport);
@@ -127,6 +146,17 @@ function requireViewport(value) {
 function requireRecord(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Command requires ${label}`);
   return value;
+}
+
+function requireViewMode(value) {
+  if (!["whole", "focused", "search-first"].includes(value)) throw new Error("Command requires a valid viewMode");
+  return value;
+}
+
+function requireDepth(value, label) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error(`Command requires finite ${label}`);
+  return Math.min(99, Math.max(0, Math.floor(number)));
 }
 
 function requireDocumentRef(session, ref) {

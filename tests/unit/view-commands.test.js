@@ -99,3 +99,21 @@ test("focused root replacement and clear are owned by commands", () => {
   assert.equal(cleared.session.viewMode, "whole");
   assert.deepEqual(sessions.require("left").focusedRootRefs, []);
 });
+
+test("view mode and focused depths are validated and owned by commands", () => {
+  const { sessions, bus } = setup();
+  const missing = bus.dispatch({ type: "view.mode.set", sessionId: "left", viewMode: "focused" });
+  assert.equal(missing.rejected, "focused-root-missing");
+  bus.dispatch({ type: "focus.set", sessionId: "left", objectRef: ref("u1") });
+  const depths = bus.dispatch({
+    type: "view.depths.set", sessionId: "left", faninDepth: 4.9, fanoutDepth: 120
+  });
+  assert.equal(depths.session.faninDepth, 4);
+  assert.equal(depths.session.fanoutDepth, 99);
+  assert.equal(depths.effects.layout, true);
+  const whole = bus.dispatch({ type: "view.mode.set", sessionId: "left", viewMode: "whole" });
+  assert.equal(whole.session.viewMode, "whole");
+  assert.deepEqual(sessions.require("right").focusedRootRefs, []);
+  assert.throws(() => bus.dispatch({ type: "view.mode.set", sessionId: "left", viewMode: "cone" }), /valid viewMode/);
+  assert.throws(() => bus.dispatch({ type: "view.depths.set", sessionId: "left", faninDepth: "bad", fanoutDepth: 2 }), /finite faninDepth/);
+});

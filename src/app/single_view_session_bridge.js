@@ -17,6 +17,8 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
       domainId: "netlist",
       unitId,
       viewMode: state.viewMode,
+      faninDepth: state.faninDepth,
+      fanoutDepth: state.fanoutDepth,
       focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
       activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
@@ -40,6 +42,8 @@ export function createSingleViewSessionBridge({ state, getDocumentId, maxFocused
       const result = bus.dispatch({ ...command, sessionId: "single:primary" });
       const graph = result.session.unitId === unitId ? state.fullGraph : null;
       state.viewMode = result.session.viewMode;
+      state.faninDepth = result.session.faninDepth;
+      state.fanoutDepth = result.session.fanoutDepth;
       state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);
       state.activeFocusedRootNodeId = refToNodeId(result.session.activeFocusedRootRef, graph);
       state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
