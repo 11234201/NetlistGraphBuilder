@@ -566,7 +566,9 @@ export function findObstacleAvoidingRoute(context) {
       sourcePoint,
       targetPoint,
       nodeIndex
-    })) return candidate;
+    }) && !routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey)) {
+      return candidate;
+    }
     // A reservation-aware x lane is only a preference until the complete route
     // passes the shared geometry contract. Keep the original node-safe choice
     // available so a dense graph cannot fall through to a node-crossing lane.
@@ -834,12 +836,13 @@ function findClearVerticalLaneX(
 }
 
 function isEndpointSideLane(x, node, role, preferredX) {
-  // Hub endpoints commonly sit beside boundary outputs in a shared level.
-  // Restricting their search to the declared side prevents a clear opposite
-  // lane from poisoning the whole candidate. Ordinary cell lanes retain the
-  // legacy symmetric search because their local candidates already provide
-  // the stronger obstacle contract.
-  if (!node || node.kind !== "hub" || (role !== "source" && role !== "target")) return true;
+  // Hub and collapsed-group endpoints commonly sit beside boundary outputs
+  // in a shared level. Restricting their search to the declared side prevents
+  // a clear opposite lane from poisoning the whole candidate. Ordinary cell
+  // lanes retain the legacy symmetric search because their local candidates
+  // already provide the stronger obstacle contract.
+  if (!node || (node.kind !== "hub" && node.kind !== "group") ||
+    (role !== "source" && role !== "target")) return true;
   const leftBoundary = Number(node.x);
   const rightBoundary = leftBoundary + Number(node.width);
   if (!Number.isFinite(leftBoundary) || !Number.isFinite(rightBoundary)) return true;

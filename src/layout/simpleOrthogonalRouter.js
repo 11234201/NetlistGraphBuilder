@@ -262,7 +262,13 @@ function routeEdge(context) {
     candidateIsUsable(candidate, context));
   routingMetrics.basicCandidates += basicCandidates.length;
   const scoredBasic = scoreCandidates(basicCandidates, reservedSegments, net, netGroupKey, edgeIntent);
-  const conflictFreeBasic = scoredBasic.filter(({ score }) => score.crossings === 0);
+  const conflictFreeBasic = scoredBasic.filter(({ candidate, score }) =>
+    score.crossings === 0 && !routeOverlapsReserved(
+      candidate.points,
+      net,
+      reservedSegments,
+      netGroupKey
+    ));
   if (conflictFreeBasic.length > 0) {
     return chooseBestScoredRoute(conflictFreeBasic);
   }
@@ -288,7 +294,13 @@ function routeEdge(context) {
     netGroupKey,
     edgeIntent
   );
-  const conflictFreeReservedDetours = scoredReservedDetours.filter(({ score }) => score.crossings === 0);
+  const conflictFreeReservedDetours = scoredReservedDetours.filter(({ candidate, score }) =>
+    score.crossings === 0 && !routeOverlapsReserved(
+      candidate.points,
+      net,
+      reservedSegments,
+      netGroupKey
+    ));
   if (conflictFreeReservedDetours.length > 0) {
     return chooseBestScoredRoute(conflictFreeReservedDetours);
   }
@@ -312,7 +324,13 @@ function routeEdge(context) {
     netGroupKey,
     edgeIntent
   );
-  const conflictFreeExpandedLocal = scoredExpandedLocal.filter(({ score }) => score.crossings === 0);
+  const conflictFreeExpandedLocal = scoredExpandedLocal.filter(({ candidate, score }) =>
+    score.crossings === 0 && !routeOverlapsReserved(
+      candidate.points,
+      net,
+      reservedSegments,
+      netGroupKey
+    ));
   if (conflictFreeExpandedLocal.length > 0) {
     return chooseBestScoredRoute(conflictFreeExpandedLocal);
   }
@@ -490,14 +508,23 @@ function findInteriorHorizontalLaneY(points) {
 }
 
 function createGlobalFallback(context) {
+  const plannedLaneY = context.edgePlan?.kind === "long" &&
+    (context.source?.kind === "group" || context.target?.kind === "group")
+    ? Number(context.edgePlan?.preferredLaneY)
+    : NaN;
   return findObstacleAvoidingRoute({
     source: context.source,
     target: context.target,
     sourcePoint: context.sourcePoint,
     targetPoint: context.targetPoint,
     nodes: context.nodes,
-    preferredLaneY: context.margin / 2 +
-      (context.edgePlan?.topLane || 0) * context.topWireLanePitch,
+    // A source-adjacent inter-layer/row-gap assignment is the route's first
+    // horizontal corridor.  Fall back to the bounded outer lane only when the
+    // plan has no geometry-aware coordinate (legacy/synthetic plans).
+    preferredLaneY: Number.isFinite(plannedLaneY)
+      ? plannedLaneY
+      : context.margin / 2 +
+        (context.edgePlan?.topLane || 0) * context.topWireLanePitch,
     margin: context.margin,
     lanePitch: context.topWireLanePitch,
     nodeIndex: context.nodeIndex,
