@@ -50,6 +50,32 @@ test("capacity plan counts physical fanout once per inter-layer boundary", () =>
   assert.equal(plan.metrics.physicalNetCount, 1);
 });
 
+test("capacity plan reuses indexed physical demands across every traversed boundary", () => {
+  const nodes = [
+    { id: "src", kind: "cell", x: 0, y: 40, width: 100, height: 40,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 100, y: 20 }] },
+    { id: "mid", kind: "cell", x: 220, y: 40, width: 100, height: 40,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 20 }] },
+    { id: "sink", kind: "cell", x: 440, y: 100, width: 100, height: 40,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 20 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "e1", source: "src", target: "sink", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "e2", source: "src", target: "mid", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const plan = buildRoutingCapacityPlan(graph, new Map([
+    ["src", 0], ["mid", 1], ["sink", 2]
+  ]), nodes, null, { routingGeometry: normalizeRoutingGeometry() });
+  const boundaries = plan.channels.filter((channel) => channel.kind === "inter-layer");
+
+  assert.equal(plan.netDemands.length, 1);
+  assert.deepEqual(boundaries.map((channel) => channel.demandKeys), [["src\u0000n"], ["src\u0000n"]]);
+  assert.equal(plan.metrics.physicalNetCount, 1);
+});
+
 test("capacity formulas use named geometry and remain zero for empty channels", () => {
   const geometry = normalizeRoutingGeometry({
     nodeClearance: 10,
