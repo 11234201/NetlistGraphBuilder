@@ -514,3 +514,11 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 `5ace2ff` 与 `688dd64` 合入后，远端完整普通 mapped corpus 为 `47/47`，总 obstacle 违规为 `65/120`，最大 layout 约 `24.888 s`，最大 heap 约 `378 MiB`。这说明 channel 上限、正确的 outer lane 方向、有限 source escape 修复以及 validator 区间扫描已经消除了旧基线中的大部分普通模式违规和画布/内存失控，但 final validator 在 dp020、sop015 等稠密图上仍会采样到上限 `256` 个异 physical-net overlap，不能据此宣称硬合同完成。
 
 另外验证并排除了“把同一 physical net 的 logical edges 简单改成连续排序”这一方案。dp020 仍为 5 项普通 obstacle 违规，sop015 仍为 0，耗时约 `12.3 s`/`23.1 s`，与现有排序没有实质差异。原因是连续处理 logical edges 仍然逐 branch 选候选，没有生成共享 trunk，也没有为 overflow demand 创造新的合法 corridor。因此该实验已撤回；CH-08 必须改变路由单位和几何生成方式，而不是只改变 edge 遍历顺序。
+
+### 13.7 overflow 合同与 tree 原型复核
+
+继续检查发现 allocator 的 overflow assignment 在复制到 `allocationByNet` 时丢失 `capacityOverflow`，同时 router 使用 `Number.isFinite(Number(coordinate))` 判断坐标，使 `null` 被当成数值 0。两者叠加后，部分 overflow edge 会被错误视为拥有 `y=0` lane。`2c8837f` 现已保留 ownership、显式拒绝 null/undefined，并增加 `overflowPhysicalNetCount`、`unroutablePhysicalNetCount`、`overflowUnroutablePhysicalNetCount`。dp020 的对应值为 `2452/1900/662`，sop015 为 `2855/1956/1342`，证明不可路由集合并不等于 overflow 集合。
+
+另一个贯穿遗漏是 `capacityLaneYs` 虽已生成，但 `createGlobalFallback()` 没有传给 `findObstacleAvoidingRoute()`。`db91238` 接通后，dp020 strict missing-route 从修正 null 后的 `2087` 降到 `2040`，sop015 从 `2737` 降到 `2634`；普通 corpus 仍为 `47/47`、`72/120`，最大 layout `26.319 s`、heap `350 MiB`。
+
+随后验证了逐 branch 连接已有同 net route 的 bounded 原型。它在 source anchor 不同的时候产生 `detached-endpoint`；收紧 anchor 后仍使 sop002 出现更多 node-crossing，并在 strict physical union 中产生 `wire-route-disconnected`。原型已全部撤回。结论是 CH-08 不能在 logical edge 循环内逐步拼树，必须先构造完整 physical-net topology，统一验证 source/全部 targets/obstacles/foreign owners，再原子提交整组 geometry 和 reservation。

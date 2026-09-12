@@ -34,6 +34,8 @@
 | `14ab016` | basic/reserved/expanded-local 的提前成功出口统一执行 foreign-net overlap 硬过滤；group long fallback 消费规划 lane | 关闭了局部候选绕过 hard overlap 的入口，不增加候选预算 |
 | `5ace2ff` | 每个 channel 强制 256-lane 上限并显式记录 overflow；outer-top/bottom 以最终 node bounds 为基准向外编号；global search 消费最多 24 个 capacity lane hint；capacity expansion 后修复 source-to-group escape 行 | 阻止 inter-layer demand 把画布扩到约 18 万像素；`sop_015` 普通 obstacle 违规由 4 降到 0，且 overflow 不伪造重复 lane |
 | `688dd64` | physical wire-route 内部 overlap 校验改为方向/坐标分桶后的区间扫描 | 删除每个 physical net 内的 segment 两两比较，保持同样的 overlap 诊断语义 |
+| `2c8837f` | `capacityOverflow` 贯穿 `allocationByNet` 与 edge/routing metrics，并拒绝把 `null` 坐标强制转换成合法 `y=0` lane | strict 结果能区分 overflow 与非 overflow physical net；不再接受伪通道 |
+| `db91238` | `createGlobalFallback()` 实际传递 bounded `capacityLaneYs` | 已规划的最多 24 个 lane hint 进入主 global search；dp020/sop015 strict missing-route 分别减少 47/103 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
@@ -55,6 +57,10 @@
 4. `5ace2ff` 已把超量 demand 从“继续扩画布”改为 `capacityOverflow`，但 overflow physical net 还没有由原生 tree router 分流到可提交的替代 corridor；因此 overflow 指标为非零时，普通模式仍可能输出 node-safe 但 foreign-net overlap 的兼容 route，strict 模式则会明确失败。
 
 后续实现必须遵守：固定数量 capacity pass；physical-net/tree 为需求和 reservation 单位；硬冲突只通过合法候选或明确 `unroutable` 解决；禁止实例/坐标特例、全量重试和以提高 spacing 掩盖容量不足。
+
+最新完整普通 corpus 在接通 lane hints 后仍为 `47/47`，总违规 `72/120`，最大 layout `26.319 s`、最大 heap `350 MiB`。严格模式 dp020 为 `2040` 条 missing-route、`1900` 个不可路由 physical net，其中 `662` 个同时标记 overflow；sop015 为 `2634`、`1956`、`1342`。因此 overflow 是重要因素但不是唯一原因，局部 corridor/reservation 仍占多数。
+
+CH-08 的实现边界进一步收紧：禁止把逐 logical-edge 的合法 branch 贪心接到已有 route 后直接提交。该原型在单 edge validator 通过后，仍在 physical union/tree normalization 产生 `detached-endpoint`、`wire-route-disconnected`，并使 sop002 普通 node-crossing 从 1 增到 2。native tree 必须按完整 physical-net group 原子生成、原子执行 target reachability 与 node/foreign-owner 校验，整组通过后才能一次性登记 reservation；失败时不得部分提交 branch。
 
 ## 1. 目标
 
