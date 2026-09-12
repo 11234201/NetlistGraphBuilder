@@ -9,7 +9,7 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 const input = process.argv[2];
 const noCollapse = process.argv.includes("--no-collapse");
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
-if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v>");
+if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v> [--no-collapse] [--hard]");
 
 const source = await readFile(input, "utf8");
 const parseStarted = performance.now();
