@@ -5,7 +5,6 @@ import {
   getTargetLaneInset,
   isVerticalTargetPin
 } from "./orthogonalRouting.js";
-import { getPort } from "./nodeGeometry.js";
 import {
   routeCandidateIsUsable,
   routeOverlapsReserved,
@@ -320,8 +319,7 @@ function applyNodeLocalEscapeLane(
 ) {
   if (node?.kind !== "group" ||
     (edgePlan?.kind !== "long" && edgePlan?.kind !== "channel")) return baseX;
-  const port = getPort(node, role === "source" ? edgePlan.sourcePin : edgePlan.targetPin, role);
-  const side = port?.side || (role === "source" ? "right" : "left");
+  const side = getGroupBoundarySide(node, point, role);
   if (side !== "left" && side !== "right") return baseX;
   const laneIndex = Math.max(0, Math.floor(Number(
     role === "source" ? edgePlan.sourceLane : edgePlan.targetLane
@@ -349,8 +347,8 @@ function createGroupBoundaryLaneCandidate(
   if (edgePlan?.kind !== "channel" || source?.kind !== "group" || target?.kind !== "group") {
     return null;
   }
-  const sourceSide = getPort(source, edgePlan.sourcePin, "source")?.side || "right";
-  const targetSide = getPort(target, edgePlan.targetPin, "target")?.side || "left";
+  const sourceSide = getGroupBoundarySide(source, sourcePoint, "source");
+  const targetSide = getGroupBoundarySide(target, targetPoint, "target");
   if (!((sourceSide === "left" || sourceSide === "right") &&
     (targetSide === "left" || targetSide === "right"))) return null;
   const pitch = getGroupBoundaryLanePitch(edgePlan, wireLanePitch, routingGeometry);
@@ -380,6 +378,14 @@ function getGroupBoundaryLanePitch(edgePlan, wireLanePitch, routingGeometry = {}
   return Math.max(4, Number.isFinite(policyPitch) && policyPitch > 0
     ? policyPitch
     : Number(wireLanePitch) || 24);
+}
+
+function getGroupBoundarySide(node, point, role) {
+  const leftDistance = Math.abs(Number(point?.x) - Number(node?.x));
+  const rightDistance = Math.abs(Number(point?.x) - (Number(node?.x) + Number(node?.width)));
+  if (leftDistance <= rightDistance) return "left";
+  if (rightDistance < leftDistance) return "right";
+  return role === "source" ? "right" : "left";
 }
 
 function createReservedDetourCandidates(
