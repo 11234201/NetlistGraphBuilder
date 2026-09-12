@@ -27,10 +27,11 @@
 | `cc46e36` | Simple router 按 edge 的 source-adjacent boundary 选择 physical-net capacity assignment，并把 channel/cluster/escape metadata 带到 edge 诊断 | skip-level/reverse edge 不再受 lexical boundary 顺序影响；不增加候选数、不扩大重试上限，保留缺失 assignment 的兼容 fallback |
 | `9463718` | ELK section 缺失或含非法点时返回明确 `unroutable` edge 诊断；不再生成 `(0,0)` 伪 polyline，并保留四向 port attachment 路径 | provider 缺失输出不会污染 wire tree/bounds；ELK 与 Simple 共享“无合法几何即失败”的出口语义 |
 | `88317a5` | Adjust/manual override 在生成新 wire routes 与 bounds 后重新执行 shared final validator；ELK 避免重复校验 | 手动移动后不再沿用自动布局的过期状态；provider 仍只执行一次最终校验 |
+| `c15a557` | local candidate 与异 physical-net 共线重叠时，只要 bounded global candidate 已消除 hard overlap，就优先采用该候选，不再被 outer-detour 软成本否决 | 直接针对 clk/rst_n、`_0179_`/`_0198_` 类重复水平重叠；候选次数与 outer 搜索上限不变，crossing 仍作为软成本 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
-当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `132.7/894.2/3232.3 ms`，对应 SVG `61.2/239.5/717.6 ms`；collapsed layout 约 `3.2/6.1/17.6 ms`。本轮 mapped 全量普通门禁仍为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`，总计 `380/120` 违规、最大 layout 约 `27.5 s`、最大堆约 `316 MiB`；最新单 case 复测中 dp020 layout 约 `25.1 s`、eq012 collapsed hard gate 约 `7.0 s`，后者仍报告截断后的 `net-overlap`。eq012 focused 双根、sop015 相关单测和新增 row-gap capacity 单测均通过。严格 hard gate 对 collapsed eq012 仍未达到零违规，说明 outer boundary corridor/物理树仍未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `129.2/798.0/3120.0 ms`，对应 SVG `61.1/250.1/727.1 ms`；collapsed layout 约 `3.0/6.1/13.7 ms`。本轮 mapped 全量普通门禁为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`，总计 `370/120` 违规，最大 layout `26.99 s`、最大堆 `295 MiB`；单 case 复测中 dp020 约 `25.05 s`、sop015 约 `27.0 s`，eq012 collapsed hard gate 仍显式报告大量 `missing-route`（strict 出口），普通 eq012 runner 保持 `0` obstacle 违规但 provider status 仍为 `unroutable`。eq012 focused 双根、sop015 相关单测、新增 boundary-token/ELK/Adjust validator 单测均通过。严格 hard gate 对 collapsed eq012 仍未达到零违规，说明 outer boundary corridor/物理树仍未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
 
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
