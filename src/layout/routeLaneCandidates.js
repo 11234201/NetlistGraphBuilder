@@ -3,9 +3,11 @@ export function collectLocalLaneYs({
   targetY,
   nodes = [],
   segments = [],
-  padding = 8
+  padding = 8,
+  preferredLaneY = undefined
 }) {
   return uniqueRoundedNumbers([
+    preferredLaneY,
     sourceY,
     targetY,
     (sourceY + targetY) / 2,

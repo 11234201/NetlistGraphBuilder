@@ -134,11 +134,16 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
   if (!routingCapacity?.allocationByNet) return edgePlan;
   const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
   const topAssignment = assignments.find((assignment) => assignment.channelId === "outer-top");
-  if (!topAssignment) return edgePlan;
+  const localAssignment = assignments.find((assignment) =>
+    String(assignment.channelId).startsWith("inter-layer:"));
+  if (!topAssignment && !localAssignment) return edgePlan;
   return {
     ...(edgePlan || {}),
-    topLane: topAssignment.laneIndex,
-    capacityChannelId: topAssignment.channelId
+    ...(topAssignment ? {
+      topLane: topAssignment.laneIndex,
+      capacityChannelId: topAssignment.channelId
+    } : {}),
+    preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate
   };
 }
 

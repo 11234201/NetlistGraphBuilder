@@ -105,7 +105,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
     reservedSegments,
     net,
     netGroupKey,
-    wireLanePitch
+    wireLanePitch,
+    edgePlan
   } = context;
   const padding = 9;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
@@ -175,7 +176,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
     targetY: routeTargetPoint.y,
     nodes: relevantNodes,
     segments: relevantSegments,
-    padding
+    padding,
+    preferredLaneY: edgePlan?.preferredLaneY
   });
 
   const laneOffsets = options.expandXLanes === true
