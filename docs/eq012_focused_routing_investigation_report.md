@@ -475,6 +475,8 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 
 本轮的 `e94e66b` 又补上了诊断可追踪性：最终 validator 现在复制 graph-level 与 edge-level provider diagnostics，并在 edge 诊断缺少归属时补充 `edgeId`。因此 `elk-edge-section-missing` 等 provider 原因会和最终 `layoutStatus: "unroutable"` 一起保留到提交结果；该改动不放宽任何几何约束，也不增加路由搜索或渲染工作量。
 
+随后 `e00dddf`、`5d9c268`、`1c569f1`、`cc7ab93`、`6099d2f` 将 boundary cluster 由字符串标识推进为 bounded contract：group endpoint 才分配细粒度 escape interval，target range 按 side 合并，普通 inter-layer/outer channel 在返回前释放完整 assignment 引用。group candidate 会消费 source/target corridor 的有限范围；validator 仍是最终权威。远端 sop015 复测的堆占用从未释放 assignment 时约 `720 MiB` 降到约 `236 MiB`，layout 约 `28.1 s`，违规仍为 `66`（`63` node-crossing、`3` wire-route-node-crossing）；因此这一步主要解决容量 token 可追踪性与内存风险，不是 dense geometry 的最终修复。
+
 严格模式在 sop015 上的复测会把无法同时满足现有 reservation/obstacle 合同的边明确标为 `unroutable`，而不是输出非法 polyline；在 collapsed eq012 上同样得到大量 `missing-route`。这证明出口语义生效，也说明 cluster corridor 尚未完成，不能将此数字当作质量改善。
 
 ### 13.5 后续必须补齐的实现问题
