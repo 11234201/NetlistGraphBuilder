@@ -107,13 +107,38 @@ export function finalizeLayoutGraph(graph, options = {}) {
     maxViolations: options.maxViolations ?? 256
   });
   const maximumViolations = normalizeMaximumViolations(options.maxViolations ?? 256);
+  const providerDiagnostics = collectProviderDiagnostics(graph);
   return {
     ...graph,
     layoutStatus: diagnostics.length === 0 ? "routed" : "unroutable",
     layoutDiagnostics: diagnostics.slice(0, maximumViolations),
     layoutDiagnosticsTruncated: maximumViolations !== Infinity && diagnostics.length >= maximumViolations,
-    validationMetrics: summarizeViolations(diagnostics)
+    validationMetrics: summarizeViolations(diagnostics),
+    providerDiagnostics
   };
+}
+
+function collectProviderDiagnostics(graph) {
+  const diagnostics = [];
+  const graphDiagnostics = Array.isArray(graph?.providerDiagnostics)
+    ? graph.providerDiagnostics
+    : [];
+  for (const item of graphDiagnostics) {
+    if (item && typeof item === "object") diagnostics.push({ ...item });
+  }
+  for (const edge of graph?.edges || []) {
+    const edgeDiagnostics = Array.isArray(edge?.routeDiagnostics)
+      ? edge.routeDiagnostics
+      : [];
+    for (const item of edgeDiagnostics) {
+      if (!item || typeof item !== "object") continue;
+      diagnostics.push({
+        ...item,
+        edgeId: item.edgeId ?? edge.id
+      });
+    }
+  }
+  return diagnostics;
 }
 
 function summarizeViolations(violations) {

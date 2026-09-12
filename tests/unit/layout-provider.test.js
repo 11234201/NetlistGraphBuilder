@@ -164,4 +164,6 @@ test("ELK missing edge sections become an explicit unroutable result", async () 
   assert.deepEqual(edge.points, []);
   assert.equal(edge.routeDiagnostics[0].code, "elk-edge-section-missing");
   assert.equal(positioned.layoutStatus, "unroutable");
+  assert.equal(positioned.providerDiagnostics[0].code, "elk-edge-section-missing");
+  assert.equal(positioned.providerDiagnostics[0].edgeId, "e0");
 });
