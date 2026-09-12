@@ -1,6 +1,8 @@
 import { getPhysicalNetKey } from "./layoutTopology.js";
 import { getConnectionPoint, getPort } from "./nodeGeometry.js";
 
+const MAX_ROW_GAP_DEMANDS = 64;
+
 export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   nodeClearance: 8,
   targetApproachClearance: 9,
@@ -148,6 +150,41 @@ export function buildRoutingCapacityPlan(
     }
   }
 
+  // A long edge can need a horizontal corridor between two nodes that share
+  // one spatial column.  Model those gaps as bounded channels before the
+  // inter-layer pass so placement can enlarge only the affected suffix.  The
+  // demand index is keyed by intermediate level; it avoids rescanning all
+  // physical nets for every adjacent node pair.
+  const rowGapChannels = buildRowGapChannels(
+    demands,
+    positionedNodes,
+    levels,
+    routingGeometry,
+    nodeById
+  );
+  for (const channel of rowGapChannels) {
+    channels.push(channel);
+    channelById.set(channel.id, channel);
+    for (const assigned of channel.assignments || []) {
+      boundaryClusterCounts.set(
+        assigned.boundaryClusterKey,
+        (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
+      );
+      const entries = allocationByNet.get(assigned.netGroupKey) || [];
+      entries.push({
+        channelId: channel.id,
+        laneIndex: assigned.laneIndex,
+        coordinate: assigned.coordinate,
+        intervalStart: assigned.intervalStart,
+        intervalEnd: assigned.intervalEnd,
+        boundaryClusterKey: assigned.boundaryClusterKey,
+        sourceEscapeSide: assigned.sourceEscapeSide,
+        targetEscapeSides: assigned.targetEscapeSides
+      });
+      allocationByNet.set(assigned.netGroupKey, entries);
+    }
+  }
+
   for (const boundaryId of uniqueSorted(demands.flatMap((demand) => demand.traversedBoundaryIds))) {
     const [leftLevel, rightLevel] = parseBoundaryId(boundaryId);
     const channelDemands = (demandsByBoundary.get(boundaryId) || [])
@@ -249,6 +286,9 @@ export function buildRoutingCapacityPlan(
     interLayer: channels
       .filter((channel) => channel.kind === "inter-layer")
       .reduce((sum, channel) => sum + channel.expansion, 0),
+    rowGap: channels
+      .filter((channel) => channel.kind === "row-gap")
+      .reduce((sum, channel) => sum + channel.expansion, 0),
     outerTop: channels.find((channel) => channel.kind === "outer-top")?.expansion || 0,
     outerBottom: channels.find((channel) => channel.kind === "outer-bottom")?.expansion || 0
   };
@@ -281,6 +321,20 @@ export function buildRoutingCapacityPlan(
 
 /** Apply only the horizontal expansion that belongs to a real core-column gap. */
 export function applyRoutingCapacityExpansion(positionedNodes = [], capacityPlan = {}) {
+  const rowGapExpansions = (capacityPlan.channels || [])
+    .filter((channel) => channel.kind === "row-gap" && channel.expansion > 0)
+    .map((channel) => ({
+      ...channel,
+      level: Number(channel.level),
+      upperNodeId: String(channel.upperNodeId),
+      lowerNodeId: String(channel.lowerNodeId)
+    }))
+    .filter((channel) => Number.isFinite(channel.level))
+    .filter((channel) => isGroupBoundaryCorridor(positionedNodes, channel))
+    .sort((left, right) => left.level - right.level ||
+      Number(left.lowerY) - Number(right.lowerY) ||
+      left.id.localeCompare(right.id));
+  const expandedRowGaps = applyRowGapSuffixExpansions(positionedNodes, rowGapExpansions);
   const expansions = (capacityPlan.channels || [])
     .filter((channel) => channel.kind === "inter-layer" && channel.expansion > 0)
     .map((channel) => {
@@ -309,7 +363,9 @@ export function applyRoutingCapacityExpansion(positionedNodes = [], capacityPlan
   }
   return {
     expansion: maxValue(shiftByLevel.values()),
-    expandedChannels: expansions.length
+    expandedChannels: expansions.length,
+    rowGapExpansion: rowGapExpansions.reduce((sum, channel) => sum + channel.expansion, 0),
+    expandedRowGaps
   };
 }
 
@@ -355,6 +411,192 @@ export function requiredInterLayerGap(laneCount, geometry) {
 
 export function requiredOuterBand(laneCount, geometry) {
   return laneCount <= 0 ? 0 : geometry.nodeClearance + (laneCount - 1) * geometry.wireLanePitch;
+}
+
+/**
+ * Build horizontal corridors between adjacent nodes in one spatial column.
+ * Only physical nets that cross the level and whose x projection reaches the
+ * pair are indexed, so the pass remains bounded by traversed net boundaries
+ * instead of doing an all-pairs graph scan.
+ */
+function buildRowGapChannels(demands, positionedNodes, levels, routingGeometry, nodeById) {
+  const nodesByLevel = new Map();
+  for (const node of positionedNodes) {
+    const level = finiteLevel(levels, node.id, Number(node.level) || 0);
+    const entries = nodesByLevel.get(level) || [];
+    entries.push(node);
+    nodesByLevel.set(level, entries);
+  }
+  const demandsByLevel = new Map();
+  for (const demand of demands) {
+    for (let level = demand.minimumLevel + 1; level < demand.maximumLevel; level += 1) {
+      const entries = demandsByLevel.get(level) || [];
+      entries.push(demand);
+      demandsByLevel.set(level, entries);
+    }
+  }
+
+  const channels = [];
+  for (const [level, levelNodes] of [...nodesByLevel.entries()].sort(([left], [right]) => left - right)) {
+    const crossingDemands = demandsByLevel.get(level) || [];
+    if (crossingDemands.length === 0) continue;
+    const orderedNodes = [...levelNodes].sort((left, right) =>
+      Number(left.y) - Number(right.y) || String(left.id).localeCompare(String(right.id)));
+    for (let index = 0; index + 1 < orderedNodes.length; index += 1) {
+      const upper = orderedNodes[index];
+      const lower = orderedNodes[index + 1];
+      const currentSpan = Math.max(0,
+        Number(lower.y) - (Number(upper.y) + Number(upper.height)));
+      // Existing wide gaps already provide a legal one-lane corridor. Do not
+      // eagerly enumerate every long net through them: in a collapsed graph
+      // that would turn one row into thousands of artificial lanes and make
+      // capacity planning quadratic in practice.
+      if (currentSpan >= requiredRowGap(1, routingGeometry)) continue;
+      const gapRange = getRowGapXRange(upper, lower, routingGeometry.nodeClearance);
+      if (!gapRange) continue;
+      const channelDemands = crossingDemands
+        .filter((demand) => {
+          const span = demandXSpan(demand, nodeById);
+          return span && rangesOverlap(span[0], span[1], gapRange[0], gapRange[1]);
+        })
+        .map((demand) => createRowGapDemand(
+          demand,
+          upper,
+          lower,
+          gapRange,
+          nodeById
+        ))
+        .toSorted(compareChannelDemands);
+      if (channelDemands.length === 0) continue;
+      if (channelDemands.length > MAX_ROW_GAP_DEMANDS) continue;
+      const allocation = allocateIntervalLanes(
+        channelDemands,
+        routingGeometry.laneReusePadding,
+        routingGeometry.wireLanePitch
+      );
+      const requiredSpan = requiredRowGap(allocation.laneCount, routingGeometry);
+      const channel = {
+        id: `row-gap:${String(level)}:${String(upper.id)}->${String(lower.id)}`,
+        kind: "row-gap",
+        axis: "y",
+        scopeKey: `level:${String(level)}|${String(upper.id)}->${String(lower.id)}`,
+        level,
+        upperNodeId: upper.id,
+        lowerNodeId: lower.id,
+        upperY: Number(upper.y) || 0,
+        lowerY: Number(lower.y) || 0,
+        currentSpan,
+        requiredSpan,
+        expansion: Math.max(0, requiredSpan - currentSpan),
+        laneCount: allocation.laneCount,
+        lanes: allocation.lanes,
+        demandKeys: channelDemands.map((demand) => demand.netGroupKey),
+        demands: channelDemands,
+        assignments: allocation.assignments
+      };
+      channels.push(channel);
+    }
+  }
+  return channels;
+}
+
+function createRowGapDemand(demand, upper, lower, gapRange, nodeById) {
+  const ranges = demandXRange(demand, nodeById);
+  const [intervalStart, intervalEnd] = ranges.reduce((result, range) => [
+    Math.min(result[0], range[0]),
+    Math.max(result[1], range[1])
+  ], [Infinity, -Infinity]);
+  const source = nodeById.get(demand.sourceNodeId);
+  return {
+    channelId: `row-gap:${String(upper.level ?? "")}:${String(upper.id)}->${String(lower.id)}`,
+    netGroupKey: demand.netGroupKey,
+    intervalStart: Number.isFinite(intervalStart) ? intervalStart : gapRange[0],
+    intervalEnd: Number.isFinite(intervalEnd) ? intervalEnd : gapRange[1],
+    preferredCoordinate: (Number(upper.y) || 0) + (Number(upper.height) || 0),
+    priorityClass: demand.fanout > 1 ? 1 : 0,
+    endpointRefs: demand.targetPortRefs,
+    sourceNodeId: demand.sourceNodeId,
+    sourceEscapeSide: getPortSide(source, demand.sourcePortRef.pin, "source"),
+    targetEscapeSides: [...new Set(demand.targetPortRefs.map((ref) =>
+      getPortSide(nodeById.get(ref.nodeId), ref.pin, "target")))].sort(),
+    boundaryClusterKey: `row-gap:${String(upper.level ?? "")}:${String(upper.id)}->${String(lower.id)}`
+  };
+}
+
+function demandXRange(demand, nodeById) {
+  const ranges = [];
+  const source = nodeById.get(demand.sourceNodeId);
+  if (source) ranges.push([Number(source.x) || 0, (Number(source.x) || 0) + (Number(source.width) || 0)]);
+  for (const ref of demand.targetPortRefs || []) {
+    const target = nodeById.get(ref.nodeId);
+    if (target) ranges.push([Number(target.x) || 0, (Number(target.x) || 0) + (Number(target.width) || 0)]);
+  }
+  return ranges;
+}
+
+function demandXSpan(demand, nodeById) {
+  const ranges = demandXRange(demand, nodeById);
+  if (ranges.length === 0) return null;
+  return ranges.reduce((result, range) => [
+    Math.min(result[0], range[0]),
+    Math.max(result[1], range[1])
+  ], [Infinity, -Infinity]);
+}
+
+function getRowGapXRange(upper, lower, clearance) {
+  const left = Math.max(Number(upper.x) || 0, Number(lower.x) || 0) - clearance;
+  const right = Math.min(
+    (Number(upper.x) || 0) + (Number(upper.width) || 0),
+    (Number(lower.x) || 0) + (Number(lower.width) || 0)
+  ) + clearance;
+  return right > left ? [left, right] : null;
+}
+
+function rangesOverlap(leftStart, leftEnd, rightStart, rightEnd) {
+  return leftStart <= rightEnd && rightStart <= leftEnd;
+}
+
+function isGroupBoundaryCorridor(nodes, channel) {
+  const upper = nodes.find((node) => String(node.id) === channel.upperNodeId);
+  const lower = nodes.find((node) => String(node.id) === channel.lowerNodeId);
+  return upper?.kind === "group" || lower?.kind === "group";
+}
+
+function applyRowGapSuffixExpansions(nodes, channels) {
+  if (channels.length === 0 || nodes.length === 0) return 0;
+  const byLevel = new Map();
+  const indexByNodeId = new Map();
+  for (const node of nodes) {
+    const level = Number(node.level) || 0;
+    const entries = byLevel.get(level) || [];
+    entries.push(node);
+    byLevel.set(level, entries);
+  }
+  for (const entries of byLevel.values()) {
+    entries.sort((left, right) => Number(left.y) - Number(right.y) ||
+      String(left.id).localeCompare(String(right.id)));
+    entries.forEach((node, index) => indexByNodeId.set(String(node.id), { level: Number(node.level) || 0, index }));
+  }
+  const eventsByLevel = new Map();
+  let applied = 0;
+  for (const channel of channels) {
+    const location = indexByNodeId.get(channel.lowerNodeId);
+    if (!location || location.level !== channel.level) continue;
+    const events = eventsByLevel.get(location.level) || new Map();
+    events.set(location.index, (events.get(location.index) || 0) + channel.expansion);
+    eventsByLevel.set(location.level, events);
+    applied += 1;
+  }
+  for (const [level, entries] of byLevel) {
+    const events = eventsByLevel.get(level);
+    if (!events) continue;
+    let suffixShift = 0;
+    for (let index = 0; index < entries.length; index += 1) {
+      suffixShift += events.get(index) || 0;
+      if (suffixShift > 0) entries[index].y += suffixShift;
+    }
+  }
+  return applied;
 }
 
 function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutIntent, edgeById) {

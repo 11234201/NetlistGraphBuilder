@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   allocateIntervalLanes,
+  applyRoutingCapacityExpansion,
   buildPhysicalNetDemands,
   buildRoutingCapacityPlan,
   normalizeRoutingGeometry,
@@ -94,4 +95,42 @@ test("capacity formulas use named geometry and remain zero for empty channels", 
   assert.equal(requiredRowGap(3, geometry), 20 + 2 * 16);
   assert.equal(requiredInterLayerGap(2, geometry), 56 + 16);
   assert.equal(Object.isFrozen(geometry), true);
+});
+
+test("row-gap capacity expands only the lower node suffix for a crossing physical net", () => {
+  const nodes = [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 40, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "upper", kind: "group", level: 1, x: 160, y: 40, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "lower", kind: "group", level: 1, x: 160, y: 76, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "sink", kind: "cell", level: 2, x: 320, y: 40, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "e1", source: "src", target: "sink", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const geometry = normalizeRoutingGeometry({ nodeClearance: 8, wireLanePitch: 24 });
+  const plan = buildRoutingCapacityPlan(graph, levels, nodes, null, {
+    routingGeometry: geometry
+  });
+  const rowGap = plan.channels.find((channel) => channel.kind === "row-gap");
+
+  assert.ok(rowGap);
+  assert.equal(rowGap.currentSpan, 4);
+  assert.equal(rowGap.laneCount, 1);
+  assert.equal(rowGap.requiredSpan, requiredRowGap(1, geometry));
+  assert.equal(rowGap.expansion, 12);
+
+  const originalUpperY = nodes.find((node) => node.id === "upper").y;
+  const originalLowerY = nodes.find((node) => node.id === "lower").y;
+  const originalSinkY = nodes.find((node) => node.id === "sink").y;
+  const result = applyRoutingCapacityExpansion(nodes, plan);
+  assert.equal(result.expandedRowGaps, 1);
+  assert.equal(nodes.find((node) => node.id === "upper").y, originalUpperY);
+  assert.equal(nodes.find((node) => node.id === "lower").y, originalLowerY + 12);
+  assert.equal(nodes.find((node) => node.id === "sink").y, originalSinkY);
 });

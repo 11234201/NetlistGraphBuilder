@@ -153,14 +153,28 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
   const topAssignment = assignments.find((assignment) => assignment.channelId === "outer-top");
   const localAssignment = assignments.find((assignment) =>
     String(assignment.channelId).startsWith("inter-layer:"));
-  if (!topAssignment && !localAssignment) return edgePlan;
+  const rowGapAssignments = assignments
+    .filter((assignment) => String(assignment.channelId).startsWith("row-gap:"))
+    .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
+  if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) return edgePlan;
   return {
     ...(edgePlan || {}),
     ...(topAssignment ? {
       topLane: topAssignment.laneIndex,
       capacityChannelId: topAssignment.channelId
     } : {}),
-    preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate
+    // Row-gap lanes are recorded for diagnostics and future edge-specific
+    // corridor selection.  A single edge may cross several row gaps, so
+    // blindly choosing the lexically first row coordinate would change route
+    // shape for unrelated focused branches.  Inter-layer/outer assignments
+    // remain the only global preference until a route has a matching level.
+    preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate,
+    rowGapLanes: rowGapAssignments.map((assignment) => ({
+      channelId: assignment.channelId,
+      coordinate: assignment.coordinate,
+      laneIndex: assignment.laneIndex,
+      boundaryClusterKey: assignment.boundaryClusterKey
+    }))
   };
 }
 
