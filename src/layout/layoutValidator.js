@@ -111,7 +111,17 @@ export function finalizeLayoutGraph(graph, options = {}) {
     ...graph,
     layoutStatus: diagnostics.length === 0 ? "routed" : "unroutable",
     layoutDiagnostics: diagnostics.slice(0, maximumViolations),
-    layoutDiagnosticsTruncated: maximumViolations !== Infinity && diagnostics.length >= maximumViolations
+    layoutDiagnosticsTruncated: maximumViolations !== Infinity && diagnostics.length >= maximumViolations,
+    validationMetrics: summarizeViolations(diagnostics)
+  };
+}
+
+function summarizeViolations(violations) {
+  const byCode = {};
+  for (const item of violations) byCode[item.code] = (byCode[item.code] || 0) + 1;
+  return {
+    total: violations.length,
+    byCode
   };
 }
 

@@ -54,6 +54,8 @@ console.log(JSON.stringify({
   heapUsedMiB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
   hardInvariants,
   layoutStatus: laidOut.layoutStatus || "unknown",
+  routingMetrics: laidOut.routingMetrics || null,
+  validationMetrics: laidOut.validationMetrics || null,
   violations: violations.length,
   violationCodes: countBy(violations, (item) => item.code)
 }));

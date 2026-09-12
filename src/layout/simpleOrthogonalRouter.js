@@ -42,6 +42,7 @@ export function routeSimpleEdges(graph, nodes, options) {
   const reservedSegments = new RouteSegmentIndex();
   const orderedEdges = graph.edges.toSorted((left, right) =>
     compareEdgesByLayoutPriority(left, right, layoutIntent));
+  const startedAt = now();
   const routingMetrics = {
     basicCandidates: 0,
     localFallbacks: 0,
@@ -115,6 +116,17 @@ export function routeSimpleEdges(graph, nodes, options) {
     compareEdges: (left, right) => compareEdgesByLayoutPriority(left, right, layoutIntent)
   });
   options.onRoutingStage?.("labels-complete");
+  routingMetrics.elapsedMs = Math.round(now() - startedAt);
+  routingMetrics.physicalNetCount = new Set(graph.edges.map(getNetGroupKey)).size;
+  routingMetrics.reservedSegments = reservedSegments.metrics;
+  Object.defineProperty(labeledEdges, "routingMetrics", {
+    value: Object.freeze({
+      ...routingMetrics,
+      routeKinds: Object.freeze({ ...routingMetrics.routeKinds }),
+      reservedSegments: Object.freeze({ ...routingMetrics.reservedSegments })
+    }),
+    enumerable: false
+  });
   return labeledEdges;
 }
 
@@ -352,4 +364,10 @@ function getLabelPlacement(edge, source, target, sourcePoint, targetPoint) {
     };
   }
   return { point: { x: sourcePoint.x + 8, y: sourcePoint.y - 6 }, anchor: "start" };
+}
+
+function now() {
+  return typeof globalThis.performance?.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
 }

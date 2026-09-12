@@ -139,6 +139,7 @@ export function layoutGraph(graph, options = {}) {
     edges: positionedEdges,
     wireRoutes,
     routingCapacity,
+    routingMetrics: positionedEdges.routingMetrics || null,
     width: normalizedBounds.width + margin,
     height: normalizedBounds.height + margin
   });
