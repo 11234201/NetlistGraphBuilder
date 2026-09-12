@@ -66,7 +66,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       reservedSegments,
       globalLaneGeometry,
       routingMetrics,
-      net: edge.net
+      net: edge.net,
+      netGroupKey: undefined
     });
     const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
     const positionedEdge = {
@@ -118,13 +119,14 @@ function routeEdge(context) {
     edgeIntent,
     reservedSegments,
     routingMetrics,
-    net
+    net,
+    netGroupKey = undefined
   } = context;
   const candidates = createBasicSimpleRouteCandidates(context);
   const basicCandidates = candidates.filter((candidate) =>
     candidateIsUsable(candidate, context));
   routingMetrics.basicCandidates += basicCandidates.length;
-  const scoredBasic = scoreCandidates(basicCandidates, reservedSegments, net, edgeIntent);
+  const scoredBasic = scoreCandidates(basicCandidates, reservedSegments, net, netGroupKey, edgeIntent);
   const conflictFreeBasic = scoredBasic.filter(({ score }) => score.crossings === 0);
   if (conflictFreeBasic.length > 0) {
     return chooseBestScoredRoute(conflictFreeBasic);
@@ -137,7 +139,7 @@ function routeEdge(context) {
   for (const candidate of localCandidates) {
     if (!candidateIsUsable(candidate, context)) continue;
     usableLocalCandidates.push(candidate);
-    if (countRouteConflicts(candidate.points, reservedSegments, net, 1) === 0) {
+    if (countRouteConflicts(candidate.points, reservedSegments, net, 1, netGroupKey) === 0) {
       return candidate;
     }
   }
@@ -158,6 +160,7 @@ function routeEdge(context) {
     usableExpandedLocalCandidates,
     reservedSegments,
     net,
+    netGroupKey,
     edgeIntent
   );
   const conflictFreeExpandedLocal = scoredExpandedLocal.filter(({ score }) => score.crossings === 0);
@@ -166,7 +169,7 @@ function routeEdge(context) {
   }
   const scoredCandidates = [
     ...scoredBasic,
-    ...scoreCandidates(usableLocalCandidates, reservedSegments, net, edgeIntent),
+    ...scoreCandidates(usableLocalCandidates, reservedSegments, net, netGroupKey, edgeIntent),
     ...scoredExpandedLocal
   ];
   if (scoredCandidates.length > 0) {
@@ -175,7 +178,7 @@ function routeEdge(context) {
     // bridges in the renderer and remain a soft visual cost.
     const nonOverlappingLocalCandidates = expandedLocalCandidates.length > 0
       ? scoredCandidates.filter(({ candidate }) =>
-        !routeOverlapsReserved(candidate.points, net, reservedSegments))
+        !routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey))
       : [];
     const bestLocal = chooseBestScoredRoute(
       nonOverlappingLocalCandidates.length > 0
@@ -185,6 +188,7 @@ function routeEdge(context) {
     const bestLocalScore = scoreRouteCandidate(bestLocal, {
       reservedSegments,
       net,
+      netGroupKey,
       edgeIntent
     });
     // A usable local path may still overlap a previously routed net when all
@@ -196,10 +200,11 @@ function routeEdge(context) {
       const globalScore = scoreRouteCandidate(globalCandidate, {
         reservedSegments,
         net,
+        netGroupKey,
         edgeIntent
       });
-      const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments);
-      const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments);
+      const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments, netGroupKey);
+      const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments, netGroupKey);
       const avoidsLargeOuterDetour = !localHasOverlap &&
         globalScore.length - bestLocalScore.length >= Math.max(
           ROUTE_SELECTION_POLICY.minimumOuterDetourSavings,
@@ -246,14 +251,18 @@ function candidateIsUsable(candidate, context) {
     target: context.target,
     sourcePoint: context.sourcePoint,
     targetPoint: context.targetPoint,
-    nodeIndex: context.nodeIndex
+    nodeIndex: context.nodeIndex,
+    net: context.net,
+    netGroupKey: context.netGroupKey,
+    reservedSegments: context.reservedSegments
   });
 }
 
-function scoreCandidates(candidates, reservedSegments, net, edgeIntent) {
+function scoreCandidates(candidates, reservedSegments, net, netGroupKey, edgeIntent) {
   const context = {
     reservedSegments,
     net,
+    netGroupKey,
     edgeIntent,
     maximumCrossings: MAX_SCORED_ROUTE_CONFLICTS
   };

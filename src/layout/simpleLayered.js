@@ -2,7 +2,7 @@ import { analyzeLayoutIntent } from "./layoutIntent.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
   buildNodePorts,
-  computeBounds,
+  computeBoundsWithRoutes,
   DEFAULT_CELL_PIN_PITCH,
   measureNode
 } from "./nodeGeometry.js";
@@ -95,7 +95,7 @@ export function layoutGraph(graph, options = {}) {
     onRoutingStage: options.onRoutingStage
   });
   const wireRoutes = buildWireRoutes(positionedEdges);
-  const bounds = computeBounds(positionedNodes);
+  const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
   return {
     ...graph,
     nodes: positionedNodes,

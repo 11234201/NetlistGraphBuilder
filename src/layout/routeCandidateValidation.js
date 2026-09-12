@@ -28,7 +28,8 @@ export function routeCandidateIsUsable(points, context, options = {}) {
   return !options.rejectReservedOverlaps || !routeOverlapsReserved(
     points,
     context.net,
-    context.reservedSegments || []
+    context.reservedSegments || [],
+    context.netGroupKey
   );
 }
 
@@ -48,16 +49,24 @@ export function routeSegmentIsClear(
   );
 }
 
-export function routeOverlapsReserved(points, net, reservedSegments) {
+export function routeOverlapsReserved(points, net, reservedSegments, netGroupKey = undefined) {
   for (let index = 0; index < points.length - 1; index += 1) {
-    const candidate = { start: points[index], end: points[index + 1] };
+    const candidate = {
+      start: points[index],
+      end: points[index + 1],
+      net,
+      netGroupKey
+    };
     const isVertical = Math.abs(candidate.start.x - candidate.end.x) < 0.5;
     const reservedCandidates = isVertical &&
       typeof reservedSegments.queryVerticalSegment === "function"
       ? reservedSegments.queryVerticalSegment(candidate)
       : getReservedCandidates(reservedSegments, candidate);
     for (const reserved of reservedCandidates) {
-      if (reserved.net !== net && collinearSegmentsOverlap(candidate, reserved)) return true;
+      const sameNet = netGroupKey !== undefined && netGroupKey !== null
+        ? (reserved?.netGroupKey ?? reserved?.net) === netGroupKey
+        : (reserved?.netGroupKey ?? reserved?.net) === net;
+      if (!sameNet && collinearSegmentsOverlap(candidate, reserved)) return true;
     }
   }
   return false;

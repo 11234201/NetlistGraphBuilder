@@ -93,21 +93,30 @@ export function routePreservesEndpointAccess(points, source, target) {
   return true;
 }
 
-export function getRouteSegments(points, net) {
+export function getRouteSegments(points, net, netGroupKey = undefined) {
   const segments = [];
   for (let index = 0; index < (points?.length || 0) - 1; index += 1) {
-    segments.push({ start: points[index], end: points[index + 1], net });
+    const segment = { start: points[index], end: points[index + 1], net };
+    if (netGroupKey !== undefined && netGroupKey !== null) segment.netGroupKey = netGroupKey;
+    segments.push(segment);
   }
   return segments;
 }
 
-export function countRouteConflicts(points, reservedSegments, net, maximum = Infinity) {
+export function countRouteConflicts(
+  points,
+  reservedSegments,
+  net,
+  maximum = Infinity,
+  netGroupKey = undefined
+) {
   let conflicts = 0;
-  for (const segment of getRouteSegments(points, net)) {
+  for (const segment of getRouteSegments(points, net, netGroupKey)) {
     if (typeof reservedSegments.countBox === "function") {
       conflicts += reservedSegments.countBox(
         segmentBounds(segment),
-        (reserved) => reserved.net !== net && segmentsConflict(segment, reserved),
+        (reserved) => !samePhysicalNet(reserved, segment, net, netGroupKey) &&
+          segmentsConflict(segment, reserved),
         maximum - conflicts
       );
       if (conflicts >= maximum) return conflicts;
@@ -117,13 +126,21 @@ export function countRouteConflicts(points, reservedSegments, net, maximum = Inf
       ? reservedSegments.querySegment(segment)
       : reservedSegments;
     for (const reserved of candidates) {
-      if (reserved.net !== net && segmentsConflict(segment, reserved)) {
+      if (!samePhysicalNet(reserved, segment, net, netGroupKey) &&
+        segmentsConflict(segment, reserved)) {
         conflicts += 1;
         if (conflicts >= maximum) return conflicts;
       }
     }
   }
   return conflicts;
+}
+
+function samePhysicalNet(reserved, segment, net, netGroupKey) {
+  if (netGroupKey !== undefined && netGroupKey !== null) {
+    return (reserved?.netGroupKey ?? reserved?.net) === netGroupKey;
+  }
+  return (reserved?.netGroupKey ?? reserved?.net) === (segment?.netGroupKey ?? net);
 }
 
 function segmentBounds(segment) {

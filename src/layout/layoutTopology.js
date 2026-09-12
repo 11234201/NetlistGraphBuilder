@@ -1,5 +1,11 @@
 export function getNetGroupKey(edge) {
-  return `${edge?.source || ""}\u0000${edge?.net || edge?.label || edge?.id || ""}`;
+  const source = normalizeIdentityPart(edge?.source);
+  const net = normalizeIdentityPart(edge?.net ?? edge?.label ?? edge?.id);
+  return `${source}\u0000${net}`;
+}
+
+export function getPhysicalNetKey(edge) {
+  return getNetGroupKey(edge);
 }
 
 export function compareGraphEdges(left, right) {
@@ -34,4 +40,8 @@ export function createFanoutPriorityComparator(edges) {
 
 function compareText(left, right) {
   return String(left || "").localeCompare(String(right || ""));
+}
+
+function normalizeIdentityPart(value) {
+  return String(value ?? "").trim();
 }

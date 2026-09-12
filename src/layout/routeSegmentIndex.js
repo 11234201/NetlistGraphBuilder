@@ -1,11 +1,14 @@
 import { getRouteSegments, near } from "./orthogonalRouting.js";
 import { RouteSegmentIndex } from "./spatialIndex.js";
+import { getNetGroupKey } from "./layoutTopology.js";
 
 export function getEdgeRouteSegments(edge) {
-  return getRouteSegments(edge.points || [], edge.net).map((segment, segmentIndex) => ({
+  const netGroupKey = getNetGroupKey(edge);
+  return getRouteSegments(edge.points || [], edge.net, netGroupKey).map((segment, segmentIndex) => ({
     ...segment,
     edge,
     edgeId: edge.id,
+    netGroupKey,
     segmentIndex,
     orientation: getSegmentOrientation(segment)
   }));

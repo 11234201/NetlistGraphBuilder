@@ -19,12 +19,17 @@ export function collectLocalLaneYs({
     left - right);
 }
 
-export function queryReservedSegments(reservedSegments, box, net) {
+export function queryReservedSegments(reservedSegments, box, net, netGroupKey = undefined) {
   if (!reservedSegments) return [];
   const candidates = typeof reservedSegments.queryBox === "function"
     ? reservedSegments.queryBox(box)
     : Array.from(reservedSegments).filter((segment) => segmentIntersectsBox(segment, box));
-  return candidates.filter((segment) => segment.net !== net);
+  return candidates.filter((segment) => {
+    const reservedKey = segment?.netGroupKey ?? segment?.net;
+    return netGroupKey !== undefined && netGroupKey !== null
+      ? reservedKey !== netGroupKey
+      : reservedKey !== net;
+  });
 }
 
 export function uniqueRoundedNumbers(values) {

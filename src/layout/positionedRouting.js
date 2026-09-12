@@ -1,5 +1,5 @@
 import { selectLocalOrthogonalRoute } from "./localOrthogonalRouter.js";
-import { buildNodePorts, computeBounds, getConnectionPoint } from "./nodeGeometry.js";
+import { buildNodePorts, computeBoundsWithRoutes, getConnectionPoint } from "./nodeGeometry.js";
 import { normalizeNodeOverrides } from "./nodeOverrides.js";
 import {
   getRouteSegments
@@ -79,7 +79,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const routedEdges = positionedGraph.edges.map((edge) => routedById.get(edge.id) || edge);
   const edges = placeWireLabels(routedEdges, nodes, { compareEdges });
   const wireRoutes = buildWireRoutes(edges);
-  const bounds = computeBounds(nodes);
+  const bounds = computeBoundsWithRoutes(nodes, edges, wireRoutes);
   return {
     ...positionedGraph,
     nodes,

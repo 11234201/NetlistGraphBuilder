@@ -124,6 +124,39 @@ export function computeBounds(nodes) {
   return { width, height };
 }
 
+/**
+ * Compute graph bounds from both positioned nodes and routed geometry. Providers
+ * must use this after routing so outer lanes and labels cannot be clipped by
+ * a node-only viewBox.
+ */
+export function computeBoundsWithRoutes(nodes = [], edges = [], wireRoutes = []) {
+  let width = 0;
+  let height = 0;
+  const includePoint = (point) => {
+    if (!point) return;
+    if (Number.isFinite(Number(point.x))) width = Math.max(width, Number(point.x));
+    if (Number.isFinite(Number(point.y))) height = Math.max(height, Number(point.y));
+  };
+  for (const node of nodes) {
+    if (!node) continue;
+    width = Math.max(width, Number(node.x) + Number(node.width));
+    height = Math.max(height, Number(node.y) + Number(node.height));
+  }
+  for (const edge of edges) {
+    for (const point of edge?.points || []) includePoint(point);
+    includePoint(edge?.labelPoint);
+  }
+  for (const route of wireRoutes) {
+    for (const segment of route?.segments || []) {
+      includePoint(segment.start);
+      includePoint(segment.end);
+    }
+    includePoint(route?.labelPoint);
+    for (const point of route?.junctions || []) includePoint(point);
+  }
+  return { width, height };
+}
+
 function placePorts(ports, height, preferredPitch) {
   if (ports.length === 0) {
     return;

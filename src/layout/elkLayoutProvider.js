@@ -1,4 +1,4 @@
-import { buildNodePorts, computeBounds, getConnectionPoint, getPort, measureNode } from "./nodeGeometry.js";
+import { buildNodePorts, computeBoundsWithRoutes, getConnectionPoint, getPort, measureNode } from "./nodeGeometry.js";
 import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
@@ -77,7 +77,7 @@ export class ElkLayoutProvider {
       includeEmpty: true
     });
     const wireRoutes = buildWireRoutes(positionedEdges);
-    const bounds = computeBounds(positionedNodes);
+    const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
     const positionedGraph = {
       ...graph,
       nodes: positionedNodes,

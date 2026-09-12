@@ -9,6 +9,7 @@ import {
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
 import { createNodeSpatialIndex, segmentBox } from "./spatialIndex.js";
+import { getNetGroupKey } from "./layoutTopology.js";
 
 export function validateLayoutGraph(graph, options = {}) {
   const violations = [];
@@ -162,7 +163,7 @@ function findNetOverlaps(edges) {
   const violations = [];
   const lineGroups = new Map();
   for (const edge of edges) {
-    for (const segment of getRouteSegments(edge.points, edge.net)) {
+    for (const segment of getRouteSegments(edge.points, edge.net, getNetGroupKey(edge))) {
       const horizontal = near(segment.start.y, segment.end.y);
       const vertical = near(segment.start.x, segment.end.x);
       if (!horizontal && !vertical) continue;
@@ -188,7 +189,8 @@ function findNetOverlaps(edges) {
       for (let rightIndex = leftIndex + 1; rightIndex < line.length; rightIndex += 1) {
         const right = line[rightIndex];
         if (right.minimum >= left.maximum) break;
-        if (left.edge.id === right.edge.id || left.edge.net === right.edge.net) continue;
+        if (left.edge.id === right.edge.id ||
+          getNetGroupKey(left.edge) === getNetGroupKey(right.edge)) continue;
         if (!collinearSegmentsOverlap(left.segment, right.segment)) continue;
         const pairKey = [left.edge.id, right.edge.id].sort().join("\u0000");
         if (reported.has(pairKey)) continue;

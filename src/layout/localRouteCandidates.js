@@ -20,7 +20,8 @@ export function* iterateLocalRouteCandidates(context) {
     nodeIndex,
     margin,
     reservedSegments,
-    net
+    net,
+    netGroupKey
   } = context;
   const routeEnd = getTargetApproachPoint(target, end);
 
@@ -61,7 +62,8 @@ export function* iterateLocalRouteCandidates(context) {
     nodes,
     nodeIndex,
     reservedSegments,
-    net
+    net,
+    netGroupKey
   );
   yield* iterateOuterLanes(start, routeEnd, end, source, target, nodes, margin);
 }
@@ -74,7 +76,8 @@ function* iterateLocalDetours(
   nodes,
   nodeIndex,
   reservedSegments,
-  net
+  net,
+  netGroupKey
 ) {
   const padding = 8;
   const forward = start.x < end.x;
@@ -98,7 +101,7 @@ function* iterateLocalDetours(
     right: maxRouteX + padding,
     top: minNodeY - padding,
     bottom: maxNodeY + padding
-  }, net);
+  }, net, netGroupKey);
   const laneYs = collectLocalLaneYs({
     sourceY: start.y,
     targetY: end.y,

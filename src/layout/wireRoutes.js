@@ -1,5 +1,8 @@
 import { getRouteSegments } from "./orthogonalRouting.js";
-import { getNetGroupKey } from "./layoutTopology.js";
+import {
+  getNetGroupKey,
+  getPhysicalNetKey as getCanonicalPhysicalNetKey
+} from "./layoutTopology.js";
 import { buildNetTreeSegments } from "./netTreeRouter.js";
 
 const GEOMETRY_EPSILON = 0.01;
@@ -25,8 +28,7 @@ export function buildWireRoutes(edges = []) {
 }
 
 export function getPhysicalNetKey(edge) {
-  const net = String(edge?.net || edge?.label || "").trim();
-  return getNetGroupKey({ ...edge, net: net || `edge:${String(edge?.id || "")}` });
+  return getCanonicalPhysicalNetKey(edge);
 }
 
 export function shiftWireRoutes(wireRoutes = [], delta = {}) {
@@ -49,7 +51,11 @@ export function shiftWireRoutes(wireRoutes = [], delta = {}) {
 
 function createWireRoute(netKey, edges) {
   const sortedEdges = [...edges].sort(compareEdges);
-  const records = sortedEdges.flatMap((edge) => getRouteSegments(edge.points || [], edge.net)
+  const records = sortedEdges.flatMap((edge) => getRouteSegments(
+    edge.points || [],
+    edge.net,
+    getPhysicalNetKey(edge)
+  )
     .map((segment, index) => toSegmentRecord(segment, edge, index))
     .filter(Boolean));
   const merged = mergeSegments(records);

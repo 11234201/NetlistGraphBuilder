@@ -15,6 +15,7 @@ export function selectLocalOrthogonalRoute(context) {
   const scoreContext = {
     reservedSegments: context.reservedSegments,
     net: context.net,
+    netGroupKey: context.netGroupKey,
     edgeIntent: context.edgeIntent
   };
   for (const candidate of iterateLocalRouteCandidates(routeContext)) {
@@ -25,6 +26,7 @@ export function selectLocalOrthogonalRoute(context) {
       nodes: context.nodes,
       nodeIndex,
       net: context.net,
+      netGroupKey: context.netGroupKey,
       reservedSegments: context.reservedSegments
     }, {
       allowNodePaddingBoundary: true,

@@ -104,6 +104,7 @@ export function createLocalObstacleCandidates(context, options = {}) {
     levelBounds,
     reservedSegments,
     net,
+    netGroupKey,
     wireLanePitch
   } = context;
   const padding = 9;
@@ -168,7 +169,7 @@ export function createLocalObstacleCandidates(context, options = {}) {
     right: maxX + padding,
     top: corridorTop,
     bottom: corridorBottom
-  }, net);
+  }, net, netGroupKey);
   const laneYs = collectLocalLaneYs({
     sourceY: sourcePoint.y,
     targetY: routeTargetPoint.y,
@@ -215,7 +216,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
     if (options.expandXLanes === true && routeOverlapsReserved(
       candidate.points,
       net,
-      reservedSegments || []
+      reservedSegments || [],
+      netGroupKey
     )) {
       overlappingCandidates.push(candidate);
       return;
@@ -271,7 +273,8 @@ export function findObstacleAvoidingRoute(context) {
     nodeIndex,
     globalLaneGeometry,
     reservedSegments = [],
-    net
+    net,
+    netGroupKey
   } = context;
   const clearance = 24;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
@@ -294,7 +297,8 @@ export function findObstacleAvoidingRoute(context) {
       target,
       nodeIndex,
       reservedSegments,
-      net
+      net,
+      netGroupKey
     );
     const targetLaneX = findClearVerticalLaneX(
       baseTargetLaneX,
@@ -304,7 +308,8 @@ export function findObstacleAvoidingRoute(context) {
       target,
       nodeIndex,
       reservedSegments,
-      net
+      net,
+      netGroupKey
     );
     const candidate = createGlobalLaneRoute(
       sourcePoint,
@@ -395,7 +400,7 @@ export function findObstacleAvoidingRoute(context) {
           nodeIndex
         })) continue;
         firstNodeSafeCandidate ??= candidate;
-        if (routeOverlapsReserved(candidate.points, net, reservedSegments)) continue;
+        if (routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey)) continue;
         return candidate;
       }
     }
@@ -548,7 +553,8 @@ function findClearVerticalLaneX(
   target,
   nodeIndex,
   reservedSegments = [],
-  net
+  net,
+  netGroupKey
 ) {
   // Include small offsets so a lane can fit in the narrow gap between an
   // endpoint and a nearby port node. The larger offsets remain the bounded
@@ -570,7 +576,7 @@ function findClearVerticalLaneX(
     if (!routeOverlapsReserved([
       { x, y: y1 },
       { x, y: y2 }
-    ], net, reservedSegments)) return x;
+    ], net, reservedSegments, netGroupKey)) return x;
   }
   return firstClearX ?? preferredX;
 }
