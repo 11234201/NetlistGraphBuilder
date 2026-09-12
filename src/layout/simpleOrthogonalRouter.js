@@ -77,7 +77,13 @@ export function routeSimpleEdges(graph, nodes, options) {
     const edgePlan = applyCapacityLane(
       routePlan.edges.get(edge.id),
       routingCapacity,
-      getNetGroupKey(edge)
+      getNetGroupKey(edge),
+      {
+        sourceLevel: source.level,
+        targetLevel: target.level,
+        sourceNodeId: source.id,
+        targetNodeId: target.id
+      }
     );
     const routed = routeEdge({
       source,
@@ -108,6 +114,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       routeKind: routed.kind,
       routeStatus: routed.status || "routed",
       routeDiagnostics: routed.diagnostics,
+      capacityChannelId: edgePlan?.capacityChannelId,
+      capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
       labelPoint: label.point,
       labelAnchor: label.anchor
     };
@@ -151,12 +159,18 @@ export function routeSimpleEdges(graph, nodes, options) {
   return labeledEdges;
 }
 
-function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
+function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext = {}) {
   if (!routingCapacity?.allocationByNet) return edgePlan;
   const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
   const topAssignment = assignments.find((assignment) => assignment.channelId === "outer-top");
-  const localAssignment = assignments.find((assignment) =>
+  const localAssignments = assignments.filter((assignment) =>
     String(assignment.channelId).startsWith("inter-layer:"));
+  const sourceBoundaryId = getSourceBoundaryChannelId(
+    edgeContext.sourceLevel,
+    edgeContext.targetLevel
+  );
+  const localAssignment = localAssignments.find((assignment) =>
+    assignment.channelId === sourceBoundaryId) || localAssignments[0];
   const rowGapAssignments = assignments
     .filter((assignment) => String(assignment.channelId).startsWith("row-gap:"))
     .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
@@ -165,7 +179,8 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
     ...(edgePlan || {}),
     ...(topAssignment ? {
       topLane: topAssignment.laneIndex,
-      capacityChannelId: topAssignment.channelId
+      capacityChannelId: topAssignment.channelId,
+      capacityBoundaryClusterKey: topAssignment.boundaryClusterKey
     } : {}),
     // Row-gap lanes are recorded for diagnostics and future edge-specific
     // corridor selection.  A single edge may cross several row gaps, so
@@ -173,6 +188,14 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
     // shape for unrelated focused branches.  Inter-layer/outer assignments
     // remain the only global preference until a route has a matching level.
     preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate,
+    capacityBoundaryClusterKey: localAssignment?.boundaryClusterKey ??
+      topAssignment?.boundaryClusterKey,
+    capacityEscape: localAssignment
+      ? {
+        sourceEscapeSide: localAssignment.sourceEscapeSide,
+        targetEscapeSides: localAssignment.targetEscapeSides
+      }
+      : undefined,
     rowGapLanes: rowGapAssignments.map((assignment) => ({
       channelId: assignment.channelId,
       coordinate: assignment.coordinate,
@@ -180,6 +203,21 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
       boundaryClusterKey: assignment.boundaryClusterKey
     }))
   };
+}
+
+/**
+ * Bind a skip-level edge to the first boundary it actually leaves from.
+ * Capacity is allocated once per physical net and boundary; choosing the
+ * source-adjacent assignment avoids letting lexical boundary order decide
+ * the preferred y lane for long or reverse edges.  The fallback keeps the
+ * pre-existing behavior for incomplete synthetic plans.
+ */
+function getSourceBoundaryChannelId(sourceLevel, targetLevel) {
+  const source = Number(sourceLevel);
+  const target = Number(targetLevel);
+  if (!Number.isFinite(source) || !Number.isFinite(target) || source === target) return null;
+  const boundaryLevel = source < target ? source : target;
+  return `inter-layer:${boundaryLevel}->${boundaryLevel + 1}`;
 }
 
 function getOwnedRouteSegments(points, edge) {
