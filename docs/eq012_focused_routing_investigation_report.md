@@ -428,7 +428,7 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 本轮提交后又复核了三条实现边界：
 
 1. `RouteSegmentIndex` 的 owner replacement 已从“过滤后完整 rebuild”改成 tombstone。活动项仍保留在 `items`，旧桶记录通过 `inactiveSegments` 过滤，`queryBox`、`queryVerticalSegment`、`countBox` 和迭代器不会看到失效 owner；只有显式 `compact()` 才回收旧桶。这解决的是 Adjust/增量 reroute 的更新成本，不是初次 route 的 overlap 算法。
-2. reservation lane shift 现在在固定的 6 个水平偏移和 11 个 source/target 纵向组合内尝试，并且每个组合都经过 endpoint side、node obstacle 和 foreign-net overlap 合同。它不会把候选次数变成 edge 数量的函数，也不会把非法 fallback 伪装成成功。
+2. reservation lane shift 现在在固定的 6 个水平偏移和 12 个 source/target 纵向组合内尝试，并且每个组合都经过 endpoint side、node obstacle 和 foreign-net overlap 合同。它不会把候选次数变成 edge 数量的函数，也不会把非法 fallback 伪装成成功。
 3. 远端 1024/4096/8192 长链中位数 layout 约为 `135.9/820.3/3163.1 ms`，SVG 约为 `60.5/245.8/724.8 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败，严格 collapsed eq012 仍有截断后的 `net-overlap`。因此剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
 
 ### 13.1 未完成问题的具体定义
