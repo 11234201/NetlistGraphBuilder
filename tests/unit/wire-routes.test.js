@@ -143,6 +143,24 @@ test("layout validation accepts normalized unique physical segments", () => {
   assert.deepEqual(violations, []);
 });
 
+test("physical route validation detects collinear overlap with interval buckets", () => {
+  const route = {
+    id: "wire:overlap",
+    logicalEdgeIds: ["a"],
+    reachableTargetCount: 1,
+    segments: [
+      { start: { x: 0, y: 20 }, end: { x: 40, y: 20 } },
+      { start: { x: 30, y: 20 }, end: { x: 80, y: 20 } }
+    ]
+  };
+  const violations = validateLayoutGraph({ nodes: [], edges: [], wireRoutes: [route] }, {
+    checkObstacles: false,
+    checkOverlaps: false
+  });
+
+  assert.deepEqual(violations.map((item) => item.code), ["wire-route-overlap"]);
+});
+
 test("layout validation rejects a physical route that crosses a node body", () => {
   const [route] = buildWireRoutes([{
     id: "edge-crossing",
