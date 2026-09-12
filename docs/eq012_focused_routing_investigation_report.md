@@ -461,9 +461,19 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 4. row-gap assignment 进入 `allocationByNet` 和 `routingMetrics.capacity`，但不会被不带 level 匹配的 edge 盲选为全局 `preferredLaneY`。一个 skip-level edge 可能跨越多个 row gap，当前仍由 inter-layer/outer assignment 选择主坐标，避免词法首个 gap 改变普通 Focused route。
 5. 因此这一步解决的是“窄 group boundary gap 没有最小开放高度”的 placement 缺口，不宣称已解决 dense collapsed 图的 outer top/bottom 共享段。
 
-验证结果：新增 `tests/unit/channel-capacity.test.js` 的 synthetic group corridor 与宽 gap demand 上限用例；本地 `npm test` 为 402/402；eq012 Focused spacing matrix、sop015 Focused 三项均通过。远端长链 benchmark 为 1024/4096/8192 layout `132.7/894.2/3232.3 ms`、SVG `61.2/239.5/717.6 ms`；dp020 单 case 约 `25.1 s`，相较上一轮未出现由 row-gap pass 引起的通道数/内存爆炸。普通 mapped 仍为 43/47，失败为 `dp_018`、`dp_019`、`dp_020`、`sop_015`（总计 `380/120` 违规）；eq012 普通 runner 通过但 collapsed hard gate 仍为 `net-overlap` 截断失败。
+验证结果：新增 `tests/unit/channel-capacity.test.js` 的 synthetic group corridor 与宽 gap demand 上限用例；本地 `npm test` 为 403/403；eq012 Focused spacing matrix、sop015 Focused 三项均通过。远端长链 benchmark 为 1024/4096/8192 layout `132.9/784.0/3334.6 ms`、SVG `60.4/247.1/715.8 ms`；dp020 单 case 约 `25.1 s`，相较上一轮未出现由 row-gap pass 引起的通道数/内存爆炸。普通 mapped 仍有 `dp_018`、`dp_019`、`dp_020`、`sop_015` 四个失败；cap=32 的试验曾将总违规由 `380/120` 降至 `369/120`，但把 top band 推到 800 px、最大堆推至约 337 MiB，已收紧为 cap=8。cap=8 只保留 224 px bounded headroom，四个残留 case 没有稳定的硬违规下降，因此不能宣称 outer band 已解决。
 
-### 13.4 后续必须补齐的实现问题
+### 13.4 本轮新增的 bounded top headroom 与 strict 出口
+
+本轮继续补齐阶段 2/5 的两个边界，但保留兼容开关，避免 corridor/tree 完成前改变普通图：
+
+1. `planSimpleRouting()` 的 `longLaneCount` 只在存在 collapsed group 时作为 top-band demand；`computeTopWireHeadroom()` 将 demand 转成 `margin + requiredOuterBand(lanes)`，并以 `MAX_PLACEMENT_OUTER_LANES=8` 封顶。超过 8 条的部分记录 `overflowLaneCount`，不通过放大画布掩盖容量不足。
+2. `routingCapacity.metrics.topWireHeadroom`、`placementCapacity.topWireHeadroom` 暴露 demand、保留 lane、overflow、headroom，供 UI/报告诊断；普通无 group 图保持既有 80 px 下限，避免层次图坐标无谓漂移。
+3. Simple router 支持 `strictRouting:true`：当候选没有 node-safe 且 foreign physical-net overlap-free 的结果时生成 `routeStatus:"unroutable"`、空 points 与诊断，不将非法 global fallback 交给 renderer。默认 workspace 仍保持兼容，`tools/test-one-mapped-case.mjs --hard` 显式启用该出口，便于逐步收紧门禁。
+
+严格模式在 sop015 上的复测会把约 2,897 条无法同时满足现有 reservation/obstacle 合同的边明确标为 `unroutable`，而不是输出非法 polyline；这证明出口语义生效，也说明 cluster corridor 尚未完成，不能将此数字当作质量改善。
+
+### 13.5 后续必须补齐的实现问题
 
 下一步不能简单把 row-gap 上限从 64 调大。要完成方案，还必须补齐：
 

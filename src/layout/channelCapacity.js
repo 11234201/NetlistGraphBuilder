@@ -2,6 +2,10 @@ import { getPhysicalNetKey } from "./layoutTopology.js";
 import { getConnectionPoint, getPort } from "./nodeGeometry.js";
 
 const MAX_ROW_GAP_DEMANDS = 64;
+// Placement must reserve a useful outer band without allowing a large mapped
+// graph to turn every physical net into a full-height canvas expansion. The
+// router still reports overflow so unmet capacity is diagnosable.
+export const MAX_PLACEMENT_OUTER_LANES = 8;
 
 export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   nodeClearance: 8,
@@ -311,7 +315,8 @@ export function buildRoutingCapacityPlan(
       allocatedLaneCount: channels.reduce((sum, channel) => sum + channel.laneCount, 0),
       expandedChannelCount: channels.filter((channel) => channel.expansion > 0).length,
       boundaryClusterCount: boundaryClusterCounts.size,
-      maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values())
+      maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values()),
+      topWireHeadroom: options.topWireHeadroom || null
     },
     boundaryClusterCounts,
     routingGeometry,
@@ -411,6 +416,31 @@ export function requiredInterLayerGap(laneCount, geometry) {
 
 export function requiredOuterBand(laneCount, geometry) {
   return laneCount <= 0 ? 0 : geometry.nodeClearance + (laneCount - 1) * geometry.wireLanePitch;
+}
+
+/**
+ * Convert physical long-net demand into bounded placement headroom. The
+ * caller-provided value remains a lower bound for compatibility; demand above
+ * the fixed cap is reported rather than expanding placement without bound.
+ */
+export function computeTopWireHeadroom(
+  longLaneDemand,
+  routingGeometry,
+  margin,
+  requestedTopWireSpace = 80
+) {
+  const demand = Math.max(0, Math.floor(Number(longLaneDemand) || 0));
+  const reservedLaneCount = Math.min(demand, MAX_PLACEMENT_OUTER_LANES);
+  const requested = Math.max(0, Number(requestedTopWireSpace) || 0);
+  const capacityHeadroom = (Number(margin) || 0) +
+    requiredOuterBand(reservedLaneCount, routingGeometry);
+  return {
+    topWireSpace: Math.max(requested, capacityHeadroom),
+    longLaneDemand: demand,
+    reservedLaneCount,
+    overflowLaneCount: Math.max(0, demand - reservedLaneCount),
+    capacityHeadroom
+  };
 }
 
 /**

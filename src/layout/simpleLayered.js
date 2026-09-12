@@ -2,6 +2,7 @@ import { analyzeLayoutIntent } from "./layoutIntent.js";
 import {
   applyRoutingCapacityExpansion,
   buildRoutingCapacityPlan,
+  computeTopWireHeadroom,
   normalizeRoutingGeometry
 } from "./channelCapacity.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
@@ -44,9 +45,19 @@ export function layoutGraph(graph, options = {}) {
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   const routePlan = planSimpleRouting(graph, levels, layoutIntent);
   const xSpacing = policy.spacing.x;
-  const topWireSpace = Number.isFinite(Number(options.topWireSpace))
+  const requestedTopWireSpace = Number.isFinite(Number(options.topWireSpace))
     ? Math.max(0, Number(options.topWireSpace))
     : 80;
+  const groupBoundaryDemand = graph.nodes.some((node) => node.kind === "group")
+    ? routePlan.longLaneCount
+    : 0;
+  const topWireHeadroom = computeTopWireHeadroom(
+    groupBoundaryDemand,
+    routingGeometry,
+    margin,
+    requestedTopWireSpace
+  );
+  const topWireSpace = topWireHeadroom.topWireSpace;
   const buckets = bucketNodesByLevel(graph.nodes, levels);
   const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
   orderSimpleLayers(buckets, levelKeys, graph.edges);
@@ -99,7 +110,8 @@ export function layoutGraph(graph, options = {}) {
     {
       spacing: policy.spacing,
       routingGeometry,
-      "outer-topSpan": topWireSpace
+      "outer-topSpan": topWireSpace,
+      topWireHeadroom
     }
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
@@ -111,7 +123,8 @@ export function layoutGraph(graph, options = {}) {
     {
       spacing: policy.spacing,
       routingGeometry,
-      "outer-topSpan": topWireSpace
+      "outer-topSpan": topWireSpace,
+      topWireHeadroom
     }
   );
 
@@ -123,6 +136,7 @@ export function layoutGraph(graph, options = {}) {
     routingGeometry,
     routingCapacity,
     margin,
+    strictRouting: options.strictRouting === true,
     onRoutingProgress: options.onRoutingProgress,
     onRoutingStage: options.onRoutingStage
   });
@@ -141,7 +155,10 @@ export function layoutGraph(graph, options = {}) {
     routingCapacity,
     routingMetrics: positionedEdges.routingMetrics || null,
     width: normalizedBounds.width + margin,
-    height: normalizedBounds.height + margin
+    height: normalizedBounds.height + margin,
+    placementCapacity: {
+      topWireHeadroom
+    }
   });
 }
 

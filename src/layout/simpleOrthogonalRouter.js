@@ -61,7 +61,8 @@ export function routeSimpleEdges(graph, nodes, options) {
         allocatedLaneCount: routingCapacity.metrics.allocatedLaneCount,
         expandedChannelCount: routingCapacity.metrics.expandedChannelCount,
         boundaryClusterCount: routingCapacity.metrics.boundaryClusterCount,
-        maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand
+        maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand,
+        topWireHeadroom: routingCapacity.metrics.topWireHeadroom
       }
       : null
   };
@@ -96,6 +97,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       reservedSegments,
       globalLaneGeometry,
       routingMetrics,
+      strictRouting: options.strictRouting === true,
       net: edge.net,
       netGroupKey: getNetGroupKey(edge)
     });
@@ -104,6 +106,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       ...edge,
       points: routed.points,
       routeKind: routed.kind,
+      routeStatus: routed.status || "routed",
+      routeDiagnostics: routed.diagnostics,
       labelPoint: label.point,
       labelAnchor: label.anchor
     };
@@ -291,7 +295,8 @@ function routeEdge(context) {
       const repaired = findReservationFreeLaneShift(bestLocal, context);
       if (repaired) return repaired;
     }
-    if (!localHasOverlap && bestLocalScore.crossings <= ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings) {
+    if (!localHasOverlap && (context.strictRouting === true ||
+      bestLocalScore.crossings <= ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings)) {
       return bestLocal;
     }
     // A usable local path may still overlap a previously routed net when all
@@ -315,18 +320,56 @@ function routeEdge(context) {
         ) &&
         bestLocalScore.crossings - globalScore.crossings <=
           ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
-      if (!avoidsLargeOuterDetour && ((localHasOverlap && !globalHasOverlap) ||
+      const globalIsHardUsable = !context.strictRouting || isHardRouteCandidate(globalCandidate, context);
+      if (globalIsHardUsable && !avoidsLargeOuterDetour && ((localHasOverlap && !globalHasOverlap) ||
         globalScore.crossings < bestLocalScore.crossings ||
         (globalScore.crossings === bestLocalScore.crossings &&
           globalScore.total < bestLocalScore.total))) {
         return globalCandidate;
       }
     }
+    if (context.strictRouting === true) {
+      return createUnroutableRoute(context, {
+        candidateCount: scoredCandidates.length,
+        localOverlap: localHasOverlap,
+        localCrossings: bestLocalScore.crossings
+      });
+    }
     return bestLocal;
   }
 
   routingMetrics.globalFallbacks += 1;
-  return createGlobalFallback(context);
+  const globalFallback = createGlobalFallback(context);
+  if (context.strictRouting === true && !isHardRouteCandidate(globalFallback, context)) {
+    return createUnroutableRoute(context, { candidateCount: 0 });
+  }
+  return globalFallback;
+}
+
+function isHardRouteCandidate(candidate, context) {
+  return Boolean(candidate?.points?.length >= 2) &&
+    candidateIsUsable(candidate, context) &&
+    !routeOverlapsReserved(
+      candidate.points,
+      context.net,
+      context.reservedSegments,
+      context.netGroupKey
+    );
+}
+
+function createUnroutableRoute(context, details = {}) {
+  return {
+    kind: "unroutable",
+    status: "unroutable",
+    points: [],
+    diagnostics: [{
+      code: "simple-route-unroutable",
+      sourceNodeId: context.source?.id,
+      targetNodeId: context.target?.id,
+      netGroupKey: context.netGroupKey,
+      ...details
+    }]
+  };
 }
 
 function findReservationFreeLaneShift(candidate, context) {

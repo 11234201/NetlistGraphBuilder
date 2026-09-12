@@ -28,7 +28,9 @@ const graph = applyWorkspaceGraphTransforms(rawGraph, {
 const graphMs = performance.now() - graphStarted;
 const layoutStarted = performance.now();
 console.error("stage=layout");
-const laidOut = getLayoutProvider().layout(graph);
+const laidOut = getLayoutProvider().layout(graph, {
+  strictRouting: hardInvariants
+});
 const layoutMs = performance.now() - layoutStarted;
 console.error("stage=validate");
 const violations = validateLayoutGraph(laidOut, {

@@ -5,6 +5,8 @@ import {
   applyRoutingCapacityExpansion,
   buildPhysicalNetDemands,
   buildRoutingCapacityPlan,
+  computeTopWireHeadroom,
+  MAX_PLACEMENT_OUTER_LANES,
   normalizeRoutingGeometry,
   requiredInterLayerGap,
   requiredRowGap
@@ -95,6 +97,20 @@ test("capacity formulas use named geometry and remain zero for empty channels", 
   assert.equal(requiredRowGap(3, geometry), 20 + 2 * 16);
   assert.equal(requiredInterLayerGap(2, geometry), 56 + 16);
   assert.equal(Object.isFrozen(geometry), true);
+});
+
+test("top wire headroom follows physical demand with a bounded placement cap", () => {
+  const geometry = normalizeRoutingGeometry({ wireLanePitch: 20, nodeClearance: 10 });
+  const bounded = computeTopWireHeadroom(4, geometry, 48, 80);
+  assert.equal(bounded.reservedLaneCount, 4);
+  assert.equal(bounded.overflowLaneCount, 0);
+  assert.equal(bounded.capacityHeadroom, 48 + 10 + 3 * 20);
+  assert.equal(bounded.topWireSpace, Math.max(80, 48 + 10 + 3 * 20));
+
+  const overflow = computeTopWireHeadroom(MAX_PLACEMENT_OUTER_LANES + 7, geometry, 48, 0);
+  assert.equal(overflow.reservedLaneCount, MAX_PLACEMENT_OUTER_LANES);
+  assert.equal(overflow.overflowLaneCount, 7);
+  assert.ok(overflow.topWireSpace < 48 + 7 + (MAX_PLACEMENT_OUTER_LANES + 7) * 20);
 });
 
 test("row-gap capacity expands only the lower node suffix for a crossing physical net", () => {
