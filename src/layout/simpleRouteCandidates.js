@@ -66,6 +66,17 @@ export function createBasicSimpleRouteCandidates(context) {
     ]));
   }
 
+  const boundaryLane = createGroupBoundaryLaneCandidate(
+    source,
+    target,
+    sourcePoint,
+    targetPoint,
+    edgePlan,
+    wireLanePitch,
+    routingGeometry
+  );
+  if (boundaryLane) candidates.push(boundaryLane);
+
   if (horizontalGap > 0) {
     const inset = getTargetLaneInset(target, targetPoint, horizontalGap, routingGeometry);
     const minLaneX = sourcePoint.x + inset;
@@ -297,7 +308,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
  * expands away from the node instead of crossing a neighbouring column.
  */
 function applyNodeLocalEscapeLane(baseX, node, point, edgePlan, wireLanePitch, role) {
-  if (node?.kind !== "group" || edgePlan?.kind !== "long") return baseX;
+  if (node?.kind !== "group" ||
+    (edgePlan?.kind !== "long" && edgePlan?.kind !== "channel")) return baseX;
   const port = getPort(node, role === "source" ? edgePlan.sourcePin : edgePlan.targetPin, role);
   const side = port?.side || (role === "source" ? "right" : "left");
   if (side !== "left" && side !== "right") return baseX;
@@ -313,6 +325,44 @@ function applyNodeLocalEscapeLane(baseX, node, point, edgePlan, wireLanePitch, r
     ? (point.x >= node.x + node.width / 2 ? 1 : -1)
     : (point.x <= node.x + node.width / 2 ? -1 : 1);
   return baseX + (outward || fallbackOutward) * laneIndex * pitch;
+}
+
+function createGroupBoundaryLaneCandidate(
+  source,
+  target,
+  sourcePoint,
+  targetPoint,
+  edgePlan,
+  wireLanePitch,
+  routingGeometry
+) {
+  if (edgePlan?.kind !== "channel" || source?.kind !== "group" || target?.kind !== "group") {
+    return null;
+  }
+  const sourceSide = getPort(source, edgePlan.sourcePin, "source")?.side || "right";
+  const targetSide = getPort(target, edgePlan.targetPin, "target")?.side || "left";
+  if (!((sourceSide === "left" || sourceSide === "right") &&
+    (targetSide === "left" || targetSide === "right"))) return null;
+  const pitch = Math.max(4, Number(wireLanePitch) || 24);
+  const escape = Math.max(
+    Number(routingGeometry?.portEscapeLength) || 24,
+    Number(routingGeometry?.nodeClearance) || 8
+  );
+  const sourceLane = Math.max(0, Math.floor(Number(edgePlan.sourceLane) || 0));
+  const targetLane = Math.max(0, Math.floor(Number(edgePlan.targetLane) || 0));
+  const sourceDirection = sourceSide === "right" ? 1 : -1;
+  const targetDirection = targetSide === "left" ? -1 : 1;
+  const sourceLaneX = sourcePoint.x + sourceDirection * (escape + sourceLane * pitch);
+  const targetLaneX = targetPoint.x + targetDirection * (escape + targetLane * pitch);
+  if (sourceDirection > 0 && targetDirection < 0 && sourceLaneX >= targetLaneX) return null;
+  if (sourceDirection < 0 && targetDirection > 0 && sourceLaneX <= targetLaneX) return null;
+  return createRoute("boundary-channel", [
+    sourcePoint,
+    { x: sourceLaneX, y: sourcePoint.y },
+    { x: sourceLaneX, y: targetPoint.y },
+    { x: targetLaneX, y: targetPoint.y },
+    targetPoint
+  ]);
 }
 
 function createReservedDetourCandidates(

@@ -6,6 +6,7 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
   const edges = new Map();
   const channelLanes = new Map();
   const channelLaneByFanout = new Map();
+  const channelSourceLaneByFanout = new Map();
   const fanoutCounts = new Map();
   for (const edge of graph.edges) {
     const key = getNetGroupKey(edge);
@@ -36,9 +37,19 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
         if (fanoutCounts.get(fanoutKey) > 1) channelLaneByFanout.set(fanoutKey, lane);
       }
       maxSideLanes = Math.max(maxSideLanes, lane + 1);
+      let sourceLane = channelSourceLaneByFanout.get(fanoutKey);
+      if (sourceLane === undefined) {
+        sourceLane = nextNodeLane(longSourceLanes, `source-node:${String(edge.source ?? "")}`);
+        if (fanoutCounts.get(fanoutKey) > 1) {
+          channelSourceLaneByFanout.set(fanoutKey, sourceLane);
+        }
+      }
+      const targetLane = nextNodeLane(longTargetLanes, `target-node:${String(edge.target ?? "")}`);
       edges.set(edge.id, {
         kind: "channel",
         lane,
+        sourceLane,
+        targetLane,
         sourcePin: edge.sourcePin,
         targetPin: edge.targetPin
       });
@@ -59,12 +70,10 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
       ? longSourceLaneByFanout.get(intent.groupKey)
       : undefined;
     if (sourceLane === undefined) {
-      sourceLane = longSourceLanes.get(sourceKey) || 0;
+      sourceLane = nextNodeLane(longSourceLanes, sourceKey);
       if (intent?.fanout > 1) longSourceLaneByFanout.set(intent.groupKey, sourceLane);
     }
-    const targetLane = longTargetLanes.get(targetKey) || 0;
-    longSourceLanes.set(sourceKey, Math.max(longSourceLanes.get(sourceKey) || 0, sourceLane + 1));
-    longTargetLanes.set(targetKey, targetLane + 1);
+    const targetLane = nextNodeLane(longTargetLanes, targetKey);
     maxSideLanes = Math.max(maxSideLanes, sourceLane + 1, targetLane + 1);
     let topLane = physicalLongLanes.get(netKey);
     if (topLane === undefined) {
@@ -90,4 +99,10 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
     netDemands,
     physicalNetCount: netDemands.length
   };
+}
+
+function nextNodeLane(lanes, key) {
+  const lane = lanes.get(key) || 0;
+  lanes.set(key, lane + 1);
+  return lane;
 }

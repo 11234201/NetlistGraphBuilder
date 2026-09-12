@@ -53,7 +53,17 @@ export function routeSimpleEdges(graph, nodes, options) {
     localFallbacks: 0,
     localCandidates: 0,
     globalFallbacks: 0,
-    routeKinds: Object.create(null)
+    routeKinds: Object.create(null),
+    capacity: routingCapacity?.metrics
+      ? {
+        physicalNetCount: routingCapacity.metrics.physicalNetCount,
+        channelCount: routingCapacity.metrics.channelCount,
+        allocatedLaneCount: routingCapacity.metrics.allocatedLaneCount,
+        expandedChannelCount: routingCapacity.metrics.expandedChannelCount,
+        boundaryClusterCount: routingCapacity.metrics.boundaryClusterCount,
+        maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand
+      }
+      : null
   };
 
   for (const [edgeIndex, edge] of orderedEdges.entries()) {
@@ -109,7 +119,8 @@ export function routeSimpleEdges(graph, nodes, options) {
         reservedSegments: reservedSegments.length,
         metrics: {
           ...routingMetrics,
-          routeKinds: { ...routingMetrics.routeKinds }
+          routeKinds: { ...routingMetrics.routeKinds },
+          capacity: routingMetrics.capacity ? { ...routingMetrics.capacity } : null
         }
       });
     }
