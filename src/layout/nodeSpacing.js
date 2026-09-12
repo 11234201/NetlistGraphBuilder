@@ -31,7 +31,7 @@ export function resolvePostLocalitySourceOverlaps(nodes, margin, gap = 0) {
   for (const source of sources) {
     const blockers = nodes.filter((candidate) =>
       candidate.id !== source.id &&
-      horizontalRangesOverlap(source, candidate) &&
+      horizontalRangesOverlap(source, candidate, gap) &&
       verticalRangesOverlap(source, candidate, gap)
     );
     if (blockers.length > 0) {

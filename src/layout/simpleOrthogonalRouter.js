@@ -80,7 +80,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       globalLaneGeometry,
       routingMetrics,
       net: edge.net,
-      netGroupKey: undefined
+      netGroupKey: getNetGroupKey(edge)
     });
     const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
     const positionedEdge = {
@@ -132,9 +132,10 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
 
 function getOwnedRouteSegments(points, edge) {
   const physicalOwner = getNetGroupKey(edge);
-  return getRouteSegments(points, edge.net).map((segment) => ({
+  return getRouteSegments(points, edge.net, physicalOwner).map((segment) => ({
     ...segment,
-    physicalOwner
+    physicalOwner,
+    netGroupKey: physicalOwner
   }));
 }
 

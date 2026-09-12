@@ -36,5 +36,64 @@ export function collapseLargeGraph(graph, options = {}) {
     edgeKeys.add(key);
     edges.push({ ...edge, id: `collapsed:${edges.length}`, source, target });
   }
-  return { ...graph, nodes, edges, groups, collapsedGroupCount: collapsedGroups.length };
+  const groupNodes = new Map(nodes
+    .filter((node) => node.kind === "group")
+    .map((node) => [node.id, node]));
+  const descriptorsByGroup = new Map();
+  const collapsedEdges = edges.map((edge) => {
+    const next = { ...edge };
+    if (groupNodes.has(edge.source)) {
+      next.originalSourcePin = edge.sourcePin;
+      next.sourcePin = addGroupPort(
+        groupNodes.get(edge.source), descriptorsByGroup, "output", edge
+      );
+    }
+    if (groupNodes.has(edge.target)) {
+      next.originalTargetPin = edge.targetPin;
+      next.targetPin = addGroupPort(
+        groupNodes.get(edge.target), descriptorsByGroup, "input", edge
+      );
+    }
+    return next;
+  });
+  const positionedNodes = nodes.map((node) => {
+    const descriptors = descriptorsByGroup.get(node.id);
+    return descriptors ? {
+      ...node,
+      portDescriptors: descriptors.toSorted((left, right) =>
+        left.pin.localeCompare(right.pin))
+    } : node;
+  });
+  return {
+    ...graph,
+    nodes: positionedNodes,
+    edges: collapsedEdges,
+    groups,
+    collapsedGroupCount: collapsedGroups.length
+  };
+}
+
+function addGroupPort(group, descriptorsByGroup, direction, edge) {
+  const side = direction === "output" ? "right" : "left";
+  const signature = [
+    direction,
+    edge.source,
+    edge.target,
+    edge.net,
+    edge.sourcePin,
+    edge.targetPin
+  ].map((value) => String(value ?? "")).join("\u0001");
+  const pin = `__group_${direction}_${encodeURIComponent(signature)}`;
+  const descriptors = descriptorsByGroup.get(group.id) || [];
+  if (!descriptors.some((descriptor) => descriptor.pin === pin)) {
+    descriptors.push({
+      pin,
+      rawPin: pin,
+      direction,
+      side,
+      role: direction
+    });
+    descriptorsByGroup.set(group.id, descriptors);
+  }
+  return pin;
 }

@@ -20,6 +20,8 @@ export function measureNode(node, cellPinPitch = DEFAULT_CELL_PIN_PITCH) {
       ? 20
       : node.kind === "cell"
       ? Math.max(58, cellPinPitch * (pinCount + 1))
+      : node.kind === "group"
+        ? Math.max(DEFAULT_PIN_NODE_HEIGHT, cellPinPitch * (pinCount + 1))
       : node.kind === "assign"
         ? 58
         : node.kind === "input" || node.kind === "focus-input" || node.kind === "implicit" || node.kind === "constant"
@@ -236,6 +238,15 @@ function placeHorizontalPorts(ports, width, y) {
 }
 
 function getMaxPinCount(node) {
+  if (node.kind === "group") {
+    let leftPins = 0;
+    let rightPins = 0;
+    for (const descriptor of node.portDescriptors || []) {
+      if (descriptor.side === "left") leftPins += 1;
+      if (descriptor.side === "right") rightPins += 1;
+    }
+    return Math.max(leftPins, rightPins, 1);
+  }
   if (node.kind === "assign" || node.kind !== "cell") {
     return 1;
   }

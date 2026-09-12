@@ -2,8 +2,12 @@ export const ROUTE_SEARCH_LIMITS = Object.freeze({
   localChannelAlternatives: 8,
   expandedLocalChannelAlternatives: 64,
   maximumExpandedLocalCandidateAttempts: 512,
-  minimumOuterLaneAttempts: 32,
-  maximumOuterLaneAttempts: 256,
+  // Eight symmetric samples plus prepared internal gap lanes cover the
+  // bounded outer-corridor contract. Keeping this fixed and small matters on
+  // dense mapped cases where thousands of edges otherwise repeat the same
+  // obstacle checks.
+  minimumOuterLaneAttempts: 8,
+  maximumOuterLaneAttempts: 32,
   maximumGlobalLaneCandidates: 512
 });
 
