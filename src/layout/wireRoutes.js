@@ -25,7 +25,7 @@ export function buildWireRoutes(edges = []) {
 
   return [...groups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([netKey, groupEdges]) => createWireRoute(netKey, groupEdges));
+    .map(([netKey, groupEdges]) => buildPhysicalWireRoute(netKey, groupEdges));
 }
 
 export function getPhysicalNetKey(edge) {
@@ -50,7 +50,7 @@ export function shiftWireRoutes(wireRoutes = [], delta = {}) {
   }));
 }
 
-function createWireRoute(netKey, edges) {
+export function buildPhysicalWireRoute(netKey, edges) {
   const sortedEdges = [...edges].sort(compareEdges);
   const records = sortedEdges.flatMap((edge) => getRouteSegments(
     edge.points || [],
