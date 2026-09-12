@@ -291,7 +291,8 @@ function createGlobalFallback(context) {
     nodeIndex: context.nodeIndex,
     globalLaneGeometry: context.globalLaneGeometry,
     reservedSegments: context.reservedSegments,
-    net: context.net
+    net: context.net,
+    netGroupKey: context.netGroupKey
   });
 }
 
