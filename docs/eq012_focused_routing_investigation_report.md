@@ -508,3 +508,9 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 - **provider 一致性剩余部分**：ELK section/四向 attachment 与 Adjust final validation 已补齐，但它们尚未消费完整的 cluster/band token；待 Simple corridor/band 合同冻结后，仍需补 shared provider contract fixture。
 
 每一项都必须保留固定候选上限、spatial index 查询和 physical-net owner 去重；若增加 row/outer 空间导致 layout P95 超过基线 25%，应退回 placement 设计，而不是关闭 hard validation。
+
+### 13.6 bounded capacity 后的全量结果与无效方案排除
+
+`5ace2ff` 与 `688dd64` 合入后，远端完整普通 mapped corpus 为 `47/47`，总 obstacle 违规为 `65/120`，最大 layout 约 `24.888 s`，最大 heap 约 `378 MiB`。这说明 channel 上限、正确的 outer lane 方向、有限 source escape 修复以及 validator 区间扫描已经消除了旧基线中的大部分普通模式违规和画布/内存失控，但 final validator 在 dp020、sop015 等稠密图上仍会采样到上限 `256` 个异 physical-net overlap，不能据此宣称硬合同完成。
+
+另外验证并排除了“把同一 physical net 的 logical edges 简单改成连续排序”这一方案。dp020 仍为 5 项普通 obstacle 违规，sop015 仍为 0，耗时约 `12.3 s`/`23.1 s`，与现有排序没有实质差异。原因是连续处理 logical edges 仍然逐 branch 选候选，没有生成共享 trunk，也没有为 overflow demand 创造新的合法 corridor。因此该实验已撤回；CH-08 必须改变路由单位和几何生成方式，而不是只改变 edge 遍历顺序。
