@@ -32,13 +32,17 @@ export function routeSimpleEdges(graph, nodes, options) {
     routingCapacity,
     wireLanePitch,
     topWireLanePitch,
+    routingGeometry,
     margin
   } = options;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIndex = createNodeSpatialIndex(nodes);
   const nodeBounds = computeNodeCollectionBox(nodes);
   const levelBounds = computeLevelBounds(nodes);
-  const globalLaneGeometry = prepareGlobalLaneGeometry(nodes, 24);
+  const globalLaneGeometry = prepareGlobalLaneGeometry(
+    nodes,
+    Number(routingGeometry?.outerLaneClearance) || 24
+  );
   const routedById = new Map();
   const reservedSegments = new RouteSegmentIndex();
   const orderedEdges = graph.edges.toSorted((left, right) =>
@@ -76,6 +80,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       nodeBounds,
       wireLanePitch,
       topWireLanePitch,
+      routingGeometry,
       margin,
       edgeIntent,
       reservedSegments,
@@ -359,7 +364,8 @@ function createGlobalFallback(context) {
     globalLaneGeometry: context.globalLaneGeometry,
     reservedSegments: context.reservedSegments,
     net: context.net,
-    netGroupKey: context.netGroupKey
+    netGroupKey: context.netGroupKey,
+    routingGeometry: context.routingGeometry
   });
 }
 

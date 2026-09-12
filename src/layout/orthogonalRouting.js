@@ -29,15 +29,16 @@ export function getTargetApproachPoint(
   return targetPoint;
 }
 
-export function getTargetLaneInset(target, targetPoint, horizontalGap) {
+export function getTargetLaneInset(target, targetPoint, horizontalGap, geometry = ROUTE_GEOMETRY_POLICY) {
+  const policy = { ...ROUTE_GEOMETRY_POLICY, ...geometry };
   const gap = Math.abs(Number(horizontalGap) || 0);
   const forward = Number(horizontalGap) > 0;
   const baseInset = forward
     ? Math.min(
-      ROUTE_GEOMETRY_POLICY.maximumEndpointInset,
-      Math.max(ROUTE_GEOMETRY_POLICY.minimumEndpointInset, gap / 4)
+      policy.maximumEndpointInset,
+      Math.max(policy.minimumEndpointInset, gap / 4)
     )
-    : ROUTE_GEOMETRY_POLICY.reverseEndpointInset;
+    : policy.reverseEndpointInset;
   return isVerticalTargetPin(target, targetPoint)
     ? Math.max(baseInset, ROUTE_GEOMETRY_POLICY.minimumVisibleTargetCornerGap)
     : baseInset;

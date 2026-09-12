@@ -35,7 +35,8 @@ export function createBasicSimpleRouteCandidates(context) {
     edgePlan,
     levelBounds,
     wireLanePitch,
-    edgeIntent
+    edgeIntent,
+    routingGeometry
   } = context;
   const sourceLevel = source.level ?? 0;
   const targetLevel = target.level ?? sourceLevel + 1;
@@ -65,7 +66,7 @@ export function createBasicSimpleRouteCandidates(context) {
   }
 
   if (horizontalGap > 0) {
-    const inset = getTargetLaneInset(target, targetPoint, horizontalGap);
+    const inset = getTargetLaneInset(target, targetPoint, horizontalGap, routingGeometry);
     const minLaneX = sourcePoint.x + inset;
     const maxLaneX = targetPoint.x - inset;
     for (const ratio of [0.5, 0.25, 0.75]) {
@@ -106,17 +107,25 @@ export function createLocalObstacleCandidates(context, options = {}) {
     net,
     netGroupKey,
     wireLanePitch,
-    edgePlan
+    edgePlan,
+    routingGeometry
   } = context;
-  const padding = 9;
-  const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
+  const geometry = routingGeometry || {};
+  const padding = Number(geometry.targetApproachClearance) || 9;
+  const routeTargetPoint = getTargetApproachPoint(target, targetPoint, padding);
   const forward = sourcePoint.x < routeTargetPoint.x;
   const gap = Math.abs(routeTargetPoint.x - sourcePoint.x);
-  const sourceInset = forward ? Math.min(24, Math.max(2, gap / 4)) : 12;
+  const sourceInset = forward
+    ? Math.min(
+      Number(geometry.maximumEndpointInset) || 24,
+      Math.max(Number(geometry.minimumEndpointInset) || 2, gap / 4)
+    )
+    : Number(geometry.reverseEndpointInset) || 12;
   const targetInset = getTargetLaneInset(
     target,
     targetPoint,
-    routeTargetPoint.x - sourcePoint.x
+    routeTargetPoint.x - sourcePoint.x,
+    geometry
   );
   const verticalTargetPin = isVerticalTargetPin(target, targetPoint);
   const sourceColumnRight = Math.max(
@@ -328,9 +337,11 @@ function createObstacleEscapeOffsets(nodes, sourceLaneX, targetLaneX, padding, w
 }
 
 function createExpandedLocalLaneOffsets(wireLanePitch) {
-  const pitch = Math.max(4, Math.min(24, Number(wireLanePitch) || 18));
-  const halfPitch = Math.max(4, Math.round(pitch / 2));
-  const distances = uniqueRoundedNumbers([halfPitch, 8, 12, 16, 4, 20, pitch, 24]);
+  const pitch = Number.isFinite(Number(wireLanePitch)) && Number(wireLanePitch) > 0
+    ? Number(wireLanePitch)
+    : 18;
+  const halfPitch = pitch / 2;
+  const distances = uniqueRoundedNumbers([halfPitch, pitch, pitch * 2, pitch * 3]);
   return [
     ...distances.flatMap((distance) => [
       { source: -distance, target: -distance },
@@ -359,9 +370,10 @@ export function findObstacleAvoidingRoute(context) {
     globalLaneGeometry,
     reservedSegments = [],
     net,
-    netGroupKey
+    netGroupKey,
+    routingGeometry
   } = context;
-  const clearance = 24;
+  const clearance = Number(routingGeometry?.outerLaneClearance) || 24;
   const routeTargetPoint = getTargetApproachPoint(target, targetPoint);
   const baseSourceLaneX = getEscapeLaneX(source, sourcePoint, "source", clearance);
   const baseTargetLaneX = getEscapeLaneX(target, targetPoint, "target", clearance);

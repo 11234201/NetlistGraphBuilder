@@ -8,7 +8,10 @@ export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   portEscapeLength: 24,
   outerLaneClearance: 24,
   laneReusePadding: 4,
-  wireLanePitch: 24
+  wireLanePitch: 24,
+  minimumEndpointInset: 2,
+  maximumEndpointInset: 24,
+  reverseEndpointInset: 12
 });
 
 /**
@@ -31,7 +34,19 @@ export function normalizeRoutingGeometry(spacing = {}, overrides = {}) {
     portEscapeLength: positiveOr(values.portEscapeLength, DEFAULT_ROUTING_GEOMETRY.portEscapeLength),
     outerLaneClearance: positiveOr(values.outerLaneClearance, DEFAULT_ROUTING_GEOMETRY.outerLaneClearance),
     laneReusePadding: nonNegativeOr(values.laneReusePadding, DEFAULT_ROUTING_GEOMETRY.laneReusePadding),
-    wireLanePitch: positiveOr(values.wireLanePitch, DEFAULT_ROUTING_GEOMETRY.wireLanePitch)
+    wireLanePitch: positiveOr(values.wireLanePitch, DEFAULT_ROUTING_GEOMETRY.wireLanePitch),
+    minimumEndpointInset: positiveOr(
+      values.minimumEndpointInset,
+      DEFAULT_ROUTING_GEOMETRY.minimumEndpointInset
+    ),
+    maximumEndpointInset: positiveOr(
+      values.maximumEndpointInset,
+      DEFAULT_ROUTING_GEOMETRY.maximumEndpointInset
+    ),
+    reverseEndpointInset: positiveOr(
+      values.reverseEndpointInset,
+      DEFAULT_ROUTING_GEOMETRY.reverseEndpointInset
+    )
   };
   return Object.freeze(routingGeometry);
 }
