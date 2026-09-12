@@ -23,7 +23,7 @@
 | `144349b`、`67c9002` | 按 endpoint node 分配 long escape lane，并增加 bounded group boundary candidate | 同层级不同 group 不再共享同一条边界 escape；相邻 group 具备独立候选 |
 | `674bf66`、`847bb34` | 暴露 boundary pitch/capacity 指标，去除 group escape 中的逐 port 扫描 | 可观测真实通道压力；group candidate 不再为每条边重复扫描端口 |
 | `3f34f45` | 建模窄 group row-gap corridor，固定一次 suffix expansion；宽 gap/超限 demand 跳过枚举 | placement 只扩真正不足的 group gap，避免把全图长 net 数量放大成 row lane 数 |
-| `c0478b7` | 将 collapsed group 的 long-net demand 转成放置前 bounded top headroom（最多 8 条 lane），保留 overflow 与 capacity 指标；hard mapped worker 可显式启用 strict routing | 增加真实的有限外围空间，同时避免按 edge 数无限拉高画布；无法满足硬路由时显式返回 `unroutable` |
+| `66dd242` | 将 collapsed group 的 long-net demand 转成放置前 bounded top headroom（最多 8 条 lane），保留 overflow 与 capacity 指标；hard mapped worker 可显式启用 strict routing | 增加真实的有限外围空间，同时避免按 edge 数无限拉高画布；无法满足硬路由时显式返回 `unroutable` |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
@@ -31,7 +31,7 @@
 
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
-当前工作区另有一项待提交实现：collapsed group long-net demand 在放置前通过 `computeTopWireHeadroom()` 转成最多 8 条 lane 的 bounded top headroom；overflow 不扩展画布，而是进入 capacity diagnostics。Simple 的 `strictRouting:true` 出口会在没有合法候选时返回 `unroutable`，但默认 UI 仍保持兼容，待 cluster corridor/tree 完成后再收紧为默认提交合同。
+`66dd242` 已提交 collapsed group long-net demand 的 bounded top headroom 与 Simple strict 出口：`computeTopWireHeadroom()` 最多保留 8 条 lane，overflow 进入 capacity diagnostics；`strictRouting:true` 在没有合法候选时返回 `unroutable`。默认 UI 仍保持兼容，待 cluster corridor/tree 完成后再收紧为默认提交合同。
 
 ### 当前尚未完成的硬问题
 
