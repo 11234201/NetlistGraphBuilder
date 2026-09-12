@@ -1,5 +1,6 @@
 import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
+import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 import {
@@ -256,6 +257,10 @@ function routeEdge(context) {
       edgeIntent
     });
     const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments, netGroupKey);
+    if (localHasOverlap) {
+      const repaired = findReservationFreeLaneShift(bestLocal, context);
+      if (repaired) return repaired;
+    }
     if (!localHasOverlap && bestLocalScore.crossings <= ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings) {
       return bestLocal;
     }
@@ -292,6 +297,51 @@ function routeEdge(context) {
 
   routingMetrics.globalFallbacks += 1;
   return createGlobalFallback(context);
+}
+
+function findReservationFreeLaneShift(candidate, context) {
+  const points = candidate?.points || [];
+  const laneY = findInteriorHorizontalLaneY(points);
+  if (!Number.isFinite(laneY)) return null;
+  const pitch = Math.max(4, Number(context.wireLanePitch) || 24);
+  const offsets = [pitch, -pitch, pitch * 2, -pitch * 2, pitch * 3, -pitch * 3];
+  for (const offset of offsets) {
+    const shiftedPoints = points.map((point, index) => {
+      if (index === 0 || index === points.length - 1) return point;
+      return Math.abs(point.y - laneY) < 0.5
+        ? { ...point, y: point.y + offset }
+        : point;
+    });
+    const shifted = {
+      ...candidate,
+      kind: `${candidate.kind}-lane-shift`,
+      points: compactOrthogonalPoints(shiftedPoints)
+    };
+    if (!candidateIsUsable(shifted, context)) continue;
+    if (!routeOverlapsReserved(
+      shifted.points,
+      context.net,
+      context.reservedSegments,
+      context.netGroupKey
+    )) return shifted;
+  }
+  return null;
+}
+
+function findInteriorHorizontalLaneY(points) {
+  let laneY = null;
+  let longest = 0;
+  for (let index = 1; index < points.length - 2; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (Math.abs(start.y - end.y) >= 0.5) continue;
+    const length = Math.abs(start.x - end.x);
+    if (length > longest) {
+      longest = length;
+      laneY = start.y;
+    }
+  }
+  return laneY;
 }
 
 function createGlobalFallback(context) {
