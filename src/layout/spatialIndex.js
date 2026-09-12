@@ -62,6 +62,9 @@ export class RouteSegmentIndex {
   constructor(segments = [], cellSize = 128) {
     this.items = [];
     this.geometryKeys = new Set();
+    this.duplicateInsertions = 0;
+    this.ownerReplacements = 0;
+    this.ownerRemovals = 0;
     this.cellSize = Math.max(16, Number(cellSize) || 128);
     this.horizontalBuckets = new Map();
     this.verticalBuckets = new Map();
@@ -71,8 +74,10 @@ export class RouteSegmentIndex {
 
   push(...segments) {
     for (const segment of segments) {
+      const geometryKey = routeSegmentGeometryKey(segment);
+      if (this.geometryKeys.has(geometryKey)) this.duplicateInsertions += 1;
       this.items.push(segment);
-      this.geometryKeys.add(routeSegmentGeometryKey(segment));
+      this.geometryKeys.add(geometryKey);
       const record = {
         segment,
         box: segmentBox(segment)
@@ -100,10 +105,14 @@ export class RouteSegmentIndex {
 
   pushUnique(...segments) {
     const accepted = [];
+    const acceptedKeys = new Set();
     for (const segment of segments) {
       const key = routeSegmentGeometryKey(segment);
-      if (this.geometryKeys.has(key)) continue;
-      this.geometryKeys.add(key);
+      if (this.geometryKeys.has(key) || acceptedKeys.has(key)) {
+        this.duplicateInsertions += 1;
+        continue;
+      }
+      acceptedKeys.add(key);
       accepted.push(segment);
     }
     if (accepted.length > 0) this.push(...accepted);
@@ -114,14 +123,31 @@ export class RouteSegmentIndex {
     const remaining = this.items.filter((segment) =>
       (segment?.physicalOwner ?? segment?.netGroupKey ?? segment?.net) !== owner);
     if (remaining.length === this.items.length) return this.items.length;
+    this.ownerRemovals += 1;
     this.rebuild(remaining);
     return this.items.length;
   }
 
   replaceOwner(owner, segments = []) {
+    this.ownerReplacements += 1;
     this.removeOwner(owner);
     this.pushUnique(...segments.map((segment) => ({ ...segment, physicalOwner: owner })));
     return this.items.length;
+  }
+
+  compact() {
+    const current = [...this.items];
+    this.rebuild(current);
+    return this.items.length;
+  }
+
+  get metrics() {
+    return {
+      uniqueSegments: this.items.length,
+      duplicateInsertions: this.duplicateInsertions,
+      ownerReplacements: this.ownerReplacements,
+      ownerRemovals: this.ownerRemovals
+    };
   }
 
   rebuild(segments = []) {

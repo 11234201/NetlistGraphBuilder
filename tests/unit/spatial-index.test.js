@@ -141,4 +141,20 @@ test("route segment index deduplicates physical owner geometry and replaces owne
   }]);
   assert.equal(index.length, 1);
   assert.deepEqual(index.items[0].start, { x: 20, y: 20 });
+  assert.equal(index.metrics.ownerReplacements, 1);
+  assert.equal(index.metrics.ownerRemovals, 1);
+  assert.equal(index.metrics.uniqueSegments, 1);
+});
+
+test("route segment index exposes bounded duplicate and compaction metrics", () => {
+  const segment = {
+    start: { x: 0, y: 0 }, end: { x: 40, y: 0 },
+    netGroupKey: "src\\u0000n", physicalOwner: "src\\u0000n"
+  };
+  const index = new RouteSegmentIndex();
+  index.pushUnique(segment, { ...segment });
+  assert.equal(index.length, 1);
+  assert.equal(index.metrics.duplicateInsertions, 1);
+  assert.equal(index.compact(), 1);
+  assert.equal(index.metrics.uniqueSegments, 1);
 });
