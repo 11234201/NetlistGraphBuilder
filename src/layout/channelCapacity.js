@@ -2,6 +2,7 @@ import { getPhysicalNetKey } from "./layoutTopology.js";
 import { getConnectionPoint, getPort } from "./nodeGeometry.js";
 
 const MAX_ROW_GAP_DEMANDS = 64;
+const MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES = 32;
 // Placement must reserve a useful outer band without allowing a large mapped
 // graph to turn every physical net into a full-height canvas expansion. The
 // router still reports overflow so unmet capacity is diagnosable.
@@ -311,10 +312,27 @@ export function buildRoutingCapacityPlan(
     outerTop: channels.find((channel) => channel.kind === "outer-top")?.expansion || 0,
     outerBottom: channels.find((channel) => channel.kind === "outer-bottom")?.expansion || 0
   };
-  const boundaryClusters = buildBoundaryClusterMetadata(channels);
+  // Ordinary layered graphs do not expose collapsed boundary corridors. Do
+  // not pay the per-assignment metadata reduction cost for them; the route
+  // planner still has its channel allocations and can opt into the richer
+  // cluster contract when a group endpoint is present.
+  const hasGroupBoundary = positionedNodes.some((node) => node.kind === "group");
+  const boundaryClusters = hasGroupBoundary
+    ? buildBoundaryClusterMetadata(channels)
+    : [];
+  const publicChannels = channels.map((channel) => {
+    // Inter-layer and outer allocations are consumed through allocationByNet
+    // and the compact cluster summary.  Retaining every spread assignment on
+    // the returned channel would keep all endpointRefs alive for large
+    // fanout graphs and dominate heap usage.  Row-gap channels stay detailed
+    // because their bounded assignment list is used by placement diagnostics.
+    if (channel.kind === "row-gap") return channel;
+    const { assignments, ...compactChannel } = channel;
+    return compactChannel;
+  });
   return {
     netDemands: demands,
-    channels: channels.toSorted((left, right) => left.id.localeCompare(right.id)),
+    channels: publicChannels.toSorted((left, right) => left.id.localeCompare(right.id)),
     allocationByNet,
     nodeEscapeReservations: [],
     expansion,
@@ -341,7 +359,7 @@ export function buildRoutingCapacityPlan(
       cluster
     ])),
     routingGeometry,
-    channelById
+    channelById: new Map(publicChannels.map((channel) => [channel.id, channel]))
   };
 }
 
@@ -362,6 +380,7 @@ function buildBoundaryClusterMetadata(channels = []) {
         physicalNetKeys: new Set(),
         sourceNodeIds: new Set(),
         targetNodeIds: new Set(),
+        targetNodeCount: 0,
         sourceEscapeSides: new Set(),
         targetEscapeSides: new Set(),
         sourceEscapeMinimum: Infinity,
@@ -378,7 +397,12 @@ function buildBoundaryClusterMetadata(channels = []) {
       current.channelIds.add(String(channel.id));
       current.physicalNetKeys.add(String(assignment.netGroupKey ?? ""));
       if (assignment.sourceNodeId !== undefined) current.sourceNodeIds.add(String(assignment.sourceNodeId));
-      for (const ref of assignment.endpointRefs || []) {
+      current.targetNodeCount = Math.max(
+        current.targetNodeCount,
+        Array.isArray(assignment.endpointRefs) ? assignment.endpointRefs.length : 0
+      );
+      for (const ref of (assignment.endpointRefs || []).slice(0, MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES)) {
+        if (current.targetNodeIds.size >= MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES) break;
         if (ref?.nodeId !== undefined) current.targetNodeIds.add(String(ref.nodeId));
       }
       if (assignment.sourceEscapeSide) current.sourceEscapeSides.add(String(assignment.sourceEscapeSide));
@@ -427,6 +451,7 @@ function buildBoundaryClusterMetadata(channels = []) {
       physicalNetKeys: [...cluster.physicalNetKeys].sort(),
       sourceNodeIds: [...cluster.sourceNodeIds].sort(),
       targetNodeIds: [...cluster.targetNodeIds].sort(),
+      targetNodeCount: cluster.targetNodeCount,
       sourceEscapeSides: [...cluster.sourceEscapeSides].sort(),
       targetEscapeSides: [...cluster.targetEscapeSides].sort(),
       sourceEscapeMinimum: Number.isFinite(cluster.sourceEscapeMinimum)
@@ -685,14 +710,7 @@ function createRowGapDemand(demand, upper, lower, gapRange, nodeById, routingGeo
       ? getEscapeInterval(source, sourceEscapeSide, routingGeometry)
       : null,
     targetEscapeRanges: includeEscapeIntervals
-      ? summarizeEscapeRanges(demand.targetPortRefs
-        .map((ref) => {
-          const node = nodeById.get(ref.nodeId);
-          const side = getPortSide(node, ref.pin, "target");
-          const interval = getEscapeInterval(node, side, routingGeometry);
-          return interval ? { nodeId: ref.nodeId, ...interval } : null;
-        })
-        .filter(Boolean))
+      ? summarizeTargetEscapeRanges(demand.targetPortRefs, nodeById, routingGeometry)
       : [],
     boundaryClusterKey: `row-gap:${String(upper.level ?? "")}:${String(upper.id)}->${String(lower.id)}`
   };
@@ -808,16 +826,8 @@ function createInterLayerDemand(
     ? getEscapeInterval(sourceNode, sourceEscapeSide, routingGeometry)
     : null;
   const targetEscapeRanges = includeEscapeIntervals
-    ? edges
-      .map(({ nodeId, pin }) => {
-        const node = nodeById.get(nodeId);
-        const side = getPortSide(node, pin, "target");
-        const interval = getEscapeInterval(node, side, routingGeometry);
-        return interval ? { nodeId, ...interval } : null;
-      })
-      .filter(Boolean)
+    ? summarizeTargetEscapeRanges(edges, nodeById, routingGeometry)
     : [];
-  const summarizedTargetEscapeRanges = summarizeEscapeRanges(targetEscapeRanges);
   return {
     channelId: `inter-layer:${leftLevel}->${rightLevel}`,
     netGroupKey: demand.netGroupKey,
@@ -830,7 +840,7 @@ function createInterLayerDemand(
     sourceEscapeSide,
     targetEscapeSides,
     sourceEscapeInterval,
-    targetEscapeRanges: summarizedTargetEscapeRanges,
+    targetEscapeRanges,
     boundaryClusterKey: `${String(leftLevel)}->${String(rightLevel)}|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
 }
@@ -853,16 +863,8 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById, routingGeom
     ? getEscapeInterval(source, sourceEscapeSide, routingGeometry)
     : null;
   const targetEscapeRanges = includeEscapeIntervals
-    ? demand.targetPortRefs
-      .map((ref) => {
-        const target = nodeById.get(ref.nodeId);
-        const side = getPortSide(target, ref.pin, "target");
-        const interval = getEscapeInterval(target, side, routingGeometry);
-        return interval ? { nodeId: ref.nodeId, ...interval } : null;
-      })
-      .filter(Boolean)
+    ? summarizeTargetEscapeRanges(demand.targetPortRefs, nodeById, routingGeometry)
     : [];
-  const summarizedTargetEscapeRanges = summarizeEscapeRanges(targetEscapeRanges);
   return {
     channelId: "outer",
     netGroupKey: demand.netGroupKey,
@@ -874,7 +876,7 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById, routingGeom
     sourceEscapeSide,
     targetEscapeSides,
     sourceEscapeInterval,
-    targetEscapeRanges: summarizedTargetEscapeRanges,
+    targetEscapeRanges,
     boundaryClusterKey: `outer|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
 }
@@ -909,9 +911,16 @@ function normalizeEscapeInterval(interval) {
   };
 }
 
-function summarizeEscapeRanges(intervals = []) {
+function summarizeTargetEscapeRanges(refs = [], nodeById, routingGeometry) {
   const ranges = new Map();
-  for (const interval of intervals) {
+  for (const ref of refs || []) {
+    const node = nodeById.get(ref?.nodeId);
+    // The fine-grained escape contract is consumed only at collapsed group
+    // boundaries.  Do not allocate interval objects for a large fanout of
+    // ordinary cells; their existing endpoint metadata remains sufficient.
+    if (node?.kind !== "group") continue;
+    const side = getPortSide(node, ref?.pin, "target");
+    const interval = getEscapeInterval(node, side, routingGeometry);
     const normalized = normalizeEscapeInterval(interval);
     if (!normalized.side || normalized.minimum === null || normalized.maximum === null) continue;
     const current = ranges.get(normalized.side) || {
