@@ -48,4 +48,5 @@ test("multi-load intent chooses the shallowest cell target as its primary branch
   assert.equal(intent.getEdge("cell").rank, 0);
   assert.equal(intent.getEdge("deep").isPrimary, false);
   assert.equal(intent.getBoundaryPressure(1), 3);
+  assert.equal(intent.getBoundaryDemandCount(1), 1);
 });

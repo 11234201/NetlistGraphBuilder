@@ -7,6 +7,7 @@ export function analyzeLayoutIntent(graph, levels) {
   const edgeIntents = new Map();
   const nodeFanout = new Map();
   const boundaryPressure = new Map();
+  const boundaryDemands = new Map();
   for (const [key, edges] of netGroups) {
     const source = nodeById.get(edges[0]?.source);
     const ranked = edges.toSorted((left, right) =>
@@ -36,6 +37,10 @@ export function analyzeLayoutIntent(graph, levels) {
           boundaryPressure.set(level, Math.max(boundaryPressure.get(level) || 1, fanout));
         }
       }
+      for (let level = sourceLevel; level < targetLevel; level += 1) {
+        if (!boundaryDemands.has(level)) boundaryDemands.set(level, new Set());
+        boundaryDemands.get(level).add(key);
+      }
     }
   }
 
@@ -44,11 +49,15 @@ export function analyzeLayoutIntent(graph, levels) {
     netGroups,
     nodeFanout,
     boundaryPressure,
+    boundaryDemandCount: new Map([...boundaryDemands.entries()].map(([level, keys]) => [level, keys.size])),
     getEdge(edgeOrId) {
       return edgeIntents.get(typeof edgeOrId === "string" ? edgeOrId : edgeOrId?.id);
     },
     getBoundaryPressure(level) {
       return boundaryPressure.get(level) || 1;
+    },
+    getBoundaryDemandCount(level) {
+      return boundaryDemands.get(level)?.size || 0;
     },
     getNodeFanout(nodeOrId) {
       return nodeFanout.get(typeof nodeOrId === "string" ? nodeOrId : nodeOrId?.id) || 1;

@@ -65,7 +65,7 @@ export function routeOverlapsReserved(points, net, reservedSegments, netGroupKey
     for (const reserved of reservedCandidates) {
       const sameNet = netGroupKey !== undefined && netGroupKey !== null
         ? (reserved?.netGroupKey ?? reserved?.net) === netGroupKey
-        : (reserved?.netGroupKey ?? reserved?.net) === net;
+        : reserved?.net === net;
       if (!sameNet && collinearSegmentsOverlap(candidate, reserved)) return true;
     }
   }

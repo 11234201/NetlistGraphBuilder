@@ -1,4 +1,9 @@
 import { analyzeLayoutIntent } from "./layoutIntent.js";
+import {
+  applyRoutingCapacityExpansion,
+  buildRoutingCapacityPlan,
+  normalizeRoutingGeometry
+} from "./channelCapacity.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
   buildNodePorts,
@@ -31,11 +36,8 @@ export function layoutGraph(graph, options = {}) {
   const margin = policy.spacing.margin;
   const cellPinPitch = policy.spacing.cellPinPitch;
   const wireLanePitch = policy.spacing.wireLanePitch;
-  const topWireLanePitch = clamp(
-    Number(options.topWireLanePitch) || Math.max(12, wireLanePitch),
-    8,
-    48
-  );
+  const routingGeometry = normalizeRoutingGeometry(policy.spacing, options.routingGeometry);
+  const topWireLanePitch = routingGeometry.wireLanePitch;
   const levels = assignSimpleLevels(graph);
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   const routePlan = planSimpleRouting(graph, levels, layoutIntent);
@@ -85,11 +87,29 @@ export function layoutGraph(graph, options = {}) {
     nodePositions: options.nodePositions
   }, { onStage: options.onPlacementStage });
 
+  const initialCapacityPlan = buildRoutingCapacityPlan(
+    graph,
+    levels,
+    positionedNodes,
+    layoutIntent,
+    { spacing: policy.spacing, routingGeometry }
+  );
+  applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
+  const routingCapacity = buildRoutingCapacityPlan(
+    graph,
+    levels,
+    positionedNodes,
+    layoutIntent,
+    { spacing: policy.spacing, routingGeometry }
+  );
+
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
     routePlan,
     wireLanePitch,
     topWireLanePitch,
+    routingGeometry,
+    routingCapacity,
     margin,
     onRoutingProgress: options.onRoutingProgress,
     onRoutingStage: options.onRoutingStage
@@ -101,6 +121,7 @@ export function layoutGraph(graph, options = {}) {
     nodes: positionedNodes,
     edges: positionedEdges,
     wireRoutes,
+    routingCapacity,
     width: bounds.width + margin,
     height: bounds.height + margin
   };
@@ -156,8 +177,4 @@ function placeInitialNodes(context) {
     }
   }
   return positionedNodes;
-}
-
-function clamp(value, minimum, maximum) {
-  return Math.max(minimum, Math.min(maximum, value));
 }

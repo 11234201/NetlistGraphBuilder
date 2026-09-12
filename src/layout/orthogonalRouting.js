@@ -140,7 +140,7 @@ function samePhysicalNet(reserved, segment, net, netGroupKey) {
   if (netGroupKey !== undefined && netGroupKey !== null) {
     return (reserved?.netGroupKey ?? reserved?.net) === netGroupKey;
   }
-  return (reserved?.netGroupKey ?? reserved?.net) === (segment?.netGroupKey ?? net);
+  return reserved?.net === net;
 }
 
 function segmentBounds(segment) {

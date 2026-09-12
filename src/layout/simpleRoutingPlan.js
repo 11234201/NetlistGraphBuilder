@@ -1,5 +1,6 @@
 import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getNetGroupKey } from "./layoutTopology.js";
+import { buildPhysicalNetDemands } from "./channelCapacity.js";
 
 export function planSimpleRouting(graph, levels, layoutIntent) {
   const edges = new Map();
@@ -61,5 +62,12 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
     longLaneCount += 1;
   }
 
-  return { edges, longLaneCount, maxSideLanes };
+  const netDemands = buildPhysicalNetDemands(graph, levels, layoutIntent);
+  return {
+    edges,
+    longLaneCount,
+    maxSideLanes,
+    netDemands,
+    physicalNetCount: netDemands.length
+  };
 }

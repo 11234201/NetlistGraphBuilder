@@ -1,6 +1,7 @@
 import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
 import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
+import { getNetGroupKey } from "./layoutTopology.js";
 import {
   routeCandidateIsUsable,
   routeOverlapsReserved
@@ -24,7 +25,14 @@ import { placeWireLabels } from "./wireLabelPlacement.js";
 const MAX_SCORED_ROUTE_CONFLICTS = 8;
 
 export function routeSimpleEdges(graph, nodes, options) {
-  const { layoutIntent, routePlan, wireLanePitch, topWireLanePitch, margin } = options;
+  const {
+    layoutIntent,
+    routePlan,
+    routingCapacity,
+    wireLanePitch,
+    topWireLanePitch,
+    margin
+  } = options;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIndex = createNodeSpatialIndex(nodes);
   const nodeBounds = computeNodeCollectionBox(nodes);
@@ -49,12 +57,17 @@ export function routeSimpleEdges(graph, nodes, options) {
     if (!source || !target) continue;
     const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
     const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
+    const edgePlan = applyCapacityLane(
+      routePlan.edges.get(edge.id),
+      routingCapacity,
+      getNetGroupKey(edge)
+    );
     const routed = routeEdge({
       source,
       target,
       sourcePoint,
       targetPoint,
-      edgePlan: routePlan.edges.get(edge.id),
+      edgePlan,
       levelBounds,
       nodes,
       nodeIndex,
@@ -105,6 +118,18 @@ export function routeSimpleEdges(graph, nodes, options) {
   return labeledEdges;
 }
 
+function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
+  if (!routingCapacity?.allocationByNet) return edgePlan;
+  const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
+  const topAssignment = assignments.find((assignment) => assignment.channelId === "outer-top");
+  if (!topAssignment) return edgePlan;
+  return {
+    ...(edgePlan || {}),
+    topLane: topAssignment.laneIndex,
+    capacityChannelId: topAssignment.channelId
+  };
+}
+
 function routeEdge(context) {
   const {
     source,
@@ -143,6 +168,20 @@ function routeEdge(context) {
       return candidate;
     }
   }
+  const reservedDetours = createLocalObstacleCandidates(context, { reservedDetours: true });
+  const usableReservedDetours = reservedDetours.filter((candidate) =>
+    candidateIsUsable(candidate, context));
+  const scoredReservedDetours = scoreCandidates(
+    usableReservedDetours,
+    reservedSegments,
+    net,
+    netGroupKey,
+    edgeIntent
+  );
+  const conflictFreeReservedDetours = scoredReservedDetours.filter(({ score }) => score.crossings === 0);
+  if (conflictFreeReservedDetours.length > 0) {
+    return chooseBestScoredRoute(conflictFreeReservedDetours);
+  }
   // Cell spacing can expose clear horizontal corridors while the default
   // local vertical escape line is still blocked by a nearby boundary node.
   // Try a bounded set of small x shifts before escalating to a graph-wide
@@ -170,16 +209,15 @@ function routeEdge(context) {
   const scoredCandidates = [
     ...scoredBasic,
     ...scoreCandidates(usableLocalCandidates, reservedSegments, net, netGroupKey, edgeIntent),
+    ...scoredReservedDetours,
     ...scoredExpandedLocal
   ];
   if (scoredCandidates.length > 0) {
     // Collinear overlap is a hard routing error. Prefer a clear local route
     // even when it crosses a few perpendicular wires; crossings receive
     // bridges in the renderer and remain a soft visual cost.
-    const nonOverlappingLocalCandidates = expandedLocalCandidates.length > 0
-      ? scoredCandidates.filter(({ candidate }) =>
-        !routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey))
-      : [];
+    const nonOverlappingLocalCandidates = scoredCandidates.filter(({ candidate }) =>
+      !routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey));
     const bestLocal = chooseBestScoredRoute(
       nonOverlappingLocalCandidates.length > 0
         ? nonOverlappingLocalCandidates
@@ -191,6 +229,10 @@ function routeEdge(context) {
       netGroupKey,
       edgeIntent
     });
+    const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments, netGroupKey);
+    if (!localHasOverlap && bestLocalScore.crossings <= ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings) {
+      return bestLocal;
+    }
     // A usable local path may still overlap a previously routed net when all
     // of its target-side lanes are occupied. Give the bounded global search a
     // chance to remove that conflict before accepting the scored fallback.
@@ -203,7 +245,6 @@ function routeEdge(context) {
         netGroupKey,
         edgeIntent
       });
-      const localHasOverlap = routeOverlapsReserved(bestLocal.points, net, reservedSegments, netGroupKey);
       const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments, netGroupKey);
       const avoidsLargeOuterDetour = !localHasOverlap &&
         globalScore.length - bestLocalScore.length >= Math.max(
@@ -255,6 +296,9 @@ function candidateIsUsable(candidate, context) {
     net: context.net,
     netGroupKey: context.netGroupKey,
     reservedSegments: context.reservedSegments
+  }, {
+    nodePadding: context.source?.kind === "cell" && context.target?.kind === "cell" ? 0 : undefined,
+    allowNodePaddingBoundary: true
   });
 }
 

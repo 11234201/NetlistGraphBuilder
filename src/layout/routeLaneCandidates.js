@@ -28,7 +28,7 @@ export function queryReservedSegments(reservedSegments, box, net, netGroupKey = 
     const reservedKey = segment?.netGroupKey ?? segment?.net;
     return netGroupKey !== undefined && netGroupKey !== null
       ? reservedKey !== netGroupKey
-      : reservedKey !== net;
+      : segment?.net !== net;
   });
 }
 

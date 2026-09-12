@@ -180,7 +180,7 @@ export function createLocalObstacleCandidates(context, options = {}) {
 
   const laneOffsets = options.expandXLanes === true
     ? createExpandedLocalLaneOffsets(wireLanePitch)
-    : [{ source: 0, target: 0 }];
+    : createObstacleEscapeOffsets(relevantNodes, sourceLaneX, targetLaneX, padding, wireLanePitch);
   const maximumCandidates = options.expandXLanes === true
     ? MAX_EXPANDED_LOCAL_LANE_CANDIDATES
     : MAX_LOCAL_LANE_CANDIDATES;
@@ -226,6 +226,17 @@ export function createLocalObstacleCandidates(context, options = {}) {
   };
   const firstDimension = options.expandXLanes === true ? laneOffsets : laneYs;
   const secondDimension = options.expandXLanes === true ? laneYs : laneOffsets;
+  if (options.reservedDetours === true) {
+    return createReservedDetourCandidates(
+      sourcePoint,
+      routeTargetPoint,
+      targetPoint,
+      sourceLaneX,
+      targetLaneX,
+      relevantSegments,
+      wireLanePitch
+    );
+  }
   for (const first of firstDimension) {
     for (const second of secondDimension) {
       attempts += 1;
@@ -240,6 +251,78 @@ export function createLocalObstacleCandidates(context, options = {}) {
     }
   }
   return [...candidates, ...overlappingCandidates].slice(0, maximumCandidates);
+}
+
+function createReservedDetourCandidates(
+  sourcePoint,
+  routeTargetPoint,
+  targetPoint,
+  sourceLaneX,
+  targetLaneX,
+  segments,
+  wireLanePitch
+) {
+  const delta = Math.max(4, Math.round((Number(wireLanePitch) || 24) / 3));
+  const candidates = [];
+  for (const segment of segments || []) {
+    const horizontal = Math.abs(segment.start.y - segment.end.y) < 0.5;
+    if (horizontal) continue;
+    const segmentX = segment.start.x;
+    const minimumY = Math.min(segment.start.y, segment.end.y);
+    const maximumY = Math.max(segment.start.y, segment.end.y);
+    for (const laneX of [segmentX - delta, segmentX + delta]) {
+      for (const laneY of [minimumY - 9, maximumY + 9]) {
+        candidates.push(createRoute("reserved-detour", [
+          sourcePoint,
+          { x: laneX, y: sourcePoint.y },
+          { x: laneX, y: laneY },
+          { x: targetLaneX, y: laneY },
+          { x: targetLaneX, y: routeTargetPoint.y },
+          routeTargetPoint,
+          targetPoint
+        ]));
+      }
+    }
+  }
+  return candidates.slice(0, MAX_LOCAL_LANE_CANDIDATES);
+}
+
+function createObstacleEscapeOffsets(nodes, sourceLaneX, targetLaneX, padding, wireLanePitch) {
+  const offsets = [{ source: 0, target: 0 }];
+  const critical = [];
+  const candidates = [];
+  for (const node of nodes || []) {
+    const sourceInside = sourceLaneX > node.x - padding &&
+      sourceLaneX < node.x + node.width + padding;
+    const targetInside = targetLaneX > node.x - padding &&
+      targetLaneX < node.x + node.width + padding;
+    const destination = sourceInside ? critical : candidates;
+    destination.push(
+      { source: node.x + node.width + padding - sourceLaneX, target: 0 },
+      { source: node.x - padding - sourceLaneX, target: 0 }
+    );
+    if (targetInside) {
+      critical.push(
+        { source: 0, target: node.x + node.width + padding - targetLaneX },
+        { source: 0, target: node.x - padding - targetLaneX }
+      );
+    } else {
+      candidates.push(
+        { source: 0, target: node.x + node.width + padding - targetLaneX },
+        { source: 0, target: node.x - padding - targetLaneX }
+      );
+    }
+  }
+  const maxOffset = Math.max(256, (Number(wireLanePitch) || 24) * 8);
+  [...critical, ...candidates]
+    .filter((offset) => Math.abs(offset.source) <= maxOffset && Math.abs(offset.target) <= maxOffset)
+    .forEach((offset) => {
+      if (offset.source === 0 && offset.target === 0) return;
+      if (!offsets.some((item) => item.source === offset.source && item.target === offset.target)) {
+        offsets.push(offset);
+      }
+    });
+  return offsets.slice(0, MAX_LOCAL_LANE_CANDIDATES);
 }
 
 function createExpandedLocalLaneOffsets(wireLanePitch) {
