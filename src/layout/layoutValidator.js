@@ -19,6 +19,8 @@ export function validateLayoutGraph(graph, options = {}) {
   const nodeIndex = createNodeSpatialIndex(nodes);
   const checkObstacles = options.checkObstacles !== false;
   const checkOverlaps = options.checkOverlaps !== false;
+  const checkBounds = options.checkBounds === true;
+  const maximumViolations = normalizeMaximumViolations(options.maxViolations);
 
   for (const edge of edges) {
     const source = nodeById.get(edge.source);
@@ -64,22 +66,74 @@ export function validateLayoutGraph(graph, options = {}) {
         ));
       }
     }
+    if (checkBounds) {
+      const outOfBounds = findOutOfBoundsPoint(points, graph.width, graph.height);
+      if (outOfBounds) {
+        violations.push(violation(
+          edge,
+          "out-of-bounds",
+          "Route extends outside the provider bounds",
+          { point: outOfBounds }
+        ));
+      }
+    }
   }
 
-  if (checkOverlaps) violations.push(...findNetOverlaps(edges));
+  if (checkOverlaps) appendViolations(violations, findNetOverlaps(edges, maximumViolations), maximumViolations);
   if (Array.isArray(graph.wireRoutes)) {
-    violations.push(...findWireRouteViolations(graph.wireRoutes, nodes, { checkObstacles }));
+    appendViolations(violations, findWireRouteViolations(graph.wireRoutes, nodes, {
+      checkObstacles,
+      checkBounds,
+      width: graph.width,
+      height: graph.height
+    }, maximumViolations), maximumViolations);
   }
   return violations;
 }
 
-function findWireRouteViolations(wireRoutes, nodes = [], options = {}) {
+function appendViolations(target, source, maximum = Infinity) {
+  for (const item of source || []) {
+    if (target.length >= maximum) break;
+    target.push(item);
+  }
+}
+
+/** Attach a single provider-level status without changing the graph contract. */
+export function finalizeLayoutGraph(graph, options = {}) {
+  const diagnostics = validateLayoutGraph(graph, {
+    checkObstacles: options.checkObstacles !== false,
+    checkOverlaps: options.checkOverlaps !== false,
+    checkBounds: options.checkBounds !== false,
+    maxViolations: options.maxViolations ?? 256
+  });
+  const maximumViolations = normalizeMaximumViolations(options.maxViolations ?? 256);
+  return {
+    ...graph,
+    layoutStatus: diagnostics.length === 0 ? "routed" : "unroutable",
+    layoutDiagnostics: diagnostics.slice(0, maximumViolations),
+    layoutDiagnosticsTruncated: maximumViolations !== Infinity && diagnostics.length >= maximumViolations
+  };
+}
+
+function findWireRouteViolations(wireRoutes, nodes = [], options = {}, maximumViolations = Infinity) {
   const violations = [];
   const nodeIndex = options.checkObstacles !== false && nodes.length > 0
     ? createNodeSpatialIndex(nodes)
     : null;
   for (const route of wireRoutes) {
+    if (violations.length >= maximumViolations) break;
     const segments = route.segments || [];
+    if (Number(route.reachableTargetCount) < (route.logicalEdgeIds?.length || 0)) {
+      violations.push(violation(
+        route,
+        "wire-route-disconnected",
+        "Physical wire tree does not reach every logical target",
+        {
+          reachableTargetCount: Number(route.reachableTargetCount) || 0,
+          targetCount: route.logicalEdgeIds?.length || 0
+        }
+      ));
+    }
     const seen = new Set();
     const crossedNodes = new Set();
     for (const segment of segments) {
@@ -116,6 +170,13 @@ function findWireRouteViolations(wireRoutes, nodes = [], options = {}) {
           { nodeId: node.id }
         ));
       }
+      if (options.checkBounds === true) {
+        const point = findOutOfBoundsPoint([segment.start, segment.end], options.width, options.height);
+        if (point) {
+          violations.push(violation(route, "wire-route-out-of-bounds", "Physical wire route extends outside provider bounds", { point }));
+          break;
+        }
+      }
     }
     for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
       for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
@@ -128,6 +189,23 @@ function findWireRouteViolations(wireRoutes, nodes = [], options = {}) {
     }
   }
   return violations;
+}
+
+function findOutOfBoundsPoint(points, width, height) {
+  if (!Number.isFinite(Number(width)) || !Number.isFinite(Number(height))) return null;
+  for (const point of points || []) {
+    if (!Number.isFinite(Number(point?.x)) || !Number.isFinite(Number(point?.y)) ||
+      point.x < 0 || point.y < 0 || point.x > width || point.y > height) {
+      return point || null;
+    }
+  }
+  return null;
+}
+
+function normalizeMaximumViolations(value) {
+  if (value === undefined || value === null) return Infinity;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : Infinity;
 }
 
 function segmentCrossesNodeBody(segment, node) {
@@ -159,7 +237,7 @@ function findBlockingNode(points, nodeIndex, source, target, padding) {
   return null;
 }
 
-function findNetOverlaps(edges) {
+function findNetOverlaps(edges, maximumViolations = Infinity) {
   const violations = [];
   const lineGroups = new Map();
   for (const edge of edges) {
@@ -201,6 +279,7 @@ function findNetOverlaps(edges) {
           `Route overlaps edge ${right.edge.id}`,
           { otherEdgeId: right.edge.id }
         ));
+        if (violations.length >= maximumViolations) return violations;
       }
     }
   }

@@ -10,6 +10,7 @@ import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 import { buildWireRoutes } from "./wireRoutes.js";
+import { finalizeLayoutGraph } from "./layoutValidator.js";
 
 export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
 
@@ -103,7 +104,7 @@ export class ElkLayoutProvider {
       height: Math.max(result.height || 0, normalizedBounds.height),
       layoutProvider: this.id
     };
-    return applyPositionedOverrides(positionedGraph, options);
+    return finalizeLayoutGraph(applyPositionedOverrides(positionedGraph, options));
   }
 }
 

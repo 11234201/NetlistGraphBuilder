@@ -21,6 +21,7 @@ import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
 import { runSimplePlacementPipeline } from "./simplePlacementPipeline.js";
 import { planSimpleRouting } from "./simpleRoutingPlan.js";
 import { buildWireRoutes } from "./wireRoutes.js";
+import { finalizeLayoutGraph } from "./layoutValidator.js";
 
 export const DEFAULT_WIRE_LANE_PITCH = DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch;
 export const DEFAULT_TOP_WIRE_LANE_PITCH = DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch;
@@ -132,7 +133,7 @@ export function layoutGraph(graph, options = {}) {
     y: Math.max(0, -bounds.top)
   });
   const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
-  return {
+  return finalizeLayoutGraph({
     ...graph,
     nodes: positionedNodes,
     edges: positionedEdges,
@@ -140,7 +141,7 @@ export function layoutGraph(graph, options = {}) {
     routingCapacity,
     width: normalizedBounds.width + margin,
     height: normalizedBounds.height + margin
-  };
+  });
 }
 
 function readMeasuredSize(node, cellPinPitch) {

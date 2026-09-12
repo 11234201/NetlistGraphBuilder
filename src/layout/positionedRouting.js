@@ -17,6 +17,7 @@ import {
   expandRerouteEdgeIdsByNetGroup
 } from "./rerouteInvalidation.js";
 import { buildWireRoutes } from "./wireRoutes.js";
+import { getNetGroupKey } from "./layoutTopology.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -41,7 +42,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   );
   const reservedSegments = new RouteSegmentIndex(positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
-    .flatMap((edge) => getRouteSegments(edge.points || [], edge.net)));
+    .flatMap((edge) => getOwnedRouteSegments(edge)));
 
   const compareEdges = createFanoutPriorityComparator(positionedGraph.edges);
   const routedById = new Map();
@@ -67,6 +68,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       nodeIndex,
       margin,
       net: edge.net,
+      netGroupKey: getNetGroupKey(edge),
       reservedSegments
     });
     const points = route.status === "unroutable" ? [] : route.points;
@@ -80,7 +82,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       labelPoint: points[Math.max(1, points.length - 2)] || end,
       labelAnchor: "end"
     };
-    reservedSegments.push(...getRouteSegments(points, edge.net));
+    reservedSegments.pushUnique(...getOwnedRouteSegments({ ...edge, points }));
     routedById.set(edge.id, routedEdge);
   }
   const routedEdges = positionedGraph.edges.map((edge) => routedById.get(edge.id) || edge);
@@ -101,6 +103,12 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     height: normalizedBounds.height + margin,
     hasPositionOverrides: true
   };
+}
+
+function getOwnedRouteSegments(edge) {
+  const physicalOwner = getNetGroupKey(edge);
+  return getRouteSegments(edge.points || [], edge.net, physicalOwner)
+    .map((segment) => ({ ...segment, physicalOwner, netGroupKey: physicalOwner }));
 }
 
 function applyNodeOverrides(nodes, nodePositions, nodeSizes, cellPinPitch) {
