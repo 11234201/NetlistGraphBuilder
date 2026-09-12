@@ -9,6 +9,10 @@ export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   outerLaneClearance: 24,
   laneReusePadding: 4,
   wireLanePitch: 24,
+  // Collapsed groups can expose dozens of boundary ports.  Their escape
+  // rails need a separately named, bounded pitch so consuming the rail does
+  // not force every full-net channel to use the normal readability pitch.
+  groupBoundaryLanePitch: 8,
   minimumEndpointInset: 2,
   maximumEndpointInset: 24,
   reverseEndpointInset: 12
@@ -35,6 +39,10 @@ export function normalizeRoutingGeometry(spacing = {}, overrides = {}) {
     outerLaneClearance: positiveOr(values.outerLaneClearance, DEFAULT_ROUTING_GEOMETRY.outerLaneClearance),
     laneReusePadding: nonNegativeOr(values.laneReusePadding, DEFAULT_ROUTING_GEOMETRY.laneReusePadding),
     wireLanePitch: positiveOr(values.wireLanePitch, DEFAULT_ROUTING_GEOMETRY.wireLanePitch),
+    groupBoundaryLanePitch: positiveOr(
+      values.groupBoundaryLanePitch,
+      DEFAULT_ROUTING_GEOMETRY.groupBoundaryLanePitch
+    ),
     minimumEndpointInset: positiveOr(
       values.minimumEndpointInset,
       DEFAULT_ROUTING_GEOMETRY.minimumEndpointInset

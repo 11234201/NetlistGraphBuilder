@@ -168,6 +168,7 @@ export function createLocalObstacleCandidates(context, options = {}) {
     sourcePoint,
     edgePlan,
     wireLanePitch,
+    routingGeometry,
     "source"
   );
   const laneAdjustedTargetX = applyNodeLocalEscapeLane(
@@ -176,6 +177,7 @@ export function createLocalObstacleCandidates(context, options = {}) {
     targetPoint,
     edgePlan,
     wireLanePitch,
+    routingGeometry,
     "target"
   );
   const effectiveSourceLaneX = laneAdjustedSourceX;
@@ -307,7 +309,15 @@ export function createLocalObstacleCandidates(context, options = {}) {
  * direction is derived from the actual port side so a reverse edge still
  * expands away from the node instead of crossing a neighbouring column.
  */
-function applyNodeLocalEscapeLane(baseX, node, point, edgePlan, wireLanePitch, role) {
+function applyNodeLocalEscapeLane(
+  baseX,
+  node,
+  point,
+  edgePlan,
+  wireLanePitch,
+  routingGeometry,
+  role
+) {
   if (node?.kind !== "group" ||
     (edgePlan?.kind !== "long" && edgePlan?.kind !== "channel")) return baseX;
   const port = getPort(node, role === "source" ? edgePlan.sourcePin : edgePlan.targetPin, role);
@@ -317,7 +327,7 @@ function applyNodeLocalEscapeLane(baseX, node, point, edgePlan, wireLanePitch, r
     role === "source" ? edgePlan.sourceLane : edgePlan.targetLane
   ) || 0));
   if (laneIndex === 0) return baseX;
-  const pitch = Math.max(4, Number(wireLanePitch) || 24);
+  const pitch = getGroupBoundaryLanePitch(edgePlan, wireLanePitch, routingGeometry);
   const outward = side === "right" ? 1 : -1;
   // Keep the lane outside the endpoint body even when a malformed port point
   // falls on the opposite side; the candidate validator remains authoritative.
@@ -343,7 +353,7 @@ function createGroupBoundaryLaneCandidate(
   const targetSide = getPort(target, edgePlan.targetPin, "target")?.side || "left";
   if (!((sourceSide === "left" || sourceSide === "right") &&
     (targetSide === "left" || targetSide === "right"))) return null;
-  const pitch = Math.max(4, Number(wireLanePitch) || 24);
+  const pitch = getGroupBoundaryLanePitch(edgePlan, wireLanePitch, routingGeometry);
   const escape = Math.max(
     Number(routingGeometry?.portEscapeLength) || 24,
     Number(routingGeometry?.nodeClearance) || 8
@@ -363,6 +373,13 @@ function createGroupBoundaryLaneCandidate(
     { x: targetLaneX, y: targetPoint.y },
     targetPoint
   ]);
+}
+
+function getGroupBoundaryLanePitch(edgePlan, wireLanePitch, routingGeometry = {}) {
+  const policyPitch = Number(routingGeometry?.groupBoundaryLanePitch);
+  return Math.max(4, Number.isFinite(policyPitch) && policyPitch > 0
+    ? policyPitch
+    : Number(wireLanePitch) || 24);
 }
 
 function createReservedDetourCandidates(
