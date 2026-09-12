@@ -189,7 +189,8 @@ export function buildRoutingCapacityPlan(
         sourceEscapeSide: assigned.sourceEscapeSide,
         targetEscapeSides: assigned.targetEscapeSides,
         sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges
+        targetEscapeRanges: assigned.targetEscapeRanges,
+        capacityOverflow: assigned.capacityOverflow === true
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -251,7 +252,8 @@ export function buildRoutingCapacityPlan(
         sourceEscapeSide: assigned.sourceEscapeSide,
         targetEscapeSides: assigned.targetEscapeSides,
         sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges
+        targetEscapeRanges: assigned.targetEscapeRanges,
+        capacityOverflow: assigned.capacityOverflow === true
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -314,7 +316,8 @@ export function buildRoutingCapacityPlan(
         sourceEscapeSide: assigned.sourceEscapeSide,
         targetEscapeSides: assigned.targetEscapeSides,
         sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges
+        targetEscapeRanges: assigned.targetEscapeRanges,
+        capacityOverflow: assigned.capacityOverflow === true
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -338,6 +341,10 @@ export function buildRoutingCapacityPlan(
   const boundaryClusters = hasGroupBoundary
     ? buildBoundaryClusterMetadata(channels)
     : [];
+  const overflowPhysicalNetKeys = new Set(channels.flatMap((channel) =>
+    (channel.assignments || [])
+      .filter((assignment) => assignment.capacityOverflow === true)
+      .map((assignment) => assignment.netGroupKey)));
   const publicChannels = channels.map((channel) => {
     // Inter-layer and outer allocations are consumed through allocationByNet
     // and the compact cluster summary.  Retaining every spread assignment on
@@ -377,6 +384,7 @@ export function buildRoutingCapacityPlan(
       expandedChannelCount: channels.filter((channel) => channel.expansion > 0).length,
       overflowChannelCount: channels.filter((channel) => channel.overflowCount > 0).length,
       overflowDemandCount: channels.reduce((sum, channel) => sum + (channel.overflowCount || 0), 0),
+      overflowPhysicalNetCount: overflowPhysicalNetKeys.size,
       boundaryClusterCount: boundaryClusterCounts.size,
       maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values()),
       topWireHeadroom: options.topWireHeadroom || null

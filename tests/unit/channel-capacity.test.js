@@ -45,6 +45,52 @@ test("interval channel allocation reports overflow without aliasing a lane", () 
     MAX_CHANNEL_LANES_PER_SCOPE);
 });
 
+test("capacity plan preserves overflow ownership for router diagnostics", () => {
+  const count = MAX_CHANNEL_LANES_PER_SCOPE + 3;
+  const sources = Array.from({ length: count }, (_, index) => ({
+    id: `src${index}`,
+    kind: "cell",
+    level: 0,
+    x: 0,
+    y: 0,
+    width: 80,
+    height: 32,
+    ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }]
+  }));
+  const targets = Array.from({ length: count }, (_, index) => ({
+    id: `dst${index}`,
+    kind: "cell",
+    level: 1,
+    x: 160,
+    y: 0,
+    width: 80,
+    height: 32,
+    ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }]
+  }));
+  const graph = {
+    nodes: [...sources, ...targets],
+    edges: Array.from({ length: count }, (_, index) => ({
+      id: `e${index}`,
+      source: `src${index}`,
+      target: `dst${index}`,
+      sourcePin: "Z",
+      targetPin: "A",
+      net: `n${index}`
+    }))
+  };
+  const levels = new Map(graph.nodes.map((node) => [node.id, node.level]));
+  const plan = buildRoutingCapacityPlan(graph, levels, graph.nodes);
+  const overflowAssignments = [...plan.allocationByNet.values()]
+    .flat()
+    .filter((assignment) => assignment.capacityOverflow === true);
+
+  assert.equal(overflowAssignments.length, 3);
+  assert.equal(plan.metrics.overflowDemandCount, 3);
+  assert.equal(plan.metrics.overflowPhysicalNetCount, 3);
+  assert.ok(overflowAssignments.every((assignment) =>
+    assignment.laneIndex === null && assignment.coordinate === null));
+});
+
 test("capacity plan counts physical fanout once per inter-layer boundary", () => {
   const graph = {
     nodes: [

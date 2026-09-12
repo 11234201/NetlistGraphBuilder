@@ -67,6 +67,13 @@ test("simple router binds a skip-level edge to its source-adjacent capacity boun
         boundaryClusterKey: "target-boundary",
         sourceEscapeSide: "right",
         targetEscapeSides: ["left"]
+      },
+      {
+        channelId: "outer-top",
+        coordinate: null,
+        laneIndex: null,
+        capacityOverflow: true,
+        boundaryClusterKey: "overflow-boundary"
       }
     ]]]),
     metrics: {
@@ -99,5 +106,6 @@ test("simple router binds a skip-level edge to its source-adjacent capacity boun
 
   assert.equal(edge.capacityBoundaryClusterKey, "source-boundary");
   assert.equal(edge.capacityChannelId, undefined);
+  assert.equal(edge.capacityOverflow, true);
   assert.ok(edge.points.length >= 2);
 });

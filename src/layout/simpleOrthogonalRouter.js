@@ -46,6 +46,8 @@ export function routeSimpleEdges(graph, nodes, options) {
   );
   const routedById = new Map();
   const reservedSegments = new RouteSegmentIndex();
+  const unroutablePhysicalNets = new Set();
+  const overflowUnroutablePhysicalNets = new Set();
   const orderedEdges = graph.edges.toSorted((left, right) =>
     compareEdgesByLayoutPriority(left, right, layoutIntent));
   const startedAt = now();
@@ -63,6 +65,7 @@ export function routeSimpleEdges(graph, nodes, options) {
         expandedChannelCount: routingCapacity.metrics.expandedChannelCount,
         overflowChannelCount: routingCapacity.metrics.overflowChannelCount,
         overflowDemandCount: routingCapacity.metrics.overflowDemandCount,
+        overflowPhysicalNetCount: routingCapacity.metrics.overflowPhysicalNetCount,
         boundaryClusterCount: routingCapacity.metrics.boundaryClusterCount,
         maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand,
         topWireHeadroom: routingCapacity.metrics.topWireHeadroom
@@ -119,12 +122,20 @@ export function routeSimpleEdges(graph, nodes, options) {
       routeDiagnostics: routed.diagnostics,
       capacityChannelId: edgePlan?.capacityChannelId,
       capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
+      capacityOverflow: edgePlan?.capacityOverflow === true,
       labelPoint: label.point,
       labelAnchor: label.anchor
     };
     routedById.set(edge.id, positionedEdge);
     routingMetrics.routeKinds[routed.kind] =
       (routingMetrics.routeKinds[routed.kind] || 0) + 1;
+    if (positionedEdge.routeStatus === "unroutable") {
+      const physicalNetKey = getNetGroupKey(edge);
+      unroutablePhysicalNets.add(physicalNetKey);
+      if (positionedEdge.capacityOverflow) overflowUnroutablePhysicalNets.add(physicalNetKey);
+    }
+    routingMetrics.unroutablePhysicalNetCount = unroutablePhysicalNets.size;
+    routingMetrics.overflowUnroutablePhysicalNetCount = overflowUnroutablePhysicalNets.size;
     reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, edge));
     if (options.onRoutingProgress &&
       ((edgeIndex + 1) % 256 === 0 || edgeIndex + 1 === orderedEdges.length)) {
@@ -166,10 +177,10 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
   if (!routingCapacity?.allocationByNet) return edgePlan;
   const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
   const topAssignment = assignments.find((assignment) =>
-    assignment.channelId === "outer-top" && Number.isFinite(Number(assignment.coordinate)));
+    assignment.channelId === "outer-top" && hasFiniteCoordinate(assignment));
   const localAssignments = assignments.filter((assignment) =>
     String(assignment.channelId).startsWith("inter-layer:") &&
-    Number.isFinite(Number(assignment.coordinate)));
+    hasFiniteCoordinate(assignment));
   const sourceBoundaryId = getSourceBoundaryChannelId(
     edgeContext.sourceLevel,
     edgeContext.targetLevel
@@ -178,7 +189,7 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
     assignment.channelId === sourceBoundaryId) || localAssignments[0];
   const rowGapAssignments = assignments
     .filter((assignment) => String(assignment.channelId).startsWith("row-gap:") &&
-      Number.isFinite(Number(assignment.coordinate)))
+      hasFiniteCoordinate(assignment))
     .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
   if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) return edgePlan;
   const selectedAssignment = localAssignment || topAssignment || rowGapAssignments[0];
@@ -234,8 +245,9 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
 function collectCapacityLaneYHints(assignments = []) {
   const values = [];
   const append = (assignment) => {
-    const coordinate = Number(assignment?.coordinate);
-    if (!Number.isFinite(coordinate) || values.some((value) => Math.abs(value - coordinate) < 0.01)) return;
+    if (!hasFiniteCoordinate(assignment)) return;
+    const coordinate = Number(assignment.coordinate);
+    if (values.some((value) => Math.abs(value - coordinate) < 0.01)) return;
     values.push(coordinate);
   };
   // Keep source-adjacent/inter-layer lanes first, then make sure both outer
@@ -248,6 +260,12 @@ function collectCapacityLaneYHints(assignments = []) {
     append(assignments.find((assignment) => assignment?.channelId === kind));
   }
   return values.slice(0, MAX_CAPACITY_LANE_Y_HINTS);
+}
+
+function hasFiniteCoordinate(assignment) {
+  return assignment?.coordinate !== null &&
+    assignment?.coordinate !== undefined &&
+    Number.isFinite(Number(assignment.coordinate));
 }
 
 /**
