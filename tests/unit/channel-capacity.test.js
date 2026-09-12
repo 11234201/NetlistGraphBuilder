@@ -134,3 +134,31 @@ test("row-gap capacity expands only the lower node suffix for a crossing physica
   assert.equal(nodes.find((node) => node.id === "lower").y, originalLowerY + 12);
   assert.equal(nodes.find((node) => node.id === "sink").y, originalSinkY);
 });
+
+test("row-gap planning skips already-open gaps instead of allocating one lane per long net", () => {
+  const nodes = [
+    { id: "upper", kind: "group", level: 1, x: 160, y: 40, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "lower", kind: "group", level: 1, x: 160, y: 172, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const edges = [];
+  const levels = new Map([["upper", 1], ["lower", 1]]);
+  for (let index = 0; index < 65; index += 1) {
+    const source = { id: `src-${index}`, kind: "cell", level: 0, x: 0, y: index * 40,
+      width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] };
+    const target = { id: `sink-${index}`, kind: "cell", level: 2, x: 320, y: index * 40,
+      width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] };
+    nodes.push(source, target);
+    levels.set(source.id, 0);
+    levels.set(target.id, 2);
+    edges.push({ id: `e-${index}`, source: source.id, target: target.id,
+      sourcePin: "Z", targetPin: "A", net: `n-${index}` });
+  }
+  const plan = buildRoutingCapacityPlan({ nodes, edges }, levels, nodes, null, {
+    routingGeometry: normalizeRoutingGeometry()
+  });
+  assert.equal(plan.channels.some((channel) => channel.kind === "row-gap"), false);
+});

@@ -429,7 +429,7 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 
 1. `RouteSegmentIndex` 的 owner replacement 已从“过滤后完整 rebuild”改成 tombstone。活动项仍保留在 `items`，旧桶记录通过 `inactiveSegments` 过滤，`queryBox`、`queryVerticalSegment`、`countBox` 和迭代器不会看到失效 owner；只有显式 `compact()` 才回收旧桶。这解决的是 Adjust/增量 reroute 的更新成本，不是初次 route 的 overlap 算法。
 2. reservation lane shift 现在在固定的 6 个水平偏移和 12 个 source/target 纵向组合内尝试，并且每个组合都经过 endpoint side、node obstacle 和 foreign-net overlap 合同。它不会把候选次数变成 edge 数量的函数，也不会把非法 fallback 伪装成成功。
-3. 远端 1024/4096/8192 长链中位数 layout 约为 `135.9/820.3/3163.1 ms`，SVG 约为 `60.5/245.8/724.8 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败，严格 collapsed eq012 仍有截断后的 `net-overlap`。因此剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
+3. 远端 1024/4096/8192 长链中位数 layout 约为 `132.7/894.2/3232.3 ms`，SVG 约为 `61.2/239.5/717.6 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败（`380/120` 违规），严格 collapsed eq012 仍有截断后的 `net-overlap`。因此剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
 
 ### 13.1 未完成问题的具体定义
 
@@ -450,3 +450,27 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 2. 在 placement 只对有 demand 的 cluster 做 row/escape expansion，并在 `routingCapacity.metrics` 记录 expansion 前后 span。
 3. 让 `applyCapacityLane()` 同时消费 cluster y token 与 source/target escape interval；route candidate 必须验证该 token 的 node-safe corridor。
 4. 加入一个 synthetic group-boundary 单测，再逐个复测 eq012、dp005、sop004、sop015 及 1024/4096/8192 benchmark；任何 node-crossing 或 P95 超预算都停止扩展。
+
+### 13.3 本轮已实现的窄 row-gap corridor
+
+本轮将第 13.2 节的第一步落成了一个受限实现，而不是把所有跨层 net 复制到每个节点间隙：
+
+1. `buildRoutingCapacityPlan()` 先按 intermediate level 建 physical-net demand index，再检查同一层相邻节点的 x 投影；只有实际形成 corridor 的 pair 才生成 `row-gap:<level>:<upper>-><lower>` channel。
+2. 已经至少容纳一条 lane 的 gap 不再枚举所有长 net；窄 gap 才进入 `allocateIntervalLanes()`。单个 gap 的 demand 上限为 64，超过上限时保留原有 inter-layer/outer 策略，避免把全图 edge 数转换成 row lane 数。
+3. `requiredRowGap(k)=2*C+(k-1)*P`，扩容只对同一 level 中 lower node 及其下方 suffix 一次性下移；实现使用 level 分组和 suffix event 累加，复杂度为 `O(N+R)`，不对每个 channel 重扫全部 node。
+4. row-gap assignment 进入 `allocationByNet` 和 `routingMetrics.capacity`，但不会被不带 level 匹配的 edge 盲选为全局 `preferredLaneY`。一个 skip-level edge 可能跨越多个 row gap，当前仍由 inter-layer/outer assignment 选择主坐标，避免词法首个 gap 改变普通 Focused route。
+5. 因此这一步解决的是“窄 group boundary gap 没有最小开放高度”的 placement 缺口，不宣称已解决 dense collapsed 图的 outer top/bottom 共享段。
+
+验证结果：新增 `tests/unit/channel-capacity.test.js` 的 synthetic group corridor 与宽 gap demand 上限用例；本地 `npm test` 为 402/402；eq012 Focused spacing matrix、sop015 Focused 三项均通过。远端长链 benchmark 为 1024/4096/8192 layout `132.7/894.2/3232.3 ms`、SVG `61.2/239.5/717.6 ms`；dp020 单 case 约 `25.1 s`，相较上一轮未出现由 row-gap pass 引起的通道数/内存爆炸。普通 mapped 仍为 43/47，失败为 `dp_018`、`dp_019`、`dp_020`、`sop_015`（总计 `380/120` 违规）；eq012 普通 runner 通过但 collapsed hard gate 仍为 `net-overlap` 截断失败。
+
+### 13.4 后续必须补齐的实现问题
+
+下一步不能简单把 row-gap 上限从 64 调大。要完成方案，还必须补齐：
+
+- **cluster-to-route binding**：把 `boundaryClusterKey` 解析成 source/target escape x interval、row corridor y span 和不可共享 physical owners，并让 candidate 只消费同 cluster token；
+- **真实 outer band placement**：top/bottom lane 当前仍主要是 lane preference，不能让所有 long demand 共享同一外框水平段；需要固定一次的 band expansion 和 bounds 合并；
+- **native physical-net tree**：当前 tree 是 provider route 的后处理，dense fanout 仍逐 logical edge 选择 candidate；需要 source-rooted trunk/branch 一次生成后再给 edge 投影；
+- **硬失败提交语义**：当上述 corridor 和 outer band 都没有合法候选时，provider 应提交 `unroutable` 诊断而不是保留可渲染但非法的 fallback polyline；
+- **provider 一致性**：ELK 四向 port、Adjust override 和 shared final validator 仍要消费同一 cluster/band contract。
+
+每一项都必须保留固定候选上限、spatial index 查询和 physical-net owner 去重；若增加 row/outer 空间导致 layout P95 超过基线 25%，应退回 placement 设计，而不是关闭 hard validation。

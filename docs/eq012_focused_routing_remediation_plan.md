@@ -20,12 +20,15 @@
 | `3832803`、`f9a98e5` | capacity demand 按 boundary 建索引并覆盖多 boundary physical net | 避免每个 boundary 重扫全部 demand，保持稳定 physical-net 分配 |
 | `fcfe676` | route owner 替换改为桶内 tombstone，显式 `compact()` 回收 | Adjust/增量 reroute 不再每次重建完整 segment buckets；查询仍过滤失效 owner |
 | `d122824` | 明确 mapped hard gate 命令用法 | `--hard`/`--no-collapse` 的回归入口可直接复现 |
+| `144349b`、`67c9002` | 按 endpoint node 分配 long escape lane，并增加 bounded group boundary candidate | 同层级不同 group 不再共享同一条边界 escape；相邻 group 具备独立候选 |
+| `674bf66`、`847bb34` | 暴露 boundary pitch/capacity 指标，去除 group escape 中的逐 port 扫描 | 可观测真实通道压力；group candidate 不再为每条边重复扫描端口 |
+| `3f34f45` | 建模窄 group row-gap corridor，固定一次 suffix expansion；宽 gap/超限 demand 跳过枚举 | placement 只扩真正不足的 group gap，避免把全图长 net 数量放大成 row lane 数 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
-当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.9/820.3/3163.1 ms`，对应 SVG `60.5/245.8/724.8 ms`；collapsed layout 约 `3.0/5.6/11.5 ms`。本轮 mapped 全量普通门禁为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`；eq012 全图普通门禁 `6.9 s` 且历史预算通过，eq012 focused 双根单测 `2/2`、sop015 相关单测 `3/3` 通过。严格 hard gate 对 collapsed eq012 仍会报告残余 `net-overlap`，说明 outer boundary corridor 尚未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `132.7/894.2/3232.3 ms`，对应 SVG `61.2/239.5/717.6 ms`；collapsed layout 约 `3.2/6.1/17.6 ms`。本轮 mapped 全量普通门禁仍为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`，总计 `380/120` 违规、最大 layout 约 `27.5 s`、最大堆约 `316 MiB`；最新单 case 复测中 dp020 layout 约 `25.1 s`、eq012 collapsed hard gate 约 `7.0 s`，后者仍报告截断后的 `net-overlap`。eq012 focused 双根、sop015 相关单测和新增 row-gap capacity 单测均通过。严格 hard gate 对 collapsed eq012 仍未达到零违规，说明 outer boundary corridor/物理树仍未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
 
-`RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。它不改变初始 layout 的 route choice，因此本轮性能收益应归因于增量替换路径，不能推断为全量 mapped overlap 已解决。
+`RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
 ### 当前尚未完成的硬问题
 
