@@ -63,11 +63,15 @@ export class ElkLayoutProvider {
       const rawPoints = getEdgePoints(elkEdgeById.get(edge.id));
       const source = positionedNodeById.get(edge.source);
       const target = positionedNodeById.get(edge.target);
+      const sourcePort = source && getPort(source, edge.sourcePin, "source");
+      const targetPort = target && getPort(target, edge.targetPin, "target");
       const points = source && target
         ? attachToExactPorts(
           rawPoints,
           getConnectionPoint(source, edge.sourcePin, "source"),
-          getConnectionPoint(target, edge.targetPin, "target")
+          getConnectionPoint(target, edge.targetPin, "target"),
+          sourcePort?.side,
+          targetPort?.side
         )
         : rawPoints;
       return {
@@ -108,14 +112,14 @@ function toElkNode(node) {
     id: node.id,
     width: node.width,
     height: node.height,
-    layoutOptions: { "elk.portConstraints": "FIXED_POS" },
+      layoutOptions: { "elk.portConstraints": "FIXED_POS" },
     ports: node.ports.map((port) => ({
       id: elkPortId(node.id, port),
       width: 1,
       height: 1,
       x: port.x,
       y: port.y,
-      layoutOptions: { "elk.port.side": port.side === "right" ? "EAST" : "WEST" }
+      layoutOptions: { "elk.port.side": sideToElk(port.side) }
     }))
   };
 }
@@ -134,23 +138,46 @@ function elkPortId(nodeId, port) {
   return `${nodeId}::${port.direction}:${encodeURIComponent(port.rawPin || port.pin)}`;
 }
 
-function attachToExactPorts(points, start, end) {
+function attachToExactPorts(points, start, end, sourceSide = "right", targetSide = "left") {
   const rawStart = points[0] || start;
   const rawEnd = points.at(-1) || end;
-  const direction = end.x >= start.x ? 1 : -1;
-  const sourceTrunk = start.x + direction * 24;
-  const targetTrunk = end.x - direction * 24;
+  const sourceEscape = offsetFromPort(start, sourceSide, 24);
+  const targetEscape = offsetFromPort(end, targetSide, 24);
   return compactOrthogonalPoints([
     start,
-    { x: sourceTrunk, y: start.y },
-    { x: sourceTrunk, y: rawStart.y },
+    sourceEscape,
+    ...alignEscapeToPoint(sourceEscape, rawStart, sourceSide),
     rawStart,
     ...points.slice(1, -1),
     rawEnd,
-    { x: targetTrunk, y: rawEnd.y },
-    { x: targetTrunk, y: end.y },
+    ...alignEscapeToPoint(rawEnd, targetEscape, targetSide),
+    targetEscape,
     end
   ]);
+}
+
+function sideToElk(side) {
+  return {
+    left: "WEST",
+    right: "EAST",
+    top: "NORTH",
+    bottom: "SOUTH"
+  }[side] || "WEST";
+}
+
+function offsetFromPort(point, side, distance) {
+  const amount = Number(distance) || 24;
+  if (side === "left") return { x: point.x - amount, y: point.y };
+  if (side === "top") return { x: point.x, y: point.y - amount };
+  if (side === "bottom") return { x: point.x, y: point.y + amount };
+  return { x: point.x + amount, y: point.y };
+}
+
+function alignEscapeToPoint(from, to, side) {
+  if (side === "top" || side === "bottom") {
+    return [{ x: from.x, y: from.y }, { x: to.x, y: from.y }];
+  }
+  return [{ x: from.x, y: from.y }, { x: from.x, y: to.y }];
 }
 
 function getEdgePoints(edge) {

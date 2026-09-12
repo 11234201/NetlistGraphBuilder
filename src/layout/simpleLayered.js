@@ -43,7 +43,9 @@ export function layoutGraph(graph, options = {}) {
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   const routePlan = planSimpleRouting(graph, levels, layoutIntent);
   const xSpacing = policy.spacing.x;
-  const topWireSpace = options.topWireSpace || 80;
+  const topWireSpace = Number.isFinite(Number(options.topWireSpace))
+    ? Math.max(0, Number(options.topWireSpace))
+    : 80;
   const buckets = bucketNodesByLevel(graph.nodes, levels);
   const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
   orderSimpleLayers(buckets, levelKeys, graph.edges);
@@ -93,7 +95,11 @@ export function layoutGraph(graph, options = {}) {
     levels,
     positionedNodes,
     layoutIntent,
-    { spacing: policy.spacing, routingGeometry }
+    {
+      spacing: policy.spacing,
+      routingGeometry,
+      "outer-topSpan": topWireSpace
+    }
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
   const routingCapacity = buildRoutingCapacityPlan(
@@ -101,7 +107,11 @@ export function layoutGraph(graph, options = {}) {
     levels,
     positionedNodes,
     layoutIntent,
-    { spacing: policy.spacing, routingGeometry }
+    {
+      spacing: policy.spacing,
+      routingGeometry,
+      "outer-topSpan": topWireSpace
+    }
   );
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {

@@ -4,6 +4,7 @@ import {
   getPhysicalNetKey as getCanonicalPhysicalNetKey
 } from "./layoutTopology.js";
 import { buildNetTreeSegments } from "./netTreeRouter.js";
+import { SpatialHashIndex } from "./spatialIndex.js";
 
 const GEOMETRY_EPSILON = 0.01;
 
@@ -90,6 +91,8 @@ function createWireRoute(netKey, edges) {
       start: segment.start,
       end: segment.end,
       kind: segment.logicalEdgeIds.length > 1 ? "trunk" : "branch",
+      netGroupKey: netKey,
+      physicalOwner: netKey,
       logicalEdgeIds: [...segment.logicalEdgeIds].sort((left, right) => left.localeCompare(right))
     })),
     // Junction markers describe the rendered physical tree, not provider
@@ -145,9 +148,21 @@ function findJunctions(segments) {
 
 function splitSegmentsAtJunctions(segments) {
   const splitPoints = segments.map(() => []);
+  if (segments.length < 2) return segments;
+
+  // Intersections are only possible between perpendicular segments after
+  // mergeSegments() has removed same-axis overlaps. Query a shared spatial
+  // index instead of comparing every pair in the physical net. This keeps
+  // sparse large nets near O(S log S + I), while dense junctions still pay
+  // only for the intersections that can actually create split points.
+  const segmentIndex = new SpatialHashIndex(128);
+  segments.forEach((segment, index) => segmentIndex.insert({ segment, index }, segmentBox(segment)));
   for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
-      const point = orthogonalIntersection(segments[leftIndex], segments[rightIndex]);
+    const left = segments[leftIndex];
+    for (const record of segmentIndex.query(segmentBox(left))) {
+      const rightIndex = record.index;
+      if (rightIndex <= leftIndex) continue;
+      const point = orthogonalIntersection(left, record.segment);
       if (!point) continue;
       splitPoints[leftIndex].push(point);
       splitPoints[rightIndex].push(point);
@@ -167,6 +182,15 @@ function splitSegmentsAtJunctions(segments) {
       logicalEdgeIds: segment.logicalEdgeIds
     }));
   });
+}
+
+function segmentBox(segment) {
+  return {
+    left: Math.min(segment.start.x, segment.end.x),
+    right: Math.max(segment.start.x, segment.end.x),
+    top: Math.min(segment.start.y, segment.end.y),
+    bottom: Math.max(segment.start.y, segment.end.y)
+  };
 }
 
 function orthogonalIntersection(left, right) {

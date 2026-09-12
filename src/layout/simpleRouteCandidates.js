@@ -588,10 +588,11 @@ export function createGlobalLaneYCandidates(
   const { minTop, maxBottom, gapLanes } = preparedGeometry ||
     prepareGlobalLaneGeometry(nodes, clearance);
   const candidates = [preferredLaneY];
-  const outerAttempts = Math.min(
-    ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
-    Math.max(4, nodes.length)
-  );
+  // Keep the outer search independent of graph size. More nodes do not make
+  // additional retries meaningful: the prepared gap lanes already represent
+  // the available corridors, while the fixed outer samples provide bounded
+  // escape choices for dense layouts.
+  const outerAttempts = ROUTE_SEARCH_LIMITS.minimumOuterLaneAttempts;
   for (let index = 0; index < outerAttempts; index += 1) {
     candidates.push(minTop - margin - index * lanePitch);
     candidates.push(maxBottom + margin + index * lanePitch);

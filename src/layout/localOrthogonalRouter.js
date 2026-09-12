@@ -10,8 +10,8 @@ export function routeLocalOrthogonalEdge(context) {
 export function selectLocalOrthogonalRoute(context) {
   const nodeIndex = context.nodeIndex || createNodeSpatialIndex(context.nodes);
   const routeContext = { ...context, nodeIndex };
-  let lastCandidate = null;
   let bestUsableCandidate = null;
+  let candidateCount = 0;
   const scoreContext = {
     reservedSegments: context.reservedSegments,
     net: context.net,
@@ -19,7 +19,7 @@ export function selectLocalOrthogonalRoute(context) {
     edgeIntent: context.edgeIntent
   };
   for (const candidate of iterateLocalRouteCandidates(routeContext)) {
-    lastCandidate = candidate;
+    candidateCount += 1;
     const usable = routeCandidateIsUsable(candidate.points, {
       source: context.source,
       target: context.target,
@@ -33,14 +33,25 @@ export function selectLocalOrthogonalRoute(context) {
       rejectReservedOverlaps: true
     });
     if (!usable) continue;
-    if (scoreRouteCandidate(candidate, scoreContext).crossings === 0) return candidate;
+    if (scoreRouteCandidate(candidate, scoreContext).crossings === 0) {
+      return { ...candidate, status: "routed" };
+    }
     if (!bestUsableCandidate ||
       compareRouteCandidates(candidate, bestUsableCandidate, scoreContext) < 0) {
       bestUsableCandidate = candidate;
     }
   }
-  return bestUsableCandidate || lastCandidate || {
-    kind: "fallback-direct",
-    points: [context.start, context.end]
+  if (bestUsableCandidate) return { ...bestUsableCandidate, status: "routed" };
+  return {
+    kind: "unroutable",
+    status: "unroutable",
+    points: [],
+    diagnostics: [{
+      code: "local-route-unroutable",
+      candidateCount,
+      sourceNodeId: context.source?.id,
+      targetNodeId: context.target?.id,
+      netGroupKey: context.netGroupKey
+    }]
   };
 }

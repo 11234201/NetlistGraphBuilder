@@ -131,10 +131,10 @@ function* iterateLocalDetours(
 
 function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {
   const [minY, maxY] = getNodeVerticalBounds(nodes);
-  const attempts = Math.min(
-    ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
-    Math.max(ROUTE_SEARCH_LIMITS.minimumOuterLaneAttempts, nodes.length + 8)
-  );
+  // A fixed outer sample is part of the routing contract. Scaling retries by
+  // node count makes manual-adjust routing degrade quadratically on large
+  // focused views without adding new geometric information.
+  const attempts = ROUTE_SEARCH_LIMITS.minimumOuterLaneAttempts;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const sourceLaneX = source.x + source.width + margin + attempt * margin;
     const targetLaneX = target.x - margin - attempt * margin;

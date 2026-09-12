@@ -69,11 +69,13 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       net: edge.net,
       reservedSegments
     });
-    const points = route.points;
+    const points = route.status === "unroutable" ? [] : route.points;
     const routedEdge = {
       ...edge,
       points,
-      routeKind: "positioned-override",
+      routeKind: route.status === "unroutable" ? "unroutable" : "positioned-override",
+      routeStatus: route.status || "routed",
+      routeDiagnostics: route.diagnostics,
       routeStrategy: route.kind,
       labelPoint: points[Math.max(1, points.length - 2)] || end,
       labelAnchor: "end"

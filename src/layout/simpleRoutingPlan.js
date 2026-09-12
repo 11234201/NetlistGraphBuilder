@@ -15,6 +15,7 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
   const longSourceLanes = new Map();
   const longSourceLaneByFanout = new Map();
   const longTargetLanes = new Map();
+  const physicalLongLanes = new Map();
   let longLaneCount = 0;
   let maxSideLanes = 1;
 
@@ -42,6 +43,7 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
     const sourceKey = `source:${sourceLevel}`;
     const targetKey = `target:${targetLevel}`;
     const intent = layoutIntent.getEdge(edge);
+    const netKey = getNetGroupKey(edge);
     let sourceLane = intent?.fanout > 1
       ? longSourceLaneByFanout.get(intent.groupKey)
       : undefined;
@@ -53,13 +55,18 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
     longSourceLanes.set(sourceKey, Math.max(longSourceLanes.get(sourceKey) || 0, sourceLane + 1));
     longTargetLanes.set(targetKey, targetLane + 1);
     maxSideLanes = Math.max(maxSideLanes, sourceLane + 1, targetLane + 1);
+    let topLane = physicalLongLanes.get(netKey);
+    if (topLane === undefined) {
+      topLane = longLaneCount;
+      physicalLongLanes.set(netKey, topLane);
+      longLaneCount += 1;
+    }
     edges.set(edge.id, {
       kind: "long",
-      topLane: longLaneCount,
+      topLane,
       sourceLane,
       targetLane
     });
-    longLaneCount += 1;
   }
 
   const netDemands = buildPhysicalNetDemands(graph, levels, layoutIntent);
