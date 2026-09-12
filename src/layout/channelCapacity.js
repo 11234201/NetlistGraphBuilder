@@ -219,6 +219,7 @@ export function buildRoutingCapacityPlan(
       expansion: currentSpan === null ? 0 : Math.max(0, requiredSpan - currentSpan),
       laneCount: allocation.laneCount,
       lanes: allocation.lanes,
+      assignments: allocation.assignments,
       demandKeys: channelDemands.map((demand) => demand.netGroupKey),
       demands: channelDemands
     };
@@ -262,6 +263,7 @@ export function buildRoutingCapacityPlan(
       expansion: Math.max(0, requiredSpan - currentSpan),
       laneCount: allocation.laneCount,
       lanes: allocation.lanes,
+      assignments: allocation.assignments,
       demandKeys: channelDemands.map((demand) => demand.netGroupKey),
       demands: channelDemands
     };
@@ -296,6 +298,7 @@ export function buildRoutingCapacityPlan(
     outerTop: channels.find((channel) => channel.kind === "outer-top")?.expansion || 0,
     outerBottom: channels.find((channel) => channel.kind === "outer-bottom")?.expansion || 0
   };
+  const boundaryClusters = buildBoundaryClusterMetadata(channels);
   return {
     netDemands: demands,
     channels: channels.toSorted((left, right) => left.id.localeCompare(right.id)),
@@ -319,9 +322,82 @@ export function buildRoutingCapacityPlan(
       topWireHeadroom: options.topWireHeadroom || null
     },
     boundaryClusterCounts,
+    boundaryClusters,
+    boundaryClusterByKey: new Map(boundaryClusters.map((cluster) => [
+      cluster.boundaryClusterKey,
+      cluster
+    ])),
     routingGeometry,
     channelById
   };
+}
+
+/**
+ * Preserve the stable geometry contract for each allocated boundary cluster.
+ * The router may consume this metadata later, but collecting it here already
+ * prevents callers from reconstructing ownership by rescanning all edges.
+ */
+function buildBoundaryClusterMetadata(channels = []) {
+  const clusters = new Map();
+  for (const channel of channels) {
+    for (const assignment of channel.assignments || []) {
+      const key = assignment.boundaryClusterKey;
+      if (!key) continue;
+      const current = clusters.get(key) || {
+        boundaryClusterKey: key,
+        channelIds: new Set(),
+        physicalNetKeys: new Set(),
+        sourceNodeIds: new Set(),
+        targetNodeIds: new Set(),
+        sourceEscapeSides: new Set(),
+        targetEscapeSides: new Set(),
+        demandCount: 0,
+        laneIndices: [],
+        coordinateMinimum: Infinity,
+        coordinateMaximum: -Infinity,
+        intervalStart: Infinity,
+        intervalEnd: -Infinity
+      };
+      current.channelIds.add(String(channel.id));
+      current.physicalNetKeys.add(String(assignment.netGroupKey ?? ""));
+      if (assignment.sourceNodeId !== undefined) current.sourceNodeIds.add(String(assignment.sourceNodeId));
+      for (const ref of assignment.endpointRefs || []) {
+        if (ref?.nodeId !== undefined) current.targetNodeIds.add(String(ref.nodeId));
+      }
+      if (assignment.sourceEscapeSide) current.sourceEscapeSides.add(String(assignment.sourceEscapeSide));
+      for (const side of assignment.targetEscapeSides || []) current.targetEscapeSides.add(String(side));
+      current.demandCount += 1;
+      if (Number.isFinite(Number(assignment.laneIndex))) current.laneIndices.push(Number(assignment.laneIndex));
+      if (Number.isFinite(Number(assignment.coordinate))) {
+        current.coordinateMinimum = Math.min(current.coordinateMinimum, Number(assignment.coordinate));
+        current.coordinateMaximum = Math.max(current.coordinateMaximum, Number(assignment.coordinate));
+      }
+      if (Number.isFinite(Number(assignment.intervalStart))) {
+        current.intervalStart = Math.min(current.intervalStart, Number(assignment.intervalStart));
+      }
+      if (Number.isFinite(Number(assignment.intervalEnd))) {
+        current.intervalEnd = Math.max(current.intervalEnd, Number(assignment.intervalEnd));
+      }
+      clusters.set(key, current);
+    }
+  }
+  return [...clusters.values()]
+    .map((cluster) => ({
+      boundaryClusterKey: cluster.boundaryClusterKey,
+      channelIds: [...cluster.channelIds].sort(),
+      physicalNetKeys: [...cluster.physicalNetKeys].sort(),
+      sourceNodeIds: [...cluster.sourceNodeIds].sort(),
+      targetNodeIds: [...cluster.targetNodeIds].sort(),
+      sourceEscapeSides: [...cluster.sourceEscapeSides].sort(),
+      targetEscapeSides: [...cluster.targetEscapeSides].sort(),
+      demandCount: cluster.demandCount,
+      laneIndices: [...new Set(cluster.laneIndices)].sort((left, right) => left - right),
+      coordinateMinimum: Number.isFinite(cluster.coordinateMinimum) ? cluster.coordinateMinimum : null,
+      coordinateMaximum: Number.isFinite(cluster.coordinateMaximum) ? cluster.coordinateMaximum : null,
+      intervalStart: Number.isFinite(cluster.intervalStart) ? cluster.intervalStart : null,
+      intervalEnd: Number.isFinite(cluster.intervalEnd) ? cluster.intervalEnd : null
+    }))
+    .sort((left, right) => left.boundaryClusterKey.localeCompare(right.boundaryClusterKey));
 }
 
 /** Apply only the horizontal expansion that belongs to a real core-column gap. */

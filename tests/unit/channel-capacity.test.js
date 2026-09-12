@@ -52,6 +52,13 @@ test("capacity plan counts physical fanout once per inter-layer boundary", () =>
   assert.equal(channel.requiredSpan, requiredInterLayerGap(1, plan.routingGeometry));
   assert.equal(plan.metrics.physicalNetCount, 1);
   assert.equal(plan.metrics.boundaryClusterCount, 1);
+  assert.equal(plan.boundaryClusters.length, 1);
+  assert.deepEqual(plan.boundaryClusters[0].sourceNodeIds, ["src"]);
+  assert.deepEqual(plan.boundaryClusters[0].targetNodeIds, ["a", "b"]);
+  assert.deepEqual(plan.boundaryClusters[0].sourceEscapeSides, ["right"]);
+  assert.deepEqual(plan.boundaryClusters[0].targetEscapeSides, ["left"]);
+  assert.deepEqual(plan.boundaryClusterByKey.get(plan.boundaryClusters[0].boundaryClusterKey),
+    plan.boundaryClusters[0]);
   assert.ok(plan.channels
     .filter((item) => item.demands.length > 0)
     .every((item) => item.demands[0].boundaryClusterKey));
