@@ -6,7 +6,8 @@ import { findNearestFreeY } from "../../src/layout/nodePlacementShared.js";
 import {
   resolveExternalSourceOverlaps,
   resolveLevelOverlaps,
-  resolveOutputOverlaps
+  resolveOutputOverlaps,
+  resolveGroupEscapeOverlaps
 } from "../../src/layout/nodeSpacing.js";
 
 test("single-connection endpoint alignment uses the actual target pin", () => {
@@ -108,4 +109,35 @@ test("cell spacing separates input and output boundary nodes", () => {
   resolveOutputOverlaps(outputs, 8, 64);
   const [top, bottom] = outputs.toSorted((left, right) => left.y - right.y);
   assert.ok(bottom.y - top.y - top.height >= 64);
+});
+
+test("group escape spacing clears a same-level source rail", () => {
+  const nodes = [
+    { id: "group:wide", kind: "group", level: 3, x: 200, y: 100, width: 100, height: 200, ports: [] },
+    { id: "hub:source", kind: "hub", level: 3, x: 250, y: 340, width: 20, height: 20, ports: [] },
+    { id: "cell:target", kind: "cell", level: 4, x: 420, y: 0, width: 80, height: 80, ports: [] }
+  ];
+  const edges = [{
+    source: "hub:source", target: "cell:target", sourcePin: "out", targetPin: "in"
+  }];
+
+  resolveGroupEscapeOverlaps(nodes, edges, 8);
+
+  assert.equal(nodes[0].x, 92);
+  assert.ok(nodes[0].x + nodes[0].width + 8 <= nodes[1].x);
+});
+
+test("group escape spacing leaves non-blocking groups unchanged", () => {
+  const nodes = [
+    { id: "group:wide", kind: "group", level: 3, x: 200, y: 400, width: 100, height: 80, ports: [] },
+    { id: "hub:source", kind: "hub", level: 3, x: 250, y: 340, width: 20, height: 20, ports: [] },
+    { id: "cell:target", kind: "cell", level: 4, x: 420, y: 0, width: 80, height: 80, ports: [] }
+  ];
+  const edges = [{
+    source: "hub:source", target: "cell:target", sourcePin: "out", targetPin: "in"
+  }];
+
+  resolveGroupEscapeOverlaps(nodes, edges, 8);
+
+  assert.equal(nodes[0].x, 200);
 });

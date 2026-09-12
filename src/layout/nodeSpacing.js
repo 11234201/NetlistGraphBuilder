@@ -8,6 +8,9 @@ import {
   stackNodesVertically
 } from "./nodePlacementShared.js";
 import { MAX_LOCALIZED_INPUT_LOADS } from "./nodeLocality.js";
+import { getConnectionPoint, getPort } from "./nodeGeometry.js";
+
+const MAX_GROUP_ESCAPE_SHIFTS = 8;
 
 export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
   const sources = nodes
@@ -72,6 +75,82 @@ export function resolveLevelOverlaps(
 export function resolveOutputOverlaps(nodes, margin, gap = 8) {
   for (const node of nodes.filter(isOutputNode).sort(compareNodes)) {
     node.y = findNearestFreeY(node, node.y, nodes, new Set([node.id]), margin, gap);
+  }
+}
+
+/**
+ * Keep a same-level collapsed group out of the source-adjacent escape rail of
+ * a node that drives a different level.  Level placement intentionally shares
+ * one x column, but a right-facing hub immediately below a tall group would
+ * otherwise be forced to route vertically through that group body.  Only
+ * move a group when the concrete source-to-target y span proves that it is a
+ * blocker; this keeps ordinary same-level summaries and compact graphs
+ * unchanged.
+ */
+export function resolveGroupEscapeOverlaps(nodes, edges, gap = 8) {
+  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const edgesBySource = new Map();
+  for (const edge of edges || []) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!source || !target || source.level === target.level) continue;
+    const list = edgesBySource.get(source.id) || [];
+    list.push({ edge, target });
+    edgesBySource.set(source.id, list);
+  }
+  const groupsByLevel = new Map();
+  for (const group of nodes || []) {
+    if (group.kind !== "group") continue;
+    const list = groupsByLevel.get(group.level) || [];
+    list.push(group);
+    groupsByLevel.set(group.level, list);
+  }
+  for (const [level, groups] of groupsByLevel) {
+    const peers = (nodes || []).filter((node) => node.level === level);
+    const orderedGroups = [...groups].sort((left, right) =>
+      Number(left.x) - Number(right.x) || String(left.id).localeCompare(String(right.id)));
+    for (const group of orderedGroups) {
+      const blockers = [];
+      for (const source of peers) {
+        if (source.id === group.id || source.kind === "group") continue;
+        const sourceEdges = edgesBySource.get(source.id) || [];
+        for (const { edge, target } of sourceEdges) {
+          const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
+          const side = getPort(source, edge.sourcePin, "source")?.side || "right";
+          if (side !== "left" && side !== "right") continue;
+          const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
+          const sourceRailX = side === "right" ? sourcePoint.x : sourcePoint.x;
+          const railInsideGroup = sourceRailX > group.x && sourceRailX < group.x + group.width;
+          const yStart = Math.min(sourcePoint.y, targetPoint.y);
+          const yEnd = Math.max(sourcePoint.y, targetPoint.y);
+          const verticalBlocker = yEnd > group.y && yStart < group.y + group.height;
+          if (!railInsideGroup || !verticalBlocker) continue;
+          blockers.push({ source, side });
+        }
+      }
+      if (blockers.length === 0) continue;
+      const direction = blockers.some(({ side }) => side === "right") ? -1 : 1;
+      const shift = Number(group.width) + Math.max(0, Number(gap) || 0);
+      for (let attempt = 0; attempt < MAX_GROUP_ESCAPE_SHIFTS; attempt += 1) {
+        // The blocker test is deliberately independent of body overlap: a
+        // source hub can sit below the group while its vertical escape rail
+        // still passes through the group's x-range.  Move once to clear that
+        // rail, then continue only when the move created a real node overlap.
+        if (attempt === 0) {
+          group.x += direction * shift;
+          continue;
+        }
+        const collidesWithPeer = peers.some((peer) =>
+          peer.id !== group.id && peer.kind !== "group" &&
+          horizontalRangesOverlap(group, peer, 0) &&
+          verticalRangesOverlap(group, peer, 0));
+        const collidesWithGroup = orderedGroups.some((peer) =>
+          peer.id !== group.id && horizontalRangesOverlap(group, peer, 0) &&
+          verticalRangesOverlap(group, peer, 0));
+        if (!collidesWithPeer && !collidesWithGroup) break;
+        group.x += direction * shift;
+      }
+    }
   }
 }
 

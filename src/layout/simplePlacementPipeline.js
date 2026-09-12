@@ -12,7 +12,8 @@ import {
   resolveExternalSourceOverlaps,
   resolvePostLocalitySourceOverlaps,
   resolveLevelOverlaps,
-  resolveOutputOverlaps
+  resolveOutputOverlaps,
+  resolveGroupEscapeOverlaps
 } from "./nodeSpacing.js";
 import { groupNodesByLevel } from "./nodePlacementShared.js";
 
@@ -26,6 +27,7 @@ export const SIMPLE_PLACEMENT_STAGES = Object.freeze([
   "localize-single-fanout-inputs",
   "resolve-post-locality-source-overlaps",
   "resolve-output-overlaps",
+  "resolve-group-escape-overlaps",
   "apply-node-overrides"
 ]);
 
@@ -118,6 +120,11 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
   run("resolve-output-overlaps", () => resolveOutputOverlaps(
     positionedNodes,
     margin,
+    cellSpacing
+  ));
+  run("resolve-group-escape-overlaps", () => resolveGroupEscapeOverlaps(
+    positionedNodes,
+    graph.edges,
     cellSpacing
   ));
   run("apply-node-overrides", () => applyNodePositionOverrides(positionedNodes, nodePositions));
