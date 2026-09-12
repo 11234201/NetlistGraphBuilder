@@ -111,6 +111,53 @@ test("group channel candidates consume node-local source and target escape lanes
   ]);
 });
 
+test("group channel candidates stay inside the assigned boundary escape corridor", () => {
+  const sourceGroup = {
+    id: "group:source",
+    kind: "group",
+    level: 0,
+    x: 0,
+    y: 40,
+    width: 80,
+    height: 60,
+    ports: [{ pin: "out", direction: "output", side: "right", x: 80, y: 20 }]
+  };
+  const targetGroup = {
+    id: "group:target",
+    kind: "group",
+    level: 1,
+    x: 260,
+    y: 80,
+    width: 80,
+    height: 60,
+    ports: [{ pin: "in", direction: "input", side: "left", x: 0, y: 20 }]
+  };
+  const candidates = createBasicSimpleRouteCandidates({
+    source: sourceGroup,
+    target: targetGroup,
+    sourcePoint: { x: 80, y: 60 },
+    targetPoint: { x: 260, y: 100 },
+    edgePlan: {
+      kind: "channel",
+      sourceLane: 2,
+      targetLane: 2,
+      sourcePin: "out",
+      targetPin: "in",
+      capacityCorridor: {
+        sourceEscapeInterval: { side: "right", minimum: 88, maximum: 104 },
+        targetEscapeIntervals: [{ side: "left", minimum: 236, maximum: 252 }]
+      }
+    },
+    levelBounds: computeLevelBounds([sourceGroup, targetGroup]),
+    wireLanePitch: 18,
+    routingGeometry: { portEscapeLength: 24, groupBoundaryLanePitch: 8 }
+  });
+  const boundary = candidates.find((candidate) => candidate.kind === "boundary-channel");
+
+  assert.ok(boundary);
+  assert.equal(boundary.points[1].x, 104);
+});
+
 test("local obstacle candidates approach top pins vertically", () => {
   const mux = { ...target, y: 100, height: 80 };
   const sourcePoint = { x: 80, y: 54 };

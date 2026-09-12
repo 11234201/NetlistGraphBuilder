@@ -360,8 +360,18 @@ function createGroupBoundaryLaneCandidate(
   const targetLane = Math.max(0, Math.floor(Number(edgePlan.targetLane) || 0));
   const sourceDirection = sourceSide === "right" ? 1 : -1;
   const targetDirection = targetSide === "left" ? -1 : 1;
-  const sourceLaneX = sourcePoint.x + sourceDirection * (escape + sourceLane * pitch);
-  const targetLaneX = targetPoint.x + targetDirection * (escape + targetLane * pitch);
+  const sourceLaneX = chooseCapacityEscapeX(
+    sourcePoint.x + sourceDirection * (escape + sourceLane * pitch),
+    edgePlan?.capacityCorridor?.sourceEscapeInterval,
+    sourceSide
+  );
+  const targetInterval = (edgePlan?.capacityCorridor?.targetEscapeIntervals || [])
+    .find((interval) => interval?.side === targetSide);
+  const targetLaneX = chooseCapacityEscapeX(
+    targetPoint.x + targetDirection * (escape + targetLane * pitch),
+    targetInterval,
+    targetSide
+  );
   if (sourceDirection > 0 && targetDirection < 0 && sourceLaneX >= targetLaneX) return null;
   if (sourceDirection < 0 && targetDirection > 0 && sourceLaneX <= targetLaneX) return null;
   return createRoute("boundary-channel", [
@@ -386,6 +396,14 @@ function getGroupBoundarySide(node, point, role) {
   if (leftDistance <= rightDistance) return "left";
   if (rightDistance < leftDistance) return "right";
   return role === "source" ? "right" : "left";
+}
+
+function chooseCapacityEscapeX(candidate, interval, side) {
+  if (!interval || interval.side !== side) return candidate;
+  const minimum = Number(interval.minimum);
+  const maximum = Number(interval.maximum);
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return candidate;
+  return Math.min(Math.max(candidate, Math.min(minimum, maximum)), Math.max(minimum, maximum));
 }
 
 function createReservedDetourCandidates(

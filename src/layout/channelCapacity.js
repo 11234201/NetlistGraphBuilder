@@ -183,7 +183,9 @@ export function buildRoutingCapacityPlan(
         intervalEnd: assigned.intervalEnd,
         boundaryClusterKey: assigned.boundaryClusterKey,
         sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides
+        targetEscapeSides: assigned.targetEscapeSides,
+        sourceEscapeInterval: assigned.sourceEscapeInterval,
+        targetEscapeIntervals: assigned.targetEscapeIntervals
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -198,7 +200,8 @@ export function buildRoutingCapacityPlan(
         rightLevel,
         nodeById,
         layoutIntent,
-        edgeById
+        edgeById,
+        routingGeometry
       ))
       .toSorted(compareChannelDemands);
     const allocation = allocateIntervalLanes(
@@ -239,14 +242,22 @@ export function buildRoutingCapacityPlan(
         intervalEnd: assigned.intervalEnd,
         boundaryClusterKey: assigned.boundaryClusterKey,
         sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides
+        targetEscapeSides: assigned.targetEscapeSides,
+        sourceEscapeInterval: assigned.sourceEscapeInterval,
+        targetEscapeIntervals: assigned.targetEscapeIntervals
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
   }
 
   const outerDemands = demands.filter((demand) => demand.maximumLevel - demand.minimumLevel > 1)
-    .map((demand) => createOuterDemand(demand, nodeById, layoutIntent, edgeById))
+    .map((demand) => createOuterDemand(
+      demand,
+      nodeById,
+      layoutIntent,
+      edgeById,
+      routingGeometry
+    ))
     .toSorted(compareChannelDemands);
   for (const kind of ["outer-top", "outer-bottom"]) {
     const channelDemands = outerDemands.map((demand) => ({ ...demand, channelId: kind }));
@@ -282,7 +293,9 @@ export function buildRoutingCapacityPlan(
         intervalEnd: assigned.intervalEnd,
         boundaryClusterKey: assigned.boundaryClusterKey,
         sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides
+        targetEscapeSides: assigned.targetEscapeSides,
+        sourceEscapeInterval: assigned.sourceEscapeInterval,
+        targetEscapeIntervals: assigned.targetEscapeIntervals
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -351,6 +364,8 @@ function buildBoundaryClusterMetadata(channels = []) {
         targetNodeIds: new Set(),
         sourceEscapeSides: new Set(),
         targetEscapeSides: new Set(),
+        sourceEscapeIntervals: [],
+        targetEscapeIntervals: [],
         demandCount: 0,
         laneIndices: [],
         coordinateMinimum: Infinity,
@@ -366,6 +381,18 @@ function buildBoundaryClusterMetadata(channels = []) {
       }
       if (assignment.sourceEscapeSide) current.sourceEscapeSides.add(String(assignment.sourceEscapeSide));
       for (const side of assignment.targetEscapeSides || []) current.targetEscapeSides.add(String(side));
+      if (assignment.sourceEscapeInterval) {
+        current.sourceEscapeIntervals.push({
+          nodeId: String(assignment.sourceNodeId ?? ""),
+          ...normalizeEscapeInterval(assignment.sourceEscapeInterval)
+        });
+      }
+      for (const interval of assignment.targetEscapeIntervals || []) {
+        current.targetEscapeIntervals.push({
+          nodeId: String(interval?.nodeId ?? ""),
+          ...normalizeEscapeInterval(interval)
+        });
+      }
       current.demandCount += 1;
       if (Number.isFinite(Number(assignment.laneIndex))) current.laneIndices.push(Number(assignment.laneIndex));
       if (Number.isFinite(Number(assignment.coordinate))) {
@@ -390,6 +417,8 @@ function buildBoundaryClusterMetadata(channels = []) {
       targetNodeIds: [...cluster.targetNodeIds].sort(),
       sourceEscapeSides: [...cluster.sourceEscapeSides].sort(),
       targetEscapeSides: [...cluster.targetEscapeSides].sort(),
+      sourceEscapeIntervals: dedupeIntervals(cluster.sourceEscapeIntervals),
+      targetEscapeIntervals: dedupeIntervals(cluster.targetEscapeIntervals),
       demandCount: cluster.demandCount,
       laneIndices: [...new Set(cluster.laneIndices)].sort((left, right) => left - right),
       coordinateMinimum: Number.isFinite(cluster.coordinateMinimum) ? cluster.coordinateMinimum : null,
@@ -570,7 +599,8 @@ function buildRowGapChannels(demands, positionedNodes, levels, routingGeometry, 
           upper,
           lower,
           gapRange,
-          nodeById
+          nodeById,
+          routingGeometry
         ))
         .toSorted(compareChannelDemands);
       if (channelDemands.length === 0) continue;
@@ -606,13 +636,16 @@ function buildRowGapChannels(demands, positionedNodes, levels, routingGeometry, 
   return channels;
 }
 
-function createRowGapDemand(demand, upper, lower, gapRange, nodeById) {
+function createRowGapDemand(demand, upper, lower, gapRange, nodeById, routingGeometry) {
   const ranges = demandXRange(demand, nodeById);
   const [intervalStart, intervalEnd] = ranges.reduce((result, range) => [
     Math.min(result[0], range[0]),
     Math.max(result[1], range[1])
   ], [Infinity, -Infinity]);
   const source = nodeById.get(demand.sourceNodeId);
+  const sourceEscapeSide = getPortSide(source, demand.sourcePortRef.pin, "source");
+  const targetEscapeSides = [...new Set(demand.targetPortRefs.map((ref) =>
+    getPortSide(nodeById.get(ref.nodeId), ref.pin, "target")))].sort();
   return {
     channelId: `row-gap:${String(upper.level ?? "")}:${String(upper.id)}->${String(lower.id)}`,
     netGroupKey: demand.netGroupKey,
@@ -622,9 +655,17 @@ function createRowGapDemand(demand, upper, lower, gapRange, nodeById) {
     priorityClass: demand.fanout > 1 ? 1 : 0,
     endpointRefs: demand.targetPortRefs,
     sourceNodeId: demand.sourceNodeId,
-    sourceEscapeSide: getPortSide(source, demand.sourcePortRef.pin, "source"),
-    targetEscapeSides: [...new Set(demand.targetPortRefs.map((ref) =>
-      getPortSide(nodeById.get(ref.nodeId), ref.pin, "target")))].sort(),
+    sourceEscapeSide,
+    targetEscapeSides,
+    sourceEscapeInterval: getEscapeInterval(source, sourceEscapeSide, routingGeometry),
+    targetEscapeIntervals: demand.targetPortRefs
+      .map((ref) => {
+        const node = nodeById.get(ref.nodeId);
+        const side = getPortSide(node, ref.pin, "target");
+        const interval = getEscapeInterval(node, side, routingGeometry);
+        return interval ? { nodeId: ref.nodeId, ...interval } : null;
+      })
+      .filter(Boolean),
     boundaryClusterKey: `row-gap:${String(upper.level ?? "")}:${String(upper.id)}->${String(lower.id)}`
   };
 }
@@ -705,7 +746,15 @@ function applyRowGapSuffixExpansions(nodes, channels) {
   return applied;
 }
 
-function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutIntent, edgeById) {
+function createInterLayerDemand(
+  demand,
+  leftLevel,
+  rightLevel,
+  nodeById,
+  layoutIntent,
+  edgeById,
+  routingGeometry
+) {
   const edges = demand.targetPortRefs.map((ref) => ({
     ...ref,
     edge: edgeById.get(ref.edgeId)
@@ -725,6 +774,15 @@ function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutI
   const sourceEscapeSide = getPortSide(sourceNode, demand.sourcePortRef.pin, "source");
   const targetEscapeSides = [...new Set(edges.map(({ nodeId, pin }) =>
     getPortSide(nodeById.get(nodeId), pin, "target")))].sort();
+  const sourceEscapeInterval = getEscapeInterval(sourceNode, sourceEscapeSide, routingGeometry);
+  const targetEscapeIntervals = edges
+    .map(({ nodeId, pin }) => {
+      const node = nodeById.get(nodeId);
+      const side = getPortSide(node, pin, "target");
+      const interval = getEscapeInterval(node, side, routingGeometry);
+      return interval ? { nodeId, ...interval } : null;
+    })
+    .filter(Boolean);
   return {
     channelId: `inter-layer:${leftLevel}->${rightLevel}`,
     netGroupKey: demand.netGroupKey,
@@ -736,11 +794,13 @@ function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutI
     sourceNodeId: demand.sourceNodeId,
     sourceEscapeSide,
     targetEscapeSides,
+    sourceEscapeInterval,
+    targetEscapeIntervals,
     boundaryClusterKey: `${String(leftLevel)}->${String(rightLevel)}|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
 }
 
-function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
+function createOuterDemand(demand, nodeById, layoutIntent, edgeById, routingGeometry) {
   const xs = [];
   const source = nodeById.get(demand.sourceNodeId);
   if (source) xs.push(source.x, source.x + source.width);
@@ -752,6 +812,15 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
   const sourceEscapeSide = getPortSide(source, demand.sourcePortRef.pin, "source");
   const targetEscapeSides = [...new Set(demand.targetPortRefs.map((ref) =>
     getPortSide(nodeById.get(ref.nodeId), ref.pin, "target")))].sort();
+  const sourceEscapeInterval = getEscapeInterval(source, sourceEscapeSide, routingGeometry);
+  const targetEscapeIntervals = demand.targetPortRefs
+    .map((ref) => {
+      const target = nodeById.get(ref.nodeId);
+      const side = getPortSide(target, ref.pin, "target");
+      const interval = getEscapeInterval(target, side, routingGeometry);
+      return interval ? { nodeId: ref.nodeId, ...interval } : null;
+    })
+    .filter(Boolean);
   return {
     channelId: "outer",
     netGroupKey: demand.netGroupKey,
@@ -762,6 +831,8 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
     sourceNodeId: demand.sourceNodeId,
     sourceEscapeSide,
     targetEscapeSides,
+    sourceEscapeInterval,
+    targetEscapeIntervals,
     boundaryClusterKey: `outer|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
 }
@@ -769,6 +840,45 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
 function getPortSide(node, pin, role) {
   return (node ? getPort(node, pin, role)?.side : null) ||
     (role === "source" ? "right" : "left");
+}
+
+function getEscapeInterval(node, side, routingGeometry = DEFAULT_ROUTING_GEOMETRY) {
+  if (side !== "left" && side !== "right") return null;
+  if (!node || !Number.isFinite(Number(node.x)) || !Number.isFinite(Number(node.width))) return null;
+  const boundary = side === "left" ? Number(node.x) : Number(node.x) + Number(node.width);
+  const direction = side === "left" ? -1 : 1;
+  const clearance = Number(routingGeometry.nodeClearance) || DEFAULT_ROUTING_GEOMETRY.nodeClearance;
+  const maximum = (Number(routingGeometry.portEscapeLength) || DEFAULT_ROUTING_GEOMETRY.portEscapeLength) +
+    MAX_PLACEMENT_OUTER_LANES * (Number(routingGeometry.groupBoundaryLanePitch) ||
+      DEFAULT_ROUTING_GEOMETRY.groupBoundaryLanePitch);
+  return {
+    side,
+    minimum: Math.min(boundary + direction * clearance, boundary + direction * maximum),
+    maximum: Math.max(boundary + direction * clearance, boundary + direction * maximum)
+  };
+}
+
+function normalizeEscapeInterval(interval) {
+  if (!interval) return { side: null, minimum: null, maximum: null };
+  return {
+    side: interval.side || null,
+    minimum: Number.isFinite(Number(interval.minimum)) ? Number(interval.minimum) : null,
+    maximum: Number.isFinite(Number(interval.maximum)) ? Number(interval.maximum) : null
+  };
+}
+
+function dedupeIntervals(intervals = []) {
+  const seen = new Set();
+  return intervals
+    .map((interval) => normalizeEscapeInterval(interval))
+    .filter((interval) => {
+      const key = `${interval.side}|${interval.minimum}|${interval.maximum}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return interval.minimum !== null && interval.maximum !== null;
+    })
+    .sort((left, right) => left.side?.localeCompare(right.side || "") ||
+      left.minimum - right.minimum || left.maximum - right.maximum);
 }
 
 function minMax(values) {

@@ -175,6 +175,7 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
     .filter((assignment) => String(assignment.channelId).startsWith("row-gap:"))
     .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
   if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) return edgePlan;
+  const selectedAssignment = localAssignment || topAssignment || rowGapAssignments[0];
   return {
     ...(edgePlan || {}),
     ...(topAssignment ? {
@@ -188,8 +189,18 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
     // shape for unrelated focused branches.  Inter-layer/outer assignments
     // remain the only global preference until a route has a matching level.
     preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate,
-    capacityBoundaryClusterKey: localAssignment?.boundaryClusterKey ??
-      topAssignment?.boundaryClusterKey,
+    capacityBoundaryClusterKey: selectedAssignment?.boundaryClusterKey,
+    capacityCorridor: selectedAssignment ? {
+      channelId: selectedAssignment.channelId,
+      boundaryClusterKey: selectedAssignment.boundaryClusterKey,
+      coordinate: selectedAssignment.coordinate,
+      intervalStart: selectedAssignment.intervalStart,
+      intervalEnd: selectedAssignment.intervalEnd,
+      sourceEscapeSide: selectedAssignment.sourceEscapeSide,
+      targetEscapeSides: selectedAssignment.targetEscapeSides,
+      sourceEscapeInterval: selectedAssignment.sourceEscapeInterval,
+      targetEscapeIntervals: selectedAssignment.targetEscapeIntervals
+    } : undefined,
     capacityEscape: localAssignment
       ? {
         sourceEscapeSide: localAssignment.sourceEscapeSide,
