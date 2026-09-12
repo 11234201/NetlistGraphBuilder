@@ -115,7 +115,10 @@ export class ElkLayoutProvider {
       height: Math.max(result.height || 0, normalizedBounds.height),
       layoutProvider: this.id
     };
-    return finalizeLayoutGraph(applyPositionedOverrides(positionedGraph, options));
+    return finalizeLayoutGraph(applyPositionedOverrides(positionedGraph, {
+      ...options,
+      validate: false
+    }));
   }
 }
 

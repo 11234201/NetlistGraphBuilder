@@ -18,6 +18,7 @@ import {
 } from "./rerouteInvalidation.js";
 import { buildWireRoutes } from "./wireRoutes.js";
 import { getNetGroupKey } from "./layoutTopology.js";
+import { finalizeLayoutGraph } from "./layoutValidator.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -94,7 +95,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     y: Math.max(0, -bounds.top)
   });
   const normalizedBounds = computeBoundsWithRoutes(nodes, edges, wireRoutes);
-  return {
+  const adjustedGraph = {
     ...positionedGraph,
     nodes,
     edges,
@@ -103,6 +104,9 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     height: normalizedBounds.height + margin,
     hasPositionOverrides: true
   };
+  return options.validate === false
+    ? adjustedGraph
+    : finalizeLayoutGraph(adjustedGraph);
 }
 
 function getOwnedRouteSegments(edge) {

@@ -53,6 +53,33 @@ test("positioned routing returns the original graph when no overrides exist", ()
   assert.equal(applyPositionedOverrides(graph), graph);
 });
 
+test("positioned overrides refresh the shared final routing status", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", label: "a", x: 0, y: 20, width: 40, height: 20 },
+      { id: "y", kind: "output", label: "y", x: 180, y: 20, width: 40, height: 20 }
+    ],
+    edges: [{
+      id: "ay",
+      source: "a",
+      target: "y",
+      sourcePin: "a",
+      targetPin: "y",
+      net: "a",
+      points: [{ x: 40, y: 30 }, { x: 180, y: 30 }]
+    }],
+    width: 220,
+    height: 60
+  };
+
+  const adjusted = applyPositionedOverrides(graph, {
+    nodePositions: new Map([["y", { x: 220, y: 20 }]])
+  });
+  assert.equal(adjusted.layoutStatus, "routed");
+  assert.equal(adjusted.validationMetrics.total, 0);
+  assert.equal(adjusted.hasPositionOverrides, true);
+});
+
 test("adjust reroutes every branch in an affected driver/net group", () => {
   const graph = {
     nodes: [
