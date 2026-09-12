@@ -22,6 +22,7 @@ import {
   RouteSegmentIndex
 } from "./spatialIndex.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
+import { validatePhysicalNetCommit } from "./physical_net_commit.js";
 
 const MAX_SCORED_ROUTE_CONFLICTS = 8;
 const MAX_CAPACITY_LANE_Y_HINTS = 24;
@@ -50,6 +51,8 @@ export function routeSimpleEdges(graph, nodes, options) {
   const overflowUnroutablePhysicalNets = new Set();
   const orderedEdges = graph.edges.toSorted((left, right) =>
     compareEdgesByLayoutPriority(left, right, layoutIntent));
+  const edgesByPhysicalNet = groupEdgesByPhysicalNet(orderedEdges);
+  const attemptedPhysicalNets = new Set();
   const startedAt = now();
   const routingMetrics = {
     basicCandidates: 0,
@@ -74,12 +77,40 @@ export function routeSimpleEdges(graph, nodes, options) {
   };
 
   for (const [edgeIndex, edge] of orderedEdges.entries()) {
+    if (routedById.has(edge.id)) continue;
     const edgeIntent = layoutIntent.getEdge(edge);
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     if (!source || !target) continue;
     const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
     const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
+    const physicalNetKey = getNetGroupKey(edge);
+    if (!attemptedPhysicalNets.has(physicalNetKey)) {
+      attemptedPhysicalNets.add(physicalNetKey);
+      const atomicRoutes = tryRoutePhysicalNetGroup(
+        edgesByPhysicalNet.get(physicalNetKey) || [],
+        {
+          nodeById,
+          nodes,
+          reservedSegments,
+          routePlan,
+          routingCapacity,
+          routingGeometry,
+          layoutIntent
+        }
+      );
+      if (atomicRoutes) {
+        routingMetrics.atomicPhysicalNetTreeCount =
+          (routingMetrics.atomicPhysicalNetTreeCount || 0) + 1;
+        for (const positionedEdge of atomicRoutes) {
+          routedById.set(positionedEdge.id, positionedEdge);
+          routingMetrics.routeKinds[positionedEdge.routeKind] =
+            (routingMetrics.routeKinds[positionedEdge.routeKind] || 0) + 1;
+          reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, positionedEdge));
+        }
+        continue;
+      }
+    }
     const edgePlan = applyCapacityLane(
       routePlan.edges.get(edge.id),
       routingCapacity,
@@ -171,6 +202,94 @@ export function routeSimpleEdges(graph, nodes, options) {
     enumerable: false
   });
   return labeledEdges;
+}
+
+function groupEdgesByPhysicalNet(edges) {
+  const groups = new Map();
+  for (const edge of edges) {
+    const key = getNetGroupKey(edge);
+    const entries = groups.get(key) || [];
+    entries.push(edge);
+    groups.set(key, entries);
+  }
+  return groups;
+}
+
+function tryRoutePhysicalNetGroup(edges, context) {
+  if (edges.length < 2) return null;
+  const sortedEdges = [...edges].sort((left, right) =>
+    compareEdgesByLayoutPriority(left, right, context.layoutIntent));
+  const sourceIds = new Set(sortedEdges.map((edge) => String(edge.source)));
+  const sourcePins = new Set(sortedEdges.map((edge) => String(edge.sourcePin || "")));
+  if (sourceIds.size !== 1 || sourcePins.size !== 1) return null;
+  const source = context.nodeById.get(sortedEdges[0].source);
+  if (!source || source.kind === "hub" || source.kind === "group") return null;
+  const sourcePoint = getConnectionPoint(source, sortedEdges[0].sourcePin, "source");
+  const targets = sortedEdges.map((edge) => ({
+    edge,
+    node: context.nodeById.get(edge.target)
+  }));
+  if (targets.some(({ node }) => !node)) return null;
+  const targetPoints = targets.map(({ edge, node }) =>
+    getConnectionPoint(node, edge.targetPin, "target"));
+  if (targetPoints.some((point) =>
+    Math.abs(point.y - sourcePoint.y) <= 4 || Math.abs(point.x - sourcePoint.x) <= 4)) return null;
+  const minimumTargetX = Math.min(...targetPoints.map((point) => point.x));
+  const clearance = Number(context.routingGeometry?.portEscapeLength) || 24;
+  if (!(minimumTargetX > sourcePoint.x + clearance)) return null;
+  const maximumTrunkX = minimumTargetX -
+    (Number(context.routingGeometry?.targetApproachClearance) || 9);
+  const minimumTrunkX = sourcePoint.x + clearance;
+  const trunkXs = [
+    minimumTrunkX,
+    (minimumTrunkX + maximumTrunkX) / 2,
+    maximumTrunkX
+  ].filter((value, index, values) => Number.isFinite(value) &&
+    value > sourcePoint.x && value < minimumTargetX &&
+    values.findIndex((candidate) => Math.abs(candidate - value) < 0.01) === index);
+
+  for (const trunkX of trunkXs) {
+    const positionedEdges = targets.map(({ edge, node }, index) => {
+      const targetPoint = targetPoints[index];
+      const edgePlan = applyCapacityLane(
+        context.routePlan.edges.get(edge.id),
+        context.routingCapacity,
+        getNetGroupKey(edge),
+        {
+          sourceLevel: source.level,
+          targetLevel: node.level,
+          sourceNodeId: source.id,
+          targetNodeId: node.id
+        }
+      );
+      const label = getLabelPlacement(edge, source, node, sourcePoint, targetPoint);
+      return {
+        ...edge,
+        points: compactOrthogonalPoints([
+          sourcePoint,
+          { x: trunkX, y: sourcePoint.y },
+          { x: trunkX, y: targetPoint.y },
+          targetPoint
+        ]),
+        routeKind: "physical-net-tree",
+        routeStatus: "routed",
+        capacityChannelId: edgePlan?.capacityChannelId,
+        capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
+        capacityOverflow: edgePlan?.capacityOverflow === true,
+        labelPoint: label.point,
+        labelAnchor: label.anchor
+      };
+    });
+    if (positionedEdges.some((edge) => routeOverlapsReserved(
+      edge.points,
+      edge.net,
+      context.reservedSegments,
+      getNetGroupKey(edge)
+    ))) continue;
+    const commit = validatePhysicalNetCommit(positionedEdges, context.nodes);
+    if (commit.status === "routed") return positionedEdges;
+  }
+  return null;
 }
 
 function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext = {}) {

@@ -109,3 +109,37 @@ test("simple router binds a skip-level edge to its source-adjacent capacity boun
   assert.equal(edge.capacityOverflow, true);
   assert.ok(edge.points.length >= 2);
 });
+
+test("simple router commits a complete non-direct fanout tree atomically", () => {
+  const nodes = [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 60, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "a", kind: "cell", level: 1, x: 240, y: 0, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "b", kind: "cell", level: 1, x: 240, y: 120, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "e1", source: "src", target: "a", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "e2", source: "src", target: "b", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const layoutIntent = analyzeLayoutIntent(graph, levels);
+  const routed = routeSimpleEdges(graph, nodes, {
+    layoutIntent,
+    routePlan: {
+      edges: new Map(graph.edges.map((edge) => [edge.id, { kind: "channel", lane: 0 }]))
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
+  assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount, 1);
+  assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
+});
