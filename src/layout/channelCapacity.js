@@ -130,11 +130,18 @@ export function buildRoutingCapacityPlan(
   const allocationByNet = new Map();
   const levelBounds = getLevelBounds(positionedNodes, levels);
   const channelById = new Map();
+  const demandsByBoundary = new Map();
+  for (const demand of demands) {
+    for (const boundaryId of demand.traversedBoundaryIds) {
+      const entries = demandsByBoundary.get(boundaryId) || [];
+      entries.push(demand);
+      demandsByBoundary.set(boundaryId, entries);
+    }
+  }
 
   for (const boundaryId of uniqueSorted(demands.flatMap((demand) => demand.traversedBoundaryIds))) {
     const [leftLevel, rightLevel] = parseBoundaryId(boundaryId);
-    const channelDemands = demands
-      .filter((demand) => demand.traversedBoundaryIds.includes(boundaryId))
+    const channelDemands = (demandsByBoundary.get(boundaryId) || [])
       .map((demand) => createInterLayerDemand(
         demand,
         leftLevel,
