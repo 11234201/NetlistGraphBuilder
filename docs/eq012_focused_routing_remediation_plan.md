@@ -31,10 +31,13 @@
 | `c15a557` | local candidate 与异 physical-net 共线重叠时，只要 bounded global candidate 已消除 hard overlap，就优先采用该候选，不再被 outer-detour 软成本否决 | 直接针对 clk/rst_n、`_0179_`/`_0198_` 类重复水平重叠；候选次数与 outer 搜索上限不变，crossing 仍作为软成本 |
 | `e00dddf`、`5d9c268` | 形成 stable boundary-cluster 元数据（source/target node、escape side、坐标/需求范围），并让 group boundary candidate 消费有限 source/target escape interval | cluster 不再只是诊断字符串；group route 只能在已分配的有限 escape corridor 内生成候选，仍由共享 validator 判定最终合法性 |
 | `1c569f1`、`cc7ab93`、`6099d2f` | 压缩 escape range 表示、释放 expanded channel assignment 引用，并补充 group range 合同单测 | 解决大 fanout metadata 的堆占用回归；不保留完整 endpoint assignment，避免把诊断支持变成内存 cliff |
+| `14ab016` | basic/reserved/expanded-local 的提前成功出口统一执行 foreign-net overlap 硬过滤；group long fallback 消费规划 lane | 关闭了局部候选绕过 hard overlap 的入口，不增加候选预算 |
+| `5ace2ff` | 每个 channel 强制 256-lane 上限并显式记录 overflow；outer-top/bottom 以最终 node bounds 为基准向外编号；global search 消费最多 24 个 capacity lane hint；capacity expansion 后修复 source-to-group escape 行 | 阻止 inter-layer demand 把画布扩到约 18 万像素；`sop_015` 普通 obstacle 违规由 4 降到 0，且 overflow 不伪造重复 lane |
+| `688dd64` | physical wire-route 内部 overlap 校验改为方向/坐标分桶后的区间扫描 | 删除每个 physical net 内的 segment 两两比较，保持同样的 overlap 诊断语义 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
-当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.5/816.1/3315.5 ms`，对应 SVG `56.6/240.7/720.9 ms`；collapsed layout 约 `4.5/8.4/13.0 ms`。本轮 mapped 全量普通门禁仍为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`，总计 `370/120` 违规；最新单 case 复测 dp020 约 `25.4 s`、`315 MiB`，sop015 约 `28.1 s`、`236 MiB`，说明释放 expanded assignment 后没有保留 700 MiB 级堆回归，但 dense group 图相对旧基线仍需继续观察。eq012 collapsed hard gate 仍显式报告大量 `missing-route`（strict 出口），普通 eq012 runner 保持 `0` obstacle 违规但 provider status 仍为 `unroutable`。eq012 focused 双根、sop015 相关单测、新增 boundary-token/ELK/Adjust validator 单测均通过。严格 hard gate 对 collapsed eq012 仍未达到零违规，说明 outer boundary corridor/物理树仍未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.5/816.1/3315.5 ms`，对应 SVG `56.6/240.7/720.9 ms`；collapsed layout 约 `4.5/8.4/13.0 ms`。最近一次完整 mapped 普通门禁基线仍为 `43/47` 通过，失败为 `dp_018/019/020`、`sop_015`，总计 `370/120` 违规；`5ace2ff` 后的定向复测中，dp020 约 `12.3 s`、`296 MiB heap`，普通 obstacle 违规仍为 5，sop015 约 `24.0 s`、`375 MiB heap`，普通 obstacle 违规由 4 降为 0。dp020 报告 `17` 个 overflow channel、`7852` 个 overflow demand；sop015 为 `38`/`31713`，这些数值证明剩余问题是明确的容量不足，不能再靠隐式扩大画布或候选重试掩盖。两者 final validator 仍因 foreign-net overlap 达到 256 项采样上限而返回 `unroutable`。eq012 focused 双根与全部 `416/416` 单测通过；collapsed strict hard gate 仍未达到零违规，说明原生 physical tree/overflow 分流尚未完成。以上是同一远端环境的回归证据，不是最终绝对时限。
 
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
@@ -48,7 +51,8 @@
 
 1. `simpleRoutingPlan` 已按 physical net 生成 demand，但 `outer-top/outer-bottom` 目前主要用于诊断和 lane 偏好，尚未完整消费为 top/bottom band 的 placement 空间；不能仅把固定 `topWireSpace=80` 替换成所有长 net 数量，否则会把大图的节点整体推远并放大运行时间。
 2. 稠密 collapsed 图中仍存在“group boundary escape + 反向 skip-level edge”形成的共享外围水平段。仅扩大 outer 候选或强制 reservation-free fallback 会让 dp/sop 用例出现更多 node-crossing/退化到 40--50 秒；下一步必须实现 boundary cluster 的真实 row/escape corridor，再绑定 outer lane。
-3. full mapped corpus 的旧 runner 仍关闭 overlap 检查，因而不能作为零硬违规证明。严格门禁已把这个差异显式化，但在阶段 5 完成前，`dp_018/019/020` 与 `sop_015` 的残余 node-crossing 仍需修复。
+3. full mapped corpus 的旧 runner 仍关闭 overlap 检查，因而不能作为零硬违规证明。严格门禁已把这个差异显式化；当前 sop015 普通 obstacle 违规已清零，但 `dp_018/019/020` 的残余 node-crossing 与四个 dense case 的 foreign-net overlap 仍需修复。
+4. `5ace2ff` 已把超量 demand 从“继续扩画布”改为 `capacityOverflow`，但 overflow physical net 还没有由原生 tree router 分流到可提交的替代 corridor；因此 overflow 指标为非零时，普通模式仍可能输出 node-safe 但 foreign-net overlap 的兼容 route，strict 模式则会明确失败。
 
 后续实现必须遵守：固定数量 capacity pass；physical-net/tree 为需求和 reservation 单位；硬冲突只通过合法候选或明确 `unroutable` 解决；禁止实例/坐标特例、全量重试和以提高 spacing 掩盖容量不足。
 

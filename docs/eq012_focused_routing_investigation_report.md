@@ -17,13 +17,13 @@
 5. `simpleRoutingPlan` 计算了顶层/侧边车道需求，但放置阶段没有消费这些容量；因此名义上的 top lane 落进节点区域，随后只能向画布顶部或底部绕行。
 6. 路由候选过少、同分排序有方向偏置、搜索截断较早，并且垂直通道主要按固定比例生成。这会系统性地产生“先上/下走到很远，再折返”和垂直线重叠，而不是偶发现象。
 7. 物理 net 的分组身份与冲突检测身份不一致，逐 edge 预留还会重复登记同一 fanout trunk，导致漏检与虚高惩罚同时存在。
-8. 现有单测和 mapped-case 门禁没有覆盖 Focused 小间距、跨物理 route 重叠、端点连通和 bounds；因此历史上的“全量测试通过”不能证明路由结果安全。本轮已将这些边界纳入 406 项单测与独立 hard mapped 入口，但残余 dense mapped 几何仍未清零。
+8. 现有单测和 mapped-case 门禁没有覆盖 Focused 小间距、跨物理 route 重叠、端点连通和 bounds；因此历史上的“全量测试通过”不能证明路由结果安全。本轮已将这些边界纳入 416 项单测与独立 hard mapped 入口，但残余 dense mapped 几何仍未清零。
 
 因此，继续调整单个权重、增加某个特例、提高默认间距或扩大搜索次数，只会改变症状出现的位置，不能根治。修复必须先统一硬约束和 net 身份，再让放置容量、Focused 局部化、候选生成和树路由使用同一套几何合同。
 
 ## 12. 实施后的复核结论（2026-09-12）
 
-本轮提交已经把报告中的“身份不一致、重复 reservation、无界搜索、provider 无状态出口、bounds 未统一”等结构性原因分别收敛到共享模块，并新增 `npm run test:mapped-hard` 作为零容忍入口。单元测试当前为 `406/406`，eq012 focused 双根 spacing 矩阵通过；ELK 缺失 section 与 Adjust override 状态也纳入 shared validator 测试。
+本轮提交已经把报告中的“身份不一致、重复 reservation、无界搜索、provider 无状态出口、bounds 未统一”等结构性原因分别收敛到共享模块，并新增 `npm run test:mapped-hard` 作为零容忍入口。单元测试当前为 `416/416`，eq012 focused 双根 spacing 矩阵通过；ELK 缺失 section 与 Adjust override 状态也纳入 shared validator 测试。
 
 但这不等于 full mapped corpus 已完成。严格运行 eq012 全图仍会报告 `net-overlap` 与部分 `node-crossing`；稠密 datapath/sop 图的主要残余不是 validator 漏报，而是如下真实几何问题：
 
@@ -33,6 +33,24 @@
 - 对这些路径简单开启全量 reservation 检查会触发大量候选重试，dp005/sop004 曾出现数量级的时间回退。因此性能约束和通道容量实现是正确性修复的一部分，不能最后再补。
 
 下一阶段的最小实现单元是 boundary-cluster corridor：先按 physical net 合并同一 group boundary 的 escape 区间，分配有限 row/side lane，再让候选只消费已分配 channel。完成该单元后，才允许把 strict overlap 检查提升为默认 mapped 门禁；在此之前，普通 runner 的 32/120 预算仅是趋势观测，不能解释为硬合同通过。
+
+### 12.1 追加证据：容量上限与外围坐标（提交 `5ace2ff`、`688dd64`）
+
+进一步对 dp020/sop015 的违规几何与 `allocationByNet` 做逐边关联后，确认了两个此前只在方案中描述、但代码尚未执行的问题：
+
+1. inter-layer channel 可分配数千条同时活动 lane，placement 按全部 lane 扩大列间距，sop015 的 group 坐标曾达到约 `x=183234`。这既放大候选查询范围，也让大量反向 group edge 汇聚到同一外围水平段。
+2. 通用 interval allocator 对 `outer-top` 与 `outer-bottom` 都使用 `preferredCoordinate + laneIndex * pitch`。top lane 因而随 lane index 向节点区内部增长，而不是从 node bounds 向上增长；完整 validator 会淘汰这些名义上已分配、实际落入障碍区的坐标，最后退回共享 outer lane。
+
+现已落实以下合同：
+
+- `MAX_CHANNEL_LANES_PER_SCOPE=256`；超过上限的 assignment 保留 topology/cluster 信息，但 `laneIndex/coordinate=null` 并设置 `capacityOverflow=true`，不会伪造可复用坐标；
+- channel 公开 `overflowCount`，capacity metrics 汇总 `overflowChannelCount` 与 `overflowDemandCount`，并产生 `channel-capacity-overflow` 诊断；
+- outer-top 从最终 node top 减去 clearance 后向上编号，outer-bottom 从 node bottom 加 clearance 后向下编号；
+- 每条 edge 最多携带 24 个稳定 capacity y hint，候选总上限不变；
+- row-gap expansion 完成后，对 source-to-collapsed-group 的水平逃逸线执行一次空间索引查询和有限局部修复；
+- physical wire-route 内部 overlap 校验改为坐标分桶加区间扫描，不再执行每组 `O(S²)` 两两比较。
+
+远端定向结果：dp020 layout 约 `12.3 s`、`296 MiB heap`，普通 obstacle 违规为 5；sop015 layout 约 `24.0 s`、`375 MiB heap`，普通 obstacle 违规由 4 降为 0。final validator 对两者仍采样到 256 项 foreign-net overlap，因此这批提交完成的是“容量有界、坐标语义正确、性能退化可见”，不是最终零违规。下一实现边界必须让 overflow physical net 进入原生 source-rooted tree/corridor 分流，不能恢复无上限 lane 或把 256 项诊断当作总数。
 
 ## 2. 复现范围与事实
 
