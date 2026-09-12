@@ -834,7 +834,12 @@ function findClearVerticalLaneX(
 }
 
 function isEndpointSideLane(x, node, role, preferredX) {
-  if (!node || (role !== "source" && role !== "target")) return true;
+  // Hub endpoints commonly sit beside boundary outputs in a shared level.
+  // Restricting their search to the declared side prevents a clear opposite
+  // lane from poisoning the whole candidate. Ordinary cell lanes retain the
+  // legacy symmetric search because their local candidates already provide
+  // the stronger obstacle contract.
+  if (!node || node.kind !== "hub" || (role !== "source" && role !== "target")) return true;
   const leftBoundary = Number(node.x);
   const rightBoundary = leftBoundary + Number(node.width);
   if (!Number.isFinite(leftBoundary) || !Number.isFinite(rightBoundary)) return true;
