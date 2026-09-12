@@ -309,26 +309,48 @@ function findReservationFreeLaneShift(candidate, context) {
   const laneY = findInteriorHorizontalLaneY(points);
   if (!Number.isFinite(laneY)) return null;
   const pitch = Math.max(4, Number(context.wireLanePitch) || 24);
-  const offsets = [pitch, -pitch, pitch * 2, -pitch * 2, pitch * 3, -pitch * 3];
-  for (const offset of offsets) {
-    const shiftedPoints = points.map((point, index) => {
-      if (index === 0 || index === points.length - 1) return point;
-      return Math.abs(point.y - laneY) < 0.5
-        ? { ...point, y: point.y + offset }
-        : point;
-    });
-    const shifted = {
-      ...candidate,
-      kind: `${candidate.kind}-lane-shift`,
-      points: compactOrthogonalPoints(shiftedPoints)
-    };
-    if (!candidateIsUsable(shifted, context)) continue;
-    if (!routeOverlapsReserved(
-      shifted.points,
-      context.net,
-      context.reservedSegments,
-      context.netGroupKey
-    )) return shifted;
+  const horizontalOffsets = [pitch, -pitch, pitch * 2, -pitch * 2, pitch * 3, -pitch * 3];
+  const verticalOffsets = [0, pitch, -pitch, pitch * 2, -pitch * 2];
+  const sourceLaneX = points.length > 2 ? points[1].x : null;
+  const targetLaneX = points.length > 3 ? points.at(-2).x : null;
+  const shiftPlans = [
+    ...verticalOffsets.flatMap((sourceOffset) => [
+      { source: sourceOffset, target: 0 },
+      { source: 0, target: sourceOffset }
+    ]),
+    { source: pitch, target: pitch },
+    { source: -pitch, target: -pitch }
+  ];
+  for (const offset of horizontalOffsets) {
+    for (const shift of shiftPlans) {
+      const shiftedPoints = points.map((point, index) => {
+        if (index === 0 || index === points.length - 1) return point;
+        const next = Math.abs(point.y - laneY) < 0.5
+          ? { ...point, y: point.y + offset }
+          : { ...point };
+        if (sourceLaneX !== null && Math.abs(point.x - sourceLaneX) < 0.5 && index <= 2) {
+          next.x += shift.source;
+        }
+        if (targetLaneX !== null && Math.abs(point.x - targetLaneX) < 0.5 && index >= points.length - 3) {
+          next.x += shift.target;
+        }
+        return next;
+      });
+      const shifted = {
+        ...candidate,
+        kind: `${candidate.kind}-lane-shift`,
+        points: compactOrthogonalPoints(shiftedPoints)
+      };
+      if (!candidateIsUsable(shifted, context)) continue;
+      if (!routeOverlapsReserved(
+        shifted.points,
+        context.net,
+        context.reservedSegments,
+        context.netGroupKey
+      )) {
+        return shifted;
+      }
+    }
   }
   return null;
 }

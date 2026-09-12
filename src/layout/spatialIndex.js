@@ -61,6 +61,7 @@ export class SpatialHashIndex {
 export class RouteSegmentIndex {
   constructor(segments = [], cellSize = 128) {
     this.items = [];
+    this.inactiveSegments = new Set();
     this.geometryKeys = new Set();
     this.duplicateInsertions = 0;
     this.ownerReplacements = 0;
@@ -74,6 +75,7 @@ export class RouteSegmentIndex {
 
   push(...segments) {
     for (const segment of segments) {
+      this.inactiveSegments.delete(segment);
       const geometryKey = routeSegmentGeometryKey(segment);
       if (this.geometryKeys.has(geometryKey)) this.duplicateInsertions += 1;
       this.items.push(segment);
@@ -120,11 +122,15 @@ export class RouteSegmentIndex {
   }
 
   removeOwner(owner) {
-    const remaining = this.items.filter((segment) =>
-      (segment?.physicalOwner ?? segment?.netGroupKey ?? segment?.net) !== owner);
-    if (remaining.length === this.items.length) return this.items.length;
+    const removed = this.items.filter((segment) =>
+      (segment?.physicalOwner ?? segment?.netGroupKey ?? segment?.net) === owner);
+    if (removed.length === 0) return this.items.length;
+    for (const segment of removed) {
+      this.inactiveSegments.add(segment);
+      this.geometryKeys.delete(routeSegmentGeometryKey(segment));
+    }
+    this.items = this.items.filter((segment) => !this.inactiveSegments.has(segment));
     this.ownerRemovals += 1;
-    this.rebuild(remaining);
     return this.items.length;
   }
 
@@ -152,6 +158,7 @@ export class RouteSegmentIndex {
 
   rebuild(segments = []) {
     this.items = [];
+    this.inactiveSegments = new Set();
     this.geometryKeys = new Set();
     this.horizontalBuckets = new Map();
     this.verticalBuckets = new Map();
@@ -174,7 +181,9 @@ export class RouteSegmentIndex {
       box,
       found
     );
-    return [...found].map((record) => record.segment);
+    return [...found]
+      .filter((record) => !this.inactiveSegments.has(record.segment))
+      .map((record) => record.segment);
   }
 
   queryBox(box) {
@@ -196,12 +205,15 @@ export class RouteSegmentIndex {
     for (const record of this.otherIndex.query(box)) {
       if (boxesIntersect(record.box, box)) found.add(record);
     }
-    return [...found].map((record) => record.segment);
+    return [...found]
+      .filter((record) => !this.inactiveSegments.has(record.segment))
+      .map((record) => record.segment);
   }
 
   countBox(box, predicate, maximum = Infinity) {
     let count = 0;
     const visit = (segment) => {
+      if (this.inactiveSegments.has(segment)) return false;
       if (!predicate(segment)) return false;
       count += 1;
       return count >= maximum;

@@ -158,3 +158,23 @@ test("route segment index exposes bounded duplicate and compaction metrics", () 
   assert.equal(index.compact(), 1);
   assert.equal(index.metrics.uniqueSegments, 1);
 });
+
+test("route segment owner removal tombstones buckets until bounded compaction", () => {
+  const removed = {
+    start: { x: 10, y: 10 }, end: { x: 100, y: 10 },
+    netGroupKey: "owner-a", physicalOwner: "owner-a"
+  };
+  const kept = {
+    start: { x: 10, y: 20 }, end: { x: 100, y: 20 },
+    netGroupKey: "owner-b", physicalOwner: "owner-b"
+  };
+  const index = new RouteSegmentIndex([removed, kept]);
+  index.removeOwner("owner-a");
+  assert.equal(index.length, 1);
+  assert.deepEqual([...index], [kept]);
+  assert.deepEqual(index.queryBox({ left: 0, right: 120, top: 0, bottom: 30 }), [kept]);
+  index.pushUnique(removed);
+  assert.equal(index.length, 2);
+  assert.equal(index.compact(), 2);
+  assert.equal(index.metrics.uniqueSegments, 2);
+});
