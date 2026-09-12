@@ -473,6 +473,8 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 4. `cc46e36` 按 source-adjacent boundary 选择 physical-net assignment，并将 `capacityChannelId`、`capacityBoundaryClusterKey`、escape side 带到 edge 诊断；`c15a557` 在已有 bounded global candidate 能消除异 net overlap 时优先硬冲突安全，而不受 outer-detour 软成本否决。
 5. `9463718` 对 ELK 缺失/非法 section 返回 `unroutable`，`88317a5` 让 Adjust override 后重新执行 shared final validator；这两项只收敛 provider 出口，不改变 Simple mapped 的候选上限。
 
+本轮的 `e94e66b` 又补上了诊断可追踪性：最终 validator 现在复制 graph-level 与 edge-level provider diagnostics，并在 edge 诊断缺少归属时补充 `edgeId`。因此 `elk-edge-section-missing` 等 provider 原因会和最终 `layoutStatus: "unroutable"` 一起保留到提交结果；该改动不放宽任何几何约束，也不增加路由搜索或渲染工作量。
+
 严格模式在 sop015 上的复测会把无法同时满足现有 reservation/obstacle 合同的边明确标为 `unroutable`，而不是输出非法 polyline；在 collapsed eq012 上同样得到大量 `missing-route`。这证明出口语义生效，也说明 cluster corridor 尚未完成，不能将此数字当作质量改善。
 
 ### 13.5 后续必须补齐的实现问题

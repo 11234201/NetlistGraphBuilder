@@ -27,6 +27,7 @@
 | `cc46e36` | Simple router 按 edge 的 source-adjacent boundary 选择 physical-net capacity assignment，并把 channel/cluster/escape metadata 带到 edge 诊断 | skip-level/reverse edge 不再受 lexical boundary 顺序影响；不增加候选数、不扩大重试上限，保留缺失 assignment 的兼容 fallback |
 | `9463718` | ELK section 缺失或含非法点时返回明确 `unroutable` edge 诊断；不再生成 `(0,0)` 伪 polyline，并保留四向 port attachment 路径 | provider 缺失输出不会污染 wire tree/bounds；ELK 与 Simple 共享“无合法几何即失败”的出口语义 |
 | `88317a5` | Adjust/manual override 在生成新 wire routes 与 bounds 后重新执行 shared final validator；ELK 避免重复校验 | 手动移动后不再沿用自动布局的过期状态；provider 仍只执行一次最终校验 |
+| `e94e66b` | final validator 汇总并保留 graph/edge 级 provider diagnostics，统一补充 `edgeId` | ELK/Simple/Adjust 的“为什么不可路由”不会在最终布局封装时丢失；诊断可被 UI、mapped hard gate 和回归报告消费 |
 | `c15a557` | local candidate 与异 physical-net 共线重叠时，只要 bounded global candidate 已消除 hard overlap，就优先采用该候选，不再被 outer-detour 软成本否决 | 直接针对 clk/rst_n、`_0179_`/`_0198_` 类重复水平重叠；候选次数与 outer 搜索上限不变，crossing 仍作为软成本 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
@@ -36,6 +37,8 @@
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
 `66dd242` 已提交 collapsed group long-net demand 的 bounded top headroom 与 Simple strict 出口：`computeTopWireHeadroom()` 最多保留 8 条 lane，overflow 进入 capacity diagnostics；`strictRouting:true` 在没有合法候选时返回 `unroutable`。`cc46e36` 又将 source-adjacent boundary token 绑定到 edge，并保留 `capacityChannelId`、`capacityBoundaryClusterKey` 与 escape side 诊断。`9463718` 将 ELK 缺失/非法 section 统一为显式 `unroutable`；`88317a5` 让 Adjust 在 override 后刷新同一 validator 状态。默认 UI 仍保持兼容，待 cluster corridor/tree 完成后再收紧为默认提交合同。
+
+`e94e66b` 进一步把 provider 产生的 graph-level/edge-level diagnostics 收集到最终布局的 `providerDiagnostics`，并为 edge 诊断补齐 `edgeId`。这只增加可追踪性，不改变候选上限、路由几何或普通 UI 的兼容状态；因此不会把诊断丢失误判为“无违规”，也不会以扩大日志数据结构换取额外搜索。
 
 ### 当前尚未完成的硬问题
 
