@@ -359,10 +359,11 @@ function routeEdge(context) {
         bestLocalScore.crossings - globalScore.crossings <=
           ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
       const globalIsHardUsable = !context.strictRouting || isHardRouteCandidate(globalCandidate, context);
-      if (globalIsHardUsable && !avoidsLargeOuterDetour && ((localHasOverlap && !globalHasOverlap) ||
+      const removesHardOverlap = localHasOverlap && !globalHasOverlap;
+      if (globalIsHardUsable && (removesHardOverlap || (!avoidsLargeOuterDetour && (
         globalScore.crossings < bestLocalScore.crossings ||
         (globalScore.crossings === bestLocalScore.crossings &&
-          globalScore.total < bestLocalScore.total))) {
+          globalScore.total < bestLocalScore.total))))) {
         return globalCandidate;
       }
     }
