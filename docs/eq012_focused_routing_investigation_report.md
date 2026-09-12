@@ -17,13 +17,13 @@
 5. `simpleRoutingPlan` 计算了顶层/侧边车道需求，但放置阶段没有消费这些容量；因此名义上的 top lane 落进节点区域，随后只能向画布顶部或底部绕行。
 6. 路由候选过少、同分排序有方向偏置、搜索截断较早，并且垂直通道主要按固定比例生成。这会系统性地产生“先上/下走到很远，再折返”和垂直线重叠，而不是偶发现象。
 7. 物理 net 的分组身份与冲突检测身份不一致，逐 edge 预留还会重复登记同一 fanout trunk，导致漏检与虚高惩罚同时存在。
-8. 现有单测和 mapped-case 门禁没有覆盖 Focused 小间距、跨物理 route 重叠、端点连通和 bounds；所以当前 387 项测试全过并不能证明路由结果安全。
+8. 现有单测和 mapped-case 门禁没有覆盖 Focused 小间距、跨物理 route 重叠、端点连通和 bounds；因此历史上的“全量测试通过”不能证明路由结果安全。本轮已将这些边界纳入 406 项单测与独立 hard mapped 入口，但残余 dense mapped 几何仍未清零。
 
 因此，继续调整单个权重、增加某个特例、提高默认间距或扩大搜索次数，只会改变症状出现的位置，不能根治。修复必须先统一硬约束和 net 身份，再让放置容量、Focused 局部化、候选生成和树路由使用同一套几何合同。
 
 ## 12. 实施后的复核结论（2026-09-12）
 
-本轮提交已经把报告中的“身份不一致、重复 reservation、无界搜索、provider 无状态出口、bounds 未统一”等结构性原因分别收敛到共享模块，并新增 `npm run test:mapped-hard` 作为零容忍入口。单元测试当前为 `395/395`，eq012 focused 双根 spacing 矩阵通过。
+本轮提交已经把报告中的“身份不一致、重复 reservation、无界搜索、provider 无状态出口、bounds 未统一”等结构性原因分别收敛到共享模块，并新增 `npm run test:mapped-hard` 作为零容忍入口。单元测试当前为 `406/406`，eq012 focused 双根 spacing 矩阵通过；ELK 缺失 section 与 Adjust override 状态也纳入 shared validator 测试。
 
 但这不等于 full mapped corpus 已完成。严格运行 eq012 全图仍会报告 `net-overlap` 与部分 `node-crossing`；稠密 datapath/sop 图的主要残余不是 validator 漏报，而是如下真实几何问题：
 
@@ -429,7 +429,7 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 
 1. `RouteSegmentIndex` 的 owner replacement 已从“过滤后完整 rebuild”改成 tombstone。活动项仍保留在 `items`，旧桶记录通过 `inactiveSegments` 过滤，`queryBox`、`queryVerticalSegment`、`countBox` 和迭代器不会看到失效 owner；只有显式 `compact()` 才回收旧桶。这解决的是 Adjust/增量 reroute 的更新成本，不是初次 route 的 overlap 算法。
 2. reservation lane shift 现在在固定的 6 个水平偏移和 12 个 source/target 纵向组合内尝试，并且每个组合都经过 endpoint side、node obstacle 和 foreign-net overlap 合同。它不会把候选次数变成 edge 数量的函数，也不会把非法 fallback 伪装成成功。
-3. 远端 1024/4096/8192 长链中位数 layout 约为 `132.7/894.2/3232.3 ms`，SVG 约为 `61.2/239.5/717.6 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败（`380/120` 违规），严格 collapsed eq012 仍有截断后的 `net-overlap`。因此剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
+3. 远端 1024/4096/8192 长链中位数 layout 约为 `129.2/798.0/3120.0 ms`，SVG 约为 `61.1/250.1/727.1 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败（`370/120` 违规，最大 layout `26.99 s`、最大堆 `295 MiB`），严格 collapsed eq012 进入显式 `missing-route` 失败状态。硬冲突优先选择已在残余 case 中保持固定候选上限，并将总趋势从上一轮 `380/120` 降至 `370/120`；剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
 
 ### 13.1 未完成问题的具体定义
 
@@ -461,7 +461,7 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 4. row-gap assignment 进入 `allocationByNet` 和 `routingMetrics.capacity`，但不会被不带 level 匹配的 edge 盲选为全局 `preferredLaneY`。一个 skip-level edge 可能跨越多个 row gap，当前仍由 inter-layer/outer assignment 选择主坐标，避免词法首个 gap 改变普通 Focused route。
 5. 因此这一步解决的是“窄 group boundary gap 没有最小开放高度”的 placement 缺口，不宣称已解决 dense collapsed 图的 outer top/bottom 共享段。
 
-验证结果：新增 `tests/unit/channel-capacity.test.js` 的 synthetic group corridor 与宽 gap demand 上限用例；本地 `npm test` 为 403/403；eq012 Focused spacing matrix、sop015 Focused 三项均通过。远端长链 benchmark 为 1024/4096/8192 layout `132.9/784.0/3334.6 ms`、SVG `60.4/247.1/715.8 ms`；dp020 单 case 约 `25.1 s`，相较上一轮未出现由 row-gap pass 引起的通道数/内存爆炸。普通 mapped 仍有 `dp_018`、`dp_019`、`dp_020`、`sop_015` 四个失败；cap=32 的试验曾将总违规由 `380/120` 降至 `369/120`，但把 top band 推到 800 px、最大堆推至约 337 MiB，已收紧为 cap=8。cap=8 只保留 224 px bounded headroom，四个残留 case 没有稳定的硬违规下降，因此不能宣称 outer band 已解决。
+验证结果：新增 `tests/unit/channel-capacity.test.js` 的 synthetic group corridor 与宽 gap demand 上限用例；本地 `npm test` 为 406/406；eq012 Focused spacing matrix、sop015 Focused 三项、boundary-token、ELK section、Adjust validator 单测均通过。远端长链 benchmark 为 1024/4096/8192 layout `129.2/798.0/3120.0 ms`、SVG `61.1/250.1/727.1 ms`；dp020 单 case 约 `25.05 s`，sop015 约 `26.99 s`，未出现新的搜索规模 cliff。普通 mapped 仍有 `dp_018`、`dp_019`、`dp_020`、`sop_015` 四个失败；cap=32 的试验曾将总违规由 `380/120` 降至 `369/120`，但把 top band 推到 800 px、最大堆推至约 337 MiB，已收紧为 cap=8。cap=8 只保留 224 px bounded headroom；硬冲突优先选择将趋势降至 `370/120`，但四个残留 case 仍没有零硬违规，因此不能宣称 outer band 已解决。
 
 ### 13.4 本轮新增的 bounded top headroom 与 strict 出口
 
@@ -470,8 +470,10 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 1. `planSimpleRouting()` 的 `longLaneCount` 只在存在 collapsed group 时作为 top-band demand；`computeTopWireHeadroom()` 将 demand 转成 `margin + requiredOuterBand(lanes)`，并以 `MAX_PLACEMENT_OUTER_LANES=8` 封顶。超过 8 条的部分记录 `overflowLaneCount`，不通过放大画布掩盖容量不足。
 2. `routingCapacity.metrics.topWireHeadroom`、`placementCapacity.topWireHeadroom` 暴露 demand、保留 lane、overflow、headroom，供 UI/报告诊断；普通无 group 图保持既有 80 px 下限，避免层次图坐标无谓漂移。
 3. Simple router 支持 `strictRouting:true`：当候选没有 node-safe 且 foreign physical-net overlap-free 的结果时生成 `routeStatus:"unroutable"`、空 points 与诊断，不将非法 global fallback 交给 renderer。默认 workspace 仍保持兼容，`tools/test-one-mapped-case.mjs --hard` 显式启用该出口，便于逐步收紧门禁。
+4. `cc46e36` 按 source-adjacent boundary 选择 physical-net assignment，并将 `capacityChannelId`、`capacityBoundaryClusterKey`、escape side 带到 edge 诊断；`c15a557` 在已有 bounded global candidate 能消除异 net overlap 时优先硬冲突安全，而不受 outer-detour 软成本否决。
+5. `9463718` 对 ELK 缺失/非法 section 返回 `unroutable`，`88317a5` 让 Adjust override 后重新执行 shared final validator；这两项只收敛 provider 出口，不改变 Simple mapped 的候选上限。
 
-严格模式在 sop015 上的复测会把约 2,897 条无法同时满足现有 reservation/obstacle 合同的边明确标为 `unroutable`，而不是输出非法 polyline；这证明出口语义生效，也说明 cluster corridor 尚未完成，不能将此数字当作质量改善。
+严格模式在 sop015 上的复测会把无法同时满足现有 reservation/obstacle 合同的边明确标为 `unroutable`，而不是输出非法 polyline；在 collapsed eq012 上同样得到大量 `missing-route`。这证明出口语义生效，也说明 cluster corridor 尚未完成，不能将此数字当作质量改善。
 
 ### 13.5 后续必须补齐的实现问题
 
@@ -481,6 +483,6 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 - **真实 outer band placement**：top/bottom lane 当前仍主要是 lane preference，不能让所有 long demand 共享同一外框水平段；需要固定一次的 band expansion 和 bounds 合并；
 - **native physical-net tree**：当前 tree 是 provider route 的后处理，dense fanout 仍逐 logical edge 选择 candidate；需要 source-rooted trunk/branch 一次生成后再给 edge 投影；
 - **硬失败提交语义**：当上述 corridor 和 outer band 都没有合法候选时，provider 应提交 `unroutable` 诊断而不是保留可渲染但非法的 fallback polyline；
-- **provider 一致性**：ELK 四向 port、Adjust override 和 shared final validator 仍要消费同一 cluster/band contract。
+- **provider 一致性剩余部分**：ELK section/四向 attachment 与 Adjust final validation 已补齐，但它们尚未消费完整的 cluster/band token；待 Simple corridor/band 合同冻结后，仍需补 shared provider contract fixture。
 
 每一项都必须保留固定候选上限、spatial index 查询和 physical-net owner 去重；若增加 row/outer 空间导致 layout P95 超过基线 25%，应退回 placement 设计，而不是关闭 hard validation。
