@@ -36,12 +36,23 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
         if (fanoutCounts.get(fanoutKey) > 1) channelLaneByFanout.set(fanoutKey, lane);
       }
       maxSideLanes = Math.max(maxSideLanes, lane + 1);
-      edges.set(edge.id, { kind: "channel", lane });
+      edges.set(edge.id, {
+        kind: "channel",
+        lane,
+        sourcePin: edge.sourcePin,
+        targetPin: edge.targetPin
+      });
       continue;
     }
 
-    const sourceKey = `source:${sourceLevel}`;
-    const targetKey = `target:${targetLevel}`;
+    // Escape lanes are consumed at a concrete boundary node.  Keying these
+    // counters by level made a large collapsed level assign hundreds of
+    // unrelated nets to the same physical escape lane (or produce lane
+    // numbers so large that the router could not safely consume them).  A
+    // node-local counter preserves sharing for one physical fanout while
+    // giving independent group boundary ports distinct bounded lanes.
+    const sourceKey = `source-node:${String(edge.source ?? "")}`;
+    const targetKey = `target-node:${String(edge.target ?? "")}`;
     const intent = layoutIntent.getEdge(edge);
     const netKey = getNetGroupKey(edge);
     let sourceLane = intent?.fanout > 1
@@ -65,7 +76,9 @@ export function planSimpleRouting(graph, levels, layoutIntent) {
       kind: "long",
       topLane,
       sourceLane,
-      targetLane
+      targetLane,
+      sourcePin: edge.sourcePin,
+      targetPin: edge.targetPin
     });
   }
 

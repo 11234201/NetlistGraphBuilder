@@ -5,6 +5,7 @@ import {
   getTargetLaneInset,
   isVerticalTargetPin
 } from "./orthogonalRouting.js";
+import { getPort } from "./nodeGeometry.js";
 import {
   routeCandidateIsUsable,
   routeOverlapsReserved,
@@ -150,8 +151,26 @@ export function createLocalObstacleCandidates(context, options = {}) {
       ? routeTargetPoint.x - targetInset
       : Math.max(sourcePoint.x + 2, Math.min(routeTargetPoint.x - targetInset, targetColumnLeft - padding))
     : routeTargetPoint.x - targetInset;
-  const minX = Math.min(sourceLaneX, targetLaneX);
-  const maxX = Math.max(sourceLaneX, targetLaneX);
+  const laneAdjustedSourceX = applyNodeLocalEscapeLane(
+    sourceLaneX,
+    source,
+    sourcePoint,
+    edgePlan,
+    wireLanePitch,
+    "source"
+  );
+  const laneAdjustedTargetX = applyNodeLocalEscapeLane(
+    targetLaneX,
+    target,
+    targetPoint,
+    edgePlan,
+    wireLanePitch,
+    "target"
+  );
+  const effectiveSourceLaneX = laneAdjustedSourceX;
+  const effectiveTargetLaneX = laneAdjustedTargetX;
+  const minX = Math.min(effectiveSourceLaneX, effectiveTargetLaneX);
+  const maxX = Math.max(effectiveSourceLaneX, effectiveTargetLaneX);
   const corridorTop = Math.min(
     source.y,
     target.y,
@@ -191,7 +210,13 @@ export function createLocalObstacleCandidates(context, options = {}) {
 
   const laneOffsets = options.expandXLanes === true
     ? createExpandedLocalLaneOffsets(wireLanePitch)
-    : createObstacleEscapeOffsets(relevantNodes, sourceLaneX, targetLaneX, padding, wireLanePitch);
+    : createObstacleEscapeOffsets(
+      relevantNodes,
+      effectiveSourceLaneX,
+      effectiveTargetLaneX,
+      padding,
+      wireLanePitch
+    );
   const maximumCandidates = options.expandXLanes === true
     ? MAX_EXPANDED_LOCAL_LANE_CANDIDATES
     : MAX_LOCAL_LANE_CANDIDATES;
@@ -206,8 +231,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
       targetPoint,
       padding
     );
-    const candidateSourceLaneX = sourceLaneX + laneOffset.source;
-    const candidateTargetLaneX = targetLaneX + laneOffset.target;
+    const candidateSourceLaneX = effectiveSourceLaneX + laneOffset.source;
+    const candidateTargetLaneX = effectiveTargetLaneX + laneOffset.target;
     const candidate = createRoute("obstacle-local", [
       sourcePoint,
       { x: candidateSourceLaneX, y: sourcePoint.y },
@@ -242,8 +267,8 @@ export function createLocalObstacleCandidates(context, options = {}) {
       sourcePoint,
       routeTargetPoint,
       targetPoint,
-      sourceLaneX,
-      targetLaneX,
+      effectiveSourceLaneX,
+      effectiveTargetLaneX,
       relevantSegments,
       wireLanePitch
     );
@@ -262,6 +287,32 @@ export function createLocalObstacleCandidates(context, options = {}) {
     }
   }
   return [...candidates, ...overlappingCandidates].slice(0, maximumCandidates);
+}
+
+/**
+ * Consume the node-local long-edge lane assigned by simpleRoutingPlan.  The
+ * offset is only applied to collapsed group boundaries with horizontal ports;
+ * ordinary cell/input geometry keeps the existing local candidates.  The
+ * direction is derived from the actual port side so a reverse edge still
+ * expands away from the node instead of crossing a neighbouring column.
+ */
+function applyNodeLocalEscapeLane(baseX, node, point, edgePlan, wireLanePitch, role) {
+  if (node?.kind !== "group" || edgePlan?.kind !== "long") return baseX;
+  const port = getPort(node, role === "source" ? edgePlan.sourcePin : edgePlan.targetPin, role);
+  const side = port?.side || (role === "source" ? "right" : "left");
+  if (side !== "left" && side !== "right") return baseX;
+  const laneIndex = Math.max(0, Math.floor(Number(
+    role === "source" ? edgePlan.sourceLane : edgePlan.targetLane
+  ) || 0));
+  if (laneIndex === 0) return baseX;
+  const pitch = Math.max(4, Number(wireLanePitch) || 24);
+  const outward = side === "right" ? 1 : -1;
+  // Keep the lane outside the endpoint body even when a malformed port point
+  // falls on the opposite side; the candidate validator remains authoritative.
+  const fallbackOutward = role === "source"
+    ? (point.x >= node.x + node.width / 2 ? 1 : -1)
+    : (point.x <= node.x + node.width / 2 ? -1 : 1);
+  return baseX + (outward || fallbackOutward) * laneIndex * pitch;
 }
 
 function createReservedDetourCandidates(
