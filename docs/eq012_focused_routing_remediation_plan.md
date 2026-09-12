@@ -15,11 +15,17 @@
 | `d5a4a41`、`d941caa` | collapsed boundary ports、inter-layer capacity expansion | collapsed group 的边界 pin 有独立几何，层间不足时只移动后缀列 |
 | `27fc2e4`、`6712675` | bounded local/global search、node/route spatial index | 删除按图规模增加 outer retry 的路径，避免搜索 cliff |
 | `2940f29` | provider status、route/bounds finalization | 非法结果进入 render 前会带 `layoutStatus: "unroutable"` 和诊断 |
-| 当前提交 | final foreign-net overlap 使用 `RouteSegmentIndex` 查询 | 校验不再按同一水平/垂直线组做全量两两扫描 |
+| `005827d`、`93a243a` | reservation/index 指标和 bounded routing diagnostics | 能区分候选数量、fallback、重复 geometry 和最终 validator 违规 |
+| `0780847`、`e68a6cd` | 消费局部 capacity lane，并尝试有限 reservation lane shift | 已分配局部通道进入候选排序；不引入图规模重试 |
+| `3832803`、`f9a98e5` | capacity demand 按 boundary 建索引并覆盖多 boundary physical net | 避免每个 boundary 重扫全部 demand，保持稳定 physical-net 分配 |
+| `fcfe676` | route owner 替换改为桶内 tombstone，显式 `compact()` 回收 | Adjust/增量 reroute 不再每次重建完整 segment buckets；查询仍过滤失效 owner |
+| `d122824` | 明确 mapped hard gate 命令用法 | `--hard`/`--no-collapse` 的回归入口可直接复现 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
-当前测量（同一工作区、远端 mfs-remote）为：1024/4096 长链 layout 分别约 `217.7 ms`/`2113.1 ms`；eq012 全图约 `6.8 s`，eq012 focused 双根矩阵在本地约 `5.4 s`；sop004 collapsed 全图约 `29.6 s`。这些是回归基线，不是最终绝对时限。
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.9/820.3/3163.1 ms`，对应 SVG `60.5/245.8/724.8 ms`；collapsed layout 约 `3.0/5.6/11.5 ms`。本轮 mapped 全量普通门禁为 `43/47` 通过，失败仍为 `dp_018/019/020`、`sop_015`；eq012 全图普通门禁 `6.9 s` 且历史预算通过，eq012 focused 双根单测 `2/2`、sop015 相关单测 `3/3` 通过。严格 hard gate 对 collapsed eq012 仍会报告残余 `net-overlap`，说明 outer boundary corridor 尚未完成，不能把普通门禁 PASS 当作零硬违规证明。这些是同一远端环境的回归基线，不是最终绝对时限。
+
+`RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。它不改变初始 layout 的 route choice，因此本轮性能收益应归因于增量替换路径，不能推断为全量 mapped overlap 已解决。
 
 ### 当前尚未完成的硬问题
 

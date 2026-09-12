@@ -422,3 +422,31 @@ Focused 局部化与旧层级不一致
 ```
 
 eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明它已是 mapped Focused 的系统性问题。下一步不应再加入坐标、实例名或单 fixture 特例；应按配套方案把硬约束、容量、net tree 和 provider 输出收敛到共享边界。
+
+## 13. 2026-09-12 最新实现复核
+
+本轮提交后又复核了三条实现边界：
+
+1. `RouteSegmentIndex` 的 owner replacement 已从“过滤后完整 rebuild”改成 tombstone。活动项仍保留在 `items`，旧桶记录通过 `inactiveSegments` 过滤，`queryBox`、`queryVerticalSegment`、`countBox` 和迭代器不会看到失效 owner；只有显式 `compact()` 才回收旧桶。这解决的是 Adjust/增量 reroute 的更新成本，不是初次 route 的 overlap 算法。
+2. reservation lane shift 现在在固定的 6 个水平偏移和 11 个 source/target 纵向组合内尝试，并且每个组合都经过 endpoint side、node obstacle 和 foreign-net overlap 合同。它不会把候选次数变成 edge 数量的函数，也不会把非法 fallback 伪装成成功。
+3. 远端 1024/4096/8192 长链中位数 layout 约为 `135.9/820.3/3163.1 ms`，SVG 约为 `60.5/245.8/724.8 ms`；这些数据用于复杂度回归。全量普通 mapped 门禁仍有 `dp_018/019/020`、`sop_015` 四个失败，严格 collapsed eq012 仍有截断后的 `net-overlap`。因此剩余问题不是测试遗漏，而是 collapsed group boundary 的真实 corridor/outer lane 尚未被 placement 完整消费。
+
+### 13.1 未完成问题的具体定义
+
+对每个 `group -> group` 的反向 skip-level demand，当前 allocator 只有 `outer-top/outer-bottom` 的 lane index；它没有同时给出：
+
+- source group 的可用 escape x 区间；
+- target group 的可用 escape x 区间；
+- 该 boundary cluster 在 top/bottom band 中的 y corridor；
+- 与同一 cluster 的其它 physical net 的不可共享 owner 集合。
+
+于是 route candidate 可能拿到一个合法的单 edge 外框，但多个不同 physical net 仍会回到相同的水平 y 或 source/target 竖直 x。若强制所有 candidate reservation-free，当前布局又没有足够的 node-safe x corridor，会退化为 node crossing 或极长搜索。正确修复必须先由 placement 为发生 demand 的 boundary cluster 增加有限 row/escape 空间，再由 router 消费同一个 cluster token；不能仅提高全局 `topWireSpace`、`cellSpacing` 或 outer retry 次数。
+
+### 13.2 下一实现切片
+
+下一切片应保持固定上限，按以下顺序推进：
+
+1. 从 `buildRoutingCapacityPlan()` 输出 stable `boundaryClusterKey`、source/target escape side 和 cluster demand count；不改变现有 route 选择。
+2. 在 placement 只对有 demand 的 cluster 做 row/escape expansion，并在 `routingCapacity.metrics` 记录 expansion 前后 span。
+3. 让 `applyCapacityLane()` 同时消费 cluster y token 与 source/target escape interval；route candidate 必须验证该 token 的 node-safe corridor。
+4. 加入一个 synthetic group-boundary 单测，再逐个复测 eq012、dp005、sop004、sop015 及 1024/4096/8192 benchmark；任何 node-crossing 或 P95 超预算都停止扩展。
