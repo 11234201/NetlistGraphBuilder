@@ -48,6 +48,10 @@ test("capacity plan counts physical fanout once per inter-layer boundary", () =>
   assert.equal(channel.laneCount, 1);
   assert.equal(channel.requiredSpan, requiredInterLayerGap(1, plan.routingGeometry));
   assert.equal(plan.metrics.physicalNetCount, 1);
+  assert.equal(plan.metrics.boundaryClusterCount, 1);
+  assert.ok(plan.channels
+    .filter((item) => item.demands.length > 0)
+    .every((item) => item.demands[0].boundaryClusterKey));
 });
 
 test("capacity plan reuses indexed physical demands across every traversed boundary", () => {
@@ -74,6 +78,8 @@ test("capacity plan reuses indexed physical demands across every traversed bound
   assert.equal(plan.netDemands.length, 1);
   assert.deepEqual(boundaries.map((channel) => channel.demandKeys), [["src\u0000n"], ["src\u0000n"]]);
   assert.equal(plan.metrics.physicalNetCount, 1);
+  assert.equal(plan.metrics.boundaryClusterCount, 3);
+  assert.equal(new Set(boundaries.map((channel) => channel.demands[0].boundaryClusterKey)).size, 2);
 });
 
 test("capacity formulas use named geometry and remain zero for empty channels", () => {

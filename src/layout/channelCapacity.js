@@ -1,5 +1,5 @@
 import { getPhysicalNetKey } from "./layoutTopology.js";
-import { getConnectionPoint } from "./nodeGeometry.js";
+import { getConnectionPoint, getPort } from "./nodeGeometry.js";
 
 export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   nodeClearance: 8,
@@ -128,6 +128,7 @@ export function buildRoutingCapacityPlan(
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
   const channels = [];
   const allocationByNet = new Map();
+  const boundaryClusterCounts = new Map();
   const levelBounds = getLevelBounds(positionedNodes, levels);
   const channelById = new Map();
   const demandsByBoundary = new Map();
@@ -175,13 +176,20 @@ export function buildRoutingCapacityPlan(
     channels.push(channel);
     channelById.set(channel.id, channel);
     for (const assigned of allocation.assignments) {
+      boundaryClusterCounts.set(
+        assigned.boundaryClusterKey,
+        (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
+      );
       const entries = allocationByNet.get(assigned.netGroupKey) || [];
       entries.push({
         channelId: channel.id,
         laneIndex: assigned.laneIndex,
         coordinate: assigned.coordinate,
         intervalStart: assigned.intervalStart,
-        intervalEnd: assigned.intervalEnd
+        intervalEnd: assigned.intervalEnd,
+        boundaryClusterKey: assigned.boundaryClusterKey,
+        sourceEscapeSide: assigned.sourceEscapeSide,
+        targetEscapeSides: assigned.targetEscapeSides
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -210,13 +218,20 @@ export function buildRoutingCapacityPlan(
     };
     channels.push(channel);
     for (const assigned of allocation.assignments) {
+      boundaryClusterCounts.set(
+        assigned.boundaryClusterKey,
+        (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
+      );
       const entries = allocationByNet.get(assigned.netGroupKey) || [];
       entries.push({
         channelId: kind,
         laneIndex: assigned.laneIndex,
         coordinate: assigned.coordinate,
         intervalStart: assigned.intervalStart,
-        intervalEnd: assigned.intervalEnd
+        intervalEnd: assigned.intervalEnd,
+        boundaryClusterKey: assigned.boundaryClusterKey,
+        sourceEscapeSide: assigned.sourceEscapeSide,
+        targetEscapeSides: assigned.targetEscapeSides
       });
       allocationByNet.set(assigned.netGroupKey, entries);
     }
@@ -246,8 +261,11 @@ export function buildRoutingCapacityPlan(
       physicalNetCount: demands.length,
       channelCount: channels.length,
       allocatedLaneCount: channels.reduce((sum, channel) => sum + channel.laneCount, 0),
-      expandedChannelCount: channels.filter((channel) => channel.expansion > 0).length
+      expandedChannelCount: channels.filter((channel) => channel.expansion > 0).length,
+      boundaryClusterCount: boundaryClusterCounts.size,
+      maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values())
     },
+    boundaryClusterCounts,
     routingGeometry,
     channelById
   };
@@ -348,6 +366,9 @@ function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutI
   const [intervalStart, intervalEnd] = minMax(ys);
   const preferredCoordinate = (intervalStart + intervalEnd) / 2;
   const intent = layoutIntent?.getEdge(edges[0]?.edge) || {};
+  const sourceEscapeSide = getPortSide(sourceNode, demand.sourcePortRef.pin, "source");
+  const targetEscapeSides = [...new Set(edges.map(({ nodeId, pin }) =>
+    getPortSide(nodeById.get(nodeId), pin, "target")))].sort();
   return {
     channelId: `inter-layer:${leftLevel}->${rightLevel}`,
     netGroupKey: demand.netGroupKey,
@@ -356,7 +377,10 @@ function createInterLayerDemand(demand, leftLevel, rightLevel, nodeById, layoutI
     preferredCoordinate,
     priorityClass: intent.fanout > 1 && intent.isPrimary ? 1 : intent.fanout > 1 ? 2 : 0,
     endpointRefs: demand.targetPortRefs,
-    sourceNodeId: demand.sourceNodeId
+    sourceNodeId: demand.sourceNodeId,
+    sourceEscapeSide,
+    targetEscapeSides,
+    boundaryClusterKey: `${String(leftLevel)}->${String(rightLevel)}|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
 }
 
@@ -369,6 +393,9 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
     if (target) xs.push(target.x, target.x + target.width);
   }
   const intent = layoutIntent?.getEdge(edgeById.get(demand.targetPortRefs[0]?.edgeId)) || {};
+  const sourceEscapeSide = getPortSide(source, demand.sourcePortRef.pin, "source");
+  const targetEscapeSides = [...new Set(demand.targetPortRefs.map((ref) =>
+    getPortSide(nodeById.get(ref.nodeId), ref.pin, "target")))].sort();
   return {
     channelId: "outer",
     netGroupKey: demand.netGroupKey,
@@ -376,8 +403,16 @@ function createOuterDemand(demand, nodeById, layoutIntent, edgeById) {
     preferredCoordinate: 0,
     priorityClass: intent.fanout > 1 ? 1 : 0,
     endpointRefs: demand.targetPortRefs,
-    sourceNodeId: demand.sourceNodeId
+    sourceNodeId: demand.sourceNodeId,
+    sourceEscapeSide,
+    targetEscapeSides,
+    boundaryClusterKey: `outer|${demand.sourceNodeId}|${sourceEscapeSide}|${targetEscapeSides.join(",")}`
   };
+}
+
+function getPortSide(node, pin, role) {
+  return (node ? getPort(node, pin, role)?.side : null) ||
+    (role === "source" ? "right" : "left");
 }
 
 function minMax(values) {
