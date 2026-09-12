@@ -3,7 +3,7 @@
 - 调查日期：2026-09-12
 - 调查对象：`tests/fixtures/mapped/equal/eq_012_mapped.v`
 - 复现场景：Focused 根节点 `_2021_`、`_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`
-- 文档状态：调查完成，待按配套修改方案实施
+- 文档状态：调查完成；实现已进入阶段 0/1，残余问题与门禁持续跟踪
 - 配套方案：[eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)
 
 ## 1. 结论摘要
@@ -20,6 +20,19 @@
 8. 现有单测和 mapped-case 门禁没有覆盖 Focused 小间距、跨物理 route 重叠、端点连通和 bounds；所以当前 387 项测试全过并不能证明路由结果安全。
 
 因此，继续调整单个权重、增加某个特例、提高默认间距或扩大搜索次数，只会改变症状出现的位置，不能根治。修复必须先统一硬约束和 net 身份，再让放置容量、Focused 局部化、候选生成和树路由使用同一套几何合同。
+
+## 12. 实施后的复核结论（2026-09-12）
+
+本轮提交已经把报告中的“身份不一致、重复 reservation、无界搜索、provider 无状态出口、bounds 未统一”等结构性原因分别收敛到共享模块，并新增 `npm run test:mapped-hard` 作为零容忍入口。单元测试当前为 `395/395`，eq012 focused 双根 spacing 矩阵通过。
+
+但这不等于 full mapped corpus 已完成。严格运行 eq012 全图仍会报告 `net-overlap` 与部分 `node-crossing`；稠密 datapath/sop 图的主要残余不是 validator 漏报，而是如下真实几何问题：
+
+- collapsed group 的多个 boundary edge 在没有独立 escape corridor 时，会从不同 pin 进入相同外围 y lane；
+- `allocateIntervalLanes()` 已经能按 interval 分配 lane，但当前 placement 尚未把 outer band 的 `requiredSpan` 应用到节点集合，lane 坐标可能落在已占用的 node/route 几何附近；
+- router 为避免“找不到候选”仍保留 node-safe fallback，因此在 reservation 饱和时会保留合法正交但 foreign-net overlap 的线路；这正是严格门禁需要继续阻断的状态，不应再被评分权重掩盖；
+- 对这些路径简单开启全量 reservation 检查会触发大量候选重试，dp005/sop004 曾出现数量级的时间回退。因此性能约束和通道容量实现是正确性修复的一部分，不能最后再补。
+
+下一阶段的最小实现单元是 boundary-cluster corridor：先按 physical net 合并同一 group boundary 的 escape 区间，分配有限 row/side lane，再让候选只消费已分配 channel。完成该单元后，才允许把 strict overlap 检查提升为默认 mapped 门禁；在此之前，普通 runner 的 32/120 预算仅是趋势观测，不能解释为硬合同通过。
 
 ## 2. 复现范围与事实
 

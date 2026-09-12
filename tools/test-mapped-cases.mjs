@@ -11,6 +11,9 @@ const timeoutMs = numberFromEnvironment("MAPPED_CASE_TIMEOUT_MS", 45_000);
 const maximumCaseViolations = numberFromEnvironment("MAX_CASE_VIOLATIONS", 32);
 const maximumTotalViolations = numberFromEnvironment("MAX_TOTAL_VIOLATIONS", 120);
 const noCollapse = process.env.MAPPED_CASE_NO_COLLAPSE === "1";
+const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
+const caseViolationBudget = hardInvariants ? 0 : maximumCaseViolations;
+const totalViolationBudget = hardInvariants ? 0 : maximumTotalViolations;
 const worker = path.resolve("tools/test-one-mapped-case.mjs");
 
 if (!await isDirectory(caseRoot)) {
@@ -39,7 +42,7 @@ for (const [index, netlist] of netlists.entries()) {
     // Malformed output is reported as a failed case below.
   }
   const complete = metrics?.routedEdges === metrics?.edges;
-  const withinBudget = (metrics?.violations ?? Infinity) <= maximumCaseViolations;
+  const withinBudget = (metrics?.violations ?? Infinity) <= caseViolationBudget;
   const passed = !execution.timedOut && execution.code === 0 && complete && withinBudget;
   results.push({ caseName, netlist, passed, execution, metrics });
   console.log(
@@ -63,11 +66,12 @@ const maximumHeapUsedMiB = Math.max(
 
 console.log(
   `mapped cases=${results.length}, failed=${failed.length}, ` +
-  `violations=${totalViolations}/${maximumTotalViolations}, ` +
-  `maxLayoutMs=${maximumLayoutMs}, maxHeapMiB=${maximumHeapUsedMiB}`
+  `violations=${totalViolations}/${totalViolationBudget}, ` +
+  `maxLayoutMs=${maximumLayoutMs}, maxHeapMiB=${maximumHeapUsedMiB}, ` +
+  `hardInvariants=${hardInvariants}`
 );
 
-if (failed.length > 0 || totalViolations > maximumTotalViolations) {
+if (failed.length > 0 || totalViolations > totalViolationBudget) {
   for (const result of failed) {
     console.error(`\n${result.caseName}:`);
     const reason = result.execution.timedOut ? "timeout"
@@ -94,9 +98,9 @@ async function findMappedNetlists(root) {
 function runWorker(netlist, timeout) {
   return new Promise((resolve) => {
     const started = Date.now();
-    const workerArguments = noCollapse
-      ? [worker, netlist, "--no-collapse"]
-      : [worker, netlist];
+    const workerArguments = [worker, netlist,
+      ...(noCollapse ? ["--no-collapse"] : []),
+      ...(hardInvariants ? ["--hard"] : [])];
     const child = spawn(process.execPath, workerArguments, {
       stdio: ["ignore", "pipe", "pipe"]
     });

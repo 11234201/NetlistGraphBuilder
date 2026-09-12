@@ -1,9 +1,33 @@
 # Focused 正交路由系统修改方案
 
 - 方案日期：2026-09-12
-- 方案状态：待实施
+- 方案状态：实施中（阶段 0/1 与性能边界已落地；阶段 2--5 持续收敛）
 - 问题报告：[eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)
 - 首要回归场景：eq012 Focused `_2021_` + `_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`
+
+## 实施台账（2026-09-12）
+
+当前仓库已经提交并验证了以下基础改动；它们是本方案的实现基线，不是针对实例名的补丁：
+
+| 提交 | 已落地内容 | 直接收益 |
+| --- | --- | --- |
+| `5a67e1b`、`f13d66e` | physical net key 贯穿 reservation、wire route 和 global route | 同一 fanout trunk 不再按 display net 或 logical edge 混淆 |
+| `d5a4a41`、`d941caa` | collapsed boundary ports、inter-layer capacity expansion | collapsed group 的边界 pin 有独立几何，层间不足时只移动后缀列 |
+| `27fc2e4`、`6712675` | bounded local/global search、node/route spatial index | 删除按图规模增加 outer retry 的路径，避免搜索 cliff |
+| `2940f29` | provider status、route/bounds finalization | 非法结果进入 render 前会带 `layoutStatus: "unroutable"` 和诊断 |
+| 当前提交 | final foreign-net overlap 使用 `RouteSegmentIndex` 查询 | 校验不再按同一水平/垂直线组做全量两两扫描 |
+
+严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
+
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096 长链 layout 分别约 `217.7 ms`/`2113.1 ms`；eq012 全图约 `6.8 s`，eq012 focused 双根矩阵在本地约 `5.4 s`；sop004 collapsed 全图约 `29.6 s`。这些是回归基线，不是最终绝对时限。
+
+### 当前尚未完成的硬问题
+
+1. `simpleRoutingPlan` 已按 physical net 生成 demand，但 `outer-top/outer-bottom` 目前主要用于诊断和 lane 偏好，尚未完整消费为 top/bottom band 的 placement 空间；不能仅把固定 `topWireSpace=80` 替换成所有长 net 数量，否则会把大图的节点整体推远并放大运行时间。
+2. 稠密 collapsed 图中仍存在“group boundary escape + 反向 skip-level edge”形成的共享外围水平段。仅扩大 outer 候选或强制 reservation-free fallback 会让 dp/sop 用例出现更多 node-crossing/退化到 40--50 秒；下一步必须实现 boundary cluster 的真实 row/escape corridor，再绑定 outer lane。
+3. full mapped corpus 的旧 runner 仍关闭 overlap 检查，因而不能作为零硬违规证明。严格门禁已把这个差异显式化，但在阶段 5 完成前，`dp_018/019/020` 与 `sop_015` 的残余 node-crossing 仍需修复。
+
+后续实现必须遵守：固定数量 capacity pass；physical-net/tree 为需求和 reservation 单位；硬冲突只通过合法候选或明确 `unroutable` 解决；禁止实例/坐标特例、全量重试和以提高 spacing 掩盖容量不足。
 
 ## 1. 目标
 

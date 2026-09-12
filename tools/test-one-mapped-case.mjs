@@ -8,6 +8,7 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 
 const input = process.argv[2];
 const noCollapse = process.argv.includes("--no-collapse");
+const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
 if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v>");
 
 const source = await readFile(input, "utf8");
@@ -30,7 +31,12 @@ console.error("stage=layout");
 const laidOut = getLayoutProvider().layout(graph);
 const layoutMs = performance.now() - layoutStarted;
 console.error("stage=validate");
-const violations = validateLayoutGraph(laidOut, { checkOverlaps: false });
+const violations = validateLayoutGraph(laidOut, {
+  checkObstacles: true,
+  checkOverlaps: hardInvariants,
+  checkBounds: true,
+  maxViolations: 256
+});
 const routedEdges = laidOut.edges.filter((edge) => edge.routeKind).length;
 
 console.log(JSON.stringify({
@@ -46,6 +52,8 @@ console.log(JSON.stringify({
   graphMs: Math.round(graphMs),
   layoutMs: Math.round(layoutMs),
   heapUsedMiB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+  hardInvariants,
+  layoutStatus: laidOut.layoutStatus || "unknown",
   violations: violations.length,
   violationCodes: countBy(violations, (item) => item.code)
 }));

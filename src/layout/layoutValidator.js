@@ -8,7 +8,7 @@ import {
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
-import { createNodeSpatialIndex, segmentBox } from "./spatialIndex.js";
+import { createNodeSpatialIndex, RouteSegmentIndex, segmentBox } from "./spatialIndex.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 
 export function validateLayoutGraph(graph, options = {}) {
@@ -238,49 +238,56 @@ function findBlockingNode(points, nodeIndex, source, target, padding) {
 }
 
 function findNetOverlaps(edges, maximumViolations = Infinity) {
-  const violations = [];
-  const lineGroups = new Map();
+  const records = [];
   for (const edge of edges) {
     for (const segment of getRouteSegments(edge.points, edge.net, getNetGroupKey(edge))) {
       const horizontal = near(segment.start.y, segment.end.y);
       const vertical = near(segment.start.x, segment.end.x);
       if (!horizontal && !vertical) continue;
-      const coordinate = horizontal ? segment.start.y : segment.start.x;
-      const key = `${horizontal ? "h" : "v"}:${Math.round(coordinate * 2) / 2}`;
-      if (!lineGroups.has(key)) lineGroups.set(key, []);
-      const start = horizontal ? segment.start.x : segment.start.y;
-      const end = horizontal ? segment.end.x : segment.end.y;
-      lineGroups.get(key).push({
+      records.push({
         edge,
-        segment,
-        minimum: Math.min(start, end),
-        maximum: Math.max(start, end)
+        segment: { ...segment, validatorEdgeId: String(edge.id ?? "") },
+        orientation: horizontal ? "h" : "v",
+        coordinate: horizontal ? segment.start.y : segment.start.x,
+        minimum: horizontal
+          ? Math.min(segment.start.x, segment.end.x)
+          : Math.min(segment.start.y, segment.end.y),
+        maximum: horizontal
+          ? Math.max(segment.start.x, segment.end.x)
+          : Math.max(segment.start.y, segment.end.y)
       });
     }
   }
-
+  records.sort((left, right) => left.orientation.localeCompare(right.orientation) ||
+    left.coordinate - right.coordinate || left.minimum - right.minimum ||
+    left.maximum - right.maximum ||
+    left.segment.validatorEdgeId.localeCompare(right.segment.validatorEdgeId));
+  const index = new RouteSegmentIndex(records.map((record) => record.segment));
+  const recordBySegment = new Map(records.map((record) => [record.segment, record]));
+  const orderBySegment = new Map(records.map((record, index) => [record.segment, index]));
   const reported = new Set();
-  for (const line of lineGroups.values()) {
-    line.sort((left, right) => left.minimum - right.minimum || left.maximum - right.maximum);
-    for (let leftIndex = 0; leftIndex < line.length; leftIndex += 1) {
-      const left = line[leftIndex];
-      for (let rightIndex = leftIndex + 1; rightIndex < line.length; rightIndex += 1) {
-        const right = line[rightIndex];
-        if (right.minimum >= left.maximum) break;
-        if (left.edge.id === right.edge.id ||
-          getNetGroupKey(left.edge) === getNetGroupKey(right.edge)) continue;
-        if (!collinearSegmentsOverlap(left.segment, right.segment)) continue;
-        const pairKey = [left.edge.id, right.edge.id].sort().join("\u0000");
-        if (reported.has(pairKey)) continue;
-        reported.add(pairKey);
-        violations.push(violation(
-          left.edge,
-          "net-overlap",
-          `Route overlaps edge ${right.edge.id}`,
-          { otherEdgeId: right.edge.id }
-        ));
-        if (violations.length >= maximumViolations) return violations;
-      }
+  const violations = [];
+  for (const left of records) {
+    if (violations.length >= maximumViolations) break;
+    const candidates = index.querySegment(left.segment)
+      .map((segment) => recordBySegment.get(segment))
+      .filter(Boolean)
+      .sort((a, b) => orderBySegment.get(a.segment) - orderBySegment.get(b.segment));
+    for (const right of candidates) {
+      if (orderBySegment.get(right.segment) <= orderBySegment.get(left.segment)) continue;
+      if (left.edge.id === right.edge.id ||
+        getNetGroupKey(left.edge) === getNetGroupKey(right.edge) ||
+        !collinearSegmentsOverlap(left.segment, right.segment)) continue;
+      const pairKey = [left.edge.id, right.edge.id].sort().join("\u0000");
+      if (reported.has(pairKey)) continue;
+      reported.add(pairKey);
+      violations.push(violation(
+        left.edge,
+        "net-overlap",
+        `Route overlaps edge ${right.edge.id}`,
+        { otherEdgeId: right.edge.id }
+      ));
+      if (violations.length >= maximumViolations) break;
     }
   }
   return violations;
