@@ -61,9 +61,19 @@ export class ElkLayoutProvider {
     const elkEdgeById = new Map((result.edges || []).map((edge) => [edge.id, edge]));
     const positionedNodeById = new Map(positionedNodes.map((node) => [node.id, node]));
     const routedEdges = graph.edges.map((edge) => {
-      const rawPoints = getEdgePoints(elkEdgeById.get(edge.id));
+      const rawRoute = getEdgePoints(elkEdgeById.get(edge.id));
       const source = positionedNodeById.get(edge.source);
       const target = positionedNodeById.get(edge.target);
+      if (rawRoute.status === "unroutable") {
+        return {
+          ...edge,
+          points: [],
+          routeKind: "unroutable",
+          routeStatus: "unroutable",
+          routeDiagnostics: rawRoute.diagnostics
+        };
+      }
+      const rawPoints = rawRoute.points;
       const sourcePort = source && getPort(source, edge.sourcePin, "source");
       const targetPort = target && getPort(target, edge.targetPin, "target");
       const points = source && target
@@ -78,7 +88,8 @@ export class ElkLayoutProvider {
       return {
         ...edge,
         points,
-        routeKind: "elk-orthogonal"
+        routeKind: "elk-orthogonal",
+        routeStatus: "routed"
       };
     });
     const positionedEdges = placeWireLabels(routedEdges, positionedNodes, {
@@ -183,9 +194,37 @@ function alignEscapeToPoint(from, to, side) {
 
 function getEdgePoints(edge) {
   const section = edge?.sections?.[0];
-  if (!section) {
-    return [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+  if (!section || !finitePoint(section.startPoint) || !finitePoint(section.endPoint)) {
+    return {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{
+        code: "elk-edge-section-missing",
+        edgeId: edge?.id
+      }]
+    };
   }
-  return [section.startPoint, ...(section.bendPoints || []), section.endPoint]
-    .map((point) => ({ x: point.x, y: point.y }));
+  const rawPoints = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
+  if (!rawPoints.every(finitePoint)) {
+    return {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{
+        code: "elk-edge-section-invalid-point",
+        edgeId: edge?.id
+      }]
+    };
+  }
+  const points = rawPoints.map((point) => ({ x: point.x, y: point.y }));
+  return points.length >= 2
+    ? { points, status: "routed", diagnostics: [] }
+    : {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{ code: "elk-edge-section-empty", edgeId: edge?.id }]
+    };
+}
+
+function finitePoint(point) {
+  return Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y));
 }

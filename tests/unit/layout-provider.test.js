@@ -145,3 +145,23 @@ test("ELK hides a net label when a short connection cannot contain it", async ()
   const positioned = await provider.layout(shortLabelGraph);
   assert.equal(positioned.edges[0].showLabel, false);
 });
+
+test("ELK missing edge sections become an explicit unroutable result", async () => {
+  const provider = new ElkLayoutProvider({
+    elkFactory: () => ({
+      layout: async (input) => ({
+        ...input,
+        children: input.children.map((child, index) => ({ ...child, x: index * 130, y: 20 })),
+        edges: input.edges.map((edge) => ({ ...edge }))
+      })
+    })
+  });
+
+  const positioned = await provider.layout(graph);
+  const [edge] = positioned.edges;
+  assert.equal(edge.routeKind, "unroutable");
+  assert.equal(edge.routeStatus, "unroutable");
+  assert.deepEqual(edge.points, []);
+  assert.equal(edge.routeDiagnostics[0].code, "elk-edge-section-missing");
+  assert.equal(positioned.layoutStatus, "unroutable");
+});
