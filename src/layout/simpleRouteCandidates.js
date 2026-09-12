@@ -365,7 +365,7 @@ function createGroupBoundaryLaneCandidate(
     edgePlan?.capacityCorridor?.sourceEscapeInterval,
     sourceSide
   );
-  const targetInterval = (edgePlan?.capacityCorridor?.targetEscapeIntervals || [])
+  const targetInterval = (edgePlan?.capacityCorridor?.targetEscapeRanges || [])
     .find((interval) => interval?.side === targetSide);
   const targetLaneX = chooseCapacityEscapeX(
     targetPoint.x + targetDirection * (escape + targetLane * pitch),

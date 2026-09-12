@@ -199,7 +199,7 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
       sourceEscapeSide: selectedAssignment.sourceEscapeSide,
       targetEscapeSides: selectedAssignment.targetEscapeSides,
       sourceEscapeInterval: selectedAssignment.sourceEscapeInterval,
-      targetEscapeIntervals: selectedAssignment.targetEscapeIntervals
+      targetEscapeRanges: selectedAssignment.targetEscapeRanges
     } : undefined,
     capacityEscape: localAssignment
       ? {

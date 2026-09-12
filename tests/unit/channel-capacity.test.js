@@ -92,6 +92,33 @@ test("capacity plan reuses indexed physical demands across every traversed bound
   assert.equal(new Set(boundaries.map((channel) => channel.demands[0].boundaryClusterKey)).size, 2);
 });
 
+test("capacity plan records bounded escape ranges only for group boundary endpoints", () => {
+  const nodes = [
+    { id: "source", kind: "group", level: 0, x: 0, y: 40, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "target", kind: "group", level: 1, x: 240, y: 72, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "e", source: "source", target: "target", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const plan = buildRoutingCapacityPlan(graph, new Map([
+    ["source", 0], ["target", 1]
+  ]), nodes, null, { routingGeometry: normalizeRoutingGeometry({ groupBoundaryLanePitch: 10 }) });
+  const assignment = plan.allocationByNet.get("source\u0000n")
+    .find((item) => item.channelId === "inter-layer:0->1");
+
+  assert.ok(assignment?.sourceEscapeInterval);
+  assert.equal(assignment.sourceEscapeInterval.side, "right");
+  assert.deepEqual(assignment.targetEscapeRanges, [{ side: "left", minimum: 136, maximum: 232 }]);
+  const cluster = plan.boundaryClusterByKey.get(assignment.boundaryClusterKey);
+  assert.equal(cluster.sourceEscapeMinimum, 88);
+  assert.equal(cluster.sourceEscapeMaximum, 184);
+  assert.equal(cluster.targetEscapeMinimum, 136);
+  assert.equal(cluster.targetEscapeMaximum, 232);
+});
+
 test("capacity formulas use named geometry and remain zero for empty channels", () => {
   const geometry = normalizeRoutingGeometry({
     nodeClearance: 10,

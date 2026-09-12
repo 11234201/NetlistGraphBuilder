@@ -145,7 +145,7 @@ test("group channel candidates stay inside the assigned boundary escape corridor
       targetPin: "in",
       capacityCorridor: {
         sourceEscapeInterval: { side: "right", minimum: 88, maximum: 104 },
-        targetEscapeIntervals: [{ side: "left", minimum: 236, maximum: 252 }]
+        targetEscapeRanges: [{ side: "left", minimum: 236, maximum: 252 }]
       }
     },
     levelBounds: computeLevelBounds([sourceGroup, targetGroup]),
