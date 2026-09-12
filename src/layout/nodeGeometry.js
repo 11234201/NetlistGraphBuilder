@@ -130,17 +130,28 @@ export function computeBounds(nodes) {
  * a node-only viewBox.
  */
 export function computeBoundsWithRoutes(nodes = [], edges = [], wireRoutes = []) {
-  let width = 0;
-  let height = 0;
+  let minimumX = Infinity;
+  let maximumX = -Infinity;
+  let minimumY = Infinity;
+  let maximumY = -Infinity;
   const includePoint = (point) => {
     if (!point) return;
-    if (Number.isFinite(Number(point.x))) width = Math.max(width, Number(point.x));
-    if (Number.isFinite(Number(point.y))) height = Math.max(height, Number(point.y));
+    if (Number.isFinite(Number(point.x))) {
+      minimumX = Math.min(minimumX, Number(point.x));
+      maximumX = Math.max(maximumX, Number(point.x));
+    }
+    if (Number.isFinite(Number(point.y))) {
+      minimumY = Math.min(minimumY, Number(point.y));
+      maximumY = Math.max(maximumY, Number(point.y));
+    }
   };
   for (const node of nodes) {
     if (!node) continue;
-    width = Math.max(width, Number(node.x) + Number(node.width));
-    height = Math.max(height, Number(node.y) + Number(node.height));
+    includePoint({ x: Number(node.x), y: Number(node.y) });
+    includePoint({
+      x: Number(node.x) + Number(node.width),
+      y: Number(node.y) + Number(node.height)
+    });
   }
   for (const edge of edges) {
     for (const point of edge?.points || []) includePoint(point);
@@ -154,7 +165,40 @@ export function computeBoundsWithRoutes(nodes = [], edges = [], wireRoutes = [])
     includePoint(route?.labelPoint);
     for (const point of route?.junctions || []) includePoint(point);
   }
-  return { width, height };
+  if (!Number.isFinite(minimumX)) return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+  return {
+    left: minimumX,
+    right: maximumX,
+    top: minimumY,
+    bottom: maximumY,
+    width: Math.max(0, maximumX - minimumX),
+    height: Math.max(0, maximumY - minimumY)
+  };
+}
+
+/** Translate all scene geometry together when a bounded outer lane is negative. */
+export function translateLayoutGeometry(nodes = [], edges = [], wireRoutes = [], delta = {}) {
+  const dx = Number(delta.x) || 0;
+  const dy = Number(delta.y) || 0;
+  if (dx === 0 && dy === 0) return;
+  const shiftPoint = (point) => point && { x: point.x + dx, y: point.y + dy };
+  for (const node of nodes) {
+    node.x += dx;
+    node.y += dy;
+  }
+  for (const edge of edges) {
+    edge.points = (edge.points || []).map(shiftPoint);
+    if (edge.labelPoint) edge.labelPoint = shiftPoint(edge.labelPoint);
+  }
+  for (const route of wireRoutes) {
+    route.segments = (route.segments || []).map((segment) => ({
+      ...segment,
+      start: shiftPoint(segment.start),
+      end: shiftPoint(segment.end)
+    }));
+    route.junctions = (route.junctions || []).map(shiftPoint);
+    if (route.labelPoint) route.labelPoint = shiftPoint(route.labelPoint);
+  }
 }
 
 function placePorts(ports, height, preferredPitch) {

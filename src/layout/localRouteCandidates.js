@@ -88,8 +88,7 @@ function* iterateLocalDetours(
   const targetLaneX = end.x - targetInset;
   const minRouteX = Math.min(sourceLaneX, targetLaneX);
   const maxRouteX = Math.max(sourceLaneX, targetLaneX);
-  const minNodeY = Math.min(...nodes.map((node) => node.y));
-  const maxNodeY = Math.max(...nodes.map((node) => node.y + node.height));
+  const [minNodeY, maxNodeY] = getNodeVerticalBounds(nodes);
   const relevantNodes = nodeIndex.query({
     left: minRouteX - padding,
     right: maxRouteX + padding,
@@ -131,8 +130,7 @@ function* iterateLocalDetours(
 }
 
 function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {
-  const minY = Math.min(...nodes.map((node) => node.y));
-  const maxY = Math.max(...nodes.map((node) => node.y + node.height));
+  const [minY, maxY] = getNodeVerticalBounds(nodes);
   const attempts = Math.min(
     ROUTE_SEARCH_LIMITS.maximumOuterLaneAttempts,
     Math.max(ROUTE_SEARCH_LIMITS.minimumOuterLaneAttempts, nodes.length + 8)
@@ -156,6 +154,17 @@ function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin)
       ]);
     }
   }
+}
+
+function getNodeVerticalBounds(nodes) {
+  if (!nodes || nodes.length === 0) return [0, 0];
+  let minimum = Infinity;
+  let maximum = -Infinity;
+  for (const node of nodes) {
+    minimum = Math.min(minimum, node.y);
+    maximum = Math.max(maximum, node.y + node.height);
+  }
+  return [minimum, maximum];
 }
 
 function candidate(kind, points) {

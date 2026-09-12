@@ -9,7 +9,8 @@ import {
   buildNodePorts,
   computeBoundsWithRoutes,
   DEFAULT_CELL_PIN_PITCH,
-  measureNode
+  measureNode,
+  translateLayoutGeometry
 } from "./nodeGeometry.js";
 import { applyNodeSizeOverride } from "./nodeOverrides.js";
 import {
@@ -116,14 +117,19 @@ export function layoutGraph(graph, options = {}) {
   });
   const wireRoutes = buildWireRoutes(positionedEdges);
   const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
+  translateLayoutGeometry(positionedNodes, positionedEdges, wireRoutes, {
+    x: Math.max(0, -bounds.left),
+    y: Math.max(0, -bounds.top)
+  });
+  const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
   return {
     ...graph,
     nodes: positionedNodes,
     edges: positionedEdges,
     wireRoutes,
     routingCapacity,
-    width: bounds.width + margin,
-    height: bounds.height + margin
+    width: normalizedBounds.width + margin,
+    height: normalizedBounds.height + margin
   };
 }
 

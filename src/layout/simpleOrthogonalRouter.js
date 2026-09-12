@@ -93,7 +93,7 @@ export function routeSimpleEdges(graph, nodes, options) {
     routedById.set(edge.id, positionedEdge);
     routingMetrics.routeKinds[routed.kind] =
       (routingMetrics.routeKinds[routed.kind] || 0) + 1;
-    reservedSegments.push(...getRouteSegments(positionedEdge.points, edge.net));
+    reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, edge));
     if (options.onRoutingProgress &&
       ((edgeIndex + 1) % 256 === 0 || edgeIndex + 1 === orderedEdges.length)) {
       options.onRoutingProgress({
@@ -128,6 +128,14 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey) {
     topLane: topAssignment.laneIndex,
     capacityChannelId: topAssignment.channelId
   };
+}
+
+function getOwnedRouteSegments(points, edge) {
+  const physicalOwner = getNetGroupKey(edge);
+  return getRouteSegments(points, edge.net).map((segment) => ({
+    ...segment,
+    physicalOwner
+  }));
 }
 
 function routeEdge(context) {

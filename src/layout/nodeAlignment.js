@@ -135,7 +135,8 @@ function shiftAlignedComponentsInsideMargin(nodeById, alignedEdges, margin) {
       }
     }
 
-    const minY = Math.min(...component.map((node) => node.y));
+    let minY = Infinity;
+    for (const node of component) minY = Math.min(minY, node.y);
     const shift = Math.max(0, margin - minY);
     if (shift <= 0) continue;
     for (const node of component) node.y = round(node.y + shift);

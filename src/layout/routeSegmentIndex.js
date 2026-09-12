@@ -9,6 +9,7 @@ export function getEdgeRouteSegments(edge) {
     edge,
     edgeId: edge.id,
     netGroupKey,
+    physicalOwner: netGroupKey,
     segmentIndex,
     orientation: getSegmentOrientation(segment)
   }));

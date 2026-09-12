@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { countRouteConflicts } from "../../src/layout/orthogonalRouting.js";
 import {
+  computeBoundsWithRoutes,
+  translateLayoutGeometry
+} from "../../src/layout/nodeGeometry.js";
+import {
   computeNodeCollectionBox,
   createNodeSpatialIndex,
   RouteSegmentIndex,
@@ -23,6 +27,21 @@ test("node collection bounds are computed once for corridor queries", () => {
   assert.deepEqual(computeNodeCollectionBox([], 8), {
     left: 0, right: 0, top: 0, bottom: 0
   });
+});
+
+test("routed bounds include negative outer lanes and translate the complete scene", () => {
+  const nodes = [{ id: "n", x: 10, y: 20, width: 30, height: 20 }];
+  const edges = [{ points: [{ x: 10, y: 30 }, { x: -14, y: 30 }], labelPoint: { x: -8, y: 24 } }];
+  const routes = [{
+    segments: [{ start: { x: -14, y: 30 }, end: { x: 10, y: 30 } }],
+    junctions: [{ x: -14, y: 30 }]
+  }];
+  const bounds = computeBoundsWithRoutes(nodes, edges, routes);
+  assert.equal(bounds.left, -14);
+  assert.equal(bounds.width, 54);
+  translateLayoutGeometry(nodes, edges, routes, { x: 14, y: 0 });
+  assert.equal(computeBoundsWithRoutes(nodes, edges, routes).left, 0);
+  assert.deepEqual(edges[0].points[1], { x: 0, y: 30 });
 });
 
 test("spatial hash returns only nearby items across positive and negative cells", () => {
@@ -102,4 +121,24 @@ test("vertical segment queries only return vertical lane candidates", () => {
     index.queryVerticalSegment({ start: { x: 100, y: 40 }, end: { x: 100, y: 120 } }),
     [vertical]
   );
+});
+
+test("route segment index deduplicates physical owner geometry and replaces owners", () => {
+  const segment = {
+    start: { x: 10, y: 10 },
+    end: { x: 100, y: 10 },
+    net: "n",
+    netGroupKey: "src\\u0000n",
+    physicalOwner: "src\\u0000n"
+  };
+  const index = new RouteSegmentIndex();
+  index.pushUnique(segment, { ...segment });
+  assert.equal(index.length, 1);
+  index.replaceOwner("src\\u0000n", [{
+    start: { x: 20, y: 20 },
+    end: { x: 120, y: 20 },
+    net: "n"
+  }]);
+  assert.equal(index.length, 1);
+  assert.deepEqual(index.items[0].start, { x: 20, y: 20 });
 });

@@ -61,6 +61,7 @@ export class SpatialHashIndex {
 export class RouteSegmentIndex {
   constructor(segments = [], cellSize = 128) {
     this.items = [];
+    this.geometryKeys = new Set();
     this.cellSize = Math.max(16, Number(cellSize) || 128);
     this.horizontalBuckets = new Map();
     this.verticalBuckets = new Map();
@@ -71,6 +72,7 @@ export class RouteSegmentIndex {
   push(...segments) {
     for (const segment of segments) {
       this.items.push(segment);
+      this.geometryKeys.add(routeSegmentGeometryKey(segment));
       const record = {
         segment,
         box: segmentBox(segment)
@@ -93,6 +95,42 @@ export class RouteSegmentIndex {
         this.otherIndex.insert(record, record.box);
       }
     }
+    return this.items.length;
+  }
+
+  pushUnique(...segments) {
+    const accepted = [];
+    for (const segment of segments) {
+      const key = routeSegmentGeometryKey(segment);
+      if (this.geometryKeys.has(key)) continue;
+      this.geometryKeys.add(key);
+      accepted.push(segment);
+    }
+    if (accepted.length > 0) this.push(...accepted);
+    return this.items.length;
+  }
+
+  removeOwner(owner) {
+    const remaining = this.items.filter((segment) =>
+      (segment?.physicalOwner ?? segment?.netGroupKey ?? segment?.net) !== owner);
+    if (remaining.length === this.items.length) return this.items.length;
+    this.rebuild(remaining);
+    return this.items.length;
+  }
+
+  replaceOwner(owner, segments = []) {
+    this.removeOwner(owner);
+    this.pushUnique(...segments.map((segment) => ({ ...segment, physicalOwner: owner })));
+    return this.items.length;
+  }
+
+  rebuild(segments = []) {
+    this.items = [];
+    this.geometryKeys = new Set();
+    this.horizontalBuckets = new Map();
+    this.verticalBuckets = new Map();
+    this.otherIndex = new SpatialHashIndex(this.cellSize);
+    this.push(...segments);
     return this.items.length;
   }
 
@@ -176,6 +214,13 @@ function insertAxisBucket(buckets, key, record) {
   buckets.get(key).push(record);
 }
 
+function routeSegmentGeometryKey(segment) {
+  const start = `${Number(segment?.start?.x) || 0},${Number(segment?.start?.y) || 0}`;
+  const end = `${Number(segment?.end?.x) || 0},${Number(segment?.end?.y) || 0}`;
+  const geometry = start < end ? `${start}|${end}` : `${end}|${start}`;
+  return `${segment?.physicalOwner ?? segment?.netGroupKey ?? segment?.net ?? ""}\u0000${geometry}`;
+}
+
 function queryAxisBuckets(buckets, minimum, maximum, box, found) {
   const span = maximum - minimum + 1;
   if (span <= buckets.size * 2) {
@@ -240,12 +285,17 @@ export function computeNodeCollectionBox(nodes, padding = 0) {
   if (!nodes || nodes.length === 0) {
     return { left: 0, right: 0, top: 0, bottom: 0 };
   }
-  return {
-    left: Math.min(...nodes.map((node) => node.x)) - padding,
-    right: Math.max(...nodes.map((node) => node.x + node.width)) + padding,
-    top: Math.min(...nodes.map((node) => node.y)) - padding,
-    bottom: Math.max(...nodes.map((node) => node.y + node.height)) + padding
-  };
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const node of nodes) {
+    left = Math.min(left, node.x);
+    right = Math.max(right, node.x + node.width);
+    top = Math.min(top, node.y);
+    bottom = Math.max(bottom, node.y + node.height);
+  }
+  return { left: left - padding, right: right + padding, top: top - padding, bottom: bottom + padding };
 }
 
 export function segmentBox(segment, padding = 0) {
