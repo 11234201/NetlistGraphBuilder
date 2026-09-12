@@ -43,7 +43,9 @@ for (const [index, netlist] of netlists.entries()) {
   }
   const complete = metrics?.routedEdges === metrics?.edges;
   const withinBudget = (metrics?.violations ?? Infinity) <= caseViolationBudget;
-  const passed = !execution.timedOut && execution.code === 0 && complete && withinBudget;
+  const providerStatusOk = !hardInvariants || metrics?.layoutStatus === "routed";
+  const passed = !execution.timedOut && execution.code === 0 && complete &&
+    withinBudget && providerStatusOk;
   results.push({ caseName, netlist, passed, execution, metrics });
   console.log(
     execution.timedOut
@@ -77,7 +79,9 @@ if (failed.length > 0 || totalViolations > totalViolationBudget) {
     const reason = result.execution.timedOut ? "timeout"
       : result.execution.code !== 0 ? "worker-exit"
         : !result.metrics ? "invalid-json"
-          : result.metrics.routedEdges !== result.metrics.edges ? "incomplete-routing" : "violation-budget";
+          : result.metrics.routedEdges !== result.metrics.edges ? "incomplete-routing"
+            : hardInvariants && result.metrics.layoutStatus !== "routed" ? "provider-status"
+              : "violation-budget";
     console.error(JSON.stringify({ reason, code: result.execution.code,
       elapsedMs: result.execution.elapsedMs, timeoutMs, noCollapse, metrics: result.metrics }));
     if (result.execution.stderr) console.error(result.execution.stderr.slice(-2000));
