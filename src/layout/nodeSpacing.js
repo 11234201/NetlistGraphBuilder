@@ -9,8 +9,10 @@ import {
 } from "./nodePlacementShared.js";
 import { MAX_LOCALIZED_INPUT_LOADS } from "./nodeLocality.js";
 import { getConnectionPoint, getPort } from "./nodeGeometry.js";
+import { createNodeSpatialIndex } from "./spatialIndex.js";
 
 const MAX_GROUP_ESCAPE_SHIFTS = 8;
+const MAX_SOURCE_ESCAPE_PASSES = 1;
 
 export function resolveExternalSourceOverlaps(nodes, margin, gap = 8) {
   const sources = nodes
@@ -40,6 +42,77 @@ export function resolvePostLocalitySourceOverlaps(nodes, margin, gap = 0) {
     if (blockers.length > 0) {
       source.y = findNearestFreeY(source, source.y, nodes, new Set([source.id]), margin, gap);
     }
+  }
+}
+
+/**
+ * Keep the mandatory first horizontal escape from an external source clear.
+ * Locality can place a different input between a source pin and its target;
+ * body-overlap repair cannot see that line-of-sight blockage. Query the node
+ * index once and move only the blocked source to the nearest clear pin row.
+ */
+export function resolveExternalSourceEscapeOverlaps(nodes, edges, margin, gap = 8) {
+  if (!nodes?.length || !edges?.length) return;
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const outgoing = new Map();
+  for (const edge of edges) {
+    const entries = outgoing.get(edge.source) || [];
+    entries.push(edge);
+    outgoing.set(edge.source, entries);
+  }
+  for (let pass = 0; pass < MAX_SOURCE_ESCAPE_PASSES; pass += 1) {
+    const nodeIndex = createNodeSpatialIndex(nodes);
+    const sources = nodes
+      .filter(isExternalSourceNode)
+      .toSorted((left, right) => left.y - right.y || compareNodes(left, right));
+    let moved = 0;
+    for (const source of sources) {
+      const blockers = [];
+      const sourceEdges = (outgoing.get(source.id) || [])
+        .toSorted((left, right) => String(left.id || "").localeCompare(String(right.id || "")));
+      for (const edge of sourceEdges) {
+        const target = nodeById.get(edge.target);
+        // Ordinary cell routes already have a compact obstacle search and may
+        // intentionally rely on fixed node overrides. This placement repair
+        // belongs to collapsed boundary corridors, where a wide group target
+        // can otherwise make every legal target-side vertical lane unavailable.
+        if (target?.kind !== "group") continue;
+        const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
+        const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
+        const side = getPort(source, edge.sourcePin, "source")?.side || "right";
+        const forward = side === "right" && targetPoint.x > sourcePoint.x;
+        const reverse = side === "left" && targetPoint.x < sourcePoint.x;
+        if (!forward && !reverse) continue;
+        const left = Math.min(sourcePoint.x, targetPoint.x);
+        const right = Math.max(sourcePoint.x, targetPoint.x);
+        for (const candidate of nodeIndex.query({
+          left,
+          right,
+          top: sourcePoint.y - 0.01,
+          bottom: sourcePoint.y + 0.01
+        })) {
+          if (candidate.id === source.id || candidate.id === target.id) continue;
+          if (!(sourcePoint.y > candidate.y && sourcePoint.y < candidate.y + candidate.height)) continue;
+          if (!(right > candidate.x && left < candidate.x + candidate.width)) continue;
+          blockers.push({ candidate, sourcePoint });
+        }
+      }
+      if (blockers.length === 0) continue;
+      blockers.sort((left, right) =>
+        Math.abs(left.candidate.x - left.sourcePoint.x) -
+          Math.abs(right.candidate.x - right.sourcePoint.x) ||
+        String(left.candidate.id).localeCompare(String(right.candidate.id)));
+      const { candidate: blocker, sourcePoint } = blockers[0];
+      const portOffset = sourcePoint.y - source.y;
+      const below = blocker.y + blocker.height + gap - portOffset;
+      const above = blocker.y - gap - portOffset;
+      const preferredY = Math.abs(above - source.y) <= Math.abs(below - source.y) ? above : below;
+      const nextY = findNearestFreeY(source, preferredY, nodes, new Set([source.id]), margin, gap);
+      if (Math.abs(nextY - source.y) < 0.01) continue;
+      source.y = nextY;
+      moved += 1;
+    }
+    if (moved === 0) break;
   }
 }
 

@@ -215,6 +215,22 @@ test("global fallback lane candidates stay bounded on large graphs", () => {
   assert.equal(lanes[0], 20);
 });
 
+test("global fallback includes bounded capacity lane hints", () => {
+  const lanes = createGlobalLaneYCandidates(
+    [],
+    200,
+    48,
+    16,
+    24,
+    null,
+    [150, 320, 150]
+  );
+
+  assert.ok(lanes.includes(150));
+  assert.ok(lanes.includes(320));
+  assert.equal(lanes.filter((lane) => lane === 150).length, 1);
+});
+
 test("global fallback reserves vertical lanes used by earlier nets", () => {
   const nodes = [source, target];
   const sourcePoint = { x: 80, y: 54 };

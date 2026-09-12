@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { resolveExternalSourceEscapeOverlaps } from "../../src/layout/nodeSpacing.js";
 import {
   runSimplePlacementPipeline,
   SIMPLE_PLACEMENT_STAGES
@@ -94,4 +95,31 @@ test("Simple placement preserves cell spacing after localizing input ports", () 
     .toSorted((left, right) => left.y - right.y);
   assert.ok(inputs[1].y - inputs[0].y - inputs[0].height >= 64);
   assert.equal(positionedNodes[2].x - (inputs[0].x + inputs[0].width), 80);
+});
+
+test("external source escape repair moves a pin row blocked by another input", () => {
+  const nodes = [
+    {
+      id: "input:data", kind: "input", x: 0, y: 40, width: 40, height: 20,
+      ports: [{ pin: "data", direction: "output", side: "right", x: 40, y: 10 }]
+    },
+    {
+      id: "input:clk", kind: "input", x: 80, y: 35, width: 40, height: 30,
+      ports: [{ pin: "clk", direction: "output", side: "right", x: 40, y: 15 }]
+    },
+    {
+      id: "group:target", kind: "group", x: 200, y: 34, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }]
+    }
+  ];
+  resolveExternalSourceEscapeOverlaps(nodes, [{
+    id: "edge",
+    source: "input:data",
+    target: "group:target",
+    sourcePin: "data",
+    targetPin: "A"
+  }], 8, 8);
+
+  const sourcePinY = nodes[0].y + 10;
+  assert.ok(sourcePinY <= nodes[1].y - 8 || sourcePinY >= nodes[1].y + nodes[1].height + 8);
 });

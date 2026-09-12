@@ -506,6 +506,7 @@ export function findObstacleAvoidingRoute(context) {
     targetPoint,
     nodes,
     preferredLaneY,
+    capacityLaneYs,
     margin,
     lanePitch,
     nodeIndex,
@@ -525,7 +526,8 @@ export function findObstacleAvoidingRoute(context) {
     margin,
     lanePitch,
     clearance,
-    globalLaneGeometry
+    globalLaneGeometry,
+    capacityLaneYs
   );
   for (const laneY of yCandidates) {
     const sourceLaneX = findClearVerticalLaneX(
@@ -751,11 +753,12 @@ export function createGlobalLaneYCandidates(
   margin,
   lanePitch,
   clearance,
-  preparedGeometry = null
+  preparedGeometry = null,
+  capacityLaneYs = []
 ) {
   const { minTop, maxBottom, gapLanes } = preparedGeometry ||
     prepareGlobalLaneGeometry(nodes, clearance);
-  const candidates = [preferredLaneY];
+  const candidates = [preferredLaneY, ...(Array.isArray(capacityLaneYs) ? capacityLaneYs : [])];
   // Keep the outer search independent of graph size. More nodes do not make
   // additional retries meaningful: the prepared gap lanes already represent
   // the available corridors, while the fixed outer samples provide bounded

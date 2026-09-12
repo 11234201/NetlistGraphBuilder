@@ -3,6 +3,9 @@ import { getConnectionPoint, getPort } from "./nodeGeometry.js";
 
 const MAX_ROW_GAP_DEMANDS = 64;
 const MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES = 32;
+// Keep each physical channel bounded. Overflow demands retain diagnostics but
+// do not create unbounded placement expansion or a fake duplicate lane.
+export const MAX_CHANNEL_LANES_PER_SCOPE = 256;
 // Placement must reserve a useful outer band without allowing a large mapped
 // graph to turn every physical net into a full-height canvas expansion. The
 // router still reports overflow so unmet capacity is diagnosable.
@@ -207,7 +210,9 @@ export function buildRoutingCapacityPlan(
       .toSorted(compareChannelDemands);
     const allocation = allocateIntervalLanes(
       channelDemands,
-      routingGeometry.laneReusePadding
+      routingGeometry.laneReusePadding,
+      routingGeometry.wireLanePitch,
+      MAX_CHANNEL_LANES_PER_SCOPE
     );
     const currentSpan = getInterLayerSpan(levelBounds, leftLevel, rightLevel);
     const requiredSpan = currentSpan === null
@@ -222,6 +227,7 @@ export function buildRoutingCapacityPlan(
       requiredSpan,
       expansion: currentSpan === null ? 0 : Math.max(0, requiredSpan - currentSpan),
       laneCount: allocation.laneCount,
+      overflowCount: allocation.overflowCount,
       lanes: allocation.lanes,
       assignments: allocation.assignments,
       demandKeys: channelDemands.map((demand) => demand.netGroupKey),
@@ -262,7 +268,18 @@ export function buildRoutingCapacityPlan(
     .toSorted(compareChannelDemands);
   for (const kind of ["outer-top", "outer-bottom"]) {
     const channelDemands = outerDemands.map((demand) => ({ ...demand, channelId: kind }));
-    const allocation = allocateIntervalLanes(channelDemands, routingGeometry.laneReusePadding);
+    const rawAllocation = allocateIntervalLanes(
+      channelDemands,
+      routingGeometry.laneReusePadding,
+      routingGeometry.wireLanePitch,
+      MAX_CHANNEL_LANES_PER_SCOPE
+    );
+    const allocation = assignOuterLaneCoordinates(
+      rawAllocation,
+      kind,
+      positionedNodes,
+      routingGeometry
+    );
     const currentSpan = Number(options[`${kind}Span`]) || 0;
     const requiredSpan = requiredOuterBand(allocation.laneCount, routingGeometry);
     const channel = {
@@ -274,6 +291,7 @@ export function buildRoutingCapacityPlan(
       requiredSpan,
       expansion: Math.max(0, requiredSpan - currentSpan),
       laneCount: allocation.laneCount,
+      overflowCount: allocation.overflowCount,
       lanes: allocation.lanes,
       assignments: allocation.assignments,
       demandKeys: channelDemands.map((demand) => demand.netGroupKey),
@@ -336,18 +354,29 @@ export function buildRoutingCapacityPlan(
     allocationByNet,
     nodeEscapeReservations: [],
     expansion,
-    diagnostics: channels.filter((channel) => channel.expansion > 0).map((channel) => ({
-      code: "channel-capacity-expansion",
-      channelId: channel.id,
-      currentSpan: channel.currentSpan,
-      requiredSpan: channel.requiredSpan,
-      laneCount: channel.laneCount
-    })),
+    diagnostics: channels.flatMap((channel) => [
+      ...(channel.expansion > 0 ? [{
+        code: "channel-capacity-expansion",
+        channelId: channel.id,
+        currentSpan: channel.currentSpan,
+        requiredSpan: channel.requiredSpan,
+        laneCount: channel.laneCount
+      }] : []),
+      ...(channel.overflowCount > 0 ? [{
+        code: "channel-capacity-overflow",
+        channelId: channel.id,
+        laneCount: channel.laneCount,
+        overflowCount: channel.overflowCount,
+        maximumLanes: MAX_CHANNEL_LANES_PER_SCOPE
+      }] : [])
+    ]),
     metrics: {
       physicalNetCount: demands.length,
       channelCount: channels.length,
       allocatedLaneCount: channels.reduce((sum, channel) => sum + channel.laneCount, 0),
       expandedChannelCount: channels.filter((channel) => channel.expansion > 0).length,
+      overflowChannelCount: channels.filter((channel) => channel.overflowCount > 0).length,
+      overflowDemandCount: channels.reduce((sum, channel) => sum + (channel.overflowCount || 0), 0),
       boundaryClusterCount: boundaryClusterCounts.size,
       maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values()),
       topWireHeadroom: options.topWireHeadroom || null
@@ -360,6 +389,32 @@ export function buildRoutingCapacityPlan(
     ])),
     routingGeometry,
     channelById: new Map(publicChannels.map((channel) => [channel.id, channel]))
+  };
+}
+
+function assignOuterLaneCoordinates(allocation, kind, positionedNodes, routingGeometry) {
+  let nodeTop = 0;
+  let nodeBottom = 0;
+  for (const node of positionedNodes) {
+    const top = Number(node.y) || 0;
+    nodeTop = Math.min(nodeTop, top);
+    nodeBottom = Math.max(nodeBottom, top + (Number(node.height) || 0));
+  }
+  const clearance = Number(routingGeometry.outerLaneClearance) ||
+    DEFAULT_ROUTING_GEOMETRY.outerLaneClearance;
+  const pitch = Number(routingGeometry.wireLanePitch) ||
+    DEFAULT_ROUTING_GEOMETRY.wireLanePitch;
+  const top = kind === "outer-top";
+  const base = top ? nodeTop - clearance : nodeBottom + clearance;
+  const direction = top ? -1 : 1;
+  return {
+    ...allocation,
+    assignments: allocation.assignments.map((assignment) => assignment.capacityOverflow
+      ? assignment
+      : {
+        ...assignment,
+        coordinate: base + direction * Number(assignment.laneIndex) * pitch
+      })
   };
 }
 
@@ -527,18 +582,37 @@ export function applyRoutingCapacityExpansion(positionedNodes = [], capacityPlan
 }
 
 /** Stable interval coloring with min-heaps for active and reusable lanes. */
-export function allocateIntervalLanes(demands = [], padding = 4, pitch = 24) {
+export function allocateIntervalLanes(
+  demands = [],
+  padding = 4,
+  pitch = 24,
+  maximumLanes = Infinity
+) {
+  const laneLimit = Number.isFinite(Number(maximumLanes)) && Number(maximumLanes) > 0
+    ? Math.floor(Number(maximumLanes))
+    : Infinity;
   const ordered = [...demands].sort(compareChannelDemands);
   const active = new MinHeap((left, right) =>
     left.intervalEnd - right.intervalEnd || left.laneIndex - right.laneIndex);
   const free = new MinHeap((left, right) => left - right);
   const lanes = [];
   const assignments = [];
+  let overflowCount = 0;
   for (const demand of ordered) {
     while (active.size > 0 && active.peek().intervalEnd + 2 * padding <= demand.intervalStart) {
       free.push(active.pop().laneIndex);
     }
     const laneIndex = free.size > 0 ? free.pop() : lanes.length;
+    if (laneIndex >= laneLimit) {
+      overflowCount += 1;
+      assignments.push({
+        ...demand,
+        laneIndex: null,
+        coordinate: null,
+        capacityOverflow: true
+      });
+      continue;
+    }
     if (laneIndex === lanes.length) lanes.push({ laneIndex, demandKeys: [] });
     lanes[laneIndex].demandKeys.push(demand.netGroupKey);
     const assigned = {
@@ -551,7 +625,7 @@ export function allocateIntervalLanes(demands = [], padding = 4, pitch = 24) {
     assignments.push(assigned);
     active.push(assigned);
   }
-  return { laneCount: lanes.length, lanes, assignments };
+  return { laneCount: lanes.length, lanes, assignments, overflowCount };
 }
 
 export function requiredRowGap(laneCount, geometry) {
@@ -655,7 +729,8 @@ function buildRowGapChannels(demands, positionedNodes, levels, routingGeometry, 
       const allocation = allocateIntervalLanes(
         channelDemands,
         routingGeometry.laneReusePadding,
-        routingGeometry.wireLanePitch
+        routingGeometry.wireLanePitch,
+        MAX_CHANNEL_LANES_PER_SCOPE
       );
       const requiredSpan = requiredRowGap(allocation.laneCount, routingGeometry);
       const channel = {
@@ -672,6 +747,7 @@ function buildRowGapChannels(demands, positionedNodes, levels, routingGeometry, 
         requiredSpan,
         expansion: Math.max(0, requiredSpan - currentSpan),
         laneCount: allocation.laneCount,
+        overflowCount: allocation.overflowCount,
         lanes: allocation.lanes,
         demandKeys: channelDemands.map((demand) => demand.netGroupKey),
         demands: channelDemands,

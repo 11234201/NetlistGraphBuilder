@@ -15,7 +15,8 @@ import {
 } from "./nodeGeometry.js";
 import { applyNodeSizeOverride } from "./nodeOverrides.js";
 import {
-  computeLevelXs
+  computeLevelXs,
+  resolveExternalSourceEscapeOverlaps
 } from "./nodeSpacing.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
@@ -115,6 +116,16 @@ export function layoutGraph(graph, options = {}) {
     }
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
+  // Row-gap capacity expansion can move only part of a source column and
+  // create a new line-of-sight obstruction that did not exist during the
+  // normal locality pipeline. Repair the final source-to-group escape rows
+  // once, after capacity geometry is final and before rebuilding assignments.
+  resolveExternalSourceEscapeOverlaps(
+    positionedNodes,
+    graph.edges,
+    margin,
+    policy.spacing.cellSpacing
+  );
   const routingCapacity = buildRoutingCapacityPlan(
     graph,
     levels,

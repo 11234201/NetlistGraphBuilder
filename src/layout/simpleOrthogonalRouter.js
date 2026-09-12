@@ -24,6 +24,7 @@ import {
 import { placeWireLabels } from "./wireLabelPlacement.js";
 
 const MAX_SCORED_ROUTE_CONFLICTS = 8;
+const MAX_CAPACITY_LANE_Y_HINTS = 24;
 
 export function routeSimpleEdges(graph, nodes, options) {
   const {
@@ -60,6 +61,8 @@ export function routeSimpleEdges(graph, nodes, options) {
         channelCount: routingCapacity.metrics.channelCount,
         allocatedLaneCount: routingCapacity.metrics.allocatedLaneCount,
         expandedChannelCount: routingCapacity.metrics.expandedChannelCount,
+        overflowChannelCount: routingCapacity.metrics.overflowChannelCount,
+        overflowDemandCount: routingCapacity.metrics.overflowDemandCount,
         boundaryClusterCount: routingCapacity.metrics.boundaryClusterCount,
         maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand,
         topWireHeadroom: routingCapacity.metrics.topWireHeadroom
@@ -162,9 +165,11 @@ export function routeSimpleEdges(graph, nodes, options) {
 function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext = {}) {
   if (!routingCapacity?.allocationByNet) return edgePlan;
   const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
-  const topAssignment = assignments.find((assignment) => assignment.channelId === "outer-top");
+  const topAssignment = assignments.find((assignment) =>
+    assignment.channelId === "outer-top" && Number.isFinite(Number(assignment.coordinate)));
   const localAssignments = assignments.filter((assignment) =>
-    String(assignment.channelId).startsWith("inter-layer:"));
+    String(assignment.channelId).startsWith("inter-layer:") &&
+    Number.isFinite(Number(assignment.coordinate)));
   const sourceBoundaryId = getSourceBoundaryChannelId(
     edgeContext.sourceLevel,
     edgeContext.targetLevel
@@ -172,10 +177,12 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
   const localAssignment = localAssignments.find((assignment) =>
     assignment.channelId === sourceBoundaryId) || localAssignments[0];
   const rowGapAssignments = assignments
-    .filter((assignment) => String(assignment.channelId).startsWith("row-gap:"))
+    .filter((assignment) => String(assignment.channelId).startsWith("row-gap:") &&
+      Number.isFinite(Number(assignment.coordinate)))
     .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
   if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) return edgePlan;
   const selectedAssignment = localAssignment || topAssignment || rowGapAssignments[0];
+  const capacityLaneYs = collectCapacityLaneYHints(assignments);
   return {
     ...(edgePlan || {}),
     ...(topAssignment ? {
@@ -189,6 +196,8 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
     // shape for unrelated focused branches.  Inter-layer/outer assignments
     // remain the only global preference until a route has a matching level.
     preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate,
+    capacityLaneYs,
+    capacityOverflow: assignments.some((assignment) => assignment.capacityOverflow === true),
     capacityBoundaryClusterKey: selectedAssignment?.boundaryClusterKey,
     capacityCorridor: selectedAssignment ? {
       channelId: selectedAssignment.channelId,
@@ -214,6 +223,31 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
       boundaryClusterKey: assignment.boundaryClusterKey
     }))
   };
+}
+
+/**
+ * Preserve a small, deterministic set of allocated horizontal corridors for
+ * the global candidate search.  Assignments can contain one entry per
+ * traversed boundary (and two outer bands), so never copy the full list into
+ * every edge plan; the fixed cap is part of the routing complexity contract.
+ */
+function collectCapacityLaneYHints(assignments = []) {
+  const values = [];
+  const append = (assignment) => {
+    const coordinate = Number(assignment?.coordinate);
+    if (!Number.isFinite(coordinate) || values.some((value) => Math.abs(value - coordinate) < 0.01)) return;
+    values.push(coordinate);
+  };
+  // Keep source-adjacent/inter-layer lanes first, then make sure both outer
+  // bands remain represented even when a long edge crosses many boundaries.
+  for (const assignment of assignments) {
+    if (!String(assignment?.channelId || "").startsWith("outer-")) append(assignment);
+    if (values.length >= MAX_CAPACITY_LANE_Y_HINTS - 2) break;
+  }
+  for (const kind of ["outer-top", "outer-bottom"]) {
+    append(assignments.find((assignment) => assignment?.channelId === kind));
+  }
+  return values.slice(0, MAX_CAPACITY_LANE_Y_HINTS);
 }
 
 /**

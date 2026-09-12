@@ -7,6 +7,7 @@ import {
   buildRoutingCapacityPlan,
   computeTopWireHeadroom,
   MAX_PLACEMENT_OUTER_LANES,
+  MAX_CHANNEL_LANES_PER_SCOPE,
   normalizeRoutingGeometry,
   requiredInterLayerGap,
   requiredRowGap
@@ -27,6 +28,21 @@ test("interval channel allocation reuses only separated lanes deterministically"
     [["a", 0], ["c", 1], ["b", 0]]
   );
   assert.deepEqual(reversed, forward);
+});
+
+test("interval channel allocation reports overflow without aliasing a lane", () => {
+  const demands = Array.from({ length: MAX_CHANNEL_LANES_PER_SCOPE + 3 }, (_, index) => ({
+    netGroupKey: `n${index}`,
+    intervalStart: 0,
+    intervalEnd: 100
+  }));
+  const allocation = allocateIntervalLanes(demands, 1, 24, MAX_CHANNEL_LANES_PER_SCOPE);
+
+  assert.equal(allocation.laneCount, MAX_CHANNEL_LANES_PER_SCOPE);
+  assert.equal(allocation.overflowCount, 3);
+  assert.equal(allocation.assignments.filter((item) => item.capacityOverflow).length, 3);
+  assert.equal(allocation.assignments.filter((item) => Number.isFinite(item.coordinate)).length,
+    MAX_CHANNEL_LANES_PER_SCOPE);
 });
 
 test("capacity plan counts physical fanout once per inter-layer boundary", () => {
@@ -83,6 +99,28 @@ test("capacity plan reuses indexed physical demands across every traversed bound
   assert.equal(plan.metrics.physicalNetCount, 1);
   assert.equal(plan.metrics.boundaryClusterCount, 3);
   assert.equal(new Set(boundaries.map((channel) => channel.demands[0].boundaryClusterKey)).size, 2);
+});
+
+test("outer capacity lanes are placed outside the final node bounds", () => {
+  const nodes = [
+    { id: "src", kind: "group", level: 0, x: 0, y: 40, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "sink", kind: "group", level: 2, x: 320, y: 120, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "e", source: "src", target: "sink", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const plan = buildRoutingCapacityPlan(graph, new Map([["src", 0], ["sink", 2]]), nodes, null, {
+    routingGeometry: normalizeRoutingGeometry({ outerLaneClearance: 24, wireLanePitch: 16 })
+  });
+  const assignments = plan.allocationByNet.get("src\u0000n");
+  const top = assignments.find((item) => item.channelId === "outer-top");
+  const bottom = assignments.find((item) => item.channelId === "outer-bottom");
+
+  assert.ok(top.coordinate < Math.min(...nodes.map((node) => node.y)));
+  assert.ok(bottom.coordinate > Math.max(...nodes.map((node) => node.y + node.height)));
 });
 
 test("capacity plan records bounded escape ranges only for group boundary endpoints", () => {
