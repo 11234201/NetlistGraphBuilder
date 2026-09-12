@@ -537,7 +537,8 @@ export function findObstacleAvoidingRoute(context) {
       nodeIndex,
       reservedSegments,
       net,
-      netGroupKey
+      netGroupKey,
+      "source"
     );
     const targetLaneX = findClearVerticalLaneX(
       baseTargetLaneX,
@@ -548,7 +549,8 @@ export function findObstacleAvoidingRoute(context) {
       nodeIndex,
       reservedSegments,
       net,
-      netGroupKey
+      netGroupKey,
+      "target"
     );
     const candidate = createGlobalLaneRoute(
       sourcePoint,
@@ -574,7 +576,11 @@ export function findObstacleAvoidingRoute(context) {
       laneY,
       source,
       target,
-      nodeIndex
+      nodeIndex,
+      [],
+      undefined,
+      undefined,
+      "source"
     );
     const targetFallbackLaneX = findClearVerticalLaneX(
       baseTargetLaneX,
@@ -582,7 +588,11 @@ export function findObstacleAvoidingRoute(context) {
       laneY,
       source,
       target,
-      nodeIndex
+      nodeIndex,
+      [],
+      undefined,
+      undefined,
+      "target"
     );
     if (sourceLaneX === sourceFallbackLaneX && targetLaneX === targetFallbackLaneX) continue;
     const fallbackCandidate = createGlobalLaneRoute(
@@ -794,7 +804,8 @@ function findClearVerticalLaneX(
   nodeIndex,
   reservedSegments = [],
   net,
-  netGroupKey
+  netGroupKey,
+  role
 ) {
   // Include small offsets so a lane can fit in the narrow gap between an
   // endpoint and a nearby port node. The larger offsets remain the bounded
@@ -804,6 +815,7 @@ function findClearVerticalLaneX(
   const hasReservedSegments = reservedSegments && reservedSegments.length > 0;
   for (const offset of offsets) {
     const x = preferredX + offset;
+    if (!isEndpointSideLane(x, role === "source" ? source : target, role, preferredX)) continue;
     if (!routeSegmentIsClear(
       { x, y: y1 },
       { x, y: y2 },
@@ -819,4 +831,13 @@ function findClearVerticalLaneX(
     ], net, reservedSegments, netGroupKey)) return x;
   }
   return firstClearX ?? preferredX;
+}
+
+function isEndpointSideLane(x, node, role, preferredX) {
+  if (!node || (role !== "source" && role !== "target")) return true;
+  const leftBoundary = Number(node.x);
+  const rightBoundary = leftBoundary + Number(node.width);
+  if (!Number.isFinite(leftBoundary) || !Number.isFinite(rightBoundary)) return true;
+  const leavesRight = preferredX >= rightBoundary;
+  return leavesRight ? x >= rightBoundary : x <= leftBoundary;
 }

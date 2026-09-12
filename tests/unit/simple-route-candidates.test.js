@@ -14,6 +14,7 @@ import {
   getRouteSegments,
   routeFollowsEndpointSides
 } from "../../src/layout/orthogonalRouting.js";
+import { routeCandidateIsUsable } from "../../src/layout/routeCandidateValidation.js";
 import { createNodeSpatialIndex } from "../../src/layout/spatialIndex.js";
 
 const source = {
@@ -287,4 +288,45 @@ test("unsatisfiable global fallback remains orthogonal and follows endpoint side
     sourcePoint,
     targetPoint
   ), true);
+});
+
+test("global lane search keeps source escape on its declared side", () => {
+  const sourceHub = {
+    id: "hub:source", kind: "hub", level: 2,
+    x: 100, y: 100, width: 20, height: 20, ports: []
+  };
+  const targetCell = {
+    id: "cell:target", kind: "cell", level: 3,
+    x: 400, y: 0, width: 100, height: 60, ports: []
+  };
+  const blocker = {
+    id: "output:blocker", kind: "output", level: 2,
+    x: 120, y: 120, width: 180, height: 80, ports: []
+  };
+  const sourcePoint = { x: 120, y: 110 };
+  const targetPoint = { x: 400, y: 30 };
+  const nodes = [sourceHub, targetCell, blocker];
+  const nodeIndex = createNodeSpatialIndex(nodes);
+  const route = findObstacleAvoidingRoute({
+    source: sourceHub,
+    target: targetCell,
+    sourcePoint,
+    targetPoint,
+    nodes,
+    preferredLaneY: 180,
+    margin: 48,
+    lanePitch: 16,
+    nodeIndex,
+    net: "source-net"
+  });
+
+  assert.equal(routeFollowsEndpointSides(route.points, sourceHub, targetCell, sourcePoint, targetPoint), true);
+  assert.equal(routeCandidateIsUsable(route.points, {
+    source: sourceHub,
+    target: targetCell,
+    sourcePoint,
+    targetPoint,
+    nodeIndex
+  }), true);
+  assert.ok(route.points[1].x >= sourcePoint.x);
 });
