@@ -577,6 +577,7 @@ function createGlobalFallback(context) {
       ? plannedLaneY
       : context.margin / 2 +
         (context.edgePlan?.topLane || 0) * context.topWireLanePitch,
+    capacityLaneYs: context.edgePlan?.capacityLaneYs,
     margin: context.margin,
     lanePitch: context.topWireLanePitch,
     nodeIndex: context.nodeIndex,
