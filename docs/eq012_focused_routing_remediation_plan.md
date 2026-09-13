@@ -43,6 +43,8 @@
 
 当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.5/816.1/3315.5 ms`，对应 SVG `56.6/240.7/720.9 ms`；collapsed layout 约 `4.5/8.4/13.0 ms`。历史完整 mapped 普通门禁为 `47/47` 通过，总违规由旧基线 `370` 降为 `65`（预算 `120`），但 strict hard gate 仍要求零硬违规。`b86dab5` 后代表性 strict 回归：dp020 为 `1933` 条 missing-route、`413` 条 `capacity-overflow-corridor`、layout 约 `12.7 s`、heap 约 `225 MiB`；sop015 为 `3193` 条 missing-route、`362` 条 overflow corridor、layout 约 `12.4 s`、heap 约 `252 MiB`。两者的剩余失败主要来自超过 256 lane 的 group/inter-layer capacity，不再通过非法 fallback 掩盖；下一步要把可证明的 boundary-cluster/tree corridor 接入，而不是继续增加重试次数。eq012 focused 双根（含 spacing 88）与全部 `427/427` 单测通过。
 
+`77833c1` 后的 mfs-remote benchmark（`BENCHMARK_RUNS=1`）为：1024/4096/8192 cell 的普通 layout `190.4/1260.9/5280.8 ms`，collapsed layout `11.3/11.1/22.0 ms`。该单次样本受机器负载影响，绝对值不作为 SLA；随规模增长没有新增按 overflow demand 的重试环，route candidate 数仍由固定上限控制。后续每次改变 corridor/tree 候选都必须复跑同一 benchmark，并同时检查 heap 与最大 wall time。
+
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
 `66dd242` 已提交 collapsed group long-net demand 的 bounded top headroom 与 Simple strict 出口：`computeTopWireHeadroom()` 最多保留 8 条 lane，overflow 进入 capacity diagnostics；`strictRouting:true` 在没有合法候选时返回 `unroutable`。`cc46e36` 又将 source-adjacent boundary token 绑定到 edge，并保留 `capacityChannelId`、`capacityBoundaryClusterKey` 与 escape side 诊断。`9463718` 将 ELK 缺失/非法 section 统一为显式 `unroutable`；`88317a5` 让 Adjust 在 override 后刷新同一 validator 状态。默认 UI 仍保持兼容，待 cluster corridor/tree 完成后再收紧为默认提交合同。
