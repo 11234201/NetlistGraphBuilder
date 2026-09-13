@@ -410,6 +410,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `29d0b86693d1e3d09fa8e1b30a680e7d05d819c2e481d6959a08ad33be5024af`。
 - 后续 `fd22ac0` 增加顶部 occurrence breadcrumb；进入层次 occurrence 后显示路径，普通 module
   切换会清理旧 occurrence context，避免错误复用父层路径。
+- `afafa51` 将 occurrence context 纳入通用 View History；回退/前进会恢复 root module 与完整路径，
+  不再只恢复 module 名称和局部 selection。新增回归后 `npm test` 通过（463 tests）。
+- 该提交后的 Windows 离线包仍通过 `npm run release:windows`，SHA-256 为
+  `c4de27c14c15f0e2d754231af2c8a70f7e1ea387c81202f1871a6e73b2e25ca7`。
 - 当前 benchmark（3-run median）为 1K/4K/8K pipeline `211.8/1189.5/3551.9 ms`，layout
   `146.7/933.6/2939.4 ms`，progressive first batch `1.7/1.1/1.2 ms`；与上一基线处于同一量级，
   尚不能把 R8-3 的 30% 改善写成已达成。
