@@ -475,6 +475,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 层次 Focused 不再只消费第一个 root：`analyzeHierarchicalCones` 对 cell/net occurrence roots 做稳定
   union，并在合并边界执行全局 `maximumVisibleNodes` 预算；Single workspace 已接入多 root projection。
   新增 bounded union 回归后 `npm test` 通过（474 tests）。
+- 提交 `5e9711d` 的 Windows release 已重新通过，离线包 SHA-256 为
+  `d7b893bf9179e359bbbdb7ff49abe31eb2263f3e29f62700bd7589410acd3c48`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
