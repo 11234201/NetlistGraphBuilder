@@ -283,6 +283,7 @@ const moduleHierarchyController = createModuleHierarchyController({
   filterInput: elements.moduleHierarchyFilter,
   getHierarchy: () => state.design ? buildModuleHierarchy(state.design) : null,
   getCurrentModuleName: () => state.currentModule?.name || null,
+  getCurrentOccurrenceContext: () => state.occurrenceContext,
   navigate: selectModule
 });
 const schematicSelectionController = createSchematicSelectionController({

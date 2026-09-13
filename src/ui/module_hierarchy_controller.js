@@ -10,6 +10,7 @@ export function createModuleHierarchyController({
   filterInput = null,
   getHierarchy,
   getCurrentModuleName,
+  getCurrentOccurrenceContext,
   navigate
 }) {
   if (!container || typeof getHierarchy !== "function" || typeof navigate !== "function") {
@@ -36,7 +37,6 @@ export function createModuleHierarchyController({
     if (!moduleName) return false;
     if (filterInput) filterInput.value = "";
     if (panel) panel.open = false;
-    if (moduleName === getCurrentModuleName?.()) return false;
     const link = event.target.closest?.("[data-module-hierarchy-name]");
     const occurrencePath = link?.dataset?.moduleHierarchyPath
       ? link.dataset.moduleHierarchyPath.split("/").filter(Boolean)
@@ -46,6 +46,10 @@ export function createModuleHierarchyController({
     const navigation = occurrencePath?.length
       ? { occurrencePath, rootModuleName: link?.dataset?.moduleHierarchyRoot || undefined }
       : undefined;
+    if (moduleName === getCurrentModuleName?.() && sameOccurrenceContext(
+      navigation,
+      getCurrentOccurrenceContext?.()
+    )) return false;
     navigate(moduleName, navigation);
     return true;
   }
@@ -72,4 +76,13 @@ export function createModuleHierarchyController({
       panel?.removeEventListener?.("toggle", handleToggle);
     }
   });
+}
+
+function sameOccurrenceContext(left, right) {
+  const leftPath = left?.occurrencePath || [];
+  const rightPath = right?.occurrencePath || [];
+  const leftRoot = left?.rootModuleName || null;
+  const rightRoot = right?.rootModuleName || null;
+  return leftRoot === rightRoot && leftPath.length === rightPath.length &&
+    leftPath.every((segment, index) => segment === rightPath[index]);
 }

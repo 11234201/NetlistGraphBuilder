@@ -150,3 +150,32 @@ test("module hierarchy navigation forwards canonical occurrence context", () => 
   }]]);
   controller.dispose();
 });
+
+test("module hierarchy can choose another occurrence of the current module", () => {
+  let clickHandler;
+  const container = {
+    innerHTML: "",
+    addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    removeEventListener() {}
+  };
+  const navigated = [];
+  const controller = createModuleHierarchyController({
+    container,
+    getHierarchy: () => [],
+    getCurrentModuleName: () => "child",
+    getCurrentOccurrenceContext: () => ({ rootModuleName: "top", occurrencePath: ["u0"] }),
+    navigate: (...args) => navigated.push(args)
+  });
+  assert.equal(clickHandler({ target: {
+    closest: () => ({ dataset: {
+      moduleHierarchyName: "child",
+      moduleHierarchyPath: "u1",
+      moduleHierarchyRoot: "top"
+    } })
+  } }), true);
+  assert.deepEqual(navigated, [["child", {
+    occurrencePath: ["u1"],
+    rootModuleName: "top"
+  }]]);
+  controller.dispose();
+});
