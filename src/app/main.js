@@ -2800,7 +2800,6 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
     type: "selection.set",
     objectRef: compareViewSessions.objectRef(selectedSide, kind, name)
   });
-  recordViewHistory();
   updateViewControls();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {
@@ -2817,11 +2816,13 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
     const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
     if (node) {
       renderCompareSelection(selectedSide, node);
+      recordViewHistory();
       return;
     }
   }
   elements.details.className = "details-block";
   elements.details.innerHTML = statsRows([["Compare object", name], ["Kind", kind], ["Present", "highlighted on both sides where available"]]);
+  recordViewHistory();
 }
 
 function clearCompareSelection() {
