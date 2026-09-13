@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   analyzeHierarchicalCone,
+  analyzeHierarchicalCones,
   buildModuleConnectivityTemplates,
   projectHierarchicalCone,
   projectHierarchicalRenderGraph
@@ -84,6 +85,17 @@ test("repeated module occurrences retain distinct identities and stable ordering
 
   assert.notEqual(left.nodes.find((node) => node.kind === "cell")?.id, right.nodes.find((node) => node.kind === "cell")?.id);
   assert.deepEqual(left.nodes.map((node) => node.id), [...left.nodes.map((node) => node.id)].sort());
+});
+
+test("hierarchical multi-root queries union occurrence-aware cones under one node budget", () => {
+  const result = analyzeHierarchicalCones(createDesign(), [
+    { rootModuleName: "top", kind: "net", localId: "din" },
+    { rootModuleName: "top", kind: "net", localId: "dout" }
+  ], { direction: "fanout", fanoutDepth: 0, maximumVisibleNodes: 64 });
+  assert.ok(result.nodes.some((node) => node.kind === "net" && node.localId === "din"));
+  assert.ok(result.nodes.some((node) => node.kind === "net" && node.localId === "dout"));
+  assert.ok(result.nodes.length <= 64);
+  assert.equal(result.root.roots.length, 2);
 });
 
 test("hierarchical traversal reports recursive and blackbox boundaries", () => {

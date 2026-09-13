@@ -190,6 +190,24 @@ export function analyzeHierarchicalCone(design, root, options = {}) {
   return finalizeResult(result);
 }
 
+/** Analyze multiple occurrence-aware roots as one bounded hierarchical cone. */
+export function analyzeHierarchicalCones(design, roots, options = {}) {
+  const normalizedRoots = (Array.isArray(roots) ? roots : [roots]).filter(Boolean);
+  if (normalizedRoots.length <= 1) return analyzeHierarchicalCone(design, normalizedRoots[0] || null, options);
+  const maximumVisibleNodes = normalizeLimit(
+    options.maximumVisibleNodes ?? options.maxNodes,
+    DEFAULT_HIERARCHY_CONE_LIMITS.maximumVisibleNodes,
+    1
+  );
+  const templates = options.templates || buildModuleConnectivityTemplates(design);
+  const results = normalizedRoots.map((root) => analyzeHierarchicalCone(design, root, {
+    ...options,
+    templates,
+    maximumVisibleNodes
+  }));
+  return finalizeMergedResult(results, normalizedRoots, maximumVisibleNodes);
+}
+
 /** Project a bounded hierarchical query while retaining occurrence identity. */
 export function projectHierarchicalCone(result, options = {}) {
   const documentId = options.documentId || "hierarchy:projection";
@@ -608,6 +626,48 @@ function finalizeResult(result) {
     diagnostics: Object.freeze(result.diagnostics.toSorted(compareDiagnostic)),
     hiddenNodeCount: result.hiddenNodeCount,
     truncated: result.truncated
+  });
+}
+
+function finalizeMergedResult(results, roots, maximumVisibleNodes) {
+  const nodes = [];
+  const nodeById = new Map();
+  let hiddenNodeCount = 0;
+  let truncated = false;
+  const links = new Map();
+  const diagnostics = new Map();
+  for (const result of results) {
+    hiddenNodeCount += result.hiddenNodeCount || 0;
+    truncated ||= result.truncated;
+    for (const node of result.nodes || []) {
+      if (nodeById.has(node.id)) continue;
+      if (nodes.length >= maximumVisibleNodes) {
+        hiddenNodeCount += 1;
+        truncated = true;
+        continue;
+      }
+      nodeById.set(node.id, node);
+      nodes.push(node);
+    }
+    for (const link of result.links || []) {
+      const key = `${link.source}|${link.target}|${link.relation || ""}`;
+      if (!links.has(key) && nodeById.has(link.source) && nodeById.has(link.target)) links.set(key, link);
+    }
+    for (const item of result.diagnostics || []) {
+      const key = `${item.code || ""}|${item.message || ""}`;
+      diagnostics.set(key, item);
+    }
+  }
+  const first = results[0] || null;
+  return Object.freeze({
+    root: roots.length === 1 ? first?.root || null : Object.freeze({ roots: roots.map((root) => ({ ...root })) }),
+    rootModuleName: first?.rootModuleName || null,
+    rootOccurrencePath: Object.freeze([...(first?.rootOccurrencePath || [])]),
+    nodes: Object.freeze(nodes.toSorted(compareNode)),
+    links: Object.freeze([...links.values()].toSorted(compareLink)),
+    diagnostics: Object.freeze([...diagnostics.values()].toSorted(compareDiagnostic)),
+    hiddenNodeCount,
+    truncated
   });
 }
 

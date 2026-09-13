@@ -64,7 +64,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示与同 module occurrence 选择已落地；父向追踪的 ambiguity 选择仍待补齐 |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力与多 root hierarchical union 已落地，完整层次 root UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；30% 改善证据与 workspaceRequest 最终退场仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；完整 command-bus 收口仍待补齐 |
@@ -472,6 +472,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 最新 `npm run benchmark`（同一受控环境，3 次取中位数）为：1K/4K/8K pipeline
   `156.3/1014.5/3214.4 ms`，layout `104.7/773.7/2697.3 ms`，progressive first batch
   `1.3/1.0/1.1 ms`。该结果用于回归监测；尚未形成与 Stage 8 初始基线同口径的 30% 改善证明。
+- 层次 Focused 不再只消费第一个 root：`analyzeHierarchicalCones` 对 cell/net occurrence roots 做稳定
+  union，并在合并边界执行全局 `maximumVisibleNodes` 预算；Single workspace 已接入多 root projection。
+  新增 bounded union 回归后 `npm test` 通过（474 tests）。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
