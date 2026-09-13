@@ -2035,6 +2035,7 @@ function focusSelectedCell() {
         focusPositionedEdge(edge, mount, state.compare.transforms[side], (transform) => setCompareTransform(side, transform));
         applyCompareTransforms();
       }
+      recordViewHistory();
       setStatus(`Focused compare net ${state.compare.selectedName}`);
       return;
     }
@@ -2047,6 +2048,7 @@ function focusSelectedCell() {
       focusPositionedEdge(edge, elements.mount, state.transform, setSingleTransform);
       applyTransform();
       setStatus(`Focused net ${state.selectedNet}`);
+      recordViewHistory();
     }
     return;
   }
@@ -2058,6 +2060,7 @@ function focusSelectedCell() {
     focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
     applyTransform();
     setStatus(`Focused ${fullNode.label}`);
+    recordViewHistory();
     return;
   }
 
@@ -2072,8 +2075,9 @@ function focusSelectedCell() {
       const node = graph.nodes.find((item) => item.id === selectedNodeId);
       if (!node) return;
       focusPositionedCell(node, elements.mount, state.transform, setSingleTransform);
-      setSelectedNode(selectedNodeId);
+      setSelectedNode(selectedNodeId, false);
       applyTransform();
+      recordViewHistory();
       setStatus(`Focused ${node.label} in a new neighborhood`);
     }
   });
@@ -2140,6 +2144,7 @@ function focusSelectedCompareCell() {
     });
   }
   applyCompareTransforms();
+  recordViewHistory();
   setStatus(`Focused compare cell ${state.compare.selectedName}`);
 }
 
@@ -2416,10 +2421,10 @@ function updateCellDefinitionControls(node = null) {
   elements.resetCellConfigButton.disabled = Object.keys(state.cellConfig.cells).length === 0;
 }
 
-function setSelectedNode(nodeId) {
+function setSelectedNode(nodeId, shouldRecord = true) {
   state.selectionFocusRequestId += 1;
   schematicSelectionController.selectNode(nodeId);
-  recordViewHistory();
+  if (shouldRecord) recordViewHistory();
 }
 
 function setSelectedNet(netName) {
