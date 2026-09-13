@@ -1,6 +1,6 @@
 # 阶段 8：层次追踪、对象聚焦与大图交互收敛
 
-更新日期：2026-09-12。状态：计划中。
+更新日期：2026-09-13。状态：计划中。
 
 ## 1. 阶段目标与边界
 
@@ -13,7 +13,7 @@
 1. Fanin/Fanout 可沿 instance occurrence 穿越 module 边界。
 2. Focused root 从 cell 扩展到 net。
 3. 移动、缩放、选择、搜索和 cone 浏览按最小失效范围执行。
-4. 常见组合逻辑 cell 使用约定俗成的逻辑门符号。
+4. 常见组合逻辑 cell 可通过显示开关在矩形与约定俗成的逻辑门符号之间切换。
 5. Back/Forward 从 module 导航历史升级为有界的视图操作历史。
 6. Search 默认只负责选择与定位，仅在大图 Search-first 无可用全图位置时自动加入 Focused roots。
 7. Compare 对大型 module 默认按需加载，不在进入视图时自动布局和渲染两张 Whole 图。
@@ -66,7 +66,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 计划中 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 计划中 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 计划中 |
-| R8-4 | 标准逻辑门符号 | Netlist symbol registry、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 计划中 |
+| R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 计划中 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 计划中 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 计划中 |
 | R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 计划中 |
@@ -179,6 +179,26 @@ document/session、source reload 和 cell/pin 语义变化必须失效对应产�
 
 symbol 选择属于 Netlist presentation，不进入通用 Scene renderer，也不改变 inference：
 
+```text
+NetlistPresentationPolicy
+  gateSymbolMode: rectangle | conventional
+```
+
+- `rectangle` 保持当前所有 cell 主体使用矩形的兼容行为。
+- `conventional` 对可识别的组合逻辑 gate 使用标准符号，其余 cell 保持矩形 fallback。
+- 第一版对旧 session、缺失字段和非法值统一回退到 `rectangle`；完成真实网表和可读性验收后，
+  是否把新 session 默认值调整为 `conventional` 作为独立产品决策，不在实现中静默改变。
+- 开关放在 View/Display 设置区，不占用 topbar；它是 presentation policy，不属于 layout policy、
+  Cell Config 或 Netlist IR。
+- Single 和 Compare 共享一个用户可见开关；Compare 中以 compound command 同时更新左右 session，
+  不允许两侧在用户未明确选择时使用不同符号模式。
+- 切换只产生 Scene/render effect，不重新 query、measure、运行 layout provider 或 reroute；节点坐标、
+  尺寸、port endpoint、wire geometry、selection 和 viewport 全部保持不变。
+- 屏幕、渐进渲染和 SVG 导出使用当前模式；设置进入 session codec，并作为一条 View History 操作，
+  但不写入 layout Golden 或 Cell Config。
+
+`conventional` 模式的符号映射：
+
 - `buffer`/`buf`：三角形。
 - `inv`：三角形加 output bubble。
 - `and`/`nand`：D 形，NAND 加 bubble。
@@ -187,9 +207,9 @@ symbol 选择属于 Netlist presentation，不进入通用 Scene renderer，也�
 - module、blackbox、register 和尚无约定图形的复杂 cell 继续使用矩形；MUX/DFF 的专用符号作为
   明确的后续扩展，不与本批强绑。
 
-第一版复用现有 node bounds、port endpoint、bubble clearance 和 hit target；符号必须落在 measured
+两种模式复用同一 node bounds、port endpoint、bubble clearance 和 hit target；符号必须落在 measured
 bounds 内。实例名优先放在符号下方或按缩放 profile 隐藏，完整 type/instance 保留在 tooltip/detail，
-避免文字遮挡曲线。屏幕、渐进渲染和 SVG 导出消费同一 Scene primitive。
+避免文字遮挡曲线。两种模式都由 Netlist presentation 输出结构化 Scene primitive。
 
 ### 4.6 通用 View History
 
@@ -242,7 +262,7 @@ S8-0 行为/性能基线与契约冻结
   -> S8-4 View History
   -> S8-5 集成、兼容与发布验收
 
-S8-S 标准门符号：在 S8-0 后独立推进，S8-5 汇合
+S8-S 可切换标准门符号：在 S8-0 后独立推进，S8-5 汇合
 ```
 
 ### S8-0：固化行为和正式基线
@@ -268,15 +288,20 @@ violation 不被混写为本阶段回归。
 4K fixture 的重复 Focused/override 操作中位数相对 S8-0 至少降低 30%，且 parse/build/full-layout 基线
 不回退超过 10%。若未达到，保留数据并重新定位瓶颈，不直接引入 Worker。
 
-### S8-S：标准门符号
+### S8-S：可切换标准门符号
 
-1. 定义 canonical gate kind 到 symbol builder 的静态 registry，并兼容现有 `buf`/`buffer` 命名。
-2. 输出 AND/NAND、OR/NOR、XOR/XNOR、BUF/INV 结构化 Scene primitive。
-3. 保持 port、bubble、node bounds、selection hit area、低细节 profile 和 tooltip 契约。
-4. 增加不同输入 pin 数量、极性、缩放、主题、渐进渲染和导出 snapshot。
+1. 定义并规范化 `NetlistPresentationPolicy.gateSymbolMode`，旧/缺失/非法值回退到 `rectangle`。
+2. 定义 canonical gate kind 到 symbol builder 的静态 registry，并兼容现有 `buf`/`buffer` 命名。
+3. 输出 AND/NAND、OR/NOR、XOR/XNOR、BUF/INV 结构化 Scene primitive。
+4. 在 View/Display 区增加单一开关；接入 ViewSession command、Compare compound update、session codec、
+   View History 和 SVG export。
+5. 保持 port、bubble、node bounds、selection hit area、低细节 profile 和 tooltip 契约。
+6. 增加反复切换、不同输入 pin 数量、极性、缩放、主题、渐进渲染和导出 snapshot。
 
-验收：启用符号前后同一 graph 的 node bounds、port endpoint 和 edge geometry signature 不变；反相
-bubble 与 wire endpoint 正确连接；unknown/module 仍为矩形；通用 renderer 不读取 gate kind。
+验收：同一 graph 在 `rectangle`/`conventional` 间反复切换时，node bounds、port endpoint、edge geometry
+signature、selection 和 viewport 均不变，provider/query/measure/reroute 调用次数为 0；反相 bubble 与
+wire endpoint 正确连接；unknown/module 在两种模式下均为矩形；Single/Compare/导出模式一致；旧 session
+恢复为矩形；通用 renderer 不读取 gate kind 或 presentation policy。
 
 ### S8-2：Net Focused 与统一 root
 
@@ -332,7 +357,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 | Search policy | Whole 可见定位不改 roots；小图隐藏目标复用 Whole；Search-first 大图才自动 Add |
 | artifact/cache/jobs | key/失效/容量/释放、source/session revision、旧成功/失败/progress 不提交、provider 调用计数 |
 | move/resize/cone hot path | frame coalescing、手势提交一次、cached override、局部 reroute/Scene patch、完成态完整 geometry |
-| gate symbols | Scene primitive、bounds/ports/edge signature、bubble、hit target、渐进/导出、unknown fallback |
+| gate symbol mode | policy/codec、旧值 fallback、开关与历史、Scene primitive、零 layout/reroute、bounds/ports/edge signature、Compare/导出一致、unknown fallback |
 | View History | 事务合并、Back/Forward、分支、容量、异步恢复、Compare compound、codec 迁移 |
 | Compare Search-first | 两侧独立模式、初始零 provider、大图统计、单侧取消/失败、显式 Whole |
 | complexity-sensitive path | `npm run benchmark`，同环境前后中位数；无 all-pairs、无按图规模增长的 retry/frontier |
@@ -362,7 +387,8 @@ Stage 8 只有在以下条件同时满足时完成：
 1. Cell 和 Net 能在明确 occurrence context 中稳定执行跨层 Fanin/Fanout，并正确处理歧义和边界。
 2. Search、Focused 和 Compare 的职责分离；大图默认路径不触发无必要 Whole layout/render。
 3. selection、viewport、move/resize 和普通 cone inspect 符合最小失效矩阵，性能改善有相同口径证据。
-4. 标准门符号不改变既有布局/路由契约，unknown 和 module fallback 清晰。
+4. 矩形/标准门符号可随时切换且不改变既有布局/路由/viewport，unknown 和 module fallback 清晰，
+   Single、Compare、历史恢复和 SVG 导出模式一致。
 5. Back/Forward 覆盖约定的视图操作、手势和 Compare 事务，分支、容量、兼容及异步语义通过验证。
 6. `npm test`、适用的 layout/determinism/fixture/mapped/benchmark、真实浏览器和 Windows 离线发布
    验证均完成；无法执行或既有失败被准确记录，不得写成通过。

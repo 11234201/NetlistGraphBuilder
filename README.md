@@ -225,7 +225,7 @@ npm test
 
 现行边界见 [架构说明](docs/ARCHITECTURE.md)。已实现的多领域工作台设计见
 [可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
-后续的层次追踪、Cell/Net Focused、大图交互与 Compare 按需加载见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。
+后续的层次追踪、Cell/Net Focused、可切换标准门符号、大图交互与 Compare 按需加载见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。
 测试用内存 AIG 已验证扩展边界，但生产级 AIG 输入仍不是正式产品功能。
 
 ```text
