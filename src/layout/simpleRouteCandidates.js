@@ -349,8 +349,7 @@ function createGroupBoundaryLaneCandidate(
   wireLanePitch,
   routingGeometry
 ) {
-  if (edgePlan?.kind !== "channel" ||
-    (source?.kind !== "group" && target?.kind !== "group")) {
+  if (edgePlan?.kind !== "channel" || source?.kind !== "group" || target?.kind !== "group") {
     return null;
   }
   const sourceSide = getGroupBoundarySide(source, sourcePoint, "source");

@@ -541,8 +541,8 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 2. map 按 target node 保存已提交 physical net 的纵向段（x、y interval、`netGroupKey`、source kind）。候选验证和 atomic physical-net tree 提交都检查同一 target 的外部 source（`input`/`focus-input`/`constant`/`implicit`）是否在重叠 y interval 上小于命名策略 `minimumTargetEntrySeparation=10`；同一 physical net 不互相阻塞。
 3. 检查覆盖候选路径内所有纵向段，而不是只看最后一段。这样可以捕获 `_2406_` 入口前的 source-side vertical leg（原始复现为 x 相差 8px、y interval 相交），同时仍由 node/foreign reservation hard validator 决定最终合法性。
 4. target-entry 注册发生在 physical-net group 原子提交之后；unroutable edge 不注册。候选失败时继续走既有 bounded local/global/overflow 顺序，不增加按图规模的重试。
-5. `createGroupBoundaryLaneCandidate()` 现在允许 group→cell 或 cell→group 的 channel endpoint；判定仍依赖 endpoint side、有限 escape corridor 和最终 validator，不读取实例名或坐标。
+5. 本轮没有放宽 group→cell 的候选类别：该实验会改变 dense Whole 图的候选优先级并增加 missing-route，已撤回；group boundary candidate 继续只处理双方均为 group 的既有合同。
 
-eq012 Focused `_2021_` + `_2406_`（fanin/fanout depth 3）在 spacing `4, 8, 16, 32, 64, 84, 88, 160, 320` 上本地 `validateLayoutGraph(checkBounds=true)` 均为零硬违规。spacing 88 下，接入 `_2406_` 的 `clk`/`rst_n` 纵向段 y 区间虽相交，但 lane 间距由原先 8px 调整到 124px；route 仍是 local/channel 类，不需要 outer lane。对应单测总数为 `429/429`。
+eq012 Focused `_2021_` + `_2406_`（fanin/fanout depth 3）在 spacing `4, 8, 16, 32, 64, 84, 88, 160, 320` 上本地 `validateLayoutGraph(checkBounds=true)` 均为零硬违规。spacing 88 下，接入 `_2406_` 的 `clk`/`rst_n` 纵向段 y 区间虽相交，但 lane 间距由原先 8px 调整到 124px；route 仍是 local/channel 类，不需要 outer lane。混合 group→cell 候选扩展已撤回，当前单测总数为 `428/428`。
 
-在与本地 layout 依赖完全同步的 mfs-remote 上，strict collapsed 复核为：dp020 `1822` 条 missing-route、`451` 条 `capacity-overflow-corridor`，layout 约 `12.8 s`、heap 约 `238 MiB`；sop015 `3219` 条 missing-route、`337` 条 overflow corridor，layout 约 `10.3 s`、heap 约 `255 MiB`。这些数值包含 group→cell channel 候选扩展；与此前只同步部分 layout 文件的结果不可直接比较。Whole graph 未启用 target-entry map，剩余 strict 失败仍来自超过固定 capacity 的 collapsed group/inter-layer corridor，而不是新的 cross-net overlap。
+在与本地 layout 依赖完全同步、且撤回混合 group→cell 扩展的 mfs-remote 上，strict collapsed 复核为：dp020 `1933` 条 missing-route、`413` 条 `capacity-overflow-corridor`，layout 约 `12.6 s`、heap 约 `250 MiB`；sop015 `3193` 条 missing-route、`362` 条 overflow corridor，layout 约 `12.8 s`、heap 约 `207 MiB`。Whole graph 未启用 target-entry map，剩余 strict 失败仍来自超过固定 capacity 的 collapsed group/inter-layer corridor，而不是新的 cross-net overlap。

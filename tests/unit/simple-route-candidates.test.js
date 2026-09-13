@@ -112,48 +112,6 @@ test("group channel candidates consume node-local source and target escape lanes
   ]);
 });
 
-test("group-to-cell channel candidates keep the group escape outside its body", () => {
-  const sourceGroup = {
-    id: "group:source",
-    kind: "group",
-    level: 0,
-    x: 0,
-    y: 40,
-    width: 80,
-    height: 60,
-    ports: [{ pin: "out", direction: "output", side: "right", x: 80, y: 20 }]
-  };
-  const targetCell = {
-    id: "cell:target",
-    kind: "cell",
-    level: 1,
-    x: 260,
-    y: 80,
-    width: 128,
-    height: 60,
-    ports: [{ pin: "in", direction: "input", side: "left", x: 0, y: 30 }]
-  };
-  const candidates = createBasicSimpleRouteCandidates({
-    source: sourceGroup,
-    target: targetCell,
-    sourcePoint: { x: 80, y: 60 },
-    targetPoint: { x: 260, y: 110 },
-    edgePlan: { kind: "channel", sourceLane: 1, targetLane: 0 },
-    levelBounds: computeLevelBounds([sourceGroup, targetCell]),
-    wireLanePitch: 18,
-    routingGeometry: { portEscapeLength: 24, groupBoundaryLanePitch: 8 }
-  });
-  const boundary = candidates.find((candidate) => candidate.kind === "boundary-channel");
-
-  assert.ok(boundary);
-  assert.ok(boundary.points[1].x > sourcePointX(sourceGroup));
-  assert.ok(boundary.points.at(-2).x < 260);
-});
-
-function sourcePointX(node) {
-  return node.x + node.width;
-}
-
 test("group channel candidates stay inside the assigned boundary escape corridor", () => {
   const sourceGroup = {
     id: "group:source",
