@@ -133,6 +133,19 @@ test("selection, viewport, layout policy and overrides have explicit command own
   assert.throws(() => bus.dispatch({ type: "viewport.set", sessionId: "left", viewport: { x: 0, y: 0, scale: 0 } }), /finite positive viewport/);
 });
 
+test("presentation policy changes render without invalidating layout computation", () => {
+  const { sessions, bus } = setup();
+  const before = sessions.require("left");
+  const result = bus.dispatch({
+    type: "presentation.policy.set",
+    sessionId: "left",
+    presentationPolicy: { gateSymbolMode: "conventional" }
+  });
+  assert.deepEqual(result.session.presentationPolicy, { gateSymbolMode: "conventional" });
+  assert.deepEqual(result.effects, { query: false, layout: false, render: true, viewport: false, persist: true });
+  assert.equal(result.session.computationRevision, before.computationRevision);
+});
+
 test("active-root changes preserve Whole view and do not invalidate layout", () => {
   const { sessions, bus } = setup();
   bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u1") });

@@ -59,6 +59,18 @@ test("single view session bridge follows a hidden connection without leaving Foc
   assert.equal(result.effects.layout, true);
 });
 
+test("single view session bridge preserves net roots as canonical net ObjectRefs", () => {
+  const { state, adapter } = setup();
+  state.fullGraph.edges = [{ id: "e1", source: "cell:u1", target: "cell:u2", net: "n1" }];
+  state.graph.edges = state.fullGraph.edges;
+  const result = adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNet("n1") });
+
+  assert.equal(result.session.focusedRootRefs[0].kind, "net");
+  assert.equal(result.session.focusedRootRefs[0].localId, "n1");
+  assert.deepEqual(state.focusedRootNodeIds, ["net:n1"]);
+  assert.equal(state.activeFocusedRootNodeId, "net:n1");
+});
+
 test("single view session bridge keeps one ViewSession until document or unit identity changes", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });

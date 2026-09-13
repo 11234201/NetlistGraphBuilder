@@ -1417,6 +1417,18 @@ body.is-dragging-files .drop-overlay {
   stroke-width: 1.4;
 }
 
+.node.gate-conventional .node-shape {
+  stroke-linejoin: round;
+}
+
+.gate-extra-shape {
+  fill: none;
+  stroke: var(--gate-line);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .node.input .node-shape {
   fill: #e7f3f4;
   stroke: #1f7a8c;

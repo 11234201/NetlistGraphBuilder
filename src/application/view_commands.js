@@ -176,6 +176,14 @@ export function createViewCommandHandlers({
         effects: computeEffects({ layout: true, render: true, persist: true })
       };
     }),
+    "presentation.policy.set": (command) => withSession(command, (session) => {
+      const presentationPolicy = requireRecord(command.presentationPolicy, "presentationPolicy");
+      return areStructuredValuesEqual(session.presentationPolicy, presentationPolicy) ? { effects: NO_EFFECTS } : {
+        patch: { presentationPolicy },
+        invalidateComputation: false,
+        effects: computeEffects({ render: true, persist: true })
+      };
+    }),
     "overrides.set": (command) => withSession(command, (session) => {
       const overrides = command.overrides ?? null;
       return areStructuredValuesEqual(session.overrides, overrides) ? { effects: NO_EFFECTS } : {

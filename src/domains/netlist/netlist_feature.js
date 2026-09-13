@@ -5,9 +5,12 @@ import { createObjectRef } from "../../contracts/object_ref.js";
 import { createViewQuery } from "../../contracts/view_query.js";
 import { parseVerilog } from "../../parser/verilogParser.js";
 import { buildDesignSearchIndex, searchDesignIndex } from "../../search/designSearch.js";
+import { analyzeHierarchicalCone, buildModuleConnectivityTemplates } from "./hierarchy_connectivity.js";
 
 export const NETLIST_DOMAIN_ID = "netlist";
 export const NETLIST_LEGACY_DIAGRAM_CONTRACT = "netlist-schematic-graph.v1";
+
+const connectivityTemplateCache = new WeakMap();
 
 export const netlistFeature = defineDomainFeature({
   id: NETLIST_DOMAIN_ID,
@@ -16,6 +19,7 @@ export const netlistFeature = defineDomainFeature({
   ],
   capabilities: {
     focused: true,
+    hierarchicalFocused: true,
     compare: true,
     timing: true,
     cellConfig: true,
@@ -62,6 +66,14 @@ export const netlistFeature = defineDomainFeature({
 
   search(index, query, limit) {
     return searchDesignIndex(index, query, limit);
+  },
+
+  queryHierarchy(document, root, options = {}) {
+    assertNetlistDocument(document);
+    return analyzeHierarchicalCone(document.model, root, {
+      ...options,
+      templates: options.templates || getConnectivityTemplates(document)
+    });
   },
 
   queryView(document, query = {}, options = {}) {
@@ -150,4 +162,12 @@ function assertNetlistDocument(document) {
   if (document?.domainId !== NETLIST_DOMAIN_ID || !Array.isArray(document?.model?.modules)) {
     throw new Error("A netlist document is required");
   }
+}
+
+function getConnectivityTemplates(document) {
+  const cached = connectivityTemplateCache.get(document);
+  if (cached) return cached;
+  const templates = buildModuleConnectivityTemplates(document.model);
+  connectivityTemplateCache.set(document, templates);
+  return templates;
 }

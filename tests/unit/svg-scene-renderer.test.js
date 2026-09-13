@@ -75,3 +75,43 @@ test("Netlist presentation injection preserves legacy node geometry and markup",
 
   assert.equal(injected, legacy);
 });
+
+test("conventional gate symbols preserve the positioned bounds while changing only the primitive", () => {
+  const cellGraph = {
+    moduleDisplayName: "gates",
+    width: 240,
+    height: 160,
+    nodes: [{
+      id: "cell:u0",
+      kind: "cell",
+      gateKind: "xor",
+      label: "u0",
+      title: "XOR",
+      subtitle: "XOR2",
+      x: 40,
+      y: 30,
+      width: 160,
+      height: 80,
+      ports: [
+        { pin: "A", direction: "input", side: "left", x: 0, y: 30 },
+        { pin: "B", direction: "input", side: "left", x: 0, y: 50 },
+        { pin: "Y", direction: "output", side: "right", x: 160, y: 40 }
+      ]
+    }],
+    edges: []
+  };
+  const rectangle = renderSvgScene(createNetlistScene(cellGraph, {
+    presentationPolicy: { gateSymbolMode: "rectangle" }
+  }));
+  const conventional = renderSvgScene(createNetlistScene(cellGraph, {
+    presentationPolicy: { gateSymbolMode: "conventional" }
+  }));
+
+  assert.match(rectangle, /class="node xor cell"/);
+  assert.match(rectangle, /<rect class="node-shape" x="40" y="30" width="160" height="80"><\/rect>/);
+  assert.doesNotMatch(rectangle, /gate-extra-shape/);
+  assert.match(conventional, /class="node xor cell gate-conventional"/);
+  assert.match(conventional, /<path class="node-shape" d="M 52 42/);
+  assert.match(conventional, /class="gate-extra-shape"/);
+  assert.doesNotMatch(conventional, /<rect class="node-shape"/);
+});

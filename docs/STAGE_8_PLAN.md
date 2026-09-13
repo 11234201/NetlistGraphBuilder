@@ -63,12 +63,12 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 计划中 |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 计划中 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心已落地 |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 计划中 |
-| R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 计划中 |
+| R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 计划中 |
-| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 计划中 |
+| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
 | R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 计划中 |
 
 ## 4. 核心设计
@@ -347,6 +347,25 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 
 验收：七项需求的产品行为、兼容性、性能和离线包全部取得证据后才能把 Stage 8 标为完成；单元测试
 通过不能代替 mapped、浏览器或性能验收。
+
+### Stage 8 执行记录（2026-09-13，工作区未提交）
+
+- 本轮实现：`NetlistPresentationPolicy` 的矩形/约定逻辑门开关（Single、Compare、session codec、SVG
+  export）；Net Focused 的 driver/load seed、边界诊断和有界预算；Search 的 locate 与显式 `+ Focus`
+  分离；`ObjectRef.occurrencePath`；`ModuleConnectivityTemplate` 与不 flatten 的跨 occurrence
+  hierarchical cone 查询。
+- 代码入口：`src/domains/netlist/hierarchy_connectivity.js`，通过
+  `netlistFeature.queryHierarchy(document, root, options)` 调用；模板按 document 使用 `WeakMap`
+  缓存，跨 module port 为零逻辑 depth，真实逻辑 cell 才增加 depth。
+- 验证：`npm test` 通过（450 tests）；`npm run benchmark` 当前环境结果为 1K/4K/8K pipeline
+  `157/952.1/2951.6 ms`，其中 layout `106.1/747.7/2385.6 ms`。该数据只作为本轮环境记录，尚未
+  与 S8-0 同环境基线形成前后对照。
+- `npm run test:mapped-cases` 已执行但当前仓库 mapped worker 报告 47 个 case 中 40 个超过既有
+  layout violation budget（总 violations `34955/120`，主要为 `missing-route`）；worker 直接调用
+  parser/graph/layout，不调用本轮 hierarchy query，故本轮不能把它写成通过，也不能据此宣称性能或
+  路由回归已解决。后续需单独复核 mapped 基线与路由容量问题。
+- 下一入口：把 occurrence context 接入 ViewSession/Focused root 与层级树双击，补齐跨层 graph
+  projection；随后推进通用 View History 和 Compare Search-first 的零 provider 初始路径。
 
 ## 6. 验证矩阵
 

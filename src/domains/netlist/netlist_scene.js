@@ -6,9 +6,14 @@ import {
 import { renderSvgScene } from "../../render/svg_scene_renderer.js";
 import { renderSvgSceneIntoMount } from "../../render/progressiveSvgRenderer.js";
 import { createNetlistNodePrimitive } from "./netlist_scene_presentation.js";
+import { normalizeNetlistPresentationPolicy } from "./netlist_presentation_policy.js";
 
 export function createNetlistScene(graph, options = {}) {
-  return createSchematicScene(graph, { ...options, createNodePrimitive: createNetlistNodePrimitive });
+  const presentationPolicy = normalizeNetlistPresentationPolicy(options.presentationPolicy);
+  return createSchematicScene(graph, {
+    ...options,
+    createNodePrimitive: (node) => createNetlistNodePrimitive(node, presentationPolicy)
+  });
 }
 
 export function renderSchematicSvg(graph, options = {}) {

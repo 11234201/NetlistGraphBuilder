@@ -29,3 +29,31 @@ test("search controls dispatch Enter and explicit Add and clear persisted query"
   controls.handleSearchKeydown({ key: "Enter", preventDefault() {} });
   assert.equal(actions.length, 2);
 });
+
+test("search results expose explicit Focus only for focus-capable cell and net objects", () => {
+  const index = buildDesignSearchIndex(parseVerilog("module top(a,y); input a; output y; BUF unique_cell (.A(a),.Z(y)); endmodule"));
+  const elements = {
+    searchInput: { value: "a" },
+    searchResults: { innerHTML: "", hidden: true, querySelector: () => null },
+    searchClearButton: {}
+  };
+  const controls = createSearchControls({
+    elements,
+    getIndex: () => index,
+    onActivate: () => {},
+    onAdd: () => {},
+    onChange: () => {}
+  });
+
+  elements.searchInput.value = "unique";
+  controls.handleSearchInput();
+  const cellResult = index.find((result) => result.target?.kind === "cell");
+  assert.ok(cellResult);
+  assert.match(elements.searchResults.innerHTML, /\+ Focus/);
+
+  elements.searchInput.value = "a";
+  controls.handleSearchInput();
+  const netResult = index.find((result) => result.kind === "net");
+  assert.ok(netResult);
+  assert.equal(netResult.kind, "net");
+});

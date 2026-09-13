@@ -26,10 +26,11 @@ export function createSingleViewSessionBridge({
       faninDepth: state.faninDepth,
       fanoutDepth: state.fanoutDepth,
       focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
-      activeFocusedRootRef: nodeIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
+      activeFocusedRootRef: focusedRootIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
       viewport: state.transform,
       layoutPolicy: state.layoutPolicy,
+      presentationPolicy: state.presentationPolicy,
       overrides: snapshotOverrides(state)
     };
     const current = sessions.get(value.sessionId);
@@ -55,12 +56,15 @@ export function createSingleViewSessionBridge({
       state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);
       state.activeFocusedRootNodeId = refToNodeId(result.session.activeFocusedRootRef, graph);
       state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
-      state.selectedNodeId = refToNodeId(result.session.selectedObjectRef, graph);
+      state.selectedNodeId = result.session.selectedObjectRef?.kind === "net"
+        ? null
+        : refToNodeId(result.session.selectedObjectRef, graph);
       state.selectedNet = result.session.selectedObjectRef?.kind === "net"
         ? result.session.selectedObjectRef.localId
         : null;
       state.transform = { ...result.session.viewport };
       state.layoutPolicy = result.session.layoutPolicy;
+      state.presentationPolicy = { ...result.session.presentationPolicy };
       applyOverridesSnapshot(state, result.session.overrides || {
         nodePositions: [], nodeSizes: [], graphOverrides: null
       });
@@ -75,7 +79,10 @@ export function createSingleViewSessionBridge({
     visibleObjectKeys() {
       const documentId = getDocumentId();
       const unitId = state.currentModule?.name;
-      return (state.graph?.nodes || []).map((node) => objectRefKey(nodeToRef(node, documentId, unitId)));
+      const nodeKeys = (state.graph?.nodes || []).map((node) => objectRefKey(nodeToRef(node, documentId, unitId)));
+      const netKeys = [...new Set((state.graph?.edges || []).map((edge) => edge.net).filter(Boolean))]
+        .map((net) => objectRefKey(valueToRef("net", net, documentId, unitId)));
+      return [...nodeKeys, ...netKeys];
     }
   });
 }
@@ -114,7 +121,14 @@ function valueToRef(kind, localId, documentId, unitId) {
 }
 
 function rootsToRefs(nodeIds, graph, documentId, unitId) {
-  return (nodeIds || []).map((nodeId) => nodeIdToRef(nodeId, graph, documentId, unitId)).filter(Boolean);
+  return (nodeIds || []).map((nodeId) => focusedRootIdToRef(nodeId, graph, documentId, unitId)).filter(Boolean);
+}
+
+function focusedRootIdToRef(rootId, graph, documentId, unitId) {
+  if (typeof rootId === "string" && rootId.startsWith("net:")) {
+    return valueToRef("net", rootId.slice(4), documentId, unitId);
+  }
+  return nodeIdToRef(rootId, graph, documentId, unitId);
 }
 
 function nodeIdToRef(nodeId, graph, documentId, unitId) {
@@ -138,6 +152,7 @@ function refsToNodeIds(refs, graph) {
 
 function refToNodeId(ref, graph) {
   if (!ref || !graph) return null;
+  if (ref.kind === "net") return `net:${ref.localId}`;
   return graph.nodes.find((node) =>
     (node.ref?.instance || node.ref?.name || node.id) === ref.localId &&
     (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell"))

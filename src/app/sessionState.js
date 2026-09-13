@@ -59,6 +59,7 @@ export function createSessionSnapshot(state) {
       spacing: { ...(state.layoutPolicy?.spacing || {}) },
       features: { ...(state.layoutPolicy?.features || {}) }
     },
+    presentationPolicy: { ...(state.presentationPolicy || {}) },
     timingDisplayPolicy: {
       snapshot: state.timingDisplayPolicy?.snapshot || "auto",
       metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]

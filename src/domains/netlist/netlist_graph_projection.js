@@ -28,12 +28,18 @@ export function selectWorkspaceGraphView(fullGraph, options = {}) {
   }
   if (viewMode === "whole") return fullGraph;
   if (viewMode === "focused") {
-    const rootNodeIds = options.rootNodeIds === undefined ? options.rootNodeId : options.rootNodeIds;
+    const requestedRootIds = options.rootNodeIds === undefined ? options.rootNodeId : options.rootNodeIds;
+    const roots = Array.isArray(requestedRootIds) ? requestedRootIds : requestedRootIds ? [requestedRootIds] : [];
+    const encodedNetRoots = roots.filter((id) => typeof id === "string" && id.startsWith("net:"));
+    const rootNodeIds = roots.filter((id) => !(typeof id === "string" && id.startsWith("net:")));
     return projectFocusedBoundaries(createFocusedNeighborhoodGraph(fullGraph, rootNodeIds, {
       rootNodeIds,
+      rootNetIds: options.rootNetIds || encodedNetRoots.map((id) => id.slice(4)),
       activeRootNodeId: options.activeRootNodeId,
       faninDepth: options.faninDepth,
-      fanoutDepth: options.fanoutDepth
+      fanoutDepth: options.fanoutDepth,
+      maximumVisibleNodes: options.maximumVisibleNodes,
+      maximumFrontier: options.maximumFrontier
     }));
   }
   return fullGraph;

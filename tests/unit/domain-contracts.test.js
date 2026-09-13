@@ -23,6 +23,24 @@ test("document and object identities validate without deriving identity from lab
   assert.equal(normalizeSourceInput({ name: "x.aig", bytes: new Uint8Array([1]) }).kind, "bytes");
 });
 
+test("object references preserve optional hierarchical occurrence identity", () => {
+  const ref = createObjectRef({
+    documentId: "doc:1",
+    unitId: "leaf",
+    kind: "net",
+    localId: "out",
+    occurrencePath: ["u_left", "u_leaf"]
+  });
+  assert.deepEqual(ref.occurrencePath, ["u_left", "u_leaf"]);
+  assert.notEqual(
+    objectRefKey(ref),
+    objectRefKey({ documentId: "doc:1", unitId: "leaf", kind: "net", localId: "out" })
+  );
+  assert.throws(() => createObjectRef({
+    documentId: "doc:1", unitId: "leaf", kind: "net", localId: "out", occurrencePath: "u_left"
+  }), /occurrencePath/);
+});
+
 test("view, diagnostic, and executor ports reject malformed boundary values", async () => {
   const query = createViewQuery({ unitId: "top", mode: "focused", rootNodeIds: ["cell:u1"] });
   const diagnostic = createDiagnostic({ severity: "warning", code: "W1", message: "example" });

@@ -4,11 +4,13 @@ export function createObjectRef(value) {
   const kind = requiredId(value?.kind, "kind");
   const localId = requiredId(value?.localId, "localId");
   const terminalId = optionalId(value?.terminalId, "terminalId");
+  const occurrencePath = normalizeOccurrencePath(value?.occurrencePath);
   return Object.freeze({
     documentId,
     unitId,
     kind,
     localId,
+    ...(occurrencePath.length > 0 ? { occurrencePath: Object.freeze(occurrencePath) } : {}),
     ...(terminalId === null ? {} : { terminalId })
   });
 }
@@ -24,9 +26,19 @@ export function isObjectRef(value) {
 
 export function objectRefKey(value) {
   const ref = createObjectRef(value);
-  return [ref.documentId, ref.unitId, ref.kind, ref.localId, ref.terminalId || ""]
+  return [ref.documentId, ref.unitId, ref.kind, ref.localId, ref.terminalId || "", ...(ref.occurrencePath || [])]
     .map((part) => encodeURIComponent(part))
     .join("/");
+}
+
+function normalizeOccurrencePath(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("ObjectRef occurrencePath must be an array");
+  const path = value.map((segment) => optionalId(segment, "occurrencePath"));
+  if (path.some((segment) => segment === null)) {
+    throw new Error("ObjectRef occurrencePath must contain non-empty strings");
+  }
+  return path;
 }
 
 function requiredId(value, name) {

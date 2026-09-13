@@ -37,3 +37,22 @@ test("netlist feature keeps failed imports and wrong-domain queries outside comm
   assert.throws(() => netlistFeature.importSource({ name: "bad.aig", bytes: new Uint8Array([0]) }), /must be text/);
   assert.throws(() => netlistFeature.listUnits({ domainId: "aig", model: {} }), /netlist document/);
 });
+
+test("netlist feature exposes bounded hierarchical cone queries without changing the view graph", () => {
+  const document = netlistFeature.importSource({
+    name: "hierarchy.v",
+    text: [
+      "module leaf(input a, output y); BUF_X1 u_buf (.A(a), .Z(y)); endmodule",
+      "module top(input a, output y); leaf u_leaf (.a(a), .y(y)); endmodule"
+    ].join("\n")
+  }, { documentId: "doc:hierarchy" });
+  const result = netlistFeature.queryHierarchy(document, {
+    rootModuleName: "top",
+    kind: "net",
+    localId: "a"
+  }, { direction: "fanout", fanoutDepth: 1, maximumVisibleNodes: 20 });
+
+  assert.ok(result.nodes.some((node) => node.occurrencePath.join("/") === "u_leaf" && node.moduleName === "leaf"));
+  assert.equal(result.truncated, false);
+  assert.equal(document.model.modules.length, 2);
+});

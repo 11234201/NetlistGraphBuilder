@@ -137,6 +137,44 @@ test("focused neighborhood supports multiple roots with stable union and cut edg
   assert.deepEqual(new Set(limited.cutEdges.map((edge) => edge.net)), new Set(["n"]));
 });
 
+test("focused neighborhood accepts a net root and keeps both driver and load seeds", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const focused = createFocusedNeighborhoodGraph(graph, null, {
+    rootNetIds: ["n"],
+    faninDepth: 1,
+    fanoutDepth: 1
+  });
+
+  assert.deepEqual(focused.view.rootNetIds, ["n"]);
+  assert.deepEqual(
+    new Set(focused.nodes.map((node) => node.id)),
+    new Set(["cell:u0", "cell:u1", "cell:u2", "input:a", "output:y1", "output:y2"])
+  );
+  assert.deepEqual(
+    focused.nodes.filter((node) => node.isFocusedNetEndpoint).map((node) => node.id).sort(),
+    ["cell:u0", "cell:u1", "cell:u2"]
+  );
+  assert.deepEqual(focused.view.netRootDiagnostics, [{
+    net: "n", driverCount: 1, loadCount: 2, diagnostics: []
+  }]);
+});
+
+test("net-focused traversal applies stable visible-node and frontier budgets", () => {
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const focused = analyzeFocusedNeighborhood(graph, null, {
+    rootNetIds: ["n"],
+    faninDepth: 4,
+    fanoutDepth: 4,
+    maximumVisibleNodes: 3,
+    maximumFrontier: 1
+  });
+
+  assert.equal(focused.truncated, true);
+  assert.ok(focused.hiddenEndpointCount > 0);
+  assert.ok(focused.nodeIds.length <= 3);
+  assert.deepEqual(focused.rootNetIds, ["n"]);
+});
+
 test("alias normalization collapses assign chains without changing parser IR", () => {
   const aliasSource = `module aliases(a, y); input a; output y; wire n1; wire n2;
 assign n1 = a; assign n2 = n1; assign y = n2; endmodule`;

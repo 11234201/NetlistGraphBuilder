@@ -73,7 +73,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
         const context = result.kind === "module"
           ? result.detail
           : `${result.detail} / ${result.moduleName}`;
-        const addAction = result.kind === "cell"
+        const addAction = result.kind === "net" || result.target?.kind === "cell"
           ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">+ Focus</button>`
           : "";
         return `<div class="search-result${active ? " is-active" : ""}" role="option" aria-selected="${active}" title="${escapeAttr(result.label)}">

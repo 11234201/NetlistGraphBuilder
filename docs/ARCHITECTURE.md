@@ -349,6 +349,8 @@ Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文
 ## 数据模型原则
 
 - net 名称使用 canonical form 存储，同时保留 display name。
+- `ObjectRef` 可选携带 `occurrencePath`；同一 module definition 的不同 hinst occurrence 不得共享
+  selection、Focused root 或跨层查询身份。
 - escaped identifier 要在 parser 层规范处理。
 - assign alias 不在 parser 层消除，在 netlist/infer 或 graph extraction 阶段处理。
 - 每个 cell/pin 的推断来源要可追踪：

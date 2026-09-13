@@ -46,6 +46,7 @@ export function createAppState(layoutPolicy) {
     layoutRequestId: 0,
     selectionFocusRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
+    presentationPolicy: { gateSymbolMode: "rectangle" },
     moduleWorkspaces: new Map(),
     moduleHistory: createModuleHistory(),
     compareWorkspaces: new Map(),

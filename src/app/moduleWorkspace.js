@@ -22,6 +22,7 @@ export function buildModuleWorkspace(options) {
     viewMode = "whole",
     coneRootNodeId = null,
     focusedRootNodeIds = null,
+    focusedRootNetIds = null,
     activeFocusedRootNodeId = null,
     coneDepth = 3,
     faninDepth = 3,
@@ -31,6 +32,7 @@ export function buildModuleWorkspace(options) {
     expandedGroupIds = new Set(),
     layoutProvider,
     layoutPolicy,
+    presentationPolicy = null,
     nodePositions = new Map(),
     nodeSizes = new Map(),
     preparedFullGraph = null
@@ -51,6 +53,7 @@ export function buildModuleWorkspace(options) {
       graph: selectWorkspaceGraphView(fullGraph, {
         viewMode,
         rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
+        rootNetIds: focusedRootNetIds,
         rootNodeId: coneRootNodeId,
         activeRootNodeId: activeFocusedRootNodeId,
         maxDepth: coneDepth,
@@ -66,7 +69,9 @@ export function buildModuleWorkspace(options) {
     measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
-    createScene: (graph) => createNetlistScene(graph)
+    createScene: (graph, request) => createNetlistScene(graph, {
+      presentationPolicy: request.presentationPolicy
+    })
   }, options);
   const finalize = (result) => ({
     fullGraph: result.queryResult.fullGraph,

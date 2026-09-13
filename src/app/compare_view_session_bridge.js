@@ -27,6 +27,7 @@ export function createCompareViewSessionBridge({ state, getDocumentId, sessions 
       activeFocusedRootRef,
       viewport: state.compare.transforms?.[side] || { x: 0, y: 0, scale: 1 },
       layoutPolicy: state.layoutPolicy,
+      presentationPolicy: state.presentationPolicy,
       overrides: snapshotOverrides(state.compare, side)
     });
   }
@@ -44,6 +45,7 @@ export function createCompareViewSessionBridge({ state, getDocumentId, sessions 
       activeFocusedRootRef,
       viewport: state.compare.transforms?.[side] || current.viewport,
       layoutPolicy: state.layoutPolicy,
+      presentationPolicy: state.presentationPolicy,
       overrides: snapshotOverrides(state.compare, side),
       selectedObjectRef: state.compare.selectedSide === side && state.compare.selectedName
         ? createObjectRef({
@@ -66,6 +68,7 @@ export function createCompareViewSessionBridge({ state, getDocumentId, sessions 
     ensureProjectionContainers(state.compare);
     state.compare.transforms[side] = { ...result.session.viewport };
     state.layoutPolicy = result.session.layoutPolicy;
+    state.presentationPolicy = { ...result.session.presentationPolicy };
     applyOverridesSnapshot(state.compare, side, result.session.overrides);
     if (!state.compare.focusedRootNodeIds) state.compare.focusedRootNodeIds = { left: [], right: [] };
     if (!state.compare.activeFocusedRootNodeId) state.compare.activeFocusedRootNodeId = { left: null, right: null };
@@ -88,7 +91,9 @@ export function createCompareViewSessionBridge({ state, getDocumentId, sessions 
   function replaceRoots(side, nodeIds, activeNodeId = null) {
     const current = ensure(side);
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const refs = nodeIds.map((nodeId) => nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), current));
+    const refs = nodeIds.map((nodeId) => typeof nodeId === "string" && nodeId.startsWith("net:")
+      ? createObjectRef({ documentId: current.documentId, unitId: current.unitId, kind: "net", localId: nodeId.slice(4) })
+      : nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), current));
     const activeIndex = nodeIds.indexOf(activeNodeId);
     const result = bus.dispatch({
       type: "focus.replace",
@@ -166,13 +171,19 @@ function nodeToRef(node, session) {
 
 function rootsToRefs(nodeIds, graph, session) {
   return (nodeIds || [])
-    .map((nodeId) => graph?.nodes?.find((node) => node.id === nodeId))
-    .filter(Boolean)
-    .map((node) => nodeToRef(node, session));
+    .map((nodeId) => {
+      if (typeof nodeId === "string" && nodeId.startsWith("net:")) {
+        return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind: "net", localId: nodeId.slice(4) });
+      }
+      const node = graph?.nodes?.find((item) => item.id === nodeId);
+      return node ? nodeToRef(node, session) : null;
+    })
+    .filter(Boolean);
 }
 
 function refToNodeId(ref, graph) {
   if (!ref || !graph) return null;
+  if (ref.kind === "net") return `net:${ref.localId}`;
   return graph.nodes.find((node) =>
     (node.ref?.instance || node.ref?.name || node.id) === ref.localId &&
     (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell"))

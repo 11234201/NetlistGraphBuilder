@@ -74,3 +74,17 @@ test("module workspace applies independent Focused depths", () => {
   assert.ok(withFanin.graph.nodes.length > rootOnly.graph.nodes.length);
   assert.equal(withFanin.graph.nodes.some((node) => node.id === "cell:u1"), false);
 });
+
+test("module workspace expands an encoded net Focused root without changing the full graph", () => {
+  const workspace = build({
+    viewMode: "focused",
+    focusedRootNodeIds: ["net:n"],
+    faninDepth: 1,
+    fanoutDepth: 1
+  });
+
+  assert.deepEqual(workspace.graph.view.rootNetIds, ["n"]);
+  assert.equal(workspace.fullGraph.nodes.length, 5);
+  assert.ok(workspace.graph.nodes.some((node) => node.isFocusedNetEndpoint));
+  assert.ok(workspace.graph.edges.some((edge) => edge.net === "n"));
+});

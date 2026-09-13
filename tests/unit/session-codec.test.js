@@ -17,6 +17,14 @@ test("session v2 codec preserves domain, unit and source identity", () => {
   assert.equal(decoded.documentId, "netlist:example");
   assert.equal(decoded.unitId, "top");
   assert.deepEqual(decoded.sourceIdentity, { name: "top.v", size: 42, fingerprint: "fnv1a32:d94b1d8a" });
+  assert.deepEqual(decoded.presentationPolicy, { gateSymbolMode: "rectangle" });
+});
+
+test("session v2 codec preserves the optional conventional gate symbol mode", () => {
+  const decoded = decodeSessionSnapshot(encodeSessionSnapshot({
+    presentationPolicy: { gateSymbolMode: "conventional" }
+  }));
+  assert.deepEqual(decoded.presentationPolicy, { gateSymbolMode: "conventional" });
 });
 
 test("legacy session v1 fixture migrates a single module identity", () => {

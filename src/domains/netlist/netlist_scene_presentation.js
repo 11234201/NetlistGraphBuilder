@@ -1,13 +1,13 @@
 import { getLeafDisplayName } from "../../layout/nodeGeometry.js";
 import { svgElement, svgText } from "../../render/svg_scene_renderer.js";
 
-export function createNetlistNodePrimitive(node) {
+export function createNetlistNodePrimitive(node, presentationPolicy = {}) {
   if (node.kind === "input" || node.kind === "focus-input" || node.kind === "output" || node.kind === "focus-output") {
     return createPortPrimitive(node, node.kind);
   }
   if (node.kind === "implicit" || node.kind === "constant") return createSimplePrimitive(node, node.kind);
   if (node.kind === "hub") return createHubPrimitive(node);
-  return createCellPrimitive(node);
+  return createCellPrimitive(node, presentationPolicy);
 }
 
 function createHubPrimitive(node) {
@@ -67,7 +67,7 @@ function createSimplePrimitive(node, className) {
   ]);
 }
 
-function createCellPrimitive(node) {
+function createCellPrimitive(node, presentationPolicy) {
   const x = round(node.x);
   const y = round(node.y);
   const width = round(node.width);
@@ -77,7 +77,10 @@ function createCellPrimitive(node) {
   const focusedClass = node.isActiveFocusedRoot
     ? " focused-root focused-root-active"
     : node.isFocusedRoot ? " focused-root" : "";
-  const attributes = nodeAttributes(node, `node ${gateKind} ${node.kind}${timingClass}${focusedClass}`);
+  const useConventionalSymbol = presentationPolicy.gateSymbolMode === "conventional" &&
+    isConventionalGateKind(gateKind);
+  const symbolClass = useConventionalSymbol ? " gate-conventional" : "";
+  const attributes = nodeAttributes(node, `node ${gateKind} ${node.kind}${timingClass}${focusedClass}${symbolClass}`);
   if (node.navigationTarget) {
     attributes["data-navigation-kind"] = node.navigationTarget.kind;
     attributes["data-navigation-id"] = node.navigationTarget.id;
@@ -88,7 +91,7 @@ function createCellPrimitive(node) {
       ? `; double-click to open ${node.navigationTarget.id}` : "";
     children.push(title(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`));
   }
-  children.push(svgElement("rect", { class: "node-shape", x, y, width, height }));
+  children.push(createGateShape(node, gateKind, useConventionalSymbol, x, y, width, height));
   children.push(...createPortPrimitives(node, x, y, width));
   const timingBadge = createTimingBadge(node, x, y, width, height);
   if (timingBadge) children.push(timingBadge);
@@ -106,6 +109,37 @@ function createCellPrimitive(node) {
     }, [svgText(truncateText(node.metadataText, 34))]));
   }
   return svgElement("g", attributes, children);
+}
+
+function isConventionalGateKind(gateKind) {
+  return new Set(["and", "nand", "or", "nor", "xor", "xnor", "buf", "inv"]).has(gateKind);
+}
+
+function createGateShape(node, gateKind, conventional, x, y, width, height) {
+  if (!conventional) return svgElement("rect", { class: "node-shape", x, y, width, height });
+  const inset = Math.min(12, Math.max(5, width * 0.08));
+  const left = x + inset;
+  const right = x + width - inset;
+  const top = y + inset;
+  const bottom = y + height - inset;
+  const mid = y + height / 2;
+  if (gateKind === "buf" || gateKind === "inv") {
+    return svgElement("polygon", {
+      class: "node-shape",
+      points: `${left},${top} ${left},${bottom} ${right},${mid}`
+    });
+  }
+  if (gateKind === "and" || gateKind === "nand") {
+    const shoulder = left + (right - left) * 0.45;
+    const d = `M ${left} ${top} L ${shoulder} ${top} A ${(right - shoulder)} ${(bottom - top) / 2} 0 0 1 ${shoulder} ${bottom} L ${left} ${bottom} Z`;
+    return svgElement("path", { class: "node-shape", d });
+  }
+  const shoulder = left + (right - left) * 0.42;
+  const d = `M ${left} ${top} Q ${left + (right - left) * 0.18} ${mid} ${left} ${bottom} Q ${shoulder} ${bottom} ${right} ${mid} Q ${shoulder} ${top} ${left} ${top} Z`;
+  const shape = svgElement("path", { class: "node-shape", d });
+  if (gateKind !== "xor" && gateKind !== "xnor") return shape;
+  const extraD = `M ${left - 7} ${top} Q ${left + (right - left) * 0.11} ${mid} ${left - 7} ${bottom}`;
+  return svgElement("g", {}, [shape, svgElement("path", { class: "gate-extra-shape", d: extraD })]);
 }
 
 function createPortPrimitives(node, x, y, width) {

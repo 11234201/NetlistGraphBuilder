@@ -7,6 +7,8 @@ const EXPORT_CSS = `
 .wire-label { font-size: 11px; fill: #475569; paint-order: stroke; stroke: #f8fafc; stroke-width: 4px; stroke-linejoin: round; }
 .wire-junction { fill: var(--wire); }
 .node-shape { fill: #fff; stroke: #334155; stroke-width: 1.4; }
+.node.gate-conventional .node-shape { stroke-linejoin: round; }
+.gate-extra-shape { fill: none; stroke: #334155; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .node.input .node-shape { fill: #e7f3f4; stroke: #1f7a8c; }
 .node.output .node-shape { fill: #f8ecd8; stroke: #a15c00; }
 .node.focus-input .node-shape, .node.focus-output .node-shape { fill: #f5f3ff; stroke: #7c3aed; stroke-dasharray: 5 3; }

@@ -72,3 +72,11 @@ export function addFocusedRootNodeId(rootNodeIds, nodeId) {
 export function shouldPreserveFocusedRootsForSearch(viewMode, rootNodeIds) {
   return viewMode === "focused" && normalizeFocusedRootNodeIds(rootNodeIds).length > 0;
 }
+
+export function focusedNetRootId(netName) {
+  return typeof netName === "string" && netName.length > 0 ? `net:${netName}` : null;
+}
+
+export function focusedNetName(rootId) {
+  return typeof rootId === "string" && rootId.startsWith("net:") ? rootId.slice(4) : null;
+}

@@ -30,6 +30,7 @@ export function createViewSession(value) {
     activeFocusedRootRef,
     selectedObjectRef,
     layoutPolicy: normalizeRecord(value.layoutPolicy, "layoutPolicy"),
+    presentationPolicy: normalizeRecord(value.presentationPolicy, "presentationPolicy"),
     overrides: value.overrides || null,
     viewport: normalizeViewport(value.viewport)
   });

@@ -44,7 +44,15 @@ function normalizeVersion2(value) {
     domainId: typeof value.domainId === "string" && value.domainId ? value.domainId : "netlist",
     documentId: optionalString(value.documentId),
     unitId: optionalString(value.unitId || value.moduleName),
-    sourceIdentity: normalizeSourceIdentity(value.sourceIdentity, value.sourceLabel, value.source)
+    sourceIdentity: normalizeSourceIdentity(value.sourceIdentity, value.sourceLabel, value.source),
+    presentationPolicy: normalizePresentationPolicy(value.presentationPolicy)
+  };
+}
+
+function normalizePresentationPolicy(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    gateSymbolMode: source.gateSymbolMode === "conventional" ? "conventional" : "rectangle"
   };
 }
 

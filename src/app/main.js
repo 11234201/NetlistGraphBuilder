@@ -11,6 +11,7 @@ import {
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
+import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
@@ -83,6 +84,8 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 import {
   addFocusedRootNodeId,
   normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots,
+  focusedNetName,
+  focusedNetRootId,
   resolveFocusedRootTarget,
   resolveFocusedRootState,
   resolveFocusedRootAction,
@@ -187,6 +190,7 @@ const elements = {
   showAliasesInput: document.querySelector("#showAliasesInput"),
   fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
   collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
+  gateSymbolModeSelect: document.querySelector("#gateSymbolModeSelect"),
   collapseAllButton: document.querySelector("#collapseAllButton"),
   setFocusedRootButton: document.querySelector("#setFocusedRootButton"),
   focusedRootCount: document.querySelector("#focusedRootCount"),
@@ -381,6 +385,7 @@ elements.fanoutDepthInput.addEventListener("input", scheduleFocusedDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
 elements.collapseGroupsInput.addEventListener("change", handleGraphSimplificationChange);
+elements.gateSymbolModeSelect.addEventListener("change", (event) => commitGateSymbolMode(event.target.value));
 elements.collapseAllButton.addEventListener("click", () => {
   state.expandedGroupIds.clear();
   rerenderActiveGraph();
@@ -772,6 +777,7 @@ function renderCompareGraphs() {
     focusedRootNodeIds: state.compare.focusedRootNodeIds,
     activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
     showAliases: state.showAliases,
+    presentationPolicy: state.presentationPolicy,
     timing: state.timing,
     timingDisplayPolicy: state.timingDisplayPolicy,
     timingBadgeChoices: state.compare.timingBadgeChoices,
@@ -961,6 +967,7 @@ function renderCurrentModuleGraph(options = {}) {
     timingDisplayPolicy: state.timingDisplayPolicy,
     timingBadgeChoices: state.timingBadgeChoices,
     timingBadgePositions: state.timingBadgePositions,
+    presentationPolicy: state.presentationPolicy,
     showAliases: state.showAliases,
     viewMode: state.viewMode,
     focusedRootNodeIds: state.focusedRootNodeIds,
@@ -1191,9 +1198,10 @@ function handleAliasVisibilityChange(event) {
 function updateViewControls() {
   const focusedContext = getFocusedRootContext();
   const selectedCompareCell = state.compare.active && state.compare.selectedKind === "cell";
+  const selectedCompareNet = state.compare.active && state.compare.selectedKind === "net";
   const hasRoot = state.compare.active
-    ? focusedContext.roots.length > 0 || selectedCompareCell
-    : Boolean(state.selectedNodeId || state.focusedRootNodeIds.length || state.coneRootNodeId);
+    ? focusedContext.roots.length > 0 || selectedCompareCell || selectedCompareNet
+    : Boolean(state.selectedNodeId || state.selectedNet || state.focusedRootNodeIds.length || state.coneRootNodeId);
   const isFocused = state.compare.active
     ? focusedContext.roots.length > 0
     : state.viewMode === "focused";
@@ -1230,8 +1238,11 @@ function updateFocusedRootControl() {
     ? Boolean(target)
     : Boolean(getSelectedSingleCell());
   const selectedNodeId = target || getSelectedSingleCell()?.id || state.selectedNodeId;
-  elements.addFocusedRootButton.disabled = !selectedCell || focusedContext.roots.includes(selectedNodeId);
-  elements.removeFocusedRootButton.disabled = !selectedCell || !focusedContext.roots.includes(selectedNodeId);
+  const selectedRootId = state.compare.active
+    ? (selectedCell ? selectedNodeId : selectedCompareNet ? focusedNetRootId(state.compare.selectedName) : null)
+    : (selectedCell ? selectedNodeId : state.selectedNet ? focusedNetRootId(state.selectedNet) : null);
+  elements.addFocusedRootButton.disabled = !selectedRootId || focusedContext.roots.includes(selectedRootId);
+  elements.removeFocusedRootButton.disabled = !selectedRootId || !focusedContext.roots.includes(selectedRootId);
   elements.clearFocusedRootsButton.disabled = focusedContext.roots.length === 0;
 }
 
@@ -1311,7 +1322,20 @@ function setSelectedAsFocusedRoot() {
     state.focusedRootNodeIds,
     state.viewMode
   );
-  if (!nodeId || state.compare.active) return;
+  const rootId = nodeId || focusedNetRootId(state.selectedNet);
+  if (!rootId || state.compare.active) return;
+  if (focusedNetName(rootId)) {
+    const commandResult = singleViewSession.dispatch({
+      type: "focus.set",
+      objectRef: singleViewSession.objectRefForNet(focusedNetName(rootId))
+    });
+    if (commandResult.rejected) return;
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
+    updateViewControls();
+    setStatus(`Rebuilding Focused view around net ${focusedNetName(rootId)}…`);
+    renderCurrentModuleGraph();
+    return;
+  }
   const fullNode = state.fullGraph.nodes.find((node) => node.id === nodeId);
   const commandResult = singleViewSession.dispatch({
     type: "focus.set",
@@ -1337,6 +1361,15 @@ function setSelectedAsFocusedRoot() {
 
 function setSelectedCompareAsFocusedRoot() {
   const context = getFocusedRootContext();
+  if (state.compare.selectedKind === "net" && state.compare.selectedName) {
+    const rootId = focusedNetRootId(state.compare.selectedName);
+    setCompareFocusedRootNodeIds(context.side, [rootId], rootId);
+    setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(`Focused compare ${context.side} view around net ${state.compare.selectedName}`);
+    return;
+  }
   const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
   if (!node) return;
   setCompareFocusedRootNodeIds(context.side, [node.id], node.id);
@@ -1353,10 +1386,13 @@ function addSelectedAsFocusedRoot() {
     return;
   }
   const node = getSelectedSingleCell();
-  if (!node || state.focusedRootNodeIds.includes(node.id)) return;
+  const rootId = node?.id || focusedNetRootId(state.selectedNet);
+  if (!rootId || state.focusedRootNodeIds.includes(rootId)) return;
   const action = singleViewSession.dispatch({
     type: "focus.add",
-    objectRef: singleViewSession.objectRefForNode(node)
+    objectRef: node
+      ? singleViewSession.objectRefForNode(node)
+      : singleViewSession.objectRefForNet(state.selectedNet)
   });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   const requestId = ++state.selectionFocusRequestId;
@@ -1364,16 +1400,26 @@ function addSelectedAsFocusedRoot() {
   updateViewControls();
   renderCurrentModuleGraph({
     onRendered: (graph) => {
-      if (requestId !== state.selectionFocusRequestId || !state.focusedRootNodeIds.includes(node.id)) return;
-      const positioned = graph.nodes.find((item) => item.id === node.id);
+      if (requestId !== state.selectionFocusRequestId || !state.focusedRootNodeIds.includes(rootId)) return;
+      const positioned = node ? graph.nodes.find((item) => item.id === node.id) : null;
       if (positioned) setSelectedNode(positioned.id);
-      setStatus(`Added Focused root: ${node.label}`);
+      setStatus(`Added Focused root: ${node?.label || `net ${state.selectedNet}`}`);
     }
   });
 }
 
 function addSelectedCompareAsFocusedRoot() {
   const context = getFocusedRootContext();
+  if (state.compare.selectedKind === "net" && state.compare.selectedName) {
+    const rootId = focusedNetRootId(state.compare.selectedName);
+    if (context.roots.includes(rootId)) return;
+    setCompareFocusedRootNodeIds(context.side, [...context.roots, rootId], rootId);
+    setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(`Added net ${state.compare.selectedName} to Compare ${context.side} Focused roots`);
+    return;
+  }
   const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
   if (!node || context.roots.includes(node.id)) return;
   const action = resolveFocusedRootAction({ rootNodeIds: context.roots }, { type: "add", nodeId: node.id });
@@ -1392,7 +1438,20 @@ function removeSelectedFromFocusedRoots() {
     return;
   }
   const nodeId = state.selectedNodeId;
-  if (!state.focusedRootNodeIds.includes(nodeId)) return;
+  const rootId = state.selectedNet ? focusedNetRootId(state.selectedNet) : nodeId;
+  if (!rootId || !state.focusedRootNodeIds.includes(rootId)) return;
+  if (focusedNetName(rootId)) {
+    singleViewSession.dispatch({
+      type: "focus.remove",
+      objectRef: singleViewSession.objectRefForNet(focusedNetName(rootId))
+    });
+    const nextRoots = state.focusedRootNodeIds;
+    if (nextRoots.length === 0) setSingleViewMode(shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole");
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
+    renderCurrentModuleGraph();
+    setStatus(nextRoots.length ? "Removed selected Focused net root" : "Cleared final Focused root");
+    return;
+  }
   const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
   if (!fullNode) return;
   singleViewSession.dispatch({
@@ -1411,6 +1470,19 @@ function removeSelectedFromFocusedRoots() {
 
 function removeSelectedCompareFocusedRoot() {
   const context = getFocusedRootContext();
+  if (state.compare.selectedKind === "net" && state.compare.selectedName) {
+    const rootId = focusedNetRootId(state.compare.selectedName);
+    if (!context.roots.includes(rootId)) return;
+    const roots = context.roots.filter((item) => item !== rootId);
+    setCompareFocusedRootNodeIds(context.side, roots);
+    setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
+    updateViewControls();
+    renderCompareGraphs();
+    setStatus(roots.length
+      ? `Removed net ${state.compare.selectedName} from Compare ${context.side} Focused roots`
+      : `Cleared Compare ${context.side} Focused roots`);
+    return;
+  }
   const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
   if (!node || !context.roots.includes(node.id)) return;
   const roots = context.roots.filter((nodeId) => nodeId !== node.id);
@@ -1455,6 +1527,15 @@ function handleFocusedRootListClick(event) {
   if (removeButton) {
     const nodeId = removeButton.dataset.focusedRootRemove;
     if (!state.focusedRootNodeIds.includes(nodeId)) return;
+    const netName = focusedNetName(nodeId);
+    if (netName) {
+      singleViewSession.dispatch({ type: "focus.remove", objectRef: singleViewSession.objectRefForNet(netName) });
+      if (state.focusedRootNodeIds.length === 0) setSingleViewMode(shouldUseSearchFirst(state.currentModule, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole");
+      setSingleTransform({ x: 0, y: 0, scale: 1 });
+      renderCurrentModuleGraph();
+      setStatus(`Removed Focused root: net ${netName}`);
+      return;
+    }
     const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
     if (!fullNode) return;
     singleViewSession.dispatch({
@@ -1473,6 +1554,18 @@ function handleFocusedRootListClick(event) {
   const chip = event.target.closest?.("[data-focused-root-activate]");
   const nodeId = chip?.dataset.focusedRootActivate;
   if (!state.focusedRootNodeIds.includes(nodeId)) return;
+  const netName = focusedNetName(nodeId);
+  if (netName) {
+    singleViewSession.dispatch({ type: "focus.activate", objectRef: singleViewSession.objectRefForNet(netName) });
+    const edge = state.graph?.edges.find((item) => item.net === netName);
+    if (edge) {
+      focusPositionedEdge(edge, elements.mount, state.transform, setSingleTransform);
+      applyTransform();
+    }
+    updateViewControls();
+    setStatus(`Active Focused net root: ${netName}`);
+    return;
+  }
   const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
   if (!fullNode) return;
   singleViewSession.dispatch({
@@ -1508,6 +1601,15 @@ function handleCompareFocusedRootListClick(event) {
   if (removeButton) {
     const nodeId = removeButton.dataset.focusedRootRemove;
     if (!context.roots.includes(nodeId)) return;
+    const netName = focusedNetName(nodeId);
+    if (netName) {
+      setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId));
+      setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
+      updateViewControls();
+      renderCompareGraphs();
+      setStatus(`Removed Compare ${context.side} Focused net root: ${netName}`);
+      return;
+    }
     setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId));
     syncCompareFocusedRootNode(context.side, nodeId, "remove");
     setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
@@ -1519,6 +1621,25 @@ function handleCompareFocusedRootListClick(event) {
   const chip = event.target.closest?.("[data-focused-root-activate]");
   const nodeId = chip?.dataset.focusedRootActivate;
   if (!context.roots.includes(nodeId)) return;
+  const netName = focusedNetName(nodeId);
+  if (netName) {
+    compareViewSessions.dispatch(context.side, {
+      type: "focus.activate",
+      objectRef: compareViewSessions.objectRef(context.side, "net", netName)
+    });
+    const edge = context.graph?.edges.find((item) => item.net === netName);
+    if (edge) {
+      const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
+      focusPositionedEdge(edge, mount, state.compare.transforms[context.side], (transform) => {
+        setCompareTransform(context.side, transform);
+      });
+      applyCompareTransforms();
+      selectCompareObject("net", netName, false, context.side);
+    }
+    updateViewControls();
+    setStatus(`Active Compare ${context.side} Focused net root: ${netName}`);
+    return;
+  }
   compareViewSessions.dispatch(context.side, {
     type: "focus.activate",
     objectRef: compareViewSessions.objectRef(context.side, "cell", nodeId)
@@ -1547,8 +1668,9 @@ function renderFocusedRootList() {
     return;
   }
   elements.focusedRootsList.innerHTML = roots.map((nodeId) => {
+    const netName = focusedNetName(nodeId);
     const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
-    const label = node?.label || nodeId.replace(/^cell:/, "");
+    const label = netName ? `net ${netName}` : node?.label || nodeId.replace(/^cell:/, "");
     const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
     const title = context.compare ? `${context.side}: ${nodeId}` : nodeId;
     return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${context.compare ? `${escapeHtml(context.side)}: ` : ""}${escapeHtml(label)}</span><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
@@ -1559,8 +1681,10 @@ function updateFocusSelectedControl() {
   const singleCell = !state.compare.active && state.fullGraph?.nodes.some(
     (node) => node.id === state.selectedNodeId && node.kind === "cell"
   );
+  const singleNet = !state.compare.active && Boolean(state.selectedNet);
   const compareCell = state.compare.active && state.compare.selectedKind === "cell" && Boolean(state.compare.selectedName);
-  elements.focusSelectedButton.disabled = !(singleCell || compareCell);
+  const compareNet = state.compare.active && state.compare.selectedKind === "net" && Boolean(state.compare.selectedName);
+  elements.focusSelectedButton.disabled = !(singleCell || singleNet || compareCell || compareNet);
 }
 
 function handleFocusSelectedShortcut(event) {
@@ -1572,7 +1696,28 @@ function handleFocusSelectedShortcut(event) {
 
 function focusSelectedCell() {
   if (state.compare.active) {
+    if (state.compare.selectedKind === "net" && state.compare.selectedName) {
+      const side = state.compare.selectedSide || "left";
+      const graph = state.compare.graphs[side];
+      const edge = graph?.edges.find((item) => item.net === state.compare.selectedName);
+      const mount = side === "left" ? elements.leftMount : elements.rightMount;
+      if (edge) {
+        focusPositionedEdge(edge, mount, state.compare.transforms[side], (transform) => setCompareTransform(side, transform));
+        applyCompareTransforms();
+      }
+      setStatus(`Focused compare net ${state.compare.selectedName}`);
+      return;
+    }
     focusSelectedCompareCell();
+    return;
+  }
+  if (state.selectedNet) {
+    const edge = state.graph?.edges.find((item) => item.net === state.selectedNet);
+    if (edge) {
+      focusPositionedEdge(edge, elements.mount, state.transform, setSingleTransform);
+      applyTransform();
+      setStatus(`Focused net ${state.selectedNet}`);
+    }
     return;
   }
   const selectedNodeId = state.selectedNodeId;
@@ -1689,6 +1834,28 @@ function focusPositionedCell(node, mount, currentTransform, commit) {
   }));
 }
 
+function focusPositionedEdge(edge, mount, currentTransform, commit) {
+  const point = getEdgeCenter(edge);
+  const svg = mount.querySelector("svg");
+  if (!point || !svg) return;
+  const viewport = svg.getBoundingClientRect();
+  commit(getFocusedObjectTransform({
+    viewBox: svg.viewBox.baseVal,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+    bounds: { x: point.x - 50, y: point.y - 18, width: 100, height: 36 },
+    targetPixels: 260,
+    minimumScale: 0.25,
+    maximumScale: getAdaptiveMaxScale(
+      svg.viewBox.baseVal.width,
+      viewport.width,
+      svg.viewBox.baseVal.height,
+      viewport.height
+    ),
+    currentTransform
+  }));
+}
+
 function handleGraphSimplificationChange() {
   state.useFanoutHubs = elements.fanoutHubsInput.checked;
   state.collapseLargeGroups = elements.collapseGroupsInput.checked;
@@ -1746,6 +1913,61 @@ function commitTimingDisplayPolicy(policy) {
   if (state.timing && state.currentModule) rerenderActiveGraph();
   const metric = policy.metrics.length === 3 ? "all" : policy.metrics[0];
   setStatus(`Timing: ${policy.snapshot} / ${metric}`);
+}
+
+function commitGateSymbolMode(mode) {
+  const presentationPolicy = normalizeNetlistPresentationPolicy({
+    ...state.presentationPolicy,
+    gateSymbolMode: mode
+  });
+  if (presentationPolicy.gateSymbolMode === state.presentationPolicy?.gateSymbolMode) {
+    elements.gateSymbolModeSelect.value = presentationPolicy.gateSymbolMode;
+    return;
+  }
+  state.presentationPolicy = presentationPolicy;
+  elements.gateSymbolModeSelect.value = presentationPolicy.gateSymbolMode;
+  if (state.document?.documentId && state.currentModule?.name) {
+    singleViewSession.dispatch({
+      type: "presentation.policy.set",
+      presentationPolicy
+    });
+  }
+  if (state.compare.active) {
+    for (const side of ["left", "right"]) {
+      compareViewSessions.dispatch(side, {
+        type: "presentation.policy.set",
+        presentationPolicy
+      });
+    }
+    refreshComparePresentationScenes();
+  } else if (state.graph) {
+    state.scene = createNetlistScene(state.graph, { presentationPolicy });
+    renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
+      if (result?.cancelled) return;
+      applyTransform();
+      updateCalibrationControls();
+    });
+  }
+  persistSession();
+  setStatus(`Gate symbols: ${presentationPolicy.gateSymbolMode}`);
+}
+
+function refreshComparePresentationScenes() {
+  const renders = [];
+  for (const side of ["left", "right"]) {
+    const graph = state.compare.graphs[side];
+    if (!graph) continue;
+    const scene = createNetlistScene(graph, { presentationPolicy: state.presentationPolicy });
+    state.compare.scenes[side] = scene;
+    const mount = side === "left" ? elements.leftMount : elements.rightMount;
+    renders.push(renderGraphMount(mount, graph, { scene }));
+  }
+  Promise.all(renders).then((results) => {
+    if (results.some((result) => result?.cancelled)) return;
+    applyCompareHighlights();
+    applyCompareTransforms();
+    updateCalibrationControls();
+  });
 }
 
 function openSelectedCellDefinition() {
@@ -2009,16 +2231,78 @@ function activateSearchResult(result) {
   }
   if (target.kind === "net") {
     const edge = state.graph?.edges.find((item) => item.net === target.name);
-    setSelectedNet(target.name);
     if (edge) {
+      setSelectedNet(target.name);
       centerGraphPoint(getEdgeCenter(edge));
+      setStatus(`Search: net ${result.label}`);
+      return;
     }
-    setStatus(`Search: net ${result.label}`);
+    const fullEdge = state.fullGraph?.edges.find((item) => item.net === target.name);
+    if (state.viewMode === "search-first" && fullEdge) {
+      const reveal = singleViewSession.dispatch({
+        type: "selection.reveal",
+        objectRef: result.objectRef || singleViewSession.objectRefForNet(target.name),
+        visibleObjectKeys: singleViewSession.visibleObjectKeys()
+      });
+      if (!reveal.rejected) {
+        setSingleTransform({ x: 0, y: 0, scale: 1 });
+        renderCurrentModuleGraph({
+          onRendered: (graph) => {
+            const positioned = graph.edges.find((item) => item.net === target.name);
+            setSelectedNet(target.name);
+            if (positioned) centerGraphPoint(getEdgeCenter(positioned));
+            setStatus(`Focused search net ${result.label}`);
+          }
+        });
+        return;
+      }
+    }
+    if (state.viewMode === "focused" && fullEdge) {
+      setSingleViewMode("whole");
+      renderCurrentModuleGraph({
+        onRendered: (graph) => {
+          const positioned = graph.edges.find((item) => item.net === target.name);
+          setSelectedNet(target.name);
+          if (positioned) centerGraphPoint(getEdgeCenter(positioned));
+          setStatus(`Search: net ${result.label}`);
+        }
+      });
+      return;
+    }
+    setSelectedNet(target.name);
+    setStatus(`Search: net ${result.label} (not positioned)`);
     return;
   }
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
+    const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
+    if (positioned) {
+      singleViewSession.dispatch({
+        type: "selection.set",
+        objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
+      });
+      setSelectedNode(positioned.id);
+      centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
+      setStatus(`Search: ${result.kind} ${result.label}`);
+      return;
+    }
+    if (state.viewMode !== "search-first") {
+      singleViewSession.dispatch({
+        type: "selection.set",
+        objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
+      });
+      setSingleViewMode("whole");
+      renderCurrentModuleGraph({
+        onRendered: (graph) => {
+          const node = graph.nodes.find((item) => item.id === fullNode.id);
+          setSelectedNode(node?.id || null);
+          if (node) centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
+          setStatus(`Search: ${result.kind} ${result.label}`);
+        }
+      });
+      return;
+    }
     const reveal = singleViewSession.dispatch({
       type: "selection.reveal",
       objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode),
@@ -2054,30 +2338,44 @@ function activateSearchResult(result) {
 }
 
 function addSearchResultToFocus(result) {
-  if (!result || result.target?.kind !== "cell") return;
+  if (!result || !["cell", "net"].includes(result.target?.kind)) return;
   if (state.currentModule?.name !== result.moduleName) {
     selectModule(result.moduleName, { onRendered: () => addSearchResultToFocus(result) });
     return;
   }
-  const fullNode = findSearchTargetNode(result.target, state.fullGraph);
-  if (!fullNode) return;
+  const fullNode = result.target.kind === "cell"
+    ? findSearchTargetNode(result.target, state.fullGraph)
+    : null;
+  const fullEdge = result.target.kind === "net"
+    ? state.fullGraph?.edges.find((edge) => edge.net === result.target.name)
+    : null;
+  if (!fullNode && !fullEdge) return;
   elements.searchResults.hidden = true;
   const action = singleViewSession.dispatch({
     type: "focus.add",
-    objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
+    objectRef: result.objectRef || (fullNode
+      ? singleViewSession.objectRefForNode(fullNode)
+      : singleViewSession.objectRefForNet(result.target.name))
   });
   if (action.rejected) { setStatus("Focused root limit reached"); return; }
   if (!action.effects.layout) {
-    setSelectedNode(fullNode.id);
+    if (fullNode) setSelectedNode(fullNode.id);
+    else setSelectedNet(result.target.name);
     setStatus(`${result.label} is already a Focused root`);
     return;
   }
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   renderCurrentModuleGraph({
     onRendered: (graph) => {
-      const node = graph.nodes.find((item) => item.id === fullNode.id);
-      setSelectedNode(node?.id || null);
-      if (node) centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
+      const node = fullNode ? graph.nodes.find((item) => item.id === fullNode.id) : null;
+      const edge = fullEdge ? graph.edges.find((item) => item.net === result.target.name) : null;
+      if (node) {
+        setSelectedNode(node.id);
+        centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
+      } else if (edge) {
+        setSelectedNet(result.target.name);
+        centerGraphPoint(getEdgeCenter(edge));
+      }
       setStatus(`Added ${result.label} to ${state.focusedRootNodeIds.length} Focused roots`);
     }
   });
@@ -2654,7 +2952,7 @@ function commitNodeDrag(nodeId, preview) {
     nodeSizes: state.nodeSizes,
     layoutPolicy: state.layoutPolicy
   });
-  state.scene = createNetlistScene(state.graph);
+  state.scene = createNetlistScene(state.graph, { presentationPolicy: state.presentationPolicy });
   preview.clear();
   renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
     if (result?.cancelled) return;
@@ -3092,7 +3390,7 @@ function renderAdjustedCompareSide(side, renderOptions = {}) {
     layoutPolicy: state.layoutPolicy
   });
   state.compare.graphs[side] = graph;
-  state.compare.scenes[side] = createNetlistScene(graph);
+  state.compare.scenes[side] = createNetlistScene(graph, { presentationPolicy: state.presentationPolicy });
   const mount = side === "left" ? elements.leftMount : elements.rightMount;
   return renderGraphMount(mount, graph, { ...renderOptions, scene: state.compare.scenes[side] }).then((result) => {
     if (result?.cancelled) return result;
@@ -3163,6 +3461,7 @@ function applySessionPreferences(session) {
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
     state.collapseLargeGroups = session.collapseLargeGroups === true;
+    state.presentationPolicy = normalizeNetlistPresentationPolicy(session.presentationPolicy);
     if (session.layoutPolicy) setSingleLayoutPolicy(session.layoutPolicy);
     const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
       ? session.timingDisplayPolicy.snapshot : "auto";
@@ -3175,6 +3474,7 @@ function applySessionPreferences(session) {
   elements.coneDepthInput.value = String(state.coneDepth);
   elements.faninDepthInput.value = String(state.faninDepth);
   elements.fanoutDepthInput.value = String(state.fanoutDepth);
+  elements.gateSymbolModeSelect.value = state.presentationPolicy.gateSymbolMode;
   syncLayoutSpacingControls();
   timingDisplayController.sync();
 }
