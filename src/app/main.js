@@ -664,7 +664,11 @@ function renderModuleHierarchy() {
 }
 
 function updateModuleHierarchyPicker() {
-  const label = state.currentModule?.displayName || "No module";
+  const moduleLabel = state.currentModule?.displayName || "No module";
+  const occurrencePath = state.occurrenceContext?.occurrencePath || [];
+  const label = occurrencePath.length > 0
+    ? `${moduleLabel} @ ${occurrencePath.join(" / ")}`
+    : moduleLabel;
   elements.moduleHierarchyCurrent.textContent = label;
   elements.moduleHierarchySummary.title = state.currentModule
     ? `Browse module hierarchy (current: ${label})`
@@ -886,9 +890,8 @@ function selectModule(moduleName, options = {}) {
     });
   }
   state.currentModule = module;
+  if (switchingModule && !options.occurrencePath) state.occurrenceContext = null;
   if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
-  updateModuleHierarchyPicker();
-  renderModuleHierarchy();
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
   if (options.occurrencePath?.length) {
     state.occurrenceContext = {
@@ -896,6 +899,8 @@ function selectModule(moduleName, options = {}) {
       occurrencePath: [...options.occurrencePath]
     };
   }
+  updateModuleHierarchyPicker();
+  renderModuleHierarchy();
   if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;
   if (historyEntry) {
     applyModuleHistoryEntry(historyEntry);
