@@ -209,6 +209,15 @@ test("connection navigation reveals hidden cells inside Focused instead of openi
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
+test("search reveals a target outside the current canvas through Focused instead of Whole", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
+
+  assert.match(handler, /revealSearchTarget\(/);
+  assert.match(source, /function revealSearchTarget\([\s\S]*?visibleObjectKeys: singleViewSession\.visibleObjectKeys\(\)/);
+  assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
+});
+
 test("screen rendering and exports consume prepared scenes", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
 

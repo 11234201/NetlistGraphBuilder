@@ -2238,34 +2238,12 @@ function activateSearchResult(result) {
       return;
     }
     const fullEdge = state.fullGraph?.edges.find((item) => item.net === target.name);
-    if (state.viewMode === "search-first" && fullEdge) {
-      const reveal = singleViewSession.dispatch({
-        type: "selection.reveal",
-        objectRef: result.objectRef || singleViewSession.objectRefForNet(target.name),
-        visibleObjectKeys: singleViewSession.visibleObjectKeys()
-      });
-      if (!reveal.rejected) {
-        setSingleTransform({ x: 0, y: 0, scale: 1 });
-        renderCurrentModuleGraph({
-          onRendered: (graph) => {
-            const positioned = graph.edges.find((item) => item.net === target.name);
-            setSelectedNet(target.name);
-            if (positioned) centerGraphPoint(getEdgeCenter(positioned));
-            setStatus(`Focused search net ${result.label}`);
-          }
-        });
-        return;
-      }
-    }
-    if (state.viewMode === "focused" && fullEdge) {
-      setSingleViewMode("whole");
-      renderCurrentModuleGraph({
-        onRendered: (graph) => {
-          const positioned = graph.edges.find((item) => item.net === target.name);
-          setSelectedNet(target.name);
-          if (positioned) centerGraphPoint(getEdgeCenter(positioned));
-          setStatus(`Search: net ${result.label}`);
-        }
+    if (fullEdge) {
+      revealSearchTarget(result.objectRef || singleViewSession.objectRefForNet(target.name), () => {
+        const positioned = state.graph?.edges.find((item) => item.net === target.name);
+        setSelectedNet(target.name);
+        if (positioned) centerGraphPoint(getEdgeCenter(positioned));
+        setStatus(`Focused search net ${result.label}`);
       });
       return;
     }
@@ -2287,42 +2265,11 @@ function activateSearchResult(result) {
       setStatus(`Search: ${result.kind} ${result.label}`);
       return;
     }
-    if (state.viewMode !== "search-first") {
-      singleViewSession.dispatch({
-        type: "selection.set",
-        objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
-      });
-      setSingleViewMode("whole");
-      renderCurrentModuleGraph({
-        onRendered: (graph) => {
-          const node = graph.nodes.find((item) => item.id === fullNode.id);
-          setSelectedNode(node?.id || null);
-          if (node) centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
-          setStatus(`Search: ${result.kind} ${result.label}`);
-        }
-      });
-      return;
-    }
-    const reveal = singleViewSession.dispatch({
-      type: "selection.reveal",
-      objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode),
-      visibleObjectKeys: singleViewSession.visibleObjectKeys()
-    });
-    if (!reveal.effects.layout) {
-      setSelectedNode(fullNode.id);
+    revealSearchTarget(result.objectRef || singleViewSession.objectRefForNode(fullNode), () => {
       const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
+      setSelectedNode(positioned?.id || null);
       if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
-      setStatus(`Search: ${result.kind} ${result.label}`);
-      return;
-    }
-    setSingleTransform({ x: 0, y: 0, scale: 1 });
-    renderCurrentModuleGraph({
-      onRendered: (graph) => {
-        const node = graph.nodes.find((item) => item.id === fullNode.id);
-        setSelectedNode(node?.id || null);
-        if (node) centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
-        setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
-      }
+      setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
     });
     return;
   }
@@ -2335,6 +2282,24 @@ function activateSearchResult(result) {
     }, node.width);
   }
   setStatus(`Search: ${result.kind} ${result.label}`);
+}
+
+function revealSearchTarget(objectRef, onRendered) {
+  const reveal = singleViewSession.dispatch({
+    type: "selection.reveal",
+    objectRef,
+    visibleObjectKeys: singleViewSession.visibleObjectKeys()
+  });
+  if (reveal.rejected) {
+    setStatus("Search target could not be added to Focused roots");
+    return;
+  }
+  if (!reveal.effects.layout) {
+    onRendered?.(state.graph);
+    return;
+  }
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
+  renderCurrentModuleGraph({ onRendered });
 }
 
 function addSearchResultToFocus(result) {
