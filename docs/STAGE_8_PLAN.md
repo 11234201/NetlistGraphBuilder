@@ -431,7 +431,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   当前 `npm test` 通过（465 tests）。这收口了 UI 层的 stale-result/cancel 语义，但尚未宣称
   JobCoordinator 已完全替代 `workspaceRequest.js`。
 - 当前代码的 Windows 离线包已通过 `npm run release:windows`，SHA-256 为
-  `354ec81b81e8ad8a156429dfa15b9d3bed26e302cfe1fa83aa8389628d4896df`。
+  `d32faceffacc36f64dbad6b1107eaf3ab29e2205fc2152c757eb37d4884780b9`。
 - 浏览器 smoke：重新加载当前本地包后进入 Compare，双侧 schematic、Compare 面板、Diagnostics 和
   Process Log 均正常；`tab.dev.logs()` 返回空错误集。
 
@@ -445,6 +445,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 浏览器验证切换到 ELK 后重新布局 Single，再进入 Compare，最终状态为 `Compare ready (ELK Layered
   (Experimental))`，运行日志为空；新增 computation boundary 与 signal forwarding 回归，当前
   `npm test` 通过（469 tests）。
+- `npm run release:windows` 已重新通过，当前离线包 SHA-256 为
+  `d32faceffacc36f64dbad6b1107eaf3ab29e2205fc2152c757eb37d4884780b9`。
 
 ### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
 
