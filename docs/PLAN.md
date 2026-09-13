@@ -96,13 +96,13 @@ Structural Verilog
 | R7-1 | 阶段 7 | 多领域工作台核心 | DomainFeature/registry、DocumentStore、ViewSession commands、任务与 Compare 契约 | 已完成 | `docs/STAGE_7_PLAN.md` |
 | R7-2 | 阶段 7 | 共享图形与交互边界 | query-to-Scene pipeline、安全/渐进 SVG、Single/Compare controller 与版本化存档 | 已完成 | `docs/STAGE_7_PLAN.md` |
 | R7-3 | 阶段 7 | AIG 扩展性验证 | 内存 AIG 经公共搜索、Focused、布局、选择和导出链路，公共层无领域分支 | 已完成 | `docs/STAGE_7_PLAN.md` |
-| R8-1 | 阶段 8 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、可穿 hinst 的双向 cone 与边界信息 | 计划中 | `docs/STAGE_8_PLAN.md` |
-| R8-2 | 阶段 8 | Net Focused | Cell/Net 统一 root、driver/load seed、高扇出有界局部图 | 计划中 | `docs/STAGE_8_PLAN.md` |
-| R8-3 | 阶段 8 | 交互性能与最小失效 | artifact cache、阶段失效矩阵、局部 reroute/Scene/DOM 更新与性能证据 | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-1 | 阶段 8 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、可穿 hinst 的双向 cone 与边界信息 | 进行中 | `docs/STAGE_8_PLAN.md` |
+| R8-2 | 阶段 8 | Net Focused | Cell/Net 统一 root、driver/load seed、高扇出有界局部图 | 进行中 | `docs/STAGE_8_PLAN.md` |
+| R8-3 | 阶段 8 | 交互性能与最小失效 | artifact cache、阶段失效矩阵、局部 reroute/Scene/DOM 更新与性能证据 | 进行中 | `docs/STAGE_8_PLAN.md` |
 | R8-4 | 阶段 8 | 可切换的标准逻辑门符号 | 矩形/标准符号显示策略、AND/OR/XOR/BUF 族 Scene 图元、反相 bubble 与 fallback | 计划中 | `docs/STAGE_8_PLAN.md` |
-| R8-5 | 阶段 8 | 通用 View History | selection/navigation/focus/viewport/override 的事务化 Back/Forward | 计划中 | `docs/STAGE_8_PLAN.md` |
-| R8-6 | 阶段 8 | Search 与 Focused 解耦 | Locate-only 默认语义、显式 Add Focus、Search-first 自动 fallback | 计划中 | `docs/STAGE_8_PLAN.md` |
-| R8-7 | 阶段 8 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job 与显式 Whole | 计划中 | `docs/STAGE_8_PLAN.md` |
+| R8-5 | 阶段 8 | 通用 View History | selection/navigation/focus/viewport/override 的事务化 Back/Forward | 进行中 | `docs/STAGE_8_PLAN.md` |
+| R8-6 | 阶段 8 | Search 与 Focused 解耦 | Locate-only 默认语义、显式 Add Focus、Search-first 自动 fallback | 进行中 | `docs/STAGE_8_PLAN.md` |
+| R8-7 | 阶段 8 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job 与显式 Whole | 进行中 | `docs/STAGE_8_PLAN.md` |
 
 ### 阶段 0：项目准备
 

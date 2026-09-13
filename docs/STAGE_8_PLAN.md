@@ -1,6 +1,6 @@
 # 阶段 8：层次追踪、对象聚焦与大图交互收敛
 
-更新日期：2026-09-13。状态：计划中。
+更新日期：2026-09-13。状态：进行中（核心增量已提交，验收闭环尚未完成）。
 
 ## 1. 阶段目标与边界
 
@@ -63,13 +63,13 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心已落地 |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 计划中 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、层次 occurrence context 已落地，层次 graph projection/UI 仍待补齐 |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：cached override、局部 reroute、frame coalescing 已有，artifact 接管尚未完成 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
-| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 计划中 |
+| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、Single 快捷键已接入，Compare compound/迁移待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
-| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 计划中 |
+| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计与显式 Whole 已落地，单侧异步 job/artifact 待补齐 |
 
 ## 4. 核心设计
 
@@ -348,7 +348,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 验收：七项需求的产品行为、兼容性、性能和离线包全部取得证据后才能把 Stage 8 标为完成；单元测试
 通过不能代替 mapped、浏览器或性能验收。
 
-### Stage 8 执行记录（2026-09-13，工作区未提交）
+### Stage 8 执行记录（2026-09-13，核心增量已提交）
 
 - 本轮实现：`NetlistPresentationPolicy` 的矩形/约定逻辑门开关（Single、Compare、session codec、SVG
   export）；Net Focused 的 driver/load seed、边界诊断和有界预算；Search 的 locate 与显式 `+ Focus`
@@ -366,6 +366,24 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   路由回归已解决。后续需单独复核 mapped 基线与路由容量问题。
 - 下一入口：把 occurrence context 接入 ViewSession/Focused root 与层级树双击，补齐跨层 graph
   projection；随后推进通用 View History 和 Compare Search-first 的零 provider 初始路径。
+
+### Stage 8 执行记录（2026-09-13，提交 `18299c9`、`e64b72b`）
+
+- 修正 Search 语义：命中对象若不在当前画布定位图中，统一通过 `selection.reveal` 自动加入
+  Focused；Whole 不再作为隐藏命中的回退路径。画布已有对象仍只执行选择与定位。
+- 加入有界 `ViewHistory`（默认 128 条），记录 module/view mode、cell/net selection、Focused
+  roots、双向 depth、viewport、presentation policy 和 layout overrides；Single 的按钮与
+  `Ctrl+Z`/`Ctrl+Shift+Z`/`Ctrl+Y` 接入，Forward 分支会在新操作后截断。
+- module hierarchy 节点保留 `occurrencePath`，层次树双击将 occurrence context 传入 module
+  workspace；graph node/ObjectRef 保留该上下文，重复 occurrence 不再共享身份。
+- Compare 大 module 在没有 output cone、Focused root 或显式 Whole 请求时使用 Search-first 空壳，
+  不调用 layout provider；full graph 仍用于统计，选择 output 或明确 Whole 才布局。新增大图 provider
+  调用计数测试。
+- 验证：`npm test` 通过（457 tests）；新增 View History、Compare deferred layout、occurrence
+  context、Search reveal 回归测试。
+- 偏差与未完成：Compare compound history、单侧异步 job/artifact 接管、真正的层次 graph
+  projection/breadcrumb UI、artifact cache 失效矩阵、浏览器和 Windows 离线发布验收仍未完成；
+  Stage 8 继续保持“进行中”。
 
 ## 6. 验证矩阵
 
