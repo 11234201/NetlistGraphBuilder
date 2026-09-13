@@ -10,9 +10,10 @@
 按以下顺序恢复上下文：
 
 1. [routing_pause_snapshot_and_code_audit.md](routing_pause_snapshot_and_code_audit.md)：暂停时的事实、指标和代码审计结论。
-2. [eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)：问题历史、复现过程和已验证结果。
-3. [eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)：历史设计与实施台账；它是 backlog，不是恢复后的默认执行顺序。
-4. `AGENTS.md`、`docs/skills/netlist-schematic/SKILL.md` 及其要求的架构、设计和阶段文件。
+2. [routing_plan_conformance_audit.md](routing_plan_conformance_audit.md)：历史方案与当前代码的逐阶段符合性审计。
+3. [eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)：问题历史、复现过程和已验证结果。
+4. [eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)：历史设计与实施台账；它是 backlog，不是恢复后的默认执行顺序。
+5. `AGENTS.md`、`docs/skills/netlist-schematic/SKILL.md` 及其要求的架构、设计和阶段文件。
 
 不要从聊天记录推断最新状态；以仓库文件和恢复时重新测得的数据为准。
 
@@ -53,4 +54,3 @@
 - 是否继续实施的决策记录。
 
 在这些产物形成前，不应修改布线算法。
-

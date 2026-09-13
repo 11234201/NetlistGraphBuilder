@@ -7,6 +7,7 @@
 - 历史方案：[eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)
 - 重新启动交接：[routing_restart_handoff.md](routing_restart_handoff.md)
 - 恢复检查清单：[routing_restart_checklist.md](routing_restart_checklist.md)
+- 方案符合性审计：[routing_plan_conformance_audit.md](routing_plan_conformance_audit.md)
 
 ## 1. 暂停边界
 
