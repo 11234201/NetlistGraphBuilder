@@ -413,7 +413,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `afafa51` 将 occurrence context 纳入通用 View History；回退/前进会恢复 root module 与完整路径，
   不再只恢复 module 名称和局部 selection。新增回归后 `npm test` 通过（463 tests）。
 - 该提交后的 Windows 离线包仍通过 `npm run release:windows`，SHA-256 为
-  `c4de27c14c15f0e2d754231af2c8a70f7e1ea387c81202f1871a6e73b2e25ca7`。
+  `8cff4ff947cf2c0974917aea6d8777973d8b45849d6f64e26eadae12b6cbbbcf`。
 - 当前 benchmark（3-run median）为 1K/4K/8K pipeline `211.8/1189.5/3551.9 ms`，layout
   `146.7/933.6/2939.4 ms`，progressive first batch `1.7/1.1/1.2 ms`；与上一基线处于同一量级，
   尚不能把 R8-3 的 30% 改善写成已达成。
