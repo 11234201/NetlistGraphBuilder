@@ -496,6 +496,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 新增 `npm run benchmark:workspace`：同一 artifact identity 下，1K cold/warm 为
   `200.0/3.8 ms`（52.5x），4K 为 `1013.1/26.7 ms`（38.0x）；这证明重复 workspace artifact
   已显著复用，但不替代全链路交互 30% 改善验收。
+- `2fee2c2` 对应的 Windows release 已通过，当前离线包 SHA-256 为
+  `55a9391cf6079de916b40c9d69494c0889e23748b16ca606e429f015f798cd62`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
