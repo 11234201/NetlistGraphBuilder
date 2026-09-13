@@ -190,6 +190,41 @@ export function analyzeHierarchicalCone(design, root, options = {}) {
   return finalizeResult(result);
 }
 
+/** Project a bounded hierarchical query while retaining occurrence identity. */
+export function projectHierarchicalCone(result, options = {}) {
+  const documentId = options.documentId || "hierarchy:projection";
+  const nodes = (result?.nodes || []).map((node) => ({
+    id: node.id,
+    kind: node.kind,
+    label: node.label || node.localId,
+    moduleName: node.moduleName,
+    occurrencePath: [...(node.occurrencePath || [])],
+    ref: {
+      documentId,
+      unitId: node.moduleName,
+      kind: node.kind === "cell" ? "cell" : node.kind,
+      localId: node.localId,
+      ...(node.occurrencePath?.length ? { occurrencePath: [...node.occurrencePath] } : {})
+    }
+  }));
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = (result?.links || []).filter((link) => nodeIds.has(link.source) && nodeIds.has(link.target)).map((link) => ({
+    id: `${link.source}->${link.target}`,
+    source: link.source,
+    target: link.target,
+    relation: link.relation,
+    depth: link.depth
+  }));
+  return {
+    view: { mode: "hierarchical-cone", root: result?.root || null },
+    nodes,
+    edges,
+    diagnostics: [...(result?.diagnostics || [])],
+    truncated: Boolean(result?.truncated),
+    hiddenNodeCount: Number(result?.hiddenNodeCount) || 0
+  };
+}
+
 function seedRoot(result, queues, context, root, directions, limits) {
   const template = context.template;
   const rootKind = root?.kind || "net";

@@ -5,7 +5,7 @@ import { createObjectRef } from "../../contracts/object_ref.js";
 import { createViewQuery } from "../../contracts/view_query.js";
 import { parseVerilog } from "../../parser/verilogParser.js";
 import { buildDesignSearchIndex, searchDesignIndex } from "../../search/designSearch.js";
-import { analyzeHierarchicalCone, buildModuleConnectivityTemplates } from "./hierarchy_connectivity.js";
+import { analyzeHierarchicalCone, buildModuleConnectivityTemplates, projectHierarchicalCone } from "./hierarchy_connectivity.js";
 
 export const NETLIST_DOMAIN_ID = "netlist";
 export const NETLIST_LEGACY_DIAGRAM_CONTRACT = "netlist-schematic-graph.v1";
@@ -74,6 +74,11 @@ export const netlistFeature = defineDomainFeature({
       ...options,
       templates: options.templates || getConnectivityTemplates(document)
     });
+  },
+
+  projectHierarchy(document, root, options = {}) {
+    const result = this.queryHierarchy(document, root, options);
+    return projectHierarchicalCone(result, { documentId: document.documentId });
   },
 
   queryView(document, query = {}, options = {}) {

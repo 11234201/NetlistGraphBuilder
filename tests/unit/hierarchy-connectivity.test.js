@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   analyzeHierarchicalCone,
-  buildModuleConnectivityTemplates
+  buildModuleConnectivityTemplates,
+  projectHierarchicalCone
 } from "../../src/domains/netlist/hierarchy_connectivity.js";
 
 const pin = (name, net) => ({ pin: name, pinDisplayName: name, net, netDisplayName: net });
@@ -109,4 +110,15 @@ test("hierarchical traversal keeps visible nodes and frontier bounded", () => {
   assert.ok(result.nodes.length <= 2);
   assert.equal(result.truncated, true);
   assert.ok(result.hiddenNodeCount > 0);
+});
+
+test("hierarchical cone projection preserves occurrence-aware references", () => {
+  const result = analyzeHierarchicalCone(createDesign(), {
+    rootModuleName: "top", kind: "net", localId: "din"
+  }, { direction: "fanout", fanoutDepth: 1 });
+  const graph = projectHierarchicalCone(result, { documentId: "doc:hierarchy" });
+  const childCell = graph.nodes.find((node) => node.kind === "cell" && node.ref.localId === "u_leaf");
+  assert.ok(childCell);
+  assert.deepEqual(childCell.ref.occurrencePath, ["u_left"]);
+  assert.equal(graph.view.mode, "hierarchical-cone");
 });

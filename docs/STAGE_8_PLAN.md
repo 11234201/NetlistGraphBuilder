@@ -379,7 +379,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - Compare 大 module 在没有 output cone、Focused root 或显式 Whole 请求时使用 Search-first 空壳，
   不调用 layout provider；full graph 仍用于统计，选择 output 或明确 Whole 才布局。新增大图 provider
   调用计数测试。
-- 验证：`npm test` 通过（457 tests）；新增 View History、Compare deferred layout、occurrence
+- 验证：`npm test` 通过（458 tests）；新增 View History、Compare deferred layout、occurrence
   context、Search reveal 回归测试。
 - 性能复测：`npm run benchmark` 中位数为 1K/4K/8K pipeline `170.5/975.8/2870.3 ms`，layout
   `113.8/764.0/2372.1 ms`，progressive first batch `1.4/1.1/1.1 ms`。与本轮前记录
@@ -392,6 +392,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `34955/120` violations、`hardInvariants=false`，失败集中于 worker 直接路径中的
   `missing-route`/`wire-route-disconnected`，与本轮 occurrence/history/Compare 改动无直接调用关系；
   因此不能把 Stage 8 标为完成。
+- 层次投影增量：`netlistFeature.projectHierarchy()` 将有界 hierarchical cone 转为 renderer-neutral
+  graph contract，并在每个 node ref 上保留 occurrence path；该接口已用重复 occurrence 单测覆盖，尚未
+  接入主画布的标准 layout/Scene 流程。
 
 ## 6. 验证矩阵
 
