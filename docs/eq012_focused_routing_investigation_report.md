@@ -3,8 +3,9 @@
 - 调查日期：2026-09-12
 - 调查对象：`tests/fixtures/mapped/equal/eq_012_mapped.v`
 - 复现场景：Focused 根节点 `_2021_`、`_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`
-- 文档状态：调查完成；实现已进入阶段 0/1，残余问题与门禁持续跟踪
+- 文档状态：调查完成；当前实现与残余问题已冻结记录，后续修复暂停
 - 配套方案：[eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)
+- 暂停快照与代码审计：[routing_pause_snapshot_and_code_audit.md](routing_pause_snapshot_and_code_audit.md)
 
 ## 1. 结论摘要
 

@@ -1,9 +1,12 @@
 # Focused 正交路由系统修改方案
 
 - 方案日期：2026-09-12
-- 方案状态：实施中（阶段 0/1 已完成；阶段 2/3 已落地容量失败出口与 bounded overflow corridor；阶段 4--5 持续收敛）
+- 方案状态：暂停（已有实现保留；未完成阶段仅作为历史 backlog，等待后续明确启动）
 - 问题报告：[eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)
+- 暂停快照与代码审计：[routing_pause_snapshot_and_code_audit.md](routing_pause_snapshot_and_code_audit.md)
 - 首要回归场景：eq012 Focused `_2021_` + `_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`
+
+> 暂停说明：本文保留此前的设计意图和实施台账，但不再表示当前执行顺序。恢复开发时以暂停快照中的重新评审入口为准，本阶段不继续修改布线算法。
 
 ## 实施台账（2026-09-12）
 
