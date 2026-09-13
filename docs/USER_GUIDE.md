@@ -146,7 +146,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 
 `Module hierarchy` 是可开关的层次列表，默认折叠。展开后可查看 module instance 路径并点击切换 module；大型或递归层次最多展开 2000 个节点、嵌套深度 64，达到上限后显示截断提示，不会无界展开。
 
-列表中的 `instance : module` 表示某个实例引用的 module definition；顶层项只显示 module。当前打开的 module 会高亮。出现 `cycle` 或 `More instances omitted` 时，表示递归引用或显示上限已生效，并不代表网表解析失败。
+列表中的 `instance : module` 表示某个实例引用的 module definition；顶层项只显示 module。当前打开的 module 会高亮；进入具体 occurrence 后，顶部 Module picker 会显示 `module @ instance/path` breadcrumb，便于确认当前层次上下文。出现 `cycle` 或 `More instances omitted` 时，表示递归引用或显示上限已生效，并不代表网表解析失败。
 
 ### 4.3 进入子 module
 
@@ -162,6 +162,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - 当前 selection。
 - Pan/zoom viewport。
 - 已提交的节点移动/尺寸调整，以及 Compare 左右两侧的 selection、Focused roots、viewport 和 output cone。
+- occurrence breadcrumb（回退/前进层次定位时一并恢复）。
 
 快捷键为 `Ctrl+Z`、`Ctrl+Shift+Z` / `Ctrl+Y`；`Alt+Left` 和 `Alt+Right` 仍可用。从历史中后退后再打开新
 操作，会清除原 forward 分支。加载新 design 会重置旧历史。文本输入框获得焦点时不会截获系统撤销。
