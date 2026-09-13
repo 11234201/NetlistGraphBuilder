@@ -498,6 +498,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   已显著复用，但不替代全链路交互 30% 改善验收。
 - `2fee2c2` 对应的 Windows release 已通过，当前离线包 SHA-256 为
   `55a9391cf6079de916b40c9d69494c0889e23748b16ca606e429f015f798cd62`。
+- `cb3ef49` 补齐 Focus selected 的 viewport history capture；475 个测试通过，最新 Windows release
+  SHA-256 为 `2b66173bb5a6c7deaa2c57b279d7d843ca23287cd75bb10911c3ccca7f1779ed`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
