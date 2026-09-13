@@ -485,6 +485,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   用户从 Module hierarchy 选择具体路径；不再静默猜测 parent。新增回归后 `npm test` 通过（475 tests）。
 - `b6262ab` 的 Windows release 已通过，当前离线包 SHA-256 为
   `990254a0bb22fd6318f95a739ef72be8a060246258ba7303444d6631f02ae313`。
+- `a86c901` 将 Compare selection 的 history capture 移到自动定位之后，保证一次选择操作恢复完整
+  viewport；475 个测试通过，最新 release SHA-256 为
+  `e89b3c7466c1e88cf79780eee7321a31dae6a246a0f9e679cba6d3a764b432d1`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
