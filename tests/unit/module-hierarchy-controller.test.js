@@ -122,3 +122,31 @@ test("open module hierarchy filters a cached tree and closes after navigation", 
   controller.dispose();
   assert.equal(removedInputHandler, inputHandler);
 });
+
+test("module hierarchy navigation forwards canonical occurrence context", () => {
+  let clickHandler;
+  const container = {
+    innerHTML: "",
+    addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    removeEventListener() {}
+  };
+  const navigated = [];
+  const controller = createModuleHierarchyController({
+    container,
+    getHierarchy: () => [],
+    getCurrentModuleName: () => "top",
+    navigate: (...args) => navigated.push(args)
+  });
+  assert.equal(clickHandler({ target: {
+    closest: () => ({ dataset: {
+      moduleHierarchyName: "child",
+      moduleHierarchyPath: "u_child/u_leaf",
+      moduleHierarchyRoot: "top"
+    } })
+  } }), true);
+  assert.deepEqual(navigated, [["child", {
+    occurrencePath: ["u_child", "u_leaf"],
+    rootModuleName: "top"
+  }]]);
+  controller.dispose();
+});

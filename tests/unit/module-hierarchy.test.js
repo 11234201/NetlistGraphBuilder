@@ -33,7 +33,9 @@ test("module hierarchy gives repeated nested instance paths distinct identities"
   assert.match(leafIds[0], /u_mid0:mid\/u_leaf:leaf$/);
   assert.match(leafIds[1], /u_mid1:mid\/u_leaf:leaf$/);
   assert.deepEqual(roots[0].children[0].occurrencePath, ["top", "u_mid0:mid"]);
+  assert.deepEqual(roots[0].children[0].canonicalOccurrencePath, ["u_mid0"]);
   assert.deepEqual(roots[0].children[0].children[0].occurrencePath, ["top", "u_mid0:mid", "u_leaf:leaf"]);
+  assert.deepEqual(roots[0].children[0].children[0].canonicalOccurrencePath, ["u_mid0", "u_leaf"]);
 });
 
 test("module hierarchy bounds recursive definitions and escapes rendered labels", () => {

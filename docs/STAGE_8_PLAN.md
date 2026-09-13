@@ -63,7 +63,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、occurrence context 与标准 layout/Scene projection 已落地；breadcrumb、歧义 parent context 与完整路径 UI 仍待补齐 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context 与标准 layout/Scene projection 已落地；breadcrumb、歧义 parent context 与完整路径 UI 仍待补齐 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；JobCoordinator 全量接管与 30% 改善证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
@@ -431,6 +431,12 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 主入口将侧状态显示在 Compare 两侧 header，并在提交前校验 controller identity；新增异步布局取消回归，
   当前 `npm test` 通过（464 tests）。这收口了 UI 层的 stale-result/cancel 语义，但尚未宣称
   JobCoordinator 已完全替代 `workspaceRequest.js`。
+
+### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
+
+- 层次树现在同时保留展示路径（`top/u_child:child`）与 canonical instance path（`u_child`），双击导航
+  传递 `rootModuleName + occurrencePath`；这修复了 UI 进入子 module 后 connectivity resolver 无法定位
+  parent occurrence 的问题。新增 hierarchy domain/controller 回归，当前 `npm test` 通过（465 tests）。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 

@@ -38,10 +38,15 @@ export function createModuleHierarchyController({
     if (panel) panel.open = false;
     if (moduleName === getCurrentModuleName?.()) return false;
     const link = event.target.closest?.("[data-module-hierarchy-name]");
-    const occurrencePath = link?.dataset?.moduleHierarchyId
-      ? link.dataset.moduleHierarchyId.split("/")
+    const occurrencePath = link?.dataset?.moduleHierarchyPath
+      ? link.dataset.moduleHierarchyPath.split("/").filter(Boolean)
+      : link?.dataset?.moduleHierarchyId
+        ? link.dataset.moduleHierarchyId.split("/")
       : undefined;
-    navigate(moduleName, occurrencePath?.length ? { occurrencePath } : undefined);
+    const navigation = occurrencePath?.length
+      ? { occurrencePath, rootModuleName: link?.dataset?.moduleHierarchyRoot || undefined }
+      : undefined;
+    navigate(moduleName, navigation);
     return true;
   }
   function handleFilter() {

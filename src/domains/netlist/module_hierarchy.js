@@ -23,18 +23,19 @@ export function buildModuleHierarchy(design, options = {}) {
       context.truncated = true;
       break;
     }
-    result.push(buildNode(module, null, [], [], moduleByName, context));
+    result.push(buildNode(module, null, [], [], [], module.name, moduleByName, context));
   }
   Object.defineProperty(result, "truncated", { value: context.truncated, enumerable: false });
   return Object.freeze(result);
 }
 
-function buildNode(module, instance, moduleAncestry, instancePath, moduleByName, context) {
+function buildNode(module, instance, moduleAncestry, instancePath, canonicalPath, rootModuleName, moduleByName, context) {
   context.nodeCount += 1;
   const cycle = moduleAncestry.includes(module.name);
   const nextModuleAncestry = [...moduleAncestry, module.name];
   const segment = instance ? `${instance.instance}:${module.name}` : module.name;
   const nextInstancePath = [...instancePath, segment];
+  const nextCanonicalPath = instance ? [...canonicalPath, instance.instance] : [...canonicalPath];
   const childInstances = cycle ? [] : (module.cells || []).filter((cell) => moduleByName.has(cell.type));
   const children = [];
   let truncated = false;
@@ -49,6 +50,8 @@ function buildNode(module, instance, moduleAncestry, instancePath, moduleByName,
       cell,
       nextModuleAncestry,
       nextInstancePath,
+      nextCanonicalPath,
+      rootModuleName,
       moduleByName,
       context
     ));
@@ -56,6 +59,8 @@ function buildNode(module, instance, moduleAncestry, instancePath, moduleByName,
   return Object.freeze({
     id: nextInstancePath.join("/"),
     occurrencePath: Object.freeze([...nextInstancePath]),
+    canonicalOccurrencePath: Object.freeze([...nextCanonicalPath]),
+    rootModuleName,
     moduleName: module.name,
     moduleLabel: module.displayName || module.name,
     instanceName: instance?.instance || null,

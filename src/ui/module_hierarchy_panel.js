@@ -25,7 +25,8 @@ function renderNode(node, currentModuleName) {
   const label = node.instanceLabel
     ? `${node.instanceLabel} : ${node.moduleLabel}`
     : node.moduleLabel;
-  const button = `<button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-module-hierarchy-name="${escapeAttr(node.moduleName)}" data-module-hierarchy-id="${escapeAttr(node.id)}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}${node.cycle ? ' <span class="module-hierarchy-cycle">cycle</span>' : ""}</button>`;
+  const canonicalPath = node.canonicalOccurrencePath?.join("/") || "";
+  const button = `<button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-module-hierarchy-name="${escapeAttr(node.moduleName)}" data-module-hierarchy-id="${escapeAttr(node.id)}" data-module-hierarchy-path="${escapeAttr(canonicalPath)}" data-module-hierarchy-root="${escapeAttr(node.rootModuleName || node.moduleName)}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}${node.cycle ? ' <span class="module-hierarchy-cycle">cycle</span>' : ""}</button>`;
   const children = node.children.length
     ? `<ul>${node.children.map((child) => renderNode(child, currentModuleName)).join("")}</ul>`
     : "";
