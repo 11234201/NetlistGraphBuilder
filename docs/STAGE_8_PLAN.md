@@ -461,6 +461,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `354ec81b81e8ad8a156429dfa15b9d3bed26e302cfe1fa83aa8389628d4896df`。
 - 层次树允许在当前 module 下选择另一个 occurrence；只有 module 与 canonical root/path 都相同才会
   短路导航。新增歧义 occurrence controller 回归，当前 `npm test` 通过（472 tests）。
+- 本次提交 `2f8ab77` 已将该行为接入主 UI：同名 module 的不同 occurrence 会按 canonical
+  `rootModuleName/occurrencePath` 重新定位；release smoke 仍通过，当前离线包 SHA-256 为
+  `6f3161bae8fa686ad0c3ba8185899a61a2a477713055aa71ea21062d075632a4`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
