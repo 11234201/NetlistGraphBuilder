@@ -1209,8 +1209,8 @@ function renderCurrentModuleGraph(options = {}) {
   const request = beginWorkspaceRequest(state);
   const requestId = request.id;
   const layoutProvider = getCurrentLayoutProvider();
-  const hierarchyRoot = resolveHierarchyFocusedRoot();
   const hierarchyRoots = resolveHierarchyFocusedRoots();
+  const hierarchyRoot = hierarchyRoots[0] || null;
   logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
     viewMode: state.viewMode,
     provider: layoutProvider.id
@@ -1288,10 +1288,6 @@ function renderCurrentModuleGraph(options = {}) {
 
 function buildModuleWorkspaceForJob(options, signal) {
   return buildModuleWorkspace({ ...options, signal });
-}
-
-function resolveHierarchyFocusedRoot() {
-  return resolveHierarchyFocusedRoots()[0] || null;
 }
 
 function resolveHierarchyFocusedRoots() {
