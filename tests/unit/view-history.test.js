@@ -75,6 +75,30 @@ test("compare snapshots keep side-specific viewport identity", () => {
   assert.equal(entry.compare.focusedRootsSynchronized, false);
 });
 
+test("compare snapshots keep side-specific layout overrides", () => {
+  const entry = createViewHistoryEntry(state("top", {
+    compare: {
+      active: true,
+      leftModuleName: "top",
+      rightModuleName: "top_Flex",
+      focusedRootNodeIds: { left: [], right: [] },
+      activeFocusedRootNodeId: { left: null, right: null },
+      transforms: { left: { x: 0, y: 0, scale: 1 }, right: { x: 0, y: 0, scale: 1 } },
+      nodePositions: {
+        left: new Map([["cell:left", { x: 10, y: 20 }]]),
+        right: new Map([["cell:right", { x: 30, y: 40 }]])
+      },
+      nodeSizes: { left: new Map(), right: new Map() },
+      graphOverrides: {
+        left: { nodeProperties: {}, cellPinDirections: {} },
+        right: { nodeProperties: {}, cellPinDirections: {} }
+      }
+    }
+  }));
+  assert.deepEqual(entry.compare.overrides.left.nodePositions, [["cell:left", { x: 10, y: 20 }]]);
+  assert.deepEqual(entry.compare.overrides.right.nodePositions, [["cell:right", { x: 30, y: 40 }]]);
+});
+
 test("view history snapshots layout overrides without retaining graph or scene objects", () => {
   const entry = createViewHistoryEntry(state("top", {
     nodePositions: new Map([["cell:u1", { x: 10, y: 20 }]]),
