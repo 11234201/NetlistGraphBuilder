@@ -2000,9 +2000,11 @@ function renderFocusedRootList() {
   elements.focusedRootsList.innerHTML = roots.map((nodeId) => {
     const netName = focusedNetName(nodeId);
     const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
-    const label = netName ? `net ${netName}` : node?.label || nodeId.replace(/^cell:/, "");
+    const localLabel = netName ? `net ${netName}` : node?.label || nodeId.replace(/^cell:/, "");
+    const occurrencePath = node?.ref?.occurrencePath?.join("/") || "";
+    const label = occurrencePath ? `${occurrencePath} · ${localLabel}` : localLabel;
     const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
-    const title = context.compare ? `${context.side}: ${nodeId}` : nodeId;
+    const title = `${context.compare ? `${context.side}: ` : ""}${occurrencePath ? `${occurrencePath} / ` : ""}${localLabel}`;
     return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${context.compare ? `${escapeHtml(context.side)}: ` : ""}${escapeHtml(label)}</span><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
   }).join("");
 }
