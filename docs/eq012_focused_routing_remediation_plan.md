@@ -1,7 +1,7 @@
 # Focused 正交路由系统修改方案
 
 - 方案日期：2026-09-12
-- 方案状态：实施中（阶段 0/1 与性能边界已落地；阶段 2--5 持续收敛）
+- 方案状态：实施中（阶段 0/1 已完成；阶段 2/3 已落地容量失败出口与 bounded overflow corridor；阶段 4--5 持续收敛）
 - 问题报告：[eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)
 - 首要回归场景：eq012 Focused `_2021_` + `_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`
 
@@ -36,10 +36,11 @@
 | `688dd64` | physical wire-route 内部 overlap 校验改为方向/坐标分桶后的区间扫描 | 删除每个 physical net 内的 segment 两两比较，保持同样的 overlap 诊断语义 |
 | `2c8837f` | `capacityOverflow` 贯穿 `allocationByNet` 与 edge/routing metrics，并拒绝把 `null` 坐标强制转换成合法 `y=0` lane | strict 结果能区分 overflow 与非 overflow physical net；不再接受伪通道 |
 | `db91238` | `createGlobalFallback()` 实际传递 bounded `capacityLaneYs` | 已规划的最多 24 个 lane hint 进入主 global search；dp020/sop015 strict missing-route 分别减少 47/103 |
+| `b86dab5` | 将无坐标的 capacity-blocked edge 先尝试 direct、再尝试一次去除失效 lane hint 的 bounded local/global overflow corridor；所有候选仍经过 node/foreign-net hard validation；无合法候选时 `findObstacleAvoidingRoute()` 返回 `null`，由 provider 统一发布 `unroutable` | eq012 Focused spacing 88 的 `_2406_` 入口保持零垂直重叠；dp020 strict 由 2278 降至 1933 条 missing-route（413 条使用显式 overflow corridor），sop015 strict 由 3193 条使用显式 overflow corridor 362 条；搜索仍为固定数量候选，但 dense case 的耗时/堆占用需要继续观测 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
-当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.5/816.1/3315.5 ms`，对应 SVG `56.6/240.7/720.9 ms`；collapsed layout 约 `4.5/8.4/13.0 ms`。`5ace2ff` 后完整 mapped 普通门禁为 `47/47` 通过，总违规由旧基线 `370` 降为 `65`（预算 `120`），最大 layout 约 `24.888 s`、最大 heap 约 `378 MiB`；其中 dp020 约 `12.3 s`、普通 obstacle 违规仍为 5，sop015 约 `24.0 s`、普通 obstacle 违规由 4 降为 0。dp020 报告 `17` 个 overflow channel、`7852` 个 overflow demand；sop015 为 `38`/`31713`，这些数值证明剩余问题是明确的容量不足，不能再靠隐式扩大画布或候选重试掩盖。两者 final validator 仍因 foreign-net overlap 达到 256 项采样上限而返回 `unroutable`。eq012 focused 双根与全部 `416/416` 单测通过；collapsed strict hard gate 仍未达到零违规，说明原生 physical tree/overflow 分流尚未完成。以上是同一远端环境的回归证据，不是最终绝对时限。
+当前测量（同一工作区、远端 mfs-remote）为：1024/4096/8192 长链 layout 中位数约 `135.5/816.1/3315.5 ms`，对应 SVG `56.6/240.7/720.9 ms`；collapsed layout 约 `4.5/8.4/13.0 ms`。历史完整 mapped 普通门禁为 `47/47` 通过，总违规由旧基线 `370` 降为 `65`（预算 `120`），但 strict hard gate 仍要求零硬违规。`b86dab5` 后代表性 strict 回归：dp020 为 `1933` 条 missing-route、`413` 条 `capacity-overflow-corridor`、layout 约 `12.7 s`、heap 约 `225 MiB`；sop015 为 `3193` 条 missing-route、`362` 条 overflow corridor、layout 约 `12.4 s`、heap 约 `252 MiB`。两者的剩余失败主要来自超过 256 lane 的 group/inter-layer capacity，不再通过非法 fallback 掩盖；下一步要把可证明的 boundary-cluster/tree corridor 接入，而不是继续增加重试次数。eq012 focused 双根（含 spacing 88）与全部 `427/427` 单测通过。
 
 `RouteSegmentIndex` 的 tombstone 只改变 owner replacement 的更新路径：活动 segment 的 query、`countBox`、`queryVerticalSegment` 和迭代结果保持原语义；当失效 tombstone 达到需要回收的边界时由 `compact()` 重建桶。`3f34f45` 的 row-gap pass 也只在窄 group gap 且 demand 不超过固定上限时建 channel；宽 gap 继续由原有 inter-layer/outer capacity 处理，避免全图 row-gap 枚举。两者都不以增加硬校验阈值换性能，不能推断为全量 mapped overlap 已解决。
 
@@ -54,7 +55,7 @@
 1. `simpleRoutingPlan` 已按 physical net 生成 demand，但 `outer-top/outer-bottom` 目前主要用于诊断和 lane 偏好，尚未完整消费为 top/bottom band 的 placement 空间；不能仅把固定 `topWireSpace=80` 替换成所有长 net 数量，否则会把大图的节点整体推远并放大运行时间。
 2. 稠密 collapsed 图中仍存在“group boundary escape + 反向 skip-level edge”形成的共享外围水平段。仅扩大 outer 候选或强制 reservation-free fallback 会让 dp/sop 用例出现更多 node-crossing/退化到 40--50 秒；下一步必须实现 boundary cluster 的真实 row/escape corridor，再绑定 outer lane。
 3. full mapped corpus 的旧 runner 仍关闭 overlap 检查，因而不能作为零硬违规证明。严格门禁已把这个差异显式化；当前 sop015 普通 obstacle 违规已清零，但 `dp_018/019/020` 的残余 node-crossing 与四个 dense case 的 foreign-net overlap 仍需修复。
-4. `5ace2ff` 已把超量 demand 从“继续扩画布”改为 `capacityOverflow`，但 overflow physical net 还没有由原生 tree router 分流到可提交的替代 corridor；因此 overflow 指标为非零时，普通模式仍可能输出 node-safe 但 foreign-net overlap 的兼容 route，strict 模式则会明确失败。
+4. `5ace2ff` 之后，`b86dab5` 已把一部分 overflow physical net 分流到一次 bounded、hard-validated 的替代 corridor；仍有超过固定 lane 上限且没有可证明替代几何的 physical net，strict 模式会明确 `unroutable`。原生 tree/corridor 尚未覆盖这些 residual group boundary，因此不能宣称 overflow 已全部解决。
 
 后续实现必须遵守：固定数量 capacity pass；physical-net/tree 为需求和 reservation 单位；硬冲突只通过合法候选或明确 `unroutable` 解决；禁止实例/坐标特例、全量重试和以提高 spacing 掩盖容量不足。
 
