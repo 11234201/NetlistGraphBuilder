@@ -9,6 +9,7 @@ import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { DEFAULT_ROUTING_GEOMETRY } from "../../src/layout/channelCapacity.js";
+import { getConnectionPoint } from "../../src/layout/nodeGeometry.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import {
   collinearSegmentsOverlap,
@@ -18,6 +19,40 @@ import {
 
 const fixtureUrl = new URL("../fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
 const spacingMatrix = [4, 8, 16, 32, 64, 84, 88, 160, 320];
+
+test("eq012 terminal DFF outputs stay on local direct rows at spacing 88", async () => {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
+  const graph = applyWorkspaceGraphTransforms(selectWorkspaceGraphView(buildSchematicGraph(module), {
+    viewMode: "focused",
+    rootNodeIds: ["cell:_1471_", "cell:_1746_"],
+    faninDepth: 3,
+    fanoutDepth: 3
+  }), { collapseLargeGroups: false });
+  const fanoutByPhysicalNet = new Map();
+  for (const edge of graph.edges) {
+    const key = `${edge.source}\u0000${edge.net}`;
+    fanoutByPhysicalNet.set(key, (fanoutByPhysicalNet.get(key) || 0) + 1);
+  }
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const terminalEdgeIds = new Set(graph.edges.filter((edge) =>
+    nodeById.get(edge.source)?.kind === "cell" &&
+    nodeById.get(edge.target)?.kind === "focus-output" &&
+    fanoutByPhysicalNet.get(`${edge.source}\u0000${edge.net}`) === 1
+  ).map((edge) => edge.id));
+  assert.ok(terminalEdgeIds.size > 100);
+
+  const laidOut = layoutGraph(graph, { layoutPolicy: { spacing: { cellSpacing: 88 } } });
+  const laidOutNodes = new Map(laidOut.nodes.map((node) => [node.id, node]));
+  for (const edge of laidOut.edges.filter((item) => terminalEdgeIds.has(item.id))) {
+    const sourcePoint = getConnectionPoint(laidOutNodes.get(edge.source), edge.sourcePin, "source");
+    const targetPoint = getConnectionPoint(laidOutNodes.get(edge.target), edge.targetPin, "target");
+    assert.equal(sourcePoint.y, targetPoint.y, `${edge.id} terminal row`);
+    assert.notEqual(edge.routeKind, "obstacle-lane", `${edge.id} outer route`);
+    assert.notEqual(edge.routeKind, "unroutable", `${edge.id} missing route`);
+  }
+});
 
 test("eq012 focused dual-root routing stays locally valid across spacing", async () => {
   const source = await readFile(fixtureUrl, "utf8");

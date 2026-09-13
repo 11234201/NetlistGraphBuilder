@@ -10,7 +10,6 @@ import {
   isTargetEntryVisuallyClear
 } from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
-import { ROUTE_SELECTION_POLICY } from "./routeSearchPolicy.js";
 import {
   computeLevelBounds,
   createBasicSimpleRouteCandidates,
@@ -931,43 +930,16 @@ function routeEdge(context) {
       const repaired = findReservationFreeLaneShift(bestLocal, context);
       if (repaired) return repaired;
     }
-    if (!localHasOverlap && (context.strictRouting === true ||
-      bestLocalScore.crossings <= ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings)) {
+    if (!localHasOverlap) {
       return bestLocal;
     }
-    // A usable local path may still overlap a previously routed net when all
-    // of its target-side lanes are occupied. Give the bounded global search a
-    // chance to remove that conflict before accepting the scored fallback.
-    if (bestLocalScore.crossings > 0) {
-      routingMetrics.globalFallbacks += 1;
-      const globalCandidate = createGlobalFallback(context);
-      const globalScore = globalCandidate
-        ? scoreRouteCandidate(globalCandidate, {
-          reservedSegments,
-          net,
-          netGroupKey,
-          edgeIntent
-        })
-        : null;
-      const globalHasOverlap = globalCandidate
-        ? routeOverlapsReserved(globalCandidate.points, net, reservedSegments, netGroupKey)
-        : true;
-      const avoidsLargeOuterDetour = Boolean(globalScore) && !localHasOverlap &&
-        globalScore.length - bestLocalScore.length >= Math.max(
-          ROUTE_SELECTION_POLICY.minimumOuterDetourSavings,
-          (Number(context.wireLanePitch) || 24) *
-            ROUTE_SELECTION_POLICY.outerDetourWirePitchMultiplier
-        ) &&
-        bestLocalScore.crossings - globalScore.crossings <=
-          ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
-      const globalIsHardUsable = isHardRouteCandidate(globalCandidate, context);
-      const removesHardOverlap = localHasOverlap && !globalHasOverlap;
-      if (globalIsHardUsable && globalScore && (removesHardOverlap || (!avoidsLargeOuterDetour && (
-        globalScore.crossings < bestLocalScore.crossings ||
-        (globalScore.crossings === bestLocalScore.crossings &&
-          globalScore.total < bestLocalScore.total))))) {
-        return globalCandidate;
-      }
+    // Outer lanes are a reachability fallback, not a peer in weighted route
+    // selection. A hard-valid local route always wins even if it crosses
+    // perpendicular wires, because bridges make those crossings representable.
+    routingMetrics.globalFallbacks += 1;
+    const globalCandidate = createGlobalFallback(context);
+    if (isHardRouteCandidate(globalCandidate, context)) {
+      return globalCandidate;
     }
     if (localHasOverlap) {
       return createUnroutableRoute(context, {

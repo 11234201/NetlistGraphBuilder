@@ -1,7 +1,7 @@
 # eq012 Focused 导航与末级输出布局修改方案
 
 - 方案日期：2026-09-13
-- 状态：方案已定义，尚未启动实现
+- 状态：实施中；Focused Connection 导航、单扇出 terminal 后置安放、local/outer tier 门禁已完成
 - 复现场景：`tests/fixtures/mapped/equal/eq_012_mapped.v`
 - Focused roots：`_1471_`、`_1746_`
 - 深度：`faninDepth=3`、`fanoutDepth=3`
@@ -16,6 +16,16 @@
 2. 末级 DFF 的 Q 与 Focused output 本可在相邻列水平直连，但 placement 先对齐、后分别重排两列，导致大量长竖线、全图顶部 `obstacle-lane` 和 `unroutable`。
 
 两项修改必须分开提交和验收。导航修复不得依赖布局修改；terminal 布局修复不得在 UI handler 中加入特例。
+
+## 0. 当前实施记录（2026-09-13）
+
+- Connection 点击 cone 外 cell 已改为派发 `selection.reveal`；保持 Focused，root 未满时追加，达到上限时只替换 active root。cone 外 net 只展示详情，不再隐式进入 Whole。
+- placement pipeline 已在 core overlap、source locality 和 group escape 均结束后执行 `place-terminal-outputs`。它按最终 source pin 计算单扇出 terminal 的 preferred row，并使用有界最近空位处理真实 body 冲突。
+- Simple router 已建立当前阶段的 hard tier 门禁：只要 basic/local/reserved-detour 集合中存在不与异 net 共线或近共线重叠的 hard-valid route，就直接在局部集合内选择；垂直/水平 crossing 不再触发全图 top/bottom fallback。
+- 未采用“所有 terminal edge 全局提前路由”。对照测试表明该策略会改变 dense Whole 图 reservation 顺序，使 dp020/sop015 strict missing-route 分别由 `1933/3193` 增至 `1935/3194`；撤销后恢复原基线。
+- eq012 `_1471_/_1746_`、depth 3、collapse off、`cellSpacing=88` 新回归覆盖超过 100 条单扇出 cell→focus-output edge：source/target pin 全部同行，且没有 `obstacle-lane` 或 `unroutable`。
+- 本地单元测试 `435/435` 通过。strict dp020/sop015 保持 `1933/3193` 条既有 missing-route。长链 benchmark 的 1024/4096/8192 layout 中位数为 `112.2/767.9/2397.0 ms`；没有观察到本切片引入的复杂度 cliff。
+- 仍未完成：多扇出 terminal tree 的专用 attachment、SCC terminal sink 分层、terminal corridor token/专用诊断，以及 dense collapsed group/inter-layer missing-route。它们继续按本文后续阶段实施，不能把本切片描述为完整布线方案完成。
 
 ## 2. 已确认的复现数据
 

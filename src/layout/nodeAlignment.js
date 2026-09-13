@@ -1,6 +1,7 @@
 import { getPort } from "./nodeGeometry.js";
 import {
   compareNodes,
+  findNearestFreeY,
   getInputPortIndex,
   getInputPorts,
   groupEdges,
@@ -110,6 +111,38 @@ export function alignSingleConnectionEndpoints(nodes, edges, layoutIntent) {
   }
 }
 
+export function placeTerminalOutputs(nodes, edges, layoutIntent, margin = 0, gap = 8) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const preferredYByTarget = new Map();
+  for (const edge of edges) {
+    const intent = layoutIntent?.getEdge(edge);
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (intent?.fanout !== 1 || !isAlignableDriver(source) || !isOutputNode(target)) continue;
+    const sourcePort = getPort(source, edge.sourcePin, "source");
+    const targetPort = getPort(target, edge.targetPin, "target");
+    preferredYByTarget.set(target.id, round(
+      source.y + (sourcePort?.y ?? source.height / 2) -
+      (targetPort?.y ?? target.height / 2)
+    ));
+  }
+
+  const outputs = nodes.filter(isOutputNode).toSorted((left, right) => {
+    const leftPreferred = preferredYByTarget.get(left.id);
+    const rightPreferred = preferredYByTarget.get(right.id);
+    if ((leftPreferred !== undefined) !== (rightPreferred !== undefined)) {
+      return leftPreferred !== undefined ? -1 : 1;
+    }
+    return (leftPreferred ?? left.y) - (rightPreferred ?? right.y) || compareNodes(left, right);
+  });
+  const blockers = nodes.filter((node) => !isOutputNode(node));
+  for (const output of outputs) {
+    const preferredY = preferredYByTarget.get(output.id) ?? output.y;
+    output.y = findNearestFreeY(output, preferredY, blockers, new Set(), margin, gap);
+    blockers.push(output);
+  }
+}
+
 function shiftAlignedComponentsInsideMargin(nodeById, alignedEdges, margin) {
   if (alignedEdges.length === 0) return;
   const neighbors = new Map();
@@ -169,6 +202,10 @@ function isAlignableDrivenTarget(node) {
 
 function isAlignableDriver(node) {
   return node?.kind === "cell" || node?.kind === "assign";
+}
+
+function isOutputNode(node) {
+  return node?.kind === "output" || node?.kind === "focus-output";
 }
 
 function chooseAlignmentEdge(edges, nodeById, layoutIntent) {

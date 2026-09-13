@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { alignSingleConnectionEndpoints } from "../../src/layout/nodeAlignment.js";
+import {
+  alignSingleConnectionEndpoints,
+  placeTerminalOutputs
+} from "../../src/layout/nodeAlignment.js";
 import { applySingleFanoutInputLocality } from "../../src/layout/nodeLocality.js";
 import { findNearestFreeY } from "../../src/layout/nodePlacementShared.js";
 import {
@@ -27,6 +30,26 @@ test("single-connection endpoint alignment uses the actual target pin", () => {
   alignSingleConnectionEndpoints(nodes, [edge], layoutIntent);
 
   assert.equal(nodes[0].y, 112);
+});
+
+test("terminal placement follows the final driver pin instead of its stale initial row", () => {
+  const nodes = [
+    {
+      id: "cell:dff", kind: "cell", x: 100, y: 420, width: 80, height: 60,
+      ports: [{ pin: "Q", direction: "output", x: 80, y: 20, side: "right" }]
+    },
+    {
+      id: "focus-output:q", kind: "focus-output", x: 300, y: 20, width: 60, height: 24,
+      ports: [{ pin: "q", direction: "input", x: 0, y: 12, side: "left" }]
+    }
+  ];
+  const edge = {
+    id: "q", source: "cell:dff", target: "focus-output:q", sourcePin: "Q", targetPin: "q"
+  };
+
+  placeTerminalOutputs(nodes, [edge], { getEdge: () => ({ fanout: 1 }) }, 8, 64);
+
+  assert.equal(nodes[1].y, 428);
 });
 
 test("input locality handles vertical target pins without side-entry heuristics", () => {

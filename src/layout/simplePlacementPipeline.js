@@ -1,7 +1,8 @@
 import {
   alignDrivenTargetsToDriverPins,
   alignSingleConnectionEndpoints,
-  applyBranchAwareLanes
+  applyBranchAwareLanes,
+  placeTerminalOutputs
 } from "./nodeAlignment.js";
 import {
   applyFanoutHubLocality,
@@ -12,7 +13,6 @@ import {
   resolveExternalSourceOverlaps,
   resolvePostLocalitySourceOverlaps,
   resolveLevelOverlaps,
-  resolveOutputOverlaps,
   resolveGroupEscapeOverlaps
 } from "./nodeSpacing.js";
 import { groupNodesByLevel } from "./nodePlacementShared.js";
@@ -26,8 +26,8 @@ export const SIMPLE_PLACEMENT_STAGES = Object.freeze([
   "localize-fanout-hubs",
   "localize-single-fanout-inputs",
   "resolve-post-locality-source-overlaps",
-  "resolve-output-overlaps",
   "resolve-group-escape-overlaps",
+  "place-terminal-outputs",
   "apply-node-overrides"
 ]);
 
@@ -117,14 +117,16 @@ export function runSimplePlacementPipeline(context, hooks = {}) {
     margin,
     cellSpacing
   ));
-  run("resolve-output-overlaps", () => resolveOutputOverlaps(
-    positionedNodes,
-    margin,
-    cellSpacing
-  ));
   run("resolve-group-escape-overlaps", () => resolveGroupEscapeOverlaps(
     positionedNodes,
     graph.edges,
+    cellSpacing
+  ));
+  run("place-terminal-outputs", () => placeTerminalOutputs(
+    positionedNodes,
+    graph.edges,
+    layoutIntent,
+    margin,
     cellSpacing
   ));
   run("apply-node-overrides", () => applyNodePositionOverrides(positionedNodes, nodePositions));
