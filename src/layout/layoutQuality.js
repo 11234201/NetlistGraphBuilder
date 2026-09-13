@@ -1,7 +1,9 @@
 import {
   collinearSegmentsOverlap,
   getRouteSegments,
+  MINIMUM_FOREIGN_WIRE_SEPARATION,
   near,
+  parallelSegmentsOverlap,
   segmentsConflict
 } from "./orthogonalRouting.js";
 import { RouteSegmentIndex } from "./spatialIndex.js";
@@ -140,10 +142,14 @@ function countLayoutConflicts(edges) {
   let overlaps = 0;
   for (const edge of edges) {
     for (const segment of getRouteSegments(edge.points || [], edge.net)) {
-      for (const existing of index.querySegment(segment)) {
-        if (existing.net === segment.net || !segmentsConflict(existing, segment)) continue;
-        if (collinearSegmentsOverlap(existing, segment)) overlaps += 1;
-        else crossings += 1;
+      for (const existing of index.querySegment(segment, MINIMUM_FOREIGN_WIRE_SEPARATION)) {
+        if (existing.net === segment.net) continue;
+        if (collinearSegmentsOverlap(existing, segment) ||
+          parallelSegmentsOverlap(existing, segment)) {
+          overlaps += 1;
+        } else if (segmentsConflict(existing, segment)) {
+          crossings += 1;
+        }
       }
       index.push(segment);
     }

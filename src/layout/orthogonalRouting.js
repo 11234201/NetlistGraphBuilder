@@ -1,6 +1,10 @@
 import { ROUTE_GEOMETRY_POLICY } from "./routeSearchPolicy.js";
 
 const EPSILON = 0.5;
+// SVG wires use a 1.6px visible stroke.  Treat foreign parallel centerlines
+// closer than 2px as a hard conflict so antialiasing cannot turn a legal
+// centerline layout into a visually overlapping wire pair.
+export const MINIMUM_FOREIGN_WIRE_SEPARATION = 2;
 
 export function compactOrthogonalPoints(points) {
   const unique = points.filter((point, index) => index === 0 ||
@@ -115,9 +119,11 @@ export function countRouteConflicts(
   for (const segment of getRouteSegments(points, net, netGroupKey)) {
     if (typeof reservedSegments.countBox === "function") {
       conflicts += reservedSegments.countBox(
-        segmentBounds(segment),
+        segmentBounds(segment, MINIMUM_FOREIGN_WIRE_SEPARATION),
         (reserved) => !samePhysicalNet(reserved, segment, net, netGroupKey) &&
-          segmentsConflict(segment, reserved),
+          (segmentsConflict(segment, reserved) ||
+            collinearSegmentsOverlap(segment, reserved) ||
+            parallelSegmentsOverlap(segment, reserved)),
         maximum - conflicts
       );
       if (conflicts >= maximum) return conflicts;
@@ -128,7 +134,9 @@ export function countRouteConflicts(
       : reservedSegments;
     for (const reserved of candidates) {
       if (!samePhysicalNet(reserved, segment, net, netGroupKey) &&
-        segmentsConflict(segment, reserved)) {
+        (segmentsConflict(segment, reserved) ||
+          collinearSegmentsOverlap(segment, reserved) ||
+          parallelSegmentsOverlap(segment, reserved))) {
         conflicts += 1;
         if (conflicts >= maximum) return conflicts;
       }
@@ -144,12 +152,12 @@ function samePhysicalNet(reserved, segment, net, netGroupKey) {
   return reserved?.net === net;
 }
 
-function segmentBounds(segment) {
+function segmentBounds(segment, padding = 0) {
   return {
-    left: Math.min(segment.start.x, segment.end.x),
-    right: Math.max(segment.start.x, segment.end.x),
-    top: Math.min(segment.start.y, segment.end.y),
-    bottom: Math.max(segment.start.y, segment.end.y)
+    left: Math.min(segment.start.x, segment.end.x) - padding,
+    right: Math.max(segment.start.x, segment.end.x) + padding,
+    top: Math.min(segment.start.y, segment.end.y) - padding,
+    bottom: Math.max(segment.start.y, segment.end.y) + padding
   };
 }
 
@@ -184,6 +192,28 @@ export function collinearSegmentsOverlap(left, right) {
   const rightVertical = near(right.start.x, right.end.x);
   return leftVertical && rightVertical && near(left.start.x, right.start.x) &&
     rangesOverlapStrict(left.start.y, left.end.y, right.start.y, right.end.y);
+}
+
+/**
+ * Detect a visible overlap between parallel segments that are not exactly
+ * collinear.  This is intentionally separate from collinear overlap because
+ * same-physical-net tree branches may run on nearby centerlines while being
+ * merged or normalized later.
+ */
+export function parallelSegmentsOverlap(
+  left,
+  right,
+  minimumSeparation = MINIMUM_FOREIGN_WIRE_SEPARATION
+) {
+  const leftHorizontal = near(left.start.y, left.end.y);
+  const rightHorizontal = near(right.start.y, right.end.y);
+  if (leftHorizontal !== rightHorizontal) return false;
+  if (leftHorizontal) {
+    if (Math.abs(left.start.y - right.start.y) >= minimumSeparation) return false;
+    return rangesOverlapStrict(left.start.x, left.end.x, right.start.x, right.end.x);
+  }
+  if (Math.abs(left.start.x - right.start.x) >= minimumSeparation) return false;
+  return rangesOverlapStrict(left.start.y, left.end.y, right.start.y, right.end.y);
 }
 
 export function orthogonalSegmentIntersectsBox(start, end, box) {

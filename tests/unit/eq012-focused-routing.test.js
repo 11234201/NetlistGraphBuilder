@@ -9,10 +9,14 @@ import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
-import { collinearSegmentsOverlap, getRouteSegments } from "../../src/layout/orthogonalRouting.js";
+import {
+  collinearSegmentsOverlap,
+  getRouteSegments,
+  parallelSegmentsOverlap
+} from "../../src/layout/orthogonalRouting.js";
 
 const fixtureUrl = new URL("../fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
-const spacingMatrix = [4, 8, 16, 32, 64, 84, 160, 320];
+const spacingMatrix = [4, 8, 16, 32, 64, 84, 88, 160, 320];
 
 test("eq012 focused dual-root routing stays locally valid across spacing", async () => {
   const source = await readFile(fixtureUrl, "utf8");
@@ -35,6 +39,24 @@ test("eq012 focused dual-root routing stays locally valid across spacing", async
     );
     assert.ok(clockTo2406, `clock edge missing at spacing=${cellSpacing}`);
     assert.notEqual(clockTo2406.routeKind, "obstacle-lane", `unexpected outer lane at spacing=${cellSpacing}`);
+
+    const clockSegments = laidOut.edges
+      .filter((edge) => edge.net === "clk")
+      .flatMap((edge) => getRouteSegments(edge.points, edge.net, edge.netGroupKey));
+    const resetSegments = laidOut.edges
+      .filter((edge) => edge.net === "rst_n")
+      .flatMap((edge) => getRouteSegments(edge.points, edge.net, edge.netGroupKey));
+    assert.equal(
+      clockSegments.some((clock) =>
+        Math.abs(clock.start.x - clock.end.x) < 0.5 &&
+        resetSegments.some((reset) =>
+          Math.abs(reset.start.x - reset.end.x) < 0.5 &&
+          (collinearSegmentsOverlap(clock, reset) || parallelSegmentsOverlap(clock, reset))
+        )
+      ),
+      false,
+      `clk/rst_n vertical overlap at spacing=${cellSpacing}`
+    );
 
     const net0179 = laidOut.edges.find((edge) => edge.net === "_0179_");
     const net0198 = laidOut.edges.find((edge) => edge.net === "_0198_");

@@ -2,9 +2,11 @@ import { getConnectionPoint } from "./nodeGeometry.js";
 import {
   collinearSegmentsOverlap,
   getRouteSegments,
+  MINIMUM_FOREIGN_WIRE_SEPARATION,
   near,
   nodeBox,
   orthogonalSegmentIntersectsBox,
+  parallelSegmentsOverlap,
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "./orthogonalRouting.js";
@@ -327,7 +329,7 @@ function findNetOverlaps(edges, maximumViolations = Infinity) {
   const violations = [];
   for (const left of records) {
     if (violations.length >= maximumViolations) break;
-    const candidates = index.querySegment(left.segment)
+    const candidates = index.querySegment(left.segment, MINIMUM_FOREIGN_WIRE_SEPARATION)
       .map((segment) => recordBySegment.get(segment))
       .filter(Boolean)
       .sort((a, b) => orderBySegment.get(a.segment) - orderBySegment.get(b.segment));
@@ -335,7 +337,8 @@ function findNetOverlaps(edges, maximumViolations = Infinity) {
       if (orderBySegment.get(right.segment) <= orderBySegment.get(left.segment)) continue;
       if (left.edge.id === right.edge.id ||
         getNetGroupKey(left.edge) === getNetGroupKey(right.edge) ||
-        !collinearSegmentsOverlap(left.segment, right.segment)) continue;
+        !(collinearSegmentsOverlap(left.segment, right.segment) ||
+          parallelSegmentsOverlap(left.segment, right.segment))) continue;
       const pairKey = [left.edge.id, right.edge.id].sort().join("\u0000");
       if (reported.has(pairKey)) continue;
       reported.add(pairKey);

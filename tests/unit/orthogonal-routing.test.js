@@ -5,6 +5,7 @@ import {
   countRouteConflicts,
   getTargetApproachPoint,
   getTargetLaneInset,
+  parallelSegmentsOverlap,
   routeFollowsEndpointSides,
   routePreservesEndpointAccess
 } from "../../src/layout/orthogonalRouting.js";
@@ -104,6 +105,24 @@ test("shared conflict counting treats crossings and overlaps consistently", () =
   assert.equal(countRouteConflicts([
     { x: 80, y: 54 }, { x: 200, y: 54 }
   ], reserved, "another"), 1);
+});
+
+test("shared conflict counting rejects visually overlapping parallel wires", () => {
+  const reserved = [{
+    start: { x: 225, y: 432 },
+    end: { x: 225, y: 606 },
+    net: "rst_n"
+  }];
+  const candidate = [
+    { x: 226, y: 316 },
+    { x: 226, y: 534 }
+  ];
+
+  assert.equal(parallelSegmentsOverlap(
+    { start: candidate[0], end: candidate[1] },
+    reserved[0]
+  ), true);
+  assert.equal(countRouteConflicts(candidate, reserved, "clk"), 1);
 });
 
 test("candidate validation centralizes obstacles, endpoint sides and overlap policy", () => {
