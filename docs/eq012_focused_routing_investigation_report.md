@@ -546,3 +546,5 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 eq012 Focused `_2021_` + `_2406_`（fanin/fanout depth 3）在 spacing `4, 8, 16, 32, 64, 84, 88, 160, 320` 上本地 `validateLayoutGraph(checkBounds=true)` 均为零硬违规。spacing 88 下，接入 `_2406_` 的 `clk`/`rst_n` 纵向段 y 区间虽相交，但 lane 间距由原先 8px 调整到 124px；route 仍是 local/channel 类，不需要 outer lane。混合 group→cell 候选扩展已撤回，当前单测总数为 `428/428`。
 
 在与本地 layout 依赖完全同步、且撤回混合 group→cell 扩展的 mfs-remote 上，strict collapsed 复核为：dp020 `1933` 条 missing-route、`413` 条 `capacity-overflow-corridor`，layout 约 `12.6 s`、heap 约 `250 MiB`；sop015 `3193` 条 missing-route、`362` 条 overflow corridor，layout 约 `12.8 s`、heap 约 `207 MiB`。Whole graph 未启用 target-entry map，剩余 strict 失败仍来自超过固定 capacity 的 collapsed group/inter-layer corridor，而不是新的 cross-net overlap。
+
+最终版本 benchmark（mfs-remote，`BENCHMARK_RUNS=1`）为 1024/4096/8192 cell：普通 layout `195.9/1402.6/4542.7 ms`，SVG `59.6/265.6/734.6 ms`；collapsed layout `11.1/11.5/16.8 ms`。target-entry map 在该长链 Whole 场景不创建，候选上限和 overflow 重试次数未增加；单次样本仅用于相对趋势，不能替代多次 median。
