@@ -2,6 +2,7 @@ import { compareEdgesByLayoutPriority } from "./layoutIntent.js";
 import { getConnectionPoint } from "./nodeGeometry.js";
 import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
+import { getTargetApproachPoint, isVerticalTargetPin } from "./orthogonalRouting.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 import {
   routeCandidateIsUsable,
@@ -538,9 +539,19 @@ function tryRoutePhysicalNetGroup(edges, context) {
     edgePlans.some((edgePlan) => edgePlan?.capacityBlocked === true)) return null;
   const targetPoints = targets.map(({ edge, node }) =>
     getConnectionPoint(node, edge.targetPin, "target"));
+  const targetRoutePoints = targets.map(({ node }, index) => {
+    const targetPoint = targetPoints[index];
+    return isVerticalTargetPin(node, targetPoint)
+      ? getTargetApproachPoint(
+        node,
+        targetPoint,
+        context.routingGeometry?.targetApproachClearance
+      )
+      : targetPoint;
+  });
   if (targetPoints.some((point) =>
     Math.abs(point.y - sourcePoint.y) <= 4 || Math.abs(point.x - sourcePoint.x) <= 4)) return null;
-  const minimumTargetX = Math.min(...targetPoints.map((point) => point.x));
+  const minimumTargetX = Math.min(...targetRoutePoints.map((point) => point.x));
   const clearance = Number(context.routingGeometry?.nodeClearance) || 8;
   const sourceEscapeX = getEscapeLaneX(source, sourcePoint, "source", clearance);
   if (!(minimumTargetX > sourcePoint.x + clearance)) return null;
@@ -558,16 +569,27 @@ function tryRoutePhysicalNetGroup(edges, context) {
   for (const trunkX of trunkXs) {
     const positionedEdges = targets.map(({ edge, node }, index) => {
       const targetPoint = targetPoints[index];
+      const targetRoutePoint = targetRoutePoints[index];
       const edgePlan = edgePlans[index];
       const label = getLabelPlacement(edge, source, node, sourcePoint, targetPoint);
-      return {
-        ...edge,
-        points: compactOrthogonalPoints([
+      const treePoints = isVerticalTargetPin(node, targetPoint)
+        ? [
+          sourcePoint,
+          { x: trunkX, y: sourcePoint.y },
+          { x: trunkX, y: targetRoutePoint.y },
+          { x: targetRoutePoint.x, y: targetRoutePoint.y },
+          targetRoutePoint,
+          targetPoint
+        ]
+        : [
           sourcePoint,
           { x: trunkX, y: sourcePoint.y },
           { x: trunkX, y: targetPoint.y },
           targetPoint
-        ]),
+        ];
+      return {
+        ...edge,
+        points: compactOrthogonalPoints(treePoints),
         routeKind: "physical-net-tree",
         routeStatus: "routed",
         capacityChannelId: edgePlan?.capacityChannelId,

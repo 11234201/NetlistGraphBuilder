@@ -247,6 +247,44 @@ test("simple router commits a complete non-direct fanout tree atomically", () =>
   assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
 });
 
+test("physical fanout tree uses a vertical approach for top-side targets", () => {
+  const nodes = [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 96, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "top", kind: "cell", level: 1, x: 240, y: 0, width: 80, height: 64,
+      ports: [{ pin: "A", direction: "input", side: "top", x: 40, y: 0 }] },
+    { id: "side", kind: "cell", level: 1, x: 240, y: 160, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "e1", source: "src", target: "top", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "e2", source: "src", target: "side", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const routed = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: {
+      edges: new Map(graph.edges.map((edge) => [edge.id, { kind: "channel", lane: 0 }]))
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
+  assert.ok(routed.every((edge) => edge.routeStatus === "routed"));
+  const topEdge = routed.find((edge) => edge.target === "top");
+  assert.ok(topEdge.points.some((point, index) => {
+    const next = topEdge.points[index + 1];
+    return next && Math.abs(point.x - next.x) < 0.5 &&
+      Math.abs(point.x - 280) < 0.5 && point.y < 0 && next.y <= 0;
+  }));
+});
+
 test("collapsed group sources can use one validated physical fanout tree", () => {
   const nodes = [
     { id: "group", kind: "group", level: 0, x: 0, y: 60, width: 80, height: 32,
