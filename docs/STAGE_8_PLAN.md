@@ -512,6 +512,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   View History，只有完成实际平移的手势在结束时持久化；已有 frame-coalescing 行为保持不变。
 - `npm run release:windows` 通过（476 个单元测试、启动器 smoke、离线 ZIP 与 ELK license）；
   当前包 SHA-256 为 `68df712f0218a70a203d66bbd687c69f2c99b48f8ad5bef7ffa455f92c4b6b46`。
+- 同一环境复测：`npm run benchmark:workspace` 的 1K/4K cold→warm 为 `185/3.5 ms`（53.5x）与
+  `909.2/23 ms`（39.6x）；`npm run benchmark` 的 1K/4K/8K pipeline 为 `163.3/1000.5/3020.4 ms`，
+  progressive first batch 为 `1.2/1.1/1.1 ms`。这些结果继续作为回归监测，不替代 R8-3 的同口径
+  30% 全链路改善证明。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据、workspaceRequest 最终退场和完整 command-bus 收口尚未满足完成定义。
 
