@@ -410,6 +410,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `29d0b86693d1e3d09fa8e1b30a680e7d05d819c2e481d6959a08ad33be5024af`。
 - 后续 `fd22ac0` 增加顶部 occurrence breadcrumb；进入层次 occurrence 后显示路径，普通 module
   切换会清理旧 occurrence context，避免错误复用父层路径。
+- 当前 benchmark（3-run median）为 1K/4K/8K pipeline `211.8/1189.5/3551.9 ms`，layout
+  `146.7/933.6/2939.4 ms`，progressive first batch `1.7/1.1/1.2 ms`；与上一基线处于同一量级，
+  尚不能把 R8-3 的 30% 改善写成已达成。
 - 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
   下方记录中的 cache/job/Compare 异步收口项。
 
