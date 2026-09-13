@@ -10,6 +10,7 @@
     "test:mapped-cases": "node tools/test-mapped-cases.mjs",
     "test:mapped-hard": "node tools/test-mapped-cases.mjs --hard",
     "benchmark": "node tools/benchmark-large.mjs",
+    "benchmark:workspace": "node tools/benchmark-workspace-cache.mjs",
     "release:windows": "powershell -ExecutionPolicy Bypass -File tools/build-windows-release.ps1"
   }
 }
