@@ -469,6 +469,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 提交 `3e8011f` 的 Windows release 已重新通过（包含 473 个单元测试与启动器 smoke），离线包
   `dist/NetlistGraphBuilder-v0.7.3-win-x64.zip` SHA-256 为
   `f0834c4fd016c2c206c563680e8631bf878d7f31eb209b0d365fe9611482d4b5`。
+- 最新 `npm run benchmark`（同一受控环境，3 次取中位数）为：1K/4K/8K pipeline
+  `156.3/1014.5/3214.4 ms`，layout `104.7/773.7/2697.3 ms`，progressive first batch
+  `1.3/1.0/1.1 ms`。该结果用于回归监测；尚未形成与 Stage 8 初始基线同口径的 30% 改善证明。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
