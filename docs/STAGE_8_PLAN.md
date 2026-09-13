@@ -393,8 +393,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `missing-route`/`wire-route-disconnected`，与本轮 occurrence/history/Compare 改动无直接调用关系；
   因此不能把 Stage 8 标为完成。
 - 层次投影增量：`netlistFeature.projectHierarchy()` 将有界 hierarchical cone 转为 renderer-neutral
-  graph contract，并在每个 node ref 上保留 occurrence path；该接口已用重复 occurrence 单测覆盖，尚未
-  接入主画布的标准 layout/Scene 流程。
+  graph contract，并在每个 node ref 上保留 occurrence path；随后由 `f18b5ff` 增量接入主画布的
+  标准 layout/Scene 流程。
 
 ### Stage 8 执行记录（2026-09-13，层次投影增量）
 
@@ -405,6 +405,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - hinst 作为 root 时，查询会从 child module 的 input/output port 向内部逻辑继续 seed fanout/fanin，
   因而可见 cone 能穿过 instance boundary；深度仍只在实际逻辑 cell 上消耗，并受 frontier/node 上限约束。
 - 回归：新增层次 render graph 与 module workspace 单测；当前 `npm test` 通过（462 tests）。
+- 发布：`npm run release:windows` 通过（单元、启动器 smoke、离线 ZIP 与 SHA-256），最新包为
+  `dist/NetlistGraphBuilder-v0.7.3-win-x64.zip`，SHA-256
+  `2c7837e81f9098cc714f0d795e33bf448824ec9c8edf47423a0688acdeebad09`。
 - 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
   下方记录中的 cache/job/Compare 异步收口项。
 
@@ -427,7 +430,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `68eba593d78d17932a0cc9529caa528c66749bf63da2ded4a38c4af9ff8a2bf9`。
 - 未完成与偏差：mapped worker 既有基线仍报告 40/47 violation（`missing-route`/
   `wire-route-disconnected`），本轮未宣称通过；artifact/job 尚未完全替换 UI 的同步 render pipeline，
-  单侧取消/进度及标准 hierarchical projection/Scene、breadcrumb UI 仍是 Stage 8 收口项。
+  单侧取消/进度及 breadcrumb UI 仍是 Stage 8 收口项。
 
 ## 6. 验证矩阵
 
