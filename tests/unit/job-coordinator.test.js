@@ -88,3 +88,21 @@ test("viewport revisions do not cancel computation but semantic session changes 
   secondTask.resolve("obsolete-layout");
   assert.equal((await second.promise).status, "stale");
 });
+
+test("synchronous jobs commit through the same artifact boundary", () => {
+  const state = setup();
+  const progress = [];
+  const result = state.jobs.runSync({
+    sessionId: "view:1",
+    kind: "simple-layout",
+    onProgress: (value) => progress.push(value),
+    run: (context) => {
+      context.reportProgress("layout");
+      return { nodes: 1 };
+    }
+  });
+  assert.equal(result.status, "committed");
+  assert.deepEqual(result.artifact.value, { nodes: 1 });
+  assert.deepEqual(progress, ["layout"]);
+  assert.equal(state.artifacts.get("view:1", "simple-layout"), result.artifact);
+});

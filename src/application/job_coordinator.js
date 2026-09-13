@@ -46,6 +46,33 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     return Object.freeze({ context, promise, cancel: () => cancelContext(context) });
   }
 
+  function runSync({ sessionId, kind, run, onProgress = () => {} }) {
+    if (typeof run !== "function") throw new Error("Job run function is required");
+    const session = sessions.require(sessionId);
+    const document = documents.require(session.documentId);
+    const key = jobKey(sessionId, kind);
+    activeByKey.get(key)?.controller.abort();
+    const controller = new AbortController();
+    const context = createContext({ document, session, sessionId, kind, controller, onProgress });
+    activeByKey.set(key, { context, controller });
+    try {
+      const value = run(context);
+      if (value && typeof value.then === "function") {
+        throw new Error(`Synchronous job ${kind} returned a Promise`);
+      }
+      if (!isCurrent(context)) {
+        release(context);
+        return Object.freeze({ status: "stale", context });
+      }
+      release(context);
+      const artifact = artifacts.put({ kind, context, value });
+      return Object.freeze({ status: "committed", context, artifact });
+    } catch (error) {
+      release(context);
+      throw error;
+    }
+  }
+
   function isCurrent(context) {
     const active = activeByKey.get(jobKey(context.sessionId, context.kind));
     if (active?.context !== context) return false;
@@ -95,7 +122,24 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     return cancelled;
   }
 
-  return Object.freeze({ start, isCurrent, cancelSession, cancelDocument });
+  function createContext({ document, session, sessionId, kind, controller, onProgress }) {
+    return Object.freeze({
+      documentId: document.documentId,
+      sourceRevision: document.sourceRevision,
+      sessionId,
+      sessionRevision: session.sessionRevision,
+      computationRevision: session.computationRevision,
+      kind,
+      jobId: `job:${nextJobId++}`,
+      signal: controller.signal,
+      reportProgress(value) {
+        const active = activeByKey.get(jobKey(sessionId, kind));
+        if (active?.context && isCurrent(active.context)) onProgress(value, active.context);
+      }
+    });
+  }
+
+  return Object.freeze({ start, runSync, isCurrent, cancelSession, cancelDocument });
 }
 
 function jobKey(sessionId, kind) {

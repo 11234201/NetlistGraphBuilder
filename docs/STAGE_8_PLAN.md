@@ -65,7 +65,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context 与标准 layout/Scene projection 已落地；breadcrumb、歧义 parent context 与完整路径 UI 仍待补齐 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache、ELK Single/Compare JobCoordinator 提交、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；同步 Simple 路径全量迁移与 30% 改善证据仍待补齐 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；30% 改善证据与 workspaceRequest 最终退场仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；完整 command-bus 收口仍待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
@@ -440,13 +440,14 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - Single/Compare 的 ELK asynchronous layout 现在通过 `JobCoordinator` 运行，job context 绑定到
   对应 ViewSession 的 computation revision；旧 job 由新 job、design reload 或退出 Compare 淘汰，
   结果通过 `ArtifactStore` commit 后才进入 workspace。layout provider 同时收到 `signal/jobId`。
-- Simple Layered 的同步快速路径暂保留，避免无必要地把轻量渲染改成异步；因此当前是渐进迁移，不把
-  `workspaceRequest.js` 标记为已删除。
+- Simple Layered 仍保持同步执行体验，但通过 JobCoordinator 的 `runSync()` 进入同一 computation/job
+  与 ArtifactStore 边界；ELK 使用异步 `start()`。`workspaceRequest.js` 目前只负责渐进 DOM render 的
+  完成态保护，尚未退场。
 - 浏览器验证切换到 ELK 后重新布局 Single，再进入 Compare，最终状态为 `Compare ready (ELK Layered
   (Experimental))`，运行日志为空；新增 computation boundary 与 signal forwarding 回归，当前
-  `npm test` 通过（469 tests）。
+  `npm test` 通过（470 tests）。
 - `npm run release:windows` 已重新通过，当前离线包 SHA-256 为
-  `d32faceffacc36f64dbad6b1107eaf3ab29e2205fc2152c757eb37d4884780b9`。
+  `fd4cf1bc9552e0736a4cbaa988102b809a1fbec1017a5c673e52bb01ad61aaa5`。
 
 ### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
 

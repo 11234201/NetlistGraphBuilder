@@ -862,16 +862,20 @@ function renderCompareGraphs(options = {}) {
     })).catch(request.guard(handleLayoutFailure));
     return;
   }
-  const workspace = buildCompareWorkspace(workspaceOptions);
-  if (isPromise(workspace)) {
-    logProcess("info", "layout", `Compare layout started (${compareLayoutProvider.label})`, { requestId });
-    setStatus(`Layout (${compareLayoutProvider.label})…`);
-    workspace.then(request.guard((result) => {
-      commitCompareWorkspace(result, leftModule, rightModule, renderOptions);
-    })).catch(request.guard(handleLayoutFailure));
-    return;
+  const leftSession = compareViewSessions.beginComputation("left");
+  compareViewSessions.beginComputation("right");
+  try {
+    const result = workspaceJobs.runSync({
+      sessionId: leftSession.sessionId,
+      kind: "compare-workspace",
+      run: (context) => buildCompareWorkspace({ ...workspaceOptions, signal: context.signal })
+    });
+    if (result.status === "committed") {
+      commitCompareWorkspace(result.artifact.value, leftModule, rightModule, renderOptions);
+    }
+  } catch (error) {
+    handleLayoutFailure(error);
   }
-  commitCompareWorkspace(workspace, leftModule, rightModule, renderOptions);
 }
 
 function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}) {
@@ -1260,20 +1264,23 @@ function renderCurrentModuleGraph(options = {}) {
     })).catch(request.guard(handleLayoutFailure));
     return;
   }
-  const workspace = buildModuleWorkspace({
-    ...workspaceOptions,
-    faninDepth: state.faninDepth,
-    fanoutDepth: state.fanoutDepth
-  });
-  if (isPromise(workspace)) {
-    logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId });
-    setStatus(`Layout (${layoutProvider.label})…`);
-    workspace.then(request.guard((result) => {
-      commitCurrentWorkspace(result, options);
-    })).catch(request.guard(handleLayoutFailure));
-    return;
+  const session = singleViewSession.beginComputation();
+  try {
+    const result = workspaceJobs.runSync({
+      sessionId: session.sessionId,
+      kind: "single-workspace",
+      run: (context) => buildModuleWorkspace({
+        ...workspaceOptions,
+        faninDepth: state.faninDepth,
+        fanoutDepth: state.fanoutDepth,
+        signal: context.signal,
+        jobId: context.jobId
+      })
+    });
+    if (result.status === "committed") commitCurrentWorkspace(result.artifact.value, options);
+  } catch (error) {
+    handleLayoutFailure(error);
   }
-  commitCurrentWorkspace(workspace, options);
 }
 
 function buildModuleWorkspaceForJob(options, signal) {
