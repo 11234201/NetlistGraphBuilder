@@ -437,6 +437,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 层次树现在同时保留展示路径（`top/u_child:child`）与 canonical instance path（`u_child`），双击导航
   传递 `rootModuleName + occurrencePath`；这修复了 UI 进入子 module 后 connectivity resolver 无法定位
   parent occurrence 的问题。新增 hierarchy domain/controller 回归，当前 `npm test` 通过（465 tests）。
+- hierarchical cone 的 boundary diagnostics（blackbox、recursive cycle、missing occurrence、frontier
+  limit 等）现在随完成态 graph 进入 Diagnostics 面板；Compare 两侧 diagnostics 也会合并显示。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 

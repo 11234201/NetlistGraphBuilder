@@ -849,6 +849,7 @@ function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}
   state.compare.graphs = workspace.graphs;
   state.compare.scenes = workspace.scenes;
   state.compare.analysis = workspace.analysis;
+  renderDiagnostics();
   logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
     leftModule: leftModule.name,
     rightModule: rightModule.name
@@ -1255,6 +1256,7 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
   const { readyMessage = null, onRendered = null, scene = null } = options;
   state.autoGraph = autoGraph;
   state.graph = graph;
+  renderDiagnostics();
   renderGraphMount(elements.mount, graph, { scene }).then((result) => {
     if (result?.cancelled) return;
     applyTransform();
@@ -2881,7 +2883,9 @@ function renderNetSelection(netName) {
 function renderDiagnostics() {
   const diagnostics = [
     ...(state.design?.diagnostics || []),
-    ...(state.graph?.diagnostics || [])
+    ...(state.compare.active ? [] : (state.graph?.diagnostics || [])),
+    ...(state.compare.active ? (state.compare.graphs?.left?.diagnostics || []) : []),
+    ...(state.compare.active ? (state.compare.graphs?.right?.diagnostics || []) : [])
   ];
 
   elements.diagnostics.innerHTML = "";
