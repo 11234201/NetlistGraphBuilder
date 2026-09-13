@@ -110,7 +110,7 @@ test("simple router binds a skip-level edge to its source-adjacent capacity boun
   assert.ok(edge.points.length >= 2);
 });
 
-test("simple router never borrows a later boundary or legacy lane after a placement cap", () => {
+test("simple router uses an explicit overflow corridor after a placement cap", () => {
   const nodes = [
     { id: "source", kind: "group", level: 0, x: 0, y: 48, width: 80, height: 40,
       ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 20 }] },
@@ -163,17 +163,15 @@ test("simple router never borrows a later boundary or legacy lane after a placem
       margin: 48,
       strictRouting
     });
-    const diagnostic = edge.routeDiagnostics.find((item) => item.code === "routing-capacity-limit");
-
-    assert.equal(edge.routeKind, "unroutable");
-    assert.equal(edge.routeStatus, "unroutable");
-    assert.deepEqual(edge.points, []);
+    assert.equal(edge.routeKind, "capacity-overflow-corridor");
+    assert.equal(edge.routeStatus, "routed");
+    assert.ok(edge.points.length >= 2);
     assert.equal(edge.capacityChannelId, "inter-layer:0->1");
     assert.equal(edge.capacityOverflow, true);
-    assert.equal(diagnostic.channelId, "inter-layer:0->1");
-    assert.equal(diagnostic.requestedLaneIndex, 128);
-    assert.equal(diagnostic.placementLaneLimit, 128);
-    assert.equal(diagnostic.netGroupKey, "source\u0000n");
+    assert.equal(edge.capacityOverflowKind, "placement");
+    assert.equal(edge.capacityBlocked, true);
+    assert.equal(edge.routeDiagnostics[0].code, "routing-capacity-overflow-corridor");
+    assert.equal(edge.routeDiagnostics[0].channelId, "inter-layer:0->1");
   }
 });
 
@@ -244,7 +242,6 @@ test("simple router commits a complete non-direct fanout tree atomically", () =>
     routingGeometry: normalizeRoutingGeometry(),
     margin: 48
   });
-
   assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
   assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount, 1);
   assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
@@ -288,14 +285,16 @@ test("a capped capacity boundary blocks a complete fanout before the tree shortc
     margin: 48
   });
 
-  assert.ok(routed.every((edge) => edge.routeKind === "unroutable"));
-  assert.ok(routed.every((edge) => edge.routeStatus === "unroutable"));
-  assert.ok(routed.every((edge) => edge.points.length === 0));
+  assert.ok(routed.every((edge) => edge.routeKind === "capacity-overflow-corridor"));
+  assert.ok(routed.every((edge) => edge.routeStatus === "routed"));
+  assert.ok(routed.every((edge) => edge.points.length >= 2));
+  assert.ok(routed.every((edge) => edge.capacityOverflow === true));
+  assert.ok(routed.every((edge) => edge.capacityBlocked === true));
   assert.ok(routed.every((edge) => edge.routeDiagnostics.some((item) =>
-    item.code === "routing-capacity-limit")));
+    item.code === "routing-capacity-overflow-corridor")));
   assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount || 0, 0);
-  assert.equal(routed.routingMetrics.unroutablePhysicalNetCount, 1);
-  assert.equal(routed.routingMetrics.overflowUnroutablePhysicalNetCount, 1);
+  assert.equal(routed.routingMetrics.unroutablePhysicalNetCount || 0, 0);
+  assert.equal(routed.routingMetrics.overflowUnroutablePhysicalNetCount || 0, 0);
 });
 
 test("simple router never commits a node-crossing fallback in ordinary mode", () => {

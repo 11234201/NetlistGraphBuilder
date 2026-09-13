@@ -673,17 +673,12 @@ export function findObstacleAvoidingRoute(context) {
   }
 
   // A graph with no node-safe outer candidate is geometrically unsatisfiable
-  // under the current placement. Keep the failure bounded, but preserve
-  // orthogonality and endpoint sides so validation reports only the remaining
-  // obstacle conflict instead of multiplying it into diagonal/side errors.
-  return createGlobalLaneRoute(
-    sourcePoint,
-    targetPoint,
-    routeTargetPoint,
-    baseSourceLaneX,
-    baseTargetLaneX,
-    preferredLaneY
-  );
+  // under the current placement.  Do not return the old base-lane route:
+  // that route can cut through an intermediate cell and callers may mistake
+  // a non-empty orthogonal polyline for a successful route.  Returning null
+  // keeps the candidate API honest; the provider turns it into an explicit
+  // `unroutable` result at its shared boundary.
+  return null;
 }
 
 function getOuterLaneYs(nodes, margin, clearance, preparedGeometry) {

@@ -318,12 +318,65 @@ function findCapacityFreeDirectRoute(item, context) {
     net: item.edge.net,
     netGroupKey: getNetGroupKey(item.edge)
   };
-  return findCapacityFreeDirectCandidate(routeContext);
+  return findCapacityFreeDirectCandidate(routeContext) ||
+    findCapacityOverflowCorridorCandidate(routeContext);
 }
 
 function findCapacityFreeDirectCandidate(context) {
   return createBasicSimpleRouteCandidates(context).find((candidate) =>
     candidate.kind === "direct" && isHardRouteCandidate(candidate, context)) || null;
+}
+
+function findCapacityOverflowCorridorCandidate(context) {
+  const edgePlan = context.edgePlan;
+  if (!edgePlan || edgePlan.capacityBlocked !== true) return null;
+  const overflowPlan = {
+    ...edgePlan,
+    preferredLaneY: undefined,
+    capacityLaneYs: [],
+    capacityCorridor: undefined,
+    capacityEscape: undefined,
+    capacityBlocked: false
+  };
+  const overflowContext = {
+    ...context,
+    edgePlan: overflowPlan
+  };
+  // Keep this pass bounded and local-first.  A capped channel often blocks
+  // only the preferred y lane; reusing an existing nearby dogleg is both
+  // cheaper and less likely to create a second outer detour.  Every candidate
+  // is still checked against the original context (including reservations),
+  // so the overflow plan cannot weaken the hard contract.
+  const localCandidates = [
+    ...createBasicSimpleRouteCandidates(overflowContext),
+    ...createLocalObstacleCandidates(overflowContext),
+    ...createLocalObstacleCandidates(overflowContext, { reservedDetours: true })
+  ];
+  const hardLocal = localCandidates.filter((candidate) =>
+    isHardRouteCandidate(candidate, context));
+  let candidate = hardLocal.length > 0
+    ? chooseBestScoredRoute(scoreCandidates(
+      hardLocal,
+      context.reservedSegments,
+      context.net,
+      context.netGroupKey,
+      context.edgeIntent
+    ))
+    : null;
+  candidate ||= createGlobalFallback(overflowContext);
+  if (!isHardRouteCandidate(candidate, context)) return null;
+  return {
+    ...candidate,
+    kind: "capacity-overflow-corridor",
+    diagnostics: [{
+      code: "routing-capacity-overflow-corridor",
+      overflowKind: edgePlan.capacityOverflowKind,
+      channelId: edgePlan.capacityChannelId,
+      boundaryClusterKey: edgePlan.capacityBoundaryClusterKey,
+      requestedLaneIndex: edgePlan.capacityRequestedLaneIndex,
+      placementLaneLimit: edgePlan.capacityPlacementLaneLimit
+    }]
+  };
 }
 
 function createCapacityBlockedPositionedEdge(item) {
@@ -665,7 +718,9 @@ function routeEdge(context) {
     netGroupKey = undefined
   } = context;
   if (edgePlan?.capacityBlocked === true) {
-    return findCapacityFreeDirectCandidate(context) || createUnroutableRoute(context, {
+    const capacityFree = findCapacityFreeDirectCandidate(context) ||
+      findCapacityOverflowCorridorCandidate(context);
+    return capacityFree || createUnroutableRoute(context, {
       code: "routing-capacity-limit",
       ...getCapacityBlockedDiagnostics(edgePlan)
     });
@@ -785,14 +840,18 @@ function routeEdge(context) {
     if (bestLocalScore.crossings > 0) {
       routingMetrics.globalFallbacks += 1;
       const globalCandidate = createGlobalFallback(context);
-      const globalScore = scoreRouteCandidate(globalCandidate, {
-        reservedSegments,
-        net,
-        netGroupKey,
-        edgeIntent
-      });
-      const globalHasOverlap = routeOverlapsReserved(globalCandidate.points, net, reservedSegments, netGroupKey);
-      const avoidsLargeOuterDetour = !localHasOverlap &&
+      const globalScore = globalCandidate
+        ? scoreRouteCandidate(globalCandidate, {
+          reservedSegments,
+          net,
+          netGroupKey,
+          edgeIntent
+        })
+        : null;
+      const globalHasOverlap = globalCandidate
+        ? routeOverlapsReserved(globalCandidate.points, net, reservedSegments, netGroupKey)
+        : true;
+      const avoidsLargeOuterDetour = Boolean(globalScore) && !localHasOverlap &&
         globalScore.length - bestLocalScore.length >= Math.max(
           ROUTE_SELECTION_POLICY.minimumOuterDetourSavings,
           (Number(context.wireLanePitch) || 24) *
@@ -802,7 +861,7 @@ function routeEdge(context) {
           ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
       const globalIsHardUsable = isHardRouteCandidate(globalCandidate, context);
       const removesHardOverlap = localHasOverlap && !globalHasOverlap;
-      if (globalIsHardUsable && (removesHardOverlap || (!avoidsLargeOuterDetour && (
+      if (globalIsHardUsable && globalScore && (removesHardOverlap || (!avoidsLargeOuterDetour && (
         globalScore.crossings < bestLocalScore.crossings ||
         (globalScore.crossings === bestLocalScore.crossings &&
           globalScore.total < bestLocalScore.total))))) {

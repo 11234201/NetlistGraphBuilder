@@ -272,7 +272,7 @@ test("global fallback reserves vertical lanes used by earlier nets", () => {
   );
 });
 
-test("unsatisfiable global fallback remains orthogonal and follows endpoint sides", () => {
+test("unsatisfiable global fallback reports no candidate instead of returning an unsafe lane", () => {
   const blockedSource = { ...source, y: 40, height: 20 };
   const blockedTarget = { ...target, x: 220, y: 40, height: 20 };
   const blocker = { id: "blocker", kind: "cell", x: 88, y: 0, width: 100, height: 100 };
@@ -292,18 +292,7 @@ test("unsatisfiable global fallback remains orthogonal and follows endpoint side
     net: "blocked"
   });
 
-  assert.ok(route.points.length >= 2);
-  assert.ok(route.points.slice(0, -1).every((point, index) => {
-    const next = route.points[index + 1];
-    return point.x === next.x || point.y === next.y;
-  }));
-  assert.equal(routeFollowsEndpointSides(
-    route.points,
-    blockedSource,
-    blockedTarget,
-    sourcePoint,
-    targetPoint
-  ), true);
+  assert.equal(route, null);
 });
 
 test("global lane search keeps source escape on its declared side", () => {
