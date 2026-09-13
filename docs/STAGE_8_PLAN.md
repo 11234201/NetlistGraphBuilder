@@ -500,6 +500,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `55a9391cf6079de916b40c9d69494c0889e23748b16ca606e429f015f798cd62`。
 - `cb3ef49` 补齐 Focus selected 的 viewport history capture；475 个测试通过，最新 Windows release
   SHA-256 为 `2b66173bb5a6c7deaa2c57b279d7d843ca23287cd75bb10911c3ccca7f1779ed`。
+- `65eae71` 让 Focused root chip 显示 canonical occurrence path，减少跨层同名 cell/net 的歧义；
+  475 个测试通过，最新 release SHA-256 为
+  `4ed87d18bbb5458f6327f890aab77bf4ecb98d00b875cc6e7d58389d2f581d02`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
