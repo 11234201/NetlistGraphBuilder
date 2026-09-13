@@ -328,6 +328,9 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   `domains/netlist/netlist_graph_projection.js`，避免领域 feature 反向依赖应用层。
 - `layoutWorkspace.js` is the shared provider/override boundary. It preserves both the automatic graph
   and the adjusted graph so manual edits never become implicit provider behavior.
+- `workspaceArtifactCache.js` is the bounded LRU boundary for immutable full-graph and automatic-layout
+  artifacts. Its identity includes document/source/session/module/query/provider/layout dependencies;
+  viewport and selection are intentionally excluded, and document/session invalidation is explicit.
 - `startupController.js` sequences the versioned localhost startup manifest through injected handlers;
   decoding belongs to `persistence/startup_codec.js`. Cell Config storage, session and Golden codecs also
   live behind `persistence/` boundaries. It sequences Cell Config,
@@ -338,8 +341,9 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   execution belongs to workspace rebuilds only.
 - `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
-- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 当前是经过测试的下一步产品端口，
-  还没有完整替换 `workspaceRequest.js` 和主入口中的全部异步/Compare 编排，不能把端口存在误写成产品已接管。
+- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 当前是经过测试的下一步产品端口；
+  `workspaceArtifactCache` 已接入 Single/Compare workspace，但 JobCoordinator/ArtifactStore 尚未
+  完整替换 `workspaceRequest.js` 和主入口中的全部异步/Compare 编排，不能把端口存在误写成产品已接管。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。

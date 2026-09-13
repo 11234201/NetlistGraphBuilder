@@ -161,8 +161,17 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 - Focused roots 和前后向深度。
 - 当前 selection。
 - Pan/zoom viewport。
+- 已提交的节点移动/尺寸调整，以及 Compare 左右两侧的 selection、Focused roots、viewport 和 output cone。
 
-快捷键为 `Alt+Left` 和 `Alt+Right`。从历史中后退后再打开新 module，会清除原 forward 分支。加载新 design 会重置旧历史。
+快捷键为 `Ctrl+Z`、`Ctrl+Shift+Z` / `Ctrl+Y`；`Alt+Left` 和 `Alt+Right` 仍可用。从历史中后退后再打开新
+操作，会清除原 forward 分支。加载新 design 会重置旧历史。文本输入框获得焦点时不会截获系统撤销。
+
+### 4.5 Gate symbols
+
+View 区的 `Gate symbols` 可在 `Rectangles` 与 `Conventional` 间切换。Conventional 会把可识别的
+BUF/INV、AND/NAND、OR/NOR、XOR/XNOR 画成约定逻辑门，其余 module、blackbox、register 和未知 cell
+继续使用矩形。切换只更新 Scene，不改变 node bounds、port endpoint、wire geometry 或 viewport，且
+Single、Compare、历史恢复和 SVG 导出使用同一模式；旧 session 或非法值回退到 Rectangles。
 
 ## 5. 顶部搜索
 
@@ -185,7 +194,7 @@ Node、Python 和 Windows 启动器使用相同的业务参数，详见 [EDA/脚
 
 cell 搜索结果有两种操作：
 
-- 点击结果主体或按 `Enter`：若 cell 已绘制，只更新选择和 viewport；若未绘制，则进入 Focused，并把它追加到已有 roots，而不是替换原 root。
+- 点击结果主体或按 `Enter`：若 cell 在当前画布定位图中，只更新选择和 viewport；若不在当前画布定位图中，自动进入/追加 Focused，并把它加入已有 roots，而不是替换原 root。
 - 点击 `+ Focus`：无论 cell 当前是否绘制，都明确把它追加到 Focused roots，并进入 Focused。已经是 root 时不会重复添加。
 
 激活 net 或 port 时会进入对象所在视图并显示连接信息。跨 module 的结果会先切换 module：来源 module 的 roots、selection 和手工 override 不会串入目标 module；如果目标 module 以前访问过，则恢复它自己的 workspace。
@@ -745,7 +754,7 @@ Whole 会布局和渲染全部可见结构。大图优先使用 Search-first 或
 ### 19.10 搜索、Add 和 Set 为什么结果不同
 
 - 点击已绘制的搜索结果：只选择并居中，不改变 roots。
-- 点击未绘制的 cell 搜索结果：把它追加到现有 roots 后显示。
+- 点击不在当前画布定位图中的 cell 搜索结果：把它追加到现有 roots 后显示。
 - 点击搜索结果的 `+ Focus` 或 View 区的 `Add selected`：明确追加。
 - 点击 `Set selected as Focused`：明确清空旧集合并只保留当前 cell。
 

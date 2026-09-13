@@ -63,13 +63,13 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、层次 occurrence context 已落地，层次 graph projection/UI 仍待补齐 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、occurrence context 与 renderer-neutral projection 已落地，标准 layout/Scene 接线与 breadcrumb UI 仍待补齐 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：cached override、局部 reroute、frame coalescing 已有，artifact 接管尚未完成 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache 已接入 full graph/auto layout，cached override、局部 reroute、frame coalescing 已有；JobCoordinator/单侧异步接管与 30% 改善证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
-| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、Single 快捷键已接入，Compare compound/迁移待补齐 |
+| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、Single 快捷键与 Compare compound 恢复已接入；旧 module history 迁移与完整 command-bus 收口仍待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
-| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计与显式 Whole 已落地，单侧异步 job/artifact 待补齐 |
+| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history 与共享 artifact cache 已落地；单侧异步 job/取消状态仍待补齐 |
 
 ## 4. 核心设计
 
@@ -395,6 +395,27 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 层次投影增量：`netlistFeature.projectHierarchy()` 将有界 hierarchical cone 转为 renderer-neutral
   graph contract，并在每个 node ref 上保留 occurrence path；该接口已用重复 occurrence 单测覆盖，尚未
   接入主画布的标准 layout/Scene 流程。
+
+### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
+
+- Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
+  side viewport 与 side override；Ctrl+Z/Ctrl+Shift+Z/按钮在 Compare 中可恢复同一 compound 状态，恢复过程
+  不再次入栈。浏览器冒烟验证切换 Conventional gate、进入 Compare、选择对象、Ctrl+Z 后 Compare 仍可见且
+  选择被撤回。
+- Artifact cache：新增 `workspaceArtifactCache`，默认有界 LRU（24 条），key 显式包含 document/source/session、
+  module/occurrence、query/depth、provider/layout policy、graph override 等 identity；full graph 与 auto-layout
+  artifact 已接入 Single/Compare workspace，支持按 document/session 清理。selection/viewport 不参与 key，
+  不会淘汰有效 layout。
+- 回归修复：Compare selection 控件路径补齐 selected-net 判定；此前浏览器冒烟暴露的两个 `ReferenceError`
+  已修复，重新加载后 Compare selection 与历史恢复均无新增错误。
+- 验证：`npm test` 通过（460 tests）；`npm run benchmark` 当前中位数为 1K/4K/8K pipeline
+  `204.9/1175.0/3417.0 ms`，layout `139.3/926.8/2863.8 ms`，progressive first batch
+  `1.5/1.1/1.1 ms`；`npm run release:windows` 通过（单元、启动器 smoke、离线 ZIP 与 SHA-256），最新
+  包为 `dist/NetlistGraphBuilder-v0.7.3-win-x64.zip`，SHA-256
+  `68eba593d78d17932a0cc9529caa528c66749bf63da2ded4a38c4af9ff8a2bf9`。
+- 未完成与偏差：mapped worker 既有基线仍报告 40/47 violation（`missing-route`/
+  `wire-route-disconnected`），本轮未宣称通过；artifact/job 尚未完全替换 UI 的同步 render pipeline，
+  单侧取消/进度及标准 hierarchical projection/Scene、breadcrumb UI 仍是 Stage 8 收口项。
 
 ## 6. 验证矩阵
 
