@@ -381,6 +381,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   调用计数测试。
 - 验证：`npm test` 通过（457 tests）；新增 View History、Compare deferred layout、occurrence
   context、Search reveal 回归测试。
+- 性能复测：`npm run benchmark` 中位数为 1K/4K/8K pipeline `170.5/975.8/2870.3 ms`，layout
+  `113.8/764.0/2372.1 ms`，progressive first batch `1.4/1.1/1.1 ms`。与本轮前记录
+  `157/952.1/2951.6 ms` 同量级，未观察到按图规模增长的新增 cliff；Compare Search-first 的
+  零 provider 路径由计数测试覆盖。
 - 偏差与未完成：Compare compound history、单侧异步 job/artifact 接管、真正的层次 graph
   projection/breadcrumb UI、artifact cache 失效矩阵、浏览器和 Windows 离线发布验收仍未完成；
   Stage 8 继续保持“进行中”。
