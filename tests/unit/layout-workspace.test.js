@@ -63,6 +63,24 @@ test("layout workspace preserves asynchronous providers", async () => {
   assert.equal(resolved.graph, resolved.autoGraph);
 });
 
+test("layout workspace forwards job cancellation metadata to providers", () => {
+  const controller = new AbortController();
+  let received;
+  const provider = {
+    layout(value, options) {
+      received = options;
+      return structuredClone(value);
+    }
+  };
+  layoutWorkspaceGraph(graph, {
+    layoutProvider: provider,
+    signal: controller.signal,
+    jobId: "job:layout-1"
+  });
+  assert.equal(received.signal, controller.signal);
+  assert.equal(received.jobId, "job:layout-1");
+});
+
 test("cached workspace overrides never rerun the layout provider", () => {
   let providerCalls = 0;
   const provider = {

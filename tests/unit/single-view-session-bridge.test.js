@@ -120,6 +120,14 @@ test("single view session bridge projects layout policy and invalidates computat
   assert.equal(result.session.computationRevision, before + 1);
 });
 
+test("single view session bridge exposes an explicit computation boundary", () => {
+  const { adapter } = setup();
+  const before = adapter.beginComputation();
+  const next = adapter.beginComputation();
+  assert.equal(next.sessionId, before.sessionId);
+  assert.equal(next.computationRevision, before.computationRevision + 1);
+});
+
 test("single view session bridge owns immutable-style override replacement", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "overrides.set", overrides: {

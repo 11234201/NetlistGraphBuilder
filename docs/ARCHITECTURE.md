@@ -347,8 +347,8 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 当前是经过测试的下一步产品端口；
   `workspaceArtifactCache` 已接入 Single/Compare workspace，但 JobCoordinator/ArtifactStore 尚未
   完整替换 `workspaceRequest.js` 和主入口中的全部异步/Compare 编排，不能把端口存在误写成产品已接管。
-  Compare workspace 已先在自身边界提供 per-side abort/status 与 controller identity 校验，作为迁移
-  到 JobCoordinator 前的兼容层。
+  ELK Single/Compare 已通过 JobCoordinator 提交，Simple Layered 同步路径与 workspaceRequest 仍是
+  兼容快速路径；Compare workspace 还保留 per-side abort/status 与 controller identity 校验。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。

@@ -116,6 +116,8 @@ import {
 import { executeStartupManifest, fetchStartupManifest } from "./startupController.js";
 import { createDocumentStore } from "../application/document_store.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
+import { createArtifactStore } from "../application/artifact_store.js";
+import { createJobCoordinator } from "../application/job_coordinator.js";
 import {
   canStepModuleHistory,
   createModuleHistoryEntry,
@@ -137,6 +139,12 @@ const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
 const documents = createDocumentStore();
 const viewSessions = createViewSessionStore();
+const workspaceArtifacts = createArtifactStore();
+const workspaceJobs = createJobCoordinator({
+  documents,
+  sessions: viewSessions,
+  artifacts: workspaceArtifacts
+});
 const singleViewSession = createSingleViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null,
@@ -610,6 +618,7 @@ function loadDesign(source, label, restore = null) {
       label,
       diagnostics: design.diagnostics?.length || 0
     });
+    if (state.document?.documentId) workspaceJobs.cancelDocument(state.document.documentId);
     state.document = documents.open(documentEnvelope);
     viewSessions.closeByDocument(documentEnvelope.documentId);
     state.design = design;
@@ -749,6 +758,8 @@ function applyCompareSelection() {
 function exitCompareView() {
   state.compare.layoutAbortController?.abort();
   state.compare.layoutAbortController = null;
+  workspaceJobs.cancelSession("compare:left");
+  workspaceJobs.cancelSession("compare:right");
   beginWorkspaceRequest(state);
   saveCompareWorkspace(state);
   state.compare.active = false;
@@ -785,13 +796,14 @@ function renderCompareGraphs(options = {}) {
   recordViewHistory();
   const request = beginWorkspaceRequest(state);
   const requestId = request.id;
+  const compareLayoutProvider = getCurrentLayoutProvider();
   logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
-    provider: getCurrentLayoutProvider().id
+    provider: compareLayoutProvider.id
   });
-  const workspace = buildCompareWorkspace({
+  const workspaceOptions = {
     leftModule,
     rightModule,
-    layoutProvider: getCurrentLayoutProvider(),
+    layoutProvider: compareLayoutProvider,
     layoutPolicy: state.layoutPolicy,
     outputName: state.compare.outputName,
     coneDepth: state.coneDepth,
@@ -826,11 +838,34 @@ function renderCompareGraphs(options = {}) {
       if (state.compare.layoutAbortController !== layoutController) return;
       updateCompareSideStatus(side, side === "left" ? leftModule : rightModule, status);
     }
-  });
+  };
   const renderOptions = { ...options, layoutController };
+  if (compareLayoutProvider.id === "elk-layered") {
+    const leftSession = compareViewSessions.beginComputation("left");
+    compareViewSessions.beginComputation("right");
+    const job = workspaceJobs.start({
+      sessionId: leftSession.sessionId,
+      kind: "compare-workspace",
+      run: (context) => buildCompareWorkspace({
+        ...workspaceOptions,
+        signal: context.signal
+      })
+    });
+    logProcess("info", "layout", `Compare layout started (${compareLayoutProvider.label})`, {
+      requestId,
+      jobId: job.context.jobId
+    });
+    setStatus(`Layout (${compareLayoutProvider.label})…`);
+    job.promise.then(request.guard((result) => {
+      if (result.status !== "committed") return;
+      commitCompareWorkspace(result.artifact.value, leftModule, rightModule, renderOptions);
+    })).catch(request.guard(handleLayoutFailure));
+    return;
+  }
+  const workspace = buildCompareWorkspace(workspaceOptions);
   if (isPromise(workspace)) {
-    logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
-    setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
+    logProcess("info", "layout", `Compare layout started (${compareLayoutProvider.label})`, { requestId });
+    setStatus(`Layout (${compareLayoutProvider.label})…`);
     workspace.then(request.guard((result) => {
       commitCompareWorkspace(result, leftModule, rightModule, renderOptions);
     })).catch(request.guard(handleLayoutFailure));
@@ -1174,7 +1209,7 @@ function renderCurrentModuleGraph(options = {}) {
     viewMode: state.viewMode,
     provider: layoutProvider.id
   });
-  const workspace = buildModuleWorkspace({
+  const workspaceOptions = {
     module: state.currentModule,
     moduleLibrary: state.design.modules,
     graphOverrides: state.graphOverrides,
@@ -1209,6 +1244,26 @@ function renderCurrentModuleGraph(options = {}) {
       sessionId: "single",
       unitId: state.currentModule?.name || null
     }
+  };
+  if (layoutProvider.id === "elk-layered") {
+    const session = singleViewSession.beginComputation();
+    const job = workspaceJobs.start({
+      sessionId: session.sessionId,
+      kind: "single-workspace",
+      run: (context) => buildModuleWorkspaceForJob(workspaceOptions, context.signal)
+    });
+    logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId, jobId: job.context.jobId });
+    setStatus(`Layout (${layoutProvider.label})…`);
+    job.promise.then(request.guard((result) => {
+      if (result.status !== "committed") return;
+      commitCurrentWorkspace(result.artifact.value, options);
+    })).catch(request.guard(handleLayoutFailure));
+    return;
+  }
+  const workspace = buildModuleWorkspace({
+    ...workspaceOptions,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth
   });
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId });
@@ -1219,6 +1274,10 @@ function renderCurrentModuleGraph(options = {}) {
     return;
   }
   commitCurrentWorkspace(workspace, options);
+}
+
+function buildModuleWorkspaceForJob(options, signal) {
+  return buildModuleWorkspace({ ...options, signal });
 }
 
 function resolveHierarchyFocusedRoot() {

@@ -115,6 +115,10 @@ export function createCompareViewSessionBridge({ state, getDocumentId, sessions 
 
   return Object.freeze({
     sessions, ensure, replaceRoots, dispatch,
+    beginComputation(side) {
+      const current = synchronize(side);
+      return sessions.update(current.sessionId, () => ({}));
+    },
     objectRef(side, kind, localId) {
       const session = ensure(side);
       const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];

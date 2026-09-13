@@ -70,6 +70,10 @@ export function createSingleViewSessionBridge({
       });
       return result;
     },
+    beginComputation() {
+      const current = synchronizeSession();
+      return sessions.update(current.sessionId, () => ({}));
+    },
     objectRefForNode(node) {
       return nodeToRef(node, getDocumentId(), state.currentModule?.name);
     },

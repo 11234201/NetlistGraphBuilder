@@ -16,7 +16,11 @@ export function layoutWorkspaceGraph(graph, options) {
 }
 
 export function layoutWorkspaceGraphAutomatically(graph, options) {
-  const layoutResult = options.layoutProvider.layout(graph, { layoutPolicy: options.layoutPolicy });
+  const layoutResult = options.layoutProvider.layout(graph, {
+    layoutPolicy: options.layoutPolicy,
+    signal: options.signal,
+    jobId: options.jobId
+  });
   const finalize = (providerGraph) => addWorkspaceHeadroom(providerGraph, options.layoutPolicy);
   return isPromise(layoutResult) ? layoutResult.then(finalize) : finalize(layoutResult);
 }

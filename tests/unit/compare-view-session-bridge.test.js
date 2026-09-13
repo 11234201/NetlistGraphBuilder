@@ -32,6 +32,24 @@ test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
   assert.equal(activated.session.computationRevision, before);
 });
 
+test("compare bridge exposes independent computation boundaries", () => {
+  const state = {
+    compare: {
+      leftModuleName: "left",
+      rightModuleName: "right",
+      fullGraphs: { left: { nodes: [] }, right: { nodes: [] } }
+    },
+    layoutPolicy: { name: "default" },
+    presentationPolicy: { gateSymbolMode: "rectangle" }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const leftBefore = adapter.beginComputation("left");
+  const rightBefore = adapter.beginComputation("right");
+  const leftNext = adapter.beginComputation("left");
+  assert.equal(leftNext.computationRevision, leftBefore.computationRevision + 1);
+  assert.equal(adapter.sessions.require("compare:right").computationRevision, rightBefore.computationRevision);
+});
+
 test("compare session identity resets when its module changes", () => {
   const state = {
     compare: {
