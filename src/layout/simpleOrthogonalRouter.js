@@ -774,9 +774,7 @@ function getOwnedRouteSegments(points, edge) {
   return getRouteSegments(points, edge.net, physicalOwner).map((segment) => ({
     ...segment,
     physicalOwner,
-    netGroupKey: physicalOwner,
-    sourceNodeId: edge.source,
-    targetNodeId: edge.target
+    netGroupKey: physicalOwner
   }));
 }
 
