@@ -124,8 +124,19 @@ test("pan and client conversion use viewBox-to-viewport scale", () => {
   );
   assert.equal(
     formatViewportTransform({ x: 1.23456, y: 7.89123, scale: 1.23456 }),
-    "translate(1.235 7.891) scale(1.235)"
+    "scale(1.235) translate(1 6.392)"
   );
+});
+
+test("viewport transform keeps large-canvas translation operands near graph coordinates", () => {
+  const transform = formatViewportTransform({
+    x: -18394994.186,
+    y: -55530965.356,
+    scale: 895.678
+  });
+
+  assert.equal(transform, "scale(895.678) translate(-20537.508 -61998.805)");
+  assert.doesNotMatch(transform, /18394994|55530965/);
 });
 
 test("pan uses the limiting SVG meet scale on very wide schematics", () => {

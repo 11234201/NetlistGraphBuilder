@@ -178,7 +178,10 @@ export function clientPointToViewBox(client, viewport, viewBox) {
 }
 
 export function formatViewportTransform(transform) {
-  return `translate(${round(transform.x)} ${round(transform.y)}) scale(${round(transform.scale)})`;
+  const scale = positiveNumber(transform?.scale, 1);
+  const translatedX = finiteNumber(transform?.x, 0) / scale;
+  const translatedY = finiteNumber(transform?.y, 0) / scale;
+  return `scale(${round(scale)}) translate(${round(translatedX)} ${round(translatedY)})`;
 }
 
 function safeRatio(viewBoxWidth, viewportWidth) {
