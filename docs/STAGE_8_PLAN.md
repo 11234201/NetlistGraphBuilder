@@ -414,8 +414,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   不再只恢复 module 名称和局部 selection。新增回归后 `npm test` 通过（463 tests）。
 - 该提交后的 Windows 离线包仍通过 `npm run release:windows`，SHA-256 为
   `542a6e8f22ffc1d74acc574b04b8d157032402f7803b3d4ff1ff50730f19a2d9`。
-- 当前 benchmark（3-run median）为 1K/4K/8K pipeline `211.8/1189.5/3551.9 ms`，layout
-  `146.7/933.6/2939.4 ms`，progressive first batch `1.7/1.1/1.2 ms`；与上一基线处于同一量级，
+- 当前 benchmark（3-run median）为 1K/4K/8K pipeline `191.9/1126.2/3209.5 ms`，layout
+  `126.0/874.1/2651.7 ms`，progressive first batch `1.7/1.3/1.4 ms`；与上一基线处于同一量级，
   尚不能把 R8-3 的 30% 改善写成已达成。
 - mapped fixture 复核仍为 47 个 case 中 40 个失败、`34955/120` violations、`hardInvariants=false`；
   失败仍集中于 worker 直达路径的 `missing-route`/`wire-route-disconnected`，未观察到由 occurrence
@@ -432,6 +432,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   JobCoordinator 已完全替代 `workspaceRequest.js`。
 - 当前代码的 Windows 离线包已通过 `npm run release:windows`，SHA-256 为
   `542a6e8f22ffc1d74acc574b04b8d157032402f7803b3d4ff1ff50730f19a2d9`。
+- 浏览器 smoke：重新加载当前本地包后进入 Compare，双侧 schematic、Compare 面板、Diagnostics 和
+  Process Log 均正常；`tab.dev.logs()` 返回空错误集。
 
 ### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
 
