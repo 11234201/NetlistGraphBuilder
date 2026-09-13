@@ -37,6 +37,7 @@
 | `2c8837f` | `capacityOverflow` 贯穿 `allocationByNet` 与 edge/routing metrics，并拒绝把 `null` 坐标强制转换成合法 `y=0` lane | strict 结果能区分 overflow 与非 overflow physical net；不再接受伪通道 |
 | `db91238` | `createGlobalFallback()` 实际传递 bounded `capacityLaneYs` | 已规划的最多 24 个 lane hint 进入主 global search；dp020/sop015 strict missing-route 分别减少 47/103 |
 | `b86dab5` | 将无坐标的 capacity-blocked edge 先尝试 direct、再尝试一次去除失效 lane hint 的 bounded local/global overflow corridor；所有候选仍经过 node/foreign-net hard validation；无合法候选时 `findObstacleAvoidingRoute()` 返回 `null`，由 provider 统一发布 `unroutable` | eq012 Focused spacing 88 的 `_2406_` 入口保持零垂直重叠；dp020 strict 由 2278 降至 1933 条 missing-route（413 条使用显式 overflow corridor），sop015 strict 由 3193 条使用显式 overflow corridor 362 条；搜索仍为固定数量候选，但 dense case 的耗时/堆占用需要继续观测 |
+| `77833c1` | capacity-blocked fanout 先按完整 physical-net group 试用共享 trunk 的 overflow tree；整组通过 connectivity、node 和 foreign-owner 校验后一次性提交，否则回退到原子 per-edge overflow trial；collapsed group source 允许进入同一 tree 合同 | 避免逐 branch 贪心造成重复 trunk/断连；新增 group-source 与 capped fanout atomic tree 单测，仍不增加全图重试或放宽硬校验 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
