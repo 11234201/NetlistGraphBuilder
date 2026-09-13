@@ -7,6 +7,7 @@ import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
+import { analyzeHierarchicalCone, projectHierarchicalRenderGraph } from "../domains/netlist/hierarchy_connectivity.js";
 import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
 
 export function buildModuleWorkspace(options) {
@@ -38,10 +39,11 @@ export function buildModuleWorkspace(options) {
     nodeSizes = new Map(),
     preparedFullGraph = null,
     occurrencePath = null,
+    hierarchyRoot = null,
     artifactCache = null,
     artifactIdentity = null
   } = options;
-  const fullGraph = preparedFullGraph || buildModuleFullGraph({
+  let fullGraph = preparedFullGraph || buildModuleFullGraph({
     module,
     moduleLibrary,
     graphOverrides,
@@ -55,6 +57,34 @@ export function buildModuleWorkspace(options) {
     artifactCache,
     artifactIdentity
   });
+  if (!preparedFullGraph && hierarchyRoot && moduleLibrary.length > 0 && viewMode === "focused") {
+    const hierarchyIdentity = artifactIdentity && {
+      ...artifactIdentity,
+      stage: "hierarchical-cone",
+      hierarchyRoot,
+      faninDepth,
+      fanoutDepth
+    };
+    const hierarchyKey = hierarchyIdentity ? createWorkspaceArtifactKey(hierarchyIdentity) : null;
+    const cachedHierarchy = artifactCache && hierarchyKey ? artifactCache.get(hierarchyKey) : null;
+    if (cachedHierarchy) {
+      fullGraph = cachedHierarchy;
+    } else {
+      const result = analyzeHierarchicalCone({ modules: moduleLibrary }, hierarchyRoot, {
+        faninDepth,
+        fanoutDepth,
+        maximumVisibleNodes: 512,
+        maximumFrontier: 1024
+      });
+      fullGraph = projectHierarchicalRenderGraph(result, {
+        documentId: artifactIdentity?.documentId || "hierarchy:workspace"
+      });
+      if (artifactCache && hierarchyKey) artifactCache.put(hierarchyKey, fullGraph, {
+        documentId: artifactIdentity?.documentId,
+        sessionId: artifactIdentity?.sessionId
+      });
+    }
+  }
   if (viewMode === "search-first") {
     const emptyGraph = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
     return {
@@ -99,7 +129,7 @@ export function buildModuleWorkspace(options) {
   const pipeline = runViewPipeline({
     query: () => ({
       fullGraph,
-      graph: selectWorkspaceGraphView(fullGraph, {
+      graph: hierarchyRoot ? fullGraph : selectWorkspaceGraphView(fullGraph, {
         viewMode,
         rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
         rootNetIds: focusedRootNetIds,

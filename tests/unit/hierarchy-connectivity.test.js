@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   analyzeHierarchicalCone,
   buildModuleConnectivityTemplates,
-  projectHierarchicalCone
+  projectHierarchicalCone,
+  projectHierarchicalRenderGraph
 } from "../../src/domains/netlist/hierarchy_connectivity.js";
 
 const pin = (name, net) => ({ pin: name, pinDisplayName: name, net, netDisplayName: net });
@@ -121,4 +122,18 @@ test("hierarchical cone projection preserves occurrence-aware references", () =>
   assert.ok(childCell);
   assert.deepEqual(childCell.ref.occurrencePath, ["u_left"]);
   assert.equal(graph.view.mode, "hierarchical-cone");
+});
+
+test("hierarchical projection adapts to the standard layout graph contract", () => {
+  const result = analyzeHierarchicalCone(createDesign(), {
+    rootModuleName: "top", kind: "net", localId: "din"
+  }, { direction: "fanout", fanoutDepth: 1 });
+  const graph = projectHierarchicalRenderGraph(result, { documentId: "doc:hierarchy" });
+  assert.ok(graph.nodes.some((node) => node.kind === "hub"));
+  assert.ok(graph.nodes.some((node) => node.kind === "cell" && node.portDescriptors.length === 2));
+  assert.ok(graph.edges.every((edge) => edge.sourcePin && edge.targetPin && edge.net));
+  assert.deepEqual(
+    graph.nodes.find((node) => node.kind === "cell" && node.ref.localId === "u_leaf")?.ref.occurrencePath,
+    ["u_left"]
+  );
 });

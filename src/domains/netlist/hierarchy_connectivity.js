@@ -1,4 +1,4 @@
-import { inferPinDirection } from "../../infer/defaultCellRules.js";
+import { inferCellKind, inferPinDirection } from "../../infer/defaultCellRules.js";
 
 export const DEFAULT_HIERARCHY_CONE_LIMITS = Object.freeze({
   faninDepth: 3,
@@ -170,7 +170,7 @@ export function analyzeHierarchicalCone(design, root, options = {}) {
 
   const directions = normalizeDirections(options.direction);
   const queues = [];
-  seedRoot(result, queues, context, root, directions, limits);
+  seedRoot(result, queues, context, root, directions, limits, templates);
   const visited = new Map();
 
   while (queues.length > 0) {
@@ -198,6 +198,9 @@ export function projectHierarchicalCone(result, options = {}) {
     kind: node.kind,
     label: node.label || node.localId,
     moduleName: node.moduleName,
+    localId: node.localId,
+    direction: node.direction || null,
+    type: node.type || null,
     occurrencePath: [...(node.occurrencePath || [])],
     ref: {
       documentId,
@@ -225,7 +228,87 @@ export function projectHierarchicalCone(result, options = {}) {
   };
 }
 
-function seedRoot(result, queues, context, root, directions, limits) {
+/**
+ * Adapt a hierarchical projection to the renderer-neutral graph contract used
+ * by the regular measure/layout/Scene pipeline. Net nodes become explicit hubs;
+ * this keeps occurrence identity visible without flattening the source design.
+ */
+export function projectHierarchicalRenderGraph(result, options = {}) {
+  const projection = projectHierarchicalCone(result, options);
+  const renderId = (node) => {
+    const path = node.occurrencePath?.join("/") || "top";
+    if (node.kind === "cell") return path === "top" ? `cell:${node.localId}` : `cell:${path}/${node.localId}`;
+    if (node.kind === "net") return `hub:${path}/${node.localId}`;
+    return `${node.kind}:${path}/${node.localId}`;
+  };
+  const idMap = new Map(projection.nodes.map((node) => [node.id, renderId(node)]));
+  const nodes = projection.nodes.map((node) => {
+    const id = idMap.get(node.id);
+    if (node.kind === "net") {
+      return {
+        ...node,
+        id,
+        kind: "hub",
+        label: node.label,
+        title: "NET",
+        subtitle: node.moduleName,
+        ref: { ...node.ref, kind: "net" }
+      };
+    }
+    if (node.kind === "port") {
+      const kind = node.direction === "output" ? "output" : "input";
+      return { ...node, id, kind, title: kind.toUpperCase(), ref: { ...node.ref, kind } };
+    }
+    if (node.kind === "cell") {
+      const inferred = inferCellKind(node.type || node.label);
+      return {
+        ...node,
+        id,
+        gateKind: inferred.kind,
+        inferenceSource: inferred.source,
+        title: inferred.kind.toUpperCase(),
+        subtitle: node.type || node.moduleName,
+        pinDirections: { IN: { direction: "input", role: "data" }, OUT: { direction: "output", role: "data" } },
+        portDescriptors: [
+          { pin: "IN", rawPin: "IN", direction: "input", role: "data", side: "left" },
+          { pin: "OUT", rawPin: "OUT", direction: "output", role: "data", side: "right" }
+        ]
+      };
+    }
+    return { ...node, id };
+  });
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const edges = projection.edges.map((edge) => {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    const net = source?.kind === "hub" ? source.label : target?.kind === "hub" ? target.label : edge.id;
+    return {
+      id: edge.id,
+      source: idMap.get(edge.source),
+      target: idMap.get(edge.target),
+      net,
+      sourcePin: "OUT",
+      targetPin: "IN",
+      sourceRole: "source",
+      targetRole: "target",
+      relation: edge.relation,
+      depth: edge.depth
+    };
+  });
+  return {
+    ...projection,
+    nodes,
+    edges,
+    stats: {
+      ports: nodes.filter((node) => node.kind === "input" || node.kind === "output").length,
+      nets: nodes.filter((node) => node.kind === "hub").length,
+      cells: nodes.filter((node) => node.kind === "cell").length,
+      assigns: nodes.filter((node) => node.kind === "assign").length
+    }
+  };
+}
+
+function seedRoot(result, queues, context, root, directions, limits, templates) {
   const template = context.template;
   const rootKind = root?.kind || "net";
   const rootId = root?.localId || root?.name;
@@ -244,6 +327,32 @@ function seedRoot(result, queues, context, root, directions, limits) {
           relation: direction,
           terminalId: pin.name
         });
+      }
+    }
+    // A hierarchical instance is also a boundary seed: follow an input port
+    // inward for fanout and an output port inward for fanin so the local cone
+    // can include real logic inside the child definition.
+    if (cell.childModuleName) {
+      const childTemplate = templates.get(cell.childModuleName);
+      const childContext = resolveOccurrenceContext(templates, result.rootModuleName, [
+        ...context.occurrencePath,
+        cell.instance
+      ]);
+      if (childTemplate && childContext) {
+        for (const pin of cell.pins) {
+          const childPort = childTemplate.portByName.get(pin.childPortName || pin.name);
+          if (!childPort) continue;
+          const inwardDirection = childPort.direction === "input"
+            ? "fanout"
+            : childPort.direction === "output" ? "fanin" : null;
+          if (!inwardDirection || !directions.includes(inwardDirection)) continue;
+          enqueue(queues, result, childContext, childPort.name, inwardDirection, 0,
+            inwardDirection === "fanin" ? limits.faninDepth : limits.fanoutDepth, {
+              from: nodeKey(context, "cell", cell.instance),
+              relation: "module-boundary",
+              moduleAncestry: [...context.moduleAncestry, cell.childModuleName]
+            });
+        }
       }
     }
     return;
@@ -423,6 +532,8 @@ function addNode(result, context, kind, localId, terminalId = null, extra = {}) 
     occurrencePath: Object.freeze([...context.occurrencePath]),
     localId,
     ...(terminalId && kind !== "cell" ? { terminalId } : {}),
+    ...(extra.direction ? { direction: extra.direction } : {}),
+    ...(extra.pin ? { pin: extra.pin } : {}),
     ...("label" in extra ? { label: extra.label } : {}),
     ...(extra.type ? { type: extra.type } : {})
   });

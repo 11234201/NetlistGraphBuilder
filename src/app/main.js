@@ -1127,6 +1127,7 @@ function renderCurrentModuleGraph(options = {}) {
   const request = beginWorkspaceRequest(state);
   const requestId = request.id;
   const layoutProvider = getCurrentLayoutProvider();
+  const hierarchyRoot = resolveHierarchyFocusedRoot();
   logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
     viewMode: state.viewMode,
     provider: layoutProvider.id
@@ -1150,6 +1151,7 @@ function renderCurrentModuleGraph(options = {}) {
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
     occurrencePath: state.occurrenceContext?.occurrencePath || null,
+    hierarchyRoot,
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds,
@@ -1175,6 +1177,32 @@ function renderCurrentModuleGraph(options = {}) {
     return;
   }
   commitCurrentWorkspace(workspace, options);
+}
+
+function resolveHierarchyFocusedRoot() {
+  if (state.viewMode !== "focused" || !state.currentModule || !state.fullGraph) return null;
+  const roots = normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId);
+  const rootId = roots[0];
+  if (typeof rootId === "string" && rootId.startsWith("net:")) {
+    return {
+      rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
+      moduleName: state.currentModule.name,
+      occurrencePath: state.occurrenceContext?.occurrencePath || [],
+      kind: "net",
+      localId: rootId.slice("net:".length)
+    };
+  }
+  const root = state.fullGraph.nodes.find((node) => node.id === rootId && node.kind === "cell");
+  if (!root?.referencedModuleName && !root?.ref?.type && !root?.type) return null;
+  const childType = root.referencedModuleName || root.ref?.type || root.type;
+  if (!childType || !state.design?.modules.some((module) => module.name === childType)) return null;
+  return {
+    rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
+    moduleName: state.currentModule.name,
+    occurrencePath: state.occurrenceContext?.occurrencePath || [],
+    kind: "cell",
+    localId: root.ref?.instance || root.id.replace(/^cell:/, "")
+  };
 }
 
 function commitCurrentWorkspace(workspace, options = {}) {

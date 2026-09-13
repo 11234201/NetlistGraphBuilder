@@ -63,7 +63,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、occurrence context 与 renderer-neutral projection 已落地，标准 layout/Scene 接线与 breadcrumb UI 仍待补齐 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、occurrence context 与标准 layout/Scene projection 已落地；breadcrumb、歧义 parent context 与完整路径 UI 仍待补齐 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache 已接入 full graph/auto layout，cached override、局部 reroute、frame coalescing 已有；JobCoordinator/单侧异步接管与 30% 改善证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
@@ -395,6 +395,18 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 层次投影增量：`netlistFeature.projectHierarchy()` 将有界 hierarchical cone 转为 renderer-neutral
   graph contract，并在每个 node ref 上保留 occurrence path；该接口已用重复 occurrence 单测覆盖，尚未
   接入主画布的标准 layout/Scene 流程。
+
+### Stage 8 执行记录（2026-09-13，层次投影增量）
+
+- 跨层 cone 现在从标准 `moduleWorkspace -> view pipeline -> measure/layout -> Scene` 进入主画布，
+  不再停留在 renderer-neutral graph API。`projectHierarchicalRenderGraph()` 将 occurrence-aware
+  cell/net/port 映射为普通 cell/hub/input/output 节点，补齐 gate inference、pin descriptors、net
+  edge metadata，并保持原始 occurrence path/ref。
+- hinst 作为 root 时，查询会从 child module 的 input/output port 向内部逻辑继续 seed fanout/fanin，
+  因而可见 cone 能穿过 instance boundary；深度仍只在实际逻辑 cell 上消耗，并受 frontier/node 上限约束。
+- 回归：新增层次 render graph 与 module workspace 单测；当前 `npm test` 通过（462 tests）。
+- 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
+  下方记录中的 cache/job/Compare 异步收口项。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 

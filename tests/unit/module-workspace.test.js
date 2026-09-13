@@ -6,6 +6,8 @@ import { parseVerilog } from "../../src/parser/verilogParser.js";
 
 const source = `module top (a, b, y); input a, b; output y; wire n;
 AND2X1 u0 (.A(a), .B(b), .Y(n)); BUF u1 (.A(n), .Y(y)); endmodule`;
+const hierarchySource = `module child (i, o); input i; output o; BUF u_buf (.A(i), .Y(o)); endmodule
+module top_h (a, y); input a; output y; child u_child (.i(a), .o(y)); endmodule`;
 
 function build(overrides = {}) {
   const module = parseVerilog(source).modules[0];
@@ -87,4 +89,29 @@ test("module workspace expands an encoded net Focused root without changing the 
   assert.equal(workspace.fullGraph.nodes.length, 5);
   assert.ok(workspace.graph.nodes.some((node) => node.isFocusedNetEndpoint));
   assert.ok(workspace.graph.edges.some((edge) => edge.net === "n"));
+});
+
+test("module workspace lays out an occurrence-aware hierarchical cone", () => {
+  const design = parseVerilog(hierarchySource);
+  const top = design.modules.find((module) => module.name === "top_h");
+  const workspace = buildModuleWorkspace({
+    module: top,
+    moduleLibrary: design.modules,
+    viewMode: "focused",
+    hierarchyRoot: {
+      rootModuleName: "top_h",
+      moduleName: "top_h",
+      occurrencePath: [],
+      kind: "cell",
+      localId: "u_child"
+    },
+    faninDepth: 1,
+    fanoutDepth: 1,
+    layoutProvider: getLayoutProvider(),
+    useFanoutHubs: false,
+    collapseLargeGroups: false
+  });
+  assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_child"));
+  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_child"));
+  assert.ok(workspace.graph.edges.every((edge) => edge.net));
 });
