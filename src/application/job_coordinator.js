@@ -9,19 +9,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     const key = jobKey(sessionId, kind);
     activeByKey.get(key)?.controller.abort();
     const controller = new AbortController();
-    const context = Object.freeze({
-      documentId: document.documentId,
-      sourceRevision: document.sourceRevision,
-      sessionId,
-      sessionRevision: session.sessionRevision,
-      computationRevision: session.computationRevision,
-      kind,
-      jobId: `job:${nextJobId++}`,
-      signal: controller.signal,
-      reportProgress(value) {
-        if (isCurrent(context)) onProgress(value, context);
-      }
-    });
+    const context = createContext({ document, session, sessionId, kind, controller, onProgress });
     activeByKey.set(key, { context, controller });
 
     const promise = Promise.resolve().then(() => run(context)).then(
@@ -123,7 +111,8 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
   }
 
   function createContext({ document, session, sessionId, kind, controller, onProgress }) {
-    return Object.freeze({
+    let context;
+    context = Object.freeze({
       documentId: document.documentId,
       sourceRevision: document.sourceRevision,
       sessionId,
@@ -133,10 +122,10 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
       jobId: `job:${nextJobId++}`,
       signal: controller.signal,
       reportProgress(value) {
-        const active = activeByKey.get(jobKey(sessionId, kind));
-        if (active?.context && isCurrent(active.context)) onProgress(value, active.context);
+        if (isCurrent(context)) onProgress(value, context);
       }
     });
+    return context;
   }
 
   return Object.freeze({ start, runSync, isCurrent, cancelSession, cancelDocument });

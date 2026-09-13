@@ -447,7 +447,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   (Experimental))`，运行日志为空；新增 computation boundary 与 signal forwarding 回归，当前
   `npm test` 通过（471 tests）。
 - `npm run release:windows` 已重新通过，当前离线包 SHA-256 为
-  `28d65a921881dbc44530b06ec6db348c4bc28d8a5c13eaf007f5b3c19dfd17d2`。
+  `a845c031f396d70a2791abd58c7a9c090dd4b28320039b637b22c50297c07dd9`。
 
 ### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
 
