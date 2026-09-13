@@ -39,6 +39,7 @@
 | `b86dab5` | 将无坐标的 capacity-blocked edge 先尝试 direct、再尝试一次去除失效 lane hint 的 bounded local/global overflow corridor；所有候选仍经过 node/foreign-net hard validation；无合法候选时 `findObstacleAvoidingRoute()` 返回 `null`，由 provider 统一发布 `unroutable` | eq012 Focused spacing 88 的 `_2406_` 入口保持零垂直重叠；dp020 strict 由 2278 降至 1933 条 missing-route（413 条使用显式 overflow corridor），sop015 strict 由 3193 条使用显式 overflow corridor 362 条；搜索仍为固定数量候选，但 dense case 的耗时/堆占用需要继续观测 |
 | `77833c1` | capacity-blocked fanout 先按完整 physical-net group 试用共享 trunk 的 overflow tree；整组通过 connectivity、node 和 foreign-owner 校验后一次性提交，否则回退到原子 per-edge overflow trial；collapsed group source 允许进入同一 tree 合同 | 避免逐 branch 贪心造成重复 trunk/断连；新增 group-source 与 capped fanout atomic tree 单测，仍不增加全图重试或放宽硬校验 |
 | `c1d4667` | Focused target-entry lane guard：只在存在 Focused root 时按 target 记录 external-source 纵向段；候选与 atomic tree 共享 `minimumTargetEntrySeparation=10` 合同；Whole graph 不创建 map | eq012 spacing 88 的 `_2406_` 接入 lane 从 8px 近共线间距移到 124px；本地 `428/428`；全局阈值保持 2px，避免 dense Whole 回归的容量/堆占用放大 |
+| `dce4624` | 删除 reservation segment 上未被 validator/router 消费的 source/target 元数据 | 保持 target-entry map 为 Focused-only 的轻量状态；同步 strict dp020/sop015 heap 约 `229/205 MiB`，没有为 Whole 图增加字段开销 |
 
 严格门禁现在可通过 `npm run test:mapped-hard` 显式运行；普通 `npm run test:mapped-cases` 保留历史质量预算，便于在算法迭代时观察趋势。严格门禁的默认预算为每 case/全 corpus 均为零，不会把硬错误隐藏为“允许 32/120 项”。
 
