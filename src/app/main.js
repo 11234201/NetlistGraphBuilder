@@ -3182,7 +3182,7 @@ function handlePointerDown(event) {
       applyTransform(false);
     },
     onEnd({ didPan, cancelled }) {
-      persistSession();
+      if (didPan && !cancelled) persistSession();
       if (!didPan && !cancelled) setSelectedNode(null);
     }
   });
@@ -3609,7 +3609,9 @@ function handleComparePointerDown(event) {
     svg,
     transform: state.compare.transforms[side],
     commit: (transform) => setCompareTransform(side, transform),
-    onEnd: persistSession
+    onEnd({ didPan, cancelled }) {
+      if (didPan && !cancelled) persistSession();
+    }
   });
 }
 
