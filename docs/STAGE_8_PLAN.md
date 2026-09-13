@@ -523,6 +523,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `renderGeneration.js` 取代旧的应用级 `workspaceRequest.js`：JobCoordinator 负责计算 job 的
   document/session/source revision，render generation 只保护渐进 DOM mount；新增旧回调淘汰回归后
   `npm test` 通过（480 tests）。
+- `npm run release:windows` 重新通过（480 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），
+  当前包 SHA-256 为 `f8786a1cc218343684fca3a0e52e63d2ea0a0676a759f005aecf6486ffda7000`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
