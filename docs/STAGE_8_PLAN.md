@@ -65,11 +65,11 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、occurrence context 与标准 layout/Scene projection 已落地；breadcrumb、歧义 parent context 与完整路径 UI 仍待补齐 |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache 已接入 full graph/auto layout，cached override、局部 reroute、frame coalescing 已有；JobCoordinator/单侧异步接管与 30% 改善证据仍待补齐 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；JobCoordinator 全量接管与 30% 改善证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、Single 快捷键与 Compare compound 恢复已接入；旧 module history 迁移与完整 command-bus 收口仍待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
-| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history 与共享 artifact cache 已落地；单侧异步 job/取消状态仍待补齐 |
+| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history、共享 artifact cache 与 per-side loading/cancel 状态已落地；JobCoordinator/持久 artifact 接管仍待补齐 |
 
 ## 4. 核心设计
 
@@ -422,6 +422,15 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   projection 引入的新失败类别，因此 Stage 8 继续保持进行中。
 - 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
   下方记录中的 cache/job/Compare 异步收口项。
+
+### Stage 8 执行记录（2026-09-13，Compare 侧生命周期）
+
+- `buildCompareWorkspace()` 现在接受 `AbortSignal`，并为 left/right 独立发出 `loading`、`ready`、
+  `failed`、`cancelled` 状态；任一新 Compare 请求或退出 Compare 都会 abort 旧请求，旧侧结果不会再
+  提交到画布。Search-first 侧仍不调用 layout provider。
+- 主入口将侧状态显示在 Compare 两侧 header，并在提交前校验 controller identity；新增异步布局取消回归，
+  当前 `npm test` 通过（464 tests）。这收口了 UI 层的 stale-result/cancel 语义，但尚未宣称
+  JobCoordinator 已完全替代 `workspaceRequest.js`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 

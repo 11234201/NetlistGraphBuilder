@@ -747,6 +747,9 @@ function applyCompareSelection() {
 }
 
 function exitCompareView() {
+  state.compare.layoutAbortController?.abort();
+  state.compare.layoutAbortController = null;
+  beginWorkspaceRequest(state);
   saveCompareWorkspace(state);
   state.compare.active = false;
   updateFocusSelectedControl();
@@ -776,6 +779,9 @@ function renderCompareGraphs(options = {}) {
   const leftModule = getCompareModule("left");
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
+  state.compare.layoutAbortController?.abort();
+  const layoutController = new AbortController();
+  state.compare.layoutAbortController = layoutController;
   recordViewHistory();
   const request = beginWorkspaceRequest(state);
   const requestId = request.id;
@@ -814,20 +820,30 @@ function renderCompareGraphs(options = {}) {
       sourceRevision: state.document?.sourceRevision || 0,
       sourceIdentity: state.sourceIdentity || null,
       sessionId: "compare"
+    },
+    signal: layoutController.signal,
+    onSideStatus: (side, status) => {
+      if (state.compare.layoutAbortController !== layoutController) return;
+      updateCompareSideStatus(side, side === "left" ? leftModule : rightModule, status);
     }
   });
+  const renderOptions = { ...options, layoutController };
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
     setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
     workspace.then(request.guard((result) => {
-      commitCompareWorkspace(result, leftModule, rightModule, options);
+      commitCompareWorkspace(result, leftModule, rightModule, renderOptions);
     })).catch(request.guard(handleLayoutFailure));
     return;
   }
-  commitCompareWorkspace(workspace, leftModule, rightModule, options);
+  commitCompareWorkspace(workspace, leftModule, rightModule, renderOptions);
 }
 
 function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}) {
+  if (options.layoutController && (
+    state.compare.layoutAbortController !== options.layoutController || options.layoutController.signal.aborted
+  )) return;
+  if (state.compare.layoutAbortController === options.layoutController) state.compare.layoutAbortController = null;
   state.compare.fullGraphs = workspace.fullGraphs;
   state.compare.autoGraphs = workspace.autoGraphs;
   state.compare.graphs = workspace.graphs;
@@ -852,8 +868,18 @@ function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}
       rightNodes: state.compare.graphs.right.nodes.length
     });
     setStatus(`Compare ready (${getCurrentLayoutProvider().label})`);
-    options.onCommitted?.();
+  options.onCommitted?.();
   });
+}
+
+function updateCompareSideStatus(side, module, status) {
+  const header = elements.compareMount.querySelector(`[data-compare-side="${side}"] > header`);
+  if (!header) return;
+  const label = module?.displayName || module?.name || side;
+  header.textContent = status === "loading"
+    ? `${label} · Loading…`
+    : status === "failed" ? `${label} · Failed`
+      : status === "cancelled" ? `${label} · Cancelled` : label;
 }
 
 function renderCompareOutputOptions(left, right) {

@@ -88,7 +88,8 @@ export function createCompareState() {
     wholeRequested: false,
     focusedRootNodeIds: { left: [], right: [] },
     activeFocusedRootNodeId: { left: null, right: null },
-    analysis: null
+    analysis: null,
+    layoutAbortController: null
   };
 }
 

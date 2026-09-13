@@ -119,3 +119,28 @@ test("large compare modules stay Search-first until a cone or Whole is requested
   const whole = buildCompareWorkspace({ leftModule, rightModule, layoutProvider: getLayoutProvider(), forceWhole: true });
   assert.ok(whole.graphs.left.nodes.length > 0);
 });
+
+test("compare workspace reports side lifecycle and cancels stale async layouts", async () => {
+  const [leftModule, rightModule] = parseVerilog(source).modules;
+  const pending = [];
+  const statuses = [];
+  const controller = new AbortController();
+  const provider = {
+    layout(graph) {
+      return new Promise((resolve) => pending.push(() => resolve(getLayoutProvider().layout(graph))));
+    }
+  };
+  const workspacePromise = buildCompareWorkspace({
+    leftModule,
+    rightModule,
+    layoutProvider: provider,
+    signal: controller.signal,
+    onSideStatus: (side, status) => statuses.push(`${side}:${status}`)
+  });
+  assert.deepEqual(statuses, ["left:loading", "right:loading"]);
+  controller.abort();
+  pending.splice(0).forEach((resolve) => resolve());
+  await assert.rejects(workspacePromise, (error) => error.name === "AbortError");
+  assert.ok(statuses.includes("left:cancelled"));
+  assert.ok(statuses.includes("right:cancelled"));
+});

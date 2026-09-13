@@ -32,8 +32,11 @@ export function buildCompareWorkspace(options) {
     searchFirstThreshold = 500,
     forceWhole = false,
     artifactCache = null,
-    artifactIdentity = null
+    artifactIdentity = null,
+    signal = null,
+    onSideStatus = () => {}
   } = options;
+  throwIfAborted(signal);
   const fullGraphs = {
     left: buildModuleFullGraph({
       module: leftModule,
@@ -59,6 +62,7 @@ export function buildCompareWorkspace(options) {
     })
   };
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
+  throwIfAborted(signal);
 
   const workspaceInputs = {};
   for (const side of ["left", "right"]) {
@@ -86,30 +90,61 @@ export function buildCompareWorkspace(options) {
       workspaceInputs[side] = { viewMode: "search-first" };
     }
   }
-  const buildSide = (side, module) => buildModuleWorkspace({
-    module,
-    preparedFullGraph: fullGraphs[side],
-    layoutProvider,
-    layoutPolicy,
-    presentationPolicy,
-    nodePositions: nodePositions[side],
-    nodeSizes: nodeSizes[side],
-    useFanoutHubs,
-    collapseLargeGroups,
-    expandedGroupIds,
-    artifactCache,
-    artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
-    ...(workspaceInputs[side] || {})
-  });
+  const buildSide = (side, module) => {
+    throwIfAborted(signal);
+    onSideStatus(side, "loading", { moduleName: module?.name || null });
+    try {
+      const result = buildModuleWorkspace({
+        module,
+        preparedFullGraph: fullGraphs[side],
+        layoutProvider,
+        layoutPolicy,
+        presentationPolicy,
+        nodePositions: nodePositions[side],
+        nodeSizes: nodeSizes[side],
+        useFanoutHubs,
+        collapseLargeGroups,
+        expandedGroupIds,
+        artifactCache,
+        artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
+        ...(workspaceInputs[side] || {})
+      });
+      if (isPromise(result)) {
+        return result.then((value) => {
+          throwIfAborted(signal);
+          onSideStatus(side, "ready", { moduleName: module?.name || null });
+          return value;
+        }).catch((error) => {
+          onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
+            moduleName: module?.name || null,
+            error
+          });
+          throw error;
+        });
+      }
+      throwIfAborted(signal);
+      onSideStatus(side, "ready", { moduleName: module?.name || null });
+      return result;
+    } catch (error) {
+      onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
+        moduleName: module?.name || null,
+        error
+      });
+      throw error;
+    }
+  };
   const leftLayout = buildSide("left", leftModule);
   const rightLayout = buildSide("right", rightModule);
-  const finalize = ([left, right]) => ({
-    fullGraphs,
-    autoGraphs: { left: left.autoGraph, right: right.autoGraph },
-    graphs: { left: left.graph, right: right.graph },
-    scenes: { left: left.scene, right: right.scene },
-    analysis: compareModules(leftModule, rightModule, fullGraphs.left, fullGraphs.right)
-  });
+  const finalize = ([left, right]) => {
+    throwIfAborted(signal);
+    return {
+      fullGraphs,
+      autoGraphs: { left: left.autoGraph, right: right.autoGraph },
+      graphs: { left: left.graph, right: right.graph },
+      scenes: { left: left.scene, right: right.scene },
+      analysis: compareModules(leftModule, rightModule, fullGraphs.left, fullGraphs.right)
+    };
+  };
   return isPromise(leftLayout) || isPromise(rightLayout)
     ? Promise.all([leftLayout, rightLayout]).then(finalize)
     : finalize([leftLayout, rightLayout]);
@@ -122,6 +157,13 @@ function normalizeRootNodeIds(value) {
 
 function isPromise(value) {
   return Boolean(value && typeof value.then === "function");
+}
+
+function throwIfAborted(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error("Compare workspace request was cancelled");
+  error.name = "AbortError";
+  throw error;
 }
 
 export function findCompareNode(graph, kind, name, portKind = null) {
