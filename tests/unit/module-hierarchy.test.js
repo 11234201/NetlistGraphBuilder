@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { buildModuleHierarchy } from "../../src/domains/netlist/module_hierarchy.js";
+import { buildModuleHierarchy, findModuleOccurrences } from "../../src/domains/netlist/module_hierarchy.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
-import {
-  filterModuleHierarchy,
-  renderModuleHierarchyPanel
-} from "../../src/ui/module_hierarchy_panel.js";
+import { filterModuleHierarchy, renderModuleHierarchyPanel } from "../../src/ui/module_hierarchy_panel.js";
 
 const module = (name, cells = [], displayName = name) => ({ name, displayName, cells });
 const instance = (name, type) => ({ instance: name, instanceDisplayName: name, type });
@@ -36,6 +33,14 @@ test("module hierarchy gives repeated nested instance paths distinct identities"
   assert.deepEqual(roots[0].children[0].canonicalOccurrencePath, ["u_mid0"]);
   assert.deepEqual(roots[0].children[0].children[0].occurrencePath, ["top", "u_mid0:mid", "u_leaf:leaf"]);
   assert.deepEqual(roots[0].children[0].children[0].canonicalOccurrencePath, ["u_mid0", "u_leaf"]);
+});
+
+test("module hierarchy exposes stable occurrence candidates for ambiguous definitions", () => {
+  const roots = buildModuleHierarchy({ modules: [
+    module("leaf"),
+    module("top", [instance("u0", "leaf"), instance("u1", "leaf")])
+  ] });
+  assert.deepEqual(findModuleOccurrences(roots, "leaf").map((item) => item.occurrencePath), [["u0"], ["u1"]]);
 });
 
 test("module hierarchy marks only the matching occurrence as current", () => {

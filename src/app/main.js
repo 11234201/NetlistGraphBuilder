@@ -25,7 +25,7 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
-import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
+import { buildModuleHierarchy, findModuleOccurrences } from "../domains/netlist/module_hierarchy.js";
 import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
 import { createBrowserDownload, sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { importTimingSource } from "../domains/netlist/timing_import.js";
@@ -943,6 +943,9 @@ function selectModule(moduleName, options = {}) {
   }
   const historyMode = options.historyMode || "push";
   const historyEntry = options.historyEntry || null;
+  const ambiguousOccurrences = !options.occurrencePath && !historyEntry
+    ? findModuleOccurrences(buildModuleHierarchy(state.design), module.name)
+    : [];
   const switchingModule = state.currentModule?.name !== module.name;
   const defaultViewMode = shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole";
   if (state.currentModule && switchingModule) {
@@ -981,6 +984,9 @@ function selectModule(moduleName, options = {}) {
     onRendered: (graph) => {
       if (historyEntry) restoreModuleHistorySelection(historyEntry, graph);
       requestedOnRendered?.(graph);
+      if (ambiguousOccurrences.length > 1 && !state.occurrenceContext) {
+        setStatus(`${module.displayName} has ${ambiguousOccurrences.length} hierarchy occurrences; choose one from Module hierarchy`);
+      }
     }
   });
   if (historyMode === "push" && (switchingModule || state.moduleHistory.index < 0)) {

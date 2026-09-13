@@ -29,6 +29,24 @@ export function buildModuleHierarchy(design, options = {}) {
   return Object.freeze(result);
 }
 
+/** Return bounded occurrence contexts for a module definition in a hierarchy tree. */
+export function findModuleOccurrences(roots, moduleName) {
+  const matches = [];
+  const visit = (node) => {
+    if (node.moduleName === moduleName) {
+      matches.push(Object.freeze({
+        moduleName: node.moduleName,
+        rootModuleName: node.rootModuleName || node.moduleName,
+        occurrencePath: Object.freeze([...(node.canonicalOccurrencePath || [])]),
+        displayPath: Object.freeze([...(node.occurrencePath || [])])
+      }));
+    }
+    for (const child of node.children || []) visit(child);
+  };
+  for (const root of roots || []) visit(root);
+  return Object.freeze(matches);
+}
+
 function buildNode(module, instance, moduleAncestry, instancePath, canonicalPath, rootModuleName, moduleByName, context) {
   context.nodeCount += 1;
   const cycle = moduleAncestry.includes(module.name);
