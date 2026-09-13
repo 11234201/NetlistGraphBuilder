@@ -490,6 +490,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `e89b3c7466c1e88cf79780eee7321a31dae6a246a0f9e679cba6d3a764b432d1`。
 - 浏览器 smoke（本地离线服务）：进入 Compare 后显示 `Compare ready (Simple Layered)`，退出后恢复
   Single；`tab.dev.logs()` 为空。
+- 重新执行 `npm run test:mapped-cases`：默认沙箱受 worker spawn policy 阻止（`spawn EPERM`），
+  允许 worker 进程后完成 47 cases，结果仍为 `failed=40`、`violations=34955/120`、
+  `hardInvariants=false`，失败集中在既有 `missing-route`/`wire-route-disconnected`；本轮未宣称 mapped 通过。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
