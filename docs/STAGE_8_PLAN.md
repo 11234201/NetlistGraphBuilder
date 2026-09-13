@@ -413,6 +413,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 当前 benchmark（3-run median）为 1K/4K/8K pipeline `211.8/1189.5/3551.9 ms`，layout
   `146.7/933.6/2939.4 ms`，progressive first batch `1.7/1.1/1.2 ms`；与上一基线处于同一量级，
   尚不能把 R8-3 的 30% 改善写成已达成。
+- mapped fixture 复核仍为 47 个 case 中 40 个失败、`34955/120` violations、`hardInvariants=false`；
+  失败仍集中于 worker 直达路径的 `missing-route`/`wire-route-disconnected`，未观察到由 occurrence
+  projection 引入的新失败类别，因此 Stage 8 继续保持进行中。
 - 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
   下方记录中的 cache/job/Compare 异步收口项。
 
