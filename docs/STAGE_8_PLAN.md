@@ -466,6 +466,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `6f3161bae8fa686ad0c3ba8185899a61a2a477713055aa71ea21062d075632a4`。
 - hierarchy panel 现在只标记匹配 canonical occurrence 的当前项，并为每个节点提供完整
   `root / instance / ...` 路径提示；新增 UI 回归后 `npm test` 通过（473 tests）。
+- 提交 `3e8011f` 的 Windows release 已重新通过（包含 473 个单元测试与启动器 smoke），离线包
+  `dist/NetlistGraphBuilder-v0.7.3-win-x64.zip` SHA-256 为
+  `f0834c4fd016c2c206c563680e8631bf878d7f31eb209b0d365fe9611482d4b5`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
