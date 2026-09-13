@@ -431,7 +431,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   当前 `npm test` 通过（465 tests）。这收口了 UI 层的 stale-result/cancel 语义，但尚未宣称
   JobCoordinator 已完全替代 `workspaceRequest.js`。
 - 当前代码的 Windows 离线包已通过 `npm run release:windows`，SHA-256 为
-  `542a6e8f22ffc1d74acc574b04b8d157032402f7803b3d4ff1ff50730f19a2d9`。
+  `354ec81b81e8ad8a156429dfa15b9d3bed26e302cfe1fa83aa8389628d4896df`。
 - 浏览器 smoke：重新加载当前本地包后进入 Compare，双侧 schematic、Compare 面板、Diagnostics 和
   Process Log 均正常；`tab.dev.logs()` 返回空错误集。
 
@@ -443,7 +443,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - hierarchical cone 的 boundary diagnostics（blackbox、recursive cycle、missing occurrence、frontier
   limit 等）现在随完成态 graph 进入 Diagnostics 面板；Compare 两侧 diagnostics 也会合并显示。
 - module history 也保存 canonical occurrence context，与通用 View History 的恢复语义一致；新增回归后
-  `npm test` 通过（466 tests）。
+  `npm test` 通过（466 tests）。当前离线包 SHA-256 为
+  `354ec81b81e8ad8a156429dfa15b9d3bed26e302cfe1fa83aa8389628d4896df`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
