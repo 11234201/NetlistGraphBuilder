@@ -11,9 +11,10 @@
 
 1. [routing_pause_snapshot_and_code_audit.md](routing_pause_snapshot_and_code_audit.md)：暂停时的事实、指标和代码审计结论。
 2. [routing_plan_conformance_audit.md](routing_plan_conformance_audit.md)：历史方案与当前代码的逐阶段符合性审计。
-3. [eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)：问题历史、复现过程和已验证结果。
-4. [eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)：历史设计与实施台账；它是 backlog，不是恢复后的默认执行顺序。
-5. `AGENTS.md`、`docs/skills/netlist-schematic/SKILL.md` 及其要求的架构、设计和阶段文件。
+3. [eq012_focused_navigation_terminal_output_remediation_plan.md](eq012_focused_navigation_terminal_output_remediation_plan.md)：cone 外导航和末级 terminal placement 的新问题及待实施方案。
+4. [eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)：问题历史、复现过程和已验证结果。
+5. [eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)：历史设计与实施台账；它是 backlog，不是恢复后的默认执行顺序。
+6. `AGENTS.md`、`docs/skills/netlist-schematic/SKILL.md` 及其要求的架构、设计和阶段文件。
 
 不要从聊天记录推断最新状态；以仓库文件和恢复时重新测得的数据为准。
 
