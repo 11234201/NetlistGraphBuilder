@@ -5,7 +5,8 @@ import { countRouteConflicts, getRouteSegments } from "./orthogonalRouting.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 import {
   routeCandidateIsUsable,
-  routeOverlapsReserved
+  routeOverlapsReserved,
+  isTargetEntryVisuallyClear
 } from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
 import { ROUTE_SELECTION_POLICY } from "./routeSearchPolicy.js";
@@ -48,6 +49,12 @@ export function routeSimpleEdges(graph, nodes, options) {
   );
   const routedById = new Map();
   const reservedSegments = new RouteSegmentIndex();
+  // Target-entry spacing is only needed when the provider is rendering a
+  // Focused cone. Whole-graph routing has no focused target boundary and
+  // should pay zero map/registration cost for this visual guard.
+  const targetEntryLanes = nodes.some((node) => node.isFocusedRoot === true)
+    ? new Map()
+    : null;
   const unroutablePhysicalNets = new Set();
   const overflowUnroutablePhysicalNets = new Set();
   const orderedEdges = graph.edges.toSorted((left, right) =>
@@ -106,7 +113,8 @@ export function routeSimpleEdges(graph, nodes, options) {
           layoutIntent,
           wireLanePitch,
           topWireLanePitch,
-          margin
+          margin,
+          targetEntryLanes
         }
       );
       if (capacityBlockedRoutes) {
@@ -115,7 +123,9 @@ export function routeSimpleEdges(graph, nodes, options) {
           reservedSegments,
           routingMetrics,
           unroutablePhysicalNets,
-          overflowUnroutablePhysicalNets
+          overflowUnroutablePhysicalNets,
+          nodeById,
+          targetEntryLanes
         });
         continue;
       }
@@ -128,7 +138,8 @@ export function routeSimpleEdges(graph, nodes, options) {
           routePlan,
           routingCapacity,
           routingGeometry,
-          layoutIntent
+          layoutIntent,
+          targetEntryLanes
         }
       );
       if (atomicRoutes) {
@@ -139,7 +150,9 @@ export function routeSimpleEdges(graph, nodes, options) {
           reservedSegments,
           routingMetrics,
           unroutablePhysicalNets,
-          overflowUnroutablePhysicalNets
+          overflowUnroutablePhysicalNets,
+          nodeById,
+          targetEntryLanes
         });
         continue;
       }
@@ -173,6 +186,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       reservedSegments,
       globalLaneGeometry,
       routingMetrics,
+      targetEntryLanes,
       strictRouting: options.strictRouting === true,
       net: edge.net,
       netGroupKey: getNetGroupKey(edge)
@@ -197,6 +211,13 @@ export function routeSimpleEdges(graph, nodes, options) {
     routingMetrics.unroutablePhysicalNetCount = unroutablePhysicalNets.size;
     routingMetrics.overflowUnroutablePhysicalNetCount = overflowUnroutablePhysicalNets.size;
     reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, edge));
+    registerTargetEntryLanes(
+      positionedEdge,
+      source,
+      target,
+      targetPoint,
+      targetEntryLanes
+    );
     if (options.onRoutingProgress &&
       ((edgeIndex + 1) % 256 === 0 || edgeIndex + 1 === orderedEdges.length)) {
       options.onRoutingProgress({
@@ -339,6 +360,8 @@ function findCapacityFreeDirectRoute(item, context) {
     routingGeometry: context.routingGeometry,
     edgeIntent: context.layoutIntent?.getEdge(item.edge),
     reservedSegments: context.reservedSegments,
+    targetEntryLanes: context.targetEntryLanes,
+    targetEntrySeparation: context.routingGeometry?.minimumTargetEntrySeparation,
     net: item.edge.net,
     netGroupKey: getNetGroupKey(item.edge)
   };
@@ -466,6 +489,16 @@ function commitPhysicalNetRoutes(routes, context) {
       }
     }
     context.reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, positionedEdge));
+    const target = context.nodeById?.get(positionedEdge.target);
+    if (target) {
+      registerTargetEntryLanes(
+        positionedEdge,
+        context.nodeById?.get(positionedEdge.source),
+        target,
+        getConnectionPoint(target, positionedEdge.targetPin, "target"),
+        context.targetEntryLanes
+      );
+    }
   }
   context.routingMetrics.unroutablePhysicalNetCount = context.unroutablePhysicalNets.size;
   context.routingMetrics.overflowUnroutablePhysicalNetCount =
@@ -546,6 +579,21 @@ function tryRoutePhysicalNetGroup(edges, context) {
         labelAnchor: label.anchor
       };
     });
+    if (positionedEdges.some((edge) => !isTargetEntryVisuallyClear(
+      edge.points,
+      {
+        source: context.nodeById.get(edge.source),
+        target: context.nodeById.get(edge.target),
+        targetPoint: getConnectionPoint(
+          context.nodeById.get(edge.target),
+          edge.targetPin,
+          "target"
+        ),
+        targetEntryLanes: context.targetEntryLanes,
+        targetEntrySeparation: context.routingGeometry?.minimumTargetEntrySeparation,
+        netGroupKey: getNetGroupKey(edge)
+      }
+    ))) continue;
     if (positionedEdges.some((edge) => routeOverlapsReserved(
       edge.points,
       edge.net,
@@ -726,7 +774,9 @@ function getOwnedRouteSegments(points, edge) {
   return getRouteSegments(points, edge.net, physicalOwner).map((segment) => ({
     ...segment,
     physicalOwner,
-    netGroupKey: physicalOwner
+    netGroupKey: physicalOwner,
+    sourceNodeId: edge.source,
+    targetNodeId: edge.target
   }));
 }
 
@@ -745,7 +795,8 @@ function routeEdge(context) {
     reservedSegments,
     routingMetrics,
     net,
-    netGroupKey = undefined
+    netGroupKey = undefined,
+    targetEntryLanes
   } = context;
   if (edgePlan?.capacityBlocked === true) {
     const capacityFree = findCapacityFreeDirectCandidate(context) ||
@@ -1035,6 +1086,8 @@ function createGlobalFallback(context) {
     reservedSegments: context.reservedSegments,
     net: context.net,
     netGroupKey: context.netGroupKey,
+    targetEntryLanes: context.targetEntryLanes,
+    targetEntrySeparation: context.routingGeometry?.minimumTargetEntrySeparation,
     routingGeometry: context.routingGeometry
   });
 }
@@ -1048,11 +1101,44 @@ function candidateIsUsable(candidate, context) {
     nodeIndex: context.nodeIndex,
     net: context.net,
     netGroupKey: context.netGroupKey,
-    reservedSegments: context.reservedSegments
+    reservedSegments: context.reservedSegments,
+    targetEntryLanes: context.targetEntryLanes,
+    targetEntrySeparation: context.routingGeometry?.minimumTargetEntrySeparation,
+    routingGeometry: context.routingGeometry
   }, {
     nodePadding: context.source?.kind === "cell" && context.target?.kind === "cell" ? 0 : undefined,
     allowNodePaddingBoundary: true
   });
+}
+
+function registerTargetEntryLanes(edge, source, target, targetPoint, targetEntryLanes) {
+  if (!targetEntryLanes || !target?.id || edge?.routeStatus === "unroutable") return;
+  const targetY = Number(targetPoint?.y);
+  if (!Number.isFinite(targetY)) return;
+  const targetId = String(target.id);
+  const entries = targetEntryLanes.get(targetId) || [];
+  const netGroupKey = getNetGroupKey(edge);
+  for (let index = 0; index < (edge.points?.length || 0) - 1; index += 1) {
+    const start = edge.points[index];
+    const end = edge.points[index + 1];
+    if (Math.abs(Number(start?.x) - Number(end?.x)) >= 0.5) continue;
+    const minimum = Math.min(Number(start?.y), Number(end?.y));
+    const maximum = Math.max(Number(start?.y), Number(end?.y));
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) ||
+      targetY < minimum - 0.5 || targetY > maximum + 0.5) continue;
+    if (entries.some((entry) => entry.netGroupKey === netGroupKey &&
+      Math.abs(entry.x - Number(start.x)) < 0.01 &&
+      Math.abs(entry.minimum - minimum) < 0.01 &&
+      Math.abs(entry.maximum - maximum) < 0.01)) continue;
+    entries.push({
+      x: Number(start.x),
+      minimum,
+      maximum,
+      netGroupKey,
+      sourceKind: source?.kind
+    });
+  }
+  if (entries.length > 0) targetEntryLanes.set(targetId, entries);
 }
 
 function scoreCandidates(candidates, reservedSegments, net, netGroupKey, edgeIntent) {

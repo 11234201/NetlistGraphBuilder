@@ -8,6 +8,7 @@ import {
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
+import { DEFAULT_ROUTING_GEOMETRY } from "../../src/layout/channelCapacity.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import {
   collinearSegmentsOverlap,
@@ -58,6 +59,23 @@ test("eq012 focused dual-root routing stays locally valid across spacing", async
       `clk/rst_n vertical overlap at spacing=${cellSpacing}`
     );
 
+    const clockEntrySegments = getVerticalSegments(clockTo2406.points);
+    const resetTo2406 = laidOut.edges.find((edge) =>
+      edge.net === "rst_n" && edge.target === "cell:_2406_"
+    );
+    assert.ok(resetTo2406, `reset edge missing at spacing=${cellSpacing}`);
+    const resetEntrySegments = getVerticalSegments(resetTo2406.points);
+    for (const clockEntry of clockEntrySegments) {
+      for (const resetEntry of resetEntrySegments) {
+        if (!rangesOverlap(clockEntry, resetEntry)) continue;
+        assert.ok(
+          Math.abs(clockEntry.x - resetEntry.x) >=
+            DEFAULT_ROUTING_GEOMETRY.minimumTargetEntrySeparation,
+          `target entry lanes too close at spacing=${cellSpacing}`
+        );
+      }
+    }
+
     const net0179 = laidOut.edges.find((edge) => edge.net === "_0179_");
     const net0198 = laidOut.edges.find((edge) => edge.net === "_0198_");
     assert.ok(net0179 && net0198, `focused boundary nets missing at spacing=${cellSpacing}`);
@@ -70,6 +88,22 @@ test("eq012 focused dual-root routing stays locally valid across spacing", async
     );
   }
 });
+
+function getVerticalSegments(points) {
+  return (points || []).slice(0, -1).flatMap((start, index) => {
+    const end = points[index + 1];
+    if (Math.abs(start.x - end.x) >= 0.5 || Math.abs(start.y - end.y) < 0.5) return [];
+    return [{
+      x: start.x,
+      minimum: Math.min(start.y, end.y),
+      maximum: Math.max(start.y, end.y)
+    }];
+  });
+}
+
+function rangesOverlap(left, right) {
+  return Math.min(left.maximum, right.maximum) > Math.max(left.minimum, right.minimum) + 0.01;
+}
 
 test("eq012 clock fanout reserves each physical trunk geometry once", async () => {
   const source = await readFile(fixtureUrl, "utf8");

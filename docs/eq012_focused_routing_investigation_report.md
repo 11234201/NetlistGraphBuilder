@@ -530,3 +530,19 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 当前实现提交 `18abb2f` 保留近共线平行段的最小可视分离合同，`b86dab5`/`77833c1` 又收紧 capacity overflow：source-adjacent boundary 无坐标时不得借用后续 boundary 或 legacy lane；先尝试直连，再尝试固定数量的 hard-validated overflow corridor；fanout group 先尝试共享 trunk 的 atomic tree；所有失败均为空 points + `unroutable` 诊断。无 node-safe outer candidate 时 `findObstacleAvoidingRoute()` 直接返回 `null`，底层不再向 provider 泄漏非法 orthogonal fallback。
 
 本地 `npm test` 当前为 `428/428`。mfs-remote 定向 hard 回归（collapsed）：dp020 为 `1933` 条 missing-route、`413` 条显式 `capacity-overflow-corridor`，layout 约 `12.7 s`、heap 约 `225 MiB`；sop015 为 `3193` 条 missing-route、`362` 条 overflow corridor，layout 约 `12.4 s`、heap 约 `252 MiB`。这些 strict 失败是剩余 group/inter-layer capacity 没有可证明 corridor 的真实几何失败，不是 overlap validator 的漏报；后续仍需完成 cluster corridor 的 placement 消费和 native tree 覆盖，不能通过提高 spacing 或重试上限掩盖。
+
+## 13.9 2026-09-13 target-entry 近共线重叠修复
+
+针对用户再次指出的“接入 `_2406_` 时 `clk`/`rst_n` 垂直段仍有小重叠”，本轮没有把全局 foreign-net 阈值从 2px 粗暴放大。全局阈值放大到 10px 的对照实验虽然能移动该两条线，但 dp020 strict missing-route 从约 `1933` 增到 `2225`，heap 从约 `225 MiB` 增到 `400 MiB`，因此已撤回。
+
+最终采用的是 target-scoped、Focused-only 的入口 lane 合同：
+
+1. Simple router 只有在节点集合存在 `isFocusedRoot` 时建立 `targetEntryLanes`；Whole mapped 不建立该 map，也不注册入口段，因此不会为大图增加 map/候选扫描成本。
+2. map 按 target node 保存已提交 physical net 的纵向段（x、y interval、`netGroupKey`、source kind）。候选验证和 atomic physical-net tree 提交都检查同一 target 的外部 source（`input`/`focus-input`/`constant`/`implicit`）是否在重叠 y interval 上小于命名策略 `minimumTargetEntrySeparation=10`；同一 physical net 不互相阻塞。
+3. 检查覆盖候选路径内所有纵向段，而不是只看最后一段。这样可以捕获 `_2406_` 入口前的 source-side vertical leg（原始复现为 x 相差 8px、y interval 相交），同时仍由 node/foreign reservation hard validator 决定最终合法性。
+4. target-entry 注册发生在 physical-net group 原子提交之后；unroutable edge 不注册。候选失败时继续走既有 bounded local/global/overflow 顺序，不增加按图规模的重试。
+5. `createGroupBoundaryLaneCandidate()` 现在允许 group→cell 或 cell→group 的 channel endpoint；判定仍依赖 endpoint side、有限 escape corridor 和最终 validator，不读取实例名或坐标。
+
+eq012 Focused `_2021_` + `_2406_`（fanin/fanout depth 3）在 spacing `4, 8, 16, 32, 64, 84, 88, 160, 320` 上本地 `validateLayoutGraph(checkBounds=true)` 均为零硬违规。spacing 88 下，接入 `_2406_` 的 `clk`/`rst_n` 纵向段 y 区间虽相交，但 lane 间距由原先 8px 调整到 124px；route 仍是 local/channel 类，不需要 outer lane。对应单测总数为 `429/429`。
+
+在与本地 layout 依赖完全同步的 mfs-remote 上，strict collapsed 复核为：dp020 `1822` 条 missing-route、`451` 条 `capacity-overflow-corridor`，layout 约 `12.8 s`、heap 约 `238 MiB`；sop015 `3219` 条 missing-route、`337` 条 overflow corridor，layout 约 `10.3 s`、heap 约 `255 MiB`。这些数值包含 group→cell channel 候选扩展；与此前只同步部分 layout 文件的结果不可直接比较。Whole graph 未启用 target-entry map，剩余 strict 失败仍来自超过固定 capacity 的 collapsed group/inter-layer corridor，而不是新的 cross-net overlap。

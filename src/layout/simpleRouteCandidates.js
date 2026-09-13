@@ -119,7 +119,9 @@ export function createLocalObstacleCandidates(context, options = {}) {
     netGroupKey,
     wireLanePitch,
     edgePlan,
-    routingGeometry
+    routingGeometry,
+    targetEntryLanes,
+    targetEntrySeparation
   } = context;
   const geometry = routingGeometry || {};
   const padding = Number(geometry.targetApproachClearance) || 9;
@@ -259,7 +261,10 @@ export function createLocalObstacleCandidates(context, options = {}) {
       target,
       sourcePoint,
       targetPoint,
-      nodeIndex
+      nodeIndex,
+      targetEntryLanes,
+      targetEntrySeparation,
+      netGroupKey
     })) return;
     if (options.expandXLanes === true && routeOverlapsReserved(
       candidate.points,
@@ -344,7 +349,8 @@ function createGroupBoundaryLaneCandidate(
   wireLanePitch,
   routingGeometry
 ) {
-  if (edgePlan?.kind !== "channel" || source?.kind !== "group" || target?.kind !== "group") {
+  if (edgePlan?.kind !== "channel" ||
+    (source?.kind !== "group" && target?.kind !== "group")) {
     return null;
   }
   const sourceSide = getGroupBoundarySide(source, sourcePoint, "source");
@@ -519,6 +525,8 @@ export function findObstacleAvoidingRoute(context) {
     reservedSegments = [],
     net,
     netGroupKey,
+    targetEntryLanes,
+    targetEntrySeparation,
     routingGeometry
   } = context;
   const clearance = Number(routingGeometry?.outerLaneClearance) || 24;
@@ -572,7 +580,10 @@ export function findObstacleAvoidingRoute(context) {
       target,
       sourcePoint,
       targetPoint,
-      nodeIndex
+      nodeIndex,
+      targetEntryLanes,
+      targetEntrySeparation,
+      netGroupKey
     }) && !routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey)) {
       return candidate;
     }
@@ -617,7 +628,10 @@ export function findObstacleAvoidingRoute(context) {
       target,
       sourcePoint,
       targetPoint,
-      nodeIndex
+      nodeIndex,
+      targetEntryLanes,
+      targetEntrySeparation,
+      netGroupKey
     })) return fallbackCandidate;
   }
 
@@ -655,7 +669,10 @@ export function findObstacleAvoidingRoute(context) {
           target,
           sourcePoint,
           targetPoint,
-          nodeIndex
+          nodeIndex,
+          targetEntryLanes,
+          targetEntrySeparation,
+          netGroupKey
         })) continue;
         firstNodeSafeCandidate ??= candidate;
         if (routeOverlapsReserved(candidate.points, net, reservedSegments, netGroupKey)) continue;

@@ -20,6 +20,10 @@ export const DEFAULT_ROUTING_GEOMETRY = Object.freeze({
   outerLaneClearance: 24,
   laneReusePadding: 4,
   wireLanePitch: 24,
+  // A target can receive multiple foreign nets whose vertical approach
+  // corridors overlap in y. Keep their centerlines visibly separated even
+  // when the generic reservation conflict threshold is intentionally small.
+  minimumTargetEntrySeparation: 10,
   // Collapsed groups can expose dozens of boundary ports.  Their escape
   // rails need a separately named, bounded pitch so consuming the rail does
   // not force every full-net channel to use the normal readability pitch.
@@ -50,6 +54,10 @@ export function normalizeRoutingGeometry(spacing = {}, overrides = {}) {
     outerLaneClearance: positiveOr(values.outerLaneClearance, DEFAULT_ROUTING_GEOMETRY.outerLaneClearance),
     laneReusePadding: nonNegativeOr(values.laneReusePadding, DEFAULT_ROUTING_GEOMETRY.laneReusePadding),
     wireLanePitch: positiveOr(values.wireLanePitch, DEFAULT_ROUTING_GEOMETRY.wireLanePitch),
+    minimumTargetEntrySeparation: positiveOr(
+      values.minimumTargetEntrySeparation,
+      DEFAULT_ROUTING_GEOMETRY.minimumTargetEntrySeparation
+    ),
     groupBoundaryLanePitch: positiveOr(
       values.groupBoundaryLanePitch,
       DEFAULT_ROUTING_GEOMETRY.groupBoundaryLanePitch

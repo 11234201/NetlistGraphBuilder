@@ -27,12 +27,71 @@ export function routeCandidateIsUsable(points, context, options = {}) {
     context.sourcePoint,
     context.targetPoint
   )) return false;
+  if (!isTargetEntryVisuallyClear(points, context)) return false;
   return !options.rejectReservedOverlaps || !routeOverlapsReserved(
     points,
     context.net,
     context.reservedSegments || [],
     context.netGroupKey
   );
+}
+
+/**
+ * Keep foreign routes entering the same target on distinct visible vertical
+ * lanes. The regular reservation threshold is deliberately small for dense
+ * graphs; this target-scoped guard prevents two near-parallel entry legs from
+ * looking merged after the SVG is fitted to a viewport.
+ */
+export function isTargetEntryVisuallyClear(points, context = {}) {
+  const targetId = String(context.target?.id ?? "");
+  const entries = context.targetEntryLanes?.get?.(targetId) || [];
+  if (!targetId || entries.length === 0 || !context.target?.isFocusedRoot ||
+    !isExternalEntrySource(context.source)) return true;
+  const separation = Math.max(
+    MINIMUM_FOREIGN_WIRE_SEPARATION,
+    Number(context.targetEntrySeparation) ||
+      Number(context.routingGeometry?.minimumTargetEntrySeparation) ||
+      MINIMUM_FOREIGN_WIRE_SEPARATION
+  );
+  const candidateEntries = getTargetEntryVerticalSegments(points);
+  for (const candidate of candidateEntries) {
+    for (const existing of entries) {
+      if ((existing.netGroupKey ?? existing.net) === context.netGroupKey) continue;
+      if (!isExternalEntrySource({ kind: existing.sourceKind })) continue;
+      if (Math.abs(candidate.x - Number(existing.x)) >= separation) continue;
+      if (rangesOverlapStrict(
+        candidate.minimum,
+        candidate.maximum,
+        Number(existing.minimum),
+        Number(existing.maximum)
+      )) return false;
+    }
+  }
+  return true;
+}
+
+function isExternalEntrySource(node) {
+  return node?.kind === "input" || node?.kind === "focus-input" ||
+    node?.kind === "constant" || node?.kind === "implicit";
+}
+
+function getTargetEntryVerticalSegments(points) {
+  const segments = [];
+  for (let index = 0; index < (points?.length || 0) - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (Math.abs(Number(start?.x) - Number(end?.x)) >= 0.5) continue;
+    const minimum = Math.min(Number(start.y), Number(end.y));
+    const maximum = Math.max(Number(start.y), Number(end.y));
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) ||
+      maximum - minimum < 0.5) continue;
+    segments.push({ x: Number(start.x), minimum, maximum });
+  }
+  return segments;
+}
+
+function rangesOverlapStrict(leftMinimum, leftMaximum, rightMinimum, rightMaximum) {
+  return Math.min(leftMaximum, rightMaximum) > Math.max(leftMinimum, rightMinimum) + 0.01;
 }
 
 export function routeSegmentIsClear(
