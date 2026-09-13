@@ -488,6 +488,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `a86c901` 将 Compare selection 的 history capture 移到自动定位之后，保证一次选择操作恢复完整
   viewport；475 个测试通过，最新 release SHA-256 为
   `e89b3c7466c1e88cf79780eee7321a31dae6a246a0f9e679cba6d3a764b432d1`。
+- 浏览器 smoke（本地离线服务）：进入 Compare 后显示 `Compare ready (Simple Layered)`，退出后恢复
+  Single；`tab.dev.logs()` 为空。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
