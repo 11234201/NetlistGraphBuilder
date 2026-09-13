@@ -106,3 +106,23 @@ test("synchronous jobs commit through the same artifact boundary", () => {
   assert.deepEqual(progress, ["layout"]);
   assert.equal(state.artifacts.get("view:1", "simple-layout"), result.artifact);
 });
+
+test("a synchronous replacement invalidates a pending asynchronous job", async () => {
+  const state = setup();
+  const pending = deferred();
+  const first = state.jobs.start({
+    sessionId: "view:1",
+    kind: "layout",
+    run: () => pending.promise
+  });
+  await Promise.resolve();
+  const replacement = state.jobs.runSync({
+    sessionId: "view:1",
+    kind: "layout",
+    run: () => "sync-layout"
+  });
+  pending.resolve("obsolete-layout");
+  assert.equal(replacement.status, "committed");
+  assert.equal((await first.promise).status, "stale");
+  assert.equal(state.artifacts.get("view:1", "layout").value, "sync-layout");
+});

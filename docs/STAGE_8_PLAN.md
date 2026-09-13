@@ -445,9 +445,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   完成态保护，尚未退场。
 - 浏览器验证切换到 ELK 后重新布局 Single，再进入 Compare，最终状态为 `Compare ready (ELK Layered
   (Experimental))`，运行日志为空；新增 computation boundary 与 signal forwarding 回归，当前
-  `npm test` 通过（470 tests）。
+  `npm test` 通过（471 tests）。
 - `npm run release:windows` 已重新通过，当前离线包 SHA-256 为
-  `fd4cf1bc9552e0736a4cbaa988102b809a1fbec1017a5c673e52bb01ad61aaa5`。
+  `28d65a921881dbc44530b06ec6db348c4bc28d8a5c13eaf007f5b3c19dfd17d2`。
 
 ### Stage 8 执行记录（2026-09-13，canonical occurrence 导航）
 
