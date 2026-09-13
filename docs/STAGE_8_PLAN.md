@@ -483,6 +483,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   Windows release SHA-256 更新为 `e8bdd1a608081ad1bc7bf5d1141ce3e026b32564d22d5b4088971b74892612d6`。
 - 层次树新增 `findModuleOccurrences()`，模块 definition 存在多个 parent occurrence 时，打开模块会明确提示
   用户从 Module hierarchy 选择具体路径；不再静默猜测 parent。新增回归后 `npm test` 通过（475 tests）。
+- `b6262ab` 的 Windows release 已通过，当前离线包 SHA-256 为
+  `990254a0bb22fd6318f95a739ef72be8a060246258ba7303444d6631f02ae313`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
