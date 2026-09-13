@@ -1,7 +1,7 @@
 # eq012 Focused 导航与末级输出布局修改方案
 
 - 方案日期：2026-09-13
-- 状态：实施中；Focused Connection 导航、单扇出 terminal 后置安放、local/outer tier 门禁已完成
+- 状态：阶段性暂停；Focused Connection 导航、单扇出 terminal 后置安放、local/outer tier 门禁已完成，Whole 跨层 DFF bank 问题已留档待后续实现
 - 复现场景：`tests/fixtures/mapped/equal/eq_012_mapped.v`
 - Focused roots：`_1471_`、`_1746_`
 - 深度：`faninDepth=3`、`fanoutDepth=3`
@@ -255,6 +255,45 @@ terminal 输出按 `preferredPinY`、physical-net key、target key 稳定排序�
 7. `routeOverlapsReserved()` 所代表的异 net 共线/近共线重叠继续是 hard rule；普通垂直-水平 crossing 是 soft rule，并通过 bridge 表达。两者不能继续共享一个会把 outer route 提升为首选的模糊冲突分数。
 8. terminal edge 默认禁止 generic outer top/bottom。若局部区域真的被节点或 hard overlap 封死，应回到 terminal placement 重新选择有界 row，或明确返回 terminal capacity failure；不能绕完整张图。
 9. 一般跨层 net 只有在 Tier 0--2 全部因硬约束不可达时才能使用 `obstacle-lane`。outer penalty/detour ratio 只能在 Tier 3 内排序，不能代替等级门禁。
+
+## 6.1 暂停时新增结论：Whole 跨层 DFF bank
+
+新增复现场景为 eq012 Whole、collapse off、`cellSpacing=88`，代表连接是
+`cell:_2304_.Q -> cell:_1594_.A`，net 为 `data1_q[46]`。该逻辑 edge 在 graph 中存在，最终却以
+`routeKind=unroutable`、`code=routing-capacity-limit` 发布；因此画布上 Q 没有线不是 renderer 或
+pin 丢失，而是 router 明确收到 missing-route。
+
+placement stage trace：
+
+| 阶段 | `_2304_.Q` y | `_1594_.A` y | 结论 |
+| --- | ---: | ---: | --- |
+| `branch-aware-lanes` | 134 | 6236 | 尚未建立连接对齐 |
+| `align-driven-links` | 134 | 326 | 已建立局部对齐 |
+| `resolve-level-overlaps` | 13014 | 29446 | 两层被独立重排，偏差扩大到 16432 px |
+| 后续 placement stages | 13014 | 29446 | 没有恢复跨层约束 |
+
+最终 source 位于 level 2，目标位于 level 3；capacity 诊断指向 `inter-layer:2->3`，cluster key 为
+`2->3|cell:_2304_|right|left`，overflow kind 为 `allocator`。画面右侧存在水平空白并不代表当前
+几何可局部到达：placement 已把原本应该短接的边变成长竖向需求，而该边界的 reservation/lane
+容量随后耗尽。
+
+这说明已完成的 `place-terminal-outputs` 只解决了 `cell -> output/focus-output`，尚未覆盖
+`DFF bank -> 下一层组合 cell`。后续不能逐个移动 `_1594_` 一类目标，因为 MUX 的 A/B 可能由
+不同 DFF bank 驱动；应以共同 downstream target 和真实 input pin 建立跨层 coupled row cluster，
+联合安放 sources、target pins 和短水平 stubs，再计算普通 inter-layer capacity。
+
+已排除的试验：取消 capacity-blocked 的早期返回、让该 edge 继续普通 local/global 搜索。完整 Whole
+复测耗时约 61 秒，代表边仍为 `unroutable`，说明仅放开 router fallback 没有修复被破坏的 placement
+约束；试验代码与耗时 Whole 单元测试均已撤销。未来回归应将 coupled-placement 规则放入轻量合成
+单测，eq012 Whole 放到 mapped/no-collapse 定向门禁，不能把一分钟级完整布局加入普通 `npm test`。
+
+暂停后的实现入口：
+
+1. 在 layout intent 中建立不依赖实例名、Q 名或绝对坐标的 sequential-bank attachment。
+2. 在 `resolve-level-overlaps` 后增加跨层 coupled placement/packing，保持确定性和固定 pass 数。
+3. placement 先登记局部 stub/corridor，再由 capacity plan 统计剩余跨层需求。
+4. capacity overflow 只能描述已分配 corridor 不足，不能代替“局部直连是否本应由 placement 保证”的判断。
+5. 复测 `_2304_.Q -> _1594_.A` 及同 bank 边、排列不变性、dp020/sop015 strict 基线和 benchmark。
 
 ## 7. 文件级修改地图
 
