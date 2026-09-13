@@ -2,6 +2,7 @@ import { selectLocalOrthogonalRoute } from "./localOrthogonalRouter.js";
 import {
   buildNodePorts,
   computeBoundsWithRoutes,
+  computeSafeLayoutExtent,
   getConnectionPoint,
   translateLayoutGeometry
 } from "./nodeGeometry.js";
@@ -95,13 +96,14 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     y: Math.max(0, -bounds.top)
   });
   const normalizedBounds = computeBoundsWithRoutes(nodes, edges, wireRoutes);
+  const safeExtent = computeSafeLayoutExtent(normalizedBounds, margin);
   const adjustedGraph = {
     ...positionedGraph,
     nodes,
     edges,
     wireRoutes,
-    width: normalizedBounds.width + margin,
-    height: normalizedBounds.height + margin,
+    width: safeExtent.width,
+    height: safeExtent.height,
     hasPositionOverrides: true
   };
   return options.validate === false

@@ -1,6 +1,7 @@
 import {
   buildNodePorts,
   computeBoundsWithRoutes,
+  computeSafeLayoutExtent,
   getConnectionPoint,
   getPort,
   measureNode,
@@ -106,13 +107,17 @@ export class ElkLayoutProvider {
       y: Math.max(0, -bounds.top)
     });
     const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
+    const safeExtent = computeSafeLayoutExtent(normalizedBounds, 0, {
+      width: result.width || 0,
+      height: result.height || 0
+    });
     const positionedGraph = {
       ...graph,
       nodes: positionedNodes,
       edges: positionedEdges,
       wireRoutes,
-      width: Math.max(result.width || 0, normalizedBounds.width),
-      height: Math.max(result.height || 0, normalizedBounds.height),
+      width: safeExtent.width,
+      height: safeExtent.height,
       layoutProvider: this.id
     };
     return finalizeLayoutGraph(applyPositionedOverrides(positionedGraph, {

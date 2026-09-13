@@ -32,7 +32,7 @@ test("eq012 focused dual-root routing stays locally valid across spacing", async
 
   for (const cellSpacing of spacingMatrix) {
     const laidOut = layoutGraph(graph, { layoutPolicy: { spacing: { cellSpacing } } });
-    assert.deepEqual(validateLayoutGraph(laidOut), [], `spacing=${cellSpacing}`);
+    assert.deepEqual(validateLayoutGraph(laidOut, { checkBounds: true }), [], `spacing=${cellSpacing}`);
 
     const clockTo2406 = laidOut.edges.find((edge) =>
       edge.net === "clk" && edge.target === "cell:_2406_"

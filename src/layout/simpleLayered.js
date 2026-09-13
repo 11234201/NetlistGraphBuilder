@@ -9,6 +9,7 @@ import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js"
 import {
   buildNodePorts,
   computeBoundsWithRoutes,
+  computeSafeLayoutExtent,
   DEFAULT_CELL_PIN_PITCH,
   measureNode,
   translateLayoutGeometry
@@ -158,6 +159,7 @@ export function layoutGraph(graph, options = {}) {
     y: Math.max(0, -bounds.top)
   });
   const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
+  const safeExtent = computeSafeLayoutExtent(normalizedBounds, margin);
   return finalizeLayoutGraph({
     ...graph,
     nodes: positionedNodes,
@@ -165,8 +167,8 @@ export function layoutGraph(graph, options = {}) {
     wireRoutes,
     routingCapacity,
     routingMetrics: positionedEdges.routingMetrics || null,
-    width: normalizedBounds.width + margin,
-    height: normalizedBounds.height + margin,
+    width: safeExtent.width,
+    height: safeExtent.height,
     placementCapacity: {
       topWireHeadroom
     }

@@ -14,6 +14,7 @@ import {
   createBasicSimpleRouteCandidates,
   createLocalObstacleCandidates,
   findObstacleAvoidingRoute,
+  getEscapeLaneX,
   prepareGlobalLaneGeometry
 } from "./simpleRouteCandidates.js";
 import {
@@ -69,6 +70,9 @@ export function routeSimpleEdges(graph, nodes, options) {
         overflowChannelCount: routingCapacity.metrics.overflowChannelCount,
         overflowDemandCount: routingCapacity.metrics.overflowDemandCount,
         overflowPhysicalNetCount: routingCapacity.metrics.overflowPhysicalNetCount,
+        allocatorOverflowPhysicalNetCount: routingCapacity.metrics.allocatorOverflowPhysicalNetCount,
+        placementOverflowDemandCount: routingCapacity.metrics.placementOverflowDemandCount,
+        placementOverflowPhysicalNetCount: routingCapacity.metrics.placementOverflowPhysicalNetCount,
         boundaryClusterCount: routingCapacity.metrics.boundaryClusterCount,
         maximumBoundaryClusterDemand: routingCapacity.metrics.maximumBoundaryClusterDemand,
         topWireHeadroom: routingCapacity.metrics.topWireHeadroom
@@ -87,8 +91,36 @@ export function routeSimpleEdges(graph, nodes, options) {
     const physicalNetKey = getNetGroupKey(edge);
     if (!attemptedPhysicalNets.has(physicalNetKey)) {
       attemptedPhysicalNets.add(physicalNetKey);
+      const physicalNetEdges = edgesByPhysicalNet.get(physicalNetKey) || [];
+      const capacityBlockedRoutes = tryRouteCapacityBlockedPhysicalNetGroup(
+        physicalNetEdges,
+        {
+          nodeById,
+          nodes,
+          nodeIndex,
+          levelBounds,
+          reservedSegments,
+          routePlan,
+          routingCapacity,
+          routingGeometry,
+          layoutIntent,
+          wireLanePitch,
+          topWireLanePitch,
+          margin
+        }
+      );
+      if (capacityBlockedRoutes) {
+        commitPhysicalNetRoutes(capacityBlockedRoutes, {
+          routedById,
+          reservedSegments,
+          routingMetrics,
+          unroutablePhysicalNets,
+          overflowUnroutablePhysicalNets
+        });
+        continue;
+      }
       const atomicRoutes = tryRoutePhysicalNetGroup(
-        edgesByPhysicalNet.get(physicalNetKey) || [],
+        physicalNetEdges,
         {
           nodeById,
           nodes,
@@ -102,12 +134,13 @@ export function routeSimpleEdges(graph, nodes, options) {
       if (atomicRoutes) {
         routingMetrics.atomicPhysicalNetTreeCount =
           (routingMetrics.atomicPhysicalNetTreeCount || 0) + 1;
-        for (const positionedEdge of atomicRoutes) {
-          routedById.set(positionedEdge.id, positionedEdge);
-          routingMetrics.routeKinds[positionedEdge.routeKind] =
-            (routingMetrics.routeKinds[positionedEdge.routeKind] || 0) + 1;
-          reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, positionedEdge));
-        }
+        commitPhysicalNetRoutes(atomicRoutes, {
+          routedById,
+          reservedSegments,
+          routingMetrics,
+          unroutablePhysicalNets,
+          overflowUnroutablePhysicalNets
+        });
         continue;
       }
     }
@@ -144,19 +177,15 @@ export function routeSimpleEdges(graph, nodes, options) {
       net: edge.net,
       netGroupKey: getNetGroupKey(edge)
     });
-    const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
-    const positionedEdge = {
-      ...edge,
-      points: routed.points,
-      routeKind: routed.kind,
-      routeStatus: routed.status || "routed",
-      routeDiagnostics: routed.diagnostics,
-      capacityChannelId: edgePlan?.capacityChannelId,
-      capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
-      capacityOverflow: edgePlan?.capacityOverflow === true,
-      labelPoint: label.point,
-      labelAnchor: label.anchor
-    };
+    const positionedEdge = createPositionedEdge(
+      edge,
+      source,
+      target,
+      sourcePoint,
+      targetPoint,
+      routed,
+      edgePlan
+    );
     routedById.set(edge.id, positionedEdge);
     routingMetrics.routeKinds[routed.kind] =
       (routingMetrics.routeKinds[routed.kind] || 0) + 1;
@@ -215,6 +244,157 @@ function groupEdgesByPhysicalNet(edges) {
   return groups;
 }
 
+/**
+ * A placement-capped channel is an explicit resource failure, not a hint to
+ * borrow a lane assigned to a different boundary.  Before the fanout-tree
+ * shortcut or per-edge router sees a physical net, either commit every branch
+ * that can use no channel at all (a hard-validated direct path), or publish a
+ * single atomic capacity failure for the complete physical net.
+ */
+function tryRouteCapacityBlockedPhysicalNetGroup(edges, context) {
+  const inspected = edges.map((edge) => {
+    const source = context.nodeById.get(edge.source);
+    const target = context.nodeById.get(edge.target);
+    if (!source || !target) return { edge, source, target, edgePlan: null };
+    const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
+    const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
+    const edgePlan = applyCapacityLane(
+      context.routePlan?.edges?.get(edge.id),
+      context.routingCapacity,
+      getNetGroupKey(edge),
+      {
+        sourceLevel: source.level,
+        targetLevel: target.level,
+        sourceNodeId: source.id,
+        targetNodeId: target.id
+      }
+    );
+    return { edge, source, target, sourcePoint, targetPoint, edgePlan };
+  });
+  if (inspected.some((item) => !item.source || !item.target)) return null;
+  if (!inspected.some((item) => item.edgePlan?.capacityBlocked === true)) return null;
+
+  const directRoutes = [];
+  for (const item of inspected) {
+    const direct = item.source && item.target
+      ? findCapacityFreeDirectRoute(item, context)
+      : null;
+    if (!direct) return inspected.map((failed) => createCapacityBlockedPositionedEdge(failed));
+    directRoutes.push(createPositionedEdge(
+      item.edge,
+      item.source,
+      item.target,
+      item.sourcePoint,
+      item.targetPoint,
+      direct,
+      item.edgePlan
+    ));
+  }
+  if (directRoutes.some((edge) => routeOverlapsReserved(
+    edge.points,
+    edge.net,
+    context.reservedSegments,
+    getNetGroupKey(edge)
+  )) || validatePhysicalNetCommit(directRoutes, context.nodes).status !== "routed") {
+    return inspected.map((failed) => createCapacityBlockedPositionedEdge(failed));
+  }
+  return directRoutes;
+}
+
+function findCapacityFreeDirectRoute(item, context) {
+  const routeContext = {
+    source: item.source,
+    target: item.target,
+    sourcePoint: item.sourcePoint,
+    targetPoint: item.targetPoint,
+    edgePlan: item.edgePlan,
+    levelBounds: context.levelBounds,
+    nodes: context.nodes,
+    nodeIndex: context.nodeIndex,
+    wireLanePitch: context.wireLanePitch,
+    routingGeometry: context.routingGeometry,
+    edgeIntent: context.layoutIntent?.getEdge(item.edge),
+    reservedSegments: context.reservedSegments,
+    net: item.edge.net,
+    netGroupKey: getNetGroupKey(item.edge)
+  };
+  return findCapacityFreeDirectCandidate(routeContext);
+}
+
+function findCapacityFreeDirectCandidate(context) {
+  return createBasicSimpleRouteCandidates(context).find((candidate) =>
+    candidate.kind === "direct" && isHardRouteCandidate(candidate, context)) || null;
+}
+
+function createCapacityBlockedPositionedEdge(item) {
+  const routeContext = {
+    source: item.source,
+    target: item.target,
+    netGroupKey: getNetGroupKey(item.edge)
+  };
+  const routed = createUnroutableRoute(routeContext, {
+    code: "routing-capacity-limit",
+    ...getCapacityBlockedDiagnostics(item.edgePlan)
+  });
+  return createPositionedEdge(
+    item.edge,
+    item.source,
+    item.target,
+    item.sourcePoint,
+    item.targetPoint,
+    routed,
+    item.edgePlan
+  );
+}
+
+function getCapacityBlockedDiagnostics(edgePlan = {}) {
+  return {
+    channelId: edgePlan.capacityChannelId,
+    boundaryClusterKey: edgePlan.capacityBoundaryClusterKey,
+    overflowKind: edgePlan.capacityOverflowKind,
+    requestedLaneIndex: edgePlan.capacityRequestedLaneIndex,
+    placementLaneLimit: edgePlan.capacityPlacementLaneLimit
+  };
+}
+
+function createPositionedEdge(edge, source, target, sourcePoint, targetPoint, routed, edgePlan) {
+  const label = getLabelPlacement(edge, source, target, sourcePoint, targetPoint);
+  const preferSegmentLabel = routed.kind === "direct";
+  return {
+    ...edge,
+    points: routed.points,
+    routeKind: routed.kind,
+    routeStatus: routed.status || "routed",
+    routeDiagnostics: routed.diagnostics,
+    capacityChannelId: edgePlan?.capacityChannelId,
+    capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
+    capacityOverflow: edgePlan?.capacityOverflow === true,
+    capacityOverflowKind: edgePlan?.capacityOverflowKind,
+    capacityBlocked: edgePlan?.capacityBlocked === true,
+    labelPoint: preferSegmentLabel ? undefined : label.point,
+    labelAnchor: preferSegmentLabel ? undefined : label.anchor
+  };
+}
+
+function commitPhysicalNetRoutes(routes, context) {
+  for (const positionedEdge of routes) {
+    context.routedById.set(positionedEdge.id, positionedEdge);
+    context.routingMetrics.routeKinds[positionedEdge.routeKind] =
+      (context.routingMetrics.routeKinds[positionedEdge.routeKind] || 0) + 1;
+    if (positionedEdge.routeStatus === "unroutable") {
+      const physicalNetKey = getNetGroupKey(positionedEdge);
+      context.unroutablePhysicalNets.add(physicalNetKey);
+      if (positionedEdge.capacityOverflow) {
+        context.overflowUnroutablePhysicalNets.add(physicalNetKey);
+      }
+    }
+    context.reservedSegments.pushUnique(...getOwnedRouteSegments(positionedEdge.points, positionedEdge));
+  }
+  context.routingMetrics.unroutablePhysicalNetCount = context.unroutablePhysicalNets.size;
+  context.routingMetrics.overflowUnroutablePhysicalNetCount =
+    context.overflowUnroutablePhysicalNets.size;
+}
+
 function tryRoutePhysicalNetGroup(edges, context) {
   if (edges.length < 2) return null;
   const sortedEdges = [...edges].sort((left, right) =>
@@ -230,16 +410,29 @@ function tryRoutePhysicalNetGroup(edges, context) {
     node: context.nodeById.get(edge.target)
   }));
   if (targets.some(({ node }) => !node)) return null;
+  const edgePlans = targets.map(({ edge, node }) => applyCapacityLane(
+    context.routePlan?.edges?.get(edge.id),
+    context.routingCapacity,
+    getNetGroupKey(edge),
+    {
+      sourceLevel: source.level,
+      targetLevel: node.level,
+      sourceNodeId: source.id,
+      targetNodeId: node.id
+    }
+  ));
+  if (edgePlans.some((edgePlan) => edgePlan?.capacityBlocked === true)) return null;
   const targetPoints = targets.map(({ edge, node }) =>
     getConnectionPoint(node, edge.targetPin, "target"));
   if (targetPoints.some((point) =>
     Math.abs(point.y - sourcePoint.y) <= 4 || Math.abs(point.x - sourcePoint.x) <= 4)) return null;
   const minimumTargetX = Math.min(...targetPoints.map((point) => point.x));
-  const clearance = Number(context.routingGeometry?.portEscapeLength) || 24;
+  const clearance = Number(context.routingGeometry?.nodeClearance) || 8;
+  const sourceEscapeX = getEscapeLaneX(source, sourcePoint, "source", clearance);
   if (!(minimumTargetX > sourcePoint.x + clearance)) return null;
   const maximumTrunkX = minimumTargetX -
     (Number(context.routingGeometry?.targetApproachClearance) || 9);
-  const minimumTrunkX = sourcePoint.x + clearance;
+  const minimumTrunkX = sourceEscapeX;
   const trunkXs = [
     minimumTrunkX,
     (minimumTrunkX + maximumTrunkX) / 2,
@@ -251,17 +444,7 @@ function tryRoutePhysicalNetGroup(edges, context) {
   for (const trunkX of trunkXs) {
     const positionedEdges = targets.map(({ edge, node }, index) => {
       const targetPoint = targetPoints[index];
-      const edgePlan = applyCapacityLane(
-        context.routePlan.edges.get(edge.id),
-        context.routingCapacity,
-        getNetGroupKey(edge),
-        {
-          sourceLevel: source.level,
-          targetLevel: node.level,
-          sourceNodeId: source.id,
-          targetNodeId: node.id
-        }
-      );
+      const edgePlan = edgePlans[index];
       const label = getLabelPlacement(edge, source, node, sourcePoint, targetPoint);
       return {
         ...edge,
@@ -295,31 +478,71 @@ function tryRoutePhysicalNetGroup(edges, context) {
 function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext = {}) {
   if (!routingCapacity?.allocationByNet) return edgePlan;
   const assignments = routingCapacity.allocationByNet.get(netGroupKey) || [];
-  const topAssignment = assignments.find((assignment) =>
-    assignment.channelId === "outer-top" && hasFiniteCoordinate(assignment));
-  const localAssignments = assignments.filter((assignment) =>
-    String(assignment.channelId).startsWith("inter-layer:") &&
-    hasFiniteCoordinate(assignment));
   const sourceBoundaryId = getSourceBoundaryChannelId(
     edgeContext.sourceLevel,
     edgeContext.targetLevel
   );
-  const localAssignment = localAssignments.find((assignment) =>
-    assignment.channelId === sourceBoundaryId) || localAssignments[0];
+  const interLayerAssignments = assignments.filter((assignment) =>
+    String(assignment.channelId).startsWith("inter-layer:"));
+  const sourceAssignment = sourceBoundaryId
+    ? interLayerAssignments.find((assignment) => assignment.channelId === sourceBoundaryId)
+    : null;
+  const blockedInterLayerAssignments = interLayerAssignments.filter((assignment) =>
+    !hasFiniteCoordinate(assignment) && assignment.capacityOverflow === true);
+  // A route crossing several levels must not use a valid first channel as an
+  // excuse to silently cross a capped later channel.  Prefer the source
+  // boundary in diagnostics, then use allocation order (which is topology
+  // stable) for the remaining required boundary.
+  const blockedAssignment = sourceAssignment && !hasFiniteCoordinate(sourceAssignment)
+    ? sourceAssignment
+    : blockedInterLayerAssignments[0];
+  const physicalNetCapacityOverflow = assignments.some((assignment) =>
+    assignment.capacityOverflow === true);
+  if (blockedAssignment) {
+    return {
+      ...(edgePlan || {}),
+      preferredLaneY: undefined,
+      capacityLaneYs: [],
+      capacityOverflow: true,
+      physicalNetCapacityOverflow,
+      capacityOverflowKind: getCapacityOverflowKind(blockedAssignment),
+      capacityBlocked: true,
+      capacityChannelId: blockedAssignment.channelId,
+      capacityBoundaryClusterKey: blockedAssignment.boundaryClusterKey,
+      capacityRequestedLaneIndex: blockedAssignment.requestedLaneIndex,
+      capacityPlacementLaneLimit: blockedAssignment.placementLaneLimit,
+      capacityCorridor: undefined,
+      capacityEscape: undefined,
+      rowGapLanes: []
+    };
+  }
+  const topAssignment = assignments.find((assignment) =>
+    assignment.channelId === "outer-top" && hasFiniteCoordinate(assignment));
+  const localAssignments = interLayerAssignments.filter(hasFiniteCoordinate);
+  // When a source boundary was modeled, only that exact assignment can set
+  // the source escape.  Falling back to a later boundary revives an invalid
+  // lane after a placement cap and makes the result parser/order dependent.
+  const localAssignment = sourceAssignment && hasFiniteCoordinate(sourceAssignment)
+    ? sourceAssignment
+    : sourceBoundaryId
+      ? null
+      : localAssignments[0];
   const rowGapAssignments = assignments
     .filter((assignment) => String(assignment.channelId).startsWith("row-gap:") &&
       hasFiniteCoordinate(assignment))
     .toSorted((left, right) => String(left.channelId).localeCompare(String(right.channelId)));
-  if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) return edgePlan;
+  if (!topAssignment && !localAssignment && rowGapAssignments.length === 0) {
+    return {
+      ...(edgePlan || {}),
+      physicalNetCapacityOverflow,
+      capacityBlocked: false
+    };
+  }
   const selectedAssignment = localAssignment || topAssignment || rowGapAssignments[0];
   const capacityLaneYs = collectCapacityLaneYHints(assignments);
   return {
     ...(edgePlan || {}),
-    ...(topAssignment ? {
-      topLane: topAssignment.laneIndex,
-      capacityChannelId: topAssignment.channelId,
-      capacityBoundaryClusterKey: topAssignment.boundaryClusterKey
-    } : {}),
+    ...(topAssignment ? { topLane: topAssignment.laneIndex } : {}),
     // Row-gap lanes are recorded for diagnostics and future edge-specific
     // corridor selection.  A single edge may cross several row gaps, so
     // blindly choosing the lexically first row coordinate would change route
@@ -327,11 +550,18 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
     // remain the only global preference until a route has a matching level.
     preferredLaneY: localAssignment?.coordinate ?? topAssignment?.coordinate,
     capacityLaneYs,
-    capacityOverflow: assignments.some((assignment) => assignment.capacityOverflow === true),
+    capacityOverflow: selectedAssignment?.capacityOverflow === true,
+    physicalNetCapacityOverflow,
+    capacityOverflowKind: getCapacityOverflowKind(selectedAssignment),
+    capacityBlocked: false,
+    capacityChannelId: selectedAssignment?.channelId,
     capacityBoundaryClusterKey: selectedAssignment?.boundaryClusterKey,
+    capacityRequestedLaneIndex: selectedAssignment?.requestedLaneIndex,
+    capacityPlacementLaneLimit: selectedAssignment?.placementLaneLimit,
     capacityCorridor: selectedAssignment ? {
       channelId: selectedAssignment.channelId,
       boundaryClusterKey: selectedAssignment.boundaryClusterKey,
+      laneIndex: selectedAssignment.laneIndex,
       coordinate: selectedAssignment.coordinate,
       intervalStart: selectedAssignment.intervalStart,
       intervalEnd: selectedAssignment.intervalEnd,
@@ -353,6 +583,12 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
       boundaryClusterKey: assignment.boundaryClusterKey
     }))
   };
+}
+
+function getCapacityOverflowKind(assignment) {
+  if (!assignment?.capacityOverflow) return null;
+  return assignment.overflowKind ||
+    (assignment.placementOverflow === true ? "placement" : "allocator");
 }
 
 /**
@@ -428,6 +664,12 @@ function routeEdge(context) {
     net,
     netGroupKey = undefined
   } = context;
+  if (edgePlan?.capacityBlocked === true) {
+    return findCapacityFreeDirectCandidate(context) || createUnroutableRoute(context, {
+      code: "routing-capacity-limit",
+      ...getCapacityBlockedDiagnostics(edgePlan)
+    });
+  }
   const candidates = createBasicSimpleRouteCandidates(context);
   const basicCandidates = candidates.filter((candidate) =>
     candidateIsUsable(candidate, context));
@@ -558,7 +800,7 @@ function routeEdge(context) {
         ) &&
         bestLocalScore.crossings - globalScore.crossings <=
           ROUTE_SELECTION_POLICY.maximumAdditionalLocalCrossings;
-      const globalIsHardUsable = !context.strictRouting || isHardRouteCandidate(globalCandidate, context);
+      const globalIsHardUsable = isHardRouteCandidate(globalCandidate, context);
       const removesHardOverlap = localHasOverlap && !globalHasOverlap;
       if (globalIsHardUsable && (removesHardOverlap || (!avoidsLargeOuterDetour && (
         globalScore.crossings < bestLocalScore.crossings ||
@@ -567,7 +809,7 @@ function routeEdge(context) {
         return globalCandidate;
       }
     }
-    if (context.strictRouting === true) {
+    if (localHasOverlap) {
       return createUnroutableRoute(context, {
         candidateCount: scoredCandidates.length,
         localOverlap: localHasOverlap,
@@ -579,7 +821,7 @@ function routeEdge(context) {
 
   routingMetrics.globalFallbacks += 1;
   const globalFallback = createGlobalFallback(context);
-  if (context.strictRouting === true && !isHardRouteCandidate(globalFallback, context)) {
+  if (!isHardRouteCandidate(globalFallback, context)) {
     return createUnroutableRoute(context, { candidateCount: 0 });
   }
   return globalFallback;

@@ -6,6 +6,7 @@ import {
   buildPhysicalNetDemands,
   buildRoutingCapacityPlan,
   computeTopWireHeadroom,
+  MAX_GROUP_INTER_LAYER_PLACEMENT_LANES,
   MAX_PLACEMENT_OUTER_LANES,
   MAX_CHANNEL_LANES_PER_SCOPE,
   normalizeRoutingGeometry,
@@ -89,6 +90,64 @@ test("capacity plan preserves overflow ownership for router diagnostics", () => 
   assert.equal(plan.metrics.overflowPhysicalNetCount, 3);
   assert.ok(overflowAssignments.every((assignment) =>
     assignment.laneIndex === null && assignment.coordinate === null));
+});
+
+test("group inter-layer placement expansion stays bounded and reports excess demand", () => {
+  const count = MAX_GROUP_INTER_LAYER_PLACEMENT_LANES + 3;
+  const sources = Array.from({ length: count }, (_, index) => ({
+    id: `source${index}`,
+    kind: "group",
+    level: 0,
+    x: 0,
+    y: 0,
+    width: 80,
+    height: 32,
+    ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }]
+  }));
+  const targets = Array.from({ length: count }, (_, index) => ({
+    id: `target${index}`,
+    kind: "group",
+    level: 1,
+    x: 160,
+    y: 0,
+    width: 80,
+    height: 32,
+    ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }]
+  }));
+  const graph = {
+    nodes: [...sources, ...targets],
+    edges: Array.from({ length: count }, (_, index) => ({
+      id: `edge${index}`,
+      source: `source${index}`,
+      target: `target${index}`,
+      sourcePin: "Z",
+      targetPin: "A",
+      net: `net${index}`
+    }))
+  };
+  const levels = new Map(graph.nodes.map((node) => [node.id, node.level]));
+  const plan = buildRoutingCapacityPlan(graph, levels, graph.nodes);
+  const channel = plan.channels.find((item) => item.id === "inter-layer:0->1");
+
+  assert.equal(channel.laneCount, count);
+  assert.equal(channel.placementLaneCount, MAX_GROUP_INTER_LAYER_PLACEMENT_LANES);
+  assert.equal(channel.placementOverflowCount, 3);
+  assert.equal(plan.metrics.placementOverflowDemandCount, 3);
+  assert.equal(plan.metrics.placementOverflowPhysicalNetCount, 3);
+  assert.equal(plan.metrics.allocatorOverflowPhysicalNetCount, 0);
+  const placementOverflowAssignments = [...plan.allocationByNet.values()]
+    .flat()
+    .filter((assignment) => assignment.placementOverflow === true);
+  assert.equal(placementOverflowAssignments.length, 3);
+  assert.ok(placementOverflowAssignments.every((assignment) =>
+    assignment.capacityOverflow === true &&
+    assignment.overflowKind === "placement" &&
+    assignment.laneIndex === null &&
+    assignment.coordinate === null &&
+    Number.isFinite(assignment.requestedLaneIndex) &&
+    assignment.placementLaneLimit === MAX_GROUP_INTER_LAYER_PLACEMENT_LANES));
+  assert.ok(plan.diagnostics.some((item) =>
+    item.code === "channel-placement-capacity-overflow" && item.overflowCount === 3));
 });
 
 test("capacity plan counts physical fanout once per inter-layer boundary", () => {
@@ -191,7 +250,7 @@ test("capacity plan records bounded escape ranges only for group boundary endpoi
   assert.deepEqual(assignment.targetEscapeRanges, [{ side: "left", minimum: 136, maximum: 232 }]);
   const cluster = plan.boundaryClusterByKey.get(assignment.boundaryClusterKey);
   assert.equal(cluster.sourceEscapeMinimum, 88);
-  assert.equal(cluster.sourceEscapeMaximum, 184);
+  assert.equal(cluster.sourceEscapeMaximum, 232);
   assert.equal(cluster.targetEscapeMinimum, 136);
   assert.equal(cluster.targetEscapeMaximum, 232);
   assert.deepEqual(cluster.sourceNodeIds, ["source"]);

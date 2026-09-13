@@ -105,9 +105,115 @@ test("simple router binds a skip-level edge to its source-adjacent capacity boun
   });
 
   assert.equal(edge.capacityBoundaryClusterKey, "source-boundary");
-  assert.equal(edge.capacityChannelId, undefined);
-  assert.equal(edge.capacityOverflow, true);
+  assert.equal(edge.capacityChannelId, "inter-layer:0->1");
+  assert.equal(edge.capacityOverflow, false);
   assert.ok(edge.points.length >= 2);
+});
+
+test("simple router never borrows a later boundary or legacy lane after a placement cap", () => {
+  const nodes = [
+    { id: "source", kind: "group", level: 0, x: 0, y: 48, width: 80, height: 40,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 20 }] },
+    { id: "middle", kind: "cell", level: 1, x: 180, y: 112, width: 80, height: 40,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 20 }] },
+    { id: "target", kind: "group", level: 2, x: 360, y: 176, width: 80, height: 40,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 20 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "edge", source: "source", target: "target", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const routingCapacity = {
+    allocationByNet: new Map([["source\u0000n", [
+      {
+        channelId: "inter-layer:0->1",
+        coordinate: null,
+        laneIndex: null,
+        capacityOverflow: true,
+        placementOverflow: true,
+        overflowKind: "placement",
+        requestedLaneIndex: 128,
+        placementLaneLimit: 128,
+        boundaryClusterKey: "source-blocked"
+      },
+      {
+        channelId: "inter-layer:1->2",
+        coordinate: 154,
+        laneIndex: 1,
+        boundaryClusterKey: "later-boundary"
+      }
+    ]]]),
+    metrics: { physicalNetCount: 1, channelCount: 2, allocatedLaneCount: 2 }
+  };
+
+  for (const strictRouting of [false, true]) {
+    const [edge] = routeSimpleEdges(graph, nodes, {
+      layoutIntent: analyzeLayoutIntent(graph, levels),
+      routePlan: { edges: new Map([["edge", {
+        kind: "long",
+        sourceLane: 999,
+        targetLane: 999,
+        topLane: 999
+      }]]) },
+      routingCapacity,
+      wireLanePitch: 24,
+      topWireLanePitch: 24,
+      routingGeometry: normalizeRoutingGeometry(),
+      margin: 48,
+      strictRouting
+    });
+    const diagnostic = edge.routeDiagnostics.find((item) => item.code === "routing-capacity-limit");
+
+    assert.equal(edge.routeKind, "unroutable");
+    assert.equal(edge.routeStatus, "unroutable");
+    assert.deepEqual(edge.points, []);
+    assert.equal(edge.capacityChannelId, "inter-layer:0->1");
+    assert.equal(edge.capacityOverflow, true);
+    assert.equal(diagnostic.channelId, "inter-layer:0->1");
+    assert.equal(diagnostic.requestedLaneIndex, 128);
+    assert.equal(diagnostic.placementLaneLimit, 128);
+    assert.equal(diagnostic.netGroupKey, "source\u0000n");
+  }
+});
+
+test("a capacity-capped boundary still permits a hard-validated direct route", () => {
+  const nodes = [
+    { id: "source", kind: "group", level: 0, x: 0, y: 48, width: 80, height: 40,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 20 }] },
+    { id: "target", kind: "group", level: 1, x: 200, y: 48, width: 80, height: 40,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 20 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "edge", source: "source", target: "target", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const [edge] = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: { edges: new Map([["edge", { kind: "long", sourceLane: 999 }]]) },
+    routingCapacity: {
+      allocationByNet: new Map([["source\u0000n", [{
+        channelId: "inter-layer:0->1",
+        coordinate: null,
+        laneIndex: null,
+        capacityOverflow: true,
+        placementOverflow: true,
+        overflowKind: "placement",
+        boundaryClusterKey: "blocked"
+      }]]]),
+      metrics: { physicalNetCount: 1, channelCount: 1, allocatedLaneCount: 1 }
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.equal(edge.routeKind, "direct");
+  assert.equal(edge.routeStatus, "routed");
+  assert.equal(edge.capacityBlocked, true);
+  assert.equal(edge.capacityOverflow, true);
 });
 
 test("simple router commits a complete non-direct fanout tree atomically", () => {
@@ -142,4 +248,81 @@ test("simple router commits a complete non-direct fanout tree atomically", () =>
   assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
   assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount, 1);
   assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
+});
+
+test("a capped capacity boundary blocks a complete fanout before the tree shortcut", () => {
+  const nodes = [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 60, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "a", kind: "cell", level: 1, x: 240, y: 0, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "b", kind: "cell", level: 1, x: 240, y: 120, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "e1", source: "src", target: "a", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "e2", source: "src", target: "b", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const routed = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: { edges: new Map(graph.edges.map((edge) => [edge.id, { kind: "channel", lane: 0 }])) },
+    routingCapacity: {
+      allocationByNet: new Map([["src\u0000n", [{
+        channelId: "inter-layer:0->1",
+        coordinate: null,
+        laneIndex: null,
+        capacityOverflow: true,
+        placementOverflow: true,
+        overflowKind: "placement",
+        boundaryClusterKey: "blocked"
+      }]]]),
+      metrics: { physicalNetCount: 1, channelCount: 1, allocatedLaneCount: 1 }
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.ok(routed.every((edge) => edge.routeKind === "unroutable"));
+  assert.ok(routed.every((edge) => edge.routeStatus === "unroutable"));
+  assert.ok(routed.every((edge) => edge.points.length === 0));
+  assert.ok(routed.every((edge) => edge.routeDiagnostics.some((item) =>
+    item.code === "routing-capacity-limit")));
+  assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount || 0, 0);
+  assert.equal(routed.routingMetrics.unroutablePhysicalNetCount, 1);
+  assert.equal(routed.routingMetrics.overflowUnroutablePhysicalNetCount, 1);
+});
+
+test("simple router never commits a node-crossing fallback in ordinary mode", () => {
+  const nodes = [
+    { id: "source", kind: "cell", level: 0, x: 0, y: 40, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "target", kind: "cell", level: 1, x: 200, y: 40, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    // This blocker closes every source-to-target escape; it is intentionally
+    // wider/taller than the bounded outer candidate region.
+    { id: "blocker", kind: "cell", level: 0, x: 80, y: -10000, width: 120, height: 20000, ports: [] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "edge", source: "source", target: "target", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const [edge] = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: { edges: new Map([["edge", { kind: "long", lane: 0 }]]) },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.equal(edge.routeKind, "unroutable");
+  assert.equal(edge.routeStatus, "unroutable");
+  assert.deepEqual(edge.points, []);
 });

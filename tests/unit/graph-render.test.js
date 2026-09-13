@@ -344,7 +344,7 @@ test("wire and cell spacing changes preserve node and route separation", async (
       const laidOut = layoutGraph(graph, {
         layoutPolicy: { spacing: { cellSpacing, wireLanePitch } }
       });
-      assert.deepEqual(validateLayoutGraph(laidOut), []);
+      assert.deepEqual(validateLayoutGraph(laidOut, { checkBounds: true }), []);
       assert.equal(overlappingNodes(laidOut).length, 0);
     }
   }
@@ -362,7 +362,7 @@ BUF d (.A(a),.Z(n)); BUF u0 (.A(n),.Z(y0)); BUF u1 (.A(n),.Z(y1)); BUF u2 (.A(n)
   assert.equal(edgesCrossingNonEndpoints(loose).length, 0);
 });
 
-test("aligned skip-level pins use direct routing instead of top lane", () => {
+test("aligned skip-level pins reject a duplicate-pin net instead of overlapping", () => {
   const graph = createRoutingTestGraph();
   const base = layoutGraph(graph);
   const source = base.nodes.find((node) => node.id === "input:a");
@@ -383,12 +383,15 @@ test("aligned skip-level pins use direct routing instead of top lane", () => {
   });
   const skipEdge = adjusted.edges.find((edge) => edge.id === "edge:skip");
 
-  assert.equal(skipEdge.routeKind, "direct");
-  assert.equal(skipEdge.points.length, 2);
-  assert.equal(skipEdge.points[0].y, skipEdge.points.at(-1).y);
+  // The synthetic graph drives the same source pin and target pin with two
+  // distinct physical net keys.  Once foreign-net overlap is a hard rule,
+  // the only correct result is an explicit unroutable edge.
+  assert.equal(skipEdge.routeKind, "unroutable");
+  assert.equal(skipEdge.routeStatus, "unroutable");
+  assert.deepEqual(skipEdge.points, []);
 });
 
-test("aligned skip-level pins avoid direct routing through intermediate cells", () => {
+test("aligned skip-level duplicate-pin nets reject the intermediate-cell fallback", () => {
   const graph = createRoutingTestGraph();
   const base = layoutGraph(graph);
   const source = base.nodes.find((node) => node.id === "input:a");
@@ -405,8 +408,9 @@ test("aligned skip-level pins avoid direct routing through intermediate cells", 
   });
   const skipEdge = adjusted.edges.find((edge) => edge.id === "edge:skip");
 
-  assert.notEqual(skipEdge.routeKind, "direct");
-  assert.ok(skipEdge.points.some((point) => point.y < Math.min(...adjusted.nodes.map((node) => node.y))));
+  assert.equal(skipEdge.routeKind, "unroutable");
+  assert.equal(skipEdge.routeStatus, "unroutable");
+  assert.deepEqual(skipEdge.points, []);
 });
 
 test("fixture input sco_897 does not route through intermediate cells", async () => {

@@ -356,7 +356,12 @@ function createGroupBoundaryLaneCandidate(
     Number(routingGeometry?.portEscapeLength) || 24,
     Number(routingGeometry?.nodeClearance) || 8
   );
-  const sourceLane = Math.max(0, Math.floor(Number(edgePlan.sourceLane) || 0));
+  const capacityLaneIndex = Number(edgePlan?.capacityCorridor?.laneIndex);
+  const sourceLane = Math.max(0, Math.floor(
+    Number.isFinite(capacityLaneIndex)
+      ? capacityLaneIndex
+      : Number(edgePlan.sourceLane) || 0
+  ));
   const targetLane = Math.max(0, Math.floor(Number(edgePlan.targetLane) || 0));
   const sourceDirection = sourceSide === "right" ? 1 : -1;
   const targetDirection = targetSide === "left" ? -1 : 1;
@@ -607,7 +612,7 @@ export function findObstacleAvoidingRoute(context) {
       targetFallbackLaneX,
       laneY
     );
-    if (routeCandidateIsUsable(fallbackCandidate.points, {
+    if ((!reservedSegments || reservedSegments.length === 0) && routeCandidateIsUsable(fallbackCandidate.points, {
       source,
       target,
       sourcePoint,
@@ -663,7 +668,9 @@ export function findObstacleAvoidingRoute(context) {
   // that is clear of node bodies still exists. Preserve the physical safety
   // guarantee and accept that candidate rather than falling back to a direct
   // segment through a visible cell.
-  if (firstNodeSafeCandidate) return firstNodeSafeCandidate;
+  if ((!reservedSegments || reservedSegments.length === 0) && firstNodeSafeCandidate) {
+    return firstNodeSafeCandidate;
+  }
 
   // A graph with no node-safe outer candidate is geometrically unsatisfiable
   // under the current placement. Keep the failure bounded, but preserve
@@ -738,7 +745,7 @@ function createRoute(kind, points) {
   return { kind, points: compactOrthogonalPoints(points) };
 }
 
-function getEscapeLaneX(node, point, role, clearance) {
+export function getEscapeLaneX(node, point, role, clearance) {
   const leftDistance = Math.abs(point.x - node.x);
   const rightDistance = Math.abs(point.x - (node.x + node.width));
   if (role === "source") {

@@ -178,6 +178,33 @@ export function computeBoundsWithRoutes(nodes = [], edges = [], wireRoutes = [])
   };
 }
 
+/**
+ * Return a viewBox extent that covers both the measured span and its absolute
+ * post-translation position.  A span-only extent (`width + margin`) clips a
+ * scene whose normalized left/top origin is already greater than the margin.
+ */
+export function computeSafeLayoutExtent(bounds = {}, margin = 0, minimum = {}) {
+  const padding = Math.max(0, Number(margin) || 0);
+  const right = Number(bounds.right);
+  const bottom = Number(bounds.bottom);
+  const width = Number(bounds.width);
+  const height = Number(bounds.height);
+  return {
+    width: Math.max(
+      0,
+      Number(minimum.width) || 0,
+      Number.isFinite(right) ? right : 0,
+      (Number.isFinite(width) ? width : 0) + padding
+    ),
+    height: Math.max(
+      0,
+      Number(minimum.height) || 0,
+      Number.isFinite(bottom) ? bottom : 0,
+      (Number.isFinite(height) ? height : 0) + padding
+    )
+  };
+}
+
 /** Translate all scene geometry together when a bounded outer lane is negative. */
 export function translateLayoutGeometry(nodes = [], edges = [], wireRoutes = [], delta = {}) {
   const dx = Number(delta.x) || 0;

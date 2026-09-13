@@ -6,6 +6,7 @@ const MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES = 32;
 // Keep each physical channel bounded. Overflow demands retain diagnostics but
 // do not create unbounded placement expansion or a fake duplicate lane.
 export const MAX_CHANNEL_LANES_PER_SCOPE = 256;
+export const MAX_GROUP_INTER_LAYER_PLACEMENT_LANES = 128;
 // Placement must reserve a useful outer band without allowing a large mapped
 // graph to turn every physical net into a full-height canvas expansion. The
 // router still reports overflow so unmet capacity is diagnosable.
@@ -179,19 +180,7 @@ export function buildRoutingCapacityPlan(
         (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
       );
       const entries = allocationByNet.get(assigned.netGroupKey) || [];
-      entries.push({
-        channelId: channel.id,
-        laneIndex: assigned.laneIndex,
-        coordinate: assigned.coordinate,
-        intervalStart: assigned.intervalStart,
-        intervalEnd: assigned.intervalEnd,
-        boundaryClusterKey: assigned.boundaryClusterKey,
-        sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides,
-        sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges,
-        capacityOverflow: assigned.capacityOverflow === true
-      });
+      entries.push(createAllocationEntry(channel.id, assigned));
       allocationByNet.set(assigned.netGroupKey, entries);
     }
   }
@@ -206,19 +195,26 @@ export function buildRoutingCapacityPlan(
         nodeById,
         layoutIntent,
         edgeById,
-        routingGeometry
+        routingGeometry,
+        levelBounds
       ))
       .toSorted(compareChannelDemands);
-    const allocation = allocateIntervalLanes(
+    const rawAllocation = allocateIntervalLanes(
       channelDemands,
       routingGeometry.laneReusePadding,
       routingGeometry.wireLanePitch,
       MAX_CHANNEL_LANES_PER_SCOPE
     );
     const currentSpan = getInterLayerSpan(levelBounds, leftLevel, rightLevel);
+    const hasGroupBoundaryDemand = channelDemands.some((demand) =>
+      demand.sourceEscapeInterval || demand.targetEscapeRanges?.length > 0);
+    const placementLaneCount = hasGroupBoundaryDemand
+      ? Math.min(rawAllocation.laneCount, MAX_GROUP_INTER_LAYER_PLACEMENT_LANES)
+      : rawAllocation.laneCount;
+    const allocation = limitPlacementAssignments(rawAllocation, placementLaneCount);
     const requiredSpan = currentSpan === null
       ? 0
-      : requiredInterLayerGap(allocation.laneCount, routingGeometry);
+      : requiredInterLayerGap(placementLaneCount, routingGeometry);
     const channel = {
       id: `inter-layer:${leftLevel}->${rightLevel}`,
       kind: "inter-layer",
@@ -228,6 +224,8 @@ export function buildRoutingCapacityPlan(
       requiredSpan,
       expansion: currentSpan === null ? 0 : Math.max(0, requiredSpan - currentSpan),
       laneCount: allocation.laneCount,
+      placementLaneCount,
+      placementOverflowCount: allocation.placementOverflowCount,
       overflowCount: allocation.overflowCount,
       lanes: allocation.lanes,
       assignments: allocation.assignments,
@@ -242,19 +240,7 @@ export function buildRoutingCapacityPlan(
         (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
       );
       const entries = allocationByNet.get(assigned.netGroupKey) || [];
-      entries.push({
-        channelId: channel.id,
-        laneIndex: assigned.laneIndex,
-        coordinate: assigned.coordinate,
-        intervalStart: assigned.intervalStart,
-        intervalEnd: assigned.intervalEnd,
-        boundaryClusterKey: assigned.boundaryClusterKey,
-        sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides,
-        sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges,
-        capacityOverflow: assigned.capacityOverflow === true
-      });
+      entries.push(createAllocationEntry(channel.id, assigned));
       allocationByNet.set(assigned.netGroupKey, entries);
     }
   }
@@ -306,19 +292,7 @@ export function buildRoutingCapacityPlan(
         (boundaryClusterCounts.get(assigned.boundaryClusterKey) || 0) + 1
       );
       const entries = allocationByNet.get(assigned.netGroupKey) || [];
-      entries.push({
-        channelId: kind,
-        laneIndex: assigned.laneIndex,
-        coordinate: assigned.coordinate,
-        intervalStart: assigned.intervalStart,
-        intervalEnd: assigned.intervalEnd,
-        boundaryClusterKey: assigned.boundaryClusterKey,
-        sourceEscapeSide: assigned.sourceEscapeSide,
-        targetEscapeSides: assigned.targetEscapeSides,
-        sourceEscapeInterval: assigned.sourceEscapeInterval,
-        targetEscapeRanges: assigned.targetEscapeRanges,
-        capacityOverflow: assigned.capacityOverflow === true
-      });
+      entries.push(createAllocationEntry(kind, assigned));
       allocationByNet.set(assigned.netGroupKey, entries);
     }
   }
@@ -344,6 +318,15 @@ export function buildRoutingCapacityPlan(
   const overflowPhysicalNetKeys = new Set(channels.flatMap((channel) =>
     (channel.assignments || [])
       .filter((assignment) => assignment.capacityOverflow === true)
+      .map((assignment) => assignment.netGroupKey)));
+  const placementOverflowPhysicalNetKeys = new Set(channels.flatMap((channel) =>
+    (channel.assignments || [])
+      .filter((assignment) => assignment.placementOverflow === true)
+      .map((assignment) => assignment.netGroupKey)));
+  const allocatorOverflowPhysicalNetKeys = new Set(channels.flatMap((channel) =>
+    (channel.assignments || [])
+      .filter((assignment) => assignment.capacityOverflow === true &&
+        assignment.placementOverflow !== true)
       .map((assignment) => assignment.netGroupKey)));
   const publicChannels = channels.map((channel) => {
     // Inter-layer and outer allocations are consumed through allocationByNet
@@ -375,6 +358,14 @@ export function buildRoutingCapacityPlan(
         laneCount: channel.laneCount,
         overflowCount: channel.overflowCount,
         maximumLanes: MAX_CHANNEL_LANES_PER_SCOPE
+      }] : []),
+      ...(channel.placementOverflowCount > 0 ? [{
+        code: "channel-placement-capacity-overflow",
+        channelId: channel.id,
+        laneCount: channel.laneCount,
+        placementLaneCount: channel.placementLaneCount,
+        overflowCount: channel.placementOverflowCount,
+        maximumLanes: MAX_GROUP_INTER_LAYER_PLACEMENT_LANES
       }] : [])
     ]),
     metrics: {
@@ -385,6 +376,12 @@ export function buildRoutingCapacityPlan(
       overflowChannelCount: channels.filter((channel) => channel.overflowCount > 0).length,
       overflowDemandCount: channels.reduce((sum, channel) => sum + (channel.overflowCount || 0), 0),
       overflowPhysicalNetCount: overflowPhysicalNetKeys.size,
+      allocatorOverflowPhysicalNetCount: allocatorOverflowPhysicalNetKeys.size,
+      placementOverflowDemandCount: channels.reduce(
+        (sum, channel) => sum + (channel.placementOverflowCount || 0),
+        0
+      ),
+      placementOverflowPhysicalNetCount: placementOverflowPhysicalNetKeys.size,
       boundaryClusterCount: boundaryClusterCounts.size,
       maximumBoundaryClusterDemand: Math.max(0, ...boundaryClusterCounts.values()),
       topWireHeadroom: options.topWireHeadroom || null
@@ -423,6 +420,66 @@ function assignOuterLaneCoordinates(allocation, kind, positionedNodes, routingGe
         ...assignment,
         coordinate: base + direction * Number(assignment.laneIndex) * pitch
       })
+  };
+}
+
+/**
+ * Keep the allocation's demand count for diagnostics, but expose only lanes
+ * that placement actually reserved.  A lane beyond that bounded span is an
+ * explicit overflow assignment with no coordinate; it must never become a
+ * plausible route hint merely because the allocator found a slot.
+ */
+function limitPlacementAssignments(allocation, placementLaneCount) {
+  const limit = Math.max(0, Math.floor(Number(placementLaneCount) || 0));
+  let placementOverflowCount = 0;
+  const assignments = (allocation.assignments || []).map((assignment) => {
+    const laneIndex = Number(assignment.laneIndex);
+    if (!Number.isFinite(laneIndex) || laneIndex < limit) return assignment;
+    placementOverflowCount += 1;
+    return {
+      ...assignment,
+      requestedLaneIndex: laneIndex,
+      placementLaneLimit: limit,
+      laneIndex: null,
+      coordinate: null,
+      capacityOverflow: true,
+      placementOverflow: true
+    };
+  });
+  return {
+    ...allocation,
+    lanes: (allocation.lanes || []).slice(0, limit),
+    assignments,
+    placementOverflowCount
+  };
+}
+
+/**
+ * Keep the compact router view semantically complete.  In particular, a
+ * missing coordinate caused by a placement cap is not interchangeable with an
+ * ordinary allocator overflow or an absent legacy assignment.  The router
+ * needs that distinction to avoid borrowing a lane from another boundary.
+ */
+function createAllocationEntry(channelId, assignment) {
+  const placementOverflow = assignment.placementOverflow === true;
+  const capacityOverflow = assignment.capacityOverflow === true;
+  return {
+    channelId,
+    laneIndex: assignment.laneIndex,
+    coordinate: assignment.coordinate,
+    intervalStart: assignment.intervalStart,
+    intervalEnd: assignment.intervalEnd,
+    boundaryClusterKey: assignment.boundaryClusterKey,
+    sourceNodeId: assignment.sourceNodeId,
+    sourceEscapeSide: assignment.sourceEscapeSide,
+    targetEscapeSides: assignment.targetEscapeSides,
+    sourceEscapeInterval: assignment.sourceEscapeInterval,
+    targetEscapeRanges: assignment.targetEscapeRanges,
+    requestedLaneIndex: assignment.requestedLaneIndex,
+    placementLaneLimit: assignment.placementLaneLimit,
+    capacityOverflow,
+    placementOverflow,
+    overflowKind: placementOverflow ? "placement" : capacityOverflow ? "allocator" : null
   };
 }
 
@@ -883,7 +940,8 @@ function createInterLayerDemand(
   nodeById,
   layoutIntent,
   edgeById,
-  routingGeometry
+  routingGeometry,
+  levelBounds
 ) {
   const edges = demand.targetPortRefs.map((ref) => ({
     ...ref,
@@ -907,7 +965,14 @@ function createInterLayerDemand(
   const includeEscapeIntervals = sourceNode?.kind === "group" ||
     edges.some(({ nodeId }) => nodeById.get(nodeId)?.kind === "group");
   const sourceEscapeInterval = includeEscapeIntervals
-    ? getEscapeInterval(sourceNode, sourceEscapeSide, routingGeometry)
+    ? getInterLayerEscapeInterval(
+      sourceNode,
+      sourceEscapeSide,
+      leftLevel,
+      rightLevel,
+      levelBounds,
+      routingGeometry
+    )
     : null;
   const targetEscapeRanges = includeEscapeIntervals
     ? summarizeTargetEscapeRanges(edges, nodeById, routingGeometry)
@@ -986,6 +1051,40 @@ function getEscapeInterval(node, side, routingGeometry = DEFAULT_ROUTING_GEOMETR
   };
 }
 
+function getInterLayerEscapeInterval(
+  node,
+  side,
+  leftLevel,
+  rightLevel,
+  levelBounds,
+  routingGeometry
+) {
+  const fallback = getEscapeInterval(node, side, routingGeometry);
+  if (node?.kind !== "group" || !fallback) return fallback;
+  const clearance = Number(routingGeometry.nodeClearance) || DEFAULT_ROUTING_GEOMETRY.nodeClearance;
+  const left = levelBounds.get(leftLevel);
+  const right = levelBounds.get(rightLevel);
+  const nodeLevel = Number(node.level);
+  if (side === "right" && nodeLevel === leftLevel && Number.isFinite(right?.coreMinimumX)) {
+    return {
+      side,
+      minimum: Number(node.x) + Number(node.width) + clearance,
+      maximum: Math.max(
+        Number(node.x) + Number(node.width) + clearance,
+        right.coreMinimumX - clearance
+      )
+    };
+  }
+  if (side === "left" && nodeLevel === rightLevel && Number.isFinite(left?.coreMaximumX)) {
+    return {
+      side,
+      minimum: Math.min(Number(node.x) - clearance, left.coreMaximumX + clearance),
+      maximum: Number(node.x) - clearance
+    };
+  }
+  return fallback;
+}
+
 function normalizeEscapeInterval(interval) {
   if (!interval) return { side: null, minimum: null, maximum: null };
   return {
@@ -1055,7 +1154,7 @@ function getLevelBounds(nodes, levels) {
     };
     current.minimumX = Math.min(current.minimumX, Number(node.x) || 0);
     current.maximumX = Math.max(current.maximumX, (Number(node.x) || 0) + (Number(node.width) || 0));
-    if (node.kind === "cell" || node.kind === "assign" || node.kind === "hub") {
+    if (node.kind === "cell" || node.kind === "assign" || node.kind === "hub" || node.kind === "group") {
       current.coreMinimumX = Math.min(current.coreMinimumX, Number(node.x) || 0);
       current.coreMaximumX = Math.max(current.coreMaximumX, (Number(node.x) || 0) + (Number(node.width) || 0));
       current.hasCore = true;
