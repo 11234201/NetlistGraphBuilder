@@ -548,3 +548,13 @@ eq012 Focused `_2021_` + `_2406_`（fanin/fanout depth 3）在 spacing `4, 8, 16
 在与本地 layout 依赖完全同步、且撤回混合 group→cell 扩展的 mfs-remote 上，strict collapsed 复核为：dp020 `1933` 条 missing-route、`413` 条 `capacity-overflow-corridor`，layout 约 `12.9 s`、heap 约 `229 MiB`；sop015 `3193` 条 missing-route、`362` 条 overflow corridor，layout 约 `12.7 s`、heap 约 `205 MiB`。`dce4624` 删除了 reservation segment 上未使用的 target/source 元数据，避免 Whole dense 图的对象字段膨胀。Whole graph 未启用 target-entry map，剩余 strict 失败仍来自超过固定 capacity 的 collapsed group/inter-layer corridor，而不是新的 cross-net overlap。
 
 最终版本 benchmark（mfs-remote，`BENCHMARK_RUNS=1`）为 1024/4096/8192 cell：普通 layout `195.9/1402.6/4542.7 ms`，SVG `59.6/265.6/734.6 ms`；collapsed layout `11.1/11.5/16.8 ms`。target-entry map 在该长链 Whole 场景不创建，候选上限和 overflow 重试次数未增加；单次样本仅用于相对趋势，不能替代多次 median。
+
+## 13.10 2026-09-13 physical-net tree 的垂直 target approach
+
+继续按方案推进时发现一个与入口近共线问题不同、但会放大 dense 图失败率的通用缺口：`tryRoutePhysicalNetGroup()` 原先对所有 target 都使用 `trunk -> targetPoint` 的水平末段。对于声明在 `top`/`bottom` 的 target pin，这条末段不满足 endpoint-side 合同，整棵 tree 会被 shared validator 拒绝，随后退化为逐 logical edge 搜索；逐 edge 结果虽然可能各自合法，但不能保证保留共享 trunk。
+
+提交 `60040a0` 只对垂直 target 启用命名的 approach 几何：先由 `getTargetApproachPoint()` 在 target body 外生成垂直接入点，再从共享 trunk 走到该点并垂直连接 pin；left/right target 保留既有 tree 路径。整棵 tree 仍在 reservation 前一次性执行 endpoint、node、foreign-net 和 connectivity 校验，失败时不提交部分 branch。新增 synthetic top-side target tree 单测，避免把该修复绑定到具体实例或坐标。
+
+本地 `npm test` 当前为 `429/429`。远端 mfs-remote 复核：dp020 strict `1933` 条 `missing-route`、`413` 条显式 `capacity-overflow-corridor`，layout `12.876 s`、heap `209 MiB`；sop015 strict `3193` 条 `missing-route`、`362` 条 overflow corridor，layout `12.605 s`、heap `208 MiB`。与前一版本相比没有新增 hard overlap 或非法 polyline；route-kind 分布仅因垂直 target tree 合同而变化。远端 `BENCHMARK_RUNS=1` 长链普通 layout 为 `205.8/1385.7/4874.2 ms`，collapsed layout `10.7/11.8/26.0 ms`，仍属单次样本，需后续 median 才能作为性能趋势。
+
+最终版本的普通 mapped runner 也已重新执行：`47` 个 case 中 `40` 个仍失败，累计 `35154/120`，最大 layout `22.412 s`、heap `427 MiB`。这些失败主要是 runner 将显式 `unroutable` 的 `missing-route` 纳入普通预算；它们与 eq012 Focused 的零硬违规结论不是同一个门禁。严格门禁的代表性残余仍集中在 collapsed group/inter-layer capacity 没有真实 placement corridor，下一阶段必须继续实现 boundary-cluster 的可消费 row/escape corridor，并保持固定候选上限，不能通过提高 spacing 或重试次数掩盖。
