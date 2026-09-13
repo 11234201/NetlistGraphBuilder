@@ -522,3 +522,11 @@ eq012 只是能清楚展示这条链的最小代表案例。抽样结果表明�
 另一个贯穿遗漏是 `capacityLaneYs` 虽已生成，但 `createGlobalFallback()` 没有传给 `findObstacleAvoidingRoute()`。`db91238` 接通后，dp020 strict missing-route 从修正 null 后的 `2087` 降到 `2040`，sop015 从 `2737` 降到 `2634`；普通 corpus 仍为 `47/47`、`72/120`，最大 layout `26.319 s`、heap `350 MiB`。
 
 随后验证了逐 branch 连接已有同 net route 的 bounded 原型。它在 source anchor 不同的时候产生 `detached-endpoint`；收紧 anchor 后仍使 sop002 出现更多 node-crossing，并在 strict physical union 中产生 `wire-route-disconnected`。原型已全部撤回。结论是 CH-08 不能在 logical edge 循环内逐步拼树，必须先构造完整 physical-net topology，统一验证 source/全部 targets/obstacles/foreign owners，再原子提交整组 geometry 和 reservation。
+
+### 13.8 2026-09-13 入口重叠复核与当前实现
+
+用户复核的场景是 Focused 根 `_2021_` + `_2406_`、`cellSpacing=88`，重叠发生在 `clk` 接入 `_2406_` 的垂直段，而不是出发段。该场景已用最终 `nodeIndex`、`RouteSegmentIndex` 和 shared validator 重新检查：`clk` 的入口垂直段与 `rst_n` 不再使用同一 x corridor；spacing 矩阵 `4..320` 均无 `net-overlap`、node crossing 或 bounds 违规。问题根因是不同 physical net 在同一 target-side corridor 的近共线垂直段只相差约 1 px，SVG stroke 宽度大于中心线间隙；因此仅看中心线交点会漏报“视觉重叠”。
+
+当前实现提交 `18abb2f` 保留近共线平行段的最小可视分离合同，`b86dab5`/`77833c1` 又收紧 capacity overflow：source-adjacent boundary 无坐标时不得借用后续 boundary 或 legacy lane；先尝试直连，再尝试固定数量的 hard-validated overflow corridor；fanout group 先尝试共享 trunk 的 atomic tree；所有失败均为空 points + `unroutable` 诊断。无 node-safe outer candidate 时 `findObstacleAvoidingRoute()` 直接返回 `null`，底层不再向 provider 泄漏非法 orthogonal fallback。
+
+本地 `npm test` 当前为 `428/428`。mfs-remote 定向 hard 回归（collapsed）：dp020 为 `1933` 条 missing-route、`413` 条显式 `capacity-overflow-corridor`，layout 约 `12.7 s`、heap 约 `225 MiB`；sop015 为 `3193` 条 missing-route、`362` 条 overflow corridor，layout 约 `12.4 s`、heap 约 `252 MiB`。这些 strict 失败是剩余 group/inter-layer capacity 没有可证明 corridor 的真实几何失败，不是 overlap validator 的漏报；后续仍需完成 cluster corridor 的 placement 消费和 native tree 覆盖，不能通过提高 spacing 或重试上限掩盖。
