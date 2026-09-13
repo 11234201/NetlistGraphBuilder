@@ -27,6 +27,12 @@ test("shared graph workspace prepares whole and focused views without mutation",
   assert.ok(focused.nodes.some((node) => node.id === "cell:u0"));
 });
 
+test("workspace graph carries occurrence context into ObjectRef-capable nodes", () => {
+  const module = parseVerilog(`module top (a, y); input a; output y; BUF u0 (.A(a), .Z(y)); endmodule`).modules[0];
+  const graph = buildWorkspaceGraph(module, { occurrencePath: ["top", "u0:BUF"] });
+  assert.deepEqual(graph.nodes.find((node) => node.id === "cell:u0").ref.occurrencePath, ["top", "u0:BUF"]);
+});
+
 test("large module policy enters search-first only above its stable threshold", () => {
   assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 500 }) }), false);
   assert.equal(shouldUseSearchFirst({ cells: Array.from({ length: 501 }) }), true);

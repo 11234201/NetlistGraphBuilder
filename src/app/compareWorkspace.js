@@ -4,6 +4,7 @@ import {
 } from "./graphWorkspace.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
+import { shouldUseSearchFirst } from "./graphWorkspace.js";
 
 export function buildCompareWorkspace(options) {
   const {
@@ -30,7 +31,9 @@ export function buildCompareWorkspace(options) {
     expandedGroupIds = new Set(),
     focusedRootNodeIds = { left: [], right: [] },
     activeFocusedRootNodeId = { left: null, right: null },
-    moduleLibrary = []
+    moduleLibrary = [],
+    searchFirstThreshold = 500,
+    forceWhole = false
   } = options;
   const fullGraphs = {
     left: buildWorkspaceGraph(leftModule, {
@@ -74,6 +77,8 @@ export function buildCompareWorkspace(options) {
         faninDepth: coneDepth,
         fanoutDepth: 0
       };
+    } else if (!forceWhole && shouldUseSearchFirst(side === "left" ? leftModule : rightModule, searchFirstThreshold)) {
+      workspaceInputs[side] = { viewMode: "search-first" };
     }
   }
   const buildSide = (side, module) => buildModuleWorkspace({
@@ -96,7 +101,7 @@ export function buildCompareWorkspace(options) {
     autoGraphs: { left: left.autoGraph, right: right.autoGraph },
     graphs: { left: left.graph, right: right.graph },
     scenes: { left: left.scene, right: right.scene },
-    analysis: compareModules(leftModule, rightModule, left.sourceGraph, right.sourceGraph)
+    analysis: compareModules(leftModule, rightModule, fullGraphs.left, fullGraphs.right)
   });
   return isPromise(leftLayout) || isPromise(rightLayout)
     ? Promise.all([leftLayout, rightLayout]).then(finalize)

@@ -101,3 +101,21 @@ test("compare workspace preserves independent multi-cell focused roots per side"
   assert.ok(workspace.graphs.left.nodes.some((node) => node.id === "cell:u1" && node.isActiveFocusedRoot));
   assert.ok(workspace.graphs.left.nodes.some((node) => node.kind === "output"));
 });
+
+test("large compare modules stay Search-first until a cone or Whole is requested", () => {
+  const cells = Array.from({ length: 520 }, (_, index) => `BUF u${index} (.A(a), .Z(n${index}));`).join(" ");
+  const largeSource = `module left (a, y); input a; output y; wire ${Array.from({ length: 520 }, (_, index) => `n${index}`).join(",")}; ${cells} endmodule\n` +
+    `module right (a, y); input a; output y; wire ${Array.from({ length: 520 }, (_, index) => `n${index}`).join(",")}; ${cells} endmodule`;
+  const [leftModule, rightModule] = parseVerilog(largeSource).modules;
+  let layoutCalls = 0;
+  const provider = { layout() { layoutCalls += 1; throw new Error("Whole layout should be deferred"); } };
+  const deferred = buildCompareWorkspace({ leftModule, rightModule, layoutProvider: provider });
+
+  assert.equal(layoutCalls, 0);
+  assert.equal(deferred.graphs.left.view.mode, "search-first");
+  assert.equal(deferred.graphs.right.nodes.length, 0);
+  assert.equal(deferred.analysis.left.cells, 520);
+
+  const whole = buildCompareWorkspace({ leftModule, rightModule, layoutProvider: getLayoutProvider(), forceWhole: true });
+  assert.ok(whole.graphs.left.nodes.length > 0);
+});

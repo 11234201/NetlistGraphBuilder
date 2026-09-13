@@ -55,6 +55,7 @@ function buildNode(module, instance, moduleAncestry, instancePath, moduleByName,
   }
   return Object.freeze({
     id: nextInstancePath.join("/"),
+    occurrencePath: Object.freeze([...nextInstancePath]),
     moduleName: module.name,
     moduleLabel: module.displayName || module.name,
     instanceName: instance?.instance || null,

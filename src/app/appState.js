@@ -2,6 +2,7 @@ import { createModuleHistory } from "./moduleHistory.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
+import { createViewHistory } from "./viewHistory.js";
 
 export function createAppState(layoutPolicy) {
   return {
@@ -22,6 +23,7 @@ export function createAppState(layoutPolicy) {
     coneRootNodeId: null,
     focusedRootNodeIds: [],
     activeFocusedRootNodeId: null,
+    occurrenceContext: null,
     coneDepth: 3,
     faninDepth: 3,
     fanoutDepth: 3,
@@ -49,6 +51,8 @@ export function createAppState(layoutPolicy) {
     presentationPolicy: { gateSymbolMode: "rectangle" },
     moduleWorkspaces: new Map(),
     moduleHistory: createModuleHistory(),
+    viewHistory: createViewHistory(),
+    restoringViewHistory: false,
     compareWorkspaces: new Map(),
     compare: createCompareState()
   };
@@ -79,6 +83,7 @@ export function createCompareState() {
     timingBadgeChoices: { left: {}, right: {} },
     timingBadgePositions: { left: {}, right: {} },
     outputName: null,
+    wholeRequested: false,
     focusedRootNodeIds: { left: [], right: [] },
     activeFocusedRootNodeId: { left: null, right: null },
     analysis: null
@@ -98,6 +103,8 @@ export function resetDesignWorkspace(state) {
   state.timing = null;
   state.moduleWorkspaces = new Map();
   state.moduleHistory = createModuleHistory();
+  state.viewHistory = createViewHistory();
+  state.restoringViewHistory = false;
   state.compareWorkspaces = new Map();
 }
 
@@ -111,6 +118,10 @@ export function saveModuleWorkspace(state, moduleName) {
     coneRootNodeId: state.coneRootNodeId,
     focusedRootNodeIds: normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId),
     activeFocusedRootNodeId: state.activeFocusedRootNodeId,
+    occurrenceContext: state.occurrenceContext ? {
+      rootModuleName: state.occurrenceContext.rootModuleName || null,
+      occurrencePath: [...(state.occurrenceContext.occurrencePath || [])]
+    } : null,
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
     timingBadgeChoices: cloneRecord(state.timingBadgeChoices),
@@ -131,6 +142,10 @@ export function restoreModuleWorkspace(state, moduleName) {
   state.activeFocusedRootNodeId = state.focusedRootNodeIds.includes(saved.activeFocusedRootNodeId)
     ? saved.activeFocusedRootNodeId
     : state.coneRootNodeId;
+  state.occurrenceContext = saved.occurrenceContext ? {
+    rootModuleName: saved.occurrenceContext.rootModuleName || null,
+    occurrencePath: [...(saved.occurrenceContext.occurrencePath || [])]
+  } : null;
   state.faninDepth = normalizeDepth(saved.faninDepth, state.faninDepth);
   state.fanoutDepth = normalizeDepth(saved.fanoutDepth, state.fanoutDepth);
   state.timingBadgeChoices = cloneRecord(saved.timingBadgeChoices);
@@ -182,6 +197,7 @@ export function resetModuleWorkspace(state) {
   state.coneRootNodeId = null;
   state.focusedRootNodeIds = [];
   state.activeFocusedRootNodeId = null;
+  state.occurrenceContext = null;
   resetTimingPresentation(state);
 }
 

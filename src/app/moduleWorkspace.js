@@ -35,7 +35,8 @@ export function buildModuleWorkspace(options) {
     presentationPolicy = null,
     nodePositions = new Map(),
     nodeSizes = new Map(),
-    preparedFullGraph = null
+    preparedFullGraph = null,
+    occurrencePath = null
   } = options;
   const fullGraph = preparedFullGraph || buildWorkspaceGraph(module, {
     moduleLibrary,
@@ -45,8 +46,19 @@ export function buildModuleWorkspace(options) {
     timingDisplayPolicy,
     timingBadgeChoices,
     timingBadgePositions,
-    showAliases
+    showAliases,
+    occurrencePath
   });
+  if (viewMode === "search-first") {
+    const emptyGraph = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
+    return {
+      fullGraph,
+      sourceGraph: emptyGraph,
+      autoGraph: emptyGraph,
+      graph: emptyGraph,
+      scene: createNetlistScene(emptyGraph, { presentationPolicy })
+    };
+  }
   const pipeline = runViewPipeline({
     query: () => ({
       fullGraph,

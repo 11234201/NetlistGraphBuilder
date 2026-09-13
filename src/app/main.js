@@ -123,6 +123,13 @@ import {
   replaceCurrentModuleHistory,
   stepModuleHistory
 } from "./moduleHistory.js";
+import {
+  canStepViewHistory,
+  createViewHistoryEntry,
+  pushViewHistory,
+  replaceCurrentViewHistory,
+  stepViewHistory
+} from "./viewHistory.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const browserDownload = createBrowserDownload();
@@ -333,8 +340,8 @@ createQuickInputController({
   loadText: loadQuickInputText,
   setStatus
 });
-elements.moduleBackButton.addEventListener("click", () => navigateModuleHistory(-1));
-elements.moduleForwardButton.addEventListener("click", () => navigateModuleHistory(1));
+elements.moduleBackButton.addEventListener("click", () => navigateViewHistory(-1));
+elements.moduleForwardButton.addEventListener("click", () => navigateViewHistory(1));
 elements.layoutProviderSelect.addEventListener("change", handleLayoutProviderChange);
 elements.compareButton.addEventListener("click", () => {
   if (state.compare.active) exitCompareView();
@@ -353,6 +360,7 @@ elements.compareLayoutSelect.addEventListener("change", (event) => {
 });
 elements.compareOutputSelect.addEventListener("change", (event) => {
   state.compare.outputName = event.target.value || null;
+  state.compare.wholeRequested = !state.compare.outputName;
   if (state.compare.outputName) {
     for (const side of ["left", "right"]) compareViewSessions.dispatch(side, { type: "focus.clear" });
   }
@@ -425,6 +433,7 @@ elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
 elements.canvas.addEventListener("pointerdown", handlePointerDown);
 elements.canvas.addEventListener("dblclick", handleCanvasDoubleClick);
 window.addEventListener("keydown", handleModuleHistoryShortcut);
+window.addEventListener("keydown", handleViewHistoryShortcut);
 window.addEventListener("keydown", handleFocusSelectedShortcut);
 window.addEventListener("beforeunload", () => {
   if (state.currentSource) saveSessionState(createSessionSnapshot(state));
@@ -707,6 +716,7 @@ function applyCompareSelection() {
   state.compare.leftModuleName = left.name;
   state.compare.rightModuleName = right.name;
   state.compare.outputName = null;
+  state.compare.wholeRequested = false;
   clearCompareSelection();
   updateFocusSelectedControl();
   setCompareTransform("left", { x: 0, y: 0, scale: 1 }, false);
@@ -789,7 +799,8 @@ function renderCompareGraphs() {
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds,
-    moduleLibrary: state.design.modules
+    moduleLibrary: state.design.modules,
+    forceWhole: state.compare.wholeRequested
   });
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
@@ -868,6 +879,12 @@ function selectModule(moduleName, options = {}) {
   updateModuleHierarchyPicker();
   renderModuleHierarchy();
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
+  if (options.occurrencePath?.length) {
+    state.occurrenceContext = {
+      rootModuleName: options.rootModuleName || options.occurrencePath[0] || module.name,
+      occurrencePath: [...options.occurrencePath]
+    };
+  }
   if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;
   if (historyEntry) {
     applyModuleHistoryEntry(historyEntry);
@@ -891,6 +908,7 @@ function selectModule(moduleName, options = {}) {
   renderSelection(null);
   updateViewControls();
   applyTransform();
+  recordViewHistory();
 }
 
 function navigateModuleHistory(delta) {
@@ -944,10 +962,70 @@ function handleModuleHistoryShortcut(event) {
   navigateModuleHistory(event.key === "ArrowLeft" ? -1 : 1);
 }
 
+function handleViewHistoryShortcut(event) {
+  if (isEditableInputTarget(event.target) || state.compare.active) return;
+  const undo = (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "z" && !event.shiftKey;
+  const redo = (event.ctrlKey || event.metaKey) && (
+    (event.key.toLowerCase() === "z" && event.shiftKey) || event.key.toLowerCase() === "y"
+  );
+  if (!undo && !redo) return;
+  event.preventDefault();
+  navigateViewHistory(undo ? -1 : 1);
+}
+
+function navigateViewHistory(delta) {
+  if (state.compare.active || !state.currentModule) return;
+  state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state));
+  const result = stepViewHistory(state.viewHistory, delta);
+  if (!result.entry) {
+    updateModuleHistoryControls();
+    return;
+  }
+  state.viewHistory = result.history;
+  restoreViewHistoryEntry(result.entry);
+}
+
+function restoreViewHistoryEntry(entry) {
+  state.restoringViewHistory = true;
+  const finish = (graph) => {
+    state.viewMode = normalizeSingleViewMode(entry.viewMode);
+    setFocusedRootNodeIds(state, entry.focusedRootNodeIds, entry.activeFocusedRootNodeId);
+    state.coneDepth = entry.coneDepth;
+    state.faninDepth = entry.faninDepth;
+    state.fanoutDepth = entry.fanoutDepth;
+    state.selectedNodeId = entry.selectedNodeId || null;
+    state.selectedNet = entry.selectedNet || null;
+    state.presentationPolicy = entry.presentationPolicy
+      ? { ...entry.presentationPolicy }
+      : state.presentationPolicy;
+    state.nodePositions = new Map(entry.overrides?.nodePositions || []);
+    state.nodeSizes = new Map(entry.overrides?.nodeSizes || []);
+    state.graphOverrides = entry.overrides?.graphOverrides || createEmptyGraphOverrides();
+    setSingleTransform(entry.transform);
+    renderCurrentModuleGraph({
+      onRendered: (nextGraph) => {
+        if (entry.selectedNet && nextGraph.edges.some((edge) => edge.net === entry.selectedNet)) setSelectedNet(entry.selectedNet);
+        else if (entry.selectedNodeId && nextGraph.nodes.some((node) => node.id === entry.selectedNodeId)) setSelectedNode(entry.selectedNodeId);
+        else setSelectedNode(null);
+        applyTransform();
+        state.restoringViewHistory = false;
+        updateModuleHistoryControls();
+      }
+    });
+  };
+  if (entry.moduleName && state.currentModule.name !== entry.moduleName) {
+    selectModule(entry.moduleName, { historyMode: "restore", onRendered: finish });
+  } else {
+    finish(state.graph);
+  }
+}
+
 function updateModuleHistoryControls() {
   const validNames = state.design?.modules.map((module) => module.name) || [];
-  elements.moduleBackButton.disabled = state.compare.active || !canStepModuleHistory(state.moduleHistory, -1, validNames);
-  elements.moduleForwardButton.disabled = state.compare.active || !canStepModuleHistory(state.moduleHistory, 1, validNames);
+  const canViewBack = canStepViewHistory(state.viewHistory, -1) || canStepModuleHistory(state.moduleHistory, -1, validNames);
+  const canViewForward = canStepViewHistory(state.viewHistory, 1) || canStepModuleHistory(state.moduleHistory, 1, validNames);
+  elements.moduleBackButton.disabled = state.compare.active || !canViewBack;
+  elements.moduleForwardButton.disabled = state.compare.active || !canViewForward;
 }
 
 function renderCurrentModuleGraph(options = {}) {
@@ -976,6 +1054,7 @@ function renderCurrentModuleGraph(options = {}) {
     coneDepth: state.coneDepth,
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
+    occurrencePath: state.occurrenceContext?.occurrencePath || null,
     useFanoutHubs: state.useFanoutHubs,
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds,
@@ -2089,11 +2168,13 @@ function updateCellDefinitionControls(node = null) {
 function setSelectedNode(nodeId) {
   state.selectionFocusRequestId += 1;
   schematicSelectionController.selectNode(nodeId);
+  recordViewHistory();
 }
 
 function setSelectedNet(netName) {
   state.selectionFocusRequestId += 1;
   schematicSelectionController.selectNet(netName);
+  recordViewHistory();
 }
 
 function clearSchematicSelection() {
@@ -3130,34 +3211,43 @@ function setSingleViewMode(viewMode) {
   const normalized = normalizeSingleViewMode(viewMode);
   if (!state.document?.documentId || !state.currentModule?.name) {
     state.viewMode = normalized;
+    recordViewHistory();
     return { rejected: null };
   }
-  return singleViewSession.dispatch({ type: "view.mode.set", viewMode: normalized });
+  const result = singleViewSession.dispatch({ type: "view.mode.set", viewMode: normalized });
+  recordViewHistory();
+  return result;
 }
 
 function setSingleFocusedDepths(faninDepth, fanoutDepth) {
   if (!state.document?.documentId || !state.currentModule?.name) {
     state.faninDepth = faninDepth;
     state.fanoutDepth = fanoutDepth;
+    recordViewHistory();
     return null;
   }
-  return singleViewSession.dispatch({ type: "view.depths.set", faninDepth, fanoutDepth });
+  const result = singleViewSession.dispatch({ type: "view.depths.set", faninDepth, fanoutDepth });
+  recordViewHistory();
+  return result;
 }
 
 function replaceSingleFocusedRoots(nodeIds, activeNodeId = null) {
   if (!state.document?.documentId || !state.currentModule?.name) {
     setFocusedRootNodeIds(state, nodeIds, activeNodeId);
+    recordViewHistory();
     return null;
   }
   const nodes = (nodeIds || []).map((nodeId) =>
     state.fullGraph?.nodes.find((node) => node.id === nodeId)
   ).filter(Boolean);
   const activeNode = nodes.find((node) => node.id === activeNodeId) || nodes[0] || null;
-  return singleViewSession.dispatch({
+  const result = singleViewSession.dispatch({
     type: "focus.replace",
     objectRefs: nodes.map((node) => singleViewSession.objectRefForNode(node)),
     activeObjectRef: activeNode ? singleViewSession.objectRefForNode(activeNode) : null
   });
+  recordViewHistory();
+  return result;
 }
 
 function setSingleOverrides(overrides) {
@@ -3165,9 +3255,11 @@ function setSingleOverrides(overrides) {
     state.nodePositions = new Map(overrides?.nodePositions || []);
     state.nodeSizes = new Map(overrides?.nodeSizes || []);
     state.graphOverrides = overrides?.graphOverrides || createEmptyGraphOverrides();
+    recordViewHistory();
     return;
   }
   singleViewSession.dispatch({ type: "overrides.set", overrides });
+  recordViewHistory();
 }
 
 function updateSingleOverrides(update) {
@@ -3450,8 +3542,15 @@ function syncLayoutSpacingControls() {
 
 function persistSession() {
   if (!state.currentSource) return;
+  recordViewHistory();
   clearTimeout(sessionSaveTimer);
   sessionSaveTimer = setTimeout(() => saveSessionState(createSessionSnapshot(state)), 150);
+}
+
+function recordViewHistory() {
+  if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
+  state.viewHistory = pushViewHistory(state.viewHistory, createViewHistoryEntry(state));
+  updateModuleHistoryControls();
 }
 
 function isEditableNodeProperty(property) {

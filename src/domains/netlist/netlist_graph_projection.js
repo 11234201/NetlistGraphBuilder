@@ -18,7 +18,19 @@ export function buildWorkspaceGraph(module, options = {}) {
     badgeChoices: options.timingBadgeChoices || {},
     badgePositions: options.timingBadgePositions || {}
   });
-  return normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases === true });
+  const normalized = normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases === true });
+  return applyOccurrenceContext(normalized, options.occurrencePath);
+}
+
+function applyOccurrenceContext(graph, occurrencePath) {
+  if (!Array.isArray(occurrencePath) || occurrencePath.length === 0) return graph;
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      ref: node.ref ? { ...node.ref, occurrencePath: [...occurrencePath] } : node.ref
+    }))
+  };
 }
 
 export function selectWorkspaceGraphView(fullGraph, options = {}) {

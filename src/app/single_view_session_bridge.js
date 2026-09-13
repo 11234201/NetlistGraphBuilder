@@ -25,8 +25,8 @@ export function createSingleViewSessionBridge({
       viewMode: state.viewMode,
       faninDepth: state.faninDepth,
       fanoutDepth: state.fanoutDepth,
-      focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId),
-      activeFocusedRootRef: focusedRootIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId),
+      focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
+      activeFocusedRootRef: focusedRootIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
       viewport: state.transform,
       layoutPolicy: state.layoutPolicy,
@@ -74,7 +74,7 @@ export function createSingleViewSessionBridge({
       return nodeToRef(node, getDocumentId(), state.currentModule?.name);
     },
     objectRefForNet(netName) {
-      return valueToRef("net", netName, getDocumentId(), state.currentModule?.name);
+      return valueToRef("net", netName, getDocumentId(), state.currentModule?.name, state.occurrenceContext?.occurrencePath);
     },
     visibleObjectKeys() {
       const documentId = getDocumentId();
@@ -111,22 +111,22 @@ function cloneGraphOverrides(value) {
 
 function selectedToRef(state, documentId, unitId) {
   if (state.selectedNodeId) return nodeIdToRef(state.selectedNodeId, state.fullGraph, documentId, unitId);
-  if (state.selectedNet) return valueToRef("net", state.selectedNet, documentId, unitId);
+  if (state.selectedNet) return valueToRef("net", state.selectedNet, documentId, unitId, state.occurrenceContext?.occurrencePath);
   return null;
 }
 
-function valueToRef(kind, localId, documentId, unitId) {
+function valueToRef(kind, localId, documentId, unitId, occurrencePath = null) {
   if (!kind || !localId || !documentId || !unitId) return null;
-  return createObjectRef({ documentId, unitId, kind, localId });
+  return createObjectRef({ documentId, unitId, kind, localId, occurrencePath });
 }
 
-function rootsToRefs(nodeIds, graph, documentId, unitId) {
-  return (nodeIds || []).map((nodeId) => focusedRootIdToRef(nodeId, graph, documentId, unitId)).filter(Boolean);
+function rootsToRefs(nodeIds, graph, documentId, unitId, occurrencePath = null) {
+  return (nodeIds || []).map((nodeId) => focusedRootIdToRef(nodeId, graph, documentId, unitId, occurrencePath)).filter(Boolean);
 }
 
-function focusedRootIdToRef(rootId, graph, documentId, unitId) {
+function focusedRootIdToRef(rootId, graph, documentId, unitId, occurrencePath = null) {
   if (typeof rootId === "string" && rootId.startsWith("net:")) {
-    return valueToRef("net", rootId.slice(4), documentId, unitId);
+    return valueToRef("net", rootId.slice(4), documentId, unitId, occurrencePath);
   }
   return nodeIdToRef(rootId, graph, documentId, unitId);
 }
@@ -142,7 +142,8 @@ function nodeToRef(node, documentId, unitId) {
     documentId,
     unitId,
     kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.ref?.instance || node.ref?.name || node.id
+    localId: node.ref?.instance || node.ref?.name || node.id,
+    occurrencePath: node.ref?.occurrencePath
   });
 }
 

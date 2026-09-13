@@ -37,7 +37,11 @@ export function createModuleHierarchyController({
     if (filterInput) filterInput.value = "";
     if (panel) panel.open = false;
     if (moduleName === getCurrentModuleName?.()) return false;
-    navigate(moduleName);
+    const link = event.target.closest?.("[data-module-hierarchy-name]");
+    const occurrencePath = link?.dataset?.moduleHierarchyId
+      ? link.dataset.moduleHierarchyId.split("/")
+      : undefined;
+    navigate(moduleName, occurrencePath?.length ? { occurrencePath } : undefined);
     return true;
   }
   function handleFilter() {
