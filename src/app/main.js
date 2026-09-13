@@ -3525,6 +3525,9 @@ function updateSingleOverrides(update) {
 
 function setCompareOverrides(side, overrides) {
   compareViewSessions.dispatch(side, { type: "overrides.set", overrides });
+  // A Compare-side move/resize is one user operation; capture both side state
+  // and the owning side override after the command has committed.
+  recordViewHistory();
 }
 
 function updateCompareOverrides(side, update) {
