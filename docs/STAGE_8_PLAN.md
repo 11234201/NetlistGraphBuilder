@@ -504,6 +504,17 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   475 个测试通过，最新 release SHA-256 为
   `4ed87d18bbb5458f6327f890aab77bf4ecb98d00b875cc6e7d58389d2f581d02`。
 
+### Stage 8 执行记录（2026-09-14，历史手势收口）
+
+- `3062694` 增加 Compare 左右侧 layout override 的 View History 快照回归，确认两侧 position/size/
+  graph override 不会串 side；`npm test` 通过（476 tests）。
+- `c7d01b8` 修正 Single/Compare 画布平移历史：取消或未发生位移的 pointer gesture 不再写入
+  View History，只有完成实际平移的手势在结束时持久化；已有 frame-coalescing 行为保持不变。
+- `npm run release:windows` 通过（476 个单元测试、启动器 smoke、离线 ZIP 与 ELK license）；
+  当前包 SHA-256 为 `68df712f0218a70a203d66bbd687c69f2c99b48f8ad5bef7ffa455f92c4b6b46`。
+- 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
+  基线、全链路 30% 性能证据、workspaceRequest 最终退场和完整 command-bus 收口尚未满足完成定义。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
