@@ -65,7 +65,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择已落地；父向追踪仍不自动猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力与多 root hierarchical union 已落地，完整层次 root UI 仍待补齐 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；workspace cache 重复构建已测得 38x+ 加速，但全链路 30% 证据与 workspaceRequest 最终退场仍待补齐 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；workspace cache 重复构建已测得 38x+ 加速，但全链路 30% 证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；完整 command-bus 收口仍待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
@@ -520,8 +520,11 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   并让 Fit-to-view、Compare output 选择进入 View History；新增回归后 `npm test` 通过（478 tests）。
 - 重新执行 `npm run release:windows` 通过，当前离线包 SHA-256 为
   `fe02b90889de749c20043bb4ff10a07c2cb3e4dfd2309afc2b99409ea8db2ec1`。
+- `renderGeneration.js` 取代旧的应用级 `workspaceRequest.js`：JobCoordinator 负责计算 job 的
+  document/session/source revision，render generation 只保护渐进 DOM mount；新增旧回调淘汰回归后
+  `npm test` 通过（480 tests）。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
-  基线、全链路 30% 性能证据、workspaceRequest 最终退场和完整 command-bus 收口尚未满足完成定义。
+  基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 

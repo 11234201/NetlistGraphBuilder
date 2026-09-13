@@ -13,8 +13,8 @@ import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
+import { createRenderGeneration } from "../render/renderGeneration.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
-import { beginWorkspaceRequest, captureWorkspaceRequest } from "./workspaceRequest.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
 import { createQuickInputController, isEditableInputTarget } from "../ui/quick_input_controller.js";
@@ -145,6 +145,7 @@ const workspaceJobs = createJobCoordinator({
   sessions: viewSessions,
   artifacts: workspaceArtifacts
 });
+const renderGeneration = createRenderGeneration();
 const singleViewSession = createSingleViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null,
@@ -762,7 +763,7 @@ function exitCompareView() {
   state.compare.layoutAbortController = null;
   workspaceJobs.cancelSession("compare:left");
   workspaceJobs.cancelSession("compare:right");
-  beginWorkspaceRequest(state);
+  renderGeneration.begin();
   saveCompareWorkspace(state);
   state.compare.active = false;
   updateFocusSelectedControl();
@@ -796,7 +797,7 @@ function renderCompareGraphs(options = {}) {
   const layoutController = new AbortController();
   state.compare.layoutAbortController = layoutController;
   recordViewHistory();
-  const request = beginWorkspaceRequest(state);
+  const request = renderGeneration.begin();
   const requestId = request.id;
   const compareLayoutProvider = getCurrentLayoutProvider();
   logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
@@ -858,10 +859,10 @@ function renderCompareGraphs(options = {}) {
       jobId: job.context.jobId
     });
     setStatus(`Layout (${compareLayoutProvider.label})…`);
-    job.promise.then(request.guard((result) => {
+    job.promise.then((result) => {
       if (result.status !== "committed") return;
       commitCompareWorkspace(result.artifact.value, leftModule, rightModule, renderOptions);
-    })).catch(request.guard(handleLayoutFailure));
+    }).catch(handleLayoutFailure);
     return;
   }
   const leftSession = compareViewSessions.beginComputation("left");
@@ -1213,7 +1214,7 @@ function updateModuleHistoryControls() {
 }
 
 function renderCurrentModuleGraph(options = {}) {
-  const request = beginWorkspaceRequest(state);
+  const request = renderGeneration.begin();
   const requestId = request.id;
   const layoutProvider = getCurrentLayoutProvider();
   const hierarchyRoots = resolveHierarchyFocusedRoots();
@@ -1268,10 +1269,10 @@ function renderCurrentModuleGraph(options = {}) {
     });
     logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId, jobId: job.context.jobId });
     setStatus(`Layout (${layoutProvider.label})…`);
-    job.promise.then(request.guard((result) => {
+    job.promise.then((result) => {
       if (result.status !== "committed") return;
       commitCurrentWorkspace(result.artifact.value, options);
-    })).catch(request.guard(handleLayoutFailure));
+    }).catch(handleLayoutFailure);
     return;
   }
   const session = singleViewSession.beginComputation();
@@ -1351,7 +1352,7 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
 }
 
 function renderGraphMount(mount, graph, renderOptions = {}) {
-  const request = captureWorkspaceRequest(state);
+  const request = renderGeneration.current();
   if (graph?.view?.mode === "search-first") {
     cancelSchematicRender(mount);
     mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;

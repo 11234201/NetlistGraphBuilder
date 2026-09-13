@@ -312,10 +312,12 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   computation revision。
 - `view_pipeline.js` 固定 `query -> project -> measure -> layout -> overrides -> scene` 顺序；
   Netlist 与测试用内存 AIG 都经该路径，公共层不含领域类型分支。
-- `workspaceRequest.js` captures workspace identity and guards asynchronous success, failure,
-  progress and render completion against superseded requests. It discards stale work; it does not
-  interrupt synchronous provider computation. The renderer invalidates pending batches when any
-  replacement render starts, including small synchronous graphs and Search-first empty views.
+- `JobCoordinator` owns asynchronous/synchronous workspace computation identity through document and
+  ViewSession revisions; stale success, failure and progress are discarded before the workspace is
+  committed. `render/renderGeneration.js` is the separate monotonic guard for progressive DOM batches:
+  it invalidates a previous mount when a replacement workspace render starts, including small
+  synchronous graphs and Search-first empty views. The old application-wide `workspaceRequest.js`
+  guard has been retired so DOM cancellation no longer doubles as computation cancellation.
 - `focusedSelection.js` owns shared root actions and active-root fallback. Add rejects capacity
   overflow without evicting an existing root. Single/Compare adapters retain their own state scopes.
 - `src/ui/searchControls.js` owns search result markup and keyboard/click dispatch through injected
@@ -344,12 +346,10 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   execution belongs to workspace rebuilds only.
 - `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
-- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 当前是经过测试的下一步产品端口；
-  `workspaceArtifactCache` 已接入 Single/Compare workspace，但 JobCoordinator/ArtifactStore 尚未
-  完整替换 `workspaceRequest.js` 和主入口中的全部异步/Compare 编排，不能把端口存在误写成产品已接管。
-  Simple Layered 通过 JobCoordinator 的同步 `runSync()` 提交，ELK Single/Compare 通过异步 job 提交；
-  workspaceRequest 目前只保护渐进 DOM render，Compare workspace 还保留 per-side abort/status 与
-  controller identity 校验。
+- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 现在位于 Single/Compare 的 workspace
+  提交边界：Simple Layered 通过同步 `runSync()`，ELK Single/Compare 通过异步 job；Compare 仍保留
+  per-side abort/status 与 controller identity 校验。`workspaceArtifactCache` 负责有界的 full graph/
+  automatic-layout 复用，`renderGeneration` 只负责最后的 DOM mount 生命周期。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。
