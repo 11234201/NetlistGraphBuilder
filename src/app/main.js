@@ -739,6 +739,7 @@ function applyCompareSelection() {
   updateCalibrationControls();
   updateModuleHistoryControls();
   setStatus(`Comparing ${left.displayName} and ${right.displayName}`);
+  recordViewHistory();
 }
 
 function exitCompareView() {
@@ -759,6 +760,7 @@ function exitCompareView() {
   updateModuleHistoryControls();
   applyTransform();
   setStatus(`Single module view: ${state.currentModule?.displayName || "-"}`);
+  recordViewHistory();
 }
 
 function applyCompareLayout() {
@@ -766,10 +768,11 @@ function applyCompareLayout() {
   elements.compareMount.classList.toggle("is-vertical", state.compare.layout !== "horizontal");
 }
 
-function renderCompareGraphs() {
+function renderCompareGraphs(options = {}) {
   const leftModule = getCompareModule("left");
   const rightModule = getCompareModule("right");
   if (!leftModule || !rightModule) return;
+  recordViewHistory();
   const request = beginWorkspaceRequest(state);
   const requestId = request.id;
   logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
@@ -800,20 +803,27 @@ function renderCompareGraphs() {
     collapseLargeGroups: state.collapseLargeGroups,
     expandedGroupIds: state.expandedGroupIds,
     moduleLibrary: state.design.modules,
-    forceWhole: state.compare.wholeRequested
+    forceWhole: state.compare.wholeRequested,
+    artifactCache: state.workspaceArtifactCache,
+    artifactIdentity: {
+      documentId: state.document?.documentId || null,
+      sourceRevision: state.document?.sourceRevision || 0,
+      sourceIdentity: state.sourceIdentity || null,
+      sessionId: "compare"
+    }
   });
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Compare layout started (${getCurrentLayoutProvider().label})`, { requestId });
     setStatus(`Layout (${getCurrentLayoutProvider().label})…`);
     workspace.then(request.guard((result) => {
-      commitCompareWorkspace(result, leftModule, rightModule);
+      commitCompareWorkspace(result, leftModule, rightModule, options);
     })).catch(request.guard(handleLayoutFailure));
     return;
   }
-  commitCompareWorkspace(workspace, leftModule, rightModule);
+  commitCompareWorkspace(workspace, leftModule, rightModule, options);
 }
 
-function commitCompareWorkspace(workspace, leftModule, rightModule) {
+function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}) {
   state.compare.fullGraphs = workspace.fullGraphs;
   state.compare.autoGraphs = workspace.autoGraphs;
   state.compare.graphs = workspace.graphs;
@@ -838,6 +848,7 @@ function commitCompareWorkspace(workspace, leftModule, rightModule) {
       rightNodes: state.compare.graphs.right.nodes.length
     });
     setStatus(`Compare ready (${getCurrentLayoutProvider().label})`);
+    options.onCommitted?.();
   });
 }
 
@@ -963,7 +974,7 @@ function handleModuleHistoryShortcut(event) {
 }
 
 function handleViewHistoryShortcut(event) {
-  if (isEditableInputTarget(event.target) || state.compare.active) return;
+  if (isEditableInputTarget(event.target)) return;
   const undo = (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "z" && !event.shiftKey;
   const redo = (event.ctrlKey || event.metaKey) && (
     (event.key.toLowerCase() === "z" && event.shiftKey) || event.key.toLowerCase() === "y"
@@ -974,7 +985,7 @@ function handleViewHistoryShortcut(event) {
 }
 
 function navigateViewHistory(delta) {
-  if (state.compare.active || !state.currentModule) return;
+  if (!state.currentModule) return;
   state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state));
   const result = stepViewHistory(state.viewHistory, delta);
   if (!result.entry) {
@@ -987,6 +998,11 @@ function navigateViewHistory(delta) {
 
 function restoreViewHistoryEntry(entry) {
   state.restoringViewHistory = true;
+  if (entry.kind === "compare" && entry.compare) {
+    restoreCompareViewHistoryEntry(entry);
+    return;
+  }
+  if (state.compare.active) exitCompareView();
   const finish = (graph) => {
     state.viewMode = normalizeSingleViewMode(entry.viewMode);
     setFocusedRootNodeIds(state, entry.focusedRootNodeIds, entry.activeFocusedRootNodeId);
@@ -1020,12 +1036,91 @@ function restoreViewHistoryEntry(entry) {
   }
 }
 
+function restoreCompareViewHistoryEntry(entry) {
+  const compare = entry.compare;
+  const pairChanged = state.compare.leftModuleName !== compare.leftModuleName
+    || state.compare.rightModuleName !== compare.rightModuleName;
+  if (!state.compare.active || pairChanged) {
+    elements.leftModuleSelect.value = compare.leftModuleName || "";
+    elements.rightModuleSelect.value = compare.rightModuleName || "";
+    applyCompareSelection();
+  }
+
+  state.compare.active = true;
+  state.presentationPolicy = entry.presentationPolicy
+    ? { ...entry.presentationPolicy }
+    : state.presentationPolicy;
+  state.compare.leftModuleName = compare.leftModuleName;
+  state.compare.rightModuleName = compare.rightModuleName;
+  state.compare.layout = compare.layout || "vertical";
+  state.compare.outputName = compare.outputName || null;
+  state.compare.wholeRequested = compare.wholeRequested === true;
+  state.compare.focusedRootsSynchronized = compare.focusedRootsSynchronized !== false;
+  state.compare.focusedRootNodeIds = {
+    left: [...(compare.focusedRootNodeIds?.left || [])],
+    right: [...(compare.focusedRootNodeIds?.right || [])]
+  };
+  state.compare.activeFocusedRootNodeId = {
+    left: compare.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
+    right: compare.activeFocusedRootNodeId?.right || state.compare.focusedRootNodeIds.right[0] || null
+  };
+  state.compare.transforms = {
+    left: { ...compare.transforms.left },
+    right: { ...compare.transforms.right }
+  };
+  state.compare.selectedName = compare.selectedName || null;
+  state.compare.selectedKind = compare.selectedKind || null;
+  state.compare.selectedSide = compare.selectedSide || null;
+  state.compare.nodePositions = {
+    left: new Map(compare.overrides.left.nodePositions || []),
+    right: new Map(compare.overrides.right.nodePositions || [])
+  };
+  state.compare.nodeSizes = {
+    left: new Map(compare.overrides.left.nodeSizes || []),
+    right: new Map(compare.overrides.right.nodeSizes || [])
+  };
+  state.compare.graphOverrides = {
+    left: cloneGraphOverridesForHistory(compare.overrides.left.graphOverrides),
+    right: cloneGraphOverridesForHistory(compare.overrides.right.graphOverrides)
+  };
+  elements.compareLayoutSelect.value = state.compare.layout;
+  elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized;
+  elements.comparePanel.hidden = false;
+  elements.compareMount.hidden = false;
+  elements.mount.hidden = true;
+  applyCompareLayout();
+  updateModuleHierarchyPicker();
+  updateViewControls();
+  renderCompareGraphs({
+    onCommitted: () => {
+      if (state.compare.selectedName && state.compare.selectedKind && state.compare.selectedSide) {
+        selectCompareObject(
+          state.compare.selectedKind,
+          state.compare.selectedName,
+          false,
+          state.compare.selectedSide
+        );
+      }
+      applyCompareTransforms();
+      state.restoringViewHistory = false;
+      updateModuleHistoryControls();
+    }
+  });
+}
+
+function cloneGraphOverridesForHistory(value = {}) {
+  return {
+    nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
+    cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
+  };
+}
+
 function updateModuleHistoryControls() {
   const validNames = state.design?.modules.map((module) => module.name) || [];
   const canViewBack = canStepViewHistory(state.viewHistory, -1) || canStepModuleHistory(state.moduleHistory, -1, validNames);
   const canViewForward = canStepViewHistory(state.viewHistory, 1) || canStepModuleHistory(state.moduleHistory, 1, validNames);
-  elements.moduleBackButton.disabled = state.compare.active || !canViewBack;
-  elements.moduleForwardButton.disabled = state.compare.active || !canViewForward;
+  elements.moduleBackButton.disabled = !canViewBack;
+  elements.moduleForwardButton.disabled = !canViewForward;
 }
 
 function renderCurrentModuleGraph(options = {}) {
@@ -1061,7 +1156,15 @@ function renderCurrentModuleGraph(options = {}) {
     layoutProvider,
     layoutPolicy: state.layoutPolicy,
     nodePositions: state.nodePositions,
-    nodeSizes: state.nodeSizes
+    nodeSizes: state.nodeSizes,
+    artifactCache: state.workspaceArtifactCache,
+    artifactIdentity: {
+      documentId: state.document?.documentId || null,
+      sourceRevision: state.document?.sourceRevision || 0,
+      sourceIdentity: state.sourceIdentity || null,
+      sessionId: "single",
+      unitId: state.currentModule?.name || null
+    }
   });
   if (isPromise(workspace)) {
     logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId });
@@ -1302,6 +1405,7 @@ function updateViewControls() {
 
 function updateFocusedRootControl() {
   const focusedContext = getFocusedRootContext();
+  const selectedCompareNet = state.compare.active && state.compare.selectedKind === "net";
   const target = state.compare.active
     ? (state.compare.selectedKind === "cell"
       ? findCompareNode(focusedContext.fullGraph, "cell", state.compare.selectedName)?.id || null
@@ -2549,6 +2653,7 @@ function selectCompareObject(kind, name, focus = true, selectedSide = state.comp
     type: "selection.set",
     objectRef: compareViewSessions.objectRef(selectedSide, kind, name)
   });
+  recordViewHistory();
   updateViewControls();
   for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
   for (const side of ["left", "right"]) {

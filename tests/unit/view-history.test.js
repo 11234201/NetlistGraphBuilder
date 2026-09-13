@@ -58,11 +58,21 @@ test("compare snapshots keep side-specific viewport identity", () => {
       selectedName: "u1",
       selectedKind: "cell",
       selectedSide: "right",
+      layout: "horizontal",
+      outputName: "out",
+      wholeRequested: false,
+      focusedRootNodeIds: { left: ["cell:l"], right: ["cell:r"] },
+      activeFocusedRootNodeId: { left: "cell:l", right: "cell:r" },
+      focusedRootsSynchronized: false,
       transforms: { left: { x: 1, y: 2, scale: 1.2 }, right: { x: 3, y: 4, scale: 1.4 } }
     }
   }));
   assert.equal(entry.kind, "compare");
   assert.deepEqual(entry.compare.transforms.right, { x: 3, y: 4, scale: 1.4 });
+  assert.equal(entry.compare.layout, "horizontal");
+  assert.deepEqual(entry.compare.focusedRootNodeIds, { left: ["cell:l"], right: ["cell:r"] });
+  assert.equal(entry.compare.viewModes.left, "focused");
+  assert.equal(entry.compare.focusedRootsSynchronized, false);
 });
 
 test("view history snapshots layout overrides without retaining graph or scene objects", () => {

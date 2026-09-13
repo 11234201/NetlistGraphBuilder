@@ -3,6 +3,7 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
 import { createViewHistory } from "./viewHistory.js";
+import { createWorkspaceArtifactCache } from "./workspaceArtifactCache.js";
 
 export function createAppState(layoutPolicy) {
   return {
@@ -54,6 +55,7 @@ export function createAppState(layoutPolicy) {
     viewHistory: createViewHistory(),
     restoringViewHistory: false,
     compareWorkspaces: new Map(),
+    workspaceArtifactCache: createWorkspaceArtifactCache(),
     compare: createCompareState()
   };
 }
@@ -106,6 +108,7 @@ export function resetDesignWorkspace(state) {
   state.viewHistory = createViewHistory();
   state.restoringViewHistory = false;
   state.compareWorkspaces = new Map();
+  state.workspaceArtifactCache.clear();
 }
 
 export function saveModuleWorkspace(state, moduleName) {

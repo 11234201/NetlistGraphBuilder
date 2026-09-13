@@ -7,6 +7,7 @@ import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
+import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -36,9 +37,12 @@ export function buildModuleWorkspace(options) {
     nodePositions = new Map(),
     nodeSizes = new Map(),
     preparedFullGraph = null,
-    occurrencePath = null
+    occurrencePath = null,
+    artifactCache = null,
+    artifactIdentity = null
   } = options;
-  const fullGraph = preparedFullGraph || buildWorkspaceGraph(module, {
+  const fullGraph = preparedFullGraph || buildModuleFullGraph({
+    module,
     moduleLibrary,
     graphOverrides,
     cellConfig,
@@ -47,7 +51,9 @@ export function buildModuleWorkspace(options) {
     timingBadgeChoices,
     timingBadgePositions,
     showAliases,
-    occurrencePath
+    occurrencePath,
+    artifactCache,
+    artifactIdentity
   });
   if (viewMode === "search-first") {
     const emptyGraph = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
@@ -57,6 +63,37 @@ export function buildModuleWorkspace(options) {
       autoGraph: emptyGraph,
       graph: emptyGraph,
       scene: createNetlistScene(emptyGraph, { presentationPolicy })
+    };
+  }
+  const autoIdentity = artifactIdentity && {
+    ...artifactIdentity,
+    stage: "positioned-auto",
+    moduleName: module?.name || null,
+    viewMode,
+    coneRootNodeId,
+    focusedRootNodeIds,
+    focusedRootNetIds,
+    activeFocusedRootNodeId,
+    coneDepth,
+    faninDepth,
+    fanoutDepth,
+    useFanoutHubs,
+    collapseLargeGroups,
+    expandedGroupIds: [...expandedGroupIds],
+    layoutProvider: layoutProvider?.id || null,
+    layoutPolicy
+  };
+  const cachedPipeline = artifactCache && autoIdentity
+    ? artifactCache.get(createWorkspaceArtifactKey(autoIdentity))
+    : null;
+  if (cachedPipeline) {
+    const graph = applyWorkspaceOverrides(cachedPipeline.autoGraph, { layoutPolicy, nodePositions, nodeSizes });
+    return {
+      fullGraph,
+      sourceGraph: cachedPipeline.sourceGraph,
+      autoGraph: cachedPipeline.autoGraph,
+      graph,
+      scene: createNetlistScene(graph, { presentationPolicy })
     };
   }
   const pipeline = runViewPipeline({
@@ -85,14 +122,74 @@ export function buildModuleWorkspace(options) {
       presentationPolicy: request.presentationPolicy
     })
   }, options);
-  const finalize = (result) => ({
-    fullGraph: result.queryResult.fullGraph,
-    sourceGraph: result.diagram,
-    autoGraph: result.autoGraph,
-    graph: result.graph,
-    scene: result.scene
-  });
+  const finalize = (result) => {
+    const cached = {
+      sourceGraph: result.diagram,
+      autoGraph: result.autoGraph
+    };
+    if (artifactCache && autoIdentity) artifactCache.put(
+      createWorkspaceArtifactKey(autoIdentity),
+      cached,
+      { documentId: artifactIdentity.documentId, sessionId: artifactIdentity.sessionId }
+    );
+    return {
+      fullGraph: result.queryResult.fullGraph,
+      sourceGraph: result.diagram,
+      autoGraph: result.autoGraph,
+      graph: result.graph,
+      scene: result.scene
+    };
+  };
   return isPromise(pipeline) ? pipeline.then(finalize) : finalize(pipeline);
+}
+
+export function buildModuleFullGraph(options = {}) {
+  const {
+    module,
+    moduleLibrary = [],
+    graphOverrides = null,
+    cellConfig = null,
+    timing = null,
+    timingDisplayPolicy = null,
+    timingBadgeChoices = {},
+    timingBadgePositions = {},
+    showAliases = false,
+    occurrencePath = null,
+    artifactCache = null,
+    artifactIdentity = null
+  } = options;
+  const identity = artifactIdentity && {
+    ...artifactIdentity,
+    stage: "full-graph",
+    moduleName: module?.name || null,
+    graphOverrides,
+    cellConfig,
+    timing,
+    timingDisplayPolicy,
+    timingBadgeChoices,
+    timingBadgePositions,
+    showAliases,
+    occurrencePath
+  };
+  const key = identity ? createWorkspaceArtifactKey(identity) : null;
+  const cached = artifactCache && key ? artifactCache.get(key) : null;
+  if (cached) return cached;
+  const graph = buildWorkspaceGraph(module, {
+    moduleLibrary,
+    graphOverrides,
+    cellConfig,
+    timing,
+    timingDisplayPolicy,
+    timingBadgeChoices,
+    timingBadgePositions,
+    showAliases,
+    occurrencePath
+  });
+  if (artifactCache && key) artifactCache.put(key, graph, {
+    documentId: artifactIdentity.documentId,
+    sessionId: artifactIdentity.sessionId
+  });
+  return graph;
 }
 
 function isPromise(value) {

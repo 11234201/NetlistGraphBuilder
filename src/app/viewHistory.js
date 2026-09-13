@@ -34,6 +34,22 @@ export function createViewHistoryEntry(state, metadata = {}) {
     compare: state.compare?.active ? {
       leftModuleName: state.compare.leftModuleName || null,
       rightModuleName: state.compare.rightModuleName || null,
+      layout: state.compare.layout || "vertical",
+      outputName: state.compare.outputName || null,
+      wholeRequested: state.compare.wholeRequested === true,
+      viewModes: {
+        left: compareViewMode(state.compare, "left"),
+        right: compareViewMode(state.compare, "right")
+      },
+      focusedRootNodeIds: {
+        left: [...(state.compare.focusedRootNodeIds?.left || [])],
+        right: [...(state.compare.focusedRootNodeIds?.right || [])]
+      },
+      activeFocusedRootNodeId: {
+        left: state.compare.activeFocusedRootNodeId?.left || null,
+        right: state.compare.activeFocusedRootNodeId?.right || null
+      },
+      focusedRootsSynchronized: state.compare.focusedRootsSynchronized !== false,
       selectedName: state.compare.selectedName || null,
       selectedKind: state.compare.selectedKind || null,
       selectedSide: state.compare.selectedSide || null,
@@ -109,6 +125,22 @@ function cloneEntry(entry = {}) {
     compare: entry.compare ? {
       leftModuleName: entry.compare.leftModuleName || null,
       rightModuleName: entry.compare.rightModuleName || null,
+      layout: entry.compare.layout === "horizontal" ? "horizontal" : "vertical",
+      outputName: entry.compare.outputName || null,
+      wholeRequested: entry.compare.wholeRequested === true,
+      viewModes: {
+        left: normalizeCompareViewMode(entry.compare.viewModes?.left, entry.compare, "left"),
+        right: normalizeCompareViewMode(entry.compare.viewModes?.right, entry.compare, "right")
+      },
+      focusedRootNodeIds: {
+        left: [...(entry.compare.focusedRootNodeIds?.left || [])],
+        right: [...(entry.compare.focusedRootNodeIds?.right || [])]
+      },
+      activeFocusedRootNodeId: {
+        left: entry.compare.activeFocusedRootNodeId?.left || null,
+        right: entry.compare.activeFocusedRootNodeId?.right || null
+      },
+      focusedRootsSynchronized: entry.compare.focusedRootsSynchronized !== false,
       selectedName: entry.compare.selectedName || null,
       selectedKind: entry.compare.selectedKind || null,
       selectedSide: entry.compare.selectedSide || null,
@@ -171,4 +203,15 @@ function normalizeTransform(value) {
     y: Number.isFinite(Number(value?.y)) ? Number(value.y) : 0,
     scale: Number.isFinite(Number(value?.scale)) && Number(value.scale) > 0 ? Number(value.scale) : 1
   };
+}
+
+function compareViewMode(compare, side) {
+  if (compare.focusedRootNodeIds?.[side]?.length) return "focused";
+  if (compare.outputName) return "fanin";
+  return "whole";
+}
+
+function normalizeCompareViewMode(value, compare, side) {
+  if (["whole", "focused", "fanin", "search-first"].includes(value)) return value;
+  return compareViewMode(compare, side);
 }

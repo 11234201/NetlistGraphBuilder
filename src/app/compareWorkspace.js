@@ -1,9 +1,6 @@
 import { alignModulePorts, compareModules } from "../analysis/moduleCompare.js";
-import {
-  buildWorkspaceGraph
-} from "./graphWorkspace.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
-import { buildModuleWorkspace } from "./moduleWorkspace.js";
+import { buildModuleFullGraph, buildModuleWorkspace } from "./moduleWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 
 export function buildCompareWorkspace(options) {
@@ -33,24 +30,32 @@ export function buildCompareWorkspace(options) {
     activeFocusedRootNodeId = { left: null, right: null },
     moduleLibrary = [],
     searchFirstThreshold = 500,
-    forceWhole = false
+    forceWhole = false,
+    artifactCache = null,
+    artifactIdentity = null
   } = options;
   const fullGraphs = {
-    left: buildWorkspaceGraph(leftModule, {
+    left: buildModuleFullGraph({
+      module: leftModule,
       showAliases, timing, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
       graphOverrides: graphOverrides.left,
       cellConfig,
-      moduleLibrary
+      moduleLibrary,
+      artifactCache,
+      artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: "compare:left", unitId: leftModule?.name }
     }),
-    right: buildWorkspaceGraph(rightModule, {
+    right: buildModuleFullGraph({
+      module: rightModule,
       showAliases, timing, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
       graphOverrides: graphOverrides.right,
       cellConfig,
-      moduleLibrary
+      moduleLibrary,
+      artifactCache,
+      artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: "compare:right", unitId: rightModule?.name }
     })
   };
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
@@ -92,6 +97,8 @@ export function buildCompareWorkspace(options) {
     useFanoutHubs,
     collapseLargeGroups,
     expandedGroupIds,
+    artifactCache,
+    artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
     ...(workspaceInputs[side] || {})
   });
   const leftLayout = buildSide("left", leftModule);
