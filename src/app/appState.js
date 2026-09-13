@@ -94,6 +94,8 @@ export function createCompareState() {
 }
 
 export function resetDesignWorkspace(state) {
+  state.compare?.layoutAbortController?.abort();
+  if (state.compare) state.compare.layoutAbortController = null;
   resetModuleWorkspace(state);
   state.fullGraph = null;
   state.autoGraph = null;
