@@ -247,7 +247,40 @@ test("simple router commits a complete non-direct fanout tree atomically", () =>
   assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
 });
 
-test("a capped capacity boundary blocks a complete fanout before the tree shortcut", () => {
+test("collapsed group sources can use one validated physical fanout tree", () => {
+  const nodes = [
+    { id: "group", kind: "group", level: 0, x: 0, y: 60, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "a", kind: "cell", level: 1, x: 240, y: 0, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "b", kind: "cell", level: 1, x: 240, y: 120, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "e1", source: "group", target: "a", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "e2", source: "group", target: "b", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const routed = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: {
+      edges: new Map(graph.edges.map((edge) => [edge.id, { kind: "channel", lane: 0 }]))
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
+  assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount, 1);
+  assert.ok(routed.every((edge) => edge.routeStatus === "routed"));
+});
+
+test("a capped capacity boundary uses an atomic overflow tree before per-edge routing", () => {
   const nodes = [
     { id: "src", kind: "cell", level: 0, x: 0, y: 60, width: 80, height: 32,
       ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
@@ -285,13 +318,13 @@ test("a capped capacity boundary blocks a complete fanout before the tree shortc
     margin: 48
   });
 
-  assert.ok(routed.every((edge) => edge.routeKind === "capacity-overflow-corridor"));
+  assert.ok(routed.every((edge) => edge.routeKind === "capacity-overflow-tree"));
   assert.ok(routed.every((edge) => edge.routeStatus === "routed"));
   assert.ok(routed.every((edge) => edge.points.length >= 2));
   assert.ok(routed.every((edge) => edge.capacityOverflow === true));
   assert.ok(routed.every((edge) => edge.capacityBlocked === true));
   assert.ok(routed.every((edge) => edge.routeDiagnostics.some((item) =>
-    item.code === "routing-capacity-overflow-corridor")));
+    item.code === "routing-capacity-overflow-tree")));
   assert.equal(routed.routingMetrics.atomicPhysicalNetTreeCount || 0, 0);
   assert.equal(routed.routingMetrics.unroutablePhysicalNetCount || 0, 0);
   assert.equal(routed.routingMetrics.overflowUnroutablePhysicalNetCount || 0, 0);

@@ -274,6 +274,30 @@ function tryRouteCapacityBlockedPhysicalNetGroup(edges, context) {
   if (inspected.some((item) => !item.source || !item.target)) return null;
   if (!inspected.some((item) => item.edgePlan?.capacityBlocked === true)) return null;
 
+  // Prefer one source-rooted overflow tree for fanout groups.  Routing each
+  // branch independently can find locally valid paths but lose the shared
+  // trunk (or fail the physical-net connectivity check once reservations are
+  // committed).  The tree trial is bounded to the same three trunk columns
+  // used by the normal physical-net path and commits only as one group.
+  if (inspected.length > 1) {
+    const overflowTree = tryRoutePhysicalNetGroup(
+      edges,
+      { ...context, allowCapacityOverflowTree: true }
+    );
+    if (overflowTree) {
+      return overflowTree.map((positionedEdge) => ({
+        ...positionedEdge,
+        routeKind: "capacity-overflow-tree",
+        routeDiagnostics: [{
+          code: "routing-capacity-overflow-tree",
+          overflowKind: positionedEdge.capacityOverflowKind,
+          channelId: positionedEdge.capacityChannelId,
+          boundaryClusterKey: positionedEdge.capacityBoundaryClusterKey
+        }]
+      }));
+    }
+  }
+
   const directRoutes = [];
   for (const item of inspected) {
     const direct = item.source && item.target
@@ -456,7 +480,10 @@ function tryRoutePhysicalNetGroup(edges, context) {
   const sourcePins = new Set(sortedEdges.map((edge) => String(edge.sourcePin || "")));
   if (sourceIds.size !== 1 || sourcePins.size !== 1) return null;
   const source = context.nodeById.get(sortedEdges[0].source);
-  if (!source || source.kind === "hub" || source.kind === "group") return null;
+  // Collapsed groups are valid physical-net sources as long as all branches
+  // share one source pin.  The final tree validator still rejects any trunk
+  // that crosses an obstacle or foreign reservation.
+  if (!source || source.kind === "hub") return null;
   const sourcePoint = getConnectionPoint(source, sortedEdges[0].sourcePin, "source");
   const targets = sortedEdges.map((edge) => ({
     edge,
@@ -474,7 +501,8 @@ function tryRoutePhysicalNetGroup(edges, context) {
       targetNodeId: node.id
     }
   ));
-  if (edgePlans.some((edgePlan) => edgePlan?.capacityBlocked === true)) return null;
+  if (!context.allowCapacityOverflowTree &&
+    edgePlans.some((edgePlan) => edgePlan?.capacityBlocked === true)) return null;
   const targetPoints = targets.map(({ edge, node }) =>
     getConnectionPoint(node, edge.targetPin, "target"));
   if (targetPoints.some((point) =>
@@ -512,6 +540,8 @@ function tryRoutePhysicalNetGroup(edges, context) {
         capacityChannelId: edgePlan?.capacityChannelId,
         capacityBoundaryClusterKey: edgePlan?.capacityBoundaryClusterKey,
         capacityOverflow: edgePlan?.capacityOverflow === true,
+        capacityOverflowKind: edgePlan?.capacityOverflowKind,
+        capacityBlocked: edgePlan?.capacityBlocked === true,
         labelPoint: label.point,
         labelAnchor: label.anchor
       };
