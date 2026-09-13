@@ -479,6 +479,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `d7b893bf9179e359bbbdb7ff49abe31eb2263f3e29f62700bd7589410acd3c48`。
 - `a7492f6` 清理了主入口重复的 hierarchy root 解析；最终 release 仍通过，当前离线包 SHA-256 为
   `431d0c83ed6ff03f2933d3d3d56c0d159bfa2f87d8bba1d720bbb7d3882e3e3e`。
+- `2f4d355` 修复 Compare 侧 move/resize override 未进入 View History 的缺口；474 个测试通过，
+  Windows release SHA-256 更新为 `e8bdd1a608081ad1bc7bf5d1141ce3e026b32564d22d5b4088971b74892612d6`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
