@@ -42,6 +42,23 @@ test("single view session bridge keeps visible selection layout-free and support
   assert.deepEqual(state.focusedRootNodeIds, ["cell:u3"]);
 });
 
+test("single view session bridge follows a hidden connection without leaving Focused", () => {
+  const { state, adapter } = setup();
+  adapter.dispatch({ type: "focus.add", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[1]) });
+  const result = adapter.dispatch({
+    type: "selection.reveal",
+    objectRef: adapter.objectRefForNode(state.fullGraph.nodes[2]),
+    visibleObjectKeys: adapter.visibleObjectKeys(),
+    replaceActiveWhenFull: true
+  });
+
+  assert.equal(result.rejected, null);
+  assert.equal(state.viewMode, "focused");
+  assert.deepEqual(state.focusedRootNodeIds, ["cell:u1", "cell:u2", "cell:u3"]);
+  assert.equal(state.activeFocusedRootNodeId, "cell:u3");
+  assert.equal(result.effects.layout, true);
+});
+
 test("single view session bridge keeps one ViewSession until document or unit identity changes", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });

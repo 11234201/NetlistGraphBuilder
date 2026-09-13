@@ -200,6 +200,15 @@ test("app forwards both Focused depths into the module workspace", async () => {
   assert.match(source, /fanoutDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
 });
 
+test("connection navigation reveals hidden cells inside Focused instead of opening Whole", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction focusSingleSelectionTarget/)?.[1] || "";
+
+  assert.match(handler, /type: "selection\.reveal"/);
+  assert.match(handler, /replaceActiveWhenFull: true/);
+  assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
+});
+
 test("screen rendering and exports consume prepared scenes", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
 

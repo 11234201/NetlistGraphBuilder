@@ -197,8 +197,16 @@ export function createViewCommandHandlers({
       const sameUnit = ref.unitId === session.unitId;
       const roots = sameUnit && session.viewMode === "focused" ? [...session.focusedRootRefs] : [];
       if (!roots.some((item) => objectRefKey(item) === objectRefKey(ref))) {
-        if (roots.length >= focusedRootLimit) return { rejected: "focused-root-capacity", effects: NO_EFFECTS };
-        roots.push(ref);
+        if (roots.length >= focusedRootLimit) {
+          if (command.replaceActiveWhenFull !== true || !sameUnit || session.viewMode !== "focused") {
+            return { rejected: "focused-root-capacity", effects: NO_EFFECTS };
+          }
+          const activeKey = objectRefKeyOrNull(session.activeFocusedRootRef);
+          const activeIndex = roots.findIndex((item) => objectRefKey(item) === activeKey);
+          roots[activeIndex >= 0 ? activeIndex : 0] = ref;
+        } else {
+          roots.push(ref);
+        }
       }
       return {
         patch: {

@@ -1900,15 +1900,43 @@ function navigateSingleSelectionTarget(target) {
     return;
   }
 
-  setSingleViewMode("whole");
-  setSingleTransform({ x: 0, y: 0, scale: 1 });
+  if (target.kind === "net") {
+    setSelectedNet(target.name);
+    setStatus("Connected net is outside the current Focused view");
+    return;
+  }
+
+  const fullNode = state.fullGraph?.nodes.find((node) => node.id === target.id);
+  if (state.viewMode !== "focused" || fullNode?.kind !== "cell") {
+    setStatus("Connected node is outside the current view; use Whole to reveal it");
+    return;
+  }
+
+  const reveal = singleViewSession.dispatch({
+    type: "selection.reveal",
+    objectRef: singleViewSession.objectRefForNode(fullNode),
+    visibleObjectKeys: singleViewSession.visibleObjectKeys(),
+    replaceActiveWhenFull: true
+  });
+  if (reveal.rejected) {
+    setStatus("Connected cell could not be added to the current Focused roots");
+    return;
+  }
   updateViewControls();
-  setStatus("Opening whole module to reveal the connected object…");
+  setStatus("Opening connected cell in Focused view…");
   renderCurrentModuleGraph({
-    onRendered: () => {
-      if (!focusSingleSelectionTarget(target)) {
-        setStatus("Connected object is inside a collapsed group; expand the group to reveal it");
+    onRendered: (graph) => {
+      const node = graph.nodes.find((item) => item.id === fullNode.id);
+      setSelectedNode(node?.id || null);
+      if (!node) {
+        setStatus("Connected cell is inside a collapsed group; expand the group to reveal it");
+        return;
       }
+      centerGraphPoint({
+        x: node.x + node.width / 2,
+        y: node.y + node.height / 2
+      }, node.width);
+      setStatus(`Focused connected cell: ${node.label}`);
     }
   });
 }

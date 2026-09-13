@@ -79,6 +79,28 @@ test("selection reveal only centers visible objects and adds hidden objects to F
   assert.deepEqual(sessions.require("left").focusedRootRefs.map((item) => item.localId), ["u2", "u3"]);
 });
 
+test("selection reveal can replace only the active Focused root during connection traversal", () => {
+  const { sessions, bus } = setup();
+  bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u1") });
+  bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u2") });
+  bus.dispatch({ type: "focus.activate", sessionId: "left", objectRef: ref("u1") });
+
+  const followed = bus.dispatch({
+    type: "selection.reveal",
+    sessionId: "left",
+    objectRef: ref("u3"),
+    visibleObjectKeys: [],
+    replaceActiveWhenFull: true
+  });
+
+  assert.equal(followed.rejected, null);
+  assert.equal(followed.session.viewMode, "focused");
+  assert.deepEqual(followed.session.focusedRootRefs.map((item) => item.localId), ["u3", "u2"]);
+  assert.equal(followed.session.activeFocusedRootRef.localId, "u3");
+  assert.equal(followed.session.selectedObjectRef.localId, "u3");
+  assert.equal(followed.effects.layout, true);
+});
+
 test("cross-unit reveal changes scope and never reuses roots from the old unit", () => {
   const { sessions, bus } = setup();
   bus.dispatch({ type: "focus.add", sessionId: "left", objectRef: ref("u1") });
