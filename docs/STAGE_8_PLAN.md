@@ -407,7 +407,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 回归：新增层次 render graph 与 module workspace 单测；当前 `npm test` 通过（462 tests）。
 - 发布：`npm run release:windows` 通过（单元、启动器 smoke、离线 ZIP 与 SHA-256），最新包为
   `dist/NetlistGraphBuilder-v0.7.3-win-x64.zip`，SHA-256
-  `2c7837e81f9098cc714f0d795e33bf448824ec9c8edf47423a0688acdeebad09`。
+  `29d0b86693d1e3d09fa8e1b30a680e7d05d819c2e481d6959a08ad33be5024af`。
+- 后续 `fd22ac0` 增加顶部 occurrence breadcrumb；进入层次 occurrence 后显示路径，普通 module
+  切换会清理旧 occurrence context，避免错误复用父层路径。
 - 尚未完成：hierarchy breadcrumb/歧义 occurrence 选择 UI、完整 boundary diagnostics 展示，以及
   下方记录中的 cache/job/Compare 异步收口项。
 
