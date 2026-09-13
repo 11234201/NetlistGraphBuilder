@@ -5,6 +5,8 @@
 - 代码基线：`b3da191`（最近的布线实现提交为 `60040a0`）
 - 关联报告：[eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)
 - 历史方案：[eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)
+- 重新启动交接：[routing_restart_handoff.md](routing_restart_handoff.md)
+- 恢复检查清单：[routing_restart_checklist.md](routing_restart_checklist.md)
 
 ## 1. 暂停边界
 
