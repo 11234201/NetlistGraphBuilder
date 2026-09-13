@@ -376,6 +376,7 @@ elements.compareOutputSelect.addEventListener("change", (event) => {
   elements.coneDepthInput.disabled = !state.compare.outputName;
   renderCompareGraphs();
   renderStats();
+  recordViewHistory();
 });
 const { handleSearchInput, handleSearchKeydown, handleSearchResultClick, clearSearch } = createSearchControls({
   elements: {
@@ -2429,10 +2430,10 @@ function setSelectedNode(nodeId, shouldRecord = true) {
   if (shouldRecord) recordViewHistory();
 }
 
-function setSelectedNet(netName) {
+function setSelectedNet(netName, shouldRecord = true) {
   state.selectionFocusRequestId += 1;
   schematicSelectionController.selectNet(netName);
-  recordViewHistory();
+  if (shouldRecord) recordViewHistory();
 }
 
 function clearSchematicSelection() {
@@ -2571,8 +2572,9 @@ function activateSearchResult(result) {
   if (target.kind === "net") {
     const edge = state.graph?.edges.find((item) => item.net === target.name);
     if (edge) {
-      setSelectedNet(target.name);
+      setSelectedNet(target.name, false);
       centerGraphPoint(getEdgeCenter(edge));
+      recordViewHistory();
       setStatus(`Search: net ${result.label}`);
       return;
     }
@@ -2580,8 +2582,9 @@ function activateSearchResult(result) {
     if (fullEdge) {
       revealSearchTarget(result.objectRef || singleViewSession.objectRefForNet(target.name), () => {
         const positioned = state.graph?.edges.find((item) => item.net === target.name);
-        setSelectedNet(target.name);
+        setSelectedNet(target.name, false);
         if (positioned) centerGraphPoint(getEdgeCenter(positioned));
+        recordViewHistory();
         setStatus(`Focused search net ${result.label}`);
       });
       return;
@@ -2599,15 +2602,17 @@ function activateSearchResult(result) {
         type: "selection.set",
         objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
       });
-      setSelectedNode(positioned.id);
+      setSelectedNode(positioned.id, false);
       centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
+      recordViewHistory();
       setStatus(`Search: ${result.kind} ${result.label}`);
       return;
     }
     revealSearchTarget(result.objectRef || singleViewSession.objectRefForNode(fullNode), () => {
       const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
-      setSelectedNode(positioned?.id || null);
+      setSelectedNode(positioned?.id || null, false);
       if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
+      recordViewHistory();
       setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
     });
     return;
@@ -2674,12 +2679,13 @@ function addSearchResultToFocus(result) {
       const node = fullNode ? graph.nodes.find((item) => item.id === fullNode.id) : null;
       const edge = fullEdge ? graph.edges.find((item) => item.net === result.target.name) : null;
       if (node) {
-        setSelectedNode(node.id);
+        setSelectedNode(node.id, false);
         centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
       } else if (edge) {
-        setSelectedNet(result.target.name);
+        setSelectedNet(result.target.name, false);
         centerGraphPoint(getEdgeCenter(edge));
       }
+      recordViewHistory();
       setStatus(`Added ${result.label} to ${state.focusedRootNodeIds.length} Focused roots`);
     }
   });
@@ -3277,10 +3283,12 @@ function fitToView() {
     setCompareTransform("right", { x: 0, y: 0, scale: 1 }, false);
     applyCompareTransforms();
     setStatus("Fit both compare views");
+    recordViewHistory();
     return;
   }
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   applyTransform();
+  recordViewHistory();
 }
 
 function exportCurrentSvg() {

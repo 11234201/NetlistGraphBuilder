@@ -218,6 +218,21 @@ test("search reveals a target outside the current canvas through Focused instead
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
+test("search history captures the final selection and viewport together", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
+
+  assert.match(handler, /setSelectedNode\(positioned\.id, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
+  assert.match(handler, /setSelectedNet\(target\.name, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
+});
+
+test("fit-to-view is one explicit view-history operation", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function fitToView\(\) \{([\s\S]*?)\n\}\n\nfunction exportCurrentSvg/)?.[1] || "";
+
+  assert.equal((handler.match(/recordViewHistory\(\)/g) || []).length, 2);
+});
+
 test("screen rendering and exports consume prepared scenes", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
 
