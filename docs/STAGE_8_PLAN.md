@@ -388,6 +388,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 偏差与未完成：Compare compound history、单侧异步 job/artifact 接管、真正的层次 graph
   projection/breadcrumb UI、artifact cache 失效矩阵、浏览器和 Windows 离线发布验收仍未完成；
   Stage 8 继续保持“进行中”。
+- mapped 复核：再次运行 `npm run test:mapped-cases` 仍为 47 个 case 中 40 个失败、
+  `34955/120` violations、`hardInvariants=false`，失败集中于 worker 直接路径中的
+  `missing-route`/`wire-route-disconnected`，与本轮 occurrence/history/Compare 改动无直接调用关系；
+  因此不能把 Stage 8 标为完成。
 
 ## 6. 验证矩阵
 
