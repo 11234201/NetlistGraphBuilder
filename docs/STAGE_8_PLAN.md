@@ -516,6 +516,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `909.2/23 ms`（39.6x）；`npm run benchmark` 的 1K/4K/8K pipeline 为 `163.3/1000.5/3020.4 ms`，
   progressive first batch 为 `1.2/1.1/1.1 ms`。这些结果继续作为回归监测，不替代 R8-3 的同口径
   30% 全链路改善证明。
+- `5d7185f` 让 Search 命中把 selection、Focused fallback 和最终 viewport 作为同一条历史快照，
+  并让 Fit-to-view、Compare output 选择进入 View History；新增回归后 `npm test` 通过（478 tests）。
+- 重新执行 `npm run release:windows` 通过，当前离线包 SHA-256 为
+  `fe02b90889de749c20043bb4ff10a07c2cb3e4dfd2309afc2b99409ea8db2ec1`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据、workspaceRequest 最终退场和完整 command-bus 收口尚未满足完成定义。
 
