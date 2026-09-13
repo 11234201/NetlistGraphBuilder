@@ -12,6 +12,10 @@ export function createModuleHistoryEntry(state) {
   );
   return {
     moduleName: state.currentModule?.name || null,
+    occurrenceContext: state.occurrenceContext ? {
+      rootModuleName: state.occurrenceContext.rootModuleName || null,
+      occurrencePath: [...(state.occurrenceContext.occurrencePath || [])]
+    } : null,
     viewMode: normalizeSingleViewMode(state.viewMode),
     coneRootNodeId: focusedRootNodeIds[0] || state.coneRootNodeId || null,
     focusedRootNodeIds,
@@ -63,6 +67,7 @@ export function canStepModuleHistory(history, delta, validModuleNames = null) {
 
 function sameNavigationTarget(left, right) {
   return left.moduleName === right.moduleName &&
+    sameOccurrenceContext(left.occurrenceContext, right.occurrenceContext) &&
     left.viewMode === right.viewMode &&
     arraysEqual(
       normalizeFocusedRootNodeIds(left.focusedRootNodeIds, left.coneRootNodeId),
@@ -78,6 +83,10 @@ function cloneEntry(entry) {
   const focusedRootNodeIds = normalizeFocusedRootNodeIds(entry.focusedRootNodeIds, entry.coneRootNodeId);
   return {
     ...entry,
+    occurrenceContext: entry.occurrenceContext ? {
+      rootModuleName: entry.occurrenceContext.rootModuleName || null,
+      occurrencePath: [...(entry.occurrenceContext.occurrencePath || [])]
+    } : null,
     coneRootNodeId: focusedRootNodeIds[0] || null,
     focusedRootNodeIds,
     activeFocusedRootNodeId: focusedRootNodeIds.includes(entry.activeFocusedRootNodeId)
@@ -86,6 +95,13 @@ function cloneEntry(entry) {
     viewMode: normalizeSingleViewMode(entry.viewMode),
     transform: normalizeTransform(entry.transform)
   };
+}
+
+function sameOccurrenceContext(left, right) {
+  const leftPath = left?.occurrencePath || [];
+  const rightPath = right?.occurrencePath || [];
+  return (left?.rootModuleName || null) === (right?.rootModuleName || null) &&
+    leftPath.length === rightPath.length && leftPath.every((value, index) => value === rightPath[index]);
 }
 
 function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {

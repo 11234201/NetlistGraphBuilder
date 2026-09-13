@@ -972,6 +972,11 @@ function navigateModuleHistory(delta) {
 }
 
 function applyModuleHistoryEntry(entry) {
+  state.occurrenceContext = entry.occurrenceContext ? {
+    rootModuleName: entry.occurrenceContext.rootModuleName || null,
+    occurrencePath: [...(entry.occurrenceContext.occurrencePath || [])]
+  } : null;
+  updateModuleHierarchyPicker();
   state.viewMode = normalizeSingleViewMode(entry.viewMode);
   setFocusedRootNodeIds(state, normalizeFocusedRootNodeIds(
     entry.focusedRootNodeIds,

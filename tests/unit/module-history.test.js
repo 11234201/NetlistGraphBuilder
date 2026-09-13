@@ -94,3 +94,22 @@ test("module history normalizes and compares multiple Focused roots", () => {
   });
   assert.equal(equivalent.entries.length, 1);
 });
+
+test("module history preserves canonical occurrence context", () => {
+  const state = {
+    currentModule: { name: "child" },
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_child"] },
+    viewMode: "whole",
+    focusedRootNodeIds: [],
+    coneDepth: 3,
+    faninDepth: 3,
+    fanoutDepth: 3,
+    transform: { x: 0, y: 0, scale: 1 }
+  };
+  const snapshot = createModuleHistoryEntry(state);
+  const history = pushModuleHistory(createModuleHistory(), snapshot);
+  assert.deepEqual(history.entries[0].occurrenceContext, {
+    rootModuleName: "top",
+    occurrencePath: ["u_child"]
+  });
+});

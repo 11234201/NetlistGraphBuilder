@@ -67,7 +67,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力已落地，完整层次 root UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 已有；JobCoordinator 全量接管与 30% 改善证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
-| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、Single 快捷键与 Compare compound 恢复已接入；旧 module history 迁移与完整 command-bus 收口仍待补齐 |
+| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；完整 command-bus 收口仍待补齐 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
 | R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history、共享 artifact cache 与 per-side loading/cancel 状态已落地；JobCoordinator/持久 artifact 接管仍待补齐 |
 
@@ -442,6 +442,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   parent occurrence 的问题。新增 hierarchy domain/controller 回归，当前 `npm test` 通过（465 tests）。
 - hierarchical cone 的 boundary diagnostics（blackbox、recursive cycle、missing occurrence、frontier
   limit 等）现在随完成态 graph 进入 Diagnostics 面板；Compare 两侧 diagnostics 也会合并显示。
+- module history 也保存 canonical occurrence context，与通用 View History 的恢复语义一致；新增回归后
+  `npm test` 通过（466 tests）。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
