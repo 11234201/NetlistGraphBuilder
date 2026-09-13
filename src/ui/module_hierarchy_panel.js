@@ -5,7 +5,7 @@ export function renderModuleHierarchyPanel(roots, currentModuleName, options = {
   const truncated = roots.truncated
     ? '<div class="module-hierarchy-truncated">Hierarchy truncated at the configured display limit.</div>'
     : "";
-  return `<ul class="module-hierarchy-tree">${roots.map((node) => renderNode(node, currentModuleName)).join("")}</ul>${truncated}`;
+  return `<ul class="module-hierarchy-tree">${roots.map((node) => renderNode(node, currentModuleName, options.currentOccurrenceContext)).join("")}</ul>${truncated}`;
 }
 
 export function filterModuleHierarchy(roots, query) {
@@ -20,20 +20,30 @@ export function getModuleHierarchyTarget(event) {
   return event.target.closest?.("[data-module-hierarchy-name]")?.dataset.moduleHierarchyName || null;
 }
 
-function renderNode(node, currentModuleName) {
-  const current = node.moduleName === currentModuleName;
+function renderNode(node, currentModuleName, currentOccurrenceContext) {
+  const current = node.moduleName === currentModuleName && matchesOccurrence(node, currentOccurrenceContext);
   const label = node.instanceLabel
     ? `${node.instanceLabel} : ${node.moduleLabel}`
     : node.moduleLabel;
   const canonicalPath = node.canonicalOccurrencePath?.join("/") || "";
-  const button = `<button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-module-hierarchy-name="${escapeAttr(node.moduleName)}" data-module-hierarchy-id="${escapeAttr(node.id)}" data-module-hierarchy-path="${escapeAttr(canonicalPath)}" data-module-hierarchy-root="${escapeAttr(node.rootModuleName || node.moduleName)}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}${node.cycle ? ' <span class="module-hierarchy-cycle">cycle</span>' : ""}</button>`;
+  const rootModuleName = node.rootModuleName || node.moduleName;
+  const pathLabel = [rootModuleName, ...node.canonicalOccurrencePath || []].join(" / ");
+  const button = `<button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-module-hierarchy-name="${escapeAttr(node.moduleName)}" data-module-hierarchy-id="${escapeAttr(node.id)}" data-module-hierarchy-path="${escapeAttr(canonicalPath)}" data-module-hierarchy-root="${escapeAttr(rootModuleName)}" title="${escapeAttr(pathLabel)}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}${node.cycle ? ' <span class="module-hierarchy-cycle">cycle</span>' : ""}</button>`;
   const children = node.children.length
-    ? `<ul>${node.children.map((child) => renderNode(child, currentModuleName)).join("")}</ul>`
+    ? `<ul>${node.children.map((child) => renderNode(child, currentModuleName, currentOccurrenceContext)).join("")}</ul>`
     : "";
   const truncated = node.truncated
     ? '<span class="module-hierarchy-truncated">More instances omitted</span>'
     : "";
   return `<li>${button}${children}${truncated}</li>`;
+}
+
+function matchesOccurrence(node, context) {
+  if (!context) return true;
+  const path = context.occurrencePath || [];
+  const nodePath = node.canonicalOccurrencePath || [];
+  return (context.rootModuleName || null) === (node.rootModuleName || node.moduleName) &&
+    path.length === nodePath.length && path.every((segment, index) => segment === nodePath[index]);
 }
 
 function filterNode(node, query) {

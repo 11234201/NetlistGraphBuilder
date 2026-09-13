@@ -38,6 +38,19 @@ test("module hierarchy gives repeated nested instance paths distinct identities"
   assert.deepEqual(roots[0].children[0].children[0].canonicalOccurrencePath, ["u_mid0", "u_leaf"]);
 });
 
+test("module hierarchy marks only the matching occurrence as current", () => {
+  const roots = buildModuleHierarchy({ modules: [
+    module("leaf"),
+    module("top", [instance("u0", "leaf"), instance("u1", "leaf")])
+  ] });
+  const html = renderModuleHierarchyPanel(roots, "leaf", {
+    currentOccurrenceContext: { rootModuleName: "top", occurrencePath: ["u1"] }
+  });
+  assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
+  assert.match(html, /title="top \/ u1"[^>]*aria-current="page"/);
+  assert.doesNotMatch(html, /title="top \/ u0"[^>]*aria-current="page"/);
+});
+
 test("module hierarchy bounds recursive definitions and escapes rendered labels", () => {
   const roots = buildModuleHierarchy({ modules: [module("loop", [instance("<self>", "loop")], "<loop>")] });
   assert.equal(roots[0].children[0].cycle, true);

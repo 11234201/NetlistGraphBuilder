@@ -28,6 +28,7 @@ export function createModuleHierarchyController({
     const filtered = filterModuleHierarchy(hierarchy, query);
     container.innerHTML = filtered
       ? renderModuleHierarchyPanel(filtered, getCurrentModuleName?.() || null, {
+        currentOccurrenceContext: getCurrentOccurrenceContext?.(),
         emptyMessage: query.trim() ? "No matching module or instance" : "No modules"
       })
       : "";
