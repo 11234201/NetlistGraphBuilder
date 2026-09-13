@@ -19,6 +19,10 @@ export function createViewHistoryEntry(state, metadata = {}) {
   return cloneEntry({
     kind: metadata.kind || (state.compare?.active ? "compare" : "single"),
     moduleName: state.currentModule?.name || null,
+    occurrenceContext: state.occurrenceContext ? {
+      rootModuleName: state.occurrenceContext.rootModuleName || null,
+      occurrencePath: [...(state.occurrenceContext.occurrencePath || [])]
+    } : null,
     viewMode: normalizeSingleViewMode(state.viewMode),
     focusedRootNodeIds,
     activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
@@ -111,6 +115,11 @@ function cloneEntry(entry = {}) {
   return {
     kind: entry.kind === "compare" ? "compare" : "single",
     moduleName: entry.moduleName || null,
+    occurrenceContext: entry.occurrenceContext ? {
+      rootModuleName: entry.occurrenceContext.rootModuleName || null,
+      occurrencePath: Array.isArray(entry.occurrenceContext.occurrencePath)
+        ? [...entry.occurrenceContext.occurrencePath] : []
+    } : null,
     viewMode: normalizeSingleViewMode(entry.viewMode),
     focusedRootNodeIds: [...roots],
     activeFocusedRootNodeId: roots.includes(entry.activeFocusedRootNodeId) ? entry.activeFocusedRootNodeId : roots[0] || null,

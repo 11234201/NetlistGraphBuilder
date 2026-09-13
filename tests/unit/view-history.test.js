@@ -85,3 +85,18 @@ test("view history snapshots layout overrides without retaining graph or scene o
   assert.equal("graph" in entry, false);
   assert.equal("scene" in entry, false);
 });
+
+test("view history preserves occurrence context for hierarchical navigation", () => {
+  const entry = createViewHistoryEntry(state("child", {
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_left", "u_leaf"] }
+  }));
+  assert.deepEqual(entry.occurrenceContext, {
+    rootModuleName: "top",
+    occurrencePath: ["u_left", "u_leaf"]
+  });
+  entry.occurrenceContext.occurrencePath.push("mutated");
+  const next = createViewHistoryEntry(state("child", {
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_left", "u_leaf"] }
+  }));
+  assert.deepEqual(next.occurrenceContext.occurrencePath, ["u_left", "u_leaf"]);
+});

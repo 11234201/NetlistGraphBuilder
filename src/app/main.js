@@ -1009,6 +1009,11 @@ function restoreViewHistoryEntry(entry) {
   }
   if (state.compare.active) exitCompareView();
   const finish = (graph) => {
+    state.occurrenceContext = entry.occurrenceContext ? {
+      rootModuleName: entry.occurrenceContext.rootModuleName || null,
+      occurrencePath: [...(entry.occurrenceContext.occurrencePath || [])]
+    } : null;
+    updateModuleHierarchyPicker();
     state.viewMode = normalizeSingleViewMode(entry.viewMode);
     setFocusedRootNodeIds(state, entry.focusedRootNodeIds, entry.activeFocusedRootNodeId);
     state.coneDepth = entry.coneDepth;
