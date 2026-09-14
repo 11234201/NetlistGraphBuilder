@@ -610,6 +610,16 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `hardInvariants=false`、最大 layout `10340 ms`。失败仍集中在既有 `missing-route`/
   `wire-route-disconnected`，本轮只改 application/UI，不把该基线归因于 Stage 8 增量。
 
+### Stage 8 执行记录（2026-09-14，提交 `460c5a6`、`00bbea0`、`4a345f2`、`29044a5`、`3e69057`、`59c5246`）
+
+- History transaction 覆盖 Compare pair、Single/Compare view mode、Compare side cancellation isolation、
+  layout reset 和 Golden load；net Focused chip 保留 active occurrence path。Search 设计文档同步为
+  “任何不在 positioned graph 但存在于 full graph 的 cell/net 都自动 Focus”，与实现三态 policy 一致。
+- 最终验证：`npm test` 通过（499 tests），`npm run benchmark:interaction`、`npm run benchmark`、
+  `npm run release:windows` 均通过；最终 Windows 包 SHA-256 为
+  `7357a849526b082906f11f57b830ce35581063e4807b084ab4d9a3ef5c53e276`。Stage 8 仍不标记完成，
+  因为全链路 30% 改善证据与完整 command-bus 收口尚未满足完成定义，mapped fixture 也保留既有路由基线失败。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
