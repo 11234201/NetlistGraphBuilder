@@ -611,6 +611,26 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 兼容镜像仍只暴露旧 UI 所需的 `selectedName`/node id，canonical identity 留在 ViewSession；当前累计
   单元测试 runner 为 506 tests、0 failures。
 
+### Stage 8 执行记录（2026-09-14，真实大图浏览器冒烟与发布复核）
+
+- 使用仓库自带 `examples/large_buffer_chain_1024.v`（1024 cells、1026 nets）启动离线预览。首屏
+  AX 状态为 `Search-first mode`，显示 `1027 nodes are indexed`，Design stats 的 Graph nodes/edges
+  均为 0；Process Log 明确记录 `Layout completed: 0 node(s), 0 edge(s)`。
+- 在 Search 输入 `u_buf_900` 并点击普通定位结果后，画布进入 Focused，Focused roots 从 0 增为 1，
+  Selection/detail 显示该 cell；Process Log 只记录 `Layout completed: 1 node(s), 0 edge(s)`，没有把
+  1024-cell 全图提交到 DOM。这补齐了 R8-3/R8-6/R8-7 的真实 Search-first DOM 证据。该单模块 fixture
+  无法直接进入 Compare；Compare 大图初始零 provider 与独立 side cancellation 继续由 provider-count
+  单测覆盖。
+- 最新验证：`npm test` 通过（506 tests）；`npm run benchmark:interaction` 的 1K/4K move cold→warm
+  为 `44.2/33.7 ms`、`146.1/136.3 ms`，Focused warm `0.1/0 ms`；`npm run benchmark` 的 1K/4K/8K
+  pipeline 为 `160.1/940.5/2787.4 ms`，progressive first batch `1.2/1.0/1.1 ms`。
+- `npm run release:windows` 通过（506 tests、启动器 smoke、离线 ZIP 与 ELK license），最新包
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
+  SHA-256 为 `6d190567c4fa053eec1bb3424b29e2f7f41aef40235e89003079a989d4822da6`。
+- `npm run test:mapped-cases` 的既有基线仍需单独收口：单 case `sop_015` 仍出现大量
+  `missing-route`（3193 violations，layoutStatus `unroutable`），因此 Stage 8 继续保持“进行中”，不把
+  单元、浏览器或发布通过误写成全部完成。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
