@@ -577,6 +577,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `npm run release:windows` 通过（501 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），产物
   [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
   SHA-256 为 `656ed5e2dfc361549fb13509e924d8109cac2feaae5db74f52cf0d9e02bac8e8`。
+- 浏览器冒烟（本地离线预览 `http://127.0.0.1:4173/`）通过：矩形/Conventional gate selector 可切换；在
+  Focused 深度设为 0 后搜索画布外 cell，结果自动增加第二个 Focused root 并显示 `Focused ...`；进入
+  Compare 后两侧显示 `Compare ready (Simple Layered)`；`Ctrl+Z` 返回 Single 并保留 roots，
+  `Ctrl+Shift+Z` 前进回 Compare。该次冒烟未覆盖大于 Search-first 阈值的真实 DOM 规模 fixture。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
