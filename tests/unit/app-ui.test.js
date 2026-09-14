@@ -316,6 +316,17 @@ test("view bridges forward committed commands to the history boundary", async ()
   assert.match(bus, /onDispatch\?\.\(command, result\)/);
 });
 
+test("toolbar and Alt+Arrow history fall back to legacy module entries", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const navigate = source.match(/function navigateViewHistory\(delta\) \{([\s\S]*?)\n\}\n\nfunction restoreViewHistoryEntry/)?.[1] || "";
+  const legacyFallback = navigate.match(/if \(!result\.entry\) \{([\s\S]*?)\n  \}/)?.[1] || "";
+  assert.match(legacyFallback, /canStepModuleHistory\(state\.moduleHistory, delta, validNames\)/);
+  assert.match(legacyFallback, /navigateModuleHistory\(delta\)/);
+  const shortcut = source.match(/function handleModuleHistoryShortcut\(event\) \{([\s\S]*?)\n\}\n\nfunction handleViewHistoryShortcut/)?.[1] || "";
+  assert.match(shortcut, /navigateViewHistory\(event\.key === "ArrowLeft" \? -1 : 1\)/);
+  assert.doesNotMatch(shortcut, /navigateModuleHistory\(event\.key/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";

@@ -1116,7 +1116,10 @@ function handleModuleHistoryShortcut(event) {
   if (!event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   event.preventDefault();
-  navigateModuleHistory(event.key === "ArrowLeft" ? -1 : 1);
+  // Keep Alt+Arrow as a compatibility entry, but route it through the same
+  // view timeline as the toolbar and Ctrl+Z. If a legacy module entry is the
+  // only available step, navigateViewHistory() falls back explicitly below.
+  navigateViewHistory(event.key === "ArrowLeft" ? -1 : 1);
 }
 
 function handleViewHistoryShortcut(event) {
@@ -1135,6 +1138,11 @@ function navigateViewHistory(delta) {
   state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state));
   const result = stepViewHistory(state.viewHistory, delta);
   if (!result.entry) {
+    const validNames = state.design?.modules.map((module) => module.name) || [];
+    if (canStepModuleHistory(state.moduleHistory, delta, validNames)) {
+      navigateModuleHistory(delta);
+      return;
+    }
     updateModuleHistoryControls();
     return;
   }
