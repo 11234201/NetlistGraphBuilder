@@ -551,6 +551,10 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 重新执行 `npm run benchmark`：1K/4K/8K pipeline 中位数为 `154.9/950.2/2951.8 ms`，
   progressive first batch 为 `1.2/1.0/1.1 ms`。重新发布包通过（486 个单元测试、启动器 smoke、
   离线 ZIP 与 ELK license），SHA-256 为 `5348eb9aeddabd1df5e710e974e5eaa9ebc1c69fbe4580f47845207914b54358`。
+- `e818ea3` 让 Compare 的 View History 元数据按实际 side 标记：单侧 override 与 canvas pan
+  只影响对应 `compare:left/right` session；新增静态回归后 `npm test` 通过（487 tests）。
+- 重新执行 `npm run release:windows` 通过（487 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），
+  当前包 SHA-256 为 `26a845b52f1a826989b952aeea28667ca390d1aa2e6b64e0ea0e1757ae4f477b`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
