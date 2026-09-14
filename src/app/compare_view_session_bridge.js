@@ -122,6 +122,16 @@ export function createCompareViewSessionBridge({
     objectRef(side, kind, localId) {
       const session = ensure(side);
       const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
+      if (kind === "net") {
+        const netNode = findGraphNetNode(graph, localId);
+        return createObjectRef({
+          documentId: session.documentId,
+          unitId: session.unitId,
+          kind,
+          localId,
+          occurrencePath: netNode?.ref?.occurrencePath
+        });
+      }
       const node = findGraphNode(graph, kind, localId);
       if (node) return nodeToRef(node, session);
       return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind, localId });
@@ -130,6 +140,16 @@ export function createCompareViewSessionBridge({
 }
 
 function objectRefForSelection(graph, session, kind, localId) {
+  if (kind === "net") {
+    const netNode = findGraphNetNode(graph, localId);
+    return createObjectRef({
+      documentId: session.documentId,
+      unitId: session.unitId,
+      kind,
+      localId,
+      occurrencePath: netNode?.ref?.occurrencePath
+    });
+  }
   const node = findGraphNode(graph, kind, localId);
   if (node) return nodeToRef(node, session);
   return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind, localId });
@@ -144,6 +164,13 @@ function findGraphNode(graph, kind, localId) {
       node.ref?.name === localId ||
       node.ref?.localId === localId;
   }) || null;
+}
+
+function findGraphNetNode(graph, localId) {
+  return graph?.nodes?.find((node) =>
+    (node.kind === "hub" || node.kind === "net") &&
+    (node.ref?.localId || node.ref?.name || node.label) === localId
+  ) || null;
 }
 
 function ensureProjectionContainers(compare) {

@@ -131,6 +131,28 @@ test("compare selection refs retain occurrence identity for repeated local ids",
   assert.deepEqual(result.session.selectedObjectRef.occurrencePath, ["u_right"]);
 });
 
+test("compare net selection refs retain projected hub occurrence identity", () => {
+  const state = {
+    compare: {
+      leftModuleName: "leaf", rightModuleName: "leaf",
+      fullGraphs: {
+        left: { nodes: [
+          { id: "hub:u_left/n_out", kind: "hub", label: "n_out", ref: { kind: "net", localId: "n_out", occurrencePath: ["u_left"] } },
+          { id: "hub:u_right/n_out", kind: "hub", label: "n_out", ref: { kind: "net", localId: "n_out", occurrencePath: ["u_right"] } }
+        ] },
+        right: { nodes: [] }
+      }
+    }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const result = adapter.dispatch("left", {
+    type: "selection.set",
+    objectRef: adapter.objectRef("left", "net", "n_out")
+  });
+  assert.equal(result.session.selectedObjectRef.localId, "n_out");
+  assert.deepEqual(result.session.selectedObjectRef.occurrencePath, ["u_left"]);
+});
+
 test("compare bridge imports restored root mirrors before the first command", () => {
   const state = {
     compare: {
