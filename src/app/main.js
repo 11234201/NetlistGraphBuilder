@@ -162,6 +162,7 @@ const SEARCH_FIRST_NODE_THRESHOLD = 500;
 let sessionSaveTimer = null;
 let focusedDepthChangeTimer = null;
 let activeCellDefinition = null;
+let nextViewTransactionId = 1;
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -3931,14 +3932,21 @@ function syncLayoutSpacingControls() {
 
 function persistSession() {
   if (!state.currentSource) return;
-  recordViewHistory();
+  recordViewHistory({ label: "Viewport gesture" });
   clearTimeout(sessionSaveTimer);
   sessionSaveTimer = setTimeout(() => saveSessionState(createSessionSnapshot(state)), 150);
 }
 
-function recordViewHistory() {
+function recordViewHistory(metadata = {}) {
   if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
-  state.viewHistory = pushViewHistory(state.viewHistory, createViewHistoryEntry(state));
+  const affectedSessionIds = metadata.affectedSessionIds || (state.compare.active
+    ? ["compare:left", "compare:right"]
+    : ["single:primary"]);
+  state.viewHistory = pushViewHistory(state.viewHistory, createViewHistoryEntry(state, {
+    transactionId: metadata.transactionId || `view:${nextViewTransactionId++}`,
+    label: metadata.label || "View change",
+    affectedSessionIds
+  }));
   updateModuleHistoryControls();
 }
 

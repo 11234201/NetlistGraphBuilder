@@ -49,6 +49,25 @@ test("view history truncates the forward branch and honors its bound", () => {
   assert.equal(canStepViewHistory(history, 1), false);
 });
 
+test("view history preserves transaction metadata without duplicating equal snapshots", () => {
+  const first = createViewHistoryEntry(state("top"), {
+    transactionId: "view:1",
+    label: "Select cell",
+    affectedSessionIds: ["single:primary"]
+  });
+  const second = createViewHistoryEntry(state("top"), {
+    transactionId: "view:2",
+    label: "Focus viewport",
+    affectedSessionIds: ["single:primary"]
+  });
+  const history = pushViewHistory(pushViewHistory(createViewHistory(), first), second);
+
+  assert.equal(history.entries.length, 1);
+  assert.equal(history.entries[0].transactionId, "view:1");
+  assert.equal(history.entries[0].label, "Select cell");
+  assert.deepEqual(history.entries[0].affectedSessionIds, ["single:primary"]);
+});
+
 test("compare snapshots keep side-specific viewport identity", () => {
   const entry = createViewHistoryEntry(state("top", {
     compare: {

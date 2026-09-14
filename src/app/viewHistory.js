@@ -18,6 +18,9 @@ export function createViewHistoryEntry(state, metadata = {}) {
   );
   return cloneEntry({
     kind: metadata.kind || (state.compare?.active ? "compare" : "single"),
+    transactionId: metadata.transactionId || null,
+    label: metadata.label || null,
+    affectedSessionIds: Array.isArray(metadata.affectedSessionIds) ? metadata.affectedSessionIds : [],
     moduleName: state.currentModule?.name || null,
     occurrenceContext: state.occurrenceContext ? {
       rootModuleName: state.occurrenceContext.rootModuleName || null,
@@ -99,7 +102,12 @@ export function canStepViewHistory(history, delta) {
 }
 
 function sameEntry(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify(stripEntryMetadata(left)) === JSON.stringify(stripEntryMetadata(right));
+}
+
+function stripEntryMetadata(entry = {}) {
+  const { transactionId, label, affectedSessionIds, ...viewState } = entry;
+  return viewState;
 }
 
 function cloneHistory(history = createViewHistory()) {
@@ -114,6 +122,9 @@ function cloneEntry(entry = {}) {
   const roots = normalizeFocusedRootNodeIds(entry.focusedRootNodeIds, entry.coneRootNodeId);
   return {
     kind: entry.kind === "compare" ? "compare" : "single",
+    transactionId: entry.transactionId || null,
+    label: entry.label || null,
+    affectedSessionIds: Array.isArray(entry.affectedSessionIds) ? [...entry.affectedSessionIds] : [],
     moduleName: entry.moduleName || null,
     occurrenceContext: entry.occurrenceContext ? {
       rootModuleName: entry.occurrenceContext.rootModuleName || null,
