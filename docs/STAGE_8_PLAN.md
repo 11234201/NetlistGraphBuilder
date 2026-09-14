@@ -992,3 +992,17 @@ Stage 8 只有在以下条件同时满足时完成：
   4K `1120.5ms`、8K `4224.7ms`；`dp_020` 正式 worker 在 60s 内仍未完成，因此本轮只记录已确认的
   热点与安全优化，R8-3 继续保持进行中，下一入口是 atomic physical-net trial 与单 edge fallback 的
   分项耗时和候选拒绝原因统计。
+
+#### 本轮结论冻结与停止条件
+
+- 已确认：`dp_020` 的 parse、graph、measure 不是主瓶颈；placement/capacity 合计约 4 秒，主要超时在
+  full-graph routing。缓存后的 move/resize 与 Focused warm path 不是这 6 个 case 的超时来源。
+- 已确认有效且保留：layout/physical-net/wire-route validation 共享 node spatial index；reservation
+  overlap 使用同方向 bucket 和 `max=1` 短路。这些改动不放宽几何规则，522 个单测全部通过。
+- 未证明足以解决超时：上述索引优化降低了重复工作，但 `dp_020` 在正式 60 秒 worker 窗口内仍未完成；
+  20 秒采样中的 edge 推进变化受机器与采样开销影响，不作为完成或收益百分比证据。
+- profile 已把后续范围收窄到单 edge 的 capacity/fallback candidate 搜索；个别 edge 可消耗约 1–3 秒。
+  在取得候选类别、生成数、拒绝原因、空间查询候选数及单 edge 分项时间的稳定聚合数据前，不再修改
+  candidate 数量、路由偏好、超时、validator 或 fixture，也不再进行无指标假设驱动的尝试。
+- 下一轮只有在先补齐上述聚合观测、能由同一 47-case runner 复现实质收益且 routing invariant/determinism
+  全部通过时才实施算法改动；否则保持 R8-3 进行中并保留当前基线。
