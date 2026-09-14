@@ -601,9 +601,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   cold→warm 为 `74.7/57.8 ms`、`239.0/227.2 ms`，Focused warm 为 `0.1/0.0 ms`；全链路
   1K/4K/8K pipeline 中位数为 `190.0/946.6/2876.6 ms`，progressive first batch 为
   `1.2/1.1/1.1 ms`。这些是同环境回归指标，尚未形成相对 Stage 8 初始基线的 30% 改善证明。
-- `npm run release:windows` 通过（497 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），产物
+- `npm run release:windows` 通过（499 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），产物
   [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
-  SHA-256 为 `b6e098953468d4d3b74f2f071993d47524300475a036984cbe4b0988cb433206`。
+  SHA-256 为 `7ecdd7ba39dedef6816a0351222edf0bfd1b5a0ea64faef40d79df1b6d4746f9`。
 - `npm run test:mapped-cases` 在允许 worker process 后完成：47 cases、40 failed、34955/120 violations、
   `hardInvariants=false`、最大 layout `10340 ms`。失败仍集中在既有 `missing-route`/
   `wire-route-disconnected`，本轮只改 application/UI，不把该基线归因于 Stage 8 增量。
