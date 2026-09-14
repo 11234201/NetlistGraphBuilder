@@ -38,11 +38,61 @@ function normalizeDepth(value, label) {
 
 function normalizeFocusTargets(value) {
   const values = Array.isArray(value) ? value : [value];
-  const normalized = [...new Set(values
-    .filter((item) => item !== undefined && item !== null && String(item).trim())
-    .map((item) => String(item)))];
+  const normalized = [];
+  const seen = new Set();
+  for (const item of values) {
+    if (item === undefined || item === null) continue;
+    const target = normalizeFocusTarget(item);
+    const key = typeof target === "string"
+      ? `cell:${target}`
+      : `${target.kind}:${target.localId}:${(target.occurrencePath || []).join("/")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(target);
+  }
   if (normalized.length === 0) throw new Error("Startup target.focus must contain a cell identifier");
   return Array.isArray(value) ? normalized : normalized[0];
+}
+
+function normalizeFocusTarget(value) {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) throw new Error("Startup target.focus must contain a cell identifier");
+    return normalized;
+  }
+  if (!isObject(value)) throw new Error("Startup target.focus must contain a cell identifier or ObjectRef");
+  const kind = value.kind === "net" ? "net" : value.kind === "cell" ? "cell" : null;
+  const localId = typeof value.localId === "string" && value.localId.trim()
+    ? value.localId.trim()
+    : typeof value.name === "string" && value.name.trim()
+      ? value.name.trim() : null;
+  if (!kind || !localId) throw new Error("Startup target.focus ObjectRef requires kind and localId");
+  const target = { kind, localId };
+  if (value.documentId !== undefined) {
+    if (typeof value.documentId !== "string" || !value.documentId) {
+      throw new Error("Startup target.focus documentId must be a non-empty string");
+    }
+    target.documentId = value.documentId;
+  }
+  if (value.unitId !== undefined) {
+    if (typeof value.unitId !== "string" || !value.unitId) {
+      throw new Error("Startup target.focus unitId must be a non-empty string");
+    }
+    target.unitId = value.unitId;
+  }
+  if (value.rootModuleName !== undefined) {
+    if (typeof value.rootModuleName !== "string" || !value.rootModuleName) {
+      throw new Error("Startup target.focus rootModuleName must be a non-empty string");
+    }
+    target.rootModuleName = value.rootModuleName;
+  }
+  if (value.occurrencePath !== undefined) {
+    if (!Array.isArray(value.occurrencePath) || value.occurrencePath.some((segment) => typeof segment !== "string" || !segment)) {
+      throw new Error("Startup target.focus occurrencePath must contain non-empty strings");
+    }
+    target.occurrencePath = [...value.occurrencePath];
+  }
+  return target;
 }
 
 function isObject(value) {

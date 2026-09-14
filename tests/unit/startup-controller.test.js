@@ -64,3 +64,27 @@ test("startup focus accepts a stable array and dispatches it as one multi-root a
   });
   assert.deepEqual(focusRoots, [["u1", "u0"]]);
 });
+
+test("startup focus preserves cell/net occurrence targets", () => {
+  const manifest = normalizeStartupManifest({
+    version: 1,
+    target: {
+      focus: [
+        { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] },
+        { kind: "net", localId: "out", occurrencePath: ["u_right"] },
+        { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] }
+      ]
+    }
+  });
+  assert.deepEqual(manifest.target.focus, [
+    { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] },
+    { kind: "net", localId: "out", occurrencePath: ["u_right"] }
+  ]);
+});
+
+test("startup focus rejects malformed occurrence targets", () => {
+  assert.throws(() => normalizeStartupManifest({
+    version: 1,
+    target: { focus: { kind: "net", localId: "out", occurrencePath: [""] } }
+  }), /occurrencePath/);
+});

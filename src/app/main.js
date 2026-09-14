@@ -2309,38 +2309,90 @@ function focusStartupCell(value) {
 }
 
 function focusStartupCells(values) {
-  const focusValues = Array.isArray(values) ? values : [values];
-  const nodes = focusValues.map((value) => {
-    const focus = String(value).replace(/^cell:/, "");
+  const focusTargets = (Array.isArray(values) ? values : [values]).map(normalizeStartupFocusTarget);
+  const occurrenceTarget = focusTargets.find((target) => target.occurrencePath?.length);
+  if (occurrenceTarget && !sameOccurrencePath(state.occurrenceContext?.occurrencePath, occurrenceTarget.occurrencePath)) {
+    return new Promise((resolve, reject) => {
+      selectModule(state.currentModule.name, {
+        rootModuleName: occurrenceTarget.rootModuleName,
+        occurrencePath: occurrenceTarget.occurrencePath,
+        onRendered: () => focusStartupCells(values).then(resolve, reject)
+      });
+    });
+  }
+  const nodes = focusTargets.map((target) => {
+    if (target.kind !== "cell") return null;
+    const focus = target.localId.replace(/^cell:/, "");
     return state.fullGraph?.nodes.find((item) => {
       if (item.kind !== "cell") return false;
+      if (!sameOccurrencePath(item.ref?.occurrencePath, target.occurrencePath)) return false;
       return [item.id, item.id.replace(/^cell:/, ""), item.label, item.ref?.instance, item.ref?.instanceDisplayName]
-        .includes(value) || item.ref?.instance === focus;
+        .includes(target.localId) || item.ref?.instance === focus;
     });
   });
-  const missingIndex = nodes.findIndex((node) => !node);
+  const missingIndex = focusTargets.findIndex((target, index) => {
+    if (target.kind === "net") {
+      return !state.fullGraph?.edges?.some((edge) => edge.net === target.localId);
+    }
+    return !nodes[index];
+  });
   if (missingIndex >= 0) {
-    return Promise.reject(new Error(`Startup focus cell not found: ${focusValues[missingIndex]}`));
+    return Promise.reject(new Error(`Startup focus cell not found: ${focusTargets[missingIndex].localId}`));
   }
-  const rootNodeIds = nodes.map((node) => node.id);
-  const nodeId = rootNodeIds[0];
-  replaceSingleFocusedRoots(rootNodeIds, nodeId);
-  setSelectedNode(nodeId);
+  const objectRefs = focusTargets.map((target, index) => target.kind === "net"
+    ? singleViewSession.objectRefForNet(target.localId)
+    : singleViewSession.objectRefForNode(nodes[index]));
+  const activeObjectRef = objectRefs[0] || null;
+  singleViewSession.dispatch({
+    type: "focus.replace",
+    objectRefs,
+    activeObjectRef
+  });
+  const firstNodeId = nodes[0]?.id || null;
+  if (focusTargets[0]?.kind === "net") setSelectedNet(focusTargets[0].localId);
+  else setSelectedNode(firstNodeId);
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   updateViewControls();
   return new Promise((resolve) => {
     renderCurrentModuleGraph({
       onRendered: (graph) => {
-        const positioned = graph.nodes.find((item) => item.id === nodeId);
-        setSelectedNode(positioned?.id || null);
-        if (positioned) {
-          focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
+        if (focusTargets[0]?.kind === "net") {
+          const edge = graph.edges.find((item) => item.net === focusTargets[0].localId);
+          setSelectedNet(focusTargets[0].localId);
+          if (edge) centerGraphPoint(getEdgeCenter(edge));
+        } else {
+          const positioned = graph.nodes.find((item) => item.id === firstNodeId);
+          setSelectedNode(positioned?.id || null);
+          if (positioned) {
+            focusPositionedCell(positioned, elements.mount, state.transform, setSingleTransform);
+            applyTransform();
+          }
+        }
+        if (focusTargets[0]?.kind === "net") {
           applyTransform();
         }
         resolve();
       }
     });
   });
+}
+
+function normalizeStartupFocusTarget(value) {
+  if (value && typeof value === "object") {
+    return {
+      kind: value.kind === "net" ? "net" : "cell",
+      localId: String(value.localId || value.name || "").trim(),
+      rootModuleName: value.rootModuleName || null,
+      occurrencePath: Array.isArray(value.occurrencePath) ? [...value.occurrencePath] : []
+    };
+  }
+  return { kind: "cell", localId: String(value || "").replace(/^cell:/, "").trim(), occurrencePath: [] };
+}
+
+function sameOccurrencePath(left, right) {
+  const a = Array.isArray(left) ? left : [];
+  const b = Array.isArray(right) ? right : [];
+  return a.length === b.length && a.every((segment, index) => segment === b[index]);
 }
 
 function focusSelectedCompareCell() {
