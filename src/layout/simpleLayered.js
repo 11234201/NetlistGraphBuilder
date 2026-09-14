@@ -36,6 +36,7 @@ export {
 } from "./nodeGeometry.js";
 
 export function layoutGraph(graph, options = {}) {
+  const reportStage = (stage, detail = null) => options.onLayoutStage?.(stage, detail);
   const policy = normalizeLayoutPolicy(options.layoutPolicy, options);
   const ySpacing = policy.spacing.y;
   const margin = policy.spacing.margin;
@@ -44,8 +45,11 @@ export function layoutGraph(graph, options = {}) {
   const routingGeometry = normalizeRoutingGeometry(policy.spacing, options.routingGeometry);
   const topWireLanePitch = routingGeometry.wireLanePitch;
   const levels = assignSimpleLevels(graph);
+  reportStage("levels-complete");
   const layoutIntent = analyzeLayoutIntent(graph, levels);
+  reportStage("intent-complete");
   const routePlan = planSimpleRouting(graph, levels, layoutIntent);
+  reportStage("route-plan-complete");
   const xSpacing = policy.spacing.x;
   const requestedTopWireSpace = Number.isFinite(Number(options.topWireSpace))
     ? Math.max(0, Number(options.topWireSpace))
@@ -63,6 +67,7 @@ export function layoutGraph(graph, options = {}) {
   const buckets = bucketNodesByLevel(graph.nodes, levels);
   const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
   orderSimpleLayers(buckets, levelKeys, graph.edges);
+  reportStage("layer-order-complete");
 
   const nodeSizes = new Map(graph.nodes.map((node) => [
     node.id,
@@ -103,6 +108,7 @@ export function layoutGraph(graph, options = {}) {
     policy,
     nodePositions: options.nodePositions
   }, { onStage: options.onPlacementStage });
+  reportStage("placement-complete");
 
   const initialCapacityPlan = buildRoutingCapacityPlan(
     graph,
@@ -117,6 +123,7 @@ export function layoutGraph(graph, options = {}) {
     }
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
+  reportStage("capacity-expansion-complete");
   // Row-gap capacity expansion can move only part of a source column and
   // create a new line-of-sight obstruction that did not exist during the
   // normal locality pipeline. Repair the final source-to-group escape rows
@@ -139,6 +146,7 @@ export function layoutGraph(graph, options = {}) {
       topWireHeadroom
     }
   );
+  reportStage("capacity-plan-complete");
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
@@ -150,9 +158,13 @@ export function layoutGraph(graph, options = {}) {
     margin,
     strictRouting: options.strictRouting === true,
     onRoutingProgress: options.onRoutingProgress,
-    onRoutingStage: options.onRoutingStage
+    onRoutingStage: options.onRoutingStage,
+    onRoutingGroup: options.onRoutingGroup,
+    onRoutingEdge: options.onRoutingEdge
   });
+  reportStage("routing-complete", positionedEdges.routingMetrics || null);
   const wireRoutes = buildWireRoutes(positionedEdges);
+  reportStage("wire-routes-complete");
   const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
   translateLayoutGeometry(positionedNodes, positionedEdges, wireRoutes, {
     x: Math.max(0, -bounds.left),
@@ -160,7 +172,7 @@ export function layoutGraph(graph, options = {}) {
   });
   const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
   const safeExtent = computeSafeLayoutExtent(normalizedBounds, margin);
-  return finalizeLayoutGraph({
+  const result = finalizeLayoutGraph({
     ...graph,
     nodes: positionedNodes,
     edges: positionedEdges,
@@ -173,6 +185,8 @@ export function layoutGraph(graph, options = {}) {
       topWireHeadroom
     }
   });
+  reportStage("validation-complete", result.validationMetrics || null);
+  return result;
 }
 
 function readMeasuredSize(node, cellPinPitch) {

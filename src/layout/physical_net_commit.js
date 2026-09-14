@@ -30,6 +30,7 @@ export function validatePhysicalNetCommit(edges = [], nodes = [], options = {}) 
     width: options.width,
     height: options.height
   }, {
+    nodeIndex: options.nodeIndex,
     checkObstacles: options.checkObstacles !== false,
     checkOverlaps: true,
     checkBounds: options.checkBounds === true,

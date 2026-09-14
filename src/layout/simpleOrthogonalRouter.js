@@ -99,6 +99,12 @@ export function routeSimpleEdges(graph, nodes, options) {
     if (!attemptedPhysicalNets.has(physicalNetKey)) {
       attemptedPhysicalNets.add(physicalNetKey);
       const physicalNetEdges = edgesByPhysicalNet.get(physicalNetKey) || [];
+      if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+        phase: "start",
+        edgeIndex,
+        physicalNetKey,
+        edgeCount: physicalNetEdges.length
+      });
       const capacityBlockedRoutes = tryRouteCapacityBlockedPhysicalNetGroup(
         physicalNetEdges,
         {
@@ -118,6 +124,12 @@ export function routeSimpleEdges(graph, nodes, options) {
         }
       );
       if (capacityBlockedRoutes) {
+        if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+          phase: "capacity-complete",
+          edgeIndex,
+          physicalNetKey,
+          edgeCount: physicalNetEdges.length
+        });
         commitPhysicalNetRoutes(capacityBlockedRoutes, {
           routedById,
           reservedSegments,
@@ -134,6 +146,7 @@ export function routeSimpleEdges(graph, nodes, options) {
         {
           nodeById,
           nodes,
+          nodeIndex,
           reservedSegments,
           routePlan,
           routingCapacity,
@@ -143,6 +156,12 @@ export function routeSimpleEdges(graph, nodes, options) {
         }
       );
       if (atomicRoutes) {
+        if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+          phase: "atomic-complete",
+          edgeIndex,
+          physicalNetKey,
+          edgeCount: physicalNetEdges.length
+        });
         routingMetrics.atomicPhysicalNetTreeCount =
           (routingMetrics.atomicPhysicalNetTreeCount || 0) + 1;
         commitPhysicalNetRoutes(atomicRoutes, {
@@ -168,6 +187,7 @@ export function routeSimpleEdges(graph, nodes, options) {
         targetNodeId: target.id
       }
     );
+    options.onRoutingEdge?.({ phase: "start", edgeIndex, edgeId: edge.id, physicalNetKey });
     const routed = routeEdge({
       source,
       target,
@@ -191,6 +211,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       net: edge.net,
       netGroupKey: getNetGroupKey(edge)
     });
+    options.onRoutingEdge?.({ phase: "complete", edgeIndex, edgeId: edge.id, physicalNetKey });
     const positionedEdge = createPositionedEdge(
       edge,
       source,
@@ -340,7 +361,9 @@ function tryRouteCapacityBlockedPhysicalNetGroup(edges, context) {
     edge.net,
     context.reservedSegments,
     getNetGroupKey(edge)
-  )) || validatePhysicalNetCommit(directRoutes, context.nodes).status !== "routed") {
+  )) || validatePhysicalNetCommit(directRoutes, context.nodes, {
+    nodeIndex: context.nodeIndex
+  }).status !== "routed") {
     return inspected.map((failed) => createCapacityBlockedPositionedEdge(failed));
   }
   return directRoutes;
@@ -621,7 +644,9 @@ function tryRoutePhysicalNetGroup(edges, context) {
       context.reservedSegments,
       getNetGroupKey(edge)
     ))) continue;
-    const commit = validatePhysicalNetCommit(positionedEdges, context.nodes);
+    const commit = validatePhysicalNetCommit(positionedEdges, context.nodes, {
+      nodeIndex: context.nodeIndex
+    });
     if (commit.status === "routed") return positionedEdges;
   }
   return null;

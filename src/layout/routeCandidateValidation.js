@@ -118,17 +118,28 @@ export function routeOverlapsReserved(points, net, reservedSegments, netGroupKey
       net,
       netGroupKey
     };
+    const overlaps = (reserved) => {
+      const sameNet = netGroupKey !== undefined && netGroupKey !== null
+        ? (reserved?.netGroupKey ?? reserved?.net) === netGroupKey
+        : reserved?.net === net;
+      return !sameNet && (collinearSegmentsOverlap(candidate, reserved) ||
+        parallelSegmentsOverlap(candidate, reserved));
+    };
+    if (typeof reservedSegments.countBox === "function") {
+      if (reservedSegments.countBox(
+        segmentBox(candidate, MINIMUM_FOREIGN_WIRE_SEPARATION),
+        overlaps,
+        1
+      ) > 0) return true;
+      continue;
+    }
     const isVertical = Math.abs(candidate.start.x - candidate.end.x) < 0.5;
     const reservedCandidates = isVertical &&
       typeof reservedSegments.queryVerticalSegment === "function"
       ? reservedSegments.queryVerticalSegment(candidate, MINIMUM_FOREIGN_WIRE_SEPARATION)
       : getReservedCandidates(reservedSegments, candidate);
     for (const reserved of reservedCandidates) {
-      const sameNet = netGroupKey !== undefined && netGroupKey !== null
-        ? (reserved?.netGroupKey ?? reserved?.net) === netGroupKey
-        : reserved?.net === net;
-      if (!sameNet && (collinearSegmentsOverlap(candidate, reserved) ||
-        parallelSegmentsOverlap(candidate, reserved))) return true;
+      if (overlaps(reserved)) return true;
     }
   }
   return false;

@@ -18,7 +18,7 @@ export function validateLayoutGraph(graph, options = {}) {
   const nodes = graph.nodes || [];
   const edges = graph.edges || [];
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const nodeIndex = createNodeSpatialIndex(nodes);
+  const nodeIndex = options.nodeIndex || createNodeSpatialIndex(nodes);
   const checkObstacles = options.checkObstacles !== false;
   const checkOverlaps = options.checkOverlaps !== false;
   const checkBounds = options.checkBounds === true;
@@ -86,6 +86,7 @@ export function validateLayoutGraph(graph, options = {}) {
     appendViolations(violations, findWireRouteViolations(graph.wireRoutes, nodes, {
       checkObstacles,
       checkBounds,
+      nodeIndex,
       width: graph.width,
       height: graph.height
     }, maximumViolations), maximumViolations);
@@ -155,7 +156,7 @@ function summarizeViolations(violations) {
 function findWireRouteViolations(wireRoutes, nodes = [], options = {}, maximumViolations = Infinity) {
   const violations = [];
   const nodeIndex = options.checkObstacles !== false && nodes.length > 0
-    ? createNodeSpatialIndex(nodes)
+    ? options.nodeIndex || createNodeSpatialIndex(nodes)
     : null;
   for (const route of wireRoutes) {
     if (violations.length >= maximumViolations) break;

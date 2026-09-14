@@ -973,3 +973,19 @@ Stage 8 只有在以下条件同时满足时完成：
 - 首个大版本发布准备：版本提升至 `1.0.0`；`npm run release:windows` 通过 520 个单元测试、启动器
   smoke、离线资源和 ELK license 检查。产物 `dist/NetlistGraphBuilder-v1.0.0-win-x64.zip` 的 SHA-256
   为 `718af7dfde35552431d48c89b4c2e4cbb85f0c0a5ed2857577114fbe214389d2`。
+
+### Stage 8 执行记录（2026-09-14，超大 mapped base pipeline profiling）
+
+- 在独立远端目录 `/home/wzh/my_code/netlistGraphBuilder-stage8-profile` 使用真实 `dp_020_mapped.v`
+  做分阶段 profiling；parse、graph、measure 合计约 `0.17s`，placement 约 `2.3s`，capacity 两次规划
+  约 `1.6s`，60s 超时主要发生在 full-graph routing，而不是 parser、graph 或交互 warm path。
+- `validateLayoutGraph`/physical-net commit 现在复用本次 layout 已建立的 node spatial index，避免每个
+  atomic physical-net trial 重建全图 node index；wire-route obstacle validation 同样消费该共享索引。
+- reserved-segment overlap 查询改用 `RouteSegmentIndex.countBox(..., 1)` 短路，在发现首个 foreign-net
+  共线/近距离重叠时停止，不再为长距离候选完整物化全部 bucket 结果；几何谓词仍是最终判定。
+- 新增 `tools/profile-mapped-pipeline.mjs` 和 opt-in layout/routing stage observer，便于后续继续定位
+  routing 内部阶段；observer 未提供时不产生输出或持久状态。
+- `npm test`：521/521 通过。远端 `npm run benchmark` full-graph layout 中位数为 1K `155.5ms`、
+  4K `1120.5ms`、8K `4224.7ms`；`dp_020` 正式 worker 在 60s 内仍未完成，因此本轮只记录已确认的
+  热点与安全优化，R8-3 继续保持进行中，下一入口是 atomic physical-net trial 与单 edge fallback 的
+  分项耗时和候选拒绝原因统计。
