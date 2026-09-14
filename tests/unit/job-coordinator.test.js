@@ -126,3 +126,30 @@ test("a synchronous replacement invalidates a pending asynchronous job", async (
   assert.equal((await first.promise).status, "stale");
   assert.equal(state.artifacts.get("view:1", "layout").value, "sync-layout");
 });
+
+test("compare side jobs cancel independently and retain the peer artifact", async () => {
+  const state = setup();
+  state.sessions.create({ sessionId: "compare:left", documentId: "doc:1", domainId: "netlist", unitId: "left" });
+  state.sessions.create({ sessionId: "compare:right", documentId: "doc:1", domainId: "netlist", unitId: "right" });
+  const leftTask = deferred();
+  const rightTask = deferred();
+  const left = state.jobs.start({
+    sessionId: "compare:left",
+    kind: "compare-left-workspace",
+    run: () => leftTask.promise
+  });
+  const right = state.jobs.start({
+    sessionId: "compare:right",
+    kind: "compare-right-workspace",
+    run: () => rightTask.promise
+  });
+  await Promise.resolve();
+  assert.equal(state.jobs.cancelSession("compare:left"), 1);
+  leftTask.resolve("stale-left");
+  rightTask.resolve("ready-right");
+
+  assert.equal((await left.promise).status, "stale");
+  assert.equal((await right.promise).status, "committed");
+  assert.equal(state.artifacts.get("compare:left", "compare-left-workspace"), null);
+  assert.equal(state.artifacts.get("compare:right", "compare-right-workspace").value, "ready-right");
+});
