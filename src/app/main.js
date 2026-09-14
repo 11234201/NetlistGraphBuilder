@@ -23,6 +23,7 @@ import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
+import { isSearchTargetPositioned, shouldRevealSearchTarget } from "./searchLocatePolicy.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
 import { buildModuleHierarchy, findModuleOccurrences } from "../domains/netlist/module_hierarchy.js";
@@ -2694,7 +2695,7 @@ function activateSearchResult(result) {
       return;
     }
     const fullEdge = state.fullGraph?.edges.find((item) => item.net === target.name);
-    if (fullEdge) {
+    if (fullEdge && shouldRevealSearchTarget(target, state.graph, state.fullGraph)) {
       revealSearchTarget(result.objectRef || singleViewSession.objectRefForNet(target.name), () => {
         const positioned = state.graph?.edges.find((item) => item.net === target.name);
         setSelectedNet(target.name, false);
@@ -2711,8 +2712,10 @@ function activateSearchResult(result) {
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
-    const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
-    if (positioned) {
+    const positioned = isSearchTargetPositioned(target, state.graph)
+      ? state.graph?.nodes.find((node) => node.kind === "cell" && node.ref?.instance === target.name)
+      : null;
+    if (positioned && !shouldRevealSearchTarget(target, state.graph, state.fullGraph)) {
       singleViewSession.dispatch({
         type: "selection.set",
         objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
