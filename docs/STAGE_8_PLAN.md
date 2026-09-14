@@ -638,6 +638,14 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 最新 `npm test`：507 tests、0 failures；`npm run release:windows` 通过，离线包 SHA-256 为
   `bb2d9fa3f217f8d3f6708f4675c389c7badc43619e6667ddc11158755a4d5fcc`。
 
+### Stage 8 执行记录（2026-09-14，Single net selection occurrence ref）
+
+- Single bridge 的 selected net 现在优先从当前 full graph 的 projected hub 解析 occurrence path，再回退到
+  当前 occurrence context；因此 selection、Focused root 和 Compare 对 net/cell 使用同一 canonical identity
+  规则，旧 `selectedNet` 字段保持不变。
+- 最新 `npm test`：508 tests、0 failures；Windows 离线发布复核通过，SHA-256 为
+  `9788455c1be4ed56481a864af0cd8a9441af1a43cd075cd1365fff1e96263c4e`。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
