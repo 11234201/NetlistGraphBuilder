@@ -19,6 +19,14 @@ also read `docs/skills/netlist-schematic/SKILL.md` and the documents it routes t
 - Preserve canonical identifiers and display names separately, including escaped and hierarchical names.
   Escape user/netlist-controlled text before inserting it into HTML or SVG.
 
+## Product scope decision (2026-09-14)
+
+- Group-collapse is retired from the product roadmap. Do not add new collapse/expand behavior, optimize
+  collapsed graphs, or use collapsed-graph measurements as acceptance evidence for later work.
+- Keep existing collapse fields and loaders only as a backward-compatibility boundary until an explicit
+  removal task is approved. New runtime, performance, and mapped-case work must use the full graph,
+  Search-first, or Focused views instead.
+
 ## Layout and performance invariants
 
 - Layout and routing results must not depend on parser statement order or raw node/edge array order.

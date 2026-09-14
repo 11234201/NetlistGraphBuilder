@@ -37,7 +37,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 - 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
 - Simple/ELK 布局 provider 离线切换，Wire/Cell spacing 支持滑块和数字输入。
 - Adjust 模式下调整节点位置、尺寸、显示属性和 pin direction；相连 wire 在操作结束后重新布线。
-- 大图支持渐进渲染、fanout hub、结构分组折叠和低缩放降细节。
+- 大图支持渐进渲染、fanout hub 和低缩放降细节；后续性能路径按完整图处理，不再扩展结构分组折叠。
 - 支持保存、校验和载入 layout Golden，并导出带完整样式的离线 SVG。
 
 ### 对比、时序与集成
@@ -195,7 +195,7 @@ node tools/generate-large-example.mjs
 
 1. 顶部 `Layout` 默认使用稳定的 `Simple Layered`；`ELK Layered (Experimental)` 仅作为大图初始排布的可选实验布局。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
 2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
-3. `Collapse large groups` 默认关闭；开启后，300 个以上 cell 的图按 50 个 cell 自动折叠为紫色虚线组。点击组可展开，`Collapse all groups` 恢复全部折叠。
+3. 结构分组折叠已退出产品范围；mapped 基线、性能优化和新交互均按完整图、Search-first 或 Focused 设计。旧 session/golden 中的折叠字段仅作兼容读取。
 4. 可见节点与连线总量达到 400 后使用分批 SVG 渲染，状态栏显示 rendering 进度；最终画面仍包含完整 wire bridge、label 和命中区域。
 5. 缩放低于 0.65 时自动隐藏 pin、net、metadata 和 timing 文字，放大后恢复。
 6. 当前网表文本保存在浏览器 `sessionStorage`；刷新同一标签页会恢复网表和工作状态，关闭标签页后由浏览器清理。
@@ -258,7 +258,7 @@ tools/                本地开发工具与大图示例生成器
 
 - 只支持 structural Verilog 常用子集，不是完整 Verilog/SystemVerilog 前端。
 - 不解析 Liberty `.lib`，复杂或定制 cell 可能需要手动修正 pin direction。
-- Balanced/Folded 深层 DAG 布局仍是实验性遗留方向，当前大图主要通过 ELK、有限深度 Focused 和 group collapse 浏览。
+- Balanced/Folded 深层 DAG 布局仍是实验性遗留方向；当前大图主要通过 ELK、Search-first 和有限深度 Focused 浏览，不再新增 group collapse 能力。
 - Compare 是名称、gate kind 和图统计驱动的启发式分析，不提供形式等价或逻辑等价证明。
 - 内存 AIG 样例只用于验证架构扩展性；尚未提供生产级 AIGER 导入、AIG 浏览界面或等价分析。
 

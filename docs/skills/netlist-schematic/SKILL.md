@@ -42,8 +42,9 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
   assign alias，不推断 gate/pin。
 - 无 `.lib` 时使用可追踪的 `rule`/`fallback`/`unknown` 来源；unknown cell 必须继续生成
   blackbox。新增标准单元匹配时同时验证 cell kind 和关键 pin direction。
-- Netlist IR 是源数据。alias、timing、cone、fanout hub 和 group collapse 是派生显示图变换，
-  不得修改 parser IR 或调用者传入的 graph。
+- Netlist IR 是源数据。alias、timing、cone 和 fanout hub 是派生显示图变换，不得修改 parser IR
+  或调用者传入的 graph。Group collapse 已退出产品范围；旧字段只作为兼容边界保留，新的图、布局、
+  性能和回归工作不得依赖折叠图。
 - 对公开数组建立缓存索引时，数组被替换或长度变化后必须能够重建，不能改变公开 IR
   形状来换取性能。
 

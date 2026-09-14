@@ -317,14 +317,10 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 开启后，高 fanout net 会使用共享 hub 表示，减少重复长线。关闭后显示原始分支连接。
 
-### 9.6 Collapse large groups
+### 9.6 结构分组折叠（已退出产品范围）
 
-大图可以把结构分组折叠成紫色虚线组：
-
-- 默认关闭 `Collapse large groups`，需要时手动开启。
-- 单击折叠组：展开该组。
-- `Collapse all groups`：重新折叠所有已展开组。
-- 关闭 `Collapse large groups`：显示所有节点。
+结构分组折叠不再作为产品功能、性能目标或后续开发方向。大图统一使用完整图、Search-first
+或 Focused；旧 session/golden 中的相关字段仅为兼容读取保留。
 
 当可见节点与连线总量达到渐进渲染阈值时，页面会分批提交 SVG。交互预览可以暂时省略装饰性 bridge，但操作完成后的画面与 SVG 导出会恢复完整 wire、bridge、label 和命中区域。
 
@@ -731,7 +727,8 @@ Pin direction 会改变 driver/load 关系，因此重新构图是必要行为�
 
 ### 19.5 Whole 大图很慢或很细
 
-Whole 会布局和渲染全部可见结构。大图优先使用 Search-first 或有限深度的 Focused；必要时启用 fanout hubs 和 group collapse。
+Whole 会布局和渲染全部可见结构。大图优先使用 Search-first 或有限深度的 Focused；必要时启用 fanout hubs，
+不再使用 group collapse 作为优化路径。
 
 ### 19.6 Compare 的红色是否表示逻辑不等价
 

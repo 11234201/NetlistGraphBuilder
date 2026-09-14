@@ -2,6 +2,10 @@
 
 更新日期：2026-09-14。状态：进行中（改用 47 个 mapped case 复验后，真实 move/resize 性能仍需优化）。
 
+范围决策（2026-09-14）：group collapse/expand 不再属于产品功能和 Stage 8 后续工作。后续性能、
+mapped 验收和 Compare/Focused 方案统一按 full graph、Search-first 或 Focused 设计；现有折叠字段
+只为旧 session/golden 兼容保留，不新增折叠交互、折叠专用路由或折叠基线。
+
 ## 1. 阶段目标与边界
 
 阶段 8 面向真实层次化网表调试，把阶段 6 的 module 内 Focused 浏览扩展为可跨 hinst 的对象级
@@ -250,8 +254,8 @@ explicit Overview -> Whole（允许取消）
 
 初始统计从 module IR/full graph 计算，不要求 positioned graph。左右各有独立 job、artifact、progress、
 取消和错误状态；一侧 roots、override 或 provider 变化不重算另一侧。选择共同 output 后只布局对应 fanin
-cone；选择匹配 cell/net 后只布局两侧局部 Focused。显式 Whole 前展示节点/边规模，并允许应用 collapse
-policy；关闭 Compare 或替换 pair 会取消并释放对应任务和产物。
+ cone；选择匹配 cell/net 后只布局两侧局部 Focused。显式 Whole 前展示节点/边规模，不引入 group
+collapse policy；关闭 Compare 或替换 pair 会取消并释放对应任务和产物。
 
 ## 5. 工作包与依赖顺序
 

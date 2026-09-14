@@ -4,6 +4,13 @@
 [可扩展工作台架构](architecture_evolution.md)，实施顺序与进度见 [阶段 7](STAGE_7_PLAN.md)。
 阶段 7 的模块化单体基线已经落地；以下同时记录现行实现和仍有明确移除条件的兼容层。
 
+## 产品范围决策（2026-09-14）
+
+Group collapse/expand 已从产品路线中移除。后续功能、性能优化、mapped 基线和验收不得以折叠图
+为目标，也不再新增折叠交互或专用路由逻辑；大图统一沿 full graph、Search-first 或 Focused
+路径处理。现有 `collapseLargeGroups`、`expandedGroupIds` 字段和历史解析仅作为旧 session/golden
+的兼容边界保留，除非另有明确的删除任务。
+
 ## 分层原则
 
 项目采用清晰的数据流分层，避免 UI、parser 和布局逻辑互相耦合。
