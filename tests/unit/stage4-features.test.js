@@ -66,6 +66,13 @@ test("session state round trips through injected storage", () => {
     viewMode: "whole",
     coneRootNodeId: null,
     focusedRootNodeIds: ["cell:u2", "cell:u1"],
+    focusedRootRefs: [{
+      documentId: "netlist:document",
+      unitId: "m",
+      kind: "cell",
+      localId: "u1",
+      occurrencePath: ["u_right"]
+    }],
     activeFocusedRootNodeId: "cell:u2",
     coneDepth: 4,
     showAliases: false,
@@ -81,6 +88,13 @@ test("session state round trips through injected storage", () => {
   assert.equal(loadSessionState(storage).layoutPolicy.spacing.cellSpacing, 64);
   assert.deepEqual(loadSessionState(storage).focusedRootNodeIds, ["cell:u1", "cell:u2"]);
   assert.equal(loadSessionState(storage).activeFocusedRootNodeId, "cell:u2");
+  assert.deepEqual(loadSessionState(storage).focusedRootRefs, [{
+    documentId: "netlist:document",
+    unitId: "m",
+    kind: "cell",
+    localId: "u1",
+    occurrencePath: ["u_right"]
+  }]);
 });
 
 test("render plan separates edges and nodes for progressive batches", () => {

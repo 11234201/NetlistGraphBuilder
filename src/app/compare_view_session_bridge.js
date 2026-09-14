@@ -21,11 +21,11 @@ export function createCompareViewSessionBridge({
     if (current && current.documentId === documentId && current.unitId === unitId) return current;
     if (current) sessions.close(sessionId);
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const focusedRootRefs = rootsToRefs(state.compare.focusedRootNodeIds?.[side], graph, { documentId, unitId });
+    const focusedRootRefs = resolveFocusedRootRefs(state.compare, side, graph, { documentId, unitId });
     const activeFocusedRootRef = focusedRootRefs.find((ref) =>
       refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
     ) || focusedRootRefs[0] || null;
-    return sessions.create({
+    const session = sessions.create({
       sessionId, documentId, domainId: "netlist", unitId,
       viewMode: focusedRootRefs.length > 0 ? "focused" : "whole",
       focusedRootRefs,
@@ -35,12 +35,15 @@ export function createCompareViewSessionBridge({
       presentationPolicy: state.presentationPolicy,
       overrides: snapshotOverrides(state.compare, side)
     });
+    ensureProjectionContainers(state.compare);
+    state.compare.focusedRootRefs[side] = cloneObjectRefs(session.focusedRootRefs);
+    return session;
   }
 
   function synchronize(side) {
     const current = ensure(side);
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const focusedRootRefs = rootsToRefs(state.compare.focusedRootNodeIds?.[side], graph, current);
+    const focusedRootRefs = resolveFocusedRootRefs(state.compare, side, graph, current);
     const activeFocusedRootRef = focusedRootRefs.find((ref) =>
       refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
     ) || focusedRootRefs[0] || null;
@@ -56,6 +59,7 @@ export function createCompareViewSessionBridge({
         ? objectRefForSelection(graph, current, state.compare.selectedKind || "cell", state.compare.selectedName)
         : null
     };
+    state.compare.focusedRootRefs[side] = cloneObjectRefs(focusedRootRefs);
     return hasProjectedValueChange(current, projection)
       ? sessions.update(current.sessionId, () => projection, { invalidateComputation: false })
       : current;
@@ -72,6 +76,8 @@ export function createCompareViewSessionBridge({
     applyOverridesSnapshot(state.compare, side, result.session.overrides);
     if (!state.compare.focusedRootNodeIds) state.compare.focusedRootNodeIds = { left: [], right: [] };
     if (!state.compare.activeFocusedRootNodeId) state.compare.activeFocusedRootNodeId = { left: null, right: null };
+    if (!state.compare.focusedRootRefs) state.compare.focusedRootRefs = { left: [], right: [] };
+    state.compare.focusedRootRefs[side] = cloneObjectRefs(result.session.focusedRootRefs);
     state.compare.focusedRootNodeIds[side] = result.session.focusedRootRefs
       .map((ref) => refToNodeId(ref, graph))
       .filter(Boolean);
@@ -91,9 +97,15 @@ export function createCompareViewSessionBridge({
   function replaceRoots(side, nodeIds, activeNodeId = null) {
     const current = ensure(side);
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const refs = nodeIds.map((nodeId) => typeof nodeId === "string" && nodeId.startsWith("net:")
-      ? createObjectRef({ documentId: current.documentId, unitId: current.unitId, kind: "net", localId: nodeId.slice(4) })
-      : nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), current));
+    const previousRefs = state.compare.focusedRootRefs?.[side] || [];
+    const previousIds = refsToNodeIds(previousRefs, graph);
+    const refs = nodeIds.map((nodeId) => {
+      const previous = previousRefs[previousIds.indexOf(nodeId)];
+      if (previous) return previous;
+      return typeof nodeId === "string" && nodeId.startsWith("net:")
+        ? createObjectRef({ documentId: current.documentId, unitId: current.unitId, kind: "net", localId: nodeId.slice(4) })
+        : nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), current);
+    });
     const activeIndex = nodeIds.indexOf(activeNodeId);
     const result = bus.dispatch({
       type: "focus.replace",
@@ -108,6 +120,7 @@ export function createCompareViewSessionBridge({
       session
     };
     ensureProjectionContainers(state.compare);
+    state.compare.focusedRootRefs[side] = cloneObjectRefs(session.focusedRootRefs);
     state.compare.focusedRootNodeIds[side] = mirrored.rootNodeIds;
     state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
     return mirrored;
@@ -182,6 +195,7 @@ function ensureProjectionContainers(compare) {
     right: { nodeProperties: {}, cellPinDirections: {} }
   };
   compare.focusedRootNodeIds ||= { left: [], right: [] };
+  compare.focusedRootRefs ||= { left: [], right: [] };
   compare.activeFocusedRootNodeId ||= { left: null, right: null };
 }
 
@@ -241,6 +255,25 @@ function rootsToRefs(nodeIds, graph, session) {
     .filter(Boolean);
 }
 
+function resolveFocusedRootRefs(compare, side, graph, session) {
+  const candidate = cloneObjectRefs(compare.focusedRootRefs?.[side]).filter((ref) =>
+    ref.documentId === session.documentId && ref.unitId === session.unitId
+  );
+  const expected = normalizeRootIds(compare.focusedRootNodeIds?.[side]);
+  const projected = refsToNodeIds(candidate, graph);
+  if (candidate.length === expected.length && candidate.every((ref, index) => projected[index] === expected[index])) {
+    return candidate;
+  }
+  if (!graph && candidate.length === expected.length) return candidate;
+  return rootsToRefs(expected, graph, session);
+}
+
+function normalizeRootIds(value) {
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string" && item.length > 0)
+    : [];
+}
+
 function refToNodeId(ref, graph) {
   if (!ref || !graph) return null;
   if (ref.kind === "net") return `net:${ref.localId}`;
@@ -251,8 +284,19 @@ function refToNodeId(ref, graph) {
   )?.id || null;
 }
 
+function refsToNodeIds(refs, graph) {
+  return (Array.isArray(refs) ? refs : []).map((ref) => refToNodeId(ref, graph)).filter(Boolean);
+}
+
 function occurrenceMatches(nodePath, refPath) {
   if (!Array.isArray(refPath) || refPath.length === 0) return true;
   return Array.isArray(nodePath) && nodePath.length === refPath.length &&
     nodePath.every((segment, index) => segment === refPath[index]);
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }

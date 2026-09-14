@@ -19,6 +19,7 @@ export function createModuleHistoryEntry(state) {
     viewMode: normalizeSingleViewMode(state.viewMode),
     coneRootNodeId: focusedRootNodeIds[0] || state.coneRootNodeId || null,
     focusedRootNodeIds,
+    focusedRootRefs: cloneObjectRefs(state.focusedRootRefs),
     activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
       ? state.activeFocusedRootNodeId
       : focusedRootNodeIds[0] || null,
@@ -72,7 +73,7 @@ function sameNavigationTarget(left, right) {
     arraysEqual(
       normalizeFocusedRootNodeIds(left.focusedRootNodeIds, left.coneRootNodeId),
       normalizeFocusedRootNodeIds(right.focusedRootNodeIds, right.coneRootNodeId)
-    );
+    ) && JSON.stringify(left.focusedRootRefs || []) === JSON.stringify(right.focusedRootRefs || []);
 }
 
 function cloneHistory(history = createModuleHistory()) {
@@ -89,6 +90,7 @@ function cloneEntry(entry) {
     } : null,
     coneRootNodeId: focusedRootNodeIds[0] || null,
     focusedRootNodeIds,
+    focusedRootRefs: cloneObjectRefs(entry.focusedRootRefs),
     activeFocusedRootNodeId: focusedRootNodeIds.includes(entry.activeFocusedRootNodeId)
       ? entry.activeFocusedRootNodeId
       : focusedRootNodeIds[0] || null,
@@ -123,4 +125,11 @@ function normalizeTransform(value) {
     y: Number.isFinite(Number(value?.y)) ? Number(value.y) : 0,
     scale: Number.isFinite(Number(value?.scale)) && Number(value.scale) > 0 ? Number(value.scale) : 1
   };
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }

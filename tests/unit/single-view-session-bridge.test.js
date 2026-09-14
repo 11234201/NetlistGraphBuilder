@@ -91,6 +91,7 @@ test("single view session bridge preserves occurrence identity for repeated proj
   const session = adapter.sessions.require("single:primary");
   assert.deepEqual(session.focusedRootRefs[0].occurrencePath, ["u_right"]);
   assert.equal(session.focusedRootRefs[0].localId, "leaf");
+  assert.deepEqual(state.focusedRootRefs[0].occurrencePath, ["u_right"]);
 
   const result = adapter.dispatch({ type: "focus.activate", objectRef: session.focusedRootRefs[0] });
   assert.equal(result.session.activeFocusedRootRef.localId, "leaf");

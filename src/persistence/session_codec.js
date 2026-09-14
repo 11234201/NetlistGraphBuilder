@@ -1,4 +1,5 @@
 import { createSourceIdentity, normalizeSourceIdentity } from "./source_identity.js";
+import { isObjectRef } from "../contracts/object_ref.js";
 
 export const SESSION_CODEC_VERSION = 2;
 
@@ -45,7 +46,8 @@ function normalizeVersion2(value) {
     documentId: optionalString(value.documentId),
     unitId: optionalString(value.unitId || value.moduleName),
     sourceIdentity: normalizeSourceIdentity(value.sourceIdentity, value.sourceLabel, value.source),
-    presentationPolicy: normalizePresentationPolicy(value.presentationPolicy)
+    presentationPolicy: normalizePresentationPolicy(value.presentationPolicy),
+    focusedRootRefs: normalizeFocusedRootRefs(value.focusedRootRefs)
   };
 }
 
@@ -58,4 +60,13 @@ function normalizePresentationPolicy(value) {
 
 function optionalString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function normalizeFocusedRootRefs(value) {
+  return (Array.isArray(value) ? value : [])
+    .filter((ref) => isObjectRef(ref))
+    .map((ref) => ({
+      ...ref,
+      ...(Array.isArray(ref.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+    }));
 }

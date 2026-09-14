@@ -658,6 +658,7 @@ function loadDesign(source, label, restore = null) {
       restore?.focusedRootNodeIds,
       restore?.coneRootNodeId
     );
+    state.focusedRootRefs = cloneObjectRefs(restore?.focusedRootRefs);
     const restoredViewMode = restore?.viewMode ? normalizeSingleViewMode(restore.viewMode) : null;
     if (restoredViewMode && (restoredViewMode !== "focused" || restoredFocusedRoots.length > 0)) {
       state.viewMode = restoredViewMode;
@@ -1089,6 +1090,7 @@ function applyModuleHistoryEntry(entry) {
     entry.focusedRootNodeIds,
     entry.coneRootNodeId
   ), entry.activeFocusedRootNodeId);
+  state.focusedRootRefs = cloneObjectRefs(entry.focusedRootRefs);
   state.coneDepth = entry.coneDepth;
   state.faninDepth = entry.faninDepth;
   state.fanoutDepth = entry.fanoutDepth;
@@ -1157,6 +1159,7 @@ function restoreViewHistoryEntry(entry) {
     updateModuleHierarchyPicker();
     state.viewMode = normalizeSingleViewMode(entry.viewMode);
     setFocusedRootNodeIds(state, entry.focusedRootNodeIds, entry.activeFocusedRootNodeId);
+    state.focusedRootRefs = cloneObjectRefs(entry.focusedRootRefs);
     state.coneDepth = entry.coneDepth;
     state.faninDepth = entry.faninDepth;
     state.fanoutDepth = entry.fanoutDepth;
@@ -1211,6 +1214,7 @@ function createSingleWorkspaceHistoryIdentity() {
     occurrence: state.occurrenceContext || null,
     viewMode: state.viewMode,
     focusedRootNodeIds: state.focusedRootNodeIds || [],
+    focusedRootRefs: state.focusedRootRefs || [],
     activeFocusedRootNodeId: state.activeFocusedRootNodeId || null,
     coneRootNodeId: state.coneRootNodeId || null,
     coneDepth: state.coneDepth,
@@ -1258,6 +1262,10 @@ function restoreCompareViewHistoryEntry(entry) {
   state.compare.focusedRootNodeIds = {
     left: [...(compare.focusedRootNodeIds?.left || [])],
     right: [...(compare.focusedRootNodeIds?.right || [])]
+  };
+  state.compare.focusedRootRefs = {
+    left: cloneObjectRefs(compare.focusedRootRefs?.left),
+    right: cloneObjectRefs(compare.focusedRootRefs?.right)
   };
   state.compare.activeFocusedRootNodeId = {
     left: compare.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
@@ -1346,6 +1354,7 @@ function createCompareWorkspaceHistoryIdentity() {
     outputName: state.compare.outputName,
     wholeRequested: state.compare.wholeRequested,
     focusedRootNodeIds: state.compare.focusedRootNodeIds,
+    focusedRootRefs: state.compare.focusedRootRefs,
     activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
     nodePositions: {
       left: [...(state.compare.nodePositions?.left || new Map()).entries()],
@@ -1375,6 +1384,13 @@ function cloneGraphOverridesForHistory(value = {}) {
     nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
     cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
   };
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }
 
 function updateModuleHistoryControls() {
@@ -1473,14 +1489,18 @@ function buildModuleWorkspaceForJob(options, signal) {
 function resolveHierarchyFocusedRoots() {
   if (state.viewMode !== "focused" || !state.currentModule || !state.fullGraph) return [];
   const roots = normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId);
+  const canonicalRefs = Array.isArray(state.focusedRootRefs) && state.focusedRootRefs.length === roots.length
+    ? state.focusedRootRefs : [];
   return roots.map((rootId) => {
+    const rootIndex = roots.indexOf(rootId);
+    const canonicalRef = canonicalRefs[rootIndex] || null;
     if (typeof rootId === "string" && rootId.startsWith("net:")) {
       return {
         rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
         moduleName: state.currentModule.name,
-        occurrencePath: state.occurrenceContext?.occurrencePath || [],
+        occurrencePath: canonicalRef?.occurrencePath || state.occurrenceContext?.occurrencePath || [],
         kind: "net",
-        localId: rootId.slice("net:".length)
+        localId: canonicalRef?.kind === "net" ? canonicalRef.localId : rootId.slice("net:".length)
       };
     }
     const root = state.fullGraph.nodes.find((node) => node.id === rootId && node.kind === "cell");
@@ -1490,9 +1510,11 @@ function resolveHierarchyFocusedRoots() {
     return {
       rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
       moduleName: state.currentModule.name,
-      occurrencePath: state.occurrenceContext?.occurrencePath || [],
+      occurrencePath: canonicalRef?.occurrencePath || root.ref?.occurrencePath || state.occurrenceContext?.occurrencePath || [],
       kind: "cell",
-      localId: root.ref?.instance || root.id.replace(/^cell:/, "")
+      localId: canonicalRef?.kind === "cell"
+        ? canonicalRef.localId
+        : root.ref?.instance || root.ref?.localId || root.id.replace(/^cell:/, "")
     };
   }).filter(Boolean);
 }
@@ -2180,10 +2202,15 @@ function renderFocusedRootList() {
     return;
   }
   elements.focusedRootsList.innerHTML = roots.map((nodeId) => {
+    const rootIndex = roots.indexOf(nodeId);
+    const rootRef = context.compare
+      ? state.compare.focusedRootRefs?.[context.side]?.[rootIndex]
+      : state.focusedRootRefs?.[rootIndex];
     const netName = focusedNetName(nodeId);
     const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
-    const localLabel = netName ? `net ${netName}` : node?.label || nodeId.replace(/^cell:/, "");
-    const occurrencePath = node?.ref?.occurrencePath?.join("/") ||
+    const canonicalNetName = rootRef?.kind === "net" ? rootRef.localId : netName;
+    const localLabel = canonicalNetName ? `net ${canonicalNetName}` : node?.label || rootRef?.localId || nodeId.replace(/^cell:/, "");
+    const occurrencePath = rootRef?.occurrencePath?.join("/") || node?.ref?.occurrencePath?.join("/") ||
       (netName && !context.compare ? state.occurrenceContext?.occurrencePath?.join("/") : "") || "";
     const label = occurrencePath ? `${occurrencePath} · ${localLabel}` : localLabel;
     const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
@@ -3995,6 +4022,7 @@ function applySessionPreferences(session) {
       session.focusedRootNodeIds,
       session.coneRootNodeId
     ), session.activeFocusedRootNodeId);
+    state.focusedRootRefs = cloneObjectRefs(session.focusedRootRefs);
     state.showAliases = Boolean(session.showAliases);
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;

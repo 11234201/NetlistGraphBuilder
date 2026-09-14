@@ -18,6 +18,7 @@ export function createSingleViewSessionBridge({
     const documentId = getDocumentId();
     const unitId = state.currentModule?.name;
     if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
+    const focusedRootRefs = resolveFocusedRootRefs(state, documentId, unitId);
     const value = {
       sessionId: "single:primary",
       documentId,
@@ -26,8 +27,8 @@ export function createSingleViewSessionBridge({
       viewMode: state.viewMode,
       faninDepth: state.faninDepth,
       fanoutDepth: state.fanoutDepth,
-      focusedRootRefs: rootsToRefs(state.focusedRootNodeIds, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
-      activeFocusedRootRef: focusedRootIdToRef(state.activeFocusedRootNodeId, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
+      focusedRootRefs,
+      activeFocusedRootRef: activeRootRef(state.activeFocusedRootNodeId, focusedRootRefs, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
       selectedObjectRef: selectedToRef(state, documentId, unitId),
       viewport: state.transform,
       layoutPolicy: state.layoutPolicy,
@@ -35,6 +36,7 @@ export function createSingleViewSessionBridge({
       overrides: snapshotOverrides(state)
     };
     const current = sessions.get(value.sessionId);
+    state.focusedRootRefs = cloneObjectRefs(value.focusedRootRefs);
     if (!current || current.documentId !== documentId || current.unitId !== unitId) {
       if (current) sessions.close(value.sessionId);
       return sessions.create(value);
@@ -54,6 +56,7 @@ export function createSingleViewSessionBridge({
       state.viewMode = result.session.viewMode;
       state.faninDepth = result.session.faninDepth;
       state.fanoutDepth = result.session.fanoutDepth;
+      state.focusedRootRefs = cloneObjectRefs(result.session.focusedRootRefs);
       state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);
       state.activeFocusedRootNodeId = refToNodeId(result.session.activeFocusedRootRef, graph);
       state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
@@ -145,6 +148,30 @@ function rootsToRefs(nodeIds, graph, documentId, unitId, occurrencePath = null) 
   return (nodeIds || []).map((nodeId) => focusedRootIdToRef(nodeId, graph, documentId, unitId, occurrencePath)).filter(Boolean);
 }
 
+function resolveFocusedRootRefs(state, documentId, unitId) {
+  const candidate = cloneObjectRefs(state.focusedRootRefs).filter((ref) =>
+    ref.documentId === documentId && ref.unitId === unitId
+  );
+  const nodeIds = refsToNodeIds(candidate, state.fullGraph);
+  const expected = normalizeRootIds(state.focusedRootNodeIds, state.coneRootNodeId);
+  if (candidate.length === expected.length && candidate.every((ref, index) => nodeIds[index] === expected[index])) {
+    return candidate;
+  }
+  if (!state.fullGraph && candidate.length === expected.length) return candidate;
+  return rootsToRefs(expected, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath);
+}
+
+function normalizeRootIds(value, legacyRootNodeId = null) {
+  const roots = Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.length > 0) : [];
+  if (roots.length > 0) return [...roots];
+  return legacyRootNodeId ? [legacyRootNodeId] : [];
+}
+
+function activeRootRef(activeRootNodeId, refs, graph, documentId, unitId, occurrencePath) {
+  const index = refsToNodeIds(refs, graph).findIndex((nodeId) => nodeId === activeRootNodeId);
+  return refs[index] || focusedRootIdToRef(activeRootNodeId, graph, documentId, unitId, occurrencePath);
+}
+
 function focusedRootIdToRef(rootId, graph, documentId, unitId, occurrencePath = null) {
   if (typeof rootId === "string" && rootId.startsWith("net:")) {
     const netName = rootId.slice(4);
@@ -195,4 +222,11 @@ function occurrenceMatches(nodePath, refPath) {
   if (!Array.isArray(refPath) || refPath.length === 0) return true;
   return Array.isArray(nodePath) && nodePath.length === refPath.length &&
     nodePath.every((segment, index) => segment === refPath[index]);
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }

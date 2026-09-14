@@ -105,6 +105,7 @@ test("compare roots preserve occurrence identity when local ids repeat", () => {
   assert.equal(result.session.focusedRootRefs[0].localId, "leaf");
   assert.deepEqual(result.session.focusedRootRefs[0].occurrencePath, ["u_right"]);
   assert.equal(result.rootNodeIds[0], "cell:u_right");
+  assert.deepEqual(state.compare.focusedRootRefs.left[0].occurrencePath, ["u_right"]);
 
   const restored = adapter.ensure("left");
   assert.deepEqual(restored.focusedRootRefs[0].occurrencePath, ["u_right"]);

@@ -27,6 +27,33 @@ test("session v2 codec preserves the optional conventional gate symbol mode", ()
   assert.deepEqual(decoded.presentationPolicy, { gateSymbolMode: "conventional" });
 });
 
+test("session v2 codec preserves occurrence-aware focused root refs", () => {
+  const decoded = decodeSessionSnapshot(encodeSessionSnapshot({
+    focusedRootRefs: [{
+      documentId: "netlist:example",
+      unitId: "child",
+      kind: "cell",
+      localId: "leaf",
+      occurrencePath: ["u_right"]
+    }]
+  }));
+  assert.deepEqual(decoded.focusedRootRefs, [{
+    documentId: "netlist:example",
+    unitId: "child",
+    kind: "cell",
+    localId: "leaf",
+    occurrencePath: ["u_right"]
+  }]);
+});
+
+test("session v2 codec drops malformed focused root refs without breaking old snapshots", () => {
+  const decoded = decodeSessionSnapshot({
+    version: 2,
+    focusedRootRefs: [{ documentId: "doc", unitId: "top", kind: "cell" }, "bad"]
+  });
+  assert.deepEqual(decoded.focusedRootRefs, []);
+});
+
 test("legacy session v1 fixture migrates a single module identity", () => {
   const migrated = decodeSessionSnapshot({
     version: 1,

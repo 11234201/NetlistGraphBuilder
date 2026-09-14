@@ -8,6 +8,8 @@ const source = `module top (a, b, y); input a, b; output y; wire n;
 AND2X1 u0 (.A(a), .B(b), .Y(n)); BUF u1 (.A(n), .Y(y)); endmodule`;
 const hierarchySource = `module child (i, o); input i; output o; BUF u_buf (.A(i), .Y(o)); endmodule
 module top_h (a, y); input a; output y; child u_child (.i(a), .o(y)); endmodule`;
+const repeatedHierarchySource = `module child_r (i, o); input i; output o; BUF u_buf (.A(i), .Y(o)); endmodule
+module top_r (a, y); input a; output y; wire n; child_r u_left (.i(a), .o(n)); child_r u_right (.i(n), .o(y)); endmodule`;
 
 function build(overrides = {}) {
   const module = parseVerilog(source).modules[0];
@@ -114,4 +116,30 @@ test("module workspace lays out an occurrence-aware hierarchical cone", () => {
   assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_child"));
   assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_child"));
   assert.ok(workspace.graph.edges.every((edge) => edge.net));
+});
+
+test("module workspace keeps multiple occurrence roots in one projected cone", () => {
+  const design = parseVerilog(repeatedHierarchySource);
+  const top = design.modules.find((module) => module.name === "top_r");
+  const workspace = buildModuleWorkspace({
+    module: top,
+    moduleLibrary: design.modules,
+    viewMode: "focused",
+    hierarchyRoots: [
+      { rootModuleName: "top_r", moduleName: "top_r", occurrencePath: [], kind: "cell", localId: "u_left" },
+      { rootModuleName: "top_r", moduleName: "top_r", occurrencePath: [], kind: "cell", localId: "u_right" }
+    ],
+    faninDepth: 1,
+    fanoutDepth: 1,
+    layoutProvider: getLayoutProvider(),
+    useFanoutHubs: false,
+    collapseLargeGroups: false
+  });
+  const paths = workspace.fullGraph.nodes
+    .filter((node) => node.kind === "cell" && node.ref?.localId === "u_buf")
+    .map((node) => node.ref.occurrencePath.join("/"))
+    .sort();
+  assert.deepEqual(paths, ["u_left", "u_right"]);
+  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_left"));
+  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_right"));
 });

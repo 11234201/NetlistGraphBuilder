@@ -28,6 +28,7 @@ export function createViewHistoryEntry(state, metadata = {}) {
     } : null,
     viewMode: normalizeSingleViewMode(state.viewMode),
     focusedRootNodeIds,
+    focusedRootRefs: cloneObjectRefs(state.focusedRootRefs),
     activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
       ? state.activeFocusedRootNodeId : focusedRootNodeIds[0] || null,
     coneDepth: normalizeDepth(state.coneDepth, 3),
@@ -51,6 +52,10 @@ export function createViewHistoryEntry(state, metadata = {}) {
       focusedRootNodeIds: {
         left: [...(state.compare.focusedRootNodeIds?.left || [])],
         right: [...(state.compare.focusedRootNodeIds?.right || [])]
+      },
+      focusedRootRefs: {
+        left: cloneObjectRefs(state.compare.focusedRootRefs?.left),
+        right: cloneObjectRefs(state.compare.focusedRootRefs?.right)
       },
       activeFocusedRootNodeId: {
         left: state.compare.activeFocusedRootNodeId?.left || null,
@@ -133,6 +138,7 @@ function cloneEntry(entry = {}) {
     } : null,
     viewMode: normalizeSingleViewMode(entry.viewMode),
     focusedRootNodeIds: [...roots],
+    focusedRootRefs: cloneObjectRefs(entry.focusedRootRefs),
     activeFocusedRootNodeId: roots.includes(entry.activeFocusedRootNodeId) ? entry.activeFocusedRootNodeId : roots[0] || null,
     coneDepth: normalizeDepth(entry.coneDepth, 3),
     faninDepth: normalizeDepth(entry.faninDepth, 3),
@@ -155,6 +161,10 @@ function cloneEntry(entry = {}) {
       focusedRootNodeIds: {
         left: [...(entry.compare.focusedRootNodeIds?.left || [])],
         right: [...(entry.compare.focusedRootNodeIds?.right || [])]
+      },
+      focusedRootRefs: {
+        left: cloneObjectRefs(entry.compare.focusedRootRefs?.left),
+        right: cloneObjectRefs(entry.compare.focusedRootRefs?.right)
       },
       activeFocusedRootNodeId: {
         left: entry.compare.activeFocusedRootNodeId?.left || null,
@@ -182,6 +192,13 @@ function snapshotOverrides(state) {
     nodeSizes: [...(state.nodeSizes || new Map()).entries()].map(([id, value]) => [id, { ...value }]),
     graphOverrides: cloneGraphOverrides(state.graphOverrides)
   };
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }
 
 function snapshotSideOverrides(compare, side) {

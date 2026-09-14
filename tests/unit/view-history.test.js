@@ -143,3 +143,26 @@ test("view history preserves occurrence context for hierarchical navigation", ()
   }));
   assert.deepEqual(next.occurrenceContext.occurrencePath, ["u_left", "u_leaf"]);
 });
+
+test("view history preserves canonical occurrence-aware Focused root refs", () => {
+  const state = {
+    currentModule: { name: "leaf" },
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_left"] },
+    viewMode: "focused",
+    focusedRootNodeIds: ["cell:u_left"],
+    focusedRootRefs: [{ documentId: "doc:1", unitId: "leaf", kind: "cell", localId: "leaf", occurrencePath: ["u_left"] }],
+    activeFocusedRootNodeId: "cell:u_left",
+    coneDepth: 3, faninDepth: 2, fanoutDepth: 2,
+    selectedNodeId: "cell:u_left", selectedNet: null,
+    transform: { x: 0, y: 0, scale: 1 },
+    presentationPolicy: { gateSymbolMode: "rectangle" },
+    nodePositions: new Map(), nodeSizes: new Map(), graphOverrides: { nodeProperties: {}, cellPinDirections: {} },
+    compare: { active: false }
+  };
+  const entry = createViewHistoryEntry(state);
+  entry.focusedRootRefs[0].occurrencePath.push("mutated");
+  assert.deepEqual(entry.focusedRootRefs[0].occurrencePath, ["u_left", "mutated"]);
+  assert.deepEqual(state.focusedRootRefs[0].occurrencePath, ["u_left"]);
+  const next = createViewHistoryEntry(state);
+  assert.deepEqual(next.focusedRootRefs[0].occurrencePath, ["u_left"]);
+});

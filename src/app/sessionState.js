@@ -1,6 +1,7 @@
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/session_codec.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
+import { isObjectRef } from "../contracts/object_ref.js";
 
 export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
 export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
@@ -42,6 +43,7 @@ export function createSessionSnapshot(state) {
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
     focusedRootNodeIds,
+    focusedRootRefs: normalizeFocusedRootRefs(state.focusedRootRefs),
     activeFocusedRootNodeId: focusedRootNodeIds.includes(state.activeFocusedRootNodeId)
       ? state.activeFocusedRootNodeId
       : focusedRootNodeIds[0] || null,
@@ -69,4 +71,13 @@ export function createSessionSnapshot(state) {
 
 function normalizeFocusedRootNodeIds(value, legacyRootNodeId = null) {
   return normalizePolicyRoots(value, legacyRootNodeId);
+}
+
+function normalizeFocusedRootRefs(value) {
+  return (Array.isArray(value) ? value : [])
+    .filter((ref) => isObjectRef(ref))
+    .map((ref) => ({
+      ...ref,
+      ...(Array.isArray(ref.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+    }));
 }
