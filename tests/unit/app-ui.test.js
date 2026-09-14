@@ -233,6 +233,16 @@ test("fit-to-view is one explicit view-history operation", async () => {
   assert.equal((handler.match(/recordViewHistory\(\)/g) || []).length, 2);
 });
 
+test("view-history restore reuses the workspace for selection-only changes", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createSingleWorkspaceHistoryIdentity/)?.[1] || "";
+
+  assert.match(handler, /createSingleWorkspaceHistoryIdentity\(\)/);
+  assert.match(handler, /canReuseWorkspace/);
+  assert.match(handler, /createNetlistScene\(state\.graph/);
+  assert.match(handler, /renderCurrentModuleGraph\(/);
+});
+
 test("screen rendering and exports consume prepared scenes", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
 

@@ -1088,6 +1088,8 @@ function restoreViewHistoryEntry(entry) {
     return;
   }
   if (state.compare.active) exitCompareView();
+  const previousWorkspaceIdentity = createSingleWorkspaceHistoryIdentity();
+  const previousPresentationPolicy = JSON.stringify(state.presentationPolicy || {});
   const finish = (graph) => {
     state.occurrenceContext = entry.occurrenceContext ? {
       rootModuleName: entry.occurrenceContext.rootModuleName || null,
@@ -1108,14 +1110,32 @@ function restoreViewHistoryEntry(entry) {
     state.nodeSizes = new Map(entry.overrides?.nodeSizes || []);
     state.graphOverrides = entry.overrides?.graphOverrides || createEmptyGraphOverrides();
     setSingleTransform(entry.transform);
+    const canReuseWorkspace = Boolean(state.graph && previousWorkspaceIdentity === createSingleWorkspaceHistoryIdentity());
+    const finishRestore = () => {
+      const nextGraph = state.graph || graph;
+      if (entry.selectedNet && nextGraph?.edges.some((edge) => edge.net === entry.selectedNet)) setSelectedNet(entry.selectedNet);
+      else if (entry.selectedNodeId && nextGraph?.nodes.some((node) => node.id === entry.selectedNodeId)) setSelectedNode(entry.selectedNodeId);
+      else setSelectedNode(null);
+      applyTransform();
+      state.restoringViewHistory = false;
+      updateModuleHistoryControls();
+    };
+    if (canReuseWorkspace && previousPresentationPolicy === JSON.stringify(state.presentationPolicy || {})) {
+      finishRestore();
+      return;
+    }
+    if (canReuseWorkspace) {
+      state.scene = createNetlistScene(state.graph, { presentationPolicy: state.presentationPolicy });
+      renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
+        if (result?.cancelled) return;
+        finishRestore();
+      });
+      return;
+    }
     renderCurrentModuleGraph({
       onRendered: (nextGraph) => {
-        if (entry.selectedNet && nextGraph.edges.some((edge) => edge.net === entry.selectedNet)) setSelectedNet(entry.selectedNet);
-        else if (entry.selectedNodeId && nextGraph.nodes.some((node) => node.id === entry.selectedNodeId)) setSelectedNode(entry.selectedNodeId);
-        else setSelectedNode(null);
-        applyTransform();
-        state.restoringViewHistory = false;
-        updateModuleHistoryControls();
+        graph = nextGraph;
+        finishRestore();
       }
     });
   };
@@ -1124,6 +1144,34 @@ function restoreViewHistoryEntry(entry) {
   } else {
     finish(state.graph);
   }
+}
+
+function createSingleWorkspaceHistoryIdentity() {
+  return JSON.stringify({
+    module: state.currentModule?.name || null,
+    occurrence: state.occurrenceContext || null,
+    viewMode: state.viewMode,
+    focusedRootNodeIds: state.focusedRootNodeIds || [],
+    activeFocusedRootNodeId: state.activeFocusedRootNodeId || null,
+    coneRootNodeId: state.coneRootNodeId || null,
+    coneDepth: state.coneDepth,
+    faninDepth: state.faninDepth,
+    fanoutDepth: state.fanoutDepth,
+    nodePositions: [...(state.nodePositions || new Map()).entries()],
+    nodeSizes: [...(state.nodeSizes || new Map()).entries()],
+    graphOverrides: state.graphOverrides || null,
+    showAliases: state.showAliases,
+    useFanoutHubs: state.useFanoutHubs,
+    collapseLargeGroups: state.collapseLargeGroups,
+    expandedGroupIds: [...(state.expandedGroupIds || new Set())].sort(),
+    layoutProviderId: state.layoutProviderId,
+    layoutPolicy: state.layoutPolicy,
+    timing: state.timing,
+    timingDisplayPolicy: state.timingDisplayPolicy,
+    timingBadgeChoices: state.timingBadgeChoices,
+    timingBadgePositions: state.timingBadgePositions,
+    cellConfig: state.cellConfig
+  });
 }
 
 function restoreCompareViewHistoryEntry(entry) {
