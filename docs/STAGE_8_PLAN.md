@@ -603,6 +603,14 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 这项修复补齐了 R8-2/R8-5 的 identity 边界，但不等同于完成跨 occurrence root 的完整层次 UI；Stage 8
   仍需 mapped 基线复核、浏览器大图 DOM 性能证据及 legacy command-bus 清理。
 
+### Stage 8 执行记录（2026-09-14，Compare selection occurrence identity）
+
+- Compare bridge 的 selected ObjectRef 现在与 Focused root 使用同一套 graph-node canonical lookup，保留
+  projected cell 的 `localId` 和 `occurrencePath`；通过重复 localId 的左右侧 selection 回归，避免 Compare
+  selection 在 hinst occurrence 间串线。
+- 兼容镜像仍只暴露旧 UI 所需的 `selectedName`/node id，canonical identity 留在 ViewSession；当前累计
+  单元测试 runner 为 506 tests、0 failures。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
