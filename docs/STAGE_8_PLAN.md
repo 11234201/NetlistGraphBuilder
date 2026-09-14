@@ -668,6 +668,15 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - Stage 8 仍保持“进行中”：mapped fixture 的既有路由基线、全链路性能对照、legacy 手工 history
   bridge 清理与完整浏览器大图 Compare 证据仍未满足完成定义。
 
+### Stage 8 执行记录（2026-09-14，Search canvas identity 修正，提交 `14eb796`）
+
+- `isSearchTargetPositioned()` 现在同时识别普通 graph node、hierarchical projection 的 `ref.localId`、
+  net/hub node 与旧 edge mirror；Search 的定位判定因此真正以当前画布定位图为准，不会把已经画出的
+  projected cell/net 误判为 Focused 外对象而重复扩 cone。
+- 新增 projected local-id/hub regression；`npm test` 通过（513 tests）。Windows 离线发布复核通过，
+  SHA-256 为 `380ba22c4679290cc2ebc041b7c88737fdc7b23251cae3b1491df3f833cdb422`。
+- 该修正不改变 graph 拓扑、node bounds 或 route geometry；Stage 8 仍保持“进行中”，原因同上轮记录。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
