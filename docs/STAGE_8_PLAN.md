@@ -837,6 +837,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   layout `104.1/724.9/2230.7 ms`，progressive first batch `1.4/1.0/1.1 ms`。
   该优化证明了交互 warm path 的局部收益，但不把它扩大解释为全链路 30% 改善；同口径
   1K cold pipeline 仍受运行噪声影响，Stage 8 保持“进行中”。
+- `npm run release:windows` 通过（518 tests、启动器 smoke、离线 ZIP 与 ELK license）；最新包
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
+  SHA-256 为 `ee05c1eaeb9c59a7543f76afa72abf546a3d20217c4b0209ed288cd8609af631`。
 
 ## 6. 验证矩阵
 
