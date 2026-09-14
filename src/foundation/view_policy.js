@@ -1,6 +1,10 @@
 const VIEW_MODES = new Set(["whole", "focused", "search-first"]);
 
-export const DEFAULT_FOCUSED_VIEW_POLICY = Object.freeze({ maximumRoots: 32 });
+export const DEFAULT_FOCUSED_VIEW_POLICY = Object.freeze({
+  maximumRoots: 32,
+  maximumVisibleNodes: 512,
+  maximumFrontier: 1024
+});
 
 export function normalizeViewMode(value, fallback = "whole") {
   if (value === "fanin" || value === "fanout") return "focused";

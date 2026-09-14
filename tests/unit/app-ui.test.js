@@ -196,8 +196,37 @@ test("app forwards both Focused depths into the module workspace", async () => {
 
   assert.match(workspaceCall, /faninDepth: state\.faninDepth/);
   assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);
-  assert.match(source, /faninDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
-  assert.match(source, /fanoutDepthInput\.addEventListener\("input", scheduleFocusedDepthChange\)/);
+  assert.match(source, /faninDepthInput\.addEventListener\("change", scheduleFocusedDepthChange\)/);
+  assert.match(source, /fanoutDepthInput\.addEventListener\("change", scheduleFocusedDepthChange\)/);
+});
+
+test("Focused depth changes preserve the active mode and roots", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function handleFocusedDepthChange\(\) \{([\s\S]*?)\n\}\n\nfunction scheduleFocusedDepthChange/)?.[1] || "";
+
+  assert.match(handler, /setSingleFocusedDepths\(/);
+  assert.match(handler, /state\.viewMode === "focused" && result\?\.effects\?\.layout/);
+  assert.match(handler, /renderCurrentModuleGraph\(\)/);
+  assert.doesNotMatch(handler, /setViewMode\(/);
+});
+
+test("single-canvas Focused controls accept a selected net as the replacement root", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const controls = source.match(/function updateFocusedRootControl\(\) \{([\s\S]*?)\n\}\n\nfunction getSelectedSingleCell/)?.[1] || "";
+  const replace = source.match(/function replaceSingleFocusedRoots\(nodeIds, activeNodeId = null\) \{([\s\S]*?)\n\}\n\nfunction setSingleOverrides/)?.[1] || "";
+
+  assert.match(controls, /selectedSingleNet/);
+  assert.match(controls, /selectedCompareNet \|\| selectedSingleNet/);
+  assert.match(replace, /focusedNetName\(nodeId\)/);
+  assert.match(replace, /singleViewSession\.objectRefForNet\(netName\)/);
+});
+
+test("cross-module View History applies the target entry before its only render", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createSingleWorkspaceHistoryIdentity/)?.[1] || "";
+
+  assert.match(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", deferRender: true \}\);\s*finish\(state\.graph\);/);
+  assert.doesNotMatch(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", onRendered: finish \}\)/);
 });
 
 test("connection navigation reveals hidden cells inside Focused instead of opening Whole", async () => {

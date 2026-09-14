@@ -71,6 +71,23 @@ test("single view session bridge preserves net roots as canonical net ObjectRefs
   assert.equal(state.activeFocusedRootNodeId, "net:n1");
 });
 
+test("Focused depth commands retain a net root and never fall back to Whole", () => {
+  const { state, adapter } = setup();
+  state.fullGraph.edges = [{ id: "e1", source: "cell:u1", target: "cell:u2", net: "n1" }];
+  state.graph.edges = state.fullGraph.edges;
+  adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNet("n1") });
+
+  const result = adapter.dispatch({ type: "view.depths.set", faninDepth: 6, fanoutDepth: 2 });
+
+  assert.equal(result.rejected, null);
+  assert.equal(result.effects.layout, true);
+  assert.equal(state.viewMode, "focused");
+  assert.deepEqual(state.focusedRootNodeIds, ["net:n1"]);
+  assert.equal(state.activeFocusedRootNodeId, "net:n1");
+  assert.equal(state.faninDepth, 6);
+  assert.equal(state.fanoutDepth, 2);
+});
+
 test("single view session bridge preserves occurrence identity for repeated projected roots", () => {
   const nodes = [
     { id: "cell:u_left", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_left"] } },

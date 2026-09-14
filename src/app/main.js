@@ -402,8 +402,8 @@ elements.moduleOccurrenceChoices.addEventListener("click", handleOccurrenceChoic
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
-elements.faninDepthInput.addEventListener("input", scheduleFocusedDepthChange);
-elements.fanoutDepthInput.addEventListener("input", scheduleFocusedDepthChange);
+elements.faninDepthInput.addEventListener("change", scheduleFocusedDepthChange);
+elements.fanoutDepthInput.addEventListener("change", scheduleFocusedDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
 elements.gateSymbolModeSelect.addEventListener("change", (event) => commitGateSymbolMode(event.target.value));
@@ -1015,16 +1015,18 @@ function selectModule(moduleName, options = {}) {
   if (switchingModule && !restoredWorkspace) state.viewMode = defaultViewMode;
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   const requestedOnRendered = options.onRendered;
-  renderCurrentModuleGraph({
-    ...options,
-    onRendered: (graph) => {
-      requestedOnRendered?.(graph);
-      if (ambiguousOccurrences.length > 1 && !state.occurrenceContext) {
-        setStatus(`${module.displayName} has ${ambiguousOccurrences.length} hierarchy occurrences; choose one from Module hierarchy`);
+  if (!options.deferRender) {
+    renderCurrentModuleGraph({
+      ...options,
+      onRendered: (graph) => {
+        requestedOnRendered?.(graph);
+        if (ambiguousOccurrences.length > 1 && !state.occurrenceContext) {
+          setStatus(`${module.displayName} has ${ambiguousOccurrences.length} hierarchy occurrences; choose one from Module hierarchy`);
+        }
       }
-    }
-  });
-  renderStats();
+    });
+  }
+  if (!options.deferRender) renderStats();
   renderDiagnostics();
   renderSelection(null);
   updateViewControls();
@@ -1123,7 +1125,11 @@ function restoreViewHistoryEntry(entry) {
     });
   };
   if (entry.moduleName && state.currentModule.name !== entry.moduleName) {
-    selectModule(entry.moduleName, { historyMode: "restore", onRendered: finish });
+    // Apply the history entry before rendering the destination module. Rendering
+    // its saved workspace first can briefly commit an empty/stale Focused graph
+    // and doubles the most expensive part of Back/Forward navigation.
+    selectModule(entry.moduleName, { historyMode: "restore", deferRender: true });
+    finish(state.graph);
   } else {
     finish(state.graph);
   }
@@ -1410,6 +1416,7 @@ function commitCurrentGraph(autoGraph, graph, options = {}) {
   const { readyMessage = null, onRendered = null, scene = null } = options;
   state.autoGraph = autoGraph;
   state.graph = graph;
+  renderStats();
   renderDiagnostics();
   renderGraphMount(elements.mount, graph, { scene }).then((result) => {
     if (result?.cancelled) return;
@@ -1566,7 +1573,7 @@ function handleConeDepthChange(event) {
 }
 
 function handleFocusedDepthChange() {
-  setSingleFocusedDepths(
+  const result = setSingleFocusedDepths(
     clamp(Math.floor(Number(elements.faninDepthInput.value) || 0), 0, 99),
     clamp(Math.floor(Number(elements.fanoutDepthInput.value) || 0), 0, 99)
   );
@@ -1577,7 +1584,10 @@ function handleFocusedDepthChange() {
       renderCompareGraphs();
       renderStats();
     }
-  } else if (state.viewMode === "focused") setViewMode("focused");
+  } else if (state.viewMode === "focused" && result?.effects?.layout) {
+    setSingleTransform({ x: 0, y: 0, scale: 1 });
+    renderCurrentModuleGraph();
+  }
   else persistSession();
 }
 
@@ -1642,7 +1652,8 @@ function updateFocusedRootControl() {
       state.focusedRootNodeIds,
       state.viewMode
     );
-  elements.setFocusedRootButton.disabled = !target;
+  const selectedSingleNet = !state.compare.active && Boolean(state.selectedNet);
+  elements.setFocusedRootButton.disabled = !(target || selectedCompareNet || selectedSingleNet);
   const selectedCell = state.compare.active
     ? Boolean(target)
     : Boolean(getSelectedSingleCell());
@@ -3685,14 +3696,19 @@ function replaceSingleFocusedRoots(nodeIds, activeNodeId = null) {
     recordViewHistory();
     return null;
   }
-  const nodes = (nodeIds || []).map((nodeId) =>
-    state.fullGraph?.nodes.find((node) => node.id === nodeId)
-  ).filter(Boolean);
-  const activeNode = nodes.find((node) => node.id === activeNodeId) || nodes[0] || null;
+  const roots = (nodeIds || []).map((nodeId) => {
+    const netName = focusedNetName(nodeId);
+    if (netName) return { nodeId, objectRef: singleViewSession.objectRefForNet(netName) };
+    const node = state.fullGraph?.nodes.find((item) => item.id === nodeId);
+    return node ? { nodeId, objectRef: singleViewSession.objectRefForNode(node) } : null;
+  }).filter((item) => item?.objectRef);
+  const activeObjectRef = roots.find((item) => item.nodeId === activeNodeId)?.objectRef
+    || roots[0]?.objectRef
+    || null;
   const result = singleViewSession.dispatch({
     type: "focus.replace",
-    objectRefs: nodes.map((node) => singleViewSession.objectRefForNode(node)),
-    activeObjectRef: activeNode ? singleViewSession.objectRefForNode(activeNode) : null
+    objectRefs: roots.map((item) => item.objectRef),
+    activeObjectRef
   });
   recordViewHistory();
   return result;

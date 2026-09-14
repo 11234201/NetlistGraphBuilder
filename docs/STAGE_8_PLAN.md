@@ -67,8 +67,8 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（范围内）：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择均已落地；父向追踪在无 occurrence path 时保持显式 chooser，不猜测 parent |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、多 root hierarchical union、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地并有回归 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（修订范围）：画布查询到当前 module/hinst 边界正常停止，Connections 以 canonical occurrence identity 展示相邻一层；点击跨 module 对象后切换目标 module、清除旧 roots 并以目标对象建立 Focused。无 occurrence path 时保持显式 chooser，不猜测 parent |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地；深度变化保持 net root 与 Focused mode，并在 workspace 边界应用有界查询预算 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：mapped 复验后已加入“只重算实际失效 edge + 缓存图跳过重复全量 validation”；当前 41/47 完成、6 个 60s 超时，moveWarm 中位数 183.8ms、最大 2474.2ms，仍需继续处理超大 case |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；运行时只使用统一 View History，失败事务不入栈，旧 module history 实现仅留作数据兼容代码 |
@@ -1006,3 +1006,20 @@ Stage 8 只有在以下条件同时满足时完成：
   candidate 数量、路由偏好、超时、validator 或 fixture，也不再进行无指标假设驱动的尝试。
 - 下一轮只有在先补齐上述聚合观测、能由同一 47-case runner 复现实质收益且 routing invariant/determinism
   全部通过时才实施算法改动；否则保持 R8-3 进行中并保留当前基线。
+
+### Stage 8 执行记录（2026-09-14，Hierarchy top 与 Net Focused 回归）
+
+- `module_hierarchy_demo.v` 的 `hierarchy_demo_top` 源图可稳定构建为 6 nodes / 5 edges；此前从子 module
+  Back 返回时，`selectModule` 会先渲染目标 module 的旧 workspace，再套用 View History 重绘，第一次
+  0-node Focused 结果可能覆盖统计并造成空图观感。历史恢复现改为先切换 module、应用完整 entry，再只
+  发起一次目标 workspace render；图提交同时刷新统计。
+- Single 的 `Set selected as Focused` 启用条件现同时接受 selected net；批量 root replacement 将
+  `net:<name>` 显式转换为 canonical net `ObjectRef`，不再把 net 当作缺失 cell 丢弃。
+- Focused 深度输入只在 committed `change` 后调度一次查询；深度 command 直接重建当前 Focused
+  workspace，不再重入 `setViewMode("focused")`。因此 net root 不会被清空，view mode 不会回退 Whole，
+  也不会意外触发大 module 的全图布局。Focused 查询默认限制 512 个可见节点和 1024 个 frontier 项。
+- 新增 demo top、net root 深度保持、控件启用、单次历史恢复和深度事件回归；`npm test` 为 528/528。
+  在 `/home/wzh/my_code/netlistGraphBuilder-stage8-net-focus` 运行 47-case mapped 回归，结果为 7 pass / 40
+  既有 route-budget failures，34955/120 violations，失败码仍只有 `missing-route` 与
+  `wire-route-disconnected`，没有新增类别。本地浏览器复验因浏览器安全审批超时未能重新加载新脚本，
+  不把旧页面观察写成修复后 UI 通过。Stage 8 的 R8-3 状态不因本轮功能回归修复而改变。

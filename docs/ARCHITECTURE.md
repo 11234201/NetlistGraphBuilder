@@ -339,9 +339,12 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `appState.js` 定义应用初始状态，以及 design/module/timing 三种生命周期 reset。
 - `moduleWorkspace.js` composes graph extraction, timing, aliases, cone/group transforms, provider layout
   and manual overrides for the single-module view without reading DOM or global application state.
-- 当 Single Focused root 是 hierarchical instance 或 occurrence-aware net 时，`moduleWorkspace.js`
-  先调用层次 connectivity query，再通过 `projectHierarchicalRenderGraph()` 适配同一套
-  measure/layout/Scene contract；因此标准渲染不需要复制一套层次专用画布管线。
+- Single 画布始终只投影当前 module：Focused Fanin/Fanout 到 module port 或 hinst 边界即停止，
+  不把相邻 occurrence 混入本层 layout graph。`graphInspector`/Connections 使用 occurrence-aware
+  connectivity 在侧栏展示相邻一层；用户点击跨 module 对象后切换 module，并用该对象替换原
+  Focused roots。这样层次导航仍使用 canonical `ObjectRef`，同时保持每张画布的 module 边界稳定。
+- Focused query 在 workspace 边界应用稳定的可见节点/frontier 上限。调节深度只更新当前
+  Focused query；不得再次进入 view-mode 切换路径，也不得因 net root 投影失败回退到 Whole。
 - `graphWorkspace.js` 是旧调用方的兼容导出；实现位于
   `domains/netlist/netlist_graph_projection.js`，避免领域 feature 反向依赖应用层。
 - `layoutWorkspace.js` is the shared provider/override boundary. It preserves both the automatic graph

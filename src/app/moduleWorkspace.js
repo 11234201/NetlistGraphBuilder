@@ -8,6 +8,7 @@ import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
+import { DEFAULT_FOCUSED_VIEW_POLICY } from "../foundation/view_policy.js";
 
 export function buildModuleWorkspace(options) {
   const {
@@ -28,6 +29,8 @@ export function buildModuleWorkspace(options) {
     coneDepth = 3,
     faninDepth = 3,
     fanoutDepth = 3,
+    maximumVisibleNodes = DEFAULT_FOCUSED_VIEW_POLICY.maximumVisibleNodes,
+    maximumFrontier = DEFAULT_FOCUSED_VIEW_POLICY.maximumFrontier,
     useFanoutHubs = true,
     collapseLargeGroups = false,
     expandedGroupIds = new Set(),
@@ -77,6 +80,8 @@ export function buildModuleWorkspace(options) {
     coneDepth,
     faninDepth,
     fanoutDepth,
+    maximumVisibleNodes,
+    maximumFrontier,
     useFanoutHubs,
     collapseLargeGroups,
     expandedGroupIds: [...expandedGroupIds],
@@ -120,7 +125,9 @@ export function buildModuleWorkspace(options) {
         activeRootNodeId: activeFocusedRootNodeId,
         maxDepth: coneDepth,
         faninDepth,
-        fanoutDepth
+        fanoutDepth,
+        maximumVisibleNodes,
+        maximumFrontier
       })
     }),
     project: (result) => applyWorkspaceGraphTransforms(result.graph, {

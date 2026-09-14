@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildModuleWorkspace } from "../../src/app/moduleWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
@@ -146,4 +147,25 @@ test("module workspace does not project multiple hierarchy roots onto the canvas
   assert.deepEqual(paths, []);
   assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_left"));
   assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_right"));
+});
+
+test("module hierarchy demo top builds a non-empty whole workspace", async () => {
+  const fixture = await readFile(new URL("../../examples/module_hierarchy_demo.v", import.meta.url), "utf8");
+  const design = parseVerilog(fixture);
+  const top = design.modules.find((module) => module.name === "hierarchy_demo_top");
+  const workspace = buildModuleWorkspace({
+    module: top,
+    moduleLibrary: design.modules,
+    viewMode: "whole",
+    layoutProvider: getLayoutProvider(),
+    useFanoutHubs: false,
+    collapseLargeGroups: false
+  });
+
+  assert.equal(workspace.graph.nodes.length, 6);
+  assert.equal(workspace.graph.edges.length, 5);
+  assert.deepEqual(
+    workspace.graph.nodes.filter((node) => node.kind === "cell").map((node) => node.id).sort(),
+    ["cell:u_compute_left", "cell:u_compute_right", "cell:u_diagnostic", "cell:u_io"]
+  );
 });
