@@ -38,10 +38,12 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     changedNodes,
     changedNodeIds
   );
-  const rerouteEdgeIds = expandRerouteEdgeIdsByNetGroup(
-    positionedGraph.edges,
-    initialRerouteEdgeIds
-  );
+  const rerouteEdgeIds = options.expandNetGroups === false
+    ? initialRerouteEdgeIds
+    : expandRerouteEdgeIdsByNetGroup(
+      positionedGraph.edges,
+      initialRerouteEdgeIds
+    );
   const affectedNetGroupKeys = new Set(
     positionedGraph.edges
       .filter((edge) => rerouteEdgeIds.has(edge.id))

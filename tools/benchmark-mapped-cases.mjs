@@ -6,6 +6,8 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { createWorkspaceArtifactCache } from "../src/app/workspaceArtifactCache.js";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { collectRerouteEdgeIds } from "../src/layout/rerouteInvalidation.js";
+import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 
 const caseRoot = path.resolve(process.env.MAPPED_CASE_ROOT || "tests/fixtures/mapped");
 const expectedCases = numberFromEnvironment("EXPECTED_MAPPED_CASES", 47);
@@ -92,6 +94,15 @@ async function runCase(netlist) {
     ...common,
     nodePositions: new Map([[root.id, { x: (root.x || 0) + 36, y: (root.y || 0) + 24 }]])
   };
+  const movedNode = { ...root, x: (root.x || 0) + 36, y: (root.y || 0) + 24 };
+  const initialRerouteEdgeIds = collectRerouteEdgeIds(
+    base.value.autoGraph.edges,
+    [movedNode],
+    new Set([root.id])
+  );
+  const affectedNetGroupKeys = new Set(base.value.autoGraph.edges
+    .filter((edge) => initialRerouteEdgeIds.has(edge.id))
+    .map((edge) => getNetGroupKey(edge)));
   const moved = measure(() => buildModuleWorkspace(movedOptions));
   const movedWarm = measure(() => buildModuleWorkspace(movedOptions));
   const focusedOptions = {
@@ -113,6 +124,8 @@ async function runCase(netlist) {
     focusMs: round(focused.ms),
     focusWarmMs: round(focusedWarm.ms),
     graphNodes: base.value.graph?.nodes?.length || 0,
+    initialRerouteEdges: initialRerouteEdgeIds.size,
+    affectedNetGroups: affectedNetGroupKeys.size,
     layoutStatus: base.value.autoGraph?.layoutStatus || "unknown",
     elapsedMs: round(performance.now() - startedAt),
     cache: cache.stats()

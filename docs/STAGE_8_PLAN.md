@@ -65,7 +65,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（范围内）：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择均已落地；父向追踪在无 occurrence path 时保持显式 chooser，不猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、多 root hierarchical union、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地并有回归 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：基础缓存/局部 reroute/frame coalescing 已有，但 47 个 mapped case 的真实复验出现 8 个 60s 超时；39 个完成 case 的 moveWarm 中位数 695.1ms、最大 15533.1ms，不能用 synthetic chain 的结果宣称完成 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：mapped 复验后已加入“只重算实际失效 edge + 缓存图跳过重复全量 validation”；当前 41/47 完成、6 个 60s 超时，moveWarm 中位数 183.8ms、最大 2474.2ms，仍需继续处理超大 case |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；旧 module history 仅作为兼容 fallback，非 command 的 DOM viewport 操作保留显式记录并有退出条件 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
@@ -883,6 +883,23 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 结论：Focused cache 路径在真实样本上稳定，但高扇出/大路由组的 move/resize 仍有秒级延迟
   和超时，synthetic 的局部收益不能外推；Stage 8 重新保持“进行中”，下一入口是针对 mapped
   高扇出 route-group 的 profiling 与局部失效优化。
+
+### Stage 8 执行记录（2026-09-14，mapped route-group 增量优化）
+
+- `applyPositionedOverrides` 新增受控 `expandNetGroups=false` 路径：缓存图只重算实际被
+  endpoint/path invalidation 命中的 edge，`updateWireRoutes` 仍按完整受影响 net group 重建
+  物理 wire tree；默认直接调用仍保持原有整组 reroute 语义。
+- 缓存 override 不再对未变化的整张 mapped 图重复执行 full validation；局部 candidate/obstacle
+  检查仍执行，显式 provider/layout 重建仍是完整诊断边界。新增 regression 后 `npm test` 为
+  519/519。
+- 同一 47-case runner：41 cases 完成、6 cases 超时（`dp_020`、`sop_004`、`sop_011`、
+  `sop_012`、`sop_014`、`sop_015`），routed 8、unroutable 33；总 cell `35883`，base 中位数
+  `4708.1 ms`，move 中位数 `211.2 ms`，moveWarm 中位数 `183.8 ms`，Focused warm `0.2 ms`，
+  最大 base `55747.7 ms`、最大 moveWarm `2474.2 ms`。相较优化前 39/47 完成、moveWarm
+  中位数 `695.1 ms`，真实 mapped moveWarm 中位数下降约 73.6%。
+- 结论：该优化已解决大部分高扇出 branch-group 的重复重算，但 6 个超大 mapped case 的
+  base/全流程仍超过当前 60s worker 窗口；Stage 8 保持“进行中”，下一入口是超大 case 的
+  base pipeline 分段 profiling，而不是回退到 synthetic fixture。
 
 ## 6. 验证矩阵
 

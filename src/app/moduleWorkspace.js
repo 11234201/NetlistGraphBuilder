@@ -123,10 +123,15 @@ export function buildModuleWorkspace(options) {
       layoutPolicy,
       nodePositions,
       nodeSizes,
-      // A cached, already routed auto graph only needs local route/obstacle
-      // checks for an override. Keep full validation for provider graphs that
-      // were already unroutable so diagnostics are never hidden by caching.
-      validate: cachedPipeline.autoGraph.layoutStatus === "routed" ? false : undefined
+      // A cached auto graph already has provider diagnostics. Local routing
+      // checks the changed candidates; a full graph validation would scan all
+      // unchanged edges again and dominates large mapped cases.
+      validate: false,
+      // Reroute only edges whose endpoint/path is actually invalidated;
+      // updateWireRoutes still rebuilds the affected net group from all edges.
+      // The cached graph keeps its prior provider status/diagnostics; a later
+      // explicit full rebuild remains the authoritative validation boundary.
+      expandNetGroups: false
     });
     return {
       fullGraph,
