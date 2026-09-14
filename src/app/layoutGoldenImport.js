@@ -38,6 +38,7 @@ export function applyLayoutGoldenState(state, imported) {
   const viewMode = normalizeSingleViewMode(display.viewMode);
   if (viewMode === "whole" || viewMode === "search-first") {
     state.viewMode = viewMode;
+    state.focusedRootRefs = [];
     setFocusedRootNodeIds(state, []);
   } else if (display.viewMode) {
     const roots = normalizeFocusedRootNodeIds(
@@ -45,6 +46,7 @@ export function applyLayoutGoldenState(state, imported) {
       display.coneRootNodeId
     );
     state.viewMode = roots.length > 0 ? viewMode : "whole";
+    state.focusedRootRefs = cloneObjectRefs(display.focusedRootRefs);
     setFocusedRootNodeIds(state, roots, display.activeFocusedRootNodeId);
   }
   if (display.coneDepth) state.coneDepth = clamp(display.coneDepth, 1, 99);
@@ -60,4 +62,11 @@ export function applyLayoutGoldenState(state, imported) {
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
 }

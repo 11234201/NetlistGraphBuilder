@@ -36,6 +36,13 @@ test("layout Golden import restores bounded layout and display state", () => {
           viewMode: "fanin",
           coneRootNodeId: "cell:u0",
           focusedRootNodeIds: ["cell:u1", "cell:u0"],
+          focusedRootRefs: [{
+            documentId: "document:primary",
+            unitId: "top",
+            kind: "cell",
+            localId: "u1",
+            occurrencePath: ["u_right"]
+          }],
           activeFocusedRootNodeId: "cell:u1",
         coneDepth: 5,
         faninDepth: 0,
@@ -59,6 +66,7 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.deepEqual(imported.timingBadgePositions, { u0: "top-left" });
   assert.equal(imported.display.viewMode, "fanin");
   assert.deepEqual(imported.display.focusedRootNodeIds, ["cell:u0", "cell:u1"]);
+  assert.deepEqual(imported.display.focusedRootRefs[0].occurrencePath, ["u_right"]);
   assert.equal(imported.display.activeFocusedRootNodeId, "cell:u1");
   assert.equal(imported.display.coneDepth, 5);
   assert.equal(imported.display.faninDepth, 0);
@@ -75,6 +83,7 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.equal(state.viewMode, "focused");
   assert.equal(state.coneRootNodeId, "cell:u0");
   assert.equal(state.activeFocusedRootNodeId, "cell:u1");
+  assert.deepEqual(state.focusedRootRefs[0].occurrencePath, ["u_right"]);
   assert.equal(state.faninDepth, 0);
   assert.equal(state.fanoutDepth, 7);
   assert.equal(state.useFanoutHubs, false);
@@ -158,6 +167,7 @@ test("Golden v3 restores current Focused modes and fingerprints source content",
   applyLayoutGoldenState(state, focused);
   assert.equal(state.viewMode, "focused");
   assert.deepEqual(state.focusedRootNodeIds, ["cell:u0"]);
+  assert.deepEqual(state.focusedRootRefs, []);
   assert.throws(() => resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, focused, {
     domainId: "netlist",
     documentId: "document:primary",

@@ -3615,6 +3615,7 @@ function saveLayoutGolden() {
         viewMode: state.viewMode,
         coneRootNodeId: state.coneRootNodeId,
         focusedRootNodeIds: state.focusedRootNodeIds,
+        focusedRootRefs: state.focusedRootRefs,
         activeFocusedRootNodeId: state.activeFocusedRootNodeId,
         coneDepth: state.coneDepth,
         faninDepth: state.faninDepth,

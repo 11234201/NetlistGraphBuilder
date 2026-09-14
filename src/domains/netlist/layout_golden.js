@@ -1,6 +1,7 @@
 import { analyzeLayoutQuality, compareLayoutQuality } from "../../layout/layoutQuality.js";
 import { normalizeLayoutPolicy } from "../../layout/layoutPolicy.js";
 import { normalizeFocusedRootIds as normalizePolicyRoots } from "../../foundation/view_policy.js";
+import { isObjectRef } from "../../contracts/object_ref.js";
 
 export function createLayoutGolden(graph, options = {}) {
   const identity = options.identity || {};
@@ -89,6 +90,7 @@ export function getLayoutGoldenState(value) {
   const layoutOptions = isRecord(golden.layoutOptions) ? golden.layoutOptions : {};
   const display = isRecord(layoutOptions.display) ? layoutOptions.display : {};
   const focusedRootNodeIds = normalizeRootIds(display.focusedRootNodeIds, display.coneRootNodeId);
+  const focusedRootRefs = normalizeFocusedRootRefs(display.focusedRootRefs);
   const graphOverrides = isRecord(layoutOptions.graphOverrides)
     ? layoutOptions.graphOverrides
     : {};
@@ -123,6 +125,7 @@ export function getLayoutGoldenState(value) {
       viewMode: normalizeViewMode(display.viewMode),
       coneRootNodeId: typeof display.coneRootNodeId === "string" ? display.coneRootNodeId : null,
       focusedRootNodeIds,
+      focusedRootRefs,
       activeFocusedRootNodeId: focusedRootNodeIds.includes(display.activeFocusedRootNodeId)
         ? display.activeFocusedRootNodeId
         : focusedRootNodeIds[0] || null,
@@ -140,6 +143,15 @@ export function getLayoutGoldenState(value) {
 
 function normalizeRootIds(value, legacyRootNodeId = null) {
   return normalizePolicyRoots(value, legacyRootNodeId);
+}
+
+function normalizeFocusedRootRefs(value) {
+  return (Array.isArray(value) ? value : [])
+    .filter((ref) => isObjectRef(ref))
+    .map((ref) => ({
+      ...ref,
+      ...(Array.isArray(ref.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+    }));
 }
 
 export function compareLayoutGraphs(baseGraph, adjustedGraph) {
