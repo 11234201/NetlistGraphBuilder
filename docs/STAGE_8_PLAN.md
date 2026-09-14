@@ -777,6 +777,16 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 旧 CLI/launcher 仍只产生字符串 focus，保持完全兼容；Stage 8 其余 mapped、全链路性能和浏览器大图
   Compare 收口项仍未满足阶段完成定义。
 
+### Stage 8 执行记录（2026-09-14，hierarchical projection entry link，提交 `9237126`）
+
+- 修正层次 cone 从 cell root 或 hinst boundary 进入 net 时遗漏 continuation edge 的问题。查询结果现在
+  保留与当前 traversal direction 一致的 root→net 或 net→root 连接，跨 occurrence projection 不再出现
+  “节点已显示但入口线断开”的局部图。
+- 新增 cell-rooted entry wire 与 parent/child boundary continuation 回归；该修正只作用于 hierarchy
+  query/projection，不改变普通 module graph 的 parser、layout policy、node bounds 或 route geometry。
+- `npm test` 通过（517 tests、0 failures）；Stage 8 仍保持“进行中”，待收口项仍是全链路同口径性能
+  验收、legacy history bridge 清理及双大图 Compare 浏览器证据。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
