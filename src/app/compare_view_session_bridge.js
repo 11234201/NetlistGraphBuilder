@@ -204,14 +204,7 @@ function rootsToRefs(nodeIds, graph, session) {
 
 function refToNodeId(ref, graph) {
   if (!ref || !graph) return null;
-  if (ref.kind === "net") {
-    const netNode = graph.nodes.find((node) =>
-      (node.kind === "hub" || node.kind === "net") &&
-      (node.ref?.localId || node.ref?.name || node.label) === ref.localId &&
-      occurrenceMatches(node.ref?.occurrencePath, ref.occurrencePath)
-    );
-    return netNode?.id || `net:${ref.localId}`;
-  }
+  if (ref.kind === "net") return `net:${ref.localId}`;
   return graph.nodes.find((node) =>
     (node.ref?.instance || node.ref?.name || node.ref?.localId || node.id) === ref.localId &&
     (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell")) &&

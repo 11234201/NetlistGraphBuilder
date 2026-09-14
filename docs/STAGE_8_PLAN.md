@@ -598,7 +598,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   重复 hinst occurrence 现在以 canonical localId + occurrence path 写入和回读，cell/net 的激活、历史
   恢复以及 Compare 双侧 root 映射不会再仅按 localId 串线；旧的无 occurrence ref 仍按兼容规则匹配。
 - 增加重复 occurrence 的 Single/Compare bridge 回归测试，覆盖 projected node ref、active root 和
-  net/hub 的路径匹配。定向测试通过（505 tests 全套 runner，0 failures）。
+  net/hub canonical ref 的路径保留，同时兼容旧的 `net:<localId>` mirror。定向测试通过（505 tests
+  全套 runner，0 failures）。
 - 这项修复补齐了 R8-2/R8-5 的 identity 边界，但不等同于完成跨 occurrence root 的完整层次 UI；Stage 8
   仍需 mapped 基线复核、浏览器大图 DOM 性能证据及 legacy command-bus 清理。
 
