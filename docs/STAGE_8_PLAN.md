@@ -646,6 +646,28 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 最新 `npm test`：508 tests、0 failures；Windows 离线发布复核通过，SHA-256 为
   `9788455c1be4ed56481a864af0cd8a9441af1a43cd075cd1365fff1e96263c4e`。
 
+### Stage 8 执行记录（2026-09-14，canonical Focused root 持久化，提交 `7607dd5`）
+
+- Single/Compare bridge、app state、module/View History 现在统一保存 `focusedRootRefs`；root 的
+  `documentId/unitId/kind/localId/occurrencePath` 与旧的 `focusedRootNodeIds` mirror 同步维护。重复
+  occurrence 的多 root projection、Compare 双侧恢复和 net root 兼容路径不再依赖当前全局 occurrence
+  context。
+- session snapshot/codec 增加 occurrence-aware root refs：旧 v1/v2 session 缺失该字段仍迁移为 `[]`，
+  malformed ref 在 persistence boundary 被丢弃；刷新恢复会优先恢复 canonical ref，再由 bridge 在图可用
+  后验证并补齐 node-id mirror。
+- Search policy 复核并保持三态规则：目标在当前 positioned graph 只定位；不在定位图但存在于 full
+  graph 的 cell/net 才自动 Focus；其余目标不写入隐藏 selection。该规则覆盖了“搜索结果不在当前
+  Focused cone 内”时的确定性行为。
+- 验证：`npm test` 通过（512 tests）；`npm run benchmark:interaction` 为 1K base/move/focused
+  `188.8/44.7/6.7 ms`、warm `4.1/36.0/0.1 ms`，4K 为 `852.2/148.3/5.4 ms`、warm
+  `26.8/142.9/0.1 ms`。该增量不改变 graph/layout 拓扑，指标继续作为回归监测，尚不足以宣称
+  R8-3 的全链路 30% 改善。
+- `npm run release:windows` 通过（512 tests、启动器 smoke、离线 ZIP 与 ELK license），产物
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
+  SHA-256 为 `2ef8a98d0e0d1e46092878ca8b854e035f5ab4e48281bd3416fba4e5847c83ca`。
+- Stage 8 仍保持“进行中”：mapped fixture 的既有路由基线、全链路性能对照、legacy 手工 history
+  bridge 清理与完整浏览器大图 Compare 证据仍未满足完成定义。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、

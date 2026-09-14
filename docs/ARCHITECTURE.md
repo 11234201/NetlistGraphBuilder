@@ -310,7 +310,9 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `DocumentStore` 和共享 `ViewSessionStore` 是文档、画布及其 revision 的所有者；Single/Compare
   bridge 只负责 ObjectRef 与旧 UI/session 字段之间的兼容投影，并在 projected graph 中保留
   `occurrencePath`；重复 hinst 的 selection/Focused root 回读按 occurrence identity 匹配，旧的无路径
-  ref 仍兼容。
+  ref 仍兼容。Focused root 的 canonical refs 同步保存在 app state、module/View History 与 session
+  codec 中；恢复时先以 canonical occurrence ref 为准，再回落到旧的 node-id mirror，避免重复 hinst
+  在刷新或前进/后退后串线。
 - `view_commands.js` 统一处理 unit、Focused roots、selection、viewport、layout policy 与 overrides，
   并显式返回 query/layout/render/viewport/persist effects。纯 viewport 或相同值提交不会错误推进
   computation revision。
