@@ -26,6 +26,7 @@ import { createSearchControls } from "../ui/searchControls.js";
 import { isSearchTargetPositioned, shouldRevealSearchTarget } from "./searchLocatePolicy.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
+import { renderOccurrenceChoices } from "../ui/occurrence_choice_panel.js";
 import { buildModuleHierarchy, findModuleOccurrences } from "../domains/netlist/module_hierarchy.js";
 import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
 import { createBrowserDownload, sanitizeDownloadFileName } from "../platform/browser_download.js";
@@ -196,6 +197,7 @@ const elements = {
   compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
   compareOutputSelect: document.querySelector("#compareOutputSelect"),
   moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),
+  moduleOccurrenceChoices: document.querySelector("#moduleOccurrenceChoices"),
   syncCompareFocusInput: document.querySelector("#syncCompareFocusInput"),
   searchInput: document.querySelector("#searchInput"),
   searchClearButton: document.querySelector("#searchClearButton"),
@@ -398,6 +400,7 @@ elements.searchInput.addEventListener("focus", handleSearchInput);
 elements.searchClearButton.addEventListener("click", clearSearch);
 elements.searchResults.addEventListener("click", handleSearchResultClick);
 elements.details.addEventListener("click", handleSelectionNavigationClick);
+elements.moduleOccurrenceChoices.addEventListener("click", handleOccurrenceChoiceClick);
 elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
 elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
 elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
@@ -668,6 +671,7 @@ function loadDesign(source, label, restore = null) {
 
 function renderModuleOptions() {
   elements.moduleHierarchyFilter.value = "";
+  renderOccurrenceChoicePanel([], "");
   updateModuleHierarchyPicker();
   renderCompareModuleOptions();
   renderModuleHierarchy();
@@ -675,6 +679,22 @@ function renderModuleOptions() {
 
 function renderModuleHierarchy() {
   moduleHierarchyController.render();
+}
+
+function renderOccurrenceChoicePanel(occurrences, moduleName) {
+  elements.moduleOccurrenceChoices.innerHTML = renderOccurrenceChoices(occurrences, moduleName);
+}
+
+function handleOccurrenceChoiceClick(event) {
+  const button = event.target.closest?.("[data-occurrence-module]");
+  if (!button) return;
+  const occurrencePath = button.dataset.occurrencePath?.split("/").filter(Boolean) || [];
+  if (!occurrencePath.length) return;
+  event.preventDefault();
+  selectModule(button.dataset.occurrenceModule, {
+    occurrencePath,
+    rootModuleName: button.dataset.occurrenceRoot
+  });
 }
 
 function updateModuleHierarchyPicker() {
@@ -973,6 +993,10 @@ function selectModule(moduleName, options = {}) {
       occurrencePath: [...options.occurrencePath]
     };
   }
+  renderOccurrenceChoicePanel(
+    !state.occurrenceContext ? ambiguousOccurrences : [],
+    module.name
+  );
   updateModuleHierarchyPicker();
   renderModuleHierarchy();
   if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;

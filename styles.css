@@ -739,6 +739,46 @@ body.is-dragging-files .drop-overlay {
   overflow: auto;
 }
 
+.module-occurrence-choices-host:empty {
+  display: none;
+}
+
+.module-occurrence-choices-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.module-occurrence-choices {
+  display: grid;
+  gap: 4px;
+}
+
+.module-occurrence-choice {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-occurrence-choice:hover,
+.module-occurrence-choice:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .module-hierarchy-tree,
 .module-hierarchy-tree ul {
   display: grid;

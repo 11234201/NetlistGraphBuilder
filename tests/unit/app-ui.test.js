@@ -264,6 +264,15 @@ test("compare history metadata identifies the side that owns an override or pan"
   assert.match(comparePan, /affectedSessionIds: \[`compare:\$\{side\}`\]/);
 });
 
+test("ambiguous module occurrences expose an explicit chooser wired to selectModule", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function handleOccurrenceChoiceClick\(event\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(source, /moduleOccurrenceChoices/);
+  assert.match(source, /renderOccurrenceChoices\(occurrences, moduleName\)/);
+  assert.match(handler, /selectModule\(button\.dataset\.occurrenceModule/);
+  assert.match(handler, /occurrencePath/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";
