@@ -1,6 +1,6 @@
 # 阶段 8：层次追踪、对象聚焦与大图交互收敛
 
-更新日期：2026-09-14。状态：已完成（范围内验收闭环；mapped 既有 route 基线作为已知偏差保留）。
+更新日期：2026-09-14。状态：进行中（改用 47 个 mapped case 复验后，真实 move/resize 性能仍需优化）。
 
 ## 1. 阶段目标与边界
 
@@ -65,7 +65,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（范围内）：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择均已落地；父向追踪在无 occurrence path 时保持显式 chooser，不猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、多 root hierarchical union、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地并有回归 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 已完成（本阶段范围）：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；等价 4K override runner 相对 S8-0 降幅超过 90%，parse/build/full-layout 均未回退超过 10% |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：基础缓存/局部 reroute/frame coalescing 已有，但 47 个 mapped case 的真实复验出现 8 个 60s 超时；39 个完成 case 的 moveWarm 中位数 695.1ms、最大 15533.1ms，不能用 synthetic chain 的结果宣称完成 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；旧 module history 仅作为兼容 fallback，非 command 的 DOM viewport 操作保留显式记录并有退出条件 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
@@ -868,8 +868,21 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `75da94d`、`e40368a`、`8a1c656`、`663a184`、`80467a7`、`664dbae`、`dbf7e2f`。
   `npm test` 通过 518/518；mapped 既有 route 失败如上单独记录；`npm run benchmark`、等价
   4K interaction baseline、真实双大图 Compare 浏览器验证和 `npm run release:windows` 均已完成。
-- Stage 8 现标记为“已完成（范围内验收）”。后续若要消除 `missing-route` 基线或移除兼容性
-  手工 history 记录，应作为后续阶段的独立目标，不回写为本阶段已通过。
+- 该记录当时将 Stage 8 标记为“已完成（范围内验收）”；后续使用真实 mapped 47-case
+  交互 runner 复验后，R8-3 已重新打开，以下一条记录为当前有效状态。
+
+### Stage 8 执行记录（2026-09-14，mapped 47-case 真实交互复验）
+
+- 新增 `npm run benchmark:mapped`，逐个使用 `tests/fixtures/mapped/` 的 47 个 Verilog case，
+  每个 case 独立 worker、60s 超时，测量 base、move、moveWarm、Focused warm，并报告 routed/
+  unroutable；不再以 synthetic buffer-chain 作为正式性能验收样本。
+- 结果：47 cases 中 39 个完成、8 个超时（`dp_011`、`dp_020`、`eq_012`、`sop_004`、
+  `sop_011`、`sop_012`、`sop_014`、`sop_015`），完成项中 routed 8、unroutable 31；总 cell 数
+  33439，base 中位数 `4719.5 ms`，move 中位数 `700.7 ms`，moveWarm 中位数 `695.1 ms`，
+  Focused warm 中位数 `0.2 ms`，最大 base `41006.1 ms`，最大 moveWarm `15533.1 ms`。
+- 结论：Focused cache 路径在真实样本上稳定，但高扇出/大路由组的 move/resize 仍有秒级延迟
+  和超时，synthetic 的局部收益不能外推；Stage 8 重新保持“进行中”，下一入口是针对 mapped
+  高扇出 route-group 的 profiling 与局部失效优化。
 
 ## 6. 验证矩阵
 
