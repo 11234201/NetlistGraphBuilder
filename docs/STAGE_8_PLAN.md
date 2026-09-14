@@ -596,7 +596,14 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 验证：`npm test` 通过（497 tests）；新增 Search policy、隐藏 net 防悬空 selection、occurrence chooser、
   Compare 独立 side job、nested history transaction 回归。`git diff --check` 通过。mapped fixture 仍保留历史
   `missing-route`/`wire-route-disconnected` 基线，不宣称 Stage 8 已完成；下一入口是 command-bus
-  事务收口、全链路性能同口径证据与 release 验证。
+  事务收口与全链路性能同口径证据。
+- 交互 benchmark：1K/4K chain 的 base cold→warm 为 `187.1/4.5 ms`、`909.4/26.7 ms`，move
+  cold→warm 为 `74.7/57.8 ms`、`239.0/227.2 ms`，Focused warm 为 `0.1/0.0 ms`；全链路
+  1K/4K/8K pipeline 中位数为 `190.0/946.6/2876.6 ms`，progressive first batch 为
+  `1.2/1.1/1.1 ms`。这些是同环境回归指标，尚未形成相对 Stage 8 初始基线的 30% 改善证明。
+- `npm run release:windows` 通过（497 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），产物
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
+  SHA-256 为 `b6e098953468d4d3b74f2f071993d47524300475a036984cbe4b0988cb433206`。
 
 ## 6. 验证矩阵
 
