@@ -784,8 +784,15 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   “节点已显示但入口线断开”的局部图。
 - 新增 cell-rooted entry wire 与 parent/child boundary continuation 回归；该修正只作用于 hierarchy
   query/projection，不改变普通 module graph 的 parser、layout policy、node bounds 或 route geometry。
-- `npm test` 通过（517 tests、0 failures）；Stage 8 仍保持“进行中”，待收口项仍是全链路同口径性能
-  验收、legacy history bridge 清理及双大图 Compare 浏览器证据。
+- `npm test` 通过（517 tests、0 failures）。同一工作树的回归为：workspace cache 1K/4K
+  cold→warm `220.4/7.4 ms`、`1187.1/24.7 ms`；interaction 1K/4K move cold→warm
+  `61.6/47.3 ms`、`157.8/141.7 ms`，Focused warm `0.1/0.1 ms`；full pipeline 1K/4K/8K
+  `224.6/959.9/2725.5 ms`，progressive first batch `1.9/1.0/1.1 ms`。这些指标作为同环境
+  回归记录，不替代相对 S8-0 的全链路 30% 验收。
+- `npm run release:windows` 通过，离线包 [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
+  SHA-256 为 `784349cd27c076264f85eda8572335d4d2f03acedab3d3a3307709cb139f3b16`。Stage 8 仍保持
+  “进行中”，待收口项仍是全链路同口径性能验收、legacy history bridge 清理及双大图 Compare
+  浏览器证据。
 
 ## 6. 验证矩阵
 
