@@ -218,6 +218,16 @@ test("search reveals a target outside the current canvas through Focused instead
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
+test("hidden net search hits never become dangling selections", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const activate = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
+  const handler = activate.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n  \}\n\n  const fullNode/)?.[1] || "";
+
+  assert.match(handler, /resolveSearchTargetAction\(target, state\.graph, state\.fullGraph\)/);
+  assert.match(handler, /could not be focused/);
+  assert.doesNotMatch(handler, /setSelectedNet\(target\.name\);/);
+});
+
 test("search history captures the final selection and viewport together", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";

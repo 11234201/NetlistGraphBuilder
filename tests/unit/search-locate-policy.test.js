@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSearchTargetPositioned, shouldRevealSearchTarget } from "../../src/app/searchLocatePolicy.js";
+import {
+  isSearchTargetPositioned,
+  resolveSearchTargetAction,
+  shouldRevealSearchTarget
+} from "../../src/app/searchLocatePolicy.js";
 
 const graph = {
   nodes: [
@@ -23,4 +27,12 @@ test("only a focus-capable target outside the canvas is revealed", () => {
   assert.equal(shouldRevealSearchTarget({ kind: "net", name: "n2" }, graph, { ...fullGraph, edges: [{ net: "n2" }] }), true);
   assert.equal(shouldRevealSearchTarget({ kind: "port", name: "in", direction: "input" }, graph, fullGraph), false);
   assert.equal(shouldRevealSearchTarget({ kind: "cell", name: "u1" }, graph, fullGraph), false);
+});
+
+test("search action locates positioned targets and focuses only full-graph misses", () => {
+  const fullGraph = { ...graph, nodes: [...graph.nodes, { id: "cell:u2", kind: "cell", ref: { instance: "u2" } }] };
+  assert.equal(resolveSearchTargetAction({ kind: "cell", name: "u1" }, graph, fullGraph), "locate");
+  assert.equal(resolveSearchTargetAction({ kind: "cell", name: "u2" }, graph, fullGraph), "focus");
+  assert.equal(resolveSearchTargetAction({ kind: "cell", name: "missing" }, graph, fullGraph), "unavailable");
+  assert.equal(resolveSearchTargetAction({ kind: "port", name: "in", direction: "input" }, graph, fullGraph), "unavailable");
 });

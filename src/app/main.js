@@ -23,7 +23,7 @@ import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
-import { isSearchTargetPositioned, shouldRevealSearchTarget } from "./searchLocatePolicy.js";
+import { resolveSearchTargetAction } from "./searchLocatePolicy.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
 import { renderOccurrenceChoices } from "../ui/occurrence_choice_panel.js";
@@ -2733,8 +2733,9 @@ function activateSearchResult(result) {
     return;
   }
   if (target.kind === "net") {
+    const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
     const edge = state.graph?.edges.find((item) => item.net === target.name);
-    if (edge) {
+    if (action === "locate" && edge) {
       setSelectedNet(target.name, false);
       centerGraphPoint(getEdgeCenter(edge));
       recordViewHistory();
@@ -2742,7 +2743,7 @@ function activateSearchResult(result) {
       return;
     }
     const fullEdge = state.fullGraph?.edges.find((item) => item.net === target.name);
-    if (fullEdge && shouldRevealSearchTarget(target, state.graph, state.fullGraph)) {
+    if (action === "focus" && fullEdge) {
       revealSearchTarget(result.objectRef || singleViewSession.objectRefForNet(target.name), () => {
         const positioned = state.graph?.edges.find((item) => item.net === target.name);
         setSelectedNet(target.name, false);
@@ -2752,17 +2753,23 @@ function activateSearchResult(result) {
       });
       return;
     }
-    setSelectedNet(target.name);
-    setStatus(`Search: net ${result.label} (not positioned)`);
+    // A search hit that is not in the positioned graph must never become a
+    // dangling selection.  The full graph is the source of truth for whether
+    // the target can be promoted into a Focused root; otherwise leave the
+    // current selection untouched and report that the target is unavailable.
+    setStatus(fullEdge
+      ? `Search: net ${result.label} could not be focused`
+      : `Search: net ${result.label} is unavailable in the current graph`);
     return;
   }
 
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
-    const positioned = isSearchTargetPositioned(target, state.graph)
+    const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
+    const positioned = action === "locate"
       ? state.graph?.nodes.find((node) => node.kind === "cell" && node.ref?.instance === target.name)
       : null;
-    if (positioned && !shouldRevealSearchTarget(target, state.graph, state.fullGraph)) {
+    if (action === "locate" && positioned) {
       singleViewSession.dispatch({
         type: "selection.set",
         objectRef: result.objectRef || singleViewSession.objectRefForNode(fullNode)
@@ -2773,13 +2780,14 @@ function activateSearchResult(result) {
       setStatus(`Search: ${result.kind} ${result.label}`);
       return;
     }
-    revealSearchTarget(result.objectRef || singleViewSession.objectRefForNode(fullNode), () => {
+    if (action === "focus") revealSearchTarget(result.objectRef || singleViewSession.objectRefForNode(fullNode), () => {
       const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
       setSelectedNode(positioned?.id || null, false);
       if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
       recordViewHistory();
       setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
     });
+    if (action !== "focus") setStatus(`Search: ${result.label} is unavailable in the current graph`);
     return;
   }
   const node = findSearchTargetNode(target);

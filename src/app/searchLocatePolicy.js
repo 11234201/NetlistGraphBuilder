@@ -28,3 +28,16 @@ export function shouldRevealSearchTarget(target, positionedGraph, fullGraph) {
   if (target.kind !== "cell" && target.kind !== "net") return false;
   return isSearchTargetPositioned(target, fullGraph);
 }
+
+/**
+ * Resolve the only three search outcomes the application may perform.  A
+ * target already represented by the positioned graph is merely located; a
+ * cell/net that exists only in the full graph is promoted through Focused;
+ * everything else is reported as unavailable instead of creating an
+ * invisible selection.
+ */
+export function resolveSearchTargetAction(target, positionedGraph, fullGraph) {
+  if (isSearchTargetPositioned(target, positionedGraph)) return "locate";
+  if (shouldRevealSearchTarget(target, positionedGraph, fullGraph)) return "focus";
+  return "unavailable";
+}
