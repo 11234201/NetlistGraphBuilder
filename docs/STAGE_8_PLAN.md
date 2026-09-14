@@ -67,7 +67,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（修订范围）：画布查询到当前 module/hinst 边界正常停止，Connections 以 canonical occurrence identity 展示相邻一层；点击跨 module 对象后切换目标 module、清除旧 roots 并以目标对象建立 Focused。无 occurrence path 时保持显式 chooser，不猜测 parent |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（修订范围）：画布查询到当前 module/hinst 边界正常停止；普通 Connections 只显示当前 module，Hierarchy 只在当前 module port 存在明确 parent occurrence 时向父层延伸。点击父层对象后切换目标 module、清除旧 roots 并以目标对象建立 Focused。进入 child 使用 hinst 双击；无 occurrence path 时保持显式 chooser，不猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地；深度变化保持 net root 与 Focused mode，并在 workspace 边界应用有界查询预算 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：mapped 复验后已加入“只重算实际失效 edge + 缓存图跳过重复全量 validation”；当前 41/47 完成、6 个 60s 超时，moveWarm 中位数 183.8ms、最大 2474.2ms，仍需继续处理超大 case |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
@@ -94,6 +94,11 @@ HierarchicalObjectRef
 `occurrencePath` 使用 canonical instance 名，不用 display label 做身份。module 下拉框打开的是 definition
 context；如果该 module 有多个父 occurrence，向上追踪必须要求用户选择层次上下文，不能任意选择父实例。
 从 hierarchy tree 或 hinst 双击进入时保留 occurrence breadcrumb，因此可以同时向父层和子层追踪。
+
+详情面板的层次导航采用更窄的 UI 语义：`Connections / Current module` 不混入 occurrence target；
+`Hierarchy / Parent occurrence` 只展示穿过当前 module input/output port 后的 parent net。hinst pin
+映射到 child port 是向实例内部，不是当前 module 之外的上游/下游层次连接，因此通过双击 hinst 进入，
+不列入 Hierarchy。root occurrence 没有 parent，Hierarchy 必须为空。
 
 按 module 构建可缓存的 `ModuleConnectivityTemplate`，只保存局部 cell/net/port 连接以及 hinst pin 到
 child port 的映射。查询时按命中的 occurrence 懒展开：
@@ -1023,3 +1028,38 @@ Stage 8 只有在以下条件同时满足时完成：
   既有 route-budget failures，34955/120 violations，失败码仍只有 `missing-route` 与
   `wire-route-disconnected`，没有新增类别。本地浏览器复验因浏览器安全审批超时未能重新加载新脚本，
   不把旧页面观察写成修复后 UI 通过。Stage 8 的 R8-3 状态不因本轮功能回归修复而改变。
+
+### Stage 8 执行记录（2026-09-14，Connections 层级 net 导航补全；parent-only 语义修订）
+
+- 复核确认此前的相邻层 Connections 只接入了 cell inspection：选中 hinst 可以看到 child port，选中
+  occurrence 内的 port node 可以看到 parent net；直接选中同一条边界 net 时却走独立的 net inspection，
+  没有 hierarchy context，所以入口是否出现取决于用户先选了哪类对象，表现为“不稳定触发”。
+- 经产品语义复核，不再把 hinst 的 child port 混入普通 Connections 或标成 Hierarchy。cell 与 net
+  inspection 现在共享 parent-boundary 解析，但输出为独立区域：普通 Connections 只保留本层对象；
+  Hierarchy 只在当前 module 的 boundary port 且存在明确 parent occurrence 时出现。顶层
+  `u_compute_left` 的输入只定位本层 `a.a`，Hierarchy 为空；进入 `compute_cluster @ u_compute_left`
+  后，边界 net `a` 才显示父层 `hierarchy_demo_top.a`。没有 occurrence context 时不猜测 parent。
+- 跨 module net 点击改为先以 `deferRender` 切换 definition/occurrence context，再清除旧 roots、建立目标
+  net Focused root 并只启动一次 workspace render，避免先渲染目标 module 的旧 workspace 再重绘。
+- hierarchy tree 根节点的 canonical occurrence path 是合法空数组；controller 不再把空 path 回退成
+  module id。明确 hinst 双击会继承当前或唯一 parent occurrence；重复 parent 仍进入 chooser，不猜测。
+  跨层 target 的切换判断也升级为 module、root module、occurrence path 三元身份，因此递归定义中进入
+  同名 child module 仍会真正切换 occurrence。
+- net inspection 在一次 Selection 查询内建立 module/cell 索引，并按 canonical endpoint key 稳定排序；
+  高扇出 net 不会为每个 driver/load 重新线性扫描当前 module 的全部 cells。
+- 新增本层/父层 Connections 分区、parent occurrence data attributes、共享 inspection context、根 path、
+  hinst 双击、同 module 不同 occurrence 与单次导航回归；`npm test` 为 536/536。浏览器用
+  `module_hierarchy_demo.v` 复验：顶层 `u_compute_left` 只有本层连接且 Hierarchy 为空；进入该
+  occurrence 后 `u_control.a` 的独立 Parent 区域指向 `hierarchy_demo_top.a`，点击后返回顶层并建立
+  Focused net root；同时复验 root 返回、hinst 双击和
+  `cycle_probe.u_self` 同名递归 occurrence；module、Focused root、cell 类型和连线均保持正确。本轮不
+  修改 parser、graph、layout 或 renderer，故未重跑 47-case mapped routing 基线；R8-3 的性能状态保持不变。
+
+### Stage 8 补丁发布记录（2026-09-14，v1.0.1）
+
+- 补丁版本提升为 `1.0.1`，覆盖 Net Focused 深度/模式稳定性、module/occurrence history、Hierarchy
+  parent-boundary 导航和 Connections 分区修复；CHANGELOG、README 与 USER_GUIDE 同步更新。
+- `npm run release:windows` 通过全部 536 个单元测试、Windows launcher 编译、localhost 启动 smoke、
+  离线资源和 ELKJS license 检查。
+- 发布包：`dist/NetlistGraphBuilder-v1.0.1-win-x64.zip`；SHA-256：
+  `d6ef5fc19b2a997f014bd686ce87dfee974dc0f7a153a3672c4a1ff7833ab688`。

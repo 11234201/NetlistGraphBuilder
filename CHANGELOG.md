@@ -2,6 +2,21 @@
 
 本项目使用语义化版本号。
 
+## [1.0.1] - 2026-09-14
+
+Stage 8 层次导航与 Net Focused 稳定性补丁。
+
+### Fixed
+
+- 修复 Net Focused 设置、深度更新和跨 module 导航可能错误回退 Whole、重复渲染或显示空图的问题。
+- 修复 hierarchy root 空 occurrence path、同 module 不同 occurrence 和 hinst 双击导航身份不稳定的问题。
+- 将详情面板连接明确分为当前 module 与 parent occurrence；顶层 hinst 不再把 child port 错误显示为 Hierarchy。
+- 点击父层 net/cell 后先切换 occurrence context，再清理旧 Focus roots 并以目标对象建立新的 Focused 视图。
+
+### Changed
+
+- Hierarchy 连接使用独立卡片、范围标签和 Parent 标记，与当前 module Connections 明确区分。
+
 ## [0.7.3] - 2026-09-03
 
 Focused 搜索追加行为修复版本。

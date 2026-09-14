@@ -238,6 +238,54 @@ test("connection navigation reveals hidden cells inside Focused instead of openi
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
+test("hierarchy net navigation switches context before its only render", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction selectionTargetChangesHierarchyContext/)?.[1] || "";
+  const netBranch = handler.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n      \}\n      selectModule/)?.[1] || "";
+
+  assert.match(handler, /runViewHistoryTransaction\(\{ label: "Open hierarchy connection" \}/);
+  assert.match(netBranch, /deferRender: true[\s\S]*replaceFocusWithSelectionTarget\(target\)/);
+  assert.doesNotMatch(netBranch, /onRendered/);
+});
+
+test("hierarchy connection navigation compares occurrence identity, not only module name", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction focusSingleSelectionTarget/)?.[1] || "";
+  const contextCheck = source.match(/function selectionTargetChangesHierarchyContext\(target\) \{([\s\S]*?)\n\}/)?.[1] || "";
+
+  assert.match(handler, /selectionTargetChangesHierarchyContext\(target\)/);
+  assert.match(contextCheck, /target\.moduleName !== state\.currentModule\?\.name/);
+  assert.match(contextCheck, /target\.rootModuleName/);
+  assert.match(contextCheck, /sameOccurrencePath\(currentOccurrencePath, targetOccurrencePath\)/);
+});
+
+test("net selection receives the same occurrence context as cell selection", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function renderNetSelection\(netName\) \{([\s\S]*?)\n\}/)?.[1] || "";
+
+  assert.match(handler, /inspectGraphNet\([\s\S]*hierarchyContext: currentHierarchyInspectionContext\(\)/);
+});
+
+test("module navigation distinguishes an explicit root occurrence from a missing context", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function selectModule\(moduleName, options = \{\}\) \{([\s\S]*?)\n\}\n\nfunction handleModuleHistoryShortcut/)?.[1] || "";
+
+  assert.match(handler, /hasExplicitOccurrencePath = Array\.isArray\(options\.occurrencePath\)/);
+  assert.match(handler, /options\.occurrencePath\.length[\s\S]*:[\s\S]*null/);
+  assert.doesNotMatch(handler, /rootModuleName: options\.rootModuleName \|\| options\.occurrencePath\[0\]/);
+});
+
+test("hinst double-click carries a unique child occurrence into the selected module", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function handleCanvasDoubleClick\(event\) \{([\s\S]*?)\n\}\n\nfunction resolveChildOccurrenceNavigation/)?.[1] || "";
+  const resolver = source.match(/function resolveChildOccurrenceNavigation\(sourceModule, node, fromCompare\) \{([\s\S]*?)\n\}/)?.[1] || "";
+
+  assert.match(handler, /resolveChildOccurrenceNavigation\(sourceModule, node, state\.compare\.active\)/);
+  assert.match(handler, /selectModule\(referencedModule\.name, \{ readyMessage, \.\.\.occurrenceNavigation \}\)/);
+  assert.match(resolver, /occurrences\.length !== 1/);
+  assert.match(resolver, /occurrencePath: \[\.\.\.occurrences\[0\]\.occurrencePath, instance\]/);
+});
+
 test("search reveals a target outside the current canvas through Focused instead of Whole", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";

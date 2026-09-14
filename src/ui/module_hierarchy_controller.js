@@ -39,17 +39,19 @@ export function createModuleHierarchyController({
     if (filterInput) filterInput.value = "";
     if (panel) panel.open = false;
     const link = event.target.closest?.("[data-module-hierarchy-name]");
-    const occurrencePath = link?.dataset?.moduleHierarchyPath
+    const hasCanonicalPath = link?.dataset && "moduleHierarchyPath" in link.dataset;
+    const occurrencePath = hasCanonicalPath
       ? link.dataset.moduleHierarchyPath.split("/").filter(Boolean)
       : link?.dataset?.moduleHierarchyId
         ? link.dataset.moduleHierarchyId.split("/")
       : undefined;
-    const navigation = occurrencePath?.length
+    const navigation = occurrencePath
       ? { occurrencePath, rootModuleName: link?.dataset?.moduleHierarchyRoot || undefined }
       : undefined;
-    if (moduleName === getCurrentModuleName?.() && sameOccurrenceContext(
-      navigation,
-      getCurrentOccurrenceContext?.()
+    const currentContext = getCurrentOccurrenceContext?.();
+    if (moduleName === getCurrentModuleName?.() && (
+      sameOccurrenceContext(navigation, currentContext) ||
+      (!currentContext && navigation?.occurrencePath?.length === 0)
     )) return false;
     navigate(moduleName, navigation);
     return true;

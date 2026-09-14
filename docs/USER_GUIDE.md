@@ -2,12 +2,13 @@
 
 本教程面向使用 Netlist Graph Builder 阅读、追踪和对比门级 structural Verilog 的工程师。内容覆盖当前版本的全部用户功能，包括数据导入、搜索、大图局部浏览、时序、Cell Config、布局调整、双 module 对比、过程日志、导出和 EDA 集成。
 
-## v0.7.3 新增功能速览
+## v1.0.1 新增功能速览
 
 | 新功能 | 从哪里使用 | 要点 |
 | --- | --- | --- |
-| 多 cell Focused | 顶部 Search、左侧 View | 搜索未绘制 cell 默认追加 root；`+ Focus`/`Add selected` 追加，`Set selected as Focused` 替换 |
+| Cell/Net Focused | 顶部 Search、左侧 View | 搜索未绘制对象默认追加 root；`+ Focus`/`Add selected` 追加，`Set selected as Focused` 替换 |
 | Focused roots 管理 | View 区 root chips | 点击 chip 激活，`×` 或 `Remove selected` 移除，`Clear` 清空；最多保留 32 个 roots |
+| 分层 Connections | Selection | `Current module` 只显示本层连接；`Parent occurrence` 只显示穿过当前 module 边界的父层连接 |
 | Compare roots 同步 | Module Compare | `Sync Focus roots` 控制匹配 cell 的追加、移除和清空是否同步到另一侧 |
 | Module hierarchy | 左侧折叠列表 | 按实例层次浏览并切换 module；关闭时惰性加载，递归/超大设计有界截断 |
 | 间距数字输入 | Layout | Wire/Cell spacing 除滑块外可直接输入，提交后吸附到最近的 4 的倍数 |
@@ -16,7 +17,7 @@
 
 ## 目录
 
-- [v0.7.3 新增功能速览](#v073-新增功能速览)
+- [v1.0.1 新增功能速览](#v101-新增功能速览)
 
 1. [软件定位与运行方式](#1-软件定位与运行方式)
 2. [界面总览](#2-界面总览)
@@ -220,7 +221,24 @@ cell 搜索结果有两种操作：
 - Port：方向、连接 net 和相邻对象。
 - Net：driver、loads 和路径端点。
 
-Selection 中以按钮显示的 net、driver/load、Connected、Fanin 和 Fanout 都可以继续点击追踪。如果目标不在当前局部图，程序会建立合适的局部视图；必要时会打开 Whole 以揭示目标。
+Selection 中以按钮显示的 net、driver/load、Connected、Fanin 和 Fanout 都可以继续点击追踪。如果目标不在当前局部图，程序会在当前 module 中建立合适的 Focused 局部视图，不会自行回退 Whole。
+
+Connections 分成两个范围：
+
+- `Connections / Current module` 只显示当前 module definition 内的 pin、net、driver 和 load。
+- `Hierarchy / Parent occurrence` 使用独立底色和 `Parent` 标记，只在当前对象连接到 module
+  input/output boundary、并且当前 module 有明确 parent occurrence 时显示。
+- 顶层没有 parent，因此不会显示 Hierarchy。比如在 `hierarchy_demo_top` 选择
+  `u_compute_left`，输入连接只定位本层输入 `a.a`；`compute_cluster.a` 是实例内部的 child port，
+  不属于父层连接，也不会混入 Hierarchy。
+- 双击 hinst 进入 child occurrence。进入 `compute_cluster @ u_compute_left` 后，选择与边界 `a`
+  相连的 net 或 cell，Hierarchy 才会显示父层的 `hierarchy_demo_top.a`。
+- 点击 Hierarchy 中的父层 net/cell 会切换到目标 occurrence，清除来源层的 Focused roots，并以
+  目标对象建立新的 Focused 视图。若只从 Module 下拉框打开了一个存在多处例化的 definition，程序
+  不会猜测 parent；请先从 Module hierarchy 选择具体 occurrence。
+
+如果 Connections 目标不在当前局部图，程序会在保持当前 module 的前提下揭示目标；不会自行切换
+到 Whole。只有点击带 Parent 标记的 Hierarchy 目标才会跨 module。
 
 单击空白处会清除选择。平移画布不会取消已选 wire 的高亮。
 

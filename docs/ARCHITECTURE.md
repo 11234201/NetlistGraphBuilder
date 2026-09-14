@@ -340,9 +340,12 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `moduleWorkspace.js` composes graph extraction, timing, aliases, cone/group transforms, provider layout
   and manual overrides for the single-module view without reading DOM or global application state.
 - Single 画布始终只投影当前 module：Focused Fanin/Fanout 到 module port 或 hinst 边界即停止，
-  不把相邻 occurrence 混入本层 layout graph。`graphInspector`/Connections 使用 occurrence-aware
-  connectivity 在侧栏展示相邻一层；用户点击跨 module 对象后切换 module，并用该对象替换原
-  Focused roots。这样层次导航仍使用 canonical `ObjectRef`，同时保持每张画布的 module 边界稳定。
+  不把相邻 occurrence 混入本层 layout graph。详情面板的 `Connections / Current module` 只显示
+  当前 definition 内的 pin、net、driver 和 load；`Hierarchy / Parent occurrence` 仅在对象连接到
+  当前 module 的 input/output boundary 且存在明确 parent occurrence 时，显示向父层继续的 net。
+  hinst 的 child port 属于向实例内部的连接，不标记为 Hierarchy；进入 child occurrence 使用 hinst
+  双击。点击父层 target 后切换 module，并用该对象替换原 Focused roots。这样层次导航仍使用 canonical
+  `ObjectRef`，同时保持每张画布的 module 边界稳定；root occurrence 没有 parent，因此 Hierarchy 为空。
 - Focused query 在 workspace 边界应用稳定的可见节点/frontier 上限。调节深度只更新当前
   Focused query；不得再次进入 view-mode 切换路径，也不得因 net root 投影失败回退到 Whole。
 - `graphWorkspace.js` 是旧调用方的兼容导出；实现位于

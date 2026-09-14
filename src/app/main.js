@@ -983,7 +983,8 @@ function selectModule(moduleName, options = {}) {
   if (!module) {
     return;
   }
-  const ambiguousOccurrences = !options.occurrencePath
+  const hasExplicitOccurrencePath = Array.isArray(options.occurrencePath);
+  const ambiguousOccurrences = !hasExplicitOccurrencePath
     ? findModuleOccurrences(buildModuleHierarchy(state.design), module.name)
     : [];
   const switchingModule = state.currentModule?.name !== module.name;
@@ -997,14 +998,16 @@ function selectModule(moduleName, options = {}) {
     });
   }
   state.currentModule = module;
-  if (switchingModule && !options.occurrencePath) state.occurrenceContext = null;
+  if (switchingModule && !hasExplicitOccurrencePath) state.occurrenceContext = null;
   if (switchingModule) logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
   const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
-  if (options.occurrencePath?.length) {
-    state.occurrenceContext = {
-      rootModuleName: options.rootModuleName || options.occurrencePath[0] || module.name,
-      occurrencePath: [...options.occurrencePath]
-    };
+  if (hasExplicitOccurrencePath) {
+    state.occurrenceContext = options.occurrencePath.length
+      ? {
+        rootModuleName: options.rootModuleName || state.occurrenceContext?.rootModuleName || module.name,
+        occurrencePath: [...options.occurrencePath]
+      }
+      : null;
   }
   renderOccurrenceChoicePanel(
     !state.occurrenceContext ? ambiguousOccurrences : [],
@@ -2608,13 +2611,23 @@ function handleSelectionNavigationClick(event) {
 }
 
 function navigateSingleSelectionTarget(target) {
-  if (target.moduleName && target.moduleName !== state.currentModule?.name) {
-    selectModule(target.moduleName, {
-      rootModuleName: target.rootModuleName,
-      occurrencePath: target.occurrencePath,
-      onRendered: () => replaceFocusWithSelectionTarget(target)
+  if (selectionTargetChangesHierarchyContext(target)) {
+    return runViewHistoryTransaction({ label: "Open hierarchy connection" }, () => {
+      if (target.kind === "net") {
+        selectModule(target.moduleName, {
+          rootModuleName: target.rootModuleName,
+          occurrencePath: target.occurrencePath,
+          deferRender: true
+        });
+        replaceFocusWithSelectionTarget(target);
+        return;
+      }
+      selectModule(target.moduleName, {
+        rootModuleName: target.rootModuleName,
+        occurrencePath: target.occurrencePath,
+        onRendered: () => replaceFocusWithSelectionTarget(target)
+      });
     });
-    return;
   }
   if (focusSingleSelectionTarget(target)) return;
   if (!selectionTargetExists(state.fullGraph, target)) {
@@ -2661,6 +2674,16 @@ function navigateSingleSelectionTarget(target) {
       setStatus(`Focused connected cell: ${node.label}`);
     }
   });
+}
+
+function selectionTargetChangesHierarchyContext(target) {
+  if (!target.moduleName) return false;
+  const currentRootModuleName = state.occurrenceContext?.rootModuleName || state.currentModule?.name || null;
+  const currentOccurrencePath = state.occurrenceContext?.occurrencePath || [];
+  const targetOccurrencePath = Array.isArray(target.occurrencePath) ? target.occurrencePath : [];
+  return target.moduleName !== state.currentModule?.name ||
+    (target.rootModuleName || target.moduleName) !== currentRootModuleName ||
+    !sameOccurrencePath(currentOccurrencePath, targetOccurrencePath);
 }
 
 function replaceFocusWithSelectionTarget(target) {
@@ -3147,12 +3170,7 @@ function renderSelection(node) {
   const instance = getNodeInstance(node);
   const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
   elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node, {
-    hierarchyContext: {
-      design: state.design,
-      currentModule: state.currentModule,
-      rootModuleName: state.occurrenceContext?.rootModuleName,
-      occurrencePath: state.occurrenceContext?.occurrencePath || []
-    }
+    hierarchyContext: currentHierarchyInspectionContext()
   }))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
   bindSelectionControls(node);
 }
@@ -3160,7 +3178,18 @@ function renderSelection(node) {
 function renderNetSelection(netName) {
   updateCellDefinitionControls(null);
   elements.details.className = "details-block";
-  elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.fullGraph || state.graph, netName));
+  elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.fullGraph || state.graph, netName, {
+    hierarchyContext: currentHierarchyInspectionContext()
+  }));
+}
+
+function currentHierarchyInspectionContext() {
+  return {
+    design: state.design,
+    currentModule: state.currentModule,
+    rootModuleName: state.occurrenceContext?.rootModuleName,
+    occurrencePath: state.occurrenceContext?.occurrencePath || []
+  };
 }
 
 function renderDiagnostics() {
@@ -3400,10 +3429,28 @@ function handleCanvasDoubleClick(event) {
 
   event.preventDefault();
   event.stopPropagation();
+  const occurrenceNavigation = resolveChildOccurrenceNavigation(sourceModule, node, state.compare.active);
   if (state.compare.active) exitCompareView();
   const readyMessage = `Opened submodule ${referencedModule.displayName} from ${sourceModule?.displayName || "module"}.${node.label}`;
-  selectModule(referencedModule.name, { readyMessage });
+  selectModule(referencedModule.name, { readyMessage, ...occurrenceNavigation });
   setStatus(readyMessage);
+}
+
+function resolveChildOccurrenceNavigation(sourceModule, node, fromCompare) {
+  const instance = node?.ref?.instance || node?.ref?.localId || node?.id?.replace(/^cell:/, "");
+  if (!sourceModule || !instance) return {};
+  if (!fromCompare && state.currentModule?.name === sourceModule.name && state.occurrenceContext) {
+    return {
+      rootModuleName: state.occurrenceContext.rootModuleName || sourceModule.name,
+      occurrencePath: [...(state.occurrenceContext.occurrencePath || []), instance]
+    };
+  }
+  const occurrences = findModuleOccurrences(buildModuleHierarchy(state.design), sourceModule.name);
+  if (occurrences.length !== 1) return {};
+  return {
+    rootModuleName: occurrences[0].rootModuleName,
+    occurrencePath: [...occurrences[0].occurrencePath, instance]
+  };
 }
 
 function startNodeDrag(event, nodeId) {

@@ -57,6 +57,10 @@
 
 - 单击 gate：选中 gate，显示 pins 和 connected nets。
 - 单击 net：选中 net，显示 driver 和 loads。
+- 详情面板将连接分为 `Connections / Current module` 与带强调底色的
+  `Hierarchy / Parent occurrence`。前者只表示当前 module；后者只表示经当前 module
+  input/output boundary 向明确 parent occurrence 的延伸。顶层没有 parent，Hierarchy 不显示。
+- hinst pin 对应的 child port 不属于向外层的 Hierarchy；用户通过双击 hinst 进入 child occurrence。
 - 双击 output/net：进入 fanin cone。
 - 双击 input/net：进入 fanout cone。
 

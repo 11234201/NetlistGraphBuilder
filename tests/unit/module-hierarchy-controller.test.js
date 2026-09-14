@@ -151,6 +151,60 @@ test("module hierarchy navigation forwards canonical occurrence context", () => 
   controller.dispose();
 });
 
+test("module hierarchy root navigation preserves an explicit empty occurrence path", () => {
+  let clickHandler;
+  const container = {
+    innerHTML: "",
+    addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    removeEventListener() {}
+  };
+  const navigated = [];
+  const controller = createModuleHierarchyController({
+    container,
+    getHierarchy: () => [],
+    getCurrentModuleName: () => "child",
+    getCurrentOccurrenceContext: () => ({ rootModuleName: "top", occurrencePath: ["u_child"] }),
+    navigate: (...args) => navigated.push(args)
+  });
+  assert.equal(clickHandler({ target: {
+    closest: () => ({ dataset: {
+      moduleHierarchyName: "top",
+      moduleHierarchyId: "top",
+      moduleHierarchyPath: "",
+      moduleHierarchyRoot: "top"
+    } })
+  } }), true);
+  assert.deepEqual(navigated, [["top", { occurrencePath: [], rootModuleName: "top" }]]);
+  controller.dispose();
+});
+
+test("module hierarchy root click is a no-op when that root is already current", () => {
+  let clickHandler;
+  const container = {
+    innerHTML: "",
+    addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    removeEventListener() {}
+  };
+  const navigated = [];
+  const controller = createModuleHierarchyController({
+    container,
+    getHierarchy: () => [],
+    getCurrentModuleName: () => "top",
+    getCurrentOccurrenceContext: () => null,
+    navigate: (...args) => navigated.push(args)
+  });
+  assert.equal(clickHandler({ target: {
+    closest: () => ({ dataset: {
+      moduleHierarchyName: "top",
+      moduleHierarchyId: "top",
+      moduleHierarchyPath: "",
+      moduleHierarchyRoot: "top"
+    } })
+  } }), false);
+  assert.deepEqual(navigated, []);
+  controller.dispose();
+});
+
 test("module hierarchy can choose another occurrence of the current module", () => {
   let clickHandler;
   const container = {

@@ -58,7 +58,7 @@ test("graph inspector reports net driver, loads, and escaped HTML", () => {
   assert.match(html, /a&amp;b/);
 });
 
-test("hierarchical instance connections expose one child-module layer without changing the graph", () => {
+test("top-level hierarchical instances keep child ports in current-module connections", () => {
   const design = parseVerilog(`module child(a,y); input a; output y; BUF u0(.A(a),.Y(y)); endmodule
 module top(a,y); input a; output y; child u_child(.a(a),.y(y)); endmodule`);
   const top = design.modules.find((module) => module.name === "top");
@@ -68,20 +68,96 @@ module top(a,y); input a; output y; child u_child(.a(a),.y(y)); endmodule`);
     hierarchyContext: { design, currentModule: top, rootModuleName: "top", occurrencePath: [] }
   });
   const input = inspection.connections.find((connection) => connection.pin === "a");
-  const childTarget = input.peerTargets.find((target) => target.moduleName === "child");
   const html = renderObjectDetails(inspection);
 
-  assert.deepEqual(childTarget, {
-    kind: "net",
-    name: "a",
-    label: "child.a",
-    moduleName: "child",
-    rootModuleName: "top",
-    occurrencePath: ["u_child"]
-  });
-  assert.match(html, /data-selection-target-module="child"/);
-  assert.match(html, /data-selection-target-occurrence="\[&quot;u_child&quot;\]"/);
+  assert.deepEqual(input.peerTargets, [{ kind: "node", id: "input:a", label: "a.a" }]);
+  assert.deepEqual(inspection.hierarchyConnections, []);
+  assert.match(html, /Connections <span class="connection-scope-label">Current module<\/span>/);
+  assert.doesNotMatch(html, /hierarchy-connection-section/);
+  assert.doesNotMatch(html, /data-selection-target-module=/);
   assert.equal(graph.nodes.some((item) => item.ref?.occurrencePath?.length), false);
+});
+
+test("hierarchy connections expose only the explicit parent across a module boundary", () => {
+  const design = parseVerilog(`module child(a,y); input a; output y; BUF u0(.A(a),.Y(y)); endmodule
+module top(a,y); input a; output y; wire n; child u_left(.a(a),.y(n)); child u_right(.a(n),.y(y)); endmodule`);
+  const top = design.modules.find((module) => module.name === "top");
+  const topGraph = buildSchematicGraph(top, { moduleLibrary: design.modules });
+  const topInspection = inspectGraphNet(topGraph, "n", {
+    hierarchyContext: { design, currentModule: top, rootModuleName: "top", occurrencePath: [] }
+  });
+  assert.deepEqual(topInspection.hierarchyConnections, []);
+  assert.deepEqual(
+    topInspection.connections.flatMap((connection) => connection.peerTargets).map((target) => target.label),
+    ["u_left.y", "u_right.a"]
+  );
+  assert.equal(
+    topInspection.connections.some((connection) => connection.peerTargets.some((target) => target.moduleName)),
+    false
+  );
+
+  const child = design.modules.find((module) => module.name === "child");
+  const childGraph = buildSchematicGraph(child, { moduleLibrary: design.modules });
+  const childInspection = inspectGraphNet(childGraph, "a", {
+    hierarchyContext: {
+      design,
+      currentModule: child,
+      rootModuleName: "top",
+      occurrencePath: ["u_right"]
+    }
+  });
+  assert.deepEqual(childInspection.hierarchyConnections, [{
+    scope: "Parent",
+    boundary: "child.a",
+    portDirection: "input",
+    flow: "Fanin",
+    target: {
+      kind: "net",
+      name: "n",
+      label: "top.n",
+      moduleName: "top",
+      rootModuleName: "top",
+      occurrencePath: []
+    }
+  }]);
+
+  const cellInspection = inspectGraphNode(
+    childGraph,
+    childGraph.nodes.find((node) => node.id === "cell:u0"),
+    {
+      hierarchyContext: {
+        design,
+        currentModule: child,
+        rootModuleName: "top",
+        occurrencePath: ["u_right"]
+      }
+    }
+  );
+  assert.deepEqual(cellInspection.hierarchyConnections, [
+    ...childInspection.hierarchyConnections,
+    {
+      scope: "Parent",
+      boundary: "child.y",
+      portDirection: "output",
+      flow: "Fanout",
+      target: {
+        kind: "net",
+        name: "y",
+        label: "top.y",
+        moduleName: "top",
+        rootModuleName: "top",
+        occurrencePath: []
+      }
+    }
+  ]);
+
+  const html = renderObjectDetails(childInspection);
+  assert.match(html, /Connections <span class="connection-scope-label">Current module<\/span>/);
+  assert.match(html, /class="connection-section hierarchy-connection-section"/);
+  assert.match(html, /Hierarchy <span class="connection-scope-label">Parent occurrence<\/span>/);
+  assert.match(html, /class="hierarchy-scope-badge">Parent<\/span>/);
+  assert.match(html, /data-selection-target-module="top"/);
+  assert.match(html, /data-selection-target-occurrence="\[\]"/);
 });
 
 test("graph cone supports immediate, depth-limited, and transitive traversal", () => {

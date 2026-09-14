@@ -4,6 +4,8 @@ export function inspectGraphNode(graph, node, options = {}) {
   if (!node) {
     return null;
   }
+  const hierarchyContext = createHierarchyInspectionContext(options.hierarchyContext);
+  const connections = getNodeConnections(graph, node);
 
   return {
     kind: node.kind,
@@ -14,65 +16,92 @@ export function inspectGraphNode(graph, node, options = {}) {
       ["Cell type", node.subtitle || "-"],
       ["Inference", node.inferenceSource || "-"]
     ],
-    connections: addAdjacentHierarchyConnections(getNodeConnections(graph, node), node, options.hierarchyContext),
+    connections,
+    hierarchyConnections: inspectParentHierarchyConnections(connections, hierarchyContext),
     traversal: inspectTraversal(graph, node)
   };
 }
 
-function addAdjacentHierarchyConnections(connections, node, context) {
-  if (!context?.design?.modules || !context.currentModule) return connections;
-  const modules = context.design.modules;
+function createHierarchyInspectionContext(context) {
+  if (!context?.design?.modules || !context.currentModule) return null;
   const occurrencePath = [...(context.occurrencePath || [])];
-  const rootModuleName = context.rootModuleName || context.currentModule.name;
-  const sourceCell = context.currentModule.cells?.find((cell) =>
-    cell.instance === (node.ref?.instance || node.ref?.localId || node.id?.replace(/^cell:/, ""))
-  );
-  const childModule = sourceCell && modules.find((module) => module.name === sourceCell.type);
-  if (childModule) {
-    return connections.map((connection) => {
-      const port = childModule.ports?.find((item) => item.name === connection.pin);
-      if (!port) return connection;
-      const target = createNetTarget(port.name, `${childModule.displayName || childModule.name}.${port.displayName || port.name}`);
-      Object.assign(target, {
-        moduleName: childModule.name,
-        rootModuleName,
-        occurrencePath: [...occurrencePath, sourceCell.instance]
-      });
-      return {
-        ...connection,
-        peers: [connection.peers, target.label].filter((value) => value && value !== "-").join(", ") || "-",
-        peerTargets: uniqueTargets([...(connection.peerTargets || []), target])
-      };
-    });
-  }
-
-  if (!node.ref?.direction || occurrencePath.length === 0) return connections;
-  const parent = resolveParentOccurrence(modules, rootModuleName, occurrencePath);
-  if (!parent) return connections;
-  const localPort = node.ref?.localId || node.ref?.name || node.label;
-  const parentPin = parent.cell.pins?.find((pin) => pin.pin === localPort);
-  if (!parentPin?.net) return connections;
-  const target = createNetTarget(parentPin.net, `${parent.module.displayName || parent.module.name}.${parentPin.netDisplayName || parentPin.net}`);
-  Object.assign(target, {
-    moduleName: parent.module.name,
-    rootModuleName,
-    occurrencePath: occurrencePath.slice(0, -1)
-  });
-  return connections.map((connection) => ({
-    ...connection,
-    peers: [connection.peers, target.label].filter((value) => value && value !== "-").join(", ") || "-",
-    peerTargets: uniqueTargets([...(connection.peerTargets || []), target])
-  }));
+  const moduleByName = new Map(context.design.modules.map((module) => [module.name, module]));
+  return {
+    currentModule: context.currentModule,
+    rootModuleName: context.rootModuleName || context.currentModule.name,
+    occurrencePath,
+    parent: occurrencePath.length
+      ? resolveParentOccurrence(moduleByName, context.rootModuleName || context.currentModule.name, occurrencePath)
+      : null,
+    portByName: new Map((context.currentModule.ports || []).map((port) => [port.name, port]))
+  };
 }
 
-function resolveParentOccurrence(modules, rootModuleName, occurrencePath) {
-  let module = modules.find((item) => item.name === rootModuleName);
+function inspectParentHierarchyConnections(connections, context) {
+  if (!context?.parent) return [];
+  const result = [];
+  const seen = new Set();
+  for (const connection of connections) {
+    const netName = connection.netTarget?.name;
+    const port = findBoundaryPort(context, netName);
+    if (!port) continue;
+    const parentPin = context.parent.cell.pins?.find((pin) =>
+      pin.pin === port.name || pin.pinDisplayName === port.displayName
+    );
+    if (!parentPin?.net) continue;
+    const target = createNetTarget(
+      parentPin.net,
+      `${context.parent.module.displayName || context.parent.module.name}.${parentPin.netDisplayName || parentPin.net}`
+    );
+    Object.assign(target, {
+      moduleName: context.parent.module.name,
+      rootModuleName: context.rootModuleName,
+      occurrencePath: context.occurrencePath.slice(0, -1)
+    });
+    const boundaryNetLabel = connection.net || netName;
+    const item = {
+      scope: "Parent",
+      boundary: `${context.currentModule.displayName || context.currentModule.name}.${boundaryNetLabel}`,
+      portDirection: port.direction || "unknown",
+      flow: hierarchyFlow(port.direction),
+      target
+    };
+    const key = `${item.boundary}:${target.moduleName}:${target.occurrencePath.join("/")}:${target.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function findBoundaryPort(context, netName) {
+  if (!netName) return null;
+  const direct = context.portByName.get(netName);
+  if (direct) return direct;
+  for (const port of context.currentModule.ports || []) {
+    if (!port.range || !netName.startsWith(`${port.name}[`) || !netName.endsWith("]")) continue;
+    const bit = Number(netName.slice(port.name.length + 1, -1));
+    const minimum = Math.min(Number(port.range.msb), Number(port.range.lsb));
+    const maximum = Math.max(Number(port.range.msb), Number(port.range.lsb));
+    if (Number.isInteger(bit) && bit >= minimum && bit <= maximum) return port;
+  }
+  return null;
+}
+
+function hierarchyFlow(direction) {
+  if (direction === "input") return "Fanin";
+  if (direction === "output") return "Fanout";
+  return "Both";
+}
+
+function resolveParentOccurrence(moduleByName, rootModuleName, occurrencePath) {
+  let module = moduleByName.get(rootModuleName);
   if (!module) return null;
   for (let index = 0; index < occurrencePath.length; index += 1) {
     const cell = module.cells?.find((item) => item.instance === occurrencePath[index]);
     if (!cell) return null;
     if (index === occurrencePath.length - 1) return { module, cell };
-    module = modules.find((item) => item.name === cell.type);
+    module = moduleByName.get(cell.type);
     if (!module) return null;
   }
   return null;
@@ -101,14 +130,41 @@ function describeTraversal(label, cone, nodeById) {
   };
 }
 
-export function inspectGraphNet(graph, netName) {
+export function inspectGraphNet(graph, netName, options = {}) {
   const edges = graph?.edges.filter((edge) => edge.net === netName) || [];
   const nodeById = new Map(graph?.nodes.map((node) => [node.id, node]) || []);
-  const driverTargets = uniqueTargets(edges.map((edge) => createNodeTarget(nodeById.get(edge.source), edge.sourcePin)));
-  const loadTargets = uniqueTargets(edges.map((edge) => createNodeTarget(nodeById.get(edge.target), edge.targetPin)));
+  const driverEndpoints = uniqueNetEndpoints(edges.map((edge) => ({
+    node: nodeById.get(edge.source),
+    pin: edge.sourcePin
+  })));
+  const loadEndpoints = uniqueNetEndpoints(edges.map((edge) => ({
+    node: nodeById.get(edge.target),
+    pin: edge.targetPin
+  })));
+  const driverTargets = driverEndpoints.map((endpoint) => endpoint.target);
+  const loadTargets = loadEndpoints.map((endpoint) => endpoint.target);
   const drivers = driverTargets.map((target) => target.label);
   const loads = loadTargets.map((target) => target.label);
   const netTarget = createNetTarget(netName, edges[0]?.label || netName);
+  const hierarchyContext = createHierarchyInspectionContext(options.hierarchyContext);
+  const connections = [
+    ...driverEndpoints.map((endpoint) => ({
+      pin: "driver",
+      direction: "output",
+      net: edges[0]?.label || netName,
+      netTarget,
+      peers: endpoint.target.label,
+      peerTargets: [endpoint.target]
+    })),
+    ...loadEndpoints.map((endpoint) => ({
+      pin: "load",
+      direction: "input",
+      net: edges[0]?.label || netName,
+      netTarget,
+      peers: endpoint.target.label,
+      peerTargets: [endpoint.target]
+    }))
+  ];
 
   return {
     kind: "net",
@@ -119,25 +175,30 @@ export function inspectGraphNet(graph, netName) {
       ["Loads", loads.join(", ") || "-"],
       ["Fanout", edges.length]
     ],
-    connections: [
-      ...driverTargets.map((target) => ({
-        pin: "driver",
-        direction: "output",
-        net: edges[0]?.label || netName,
-        netTarget,
-        peers: target.label,
-        peerTargets: [target]
-      })),
-      ...loadTargets.map((target) => ({
-        pin: "load",
-        direction: "input",
-        net: edges[0]?.label || netName,
-        netTarget,
-        peers: target.label,
-        peerTargets: [target]
-      }))
-    ]
+    connections,
+    hierarchyConnections: inspectParentHierarchyConnections([
+      { net: edges[0]?.label || netName, netTarget }
+    ], hierarchyContext)
   };
+}
+
+function uniqueNetEndpoints(endpoints) {
+  const seen = new Set();
+  const unique = [];
+  const ordered = [...endpoints].sort((left, right) => {
+    const leftKey = `${left.node?.id || ""}:${left.pin || ""}`;
+    const rightKey = `${right.node?.id || ""}:${right.pin || ""}`;
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+  for (const endpoint of ordered) {
+    const target = createNodeTarget(endpoint.node, endpoint.pin);
+    if (!target) continue;
+    const key = `${target.kind}:${target.id}:${target.label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({ ...endpoint, target });
+  }
+  return unique;
 }
 
 function getNodeConnections(graph, node) {

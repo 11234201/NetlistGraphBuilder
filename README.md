@@ -55,7 +55,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 ### Windows 正式版（无需安装 Node.js）
 
-从 Release 下载 `NetlistGraphBuilder-v0.7.3-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
+从 Release 下载 `NetlistGraphBuilder-v1.0.1-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
 
 发布包同时包含 `examples` 示例网表、README、CHANGELOG 和 ELKJS 许可证。不要只复制 exe：它需要同目录下的 `app` 资源目录。若默认端口 4173 被占用，启动器会自动尝试后续空闲端口。
 
