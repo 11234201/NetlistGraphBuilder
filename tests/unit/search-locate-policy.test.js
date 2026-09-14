@@ -21,6 +21,18 @@ test("search positioning checks the canvas graph rather than the full graph", ()
   assert.equal(isSearchTargetPositioned({ kind: "cell", name: "u2" }, graph), false);
 });
 
+test("search positioning recognizes projected local ids on the canvas", () => {
+  const projected = {
+    nodes: [
+      { id: "cell:leaf", kind: "cell", ref: { localId: "leaf", occurrencePath: ["u_right"] } },
+      { id: "hub:out", kind: "hub", ref: { localId: "out" } }
+    ],
+    edges: []
+  };
+  assert.equal(isSearchTargetPositioned({ kind: "cell", name: "leaf" }, projected), true);
+  assert.equal(isSearchTargetPositioned({ kind: "net", name: "out" }, projected), true);
+});
+
 test("only a focus-capable target outside the canvas is revealed", () => {
   const fullGraph = { ...graph, nodes: [...graph.nodes, { id: "cell:u2", kind: "cell", ref: { instance: "u2" } }] };
   assert.equal(shouldRevealSearchTarget({ kind: "cell", name: "u2" }, graph, fullGraph), true);

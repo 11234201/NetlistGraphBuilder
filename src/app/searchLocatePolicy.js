@@ -7,20 +7,33 @@
 export function isSearchTargetPositioned(target, graph) {
   if (!target || !graph) return false;
   if (target.kind === "net") {
-    return Boolean(target.name) && (graph.edges || []).some((edge) => edge.net === target.name);
+    return Boolean(target.name) && (
+      (graph.edges || []).some((edge) => edge.net === target.name) ||
+      (graph.nodes || []).some((node) => isNetNode(node) && nodeLocalName(node) === target.name)
+    );
   }
   if (target.kind === "cell") {
     return Boolean(target.name) && (graph.nodes || []).some((node) =>
-      node.kind === "cell" && node.ref?.instance === target.name
+      node.kind === "cell" && nodeLocalName(node) === target.name
     );
   }
   if (target.kind === "port") {
     const preferredKind = target.direction === "output" ? "output" : "input";
     return Boolean(target.name) && (graph.nodes || []).some((node) =>
-      node.kind === preferredKind && node.ref?.name === target.name
+      node.kind === preferredKind && nodeLocalName(node) === target.name
     );
   }
   return false;
+}
+
+function isNetNode(node) {
+  return node?.kind === "hub" || node?.kind === "net";
+}
+
+function nodeLocalName(node) {
+  return node?.ref?.instance || node?.ref?.localId || node?.ref?.name ||
+    (typeof node?.id === "string" ? node.id.replace(/^(?:cell|hub|net|input|output):/, "") : null) ||
+    node?.label || null;
 }
 
 export function shouldRevealSearchTarget(target, positionedGraph, fullGraph) {
