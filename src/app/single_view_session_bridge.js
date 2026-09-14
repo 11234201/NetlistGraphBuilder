@@ -131,7 +131,16 @@ function rootsToRefs(nodeIds, graph, documentId, unitId, occurrencePath = null) 
 
 function focusedRootIdToRef(rootId, graph, documentId, unitId, occurrencePath = null) {
   if (typeof rootId === "string" && rootId.startsWith("net:")) {
-    return valueToRef("net", rootId.slice(4), documentId, unitId, occurrencePath);
+    const netName = rootId.slice(4);
+    const netNode = graph?.nodes?.find((node) =>
+      (node.kind === "hub" || node.kind === "net") &&
+      (node.ref?.localId || node.ref?.name || node.label) === netName &&
+      occurrenceMatches(node.ref?.occurrencePath, occurrencePath)
+    ) || graph?.nodes?.find((node) =>
+      (node.kind === "hub" || node.kind === "net") &&
+      (node.ref?.localId || node.ref?.name || node.label) === netName
+    );
+    return valueToRef("net", netName, documentId, unitId, netNode?.ref?.occurrencePath || occurrencePath);
   }
   return nodeIdToRef(rootId, graph, documentId, unitId);
 }
@@ -147,7 +156,7 @@ function nodeToRef(node, documentId, unitId) {
     documentId,
     unitId,
     kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.ref?.instance || node.ref?.name || node.id,
+    localId: node.ref?.instance || node.ref?.name || node.ref?.localId || node.id,
     occurrencePath: node.ref?.occurrencePath
   });
 }
@@ -158,9 +167,23 @@ function refsToNodeIds(refs, graph) {
 
 function refToNodeId(ref, graph) {
   if (!ref || !graph) return null;
-  if (ref.kind === "net") return `net:${ref.localId}`;
+  if (ref.kind === "net") {
+    const netNode = graph.nodes.find((node) =>
+      (node.kind === "hub" || node.kind === "net") &&
+      (node.ref?.localId || node.ref?.name || node.label) === ref.localId &&
+      occurrenceMatches(node.ref?.occurrencePath, ref.occurrencePath)
+    );
+    return netNode?.id || `net:${ref.localId}`;
+  }
   return graph.nodes.find((node) =>
-    (node.ref?.instance || node.ref?.name || node.id) === ref.localId &&
-    (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell"))
+    (node.ref?.instance || node.ref?.name || node.ref?.localId || node.id) === ref.localId &&
+    (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell")) &&
+    occurrenceMatches(node.ref?.occurrencePath, ref.occurrencePath)
   )?.id || null;
+}
+
+function occurrenceMatches(nodePath, refPath) {
+  if (!Array.isArray(refPath) || refPath.length === 0) return true;
+  return Array.isArray(nodePath) && nodePath.length === refPath.length &&
+    nodePath.every((segment, index) => segment === refPath[index]);
 }

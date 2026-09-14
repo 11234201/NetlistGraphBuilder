@@ -87,6 +87,30 @@ test("compare roots keep canonical ObjectRefs while projecting escaped graph nod
   assert.equal(state.compare.activeFocusedRootNodeId.left, "cell:u_0_");
 });
 
+test("compare roots preserve occurrence identity when local ids repeat", () => {
+  const state = {
+    compare: {
+      leftModuleName: "leaf", rightModuleName: "leaf",
+      fullGraphs: {
+        left: { nodes: [
+          { id: "cell:u_left", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_left"] } },
+          { id: "cell:u_right", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] } }
+        ] },
+        right: { nodes: [] }
+      }
+    }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const result = adapter.replaceRoots("left", ["cell:u_right"], "cell:u_right");
+  assert.equal(result.session.focusedRootRefs[0].localId, "leaf");
+  assert.deepEqual(result.session.focusedRootRefs[0].occurrencePath, ["u_right"]);
+  assert.equal(result.rootNodeIds[0], "cell:u_right");
+
+  const restored = adapter.ensure("left");
+  assert.deepEqual(restored.focusedRootRefs[0].occurrencePath, ["u_right"]);
+  assert.equal(state.compare.focusedRootNodeIds.left[0], "cell:u_right");
+});
+
 test("compare bridge imports restored root mirrors before the first command", () => {
   const state = {
     compare: {

@@ -592,6 +592,16 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - command boundary 提交后复测 `npm run benchmark:interaction`：1K base/move/focused 为
   `182.9/35.4/0.1 ms` warm，4K 为 `828.2/135.0/0.0 ms` warm；与局部 reroute 优化结论一致。
 
+### Stage 8 执行记录（2026-09-14，occurrence-aware Focused root bridge）
+
+- 修正 Single/Compare ViewSession bridge 在 Focused root 投影时丢失 `ObjectRef.occurrencePath` 的问题。
+  重复 hinst occurrence 现在以 canonical localId + occurrence path 写入和回读，cell/net 的激活、历史
+  恢复以及 Compare 双侧 root 映射不会再仅按 localId 串线；旧的无 occurrence ref 仍按兼容规则匹配。
+- 增加重复 occurrence 的 Single/Compare bridge 回归测试，覆盖 projected node ref、active root 和
+  net/hub 的路径匹配。定向测试通过（505 tests 全套 runner，0 failures）。
+- 这项修复补齐了 R8-2/R8-5 的 identity 边界，但不等同于完成跨 occurrence root 的完整层次 UI；Stage 8
+  仍需 mapped 基线复核、浏览器大图 DOM 性能证据及 legacy command-bus 清理。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、

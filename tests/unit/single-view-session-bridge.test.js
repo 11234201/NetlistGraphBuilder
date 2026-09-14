@@ -71,6 +71,33 @@ test("single view session bridge preserves net roots as canonical net ObjectRefs
   assert.equal(state.activeFocusedRootNodeId, "net:n1");
 });
 
+test("single view session bridge preserves occurrence identity for repeated projected roots", () => {
+  const nodes = [
+    { id: "cell:u_left", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_left"] } },
+    { id: "cell:u_right", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] } }
+  ];
+  const state = {
+    currentModule: { name: "leaf" },
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_right"] },
+    fullGraph: { nodes },
+    graph: { nodes },
+    viewMode: "focused", focusedRootNodeIds: ["cell:u_right"], activeFocusedRootNodeId: "cell:u_right",
+    coneRootNodeId: "cell:u_right", transform: { x: 0, y: 0, scale: 1 },
+    layoutPolicy: { name: "default" }, nodePositions: new Map(), nodeSizes: new Map(),
+    graphOverrides: { nodeProperties: {}, cellPinDirections: {} }
+  };
+  const adapter = createSingleViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  adapter.beginComputation();
+  const session = adapter.sessions.require("single:primary");
+  assert.deepEqual(session.focusedRootRefs[0].occurrencePath, ["u_right"]);
+  assert.equal(session.focusedRootRefs[0].localId, "leaf");
+
+  const result = adapter.dispatch({ type: "focus.activate", objectRef: session.focusedRootRefs[0] });
+  assert.equal(result.session.activeFocusedRootRef.localId, "leaf");
+  assert.deepEqual(result.session.activeFocusedRootRef.occurrencePath, ["u_right"]);
+  assert.equal(state.activeFocusedRootNodeId, "cell:u_right");
+});
+
 test("single view session bridge keeps one ViewSession until document or unit identity changes", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
