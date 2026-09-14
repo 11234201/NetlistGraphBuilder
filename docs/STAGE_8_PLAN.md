@@ -631,6 +631,13 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `missing-route`（3193 violations，layoutStatus `unroutable`），因此 Stage 8 继续保持“进行中”，不把
   单元、浏览器或发布通过误写成全部完成。
 
+### Stage 8 执行记录（2026-09-14，Compare net occurrence ref 收口）
+
+- Compare bridge 的 net selection 也通过 projected hub lookup 保留 `occurrencePath`；canonical net ref
+  与旧的 `selectedName` 镜像分离，重复 occurrence 的 cell/net selection 回归均通过。
+- 最新 `npm test`：507 tests、0 failures；`npm run release:windows` 通过，离线包 SHA-256 为
+  `bb2d9fa3f217f8d3f6708f4675c389c7badc43619e6667ddc11158755a4d5fcc`。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
