@@ -748,6 +748,24 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `7357a849526b082906f11f57b830ce35581063e4807b084ab4d9a3ef5c53e276`。Stage 8 仍不标记完成，
   因为全链路 30% 改善证据与完整 command-bus 收口尚未满足完成定义，mapped fixture 也保留既有路由基线失败。
 
+### Stage 8 验收复核（2026-09-14，当前工作树）
+
+- `npm test`：513/513 通过；`git diff --check` 通过；最近增量包含 occurrence-aware Focused
+  persistence、Search canvas identity 与 Golden compatibility。
+- 性能记录：`npm run benchmark:workspace` 的 1K/4K cold→warm 为 `181.7/4.4 ms`、`936.1/22.5 ms`
+  （约 41.7x）；`npm run benchmark:interaction` 的 1K base/move/focused 为
+  `185.6/44.7/6.1 ms`、warm `3.3/35.5/0.1 ms`，4K 为 `850.3/146.1/5.5 ms`、warm
+  `26.1/137.7/0 ms`；`npm run benchmark` 的 1K/4K/8K pipeline 为 `164.6/941.1/3002.1 ms`，
+  progressive first batch `1.4/1.0/1.1 ms`。这些是回归指标，不构成同口径全链路 30% 改善证明。
+- mapped 复核（允许 worker 进程）：47 cases、40 failed、34955/120 violations、
+  `hardInvariants=false`、最大 layout `10225 ms`；失败类别仍集中在 `missing-route`/
+  `wire-route-disconnected`，`sop_015` 为 3193 个 `missing-route`。本轮没有引入新的失败类别。
+- `npm run release:windows`：通过 513 个单测、启动器 smoke、离线 ZIP 与 ELK license；最新包 SHA-256
+  为 `beae8e34bf37c1b94c3d6e050a040d0a51d9373ab480f008a6800ab4c5a66ae9`。
+- 结论：occurrence context/跨层 projection、Net/Cell Focused、Search policy、View History、
+  Compare Search-first/job isolation、门形状开关和持久化边界已有代码与测试证据；Stage 8 仍不标记完成，
+  因为 mapped 路由基线、全链路性能验收、legacy history bridge 清理和双大图 Compare 浏览器证据仍未闭环。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
