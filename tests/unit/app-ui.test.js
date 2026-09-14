@@ -249,11 +249,19 @@ test("viewport gesture history metadata is only written after a completed pan", 
 
   assert.equal(panHandlers.length, 2);
   panHandlers.forEach((handler) => {
-    assert.match(handler, /didPan && !cancelled\) persistSession\(\{ label: "Viewport gesture" \}\)/);
+    assert.match(handler, /didPan && !cancelled\) persistSession\(\{[\s\S]*label: "Viewport gesture"/);
     assert.doesNotMatch(handler, /!didPan && !cancelled\).*Viewport gesture/);
   });
   assert.match(source, /function persistSession\(metadata = \{\}\)/);
   assert.match(source, /recordViewHistory\(metadata\)/);
+});
+
+test("compare history metadata identifies the side that owns an override or pan", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const override = source.match(/function setCompareOverrides\(side, overrides\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(override, /affectedSessionIds: \[`compare:\$\{side\}`\]/);
+  const comparePan = source.match(/function bindCompareCanvas\(side\) \{([\s\S]*?)\n\}/)?.[1] || source;
+  assert.match(comparePan, /affectedSessionIds: \[`compare:\$\{side\}`\]/);
 });
 
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {

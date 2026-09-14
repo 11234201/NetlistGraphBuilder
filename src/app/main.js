@@ -3667,7 +3667,10 @@ function setCompareOverrides(side, overrides) {
   compareViewSessions.dispatch(side, { type: "overrides.set", overrides });
   // A Compare-side move/resize is one user operation; capture both side state
   // and the owning side override after the command has committed.
-  recordViewHistory();
+  recordViewHistory({
+    label: "Layout override",
+    affectedSessionIds: [`compare:${side}`]
+  });
 }
 
 function updateCompareOverrides(side, update) {
@@ -3736,7 +3739,10 @@ function handleComparePointerDown(event) {
     transform: state.compare.transforms[side],
     commit: (transform) => setCompareTransform(side, transform),
     onEnd({ didPan, cancelled }) {
-      if (didPan && !cancelled) persistSession({ label: "Viewport gesture" });
+      if (didPan && !cancelled) persistSession({
+        label: "Viewport gesture",
+        affectedSessionIds: [`compare:${side}`]
+      });
     }
   });
 }
