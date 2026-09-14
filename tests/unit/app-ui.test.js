@@ -243,6 +243,16 @@ test("view-history restore reuses the workspace for selection-only changes", asy
   assert.match(handler, /renderCurrentModuleGraph\(/);
 });
 
+test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";
+
+  assert.match(handler, /createCompareWorkspaceHistoryIdentity\(\)/);
+  assert.match(handler, /canReuseWorkspace/);
+  assert.match(handler, /renderGraphMount\(elements\.leftMount/);
+  assert.match(handler, /renderCompareGraphs\(/);
+});
+
 test("screen rendering and exports consume prepared scenes", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
 

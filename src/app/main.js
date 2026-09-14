@@ -1176,6 +1176,8 @@ function createSingleWorkspaceHistoryIdentity() {
 
 function restoreCompareViewHistoryEntry(entry) {
   const compare = entry.compare;
+  const previousWorkspaceIdentity = createCompareWorkspaceHistoryIdentity();
+  const previousPresentationPolicy = JSON.stringify(state.presentationPolicy || {});
   const pairChanged = state.compare.leftModuleName !== compare.leftModuleName
     || state.compare.rightModuleName !== compare.rightModuleName;
   if (!state.compare.active || pairChanged) {
@@ -1229,20 +1231,83 @@ function restoreCompareViewHistoryEntry(entry) {
   applyCompareLayout();
   updateModuleHierarchyPicker();
   updateViewControls();
+  const canReuseWorkspace = Boolean(
+    state.compare.graphs?.left && state.compare.graphs?.right &&
+    previousWorkspaceIdentity === createCompareWorkspaceHistoryIdentity()
+  );
+  const finishRestore = () => {
+    if (state.compare.selectedName && state.compare.selectedKind && state.compare.selectedSide) {
+      selectCompareObject(
+        state.compare.selectedKind,
+        state.compare.selectedName,
+        false,
+        state.compare.selectedSide
+      );
+    }
+    applyCompareTransforms();
+    state.restoringViewHistory = false;
+    updateModuleHistoryControls();
+  };
+  if (canReuseWorkspace && previousPresentationPolicy === JSON.stringify(state.presentationPolicy || {})) {
+    renderCompareOutputOptions(getCompareModule("left"), getCompareModule("right"));
+    renderStats();
+    renderDiagnostics();
+    finishRestore();
+    return;
+  }
+  if (canReuseWorkspace) {
+    for (const side of ["left", "right"]) {
+      state.compare.scenes[side] = createNetlistScene(state.compare.graphs[side], {
+        presentationPolicy: state.presentationPolicy
+      });
+    }
+    Promise.all([
+      renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left }),
+      renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right })
+    ]).then((results) => {
+      if (results.some((result) => result?.cancelled)) return;
+      applyCompareHighlights();
+      renderStats();
+      renderDiagnostics();
+      finishRestore();
+    });
+    return;
+  }
   renderCompareGraphs({
     onCommitted: () => {
-      if (state.compare.selectedName && state.compare.selectedKind && state.compare.selectedSide) {
-        selectCompareObject(
-          state.compare.selectedKind,
-          state.compare.selectedName,
-          false,
-          state.compare.selectedSide
-        );
-      }
-      applyCompareTransforms();
-      state.restoringViewHistory = false;
-      updateModuleHistoryControls();
+      finishRestore();
     }
+  });
+}
+
+function createCompareWorkspaceHistoryIdentity() {
+  return JSON.stringify({
+    leftModuleName: state.compare.leftModuleName,
+    rightModuleName: state.compare.rightModuleName,
+    outputName: state.compare.outputName,
+    wholeRequested: state.compare.wholeRequested,
+    focusedRootNodeIds: state.compare.focusedRootNodeIds,
+    activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
+    nodePositions: {
+      left: [...(state.compare.nodePositions?.left || new Map()).entries()],
+      right: [...(state.compare.nodePositions?.right || new Map()).entries()]
+    },
+    nodeSizes: {
+      left: [...(state.compare.nodeSizes?.left || new Map()).entries()],
+      right: [...(state.compare.nodeSizes?.right || new Map()).entries()]
+    },
+    graphOverrides: state.compare.graphOverrides,
+    showAliases: state.showAliases,
+    useFanoutHubs: state.useFanoutHubs,
+    collapseLargeGroups: state.collapseLargeGroups,
+    expandedGroupIds: [...(state.expandedGroupIds || new Set())].sort(),
+    layoutProviderId: state.layoutProviderId,
+    layoutPolicy: state.layoutPolicy,
+    timing: state.timing,
+    timingDisplayPolicy: state.timingDisplayPolicy,
+    timingBadgeChoices: state.compare.timingBadgeChoices,
+    timingBadgePositions: state.compare.timingBadgePositions,
+    cellConfig: state.cellConfig
   });
 }
 
