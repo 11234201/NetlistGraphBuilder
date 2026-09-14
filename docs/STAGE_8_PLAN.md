@@ -766,6 +766,17 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   Compare Search-first/job isolation、门形状开关和持久化边界已有代码与测试证据；Stage 8 仍不标记完成，
   因为 mapped 路由基线、全链路性能验收、legacy history bridge 清理和双大图 Compare 浏览器证据仍未闭环。
 
+### Stage 8 执行记录（2026-09-14，startup occurrence focus，提交 `a43cfa1`）
+
+- startup manifest 的 `target.focus` 现在兼容旧字符串、cell/net ObjectRef-like target、
+  `occurrencePath` 和多 root 去重；主入口会在需要时先切换 occurrence context，再以同一 ViewSession
+  `focus.replace` 写入 cell/net roots，避免 startup 路径与搜索/历史使用不同的 identity 规则。
+- 新增 startup codec 的 occurrence/net round-trip 与 malformed path 回归；`npm test` 通过（515 tests）。
+- `npm run release:windows` 通过（515 tests、启动器 smoke、离线 ZIP 与 ELK license），最新包 SHA-256
+  为 `65ec7dd12b2eb67542931245786507cb3e12e3f874df5fe6349bbfedfc7eb8f6`。
+- 旧 CLI/launcher 仍只产生字符串 focus，保持完全兼容；Stage 8 其余 mapped、全链路性能和浏览器大图
+  Compare 收口项仍未满足阶段完成定义。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
