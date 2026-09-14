@@ -574,6 +574,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `npm run test:mapped-cases` 在允许 worker 进程后仍为 47 cases、40 failed、34955/120 violations、
   `hardInvariants=false`；失败类别仍集中在既有 `missing-route`/`wire-route-disconnected`，未出现
   新的增量 route/label 失败类别，因此不宣称 mapped 通过或 Stage 8 已完成。
+- `npm run release:windows` 通过（501 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），产物
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)，
+  SHA-256 为 `656ed5e2dfc361549fb13509e924d8109cac2feaae5db74f52cf0d9e02bac8e8`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
