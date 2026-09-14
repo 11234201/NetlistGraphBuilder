@@ -3538,6 +3538,10 @@ function resetLayoutOverridesImpl() {
 }
 
 function loadLayoutGolden(imported, label) {
+  return runViewHistoryTransaction({ label: `Load Golden: ${label}` }, () => loadLayoutGoldenImpl(imported, label));
+}
+
+function loadLayoutGoldenImpl(imported, label) {
   const module = resolveLayoutGoldenModule(state.design, imported, currentPersistenceIdentity());
 
   if (state.compare.active) exitCompareView();

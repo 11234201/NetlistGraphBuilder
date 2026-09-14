@@ -304,6 +304,7 @@ test("compound view actions commit one history transaction", async () => {
   assert.match(source, /function setViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `View mode: \$\{mode\}` \}/);
   assert.match(source, /function setCompareViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Compare view mode: \$\{mode\}` \}/);
   assert.match(source, /function resetLayoutOverrides\(\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Reset layout overrides" \}/);
+  assert.match(source, /function loadLayoutGolden\(imported, label\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Load Golden: \$\{label\}` \}/);
 });
 
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
