@@ -586,6 +586,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   随后由渲染完成处的 `recordViewHistory()` 消费；这样不提前截取异步布局的中间 viewport，同时减少
   command 与历史标签脱节。新增 observer/static wiring 回归后 `npm test` 通过（503 tests）。完整
   command-bus legacy 手工调用清理仍未宣称完成。
+- 该 command boundary 提交后的 `npm run release:windows` 通过（503 个单元测试、启动器 smoke、
+  离线 ZIP 与 ELK license），最新产物 SHA-256 为
+  `7c2d391b9490f57172fe0004682607ca4256cb02e3200a4f899566196ff3c961`。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
