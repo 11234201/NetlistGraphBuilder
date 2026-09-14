@@ -3303,7 +3303,7 @@ function handlePointerDown(event) {
       applyTransform(false);
     },
     onEnd({ didPan, cancelled }) {
-      if (didPan && !cancelled) persistSession();
+      if (didPan && !cancelled) persistSession({ label: "Viewport gesture" });
       if (!didPan && !cancelled) setSelectedNode(null);
     }
   });
@@ -3733,7 +3733,7 @@ function handleComparePointerDown(event) {
     transform: state.compare.transforms[side],
     commit: (transform) => setCompareTransform(side, transform),
     onEnd({ didPan, cancelled }) {
-      if (didPan && !cancelled) persistSession();
+      if (didPan && !cancelled) persistSession({ label: "Viewport gesture" });
     }
   });
 }
@@ -3930,9 +3930,9 @@ function syncLayoutSpacingControls() {
   layoutSpacingController.sync();
 }
 
-function persistSession() {
+function persistSession(metadata = {}) {
   if (!state.currentSource) return;
-  recordViewHistory({ label: "Viewport gesture" });
+  recordViewHistory(metadata);
   clearTimeout(sessionSaveTimer);
   sessionSaveTimer = setTimeout(() => saveSessionState(createSessionSnapshot(state)), 150);
 }

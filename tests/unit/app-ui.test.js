@@ -243,6 +243,19 @@ test("view-history restore reuses the workspace for selection-only changes", asy
   assert.match(handler, /renderCurrentModuleGraph\(/);
 });
 
+test("viewport gesture history metadata is only written after a completed pan", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const panHandlers = source.match(/onEnd\(\{ didPan, cancelled \}\) \{([\s\S]*?)\n    \}/g) || [];
+
+  assert.equal(panHandlers.length, 2);
+  panHandlers.forEach((handler) => {
+    assert.match(handler, /didPan && !cancelled\) persistSession\(\{ label: "Viewport gesture" \}\)/);
+    assert.doesNotMatch(handler, /!didPan && !cancelled\).*Viewport gesture/);
+  });
+  assert.match(source, /function persistSession\(metadata = \{\}\)/);
+  assert.match(source, /recordViewHistory\(metadata\)/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";
