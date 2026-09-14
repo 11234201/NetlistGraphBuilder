@@ -530,6 +530,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   增加相同的左右 workspace 复用路径，避免恢复操作重复调用 provider。新增静态回归后 `npm test`
   通过（482 tests）。
 - 重新发布包 SHA-256 为 `23dfc184c1399f2d403c862e069c19e15be2fc545b44450e02788725f5b47df0`。
+- 优化后同环境复测：workspace cache 1K/4K cold→warm 为 `187.9/4.2 ms`（45.1x）与
+  `925.3/23 ms`（40.3x）；全 pipeline 1K/4K/8K 为 `157.2/948/2755.1 ms`，progressive first
+  batch 为 `1.2/1.0/1.0 ms`。仍只作为回归监测，尚不能证明全链路 30% 改善。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
