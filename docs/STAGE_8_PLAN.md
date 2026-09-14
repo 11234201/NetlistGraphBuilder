@@ -66,10 +66,10 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择已落地；父向追踪仍不自动猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力、多 root hierarchical union、net chip/driver-load seed 与 Focus selected 已落地；跨 occurrence root 的完整层次 UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；workspace cache 重复构建已测得 38x+ 加速，但全链路 30% 证据仍待补齐 |
-| R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
+| R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；command bus 已提供提交后 observer，仍需继续清理 legacy 手工桥接 |
-| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位策略已统一为 locate/focus/unavailable；不在画布定位图但存在于 full graph 的 cell/net 才自动 Focus，不再写入隐藏 selection |
-| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel、独立 ELK JobCoordinator 与 ArtifactStore 已落地；跨页面持久化不在本阶段 |
+| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
+| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 已完成（本阶段范围）：双侧 Search-first、零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel 已落地并有双大图浏览器证据；跨页面持久化不在本阶段 |
 
 ## 4. 核心设计
 
