@@ -119,7 +119,15 @@ export function buildModuleWorkspace(options) {
     ? artifactCache.get(createWorkspaceArtifactKey(autoIdentity))
     : null;
   if (cachedPipeline) {
-    const graph = applyWorkspaceOverrides(cachedPipeline.autoGraph, { layoutPolicy, nodePositions, nodeSizes });
+    const graph = applyWorkspaceOverrides(cachedPipeline.autoGraph, {
+      layoutPolicy,
+      nodePositions,
+      nodeSizes,
+      // A cached, already routed auto graph only needs local route/obstacle
+      // checks for an override. Keep full validation for provider graphs that
+      // were already unroutable so diagnostics are never hidden by caching.
+      validate: cachedPipeline.autoGraph.layoutStatus === "routed" ? false : undefined
+    });
     return {
       fullGraph,
       sourceGraph: cachedPipeline.sourceGraph,

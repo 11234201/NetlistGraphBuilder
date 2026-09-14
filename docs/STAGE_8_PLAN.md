@@ -824,6 +824,20 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - baseline 提交尚未包含 `benchmark:interaction` 脚本，故交互 benchmark 只作为当前工作树的
   回归指标，不伪造历史对照；临时 baseline 目录和压缩包已删除。
 
+### Stage 8 执行记录（2026-09-14，cached routed override 局部校验优化）
+
+- `moduleWorkspace` 的 artifact-cache warm path 现在识别已完成 routing 的自动图，移动/变大小时
+  继续使用局部 orthogonal reroute，但跳过重复的全图 layout validation；provider 产出为
+  `unroutable` 时仍保留完整 validation，避免缓存掩盖诊断。`applyWorkspaceOverrides` 保留显式
+  `validate` 边界，默认行为不变。
+- 回归：`npm test` 通过（518/518）。`npm run benchmark:interaction` 的 4K
+  `moveWarm=84.1 ms`，相较同一工作树此前记录的 `141.7 ms` 下降约 40.7%；1K
+  `moveWarm=25.0 ms`。缓存命中/失效统计仍为 `hits=9, misses=3, evictions=0`。
+- 当前 `npm run benchmark` 中位数为 1K/4K/8K pipeline `156.1/926.2/2732.7 ms`，
+  layout `104.1/724.9/2230.7 ms`，progressive first batch `1.4/1.0/1.1 ms`。
+  该优化证明了交互 warm path 的局部收益，但不把它扩大解释为全链路 30% 改善；同口径
+  1K cold pipeline 仍受运行噪声影响，Stage 8 保持“进行中”。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |

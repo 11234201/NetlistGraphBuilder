@@ -47,7 +47,8 @@ export function applyWorkspaceOverrides(autoGraph, options = {}) {
   return applyPositionedOverrides(autoGraph, {
     layoutPolicy: options.layoutPolicy,
     nodePositions: options.nodePositions,
-    nodeSizes: options.nodeSizes
+    nodeSizes: options.nodeSizes,
+    validate: options.validate
   });
 }
 
