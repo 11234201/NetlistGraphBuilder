@@ -116,7 +116,23 @@ function cloneGraphOverrides(value) {
 
 function selectedToRef(state, documentId, unitId) {
   if (state.selectedNodeId) return nodeIdToRef(state.selectedNodeId, state.fullGraph, documentId, unitId);
-  if (state.selectedNet) return valueToRef("net", state.selectedNet, documentId, unitId, state.occurrenceContext?.occurrencePath);
+  if (state.selectedNet) {
+    const netNode = state.fullGraph?.nodes?.find((node) =>
+      (node.kind === "hub" || node.kind === "net") &&
+      (node.ref?.localId || node.ref?.name || node.label) === state.selectedNet &&
+      occurrenceMatches(node.ref?.occurrencePath, state.occurrenceContext?.occurrencePath)
+    ) || state.fullGraph?.nodes?.find((node) =>
+      (node.kind === "hub" || node.kind === "net") &&
+      (node.ref?.localId || node.ref?.name || node.label) === state.selectedNet
+    );
+    return valueToRef(
+      "net",
+      state.selectedNet,
+      documentId,
+      unitId,
+      netNode?.ref?.occurrencePath || state.occurrenceContext?.occurrencePath
+    );
+  }
   return null;
 }
 

@@ -98,6 +98,24 @@ test("single view session bridge preserves occurrence identity for repeated proj
   assert.equal(state.activeFocusedRootNodeId, "cell:u_right");
 });
 
+test("single view session bridge preserves projected net selection occurrence", () => {
+  const state = {
+    currentModule: { name: "leaf" },
+    occurrenceContext: { rootModuleName: "top", occurrencePath: ["u_right"] },
+    fullGraph: { nodes: [
+      { id: "hub:u_left/n_out", kind: "hub", label: "n_out", ref: { kind: "net", localId: "n_out", occurrencePath: ["u_left"] } },
+      { id: "hub:u_right/n_out", kind: "hub", label: "n_out", ref: { kind: "net", localId: "n_out", occurrencePath: ["u_right"] } }
+    ] },
+    graph: { nodes: [] }, viewMode: "whole", focusedRootNodeIds: [], activeFocusedRootNodeId: null,
+    coneRootNodeId: null, selectedNet: "n_out", selectedNodeId: null,
+    transform: { x: 0, y: 0, scale: 1 }, layoutPolicy: { name: "default" },
+    nodePositions: new Map(), nodeSizes: new Map(), graphOverrides: { nodeProperties: {}, cellPinDirections: {} }
+  };
+  const adapter = createSingleViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  adapter.beginComputation();
+  assert.deepEqual(adapter.sessions.require("single:primary").selectedObjectRef.occurrencePath, ["u_right"]);
+});
+
 test("single view session bridge keeps one ViewSession until document or unit identity changes", () => {
   const { state, adapter } = setup();
   adapter.dispatch({ type: "focus.set", objectRef: adapter.objectRefForNode(state.fullGraph.nodes[0]) });
