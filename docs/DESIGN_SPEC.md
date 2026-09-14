@@ -29,7 +29,7 @@
 - 支持选中对象后居中。
 - 支持导出当前图为 SVG。
 - 支持 Simple/ELK layout provider 切换；异步布局和渐进渲染通过状态栏报告进度。
-- 大图允许自动 group collapse，紫色虚线组点击展开，并提供重新折叠入口。
+- 大图不再使用 group collapse/expand；统一通过 full graph、Search-first 或 Focused 控制加载与可见范围。
 - 低缩放级别允许隐藏 pin、label、metadata 和 timing 文本，放大后必须恢复。
 - 支持布局校准模式：该模式下拖动单个 schematic 节点，普通查看模式下拖拽仍表示平移。
 - ELK 校准采用自动布局加手动 override 的混合模式；未调整节点保持 ELK 坐标，调整节点的相连 edge 必须重新布线，Reset 恢复自动布局。

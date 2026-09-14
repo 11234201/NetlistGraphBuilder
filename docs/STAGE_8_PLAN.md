@@ -71,7 +71,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、多 root hierarchical union、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地并有回归 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：mapped 复验后已加入“只重算实际失效 edge + 缓存图跳过重复全量 validation”；当前 41/47 完成、6 个 60s 超时，moveWarm 中位数 183.8ms、最大 2474.2ms，仍需继续处理超大 case |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
-| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；旧 module history 仅作为兼容 fallback，非 command 的 DOM viewport 操作保留显式记录并有退出条件 |
+| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；运行时只使用统一 View History，失败事务不入栈，旧 module history 实现仅留作数据兼容代码 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
 | R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 已完成（本阶段范围）：双侧 Search-first、零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel 已落地并有双大图浏览器证据；跨页面持久化不在本阶段 |
 
@@ -955,3 +955,18 @@ Stage 8 只有在以下条件同时满足时完成：
 
 实施过程中在本文件追加每个工作包的执行记录：实际 commit、环境、命令、指标、失败、偏差、关键
 决策和下一入口。工作包未取得对应证据时保持“进行中”或“计划中”。
+
+### Stage 8 代码检视修正（2026-09-14）
+
+- 修正层次 Focused 将局部投影误写成 `fullGraph` 的问题：source full graph 与 hierarchy query graph
+  现在分离，搜索目标不在当前画布但存在于定义全图时仍能按规则自动 Focus。
+- 搜索 cell 定位统一识别普通 `ref.instance` 与层次投影 `ref.localId`，避免策略判定为 locate 后找不到
+  实际画布节点。
+- cached override 仅在原图已 routed 且本次局部 reroute 没有失败时跳过全量 validation；失败或既有
+  unroutable 状态重新经过共享完成态校验，避免沿用过期 `layoutStatus`/diagnostics。
+- 运行时移除 group collapse/expand 控件、workspace 参数与点击展开路径；legacy session/Golden 字段仍可
+  解码，但应用时强制为 disabled，不再影响当前图。
+- Back/Forward、Alt+Arrow 与 Ctrl+Z 只走统一 View History；移除运行时双写/回退 module history，且
+  抛错事务不产生历史项。
+- 标准单元验证：`npm test`（最终结果以本次提交记录为准）。R8-3 仍因 47-case 中 6 个超大 mapped
+  case 超时保持进行中，不能据此把 Stage 8 标为完成。

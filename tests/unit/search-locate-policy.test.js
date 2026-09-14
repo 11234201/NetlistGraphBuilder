@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  findSearchTargetNode,
   isSearchTargetPositioned,
   resolveSearchTargetAction,
   shouldRevealSearchTarget
@@ -31,6 +32,7 @@ test("search positioning recognizes projected local ids on the canvas", () => {
   };
   assert.equal(isSearchTargetPositioned({ kind: "cell", name: "leaf" }, projected), true);
   assert.equal(isSearchTargetPositioned({ kind: "net", name: "out" }, projected), true);
+  assert.equal(findSearchTargetNode({ kind: "cell", name: "leaf" }, projected)?.id, "cell:leaf");
 });
 
 test("only a focus-capable target outside the canvas is revealed", () => {

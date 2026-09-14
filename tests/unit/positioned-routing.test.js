@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyPositionedOverrides } from "../../src/layout/positionedRouting.js";
+import { applyPositionedOverrides, canReusePositionedValidation } from "../../src/layout/positionedRouting.js";
+
+test("cached override validation is reused only when every rerouted edge succeeded", () => {
+  const rerouted = new Set(["changed"]);
+  assert.equal(canReusePositionedValidation({ validate: false }, [
+    { id: "changed", routeStatus: "routed" },
+    { id: "old", routeStatus: "unroutable" }
+  ], rerouted), true);
+  assert.equal(canReusePositionedValidation({ validate: false }, [
+    { id: "changed", routeStatus: "unroutable" }
+  ], rerouted), false);
+  assert.equal(canReusePositionedValidation({}, [{ id: "changed", routeStatus: "routed" }], rerouted), false);
+});
 
 test("positioned overrides preserve untouched ELK nodes and reroute moved edges", () => {
   const graph = {

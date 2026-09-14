@@ -87,7 +87,8 @@ test("layout Golden import restores bounded layout and display state", () => {
   assert.equal(state.faninDepth, 0);
   assert.equal(state.fanoutDepth, 7);
   assert.equal(state.useFanoutHubs, false);
-  assert.equal(state.expandedGroupIds.has("group:cells-0-49"), true);
+  assert.equal(state.collapseLargeGroups, false);
+  assert.equal(state.expandedGroupIds.size, 0);
   assert.equal(resolveLayoutGoldenModule({ modules: [{ name: "top" }] }, imported).name, "top");
 });
 

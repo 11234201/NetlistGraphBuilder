@@ -53,10 +53,10 @@ export function applyLayoutGoldenState(state, imported) {
   if (display.faninDepth !== null) state.faninDepth = clamp(display.faninDepth, 0, 99);
   if (display.fanoutDepth !== null) state.fanoutDepth = clamp(display.fanoutDepth, 0, 99);
   if (display.useFanoutHubs !== null) state.useFanoutHubs = display.useFanoutHubs;
-  if (display.collapseLargeGroups !== null) {
-    state.collapseLargeGroups = display.collapseLargeGroups;
-  }
-  if (display.expandedGroupIds) state.expandedGroupIds = new Set(display.expandedGroupIds);
+  // Decode legacy collapse fields for compatibility, but never reactivate the
+  // retired display transform in a current workspace.
+  state.collapseLargeGroups = false;
+  state.expandedGroupIds = new Set();
   return state;
 }
 

@@ -26,6 +26,24 @@ export function isSearchTargetPositioned(target, graph) {
   return false;
 }
 
+export function findSearchTargetNode(target, graph) {
+  if (!target || !graph) return null;
+  if (target.kind === "cell") {
+    return (graph.nodes || []).find((node) =>
+      node.kind === "cell" && nodeLocalName(node) === target.name
+    ) || null;
+  }
+  if (target.kind === "port") {
+    const preferredKind = target.direction === "output" ? "output" : "input";
+    return (graph.nodes || []).find((node) =>
+      node.kind === preferredKind && nodeLocalName(node) === target.name
+    ) || (graph.nodes || []).find((node) =>
+      (node.kind === "input" || node.kind === "output") && nodeLocalName(node) === target.name
+    ) || null;
+  }
+  return null;
+}
+
 function isNetNode(node) {
   return node?.kind === "hub" || node?.kind === "net";
 }

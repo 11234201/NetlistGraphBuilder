@@ -1,4 +1,3 @@
-import { createModuleHistory } from "./moduleHistory.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
@@ -52,7 +51,6 @@ export function createAppState(layoutPolicy) {
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),
     presentationPolicy: { gateSymbolMode: "rectangle" },
     moduleWorkspaces: new Map(),
-    moduleHistory: createModuleHistory(),
     viewHistory: createViewHistory(),
     restoringViewHistory: false,
     compareWorkspaces: new Map(),
@@ -109,7 +107,6 @@ export function resetDesignWorkspace(state) {
   state.activeSearchResult = -1;
   state.timing = null;
   state.moduleWorkspaces = new Map();
-  state.moduleHistory = createModuleHistory();
   state.viewHistory = createViewHistory();
   state.restoringViewHistory = false;
   state.compareWorkspaces = new Map();

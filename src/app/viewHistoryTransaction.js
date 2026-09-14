@@ -13,11 +13,14 @@ export function createViewHistoryTransaction({ commit }) {
     if (active) return operation();
     active = { ...metadata };
     try {
-      return operation();
-    } finally {
+      const result = operation();
       const completed = active;
       active = null;
       commit(completed);
+      return result;
+    } catch (error) {
+      active = null;
+      throw error;
     }
   }
 

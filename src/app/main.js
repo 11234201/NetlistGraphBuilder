@@ -23,7 +23,7 @@ import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { createSearchControls } from "../ui/searchControls.js";
-import { resolveSearchTargetAction } from "./searchLocatePolicy.js";
+import { findSearchTargetNode, resolveSearchTargetAction } from "./searchLocatePolicy.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
 import { renderOccurrenceChoices } from "../ui/occurrence_choice_panel.js";
@@ -122,13 +122,6 @@ import { createViewSessionStore } from "../application/view_session_store.js";
 import { createArtifactStore } from "../application/artifact_store.js";
 import { createJobCoordinator } from "../application/job_coordinator.js";
 import {
-  canStepModuleHistory,
-  createModuleHistoryEntry,
-  pushModuleHistory,
-  replaceCurrentModuleHistory,
-  stepModuleHistory
-} from "./moduleHistory.js";
-import {
   canStepViewHistory,
   createViewHistoryEntry,
   pushViewHistory,
@@ -216,9 +209,7 @@ const elements = {
   fanoutDepthInput: document.querySelector("#fanoutDepthInput"),
   showAliasesInput: document.querySelector("#showAliasesInput"),
   fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
-  collapseGroupsInput: document.querySelector("#collapseGroupsInput"),
   gateSymbolModeSelect: document.querySelector("#gateSymbolModeSelect"),
-  collapseAllButton: document.querySelector("#collapseAllButton"),
   setFocusedRootButton: document.querySelector("#setFocusedRootButton"),
   focusedRootCount: document.querySelector("#focusedRootCount"),
   focusedRootsList: document.querySelector("#focusedRootsList"),
@@ -415,12 +406,7 @@ elements.faninDepthInput.addEventListener("input", scheduleFocusedDepthChange);
 elements.fanoutDepthInput.addEventListener("input", scheduleFocusedDepthChange);
 elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
 elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
-elements.collapseGroupsInput.addEventListener("change", handleGraphSimplificationChange);
 elements.gateSymbolModeSelect.addEventListener("change", (event) => commitGateSymbolMode(event.target.value));
-elements.collapseAllButton.addEventListener("click", () => {
-  state.expandedGroupIds.clear();
-  rerenderActiveGraph();
-});
 elements.setFocusedRootButton.addEventListener("click", setSelectedAsFocusedRoot);
 elements.addFocusedRootButton.addEventListener("click", addSelectedAsFocusedRoot);
 elements.removeFocusedRootButton.addEventListener("click", removeSelectedFromFocusedRoots);
@@ -787,7 +773,7 @@ function applyCompareSelectionImpl() {
   renderStats();
   renderSelection(null);
   updateCalibrationControls();
-  updateModuleHistoryControls();
+  updateViewHistoryControls();
   setStatus(`Comparing ${left.displayName} and ${right.displayName}`);
   recordViewHistory();
 }
@@ -812,7 +798,7 @@ function exitCompareView() {
   updateViewControls();
   renderStats();
   updateCalibrationControls();
-  updateModuleHistoryControls();
+  updateViewHistoryControls();
   applyTransform();
   setStatus(`Single module view: ${state.currentModule?.displayName || "-"}`);
   recordViewHistory();
@@ -859,8 +845,6 @@ function renderCompareGraphs(options = {}) {
     nodePositions: state.compare.nodePositions,
     nodeSizes: state.compare.nodeSizes,
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups,
-    expandedGroupIds: state.expandedGroupIds,
     moduleLibrary: state.design.modules,
     forceWhole: state.compare.wholeRequested,
     artifactCache: state.workspaceArtifactCache,
@@ -999,17 +983,12 @@ function selectModule(moduleName, options = {}) {
   if (!module) {
     return;
   }
-  const historyMode = options.historyMode || "push";
-  const historyEntry = options.historyEntry || null;
-  const ambiguousOccurrences = !options.occurrencePath && !historyEntry
+  const ambiguousOccurrences = !options.occurrencePath
     ? findModuleOccurrences(buildModuleHierarchy(state.design), module.name)
     : [];
   const switchingModule = state.currentModule?.name !== module.name;
   const defaultViewMode = shouldUseSearchFirst(module, SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole";
   if (state.currentModule && switchingModule) {
-    if (historyMode === "push") {
-      state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
-    }
     saveModuleWorkspace(state, state.currentModule.name);
     singleViewSession.dispatch({
       type: "unit.set",
@@ -1033,27 +1012,18 @@ function selectModule(moduleName, options = {}) {
   );
   updateModuleHierarchyPicker();
   renderModuleHierarchy();
-  if (switchingModule && !restoredWorkspace && !historyEntry) state.viewMode = defaultViewMode;
-  if (historyEntry) {
-    applyModuleHistoryEntry(historyEntry);
-  }
-  if (!historyEntry) {
-    setSingleTransform({ x: 0, y: 0, scale: 1 });
-  }
+  if (switchingModule && !restoredWorkspace) state.viewMode = defaultViewMode;
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
   const requestedOnRendered = options.onRendered;
   renderCurrentModuleGraph({
     ...options,
     onRendered: (graph) => {
-      if (historyEntry) restoreModuleHistorySelection(historyEntry, graph);
       requestedOnRendered?.(graph);
       if (ambiguousOccurrences.length > 1 && !state.occurrenceContext) {
         setStatus(`${module.displayName} has ${ambiguousOccurrences.length} hierarchy occurrences; choose one from Module hierarchy`);
       }
     }
   });
-  if (historyMode === "push" && (switchingModule || state.moduleHistory.index < 0)) {
-    state.moduleHistory = pushModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
-  }
   renderStats();
   renderDiagnostics();
   renderSelection(null);
@@ -1062,63 +1032,11 @@ function selectModule(moduleName, options = {}) {
   recordViewHistory();
 }
 
-function navigateModuleHistory(delta) {
-  if (state.compare.active || !state.currentModule) return;
-  state.moduleHistory = replaceCurrentModuleHistory(state.moduleHistory, createModuleHistoryEntry(state));
-  const validNames = state.design.modules.map((module) => module.name);
-  const result = stepModuleHistory(state.moduleHistory, delta, validNames);
-  if (!result.entry) {
-    updateModuleHistoryControls();
-    return;
-  }
-  state.moduleHistory = result.history;
-  selectModule(result.entry.moduleName, {
-    historyMode: "restore",
-    historyEntry: result.entry,
-    readyMessage: `Restored ${result.entry.moduleName} from module history`
-  });
-}
-
-function applyModuleHistoryEntry(entry) {
-  state.occurrenceContext = entry.occurrenceContext ? {
-    rootModuleName: entry.occurrenceContext.rootModuleName || null,
-    occurrencePath: [...(entry.occurrenceContext.occurrencePath || [])]
-  } : null;
-  updateModuleHierarchyPicker();
-  state.viewMode = normalizeSingleViewMode(entry.viewMode);
-  setFocusedRootNodeIds(state, normalizeFocusedRootNodeIds(
-    entry.focusedRootNodeIds,
-    entry.coneRootNodeId
-  ), entry.activeFocusedRootNodeId);
-  state.focusedRootRefs = cloneObjectRefs(entry.focusedRootRefs);
-  state.coneDepth = entry.coneDepth;
-  state.faninDepth = entry.faninDepth;
-  state.fanoutDepth = entry.fanoutDepth;
-  state.selectedNodeId = entry.selectedNodeId || null;
-  state.selectedNet = entry.selectedNet || null;
-  setSingleTransform(entry.transform);
-}
-
-function restoreModuleHistorySelection(entry, graph) {
-  setSingleTransform(entry.transform);
-  if (entry.selectedNet && graph.edges.some((edge) => edge.net === entry.selectedNet)) {
-    setSelectedNet(entry.selectedNet);
-  } else if (entry.selectedNodeId && graph.nodes.some((node) => node.id === entry.selectedNodeId)) {
-    setSelectedNode(entry.selectedNodeId);
-  } else {
-    setSelectedNode(null);
-  }
-  applyTransform();
-  updateModuleHistoryControls();
-}
-
 function handleModuleHistoryShortcut(event) {
   if (!event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   event.preventDefault();
-  // Keep Alt+Arrow as a compatibility entry, but route it through the same
-  // view timeline as the toolbar and Ctrl+Z. If a legacy module entry is the
-  // only available step, navigateViewHistory() falls back explicitly below.
+  // Alt+Arrow, toolbar navigation, and Ctrl+Z all share one operation timeline.
   navigateViewHistory(event.key === "ArrowLeft" ? -1 : 1);
 }
 
@@ -1138,12 +1056,7 @@ function navigateViewHistory(delta) {
   state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state));
   const result = stepViewHistory(state.viewHistory, delta);
   if (!result.entry) {
-    const validNames = state.design?.modules.map((module) => module.name) || [];
-    if (canStepModuleHistory(state.moduleHistory, delta, validNames)) {
-      navigateModuleHistory(delta);
-      return;
-    }
-    updateModuleHistoryControls();
+    updateViewHistoryControls();
     return;
   }
   state.viewHistory = result.history;
@@ -1188,7 +1101,7 @@ function restoreViewHistoryEntry(entry) {
       else setSelectedNode(null);
       applyTransform();
       state.restoringViewHistory = false;
-      updateModuleHistoryControls();
+      updateViewHistoryControls();
     };
     if (canReuseWorkspace && previousPresentationPolicy === JSON.stringify(state.presentationPolicy || {})) {
       finishRestore();
@@ -1233,8 +1146,6 @@ function createSingleWorkspaceHistoryIdentity() {
     graphOverrides: state.graphOverrides || null,
     showAliases: state.showAliases,
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups,
-    expandedGroupIds: [...(state.expandedGroupIds || new Set())].sort(),
     layoutProviderId: state.layoutProviderId,
     layoutPolicy: state.layoutPolicy,
     timing: state.timing,
@@ -1321,7 +1232,7 @@ function restoreCompareViewHistoryEntry(entry) {
     }
     applyCompareTransforms();
     state.restoringViewHistory = false;
-    updateModuleHistoryControls();
+    updateViewHistoryControls();
   };
   if (canReuseWorkspace && previousPresentationPolicy === JSON.stringify(state.presentationPolicy || {})) {
     renderCompareOutputOptions(getCompareModule("left"), getCompareModule("right"));
@@ -1375,8 +1286,6 @@ function createCompareWorkspaceHistoryIdentity() {
     graphOverrides: state.compare.graphOverrides,
     showAliases: state.showAliases,
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups,
-    expandedGroupIds: [...(state.expandedGroupIds || new Set())].sort(),
     layoutProviderId: state.layoutProviderId,
     layoutPolicy: state.layoutPolicy,
     timing: state.timing,
@@ -1401,10 +1310,9 @@ function cloneObjectRefs(value) {
   }));
 }
 
-function updateModuleHistoryControls() {
-  const validNames = state.design?.modules.map((module) => module.name) || [];
-  const canViewBack = canStepViewHistory(state.viewHistory, -1) || canStepModuleHistory(state.moduleHistory, -1, validNames);
-  const canViewForward = canStepViewHistory(state.viewHistory, 1) || canStepModuleHistory(state.moduleHistory, 1, validNames);
+function updateViewHistoryControls() {
+  const canViewBack = canStepViewHistory(state.viewHistory, -1);
+  const canViewForward = canStepViewHistory(state.viewHistory, 1);
   elements.moduleBackButton.disabled = !canViewBack;
   elements.moduleForwardButton.disabled = !canViewForward;
 }
@@ -1441,8 +1349,6 @@ function renderCurrentModuleGraph(options = {}) {
     hierarchyRoot,
     hierarchyRoots,
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups,
-    expandedGroupIds: state.expandedGroupIds,
     layoutProvider,
     layoutPolicy: state.layoutPolicy,
     nodePositions: state.nodePositions,
@@ -1754,9 +1660,7 @@ function updateViewControls() {
   elements.fanoutDepthInput.disabled = state.compare.active ? !isFocused : state.viewMode !== "focused";
   elements.showAliasesInput.checked = state.showAliases;
   elements.fanoutHubsInput.checked = state.useFanoutHubs;
-  elements.collapseGroupsInput.checked = state.collapseLargeGroups;
-  elements.collapseAllButton.disabled = state.expandedGroupIds.size === 0;
-  updateModuleHistoryControls();
+  updateViewHistoryControls();
   updateFocusedRootControl();
   updateFocusSelectedControl();
   renderFocusedRootList();
@@ -2465,7 +2369,6 @@ function focusPositionedEdge(edge, mount, currentTransform, commit) {
 
 function handleGraphSimplificationChange() {
   state.useFanoutHubs = elements.fanoutHubsInput.checked;
-  state.collapseLargeGroups = elements.collapseGroupsInput.checked;
   rerenderActiveGraph();
 }
 
@@ -2872,9 +2775,7 @@ function activateSearchResult(result) {
   const fullNode = findSearchTargetNode(target, state.fullGraph);
   if (target.kind === "cell" && fullNode) {
     const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
-    const positioned = action === "locate"
-      ? state.graph?.nodes.find((node) => node.kind === "cell" && node.ref?.instance === target.name)
-      : null;
+    const positioned = action === "locate" ? findSearchTargetNode(target, state.graph) : null;
     if (action === "locate" && positioned) {
       singleViewSession.dispatch({
         type: "selection.set",
@@ -2968,23 +2869,6 @@ function addSearchResultToFocus(result) {
       setStatus(`Added ${result.label} to ${state.focusedRootNodeIds.length} Focused roots`);
     }
   });
-}
-
-function findSearchTargetNode(target, graph = state.graph) {
-  if (target.kind === "cell") {
-    return graph?.nodes.find(
-      (node) => node.kind === "cell" && node.ref?.instance === target.name
-    );
-  }
-  if (target.kind === "port") {
-    const preferredKind = target.direction === "output" ? "output" : "input";
-    return graph?.nodes.find(
-      (node) => node.kind === preferredKind && node.ref?.name === target.name
-    ) || graph?.nodes.find(
-      (node) => (node.kind === "input" || node.kind === "output") && node.ref?.name === target.name
-    );
-  }
-  return null;
 }
 
 function centerGraphPoint(point, objectWidth = 100) {
@@ -3428,12 +3312,6 @@ function handlePointerDown(event) {
     return;
   }
   if (nodeElement) {
-    const groupNode = state.graph?.nodes.find((node) => node.id === nodeElement.dataset.nodeId && node.kind === "group");
-    if (groupNode) {
-      state.expandedGroupIds.add(groupNode.ref.groupId);
-      renderCurrentModuleGraph();
-      return;
-    }
     const clickedNode = state.graph?.nodes.find((node) => node.id === nodeElement.dataset.nodeId);
     if (event.shiftKey && clickedNode?.kind === "cell") {
       const nextRoots = toggleFocusedRootNodeId(state.focusedRootNodeIds, clickedNode.id);
@@ -3681,8 +3559,6 @@ function saveLayoutGolden() {
         faninDepth: state.faninDepth,
         fanoutDepth: state.fanoutDepth,
         useFanoutHubs: state.useFanoutHubs,
-        collapseLargeGroups: state.collapseLargeGroups,
-        expandedGroupIds: [...state.expandedGroupIds]
       }
     },
     svgSnapshot: renderSvgScene(state.scene)
@@ -3880,11 +3756,6 @@ function handleComparePointerDown(event) {
   if (nodeElement) {
     const id = nodeElement.dataset.nodeId;
     const graphNode = state.compare.graphs[side]?.nodes.find((node) => node.id === id);
-    if (graphNode?.kind === "group") {
-      state.expandedGroupIds.add(graphNode.ref.groupId);
-      renderCompareGraphs();
-      return;
-    }
     if (state.calibrationMode && graphNode) {
       startCompareNodeDrag(event, side, graphNode);
       return;
@@ -4087,7 +3958,10 @@ function applySessionPreferences(session) {
     state.showAliases = Boolean(session.showAliases);
     state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
     state.useFanoutHubs = session.useFanoutHubs !== false;
-    state.collapseLargeGroups = session.collapseLargeGroups === true;
+    // Group collapse is retired. Legacy sessions remain readable but cannot
+    // reactivate the removed display transform.
+    state.collapseLargeGroups = false;
+    state.expandedGroupIds.clear();
     state.presentationPolicy = normalizeNetlistPresentationPolicy(session.presentationPolicy);
     if (session.layoutPolicy) setSingleLayoutPolicy(session.layoutPolicy);
     const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
@@ -4137,7 +4011,7 @@ function recordViewHistory(metadata = {}) {
     label: mergedMetadata.label || "View change",
     affectedSessionIds
   }));
-  updateModuleHistoryControls();
+  updateViewHistoryControls();
 }
 
 function noteViewCommandDispatch(command, result) {

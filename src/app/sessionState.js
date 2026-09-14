@@ -55,7 +55,8 @@ export function createSessionSnapshot(state) {
     layoutProviderId: state.layoutProviderId,
     transform: { ...state.transform },
     useFanoutHubs: state.useFanoutHubs,
-    collapseLargeGroups: state.collapseLargeGroups,
+    // Retain the legacy codec field as an explicit disabled value.
+    collapseLargeGroups: false,
     layoutPolicy: {
       name: state.layoutPolicy?.name,
       spacing: { ...(state.layoutPolicy?.spacing || {}) },

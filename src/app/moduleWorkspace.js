@@ -44,7 +44,7 @@ export function buildModuleWorkspace(options) {
     artifactCache = null,
     artifactIdentity = null
   } = options;
-  let fullGraph = preparedFullGraph || buildModuleFullGraph({
+  const fullGraph = preparedFullGraph || buildModuleFullGraph({
     module,
     moduleLibrary,
     graphOverrides,
@@ -59,6 +59,7 @@ export function buildModuleWorkspace(options) {
     artifactIdentity
   });
   const resolvedHierarchyRoots = hierarchyRoots?.length ? hierarchyRoots : (hierarchyRoot ? [hierarchyRoot] : []);
+  let queryGraph = fullGraph;
   if (!preparedFullGraph && resolvedHierarchyRoots.length > 0 && moduleLibrary.length > 0 && viewMode === "focused") {
     const hierarchyIdentity = artifactIdentity && {
       ...artifactIdentity,
@@ -70,7 +71,7 @@ export function buildModuleWorkspace(options) {
     const hierarchyKey = hierarchyIdentity ? createWorkspaceArtifactKey(hierarchyIdentity) : null;
     const cachedHierarchy = artifactCache && hierarchyKey ? artifactCache.get(hierarchyKey) : null;
     if (cachedHierarchy) {
-      fullGraph = cachedHierarchy;
+      queryGraph = cachedHierarchy;
     } else {
       const result = analyzeHierarchicalCones({ modules: moduleLibrary }, resolvedHierarchyRoots, {
         faninDepth,
@@ -78,10 +79,10 @@ export function buildModuleWorkspace(options) {
         maximumVisibleNodes: 512,
         maximumFrontier: 1024
       });
-      fullGraph = projectHierarchicalRenderGraph(result, {
+      queryGraph = projectHierarchicalRenderGraph(result, {
         documentId: artifactIdentity?.documentId || "hierarchy:workspace"
       });
-      if (artifactCache && hierarchyKey) artifactCache.put(hierarchyKey, fullGraph, {
+      if (artifactCache && hierarchyKey) artifactCache.put(hierarchyKey, queryGraph, {
         documentId: artifactIdentity?.documentId,
         sessionId: artifactIdentity?.sessionId
       });
@@ -126,7 +127,7 @@ export function buildModuleWorkspace(options) {
       // A cached auto graph already has provider diagnostics. Local routing
       // checks the changed candidates; a full graph validation would scan all
       // unchanged edges again and dominates large mapped cases.
-      validate: false,
+      validate: cachedPipeline.autoGraph.layoutStatus === "routed" ? false : true,
       // Reroute only edges whose endpoint/path is actually invalidated;
       // updateWireRoutes still rebuilds the affected net group from all edges.
       // The cached graph keeps its prior provider status/diagnostics; a later
@@ -144,7 +145,7 @@ export function buildModuleWorkspace(options) {
   const pipeline = runViewPipeline({
     query: () => ({
       fullGraph,
-      graph: resolvedHierarchyRoots.length > 0 ? fullGraph : selectWorkspaceGraphView(fullGraph, {
+      graph: resolvedHierarchyRoots.length > 0 ? queryGraph : selectWorkspaceGraphView(fullGraph, {
         viewMode,
         rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
         rootNetIds: focusedRootNetIds,

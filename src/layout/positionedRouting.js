@@ -121,9 +121,16 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     height: safeExtent.height,
     hasPositionOverrides: true
   };
-  return options.validate === false
+  return canReusePositionedValidation(options, edges, rerouteEdgeIds)
     ? adjustedGraph
     : finalizeLayoutGraph(adjustedGraph);
+}
+
+export function canReusePositionedValidation(options, edges, rerouteEdgeIds) {
+  if (options.validate !== false) return false;
+  return !edges.some((edge) =>
+    rerouteEdgeIds.has(edge.id) && (edge.routeStatus === "unroutable" || edge.routeKind === "unroutable")
+  );
 }
 
 function getOwnedRouteSegments(edge) {

@@ -15,10 +15,10 @@ test("nested view actions commit exactly one transaction with merged metadata", 
   assert.equal(transactions.isActive(), false);
 });
 
-test("transaction commits even when the operation throws", () => {
+test("failed transactions do not create history entries", () => {
   const commits = [];
   const transactions = createViewHistoryTransaction({ commit: (metadata) => commits.push(metadata) });
   assert.throws(() => transactions.run({ label: "failed" }, () => { throw new Error("boom"); }), /boom/);
-  assert.deepEqual(commits, [{ label: "failed" }]);
+  assert.deepEqual(commits, []);
   assert.equal(transactions.isActive(), false);
 });

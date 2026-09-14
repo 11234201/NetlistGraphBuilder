@@ -177,7 +177,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="cellSpacingInput"[^>]+min="4"[^>]+max="320"[^>]+step="4"/);
   assert.match(html, /id="cellSpacingNumberInput"[^>]+type="number"[^>]+min="4"[^>]+max="320"[^>]+step="4"[^>]+value="8"/);
   assert.match(html, /id="processLogDrawer"/);
-  assert.match(html, /id="collapseGroupsInput" type="checkbox"(?![^>]*checked)/);
+  assert.doesNotMatch(html, /collapseGroupsInput|collapseAllButton/);
   assert.match(html, /id="processLogLevelFilter"/);
   assert.match(html, /id="processLogPhaseFilter"/);
   assert.match(html, /id="exportProcessLogButton"/);
@@ -316,12 +316,10 @@ test("view bridges forward committed commands to the history boundary", async ()
   assert.match(bus, /onDispatch\?\.\(command, result\)/);
 });
 
-test("toolbar and Alt+Arrow history fall back to legacy module entries", async () => {
+test("toolbar and Alt+Arrow use only the unified view timeline", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const navigate = source.match(/function navigateViewHistory\(delta\) \{([\s\S]*?)\n\}\n\nfunction restoreViewHistoryEntry/)?.[1] || "";
-  const legacyFallback = navigate.match(/if \(!result\.entry\) \{([\s\S]*?)\n  \}/)?.[1] || "";
-  assert.match(legacyFallback, /canStepModuleHistory\(state\.moduleHistory, delta, validNames\)/);
-  assert.match(legacyFallback, /navigateModuleHistory\(delta\)/);
+  assert.doesNotMatch(navigate, /ModuleHistory|navigateModuleHistory/);
   const shortcut = source.match(/function handleModuleHistoryShortcut\(event\) \{([\s\S]*?)\n\}\n\nfunction handleViewHistoryShortcut/)?.[1] || "";
   assert.match(shortcut, /navigateViewHistory\(event\.key === "ArrowLeft" \? -1 : 1\)/);
   assert.doesNotMatch(shortcut, /navigateModuleHistory\(event\.key/);

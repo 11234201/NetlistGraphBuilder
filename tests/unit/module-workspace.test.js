@@ -116,6 +116,8 @@ test("module workspace lays out an occurrence-aware hierarchical cone", () => {
   assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_child"));
   assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_child"));
   assert.ok(workspace.graph.edges.every((edge) => edge.net));
+  assert.ok(workspace.fullGraph.nodes.some((node) => node.id === "output:y"));
+  assert.equal(workspace.fullGraph.nodes.some((node) => node.ref?.localId === "u_buf"), false);
 });
 
 test("module workspace keeps multiple occurrence roots in one projected cone", () => {
@@ -135,7 +137,7 @@ test("module workspace keeps multiple occurrence roots in one projected cone", (
     useFanoutHubs: false,
     collapseLargeGroups: false
   });
-  const paths = workspace.fullGraph.nodes
+  const paths = workspace.graph.nodes
     .filter((node) => node.kind === "cell" && node.ref?.localId === "u_buf")
     .map((node) => node.ref.occurrencePath.join("/"))
     .sort();
