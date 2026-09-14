@@ -981,11 +981,14 @@ Stage 8 只有在以下条件同时满足时完成：
   约 `1.6s`，60s 超时主要发生在 full-graph routing，而不是 parser、graph 或交互 warm path。
 - `validateLayoutGraph`/physical-net commit 现在复用本次 layout 已建立的 node spatial index，避免每个
   atomic physical-net trial 重建全图 node index；wire-route obstacle validation 同样消费该共享索引。
-- reserved-segment overlap 查询改用 `RouteSegmentIndex.countBox(..., 1)` 短路，在发现首个 foreign-net
+- reserved-segment overlap 查询改用 `RouteSegmentIndex` 的有界计数接口并设置 `max=1`，在发现首个 foreign-net
   共线/近距离重叠时停止，不再为长距离候选完整物化全部 bucket 结果；几何谓词仍是最终判定。
+- 进一步按候选方向拆为 `countVerticalSegment`/`countHorizontalSegment`：纵向候选只访问纵向 reservation
+  bucket，横向候选只访问横向 bucket，同时保留 `max=1` 短路，避免通用 box 查询扫描不可能构成
+  共线/平行冲突的垂直方向记录。
 - 新增 `tools/profile-mapped-pipeline.mjs` 和 opt-in layout/routing stage observer，便于后续继续定位
   routing 内部阶段；observer 未提供时不产生输出或持久状态。
-- `npm test`：521/521 通过。远端 `npm run benchmark` full-graph layout 中位数为 1K `155.5ms`、
+- `npm test`：522/522 通过。远端 `npm run benchmark` full-graph layout 中位数为 1K `155.5ms`、
   4K `1120.5ms`、8K `4224.7ms`；`dp_020` 正式 worker 在 60s 内仍未完成，因此本轮只记录已确认的
   热点与安全优化，R8-3 继续保持进行中，下一入口是 atomic physical-net trial 与单 edge fallback 的
   分项耗时和候选拒绝原因统计。

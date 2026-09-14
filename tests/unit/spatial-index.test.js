@@ -123,6 +123,26 @@ test("vertical segment queries only return vertical lane candidates", () => {
   );
 });
 
+test("orientation-specific route counts short-circuit without visiting perpendicular segments", () => {
+  const vertical = { start: { x: 100, y: 0 }, end: { x: 100, y: 200 }, net: "vertical" };
+  const horizontal = { start: { x: 20, y: 80 }, end: { x: 180, y: 80 }, net: "horizontal" };
+  const index = new RouteSegmentIndex([vertical, horizontal]);
+  const visited = [];
+
+  const count = index.countVerticalSegment(
+    { start: { x: 100, y: 40 }, end: { x: 100, y: 120 } },
+    0,
+    (segment) => {
+      visited.push(segment);
+      return true;
+    },
+    1
+  );
+
+  assert.equal(count, 1);
+  assert.deepEqual(visited, [vertical]);
+});
+
 test("route segment index deduplicates physical owner geometry and replaces owners", () => {
   const segment = {
     start: { x: 10, y: 10 },

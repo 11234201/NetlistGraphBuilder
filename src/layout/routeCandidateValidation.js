@@ -125,15 +125,17 @@ export function routeOverlapsReserved(points, net, reservedSegments, netGroupKey
       return !sameNet && (collinearSegmentsOverlap(candidate, reserved) ||
         parallelSegmentsOverlap(candidate, reserved));
     };
-    if (typeof reservedSegments.countBox === "function") {
-      if (reservedSegments.countBox(
-        segmentBox(candidate, MINIMUM_FOREIGN_WIRE_SEPARATION),
+    const isVertical = Math.abs(candidate.start.x - candidate.end.x) < 0.5;
+    const countMethod = isVertical ? "countVerticalSegment" : "countHorizontalSegment";
+    if (typeof reservedSegments[countMethod] === "function") {
+      if (reservedSegments[countMethod](
+        candidate,
+        MINIMUM_FOREIGN_WIRE_SEPARATION,
         overlaps,
         1
       ) > 0) return true;
       continue;
     }
-    const isVertical = Math.abs(candidate.start.x - candidate.end.x) < 0.5;
     const reservedCandidates = isVertical &&
       typeof reservedSegments.queryVerticalSegment === "function"
       ? reservedSegments.queryVerticalSegment(candidate, MINIMUM_FOREIGN_WIRE_SEPARATION)

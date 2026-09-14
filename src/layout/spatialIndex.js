@@ -238,6 +238,30 @@ export class RouteSegmentIndex {
     return count;
   }
 
+  countVerticalSegment(segment, padding, predicate, maximum = Infinity) {
+    return countAxisMatches(
+      this.verticalBuckets,
+      segmentBox(segment, padding),
+      "x",
+      this.cellSize,
+      this.inactiveSegments,
+      predicate,
+      maximum
+    );
+  }
+
+  countHorizontalSegment(segment, padding, predicate, maximum = Infinity) {
+    return countAxisMatches(
+      this.horizontalBuckets,
+      segmentBox(segment, padding),
+      "y",
+      this.cellSize,
+      this.inactiveSegments,
+      predicate,
+      maximum
+    );
+  }
+
   [Symbol.iterator]() {
     return this.items[Symbol.iterator]();
   }
@@ -245,6 +269,18 @@ export class RouteSegmentIndex {
   get length() {
     return this.items.length;
   }
+}
+
+function countAxisMatches(buckets, box, axis, cellSize, inactiveSegments, predicate, maximum) {
+  let count = 0;
+  const minimum = Math.floor((axis === "x" ? Math.min(box.left, box.right) : Math.min(box.top, box.bottom)) / cellSize);
+  const maximumBucket = Math.floor((axis === "x" ? Math.max(box.left, box.right) : Math.max(box.top, box.bottom)) / cellSize);
+  someAxisBuckets(buckets, minimum, maximumBucket, box, (segment) => {
+    if (inactiveSegments.has(segment) || !predicate(segment)) return false;
+    count += 1;
+    return count >= maximum;
+  });
+  return count;
 }
 
 function insertAxisBucket(buckets, key, record) {

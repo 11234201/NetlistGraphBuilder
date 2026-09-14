@@ -99,7 +99,7 @@ export function routeSimpleEdges(graph, nodes, options) {
     if (!attemptedPhysicalNets.has(physicalNetKey)) {
       attemptedPhysicalNets.add(physicalNetKey);
       const physicalNetEdges = edgesByPhysicalNet.get(physicalNetKey) || [];
-      if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+      options.onRoutingGroup?.({
         phase: "start",
         edgeIndex,
         physicalNetKey,
@@ -123,8 +123,9 @@ export function routeSimpleEdges(graph, nodes, options) {
           targetEntryLanes
         }
       );
+      options.onRoutingGroup?.({ phase: "capacity-tried", edgeIndex, physicalNetKey, edgeCount: physicalNetEdges.length });
       if (capacityBlockedRoutes) {
-        if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+        options.onRoutingGroup?.({
           phase: "capacity-complete",
           edgeIndex,
           physicalNetKey,
@@ -155,8 +156,9 @@ export function routeSimpleEdges(graph, nodes, options) {
           targetEntryLanes
         }
       );
+      options.onRoutingGroup?.({ phase: "atomic-tried", edgeIndex, physicalNetKey, edgeCount: physicalNetEdges.length });
       if (atomicRoutes) {
-        if (physicalNetEdges.length >= 32) options.onRoutingGroup?.({
+        options.onRoutingGroup?.({
           phase: "atomic-complete",
           edgeIndex,
           physicalNetKey,
