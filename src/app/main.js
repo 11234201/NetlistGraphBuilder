@@ -3504,6 +3504,10 @@ function toggleCalibrationMode() {
 }
 
 function resetLayoutOverrides() {
+  return runViewHistoryTransaction({ label: "Reset layout overrides" }, resetLayoutOverridesImpl);
+}
+
+function resetLayoutOverridesImpl() {
   if (state.compare.active) {
     for (const side of ["left", "right"]) {
       setCompareOverrides(side, {
