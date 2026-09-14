@@ -348,8 +348,11 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
 - `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 现在位于 Single/Compare 的 workspace
   提交边界：Simple Layered 通过同步 `runSync()`，ELK Single/Compare 通过异步 job；Compare 仍保留
-  per-side abort/status 与 controller identity 校验。`workspaceArtifactCache` 负责有界的 full graph/
-  automatic-layout 复用，`renderGeneration` 只负责最后的 DOM mount 生命周期。
+  per-side abort/status 与 controller identity 校验。Compare 先执行一次共享的 full-graph/analysis
+  preparation，再为 left/right 分别以 `compare-left-workspace` / `compare-right-workspace` 提交
+  layout、override 与 Scene artifact，单侧取消或过期不会借由另一侧 job 提交旧结果。
+  `workspaceArtifactCache` 负责有界的 full graph/automatic-layout 复用，`ArtifactStore` 保存每个
+  session/kind 的最后完成 artifact，`renderGeneration` 只负责最后的 DOM mount 生命周期。
 
 Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
 业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。

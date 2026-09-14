@@ -64,12 +64,12 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择已落地；父向追踪仍不自动猜测 parent |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力与多 root hierarchical union 已落地，完整层次 root UI 仍待补齐 |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力、多 root hierarchical union、net chip/driver-load seed 与 Focus selected 已落地；跨 occurrence root 的完整层次 UI 仍待补齐 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；workspace cache 重复构建已测得 38x+ 加速，但全链路 30% 证据仍待补齐 |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 进行中：开关、Scene、Compare、导出已落地 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；完整 command-bus 收口仍待补齐 |
-| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位与显式 Focus 已解耦 |
-| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel 与 ELK JobCoordinator 已落地；持久 artifact 接管仍待补齐 |
+| R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 进行中：定位策略已统一为 locate/focus/unavailable；不在画布定位图但存在于 full graph 的 cell/net 才自动 Focus，不再写入隐藏 selection |
+| R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 进行中：大图默认零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel、独立 ELK JobCoordinator 与 ArtifactStore 已落地；跨页面持久化不在本阶段 |
 
 ## 4. 核心设计
 
@@ -578,6 +578,23 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 未完成与偏差：mapped worker 既有基线仍报告 40/47 violation（`missing-route`/
   `wire-route-disconnected`），本轮未宣称通过；artifact/job 尚未完全替换 UI 的同步 render pipeline，
   单侧取消/进度及 breadcrumb UI 仍是 Stage 8 收口项。
+
+### Stage 8 执行记录（2026-09-14，提交 `eb6fc83`、`562bcbc`、`f1584cf`）
+
+- 层次 occurrence：新增显式 occurrence chooser，重复 module definition 不再依赖父实例猜测；选择后将
+  canonical occurrence path 传入 module workspace、Focused root、breadcrumb 与 View History。当前 root
+  hierarchy 仍对 cycle/深度/节点数使用有界展开。
+- Compare 大图：`prepareCompareWorkspace()` 只做一次共享 full graph/compare input preparation，随后以
+  `compare-left-workspace` 和 `compare-right-workspace` 两个独立 `JobCoordinator` job 构建 layout、override
+  与 Scene artifact；两侧各自拥有 computation revision、loading/ready/failed/cancelled 生命周期，旧侧
+  结果不能通过另一侧提交。`ArtifactStore` 接收每个 session/kind 的完成 artifact。
+- Search 修正：新增 `resolveSearchTargetAction()` 三态策略。当前画布已有 cell/net 只执行 locate；不在
+  positioned graph 但存在于 full graph 才执行 `selection.reveal`/Focused；不可用目标不再写入隐藏
+  selection，避免后续 Focused/cone 读取悬空对象。
+- 验证：`npm test` 通过（494 tests）；新增 Search policy、隐藏 net 防悬空 selection、occurrence chooser、
+  Compare 独立 side job 回归。`git diff --check` 通过。mapped fixture 仍保留历史
+  `missing-route`/`wire-route-disconnected` 基线，不宣称 Stage 8 已完成；下一入口是 command-bus
+  事务收口、全链路性能同口径证据与 release 验证。
 
 ## 6. 验证矩阵
 
