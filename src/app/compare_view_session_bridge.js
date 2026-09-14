@@ -53,12 +53,7 @@ export function createCompareViewSessionBridge({
       presentationPolicy: state.presentationPolicy,
       overrides: snapshotOverrides(state.compare, side),
       selectedObjectRef: state.compare.selectedSide === side && state.compare.selectedName
-        ? createObjectRef({
-          documentId: current.documentId,
-          unitId: current.unitId,
-          kind: state.compare.selectedKind || "cell",
-          localId: state.compare.selectedName
-        })
+        ? objectRefForSelection(graph, current, state.compare.selectedKind || "cell", state.compare.selectedName)
         : null
     };
     return hasProjectedValueChange(current, projection)
@@ -127,11 +122,28 @@ export function createCompareViewSessionBridge({
     objectRef(side, kind, localId) {
       const session = ensure(side);
       const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-      const node = graph?.nodes?.find((item) => item.id === localId);
+      const node = findGraphNode(graph, kind, localId);
       if (node) return nodeToRef(node, session);
       return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind, localId });
     }
   });
+}
+
+function objectRefForSelection(graph, session, kind, localId) {
+  const node = findGraphNode(graph, kind, localId);
+  if (node) return nodeToRef(node, session);
+  return createObjectRef({ documentId: session.documentId, unitId: session.unitId, kind, localId });
+}
+
+function findGraphNode(graph, kind, localId) {
+  return graph?.nodes?.find((node) => {
+    if (kind === "net") return false;
+    if (node.kind !== kind && !(kind === "cell" && node.kind === "cell")) return false;
+    return node.id === localId ||
+      node.ref?.instance === localId ||
+      node.ref?.name === localId ||
+      node.ref?.localId === localId;
+  }) || null;
 }
 
 function ensureProjectionContainers(compare) {

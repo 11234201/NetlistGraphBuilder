@@ -111,6 +111,26 @@ test("compare roots preserve occurrence identity when local ids repeat", () => {
   assert.equal(state.compare.focusedRootNodeIds.left[0], "cell:u_right");
 });
 
+test("compare selection refs retain occurrence identity for repeated local ids", () => {
+  const state = {
+    compare: {
+      leftModuleName: "leaf", rightModuleName: "leaf",
+      fullGraphs: {
+        left: { nodes: [
+          { id: "cell:u_left", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_left"] } },
+          { id: "cell:u_right", kind: "cell", ref: { kind: "cell", localId: "leaf", occurrencePath: ["u_right"] } }
+        ] },
+        right: { nodes: [] }
+      }
+    }
+  };
+  const adapter = createCompareViewSessionBridge({ state, getDocumentId: () => "doc:1" });
+  const objectRef = adapter.objectRef("left", "cell", "cell:u_right");
+  const result = adapter.dispatch("left", { type: "selection.set", objectRef });
+  assert.equal(result.session.selectedObjectRef.localId, "leaf");
+  assert.deepEqual(result.session.selectedObjectRef.occurrencePath, ["u_right"]);
+});
+
 test("compare bridge imports restored root mirrors before the first command", () => {
   const state = {
     compare: {
