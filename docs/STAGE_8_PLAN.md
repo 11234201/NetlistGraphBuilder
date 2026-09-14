@@ -806,6 +806,12 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   只保留为可重复的验收工具。
 - 当前工作树 `npm test`：518/518 通过；上述证据补齐双大图 Compare 的浏览器项，但全链路性能同口径
   30% 对照与 mapped 既有路由基线仍需按完成定义单独记录，Stage 8 暂不标记完成。
+- `npm run test:mapped-cases` 复核仍为 47 cases、40 failed、34955/120 violations、
+  `hardInvariants=false`、最大 layout `10360 ms`；失败类别仍只有既有 `missing-route`/
+  `wire-route-disconnected`，未发现本轮 History 或 Compare fixture 工具引入的新类别。
+- `npm run release:windows` 通过（518 tests、启动器 smoke、离线 ZIP 与 ELK license）；最新包
+  [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
+  SHA-256 为 `a975c64c341cb7873fb463e8b592933f1ca9b5cdb417dee33b38f5fd53f5164f`。
 
 ## 6. 验证矩阵
 
