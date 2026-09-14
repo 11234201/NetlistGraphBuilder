@@ -677,6 +677,16 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   SHA-256 为 `380ba22c4679290cc2ebc041b7c88737fdc7b23251cae3b1491df3f833cdb422`。
 - 该修正不改变 graph 拓扑、node bounds 或 route geometry；Stage 8 仍保持“进行中”，原因同上轮记录。
 
+### Stage 8 执行记录（2026-09-14，Golden occurrence ref 兼容，提交 `5462993`）
+
+- Layout Golden 的 display state 现在可选保存/恢复 `focusedRootRefs`，包括 net/cell kind、canonical
+  localId 和 occurrence path；v1/v2/v3 旧 Golden 缺失该字段仍按 cell-only root 兼容，Whole/Search-first
+  导入会清空旧 refs，避免残留 Focused identity。
+- `npm test` 通过（513 tests）；`npm run release:windows` 通过，最新离线包 SHA-256 为
+  `beae8e34bf37c1b94c3d6e050a040d0a51d9373ab480f008a6800ab4c5a66ae9`。
+- R8-2 的 session/History/Golden identity 边界已统一；Stage 8 仍未完成，mapped 路由基线、全链路
+  性能对照、legacy history bridge 清理和完整大图 Compare 浏览器证据仍是收口项。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、
