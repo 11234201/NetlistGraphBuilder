@@ -900,6 +900,9 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 结论：该优化已解决大部分高扇出 branch-group 的重复重算，但 6 个超大 mapped case 的
   base/全流程仍超过当前 60s worker 窗口；Stage 8 保持“进行中”，下一入口是超大 case 的
   base pipeline 分段 profiling，而不是回退到 synthetic fixture。
+- `npm run release:windows` 通过（519 tests、启动器 smoke、离线 ZIP 与 ELK license）；本次
+  优化发布包 [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
+  SHA-256 为 `0b8a5366994e4aef140b300ccc5c42467bdcd3160a529752fd75fad2c7b0c4df`。
 
 ## 6. 验证矩阵
 
