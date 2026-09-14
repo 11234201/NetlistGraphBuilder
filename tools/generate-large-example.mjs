@@ -37,7 +37,7 @@ function createBufferChain(moduleName, cellCount) {
     const output = index === cellCount - 1 ? "data_out" : `n${index}`;
     lines.push(`BUF_X1 u_buf_${index} (.A(${input}), .Z(${output}));`);
   }
-  return [...lines, "endmodule"];
+  return [...lines, "", "endmodule"];
 }
 
 function optionValue(name) {

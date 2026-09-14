@@ -794,6 +794,19 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   “进行中”，待收口项仍是全链路同口径性能验收、legacy history bridge 清理及双大图 Compare
   浏览器证据。
 
+### Stage 8 执行记录（2026-09-14，统一历史 fallback 与双大图 Compare 浏览器证据，提交 `c13a843`、`75da94d`）
+
+- Back/Forward 与 `Ctrl+Z` 的统一入口现在在 View History 无可用步进时明确回退到旧 module history；
+  `Alt+Left/Right` 也不再绕过 View History。新增静态回归验证，保持旧 module history/session 兼容，
+  同时避免把两套历史状态误当成两条新操作时间线。
+- 大图生成器新增可选 `--pair --output=<path>` 模式，默认单 module fixture 行为保持不变。使用临时双
+  1024-cell module fixture 进行真实离线浏览器验证：进入 Compare 后左右两侧均显示 `Search-first mode`，
+  各自索引 1027 nodes，Compare stats 显示 `1024 / 1024` cells；Process Log 记录
+  `Compare layout completed: 0 / 0 node(s)`，没有默认 Whole layout/render。该临时文件已删除，生成器
+  只保留为可重复的验收工具。
+- 当前工作树 `npm test`：518/518 通过；上述证据补齐双大图 Compare 的浏览器项，但全链路性能同口径
+  30% 对照与 mapped 既有路由基线仍需按完成定义单独记录，Stage 8 暂不标记完成。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
