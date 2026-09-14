@@ -351,6 +351,9 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `viewHistoryTransaction` 是 application/UI 之间的轻量事务边界：复合的 Compare pair、view-mode
   和 nested command/render 调用只在外层操作完成后提交一个快照；历史本身仍只保存可序列化的视图
   状态，不保存 graph/Scene。
+- `command_bus.js` 在 handler 成功提交后通过可选 `onDispatch` observer 把 command type、session
+  scope 和 effect metadata 交给 View History；main 仍允许在渲染完成后补充一次显式 metadata，避免
+  在异步布局完成前截取不完整 viewport。
 - `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 现在位于 Single/Compare 的 workspace
   提交边界：Simple Layered 通过同步 `runSync()`，ELK Single/Compare 通过异步 job；Compare 仍保留
   per-side abort/status 与 controller identity 校验。Compare 先执行一次共享的 full-graph/analysis

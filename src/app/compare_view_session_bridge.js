@@ -4,8 +4,13 @@ import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createObjectRef } from "../contracts/object_ref.js";
 import { hasProjectedValueChange } from "../foundation/structured_value.js";
 
-export function createCompareViewSessionBridge({ state, getDocumentId, sessions = createViewSessionStore() }) {
-  const bus = createCommandBus(createViewCommandHandlers({ sessions }));
+export function createCompareViewSessionBridge({
+  state,
+  getDocumentId,
+  sessions = createViewSessionStore(),
+  onDispatch = null
+}) {
+  const bus = createCommandBus(createViewCommandHandlers({ sessions }), { onDispatch });
   const sessionIdFor = (side) => `compare:${side}`;
 
   function ensure(side) {

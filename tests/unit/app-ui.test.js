@@ -307,6 +307,15 @@ test("compound view actions commit one history transaction", async () => {
   assert.match(source, /function loadLayoutGolden\(imported, label\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Load Golden: \$\{label\}` \}/);
 });
 
+test("view bridges forward committed commands to the history boundary", async () => {
+  const main = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const bus = await readFile(new URL("../../src/application/command_bus.js", import.meta.url), "utf8");
+  assert.match(main, /onDispatch: noteViewCommandDispatch/);
+  assert.match(main, /function noteViewCommandDispatch\(command, result\)/);
+  assert.match(main, /pendingViewCommandMetadata/);
+  assert.match(bus, /onDispatch\?\.\(command, result\)/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";

@@ -9,9 +9,10 @@ export function createSingleViewSessionBridge({
   state,
   getDocumentId,
   sessions = createViewSessionStore(),
-  maxFocusedRoots = DEFAULT_FOCUSED_VIEW_POLICY.maximumRoots
+  maxFocusedRoots = DEFAULT_FOCUSED_VIEW_POLICY.maximumRoots,
+  onDispatch = null
 }) {
-  const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }));
+  const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }), { onDispatch });
 
   function synchronizeSession() {
     const documentId = getDocumentId();

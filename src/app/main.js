@@ -153,12 +153,14 @@ const renderGeneration = createRenderGeneration();
 const singleViewSession = createSingleViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null,
-  sessions: viewSessions
+  sessions: viewSessions,
+  onDispatch: noteViewCommandDispatch
 });
 const compareViewSessions = createCompareViewSessionBridge({
   state,
   getDocumentId: () => state.document?.documentId || null,
-  sessions: viewSessions
+  sessions: viewSessions,
+  onDispatch: noteViewCommandDispatch
 });
 state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
@@ -4027,17 +4029,61 @@ function persistSession(metadata = {}) {
 }
 
 function recordViewHistory(metadata = {}) {
+  const pendingCommand = state.pendingViewCommandMetadata;
+  state.pendingViewCommandMetadata = null;
+  const mergedMetadata = pendingCommand
+    ? {
+      ...pendingCommand,
+      ...metadata,
+      affectedSessionIds: metadata.affectedSessionIds || pendingCommand.affectedSessionIds
+    }
+    : metadata;
   if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
-  if (viewHistoryTransactions.capture(metadata)) return;
-  const affectedSessionIds = metadata.affectedSessionIds || (state.compare.active
+  if (viewHistoryTransactions.capture(mergedMetadata)) return;
+  const affectedSessionIds = mergedMetadata.affectedSessionIds || (state.compare.active
     ? ["compare:left", "compare:right"]
     : ["single:primary"]);
   state.viewHistory = pushViewHistory(state.viewHistory, createViewHistoryEntry(state, {
-    transactionId: metadata.transactionId || `view:${nextViewTransactionId++}`,
-    label: metadata.label || "View change",
+    transactionId: mergedMetadata.transactionId || `view:${nextViewTransactionId++}`,
+    label: mergedMetadata.label || "View change",
     affectedSessionIds
   }));
   updateModuleHistoryControls();
+}
+
+function noteViewCommandDispatch(command, result) {
+  if (!result || result.rejected || !Object.values(result.effects || {}).some(Boolean)) return;
+  const sessionId = command?.sessionId;
+  const previous = state.pendingViewCommandMetadata;
+  const affectedSessionIds = [...new Set([
+    ...(previous?.affectedSessionIds || []),
+    ...(sessionId ? [sessionId] : [])
+  ])];
+  state.pendingViewCommandMetadata = {
+    label: previous?.label || viewCommandLabel(command.type),
+    affectedSessionIds
+  };
+}
+
+function viewCommandLabel(type) {
+  return {
+    "selection.set": "Select object",
+    "selection.clear": "Clear selection",
+    "selection.reveal": "Reveal search target",
+    "focus.add": "Add Focused root",
+    "focus.set": "Set Focused root",
+    "focus.replace": "Replace Focused roots",
+    "focus.remove": "Remove Focused root",
+    "focus.clear": "Clear Focused roots",
+    "focus.activate": "Activate Focused root",
+    "view.mode.set": "Change view mode",
+    "view.depths.set": "Change Focused depth",
+    "viewport.set": "Change viewport",
+    "layout.policy.set": "Change layout policy",
+    "presentation.policy.set": "Change presentation",
+    "overrides.set": "Change layout override",
+    "unit.set": "Navigate module"
+  }[type] || "View command";
 }
 
 function runViewHistoryTransaction(metadata, operation) {

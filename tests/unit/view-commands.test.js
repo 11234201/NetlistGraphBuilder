@@ -27,6 +27,22 @@ test("document and session stores close related state explicitly", () => {
   assert.equal(documents.close("doc:1"), true);
 });
 
+test("command bus exposes committed view commands to the history boundary", () => {
+  const sessions = createViewSessionStore();
+  sessions.create({ sessionId: "left", documentId: "doc:1", domainId: "netlist", unitId: "top" });
+  const dispatches = [];
+  const bus = createCommandBus(createViewCommandHandlers({ sessions }), {
+    onDispatch(command, result) {
+      dispatches.push({ type: command.type, sessionId: command.sessionId, rejected: result.rejected });
+    }
+  });
+
+  const result = bus.dispatch({ type: "selection.set", sessionId: "left", objectRef: ref("u1") });
+
+  assert.deepEqual(dispatches, [{ type: "selection.set", sessionId: "left", rejected: null }]);
+  assert.equal(result.session.selectedObjectRef.localId, "u1");
+});
+
 test("viewport updates advance UI revision without invalidating computation revision", () => {
   const { sessions } = setup();
   const before = sessions.require("left");
