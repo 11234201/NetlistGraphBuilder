@@ -970,3 +970,6 @@ Stage 8 只有在以下条件同时满足时完成：
   抛错事务不产生历史项。
 - 标准单元验证：`npm test`（最终结果以本次提交记录为准）。R8-3 仍因 47-case 中 6 个超大 mapped
   case 超时保持进行中，不能据此把 Stage 8 标为完成。
+- 首个大版本发布准备：版本提升至 `1.0.0`；`npm run release:windows` 通过 520 个单元测试、启动器
+  smoke、离线资源和 ELK license 检查。产物 `dist/NetlistGraphBuilder-v1.0.0-win-x64.zip` 的 SHA-256
+  为 `718af7dfde35552431d48c89b4c2e4cbb85f0c0a5ed2857577114fbe214389d2`。

@@ -1,6 +1,6 @@
 ﻿{
   "name": "netlist-graph-builder",
-  "version": "0.7.3",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
