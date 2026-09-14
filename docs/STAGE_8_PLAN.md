@@ -593,7 +593,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   selection，避免后续 Focused/cone 读取悬空对象。
 - View History：新增轻量 transaction boundary，Compare pair、Single/Compare view-mode 及其内部
   nested command/render 调用在外层操作结束时只提交一个快照；异常也会释放事务上下文，不会污染后续操作。
-- 验证：`npm test` 通过（498 tests）；新增 Search policy、隐藏 net 防悬空 selection、occurrence chooser、
+- 验证：`npm test` 通过（499 tests）；新增 Search policy、隐藏 net 防悬空 selection、occurrence chooser、
   Compare 独立 side job/单侧取消、nested history transaction 回归。`git diff --check` 通过。mapped fixture 仍保留历史
   `missing-route`/`wire-route-disconnected` 基线，不宣称 Stage 8 已完成；下一入口是 command-bus
   事务收口与全链路性能同口径证据。

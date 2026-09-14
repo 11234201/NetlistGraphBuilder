@@ -2181,7 +2181,8 @@ function renderFocusedRootList() {
     const netName = focusedNetName(nodeId);
     const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
     const localLabel = netName ? `net ${netName}` : node?.label || nodeId.replace(/^cell:/, "");
-    const occurrencePath = node?.ref?.occurrencePath?.join("/") || "";
+    const occurrencePath = node?.ref?.occurrencePath?.join("/") ||
+      (netName && !context.compare ? state.occurrenceContext?.occurrencePath?.join("/") : "") || "";
     const label = occurrencePath ? `${occurrencePath} · ${localLabel}` : localLabel;
     const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
     const title = `${context.compare ? `${context.side}: ` : ""}${occurrencePath ? `${occurrencePath} / ` : ""}${localLabel}`;

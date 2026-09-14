@@ -283,6 +283,13 @@ test("ambiguous module occurrences expose an explicit chooser wired to selectMod
   assert.match(handler, /occurrencePath/);
 });
 
+test("focused net chips retain the active occurrence path", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const handler = source.match(/function renderFocusedRootList\(\) \{([\s\S]*?)\n\}\n\nfunction updateFocusSelectedControl/)?.[1] || "";
+  assert.match(handler, /netName && !context\.compare/);
+  assert.match(handler, /state\.occurrenceContext\?\.occurrencePath/);
+});
+
 test("compare layout dispatches independent side jobs", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   assert.match(source, /kind: `compare-\$\{side\}-workspace`/);
