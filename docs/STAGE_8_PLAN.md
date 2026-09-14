@@ -813,6 +813,17 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
   SHA-256 为 `a975c64c341cb7873fb463e8b592933f1ca9b5cdb417dee33b38f5fd53f5164f`。
 
+### Stage 8 执行记录（2026-09-14，同口径性能对照）
+
+- 从 Stage 8 起点提交 `18299c9` 导出临时 baseline，在同一 Windows/Node 环境运行相同
+  `npm run benchmark`：baseline 的 1K/4K/8K pipeline 为 `160.6/924.8/2917.3 ms`，当前工作树
+  为 `224.6/959.9/2725.5 ms`，对应 `+39.8%/+3.8%/-6.6%`；layout 为
+  `106.0/726.6/2436.9 ms` → `146.8/753.3/2216.9 ms`。因此当前缓存/局部 override 的交互路径
+  已有明显 warm-up 收益，但没有证据宣称全链路 30% 改善，且 1K cold path 有回退，Stage 8
+  继续保持“进行中”。
+- baseline 提交尚未包含 `benchmark:interaction` 脚本，故交互 benchmark 只作为当前工作树的
+  回归指标，不伪造历史对照；临时 baseline 目录和压缩包已删除。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
