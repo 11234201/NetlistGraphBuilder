@@ -1,6 +1,6 @@
 import { analyzeGraphCone } from "./graphCone.js";
 
-export function inspectGraphNode(graph, node) {
+export function inspectGraphNode(graph, node, options = {}) {
   if (!node) {
     return null;
   }
@@ -14,9 +14,68 @@ export function inspectGraphNode(graph, node) {
       ["Cell type", node.subtitle || "-"],
       ["Inference", node.inferenceSource || "-"]
     ],
-    connections: getNodeConnections(graph, node),
+    connections: addAdjacentHierarchyConnections(getNodeConnections(graph, node), node, options.hierarchyContext),
     traversal: inspectTraversal(graph, node)
   };
+}
+
+function addAdjacentHierarchyConnections(connections, node, context) {
+  if (!context?.design?.modules || !context.currentModule) return connections;
+  const modules = context.design.modules;
+  const occurrencePath = [...(context.occurrencePath || [])];
+  const rootModuleName = context.rootModuleName || context.currentModule.name;
+  const sourceCell = context.currentModule.cells?.find((cell) =>
+    cell.instance === (node.ref?.instance || node.ref?.localId || node.id?.replace(/^cell:/, ""))
+  );
+  const childModule = sourceCell && modules.find((module) => module.name === sourceCell.type);
+  if (childModule) {
+    return connections.map((connection) => {
+      const port = childModule.ports?.find((item) => item.name === connection.pin);
+      if (!port) return connection;
+      const target = createNetTarget(port.name, `${childModule.displayName || childModule.name}.${port.displayName || port.name}`);
+      Object.assign(target, {
+        moduleName: childModule.name,
+        rootModuleName,
+        occurrencePath: [...occurrencePath, sourceCell.instance]
+      });
+      return {
+        ...connection,
+        peers: [connection.peers, target.label].filter((value) => value && value !== "-").join(", ") || "-",
+        peerTargets: uniqueTargets([...(connection.peerTargets || []), target])
+      };
+    });
+  }
+
+  if (!node.ref?.direction || occurrencePath.length === 0) return connections;
+  const parent = resolveParentOccurrence(modules, rootModuleName, occurrencePath);
+  if (!parent) return connections;
+  const localPort = node.ref?.localId || node.ref?.name || node.label;
+  const parentPin = parent.cell.pins?.find((pin) => pin.pin === localPort);
+  if (!parentPin?.net) return connections;
+  const target = createNetTarget(parentPin.net, `${parent.module.displayName || parent.module.name}.${parentPin.netDisplayName || parentPin.net}`);
+  Object.assign(target, {
+    moduleName: parent.module.name,
+    rootModuleName,
+    occurrencePath: occurrencePath.slice(0, -1)
+  });
+  return connections.map((connection) => ({
+    ...connection,
+    peers: [connection.peers, target.label].filter((value) => value && value !== "-").join(", ") || "-",
+    peerTargets: uniqueTargets([...(connection.peerTargets || []), target])
+  }));
+}
+
+function resolveParentOccurrence(modules, rootModuleName, occurrencePath) {
+  let module = modules.find((item) => item.name === rootModuleName);
+  if (!module) return null;
+  for (let index = 0; index < occurrencePath.length; index += 1) {
+    const cell = module.cells?.find((item) => item.instance === occurrencePath[index]);
+    if (!cell) return null;
+    if (index === occurrencePath.length - 1) return { module, cell };
+    module = modules.find((item) => item.name === cell.type);
+    if (!module) return null;
+  }
+  return null;
 }
 
 function inspectTraversal(graph, node) {
@@ -172,7 +231,7 @@ function uniqueTargets(targets) {
   const seen = new Set();
   return targets.filter((target) => {
     if (!target) return false;
-    const key = `${target.kind}:${target.id || target.name}:${target.label}`;
+    const key = `${target.moduleName || ""}:${(target.occurrencePath || []).join("/")}:${target.kind}:${target.id || target.name}:${target.label}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

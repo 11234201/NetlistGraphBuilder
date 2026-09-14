@@ -1321,8 +1321,6 @@ function renderCurrentModuleGraph(options = {}) {
   const request = renderGeneration.begin();
   const requestId = request.id;
   const layoutProvider = getCurrentLayoutProvider();
-  const hierarchyRoots = resolveHierarchyFocusedRoots();
-  const hierarchyRoot = hierarchyRoots[0] || null;
   logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
     viewMode: state.viewMode,
     provider: layoutProvider.id
@@ -1346,8 +1344,6 @@ function renderCurrentModuleGraph(options = {}) {
     faninDepth: state.faninDepth,
     fanoutDepth: state.fanoutDepth,
     occurrencePath: state.occurrenceContext?.occurrencePath || null,
-    hierarchyRoot,
-    hierarchyRoots,
     useFanoutHubs: state.useFanoutHubs,
     layoutProvider,
     layoutPolicy: state.layoutPolicy,
@@ -1398,39 +1394,6 @@ function renderCurrentModuleGraph(options = {}) {
 
 function buildModuleWorkspaceForJob(options, signal) {
   return buildModuleWorkspace({ ...options, signal });
-}
-
-function resolveHierarchyFocusedRoots() {
-  if (state.viewMode !== "focused" || !state.currentModule || !state.fullGraph) return [];
-  const roots = normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId);
-  const canonicalRefs = Array.isArray(state.focusedRootRefs) && state.focusedRootRefs.length === roots.length
-    ? state.focusedRootRefs : [];
-  return roots.map((rootId) => {
-    const rootIndex = roots.indexOf(rootId);
-    const canonicalRef = canonicalRefs[rootIndex] || null;
-    if (typeof rootId === "string" && rootId.startsWith("net:")) {
-      return {
-        rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
-        moduleName: state.currentModule.name,
-        occurrencePath: canonicalRef?.occurrencePath || state.occurrenceContext?.occurrencePath || [],
-        kind: "net",
-        localId: canonicalRef?.kind === "net" ? canonicalRef.localId : rootId.slice("net:".length)
-      };
-    }
-    const root = state.fullGraph.nodes.find((node) => node.id === rootId && node.kind === "cell");
-    if (!root?.referencedModuleName && !root?.ref?.type && !root?.type) return null;
-    const childType = root.referencedModuleName || root.ref?.type || root.type;
-    if (!childType || !state.design?.modules.some((module) => module.name === childType)) return null;
-    return {
-      rootModuleName: state.occurrenceContext?.rootModuleName || state.currentModule.name,
-      moduleName: state.currentModule.name,
-      occurrencePath: canonicalRef?.occurrencePath || root.ref?.occurrencePath || state.occurrenceContext?.occurrencePath || [],
-      kind: "cell",
-      localId: canonicalRef?.kind === "cell"
-        ? canonicalRef.localId
-        : root.ref?.instance || root.ref?.localId || root.id.replace(/^cell:/, "")
-    };
-  }).filter(Boolean);
 }
 
 function commitCurrentWorkspace(workspace, options = {}) {
@@ -2620,6 +2583,12 @@ function handleSelectionNavigationClick(event) {
   const target = kind === "net"
     ? { kind, name: button.dataset.selectionTargetName }
     : { kind, id: button.dataset.selectionTargetId };
+  if (button.dataset.selectionTargetModule) {
+    target.moduleName = button.dataset.selectionTargetModule;
+    target.rootModuleName = button.dataset.selectionTargetRootModule || target.moduleName;
+    try { target.occurrencePath = JSON.parse(button.dataset.selectionTargetOccurrence || "[]"); }
+    catch { target.occurrencePath = []; }
+  }
   if ((kind === "net" && !target.name) || (kind === "node" && !target.id)) return;
 
   event.preventDefault();
@@ -2628,6 +2597,14 @@ function handleSelectionNavigationClick(event) {
 }
 
 function navigateSingleSelectionTarget(target) {
+  if (target.moduleName && target.moduleName !== state.currentModule?.name) {
+    selectModule(target.moduleName, {
+      rootModuleName: target.rootModuleName,
+      occurrencePath: target.occurrencePath,
+      onRendered: () => replaceFocusWithSelectionTarget(target)
+    });
+    return;
+  }
   if (focusSingleSelectionTarget(target)) return;
   if (!selectionTargetExists(state.fullGraph, target)) {
     setStatus("Connected object is no longer available in this module");
@@ -2671,6 +2648,36 @@ function navigateSingleSelectionTarget(target) {
         y: node.y + node.height / 2
       }, node.width);
       setStatus(`Focused connected cell: ${node.label}`);
+    }
+  });
+}
+
+function replaceFocusWithSelectionTarget(target) {
+  const node = target.kind === "node"
+    ? state.fullGraph?.nodes.find((item) => item.id === target.id)
+    : null;
+  const objectRef = target.kind === "net"
+    ? singleViewSession.objectRefForNet(target.name)
+    : node ? singleViewSession.objectRefForNode(node) : null;
+  if (!objectRef) {
+    setStatus("Connected hierarchy object is unavailable");
+    return;
+  }
+  singleViewSession.dispatch({ type: "focus.replace", objectRefs: [objectRef], activeObjectRef: objectRef });
+  setSingleTransform({ x: 0, y: 0, scale: 1 });
+  renderCurrentModuleGraph({
+    onRendered: (graph) => {
+      if (target.kind === "net") {
+        const edge = graph.edges.find((item) => item.net === target.name);
+        setSelectedNet(edge ? target.name : null, false);
+        if (edge) centerGraphPoint(getEdgeCenter(edge));
+      } else {
+        const positioned = graph.nodes.find((item) => item.id === target.id);
+        setSelectedNode(positioned?.id || null, false);
+        if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
+      }
+      recordViewHistory();
+      setStatus(`Focused connected object in ${state.currentModule.displayName}`);
     }
   });
 }
@@ -3128,7 +3135,14 @@ function renderSelection(node) {
   elements.details.className = "details-block";
   const instance = getNodeInstance(node);
   const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
-  elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+  elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node, {
+    hierarchyContext: {
+      design: state.design,
+      currentModule: state.currentModule,
+      rootModuleName: state.occurrenceContext?.rootModuleName,
+      occurrencePath: state.occurrenceContext?.occurrencePath || []
+    }
+  }))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
   bindSelectionControls(node);
 }
 

@@ -111,7 +111,10 @@ test("conventional gate symbols preserve the positioned bounds while changing on
   assert.match(rectangle, /<rect class="node-shape" x="40" y="30" width="160" height="80"><\/rect>/);
   assert.doesNotMatch(rectangle, /gate-extra-shape/);
   assert.match(conventional, /class="node xor cell gate-conventional"/);
-  assert.match(conventional, /<path class="node-shape" d="M 52 42/);
+  assert.match(conventional, /<path class="node-shape" d="M 40 42/);
   assert.match(conventional, /class="gate-extra-shape"/);
+  assert.match(conventional, /class="gate-port-lead" x1="40" y1="60" x2="54" y2="60"/);
   assert.doesNotMatch(conventional, /<rect class="node-shape"/);
+  assert.match(conventional, />XOR<\/text>/);
+  assert.doesNotMatch(conventional, />u0<\/text>|>XOR2<\/text>|class="pin-label"/);
 });

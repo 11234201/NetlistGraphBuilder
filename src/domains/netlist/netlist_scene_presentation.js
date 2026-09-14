@@ -92,10 +92,14 @@ function createCellPrimitive(node, presentationPolicy) {
     children.push(title(`${node.subtitle}: ${node.label}${node.metadataText ? `; ${node.metadataText}` : ""}${navigationHint}`));
   }
   children.push(createGateShape(node, gateKind, useConventionalSymbol, x, y, width, height));
-  children.push(...createPortPrimitives(node, x, y, width));
-  const timingBadge = createTimingBadge(node, x, y, width, height);
+  children.push(...createPortPrimitives(node, x, y, width, useConventionalSymbol));
+  const timingBadge = useConventionalSymbol ? null : createTimingBadge(node, x, y, width, height);
   if (timingBadge) children.push(timingBadge);
-  children.push(
+  if (useConventionalSymbol) {
+    children.push(svgElement("text", {
+      class: "gate-kind", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
+    }, [svgText(gateKind.toUpperCase())]));
+  } else children.push(
     svgElement("text", {
       class: "gate-kind", x: x + width / 2, y: y + 22, "text-anchor": "middle"
     }, [svgText(node.title || gateKind.toUpperCase())]),
@@ -103,7 +107,7 @@ function createCellPrimitive(node, presentationPolicy) {
       class: "node-label", x: x + width / 2, y: y + 42, "text-anchor": "middle"
     }, [svgText(getLeafDisplayName(node.label))])
   );
-  if (node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0) {
+  if (!useConventionalSymbol && node.kind === "cell" && node.metadataText && getTimingBadgeLines(node).length === 0) {
     children.push(svgElement("text", {
       class: "node-meta", x: x + width / 2, y: y + height - 6, "text-anchor": "middle"
     }, [svgText(truncateText(node.metadataText, 34))]));
@@ -118,8 +122,8 @@ function isConventionalGateKind(gateKind) {
 function createGateShape(node, gateKind, conventional, x, y, width, height) {
   if (!conventional) return svgElement("rect", { class: "node-shape", x, y, width, height });
   const inset = Math.min(12, Math.max(5, width * 0.08));
-  const left = x + inset;
-  const right = x + width - inset;
+  const left = x;
+  const right = x + width;
   const top = y + inset;
   const bottom = y + height - inset;
   const mid = y + height / 2;
@@ -142,7 +146,7 @@ function createGateShape(node, gateKind, conventional, x, y, width, height) {
   return svgElement("g", {}, [shape, svgElement("path", { class: "gate-extra-shape", d: extraD })]);
 }
 
-function createPortPrimitives(node, x, y, width) {
+function createPortPrimitives(node, x, y, width, conventional = false) {
   return (node.ports || []).flatMap((port) => {
     const px = round(x + port.x);
     const py = round(y + port.y);
@@ -157,6 +161,12 @@ function createPortPrimitives(node, x, y, width) {
     const marker = isOutput && node.outputBubble === true
       ? svgElement("circle", { class: `pin-bubble${timingClass}`, cx: round(x + width + 5), cy: py, r: 5 }, markerChildren)
       : svgElement("circle", { class: `pin-dot${timingClass}`, cx: px, cy: py, r: 2.4 }, markerChildren);
+    if (conventional) {
+      const lead = !vertical && !isOutput
+        ? svgElement("line", { class: "gate-port-lead", x1: px, y1: py, x2: round(px + 14), y2: py })
+        : null;
+      return [lead, marker].filter(Boolean);
+    }
     return [marker, svgElement("text", {
       class: "pin-label", x: labelX, y: labelY, "text-anchor": anchor
     }, [svgText(port.pin)])];

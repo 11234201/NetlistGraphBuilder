@@ -7,7 +7,6 @@ import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
-import { analyzeHierarchicalCones, projectHierarchicalRenderGraph } from "../domains/netlist/hierarchy_connectivity.js";
 import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
 
 export function buildModuleWorkspace(options) {
@@ -39,8 +38,6 @@ export function buildModuleWorkspace(options) {
     nodeSizes = new Map(),
     preparedFullGraph = null,
     occurrencePath = null,
-    hierarchyRoot = null,
-    hierarchyRoots = null,
     artifactCache = null,
     artifactIdentity = null
   } = options;
@@ -58,36 +55,6 @@ export function buildModuleWorkspace(options) {
     artifactCache,
     artifactIdentity
   });
-  const resolvedHierarchyRoots = hierarchyRoots?.length ? hierarchyRoots : (hierarchyRoot ? [hierarchyRoot] : []);
-  let queryGraph = fullGraph;
-  if (!preparedFullGraph && resolvedHierarchyRoots.length > 0 && moduleLibrary.length > 0 && viewMode === "focused") {
-    const hierarchyIdentity = artifactIdentity && {
-      ...artifactIdentity,
-      stage: "hierarchical-cone",
-      hierarchyRoots: resolvedHierarchyRoots,
-      faninDepth,
-      fanoutDepth
-    };
-    const hierarchyKey = hierarchyIdentity ? createWorkspaceArtifactKey(hierarchyIdentity) : null;
-    const cachedHierarchy = artifactCache && hierarchyKey ? artifactCache.get(hierarchyKey) : null;
-    if (cachedHierarchy) {
-      queryGraph = cachedHierarchy;
-    } else {
-      const result = analyzeHierarchicalCones({ modules: moduleLibrary }, resolvedHierarchyRoots, {
-        faninDepth,
-        fanoutDepth,
-        maximumVisibleNodes: 512,
-        maximumFrontier: 1024
-      });
-      queryGraph = projectHierarchicalRenderGraph(result, {
-        documentId: artifactIdentity?.documentId || "hierarchy:workspace"
-      });
-      if (artifactCache && hierarchyKey) artifactCache.put(hierarchyKey, queryGraph, {
-        documentId: artifactIdentity?.documentId,
-        sessionId: artifactIdentity?.sessionId
-      });
-    }
-  }
   if (viewMode === "search-first") {
     const emptyGraph = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
     return {
@@ -145,7 +112,7 @@ export function buildModuleWorkspace(options) {
   const pipeline = runViewPipeline({
     query: () => ({
       fullGraph,
-      graph: resolvedHierarchyRoots.length > 0 ? queryGraph : selectWorkspaceGraphView(fullGraph, {
+      graph: selectWorkspaceGraphView(fullGraph, {
         viewMode,
         rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
         rootNetIds: focusedRootNetIds,

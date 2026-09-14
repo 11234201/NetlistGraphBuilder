@@ -1469,6 +1469,11 @@ body.is-dragging-files .drop-overlay {
   stroke-linejoin: round;
 }
 
+.gate-port-lead {
+  stroke: var(--gate-line);
+  stroke-width: 1.4;
+}
+
 .node.input .node-shape {
   fill: #e7f3f4;
   stroke: #1f7a8c;

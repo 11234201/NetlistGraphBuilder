@@ -58,6 +58,32 @@ test("graph inspector reports net driver, loads, and escaped HTML", () => {
   assert.match(html, /a&amp;b/);
 });
 
+test("hierarchical instance connections expose one child-module layer without changing the graph", () => {
+  const design = parseVerilog(`module child(a,y); input a; output y; BUF u0(.A(a),.Y(y)); endmodule
+module top(a,y); input a; output y; child u_child(.a(a),.y(y)); endmodule`);
+  const top = design.modules.find((module) => module.name === "top");
+  const graph = buildSchematicGraph(top, { moduleLibrary: design.modules });
+  const node = graph.nodes.find((item) => item.id === "cell:u_child");
+  const inspection = inspectGraphNode(graph, node, {
+    hierarchyContext: { design, currentModule: top, rootModuleName: "top", occurrencePath: [] }
+  });
+  const input = inspection.connections.find((connection) => connection.pin === "a");
+  const childTarget = input.peerTargets.find((target) => target.moduleName === "child");
+  const html = renderObjectDetails(inspection);
+
+  assert.deepEqual(childTarget, {
+    kind: "net",
+    name: "a",
+    label: "child.a",
+    moduleName: "child",
+    rootModuleName: "top",
+    occurrencePath: ["u_child"]
+  });
+  assert.match(html, /data-selection-target-module="child"/);
+  assert.match(html, /data-selection-target-occurrence="\[&quot;u_child&quot;\]"/);
+  assert.equal(graph.nodes.some((item) => item.ref?.occurrencePath?.length), false);
+});
+
 test("graph cone supports immediate, depth-limited, and transitive traversal", () => {
   const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
   const immediate = analyzeGraphCone(graph, "input:a", { direction: "fanout", maxDepth: 1 });

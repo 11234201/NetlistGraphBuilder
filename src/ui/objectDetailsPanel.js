@@ -61,5 +61,8 @@ function renderTarget(target, fallback = "-") {
     ? `data-selection-target-name="${escapeAttr(target.name)}"`
     : `data-selection-target-id="${escapeAttr(target.id)}"`;
   const label = target.label || target.name || target.id || fallback;
-  return `<button class="selection-link" type="button" data-selection-target-kind="${escapeAttr(target.kind)}" ${valueAttribute} title="定位到 ${escapeAttr(label)}"><code>${escapeHtml(label)}</code></button>`;
+  const hierarchyAttributes = target.moduleName
+    ? ` data-selection-target-module="${escapeAttr(target.moduleName)}" data-selection-target-root-module="${escapeAttr(target.rootModuleName || target.moduleName)}" data-selection-target-occurrence="${escapeAttr(JSON.stringify(target.occurrencePath || []))}"`
+    : "";
+  return `<button class="selection-link" type="button" data-selection-target-kind="${escapeAttr(target.kind)}" ${valueAttribute}${hierarchyAttributes} title="定位到 ${escapeAttr(label)}"><code>${escapeHtml(label)}</code></button>`;
 }

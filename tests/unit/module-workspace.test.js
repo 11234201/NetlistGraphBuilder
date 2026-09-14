@@ -93,7 +93,7 @@ test("module workspace expands an encoded net Focused root without changing the 
   assert.ok(workspace.graph.edges.some((edge) => edge.net === "n"));
 });
 
-test("module workspace lays out an occurrence-aware hierarchical cone", () => {
+test("module workspace keeps Focused traversal inside the selected module boundary", () => {
   const design = parseVerilog(hierarchySource);
   const top = design.modules.find((module) => module.name === "top_h");
   const workspace = buildModuleWorkspace({
@@ -107,6 +107,7 @@ test("module workspace lays out an occurrence-aware hierarchical cone", () => {
       kind: "cell",
       localId: "u_child"
     },
+    focusedRootNodeIds: ["cell:u_child"],
     faninDepth: 1,
     fanoutDepth: 1,
     layoutProvider: getLayoutProvider(),
@@ -114,13 +115,13 @@ test("module workspace lays out an occurrence-aware hierarchical cone", () => {
     collapseLargeGroups: false
   });
   assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_child"));
-  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_child"));
+  assert.equal(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_child"), false);
   assert.ok(workspace.graph.edges.every((edge) => edge.net));
   assert.ok(workspace.fullGraph.nodes.some((node) => node.id === "output:y"));
   assert.equal(workspace.fullGraph.nodes.some((node) => node.ref?.localId === "u_buf"), false);
 });
 
-test("module workspace keeps multiple occurrence roots in one projected cone", () => {
+test("module workspace does not project multiple hierarchy roots onto the canvas", () => {
   const design = parseVerilog(repeatedHierarchySource);
   const top = design.modules.find((module) => module.name === "top_r");
   const workspace = buildModuleWorkspace({
@@ -131,6 +132,7 @@ test("module workspace keeps multiple occurrence roots in one projected cone", (
       { rootModuleName: "top_r", moduleName: "top_r", occurrencePath: [], kind: "cell", localId: "u_left" },
       { rootModuleName: "top_r", moduleName: "top_r", occurrencePath: [], kind: "cell", localId: "u_right" }
     ],
+    focusedRootNodeIds: ["cell:u_left", "cell:u_right"],
     faninDepth: 1,
     fanoutDepth: 1,
     layoutProvider: getLayoutProvider(),
@@ -141,7 +143,7 @@ test("module workspace keeps multiple occurrence roots in one projected cone", (
     .filter((node) => node.kind === "cell" && node.ref?.localId === "u_buf")
     .map((node) => node.ref.occurrencePath.join("/"))
     .sort();
-  assert.deepEqual(paths, ["u_left", "u_right"]);
-  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_left"));
-  assert.ok(workspace.graph.nodes.some((node) => node.ref?.occurrencePath?.join("/") === "u_right"));
+  assert.deepEqual(paths, []);
+  assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_left"));
+  assert.ok(workspace.graph.nodes.some((node) => node.id === "cell:u_right"));
 });
