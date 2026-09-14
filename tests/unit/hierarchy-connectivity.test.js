@@ -149,3 +149,29 @@ test("hierarchical projection adapts to the standard layout graph contract", () 
     ["u_left"]
   );
 });
+
+test("cell-rooted hierarchical projection keeps the entry wire connected", () => {
+  const result = analyzeHierarchicalCone(createDesign(), {
+    rootModuleName: "top",
+    kind: "cell",
+    localId: "u_left"
+  }, { direction: "fanout", fanoutDepth: 0 });
+  const root = result.nodes.find((node) => node.kind === "cell" && node.localId === "u_left");
+  const entryNet = result.nodes.find((node) => node.kind === "net" && node.localId === "left_out");
+  assert.ok(root);
+  assert.ok(entryNet);
+  assert.ok(result.links.some((link) => link.source === root.id && link.target === entryNet.id));
+});
+
+test("hierarchical boundary continuation keeps parent cell connected to child port net", () => {
+  const result = analyzeHierarchicalCone(createDesign(), {
+    rootModuleName: "top",
+    kind: "cell",
+    localId: "u_left"
+  }, { direction: "fanin", faninDepth: 0 });
+  const parent = result.nodes.find((node) => node.kind === "cell" && node.localId === "u_left" && node.occurrencePath.length === 0);
+  const childNet = result.nodes.find((node) => node.kind === "net" && node.localId === "out" && node.occurrencePath.join("/") === "u_left");
+  assert.ok(parent);
+  assert.ok(childNet);
+  assert.ok(result.links.some((link) => link.source === childNet.id && link.target === parent.id));
+});

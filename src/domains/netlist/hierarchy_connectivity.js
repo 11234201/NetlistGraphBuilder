@@ -396,7 +396,8 @@ function visitNet(result, queues, state, templates, limits) {
     return;
   }
   const connection = context.template.connections.get(state.net);
-  addNode(result, context, "net", state.net, null);
+  const netNode = addNode(result, context, "net", state.net, null);
+  connectContinuation(result, state, netNode);
   if (!connection) {
     addBoundary(result, state, "missing-net");
     return;
@@ -429,6 +430,26 @@ function visitNet(result, queues, state, templates, limits) {
       followPortEndpoint(result, queues, state, context, endpoint, templates, limits);
     }
   }
+}
+
+/**
+ * Preserve the edge that caused a net frontier to be visited. A cell-rooted
+ * query used to add the root cell and the next net as disconnected nodes,
+ * which made projected cross-occurrence cones lose their entry wire. The
+ * traversal direction determines the orientation of this continuation edge;
+ * no layout or parser state is involved.
+ */
+function connectContinuation(result, state, netNode) {
+  if (!netNode || !state.from || !result.nodeById.has(state.from)) return;
+  const from = result.nodeById.get(state.from);
+  const link = state.direction === "fanin"
+    ? { source: netNode.id, target: from.id }
+    : { source: from.id, target: netNode.id };
+  const relation = state.relation || "continuation";
+  const key = `${link.source}|${link.target}|${relation}`;
+  if (result.linkKeys.has(key)) return;
+  result.linkKeys.add(key);
+  result.links.push(Object.freeze({ ...link, relation, depth: state.depth }));
 }
 
 function followCellEndpoint(result, queues, state, context, endpoint, templates, limits) {
