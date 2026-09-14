@@ -346,6 +346,9 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
   execution belongs to workspace rebuilds only.
 - `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
+- `viewHistoryTransaction` 是 application/UI 之间的轻量事务边界：复合的 Compare pair、view-mode
+  和 nested command/render 调用只在外层操作完成后提交一个快照；历史本身仍只保存可序列化的视图
+  状态，不保存 graph/Scene。
 - `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 现在位于 Single/Compare 的 workspace
   提交边界：Simple Layered 通过同步 `runSync()`，ELK Single/Compare 通过异步 job；Compare 仍保留
   per-side abort/status 与 controller identity 校验。Compare 先执行一次共享的 full-graph/analysis
