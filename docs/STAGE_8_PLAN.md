@@ -1,6 +1,6 @@
 # 阶段 8：层次追踪、对象聚焦与大图交互收敛
 
-更新日期：2026-09-14。状态：进行中（核心增量已提交，验收闭环尚未完成）。
+更新日期：2026-09-14。状态：已完成（范围内验收闭环；mapped 既有 route 基线作为已知偏差保留）。
 
 ## 1. 阶段目标与边界
 
@@ -63,11 +63,11 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 
 | ID | 需求 | 主要交付物 | 优先级 | 成本/风险 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择已落地；父向追踪仍不自动猜测 parent |
-| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力、多 root hierarchical union、net chip/driver-load seed 与 Focus selected 已落地；跨 occurrence root 的完整层次 UI 仍待补齐 |
+| R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 已完成（范围内）：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择均已落地；父向追踪在无 occurrence path 时保持显式 chooser，不猜测 parent |
+| R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 已完成：Single/Compare、多 root hierarchical union、net chip/driver-load seed、Focus selected、occurrence-aware session/Golden/startup 均已落地并有回归 |
 | R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 已完成（本阶段范围）：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；等价 4K override runner 相对 S8-0 降幅超过 90%，parse/build/full-layout 均未回退超过 10% |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
-| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；command bus 已提供提交后 observer，仍需继续清理 legacy 手工桥接 |
+| R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 已完成（范围内）：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；旧 module history 仅作为兼容 fallback，非 command 的 DOM viewport 操作保留显式记录并有退出条件 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
 | R8-7 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/artifact、显式 Overview | P0 | 中 / 中 | 已完成（本阶段范围）：双侧 Search-first、零 provider、统计、显式 Whole、复合 history、共享 artifact cache、per-side loading/cancel 已落地并有双大图浏览器证据；跨页面持久化不在本阶段 |
 
@@ -858,6 +858,18 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `hardInvariants=false`、最大 layout `10386 ms`、最大 heap `626 MiB`。失败仍只包含既有
   `missing-route` / `wire-route-disconnected`，`sop_015` 仍为 3193 个 `missing-route`；
   本轮缓存 override、Search、Compare 和历史改动没有引入新失败类别。
+
+### Stage 8 执行记录（2026-09-14，阶段收口）
+
+- 需求 1–7 的范围内交付物、兼容边界和验证证据均已记录：跨层 occurrence-aware
+  Fanin/Fanout、Cell/Net Focused、Search 自动 Focus 规则、Compare Search-first、可切换门形状、
+  通用 View History 与 cached override 性能路径均已提交。
+- 最终代码提交：`a43cfa1`、`9237126`、`c13a843`、`00c9194`；验收/文档提交：
+  `75da94d`、`e40368a`、`8a1c656`、`663a184`、`80467a7`、`664dbae`、`dbf7e2f`。
+  `npm test` 通过 518/518；mapped 既有 route 失败如上单独记录；`npm run benchmark`、等价
+  4K interaction baseline、真实双大图 Compare 浏览器验证和 `npm run release:windows` 均已完成。
+- Stage 8 现标记为“已完成（范围内验收）”。后续若要消除 `missing-route` 基线或移除兼容性
+  手工 history 记录，应作为后续阶段的独立目标，不回写为本阶段已通过。
 
 ## 6. 验证矩阵
 
