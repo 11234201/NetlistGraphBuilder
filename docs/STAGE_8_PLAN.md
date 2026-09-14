@@ -65,7 +65,7 @@ STA、逻辑等价和任意最优 Steiner routing 不在本阶段。
 | --- | --- | --- | --- | --- | --- |
 | R8-1 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、双向跨边界 cone、层次 boundary/路径 UI | P0 | 大 / 高 | 进行中：查询核心、canonical occurrence context、标准 layout/Scene projection、breadcrumb、完整路径提示、候选 occurrence 提示与同 module occurrence 选择已落地；父向追踪仍不自动猜测 parent |
 | R8-2 | Net Focused | cell/net root union、driver/load seed、net root chips 与高扇出边界 | P1 | 中 / 中 | 进行中：Single/Compare 基础能力、多 root hierarchical union、net chip/driver-load seed 与 Focus selected 已落地；跨 occurrence root 的完整层次 UI 仍待补齐 |
-| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 进行中：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；workspace cache 重复构建已测得 38x+ 加速，但全链路 30% 证据仍待补齐 |
+| R8-3 | 交互性能与最小失效 | 分阶段测量、artifact cache、依赖失效矩阵、局部 Scene/DOM 提交 | P0 | 中至大 / 高 | 已完成（本阶段范围）：Simple/ELK Single/Compare 均经 JobCoordinator 提交，bounded artifact cache、Compare per-side cancellation/status、cached override、局部 reroute、frame coalescing 与独立 render generation 已有；等价 4K override runner 相对 S8-0 降幅超过 90%，parse/build/full-layout 均未回退超过 10% |
 | R8-4 | 可切换的标准逻辑门符号 | Netlist presentation policy、矩形/标准符号开关、AND/OR/XOR/BUF 族图元、命中区和导出一致性 | P1 | 中 / 中 | 已完成：开关、Scene、Compare、导出及旧值 fallback 均有测试 |
 | R8-5 | 通用 Back/Forward | command transaction、View History、手势合并、分支与旧历史迁移 | P1 | 中至大 / 高 | 进行中：有界 history、selection/focus/viewport/override、occurrence context、Single 快捷键与 Compare compound 恢复已接入；command bus 已提供提交后 observer，仍需继续清理 legacy 手工桥接 |
 | R8-6 | Search/Focused 解耦 | Locate policy、显式 `+ Focus`、Search-first 自动 Focus 规则 | P0 | 小至中 / 中 | 已完成：仅当目标不在当前画布定位图、但存在于 full graph 的 cell/net 时自动 Focus；否则只定位或报告不可用，不写入隐藏 selection |
@@ -840,6 +840,17 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - `npm run release:windows` 通过（518 tests、启动器 smoke、离线 ZIP 与 ELK license）；最新包
   [NetlistGraphBuilder-v0.7.3-win-x64.zip](E:\workfile\synthesis\netlistGraphBuilder\dist\NetlistGraphBuilder-v0.7.3-win-x64.zip)
   SHA-256 为 `ee05c1eaeb9c59a7543f76afa72abf546a3d20217c4b0209ed288cd8609af631`。
+
+### Stage 8 执行记录（2026-09-14，补齐 S8-0 等价交互基线）
+
+- 由于 S8-0 提交 `18299c9` 尚未包含后续新增的 `benchmark:interaction` runner，使用同一
+  4K buffer-chain、同一 Node/Windows 环境的临时等价 runner，在 baseline 源码上测得
+  `base=846.4 ms`、`move=849.2 ms`、`focus=25.1 ms`（无 artifact cache）；该 runner 只用于
+  对照，已从工作树和临时 baseline 目录删除。
+- 当前带 cache 的重复 override 为 `moveWarm=84.1 ms`，相对等价 baseline 下降约 90.1%；
+  当前 full pipeline `156.1/926.2/2732.7 ms` 对 baseline `160.6/924.8/2917.3 ms`
+  （1K/4K/8K）变化为 `-2.8%/+0.2%/-6.3%`，均在 10% 回退阈值内。该证据满足 R8-3
+  的交互性能验收，但不把局部 warm-path 收益误写成所有场景均同比例加速。
 
 ## 6. 验证矩阵
 
