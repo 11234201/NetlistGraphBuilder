@@ -852,6 +852,13 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   （1K/4K/8K）变化为 `-2.8%/+0.2%/-6.3%`，均在 10% 回退阈值内。该证据满足 R8-3
   的交互性能验收，但不把局部 warm-path 收益误写成所有场景均同比例加速。
 
+### Stage 8 执行记录（2026-09-14，最终 mapped 回归）
+
+- `npm run test:mapped-cases`：47 cases、40 failed、34955/120 violations、
+  `hardInvariants=false`、最大 layout `10386 ms`、最大 heap `626 MiB`。失败仍只包含既有
+  `missing-route` / `wire-route-disconnected`，`sop_015` 仍为 3193 个 `missing-route`；
+  本轮缓存 override、Search、Compare 和历史改动没有引入新失败类别。
+
 ## 6. 验证矩阵
 
 | 变更 | 最低验证 |
