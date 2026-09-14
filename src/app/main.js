@@ -135,6 +135,7 @@ import {
   replaceCurrentViewHistory,
   stepViewHistory
 } from "./viewHistory.js";
+import { createViewHistoryTransaction } from "./viewHistoryTransaction.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const browserDownload = createBrowserDownload();
@@ -166,6 +167,9 @@ let sessionSaveTimer = null;
 let focusedDepthChangeTimer = null;
 let activeCellDefinition = null;
 let nextViewTransactionId = 1;
+const viewHistoryTransactions = createViewHistoryTransaction({
+  commit: (metadata) => recordViewHistory(metadata)
+});
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -738,6 +742,10 @@ function enterCompareView() {
 }
 
 function applyCompareSelection() {
+  return runViewHistoryTransaction({ label: "Compare selection" }, applyCompareSelectionImpl);
+}
+
+function applyCompareSelectionImpl() {
   const left = state.design.modules.find((module) => module.name === elements.leftModuleSelect.value);
   const right = state.design.modules.find((module) => module.name === elements.rightModuleSelect.value);
   if (!left || !right || left === right) {
@@ -1570,6 +1578,10 @@ function isPromise(value) {
 }
 
 function setViewMode(mode) {
+  return runViewHistoryTransaction({ label: `View mode: ${mode}` }, () => setViewModeImpl(mode));
+}
+
+function setViewModeImpl(mode) {
   mode = normalizeSingleViewMode(mode);
   if (state.compare.active) {
     setCompareViewMode(mode);
@@ -1606,6 +1618,10 @@ function setViewMode(mode) {
 }
 
 function setCompareViewMode(mode) {
+  return runViewHistoryTransaction({ label: `Compare view mode: ${mode}` }, () => setCompareViewModeImpl(mode));
+}
+
+function setCompareViewModeImpl(mode) {
   const context = getFocusedRootContext();
   if (mode === "focused") {
     if (context.roots.length === 0) {
@@ -4003,6 +4019,7 @@ function persistSession(metadata = {}) {
 
 function recordViewHistory(metadata = {}) {
   if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
+  if (viewHistoryTransactions.capture(metadata)) return;
   const affectedSessionIds = metadata.affectedSessionIds || (state.compare.active
     ? ["compare:left", "compare:right"]
     : ["single:primary"]);
@@ -4012,6 +4029,10 @@ function recordViewHistory(metadata = {}) {
     affectedSessionIds
   }));
   updateModuleHistoryControls();
+}
+
+function runViewHistoryTransaction(metadata, operation) {
+  return viewHistoryTransactions.run(metadata, operation);
 }
 
 function isEditableNodeProperty(property) {

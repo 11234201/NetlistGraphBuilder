@@ -290,6 +290,14 @@ test("compare layout dispatches independent side jobs", async () => {
   assert.match(source, /buildCompareSideWorkspace\(/);
 });
 
+test("compound view actions commit one history transaction", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => recordViewHistory\(metadata\)/);
+  assert.match(source, /function applyCompareSelection\(\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Compare selection" \}/);
+  assert.match(source, /function setViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `View mode: \$\{mode\}` \}/);
+  assert.match(source, /function setCompareViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Compare view mode: \$\{mode\}` \}/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";
