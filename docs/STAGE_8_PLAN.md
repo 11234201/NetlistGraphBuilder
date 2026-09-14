@@ -533,6 +533,11 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 优化后同环境复测：workspace cache 1K/4K cold→warm 为 `187.9/4.2 ms`（45.1x）与
   `925.3/23 ms`（40.3x）；全 pipeline 1K/4K/8K 为 `157.2/948/2755.1 ms`，progressive first
   batch 为 `1.2/1.0/1.0 ms`。仍只作为回归监测，尚不能证明全链路 30% 改善。
+- `eb11bac` 为 View History entry 增加 `transactionId`、`label` 与 `affectedSessionIds` 元数据；
+  相同视图状态仍按去元数据快照去重，避免一次操作因标签变化重复入栈。新增回归后
+  `npm test` 通过（483 tests）。
+- `npm run release:windows` 重新通过（483 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），
+  当前包 SHA-256 为 `33cc3afe3101e5d0d313d22c1e1237816674fe2b23f7f089d8d49efe4bc6a9e5`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
