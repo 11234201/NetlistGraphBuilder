@@ -1,5 +1,5 @@
 import { inspectGraphNet, inspectGraphNode } from "../analysis/graphInspector.js";
-import { recommendModulePair } from "../analysis/moduleCompare.js";
+import { compareModules, recommendModulePair } from "../analysis/moduleCompare.js";
 import {
   compareLayoutGraphs,
   createLayoutGolden,
@@ -94,7 +94,8 @@ import {
   toggleFocusedRootNodeId
 } from "./focusedSelection.js";
 import {
-  buildCompareWorkspace,
+  buildCompareSideWorkspace,
+  prepareCompareWorkspace,
   findCompareNode,
   getCompareNodeName
 } from "./compareWorkspace.js";
@@ -865,39 +866,61 @@ function renderCompareGraphs(options = {}) {
     }
   };
   const renderOptions = { ...options, layoutController };
-  if (compareLayoutProvider.id === "elk-layered") {
-    const leftSession = compareViewSessions.beginComputation("left");
-    compareViewSessions.beginComputation("right");
-    const job = workspaceJobs.start({
-      sessionId: leftSession.sessionId,
-      kind: "compare-workspace",
-      run: (context) => buildCompareWorkspace({
-        ...workspaceOptions,
-        signal: context.signal
-      })
-    });
-    logProcess("info", "layout", `Compare layout started (${compareLayoutProvider.label})`, {
-      requestId,
-      jobId: job.context.jobId
-    });
-    setStatus(`Layout (${compareLayoutProvider.label})…`);
-    job.promise.then((result) => {
-      if (result.status !== "committed") return;
-      commitCompareWorkspace(result.artifact.value, leftModule, rightModule, renderOptions);
-    }).catch(handleLayoutFailure);
-    return;
-  }
-  const leftSession = compareViewSessions.beginComputation("left");
-  compareViewSessions.beginComputation("right");
   try {
-    const result = workspaceJobs.runSync({
-      sessionId: leftSession.sessionId,
-      kind: "compare-workspace",
-      run: (context) => buildCompareWorkspace({ ...workspaceOptions, signal: context.signal })
+    // Full graphs and comparison inputs are a light, shared preparation step;
+    // layout/override/Scene work then runs under one JobCoordinator boundary
+    // per compare side so a stale side cannot commit through its peer.
+    const prepared = prepareCompareWorkspace(workspaceOptions);
+    state.compare.fullGraphs = prepared.fullGraphs;
+    const sides = ["left", "right"];
+    const buildSide = (side, contextSignal) => buildCompareSideWorkspace({
+      ...workspaceOptions,
+      side,
+      module: side === "left" ? leftModule : rightModule,
+      fullGraph: prepared.fullGraphs[side],
+      workspaceInput: prepared.workspaceInputs[side],
+      signal: layoutController.signal,
+      sideSignal: contextSignal
     });
-    if (result.status === "committed") {
-      commitCompareWorkspace(result.artifact.value, leftModule, rightModule, renderOptions);
+    const commitResults = (results) => {
+      if (results.some((result) => result.status !== "committed")) return;
+      const [leftResult, rightResult] = results;
+      commitCompareWorkspace({
+        fullGraphs: prepared.fullGraphs,
+        autoGraphs: { left: leftResult.artifact.value.autoGraph, right: rightResult.artifact.value.autoGraph },
+        graphs: { left: leftResult.artifact.value.graph, right: rightResult.artifact.value.graph },
+        scenes: { left: leftResult.artifact.value.scene, right: rightResult.artifact.value.scene },
+        analysis: compareModules(leftModule, rightModule, prepared.fullGraphs.left, prepared.fullGraphs.right)
+      }, leftModule, rightModule, renderOptions);
+    };
+    if (compareLayoutProvider.id === "elk-layered") {
+      const jobs = sides.map((side) => {
+        const session = compareViewSessions.beginComputation(side);
+        const job = workspaceJobs.start({
+          sessionId: session.sessionId,
+          kind: `compare-${side}-workspace`,
+          run: (context) => buildSide(side, context.signal)
+        });
+        logProcess("info", "layout", `Compare ${side} layout started (${compareLayoutProvider.label})`, {
+          requestId,
+          side,
+          jobId: job.context.jobId
+        });
+        return job;
+      });
+      setStatus(`Compare layout (${compareLayoutProvider.label})…`);
+      Promise.all(jobs.map((job) => job.promise)).then(commitResults).catch(handleLayoutFailure);
+      return;
     }
+    const results = sides.map((side) => {
+      const session = compareViewSessions.beginComputation(side);
+      return workspaceJobs.runSync({
+        sessionId: session.sessionId,
+        kind: `compare-${side}-workspace`,
+        run: (context) => buildSide(side, context.signal)
+      });
+    });
+    commitResults(results);
   } catch (error) {
     handleLayoutFailure(error);
   }

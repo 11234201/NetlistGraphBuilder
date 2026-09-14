@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { buildCompareWorkspace } from "../../src/app/compareWorkspace.js";
+import {
+  buildCompareSideWorkspace,
+  buildCompareWorkspace,
+  prepareCompareWorkspace
+} from "../../src/app/compareWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { parseTimingLog } from "../../src/timing/timingParser.js";
@@ -143,4 +147,36 @@ test("compare workspace reports side lifecycle and cancels stale async layouts",
   await assert.rejects(workspacePromise, (error) => error.name === "AbortError");
   assert.ok(statuses.includes("left:cancelled"));
   assert.ok(statuses.includes("right:cancelled"));
+});
+
+test("compare sides expose independent prepared workspace boundaries", () => {
+  const [leftModule, rightModule] = parseVerilog(source).modules;
+  const prepared = prepareCompareWorkspace({ leftModule, rightModule });
+  const statuses = [];
+  const common = {
+    leftModule,
+    rightModule,
+    layoutProvider: getLayoutProvider(),
+    moduleLibrary: parseVerilog(source).modules,
+    artifactIdentity: { documentId: "doc:compare", sourceRevision: 1, sessionId: "compare" },
+    onSideStatus: (side, status) => statuses.push(`${side}:${status}`)
+  };
+  const left = buildCompareSideWorkspace({
+    ...common,
+    side: "left",
+    module: leftModule,
+    fullGraph: prepared.fullGraphs.left,
+    workspaceInput: prepared.workspaceInputs.left
+  });
+  const right = buildCompareSideWorkspace({
+    ...common,
+    side: "right",
+    module: rightModule,
+    fullGraph: prepared.fullGraphs.right,
+    workspaceInput: prepared.workspaceInputs.right
+  });
+
+  assert.ok(left.graph.nodes.length > 0);
+  assert.ok(right.graph.nodes.length > 0);
+  assert.deepEqual(statuses, ["left:loading", "left:ready", "right:loading", "right:ready"]);
 });

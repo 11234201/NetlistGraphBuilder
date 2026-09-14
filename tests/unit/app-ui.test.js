@@ -273,6 +273,13 @@ test("ambiguous module occurrences expose an explicit chooser wired to selectMod
   assert.match(handler, /occurrencePath/);
 });
 
+test("compare layout dispatches independent side jobs", async () => {
+  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  assert.match(source, /kind: `compare-\$\{side\}-workspace`/);
+  assert.match(source, /Promise\.all\(jobs\.map\(\(job\) => job\.promise\)\)/);
+  assert.match(source, /buildCompareSideWorkspace\(/);
+});
+
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
   const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
   const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";

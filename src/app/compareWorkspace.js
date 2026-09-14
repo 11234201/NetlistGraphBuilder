@@ -3,17 +3,10 @@ import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 import { buildModuleFullGraph, buildModuleWorkspace } from "./moduleWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 
-export function buildCompareWorkspace(options) {
+export function prepareCompareWorkspace(options = {}) {
   const {
     leftModule,
     rightModule,
-    layoutProvider,
-    layoutPolicy,
-    presentationPolicy = null,
-    outputName = null,
-    coneDepth = 3,
-    faninDepth = coneDepth,
-    fanoutDepth = coneDepth,
     showAliases = false,
     timing = null,
     timingDisplayPolicy = null,
@@ -21,11 +14,6 @@ export function buildCompareWorkspace(options) {
     timingBadgePositions = {},
     graphOverrides = { left: null, right: null },
     cellConfig = null,
-    nodePositions = { left: new Map(), right: new Map() },
-    nodeSizes = { left: new Map(), right: new Map() },
-    useFanoutHubs = true,
-    collapseLargeGroups = false,
-    expandedGroupIds = new Set(),
     focusedRootNodeIds = { left: [], right: [] },
     activeFocusedRootNodeId = { left: null, right: null },
     moduleLibrary = [],
@@ -33,8 +21,7 @@ export function buildCompareWorkspace(options) {
     forceWhole = false,
     artifactCache = null,
     artifactIdentity = null,
-    signal = null,
-    onSideStatus = () => {}
+    signal = null
   } = options;
   throwIfAborted(signal);
   const fullGraphs = {
@@ -64,6 +51,134 @@ export function buildCompareWorkspace(options) {
   alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
   throwIfAborted(signal);
 
+  const workspaceInputs = resolveWorkspaceInputs({
+    leftModule,
+    rightModule,
+    fullGraphs,
+    outputName: options.outputName,
+    coneDepth: options.coneDepth,
+    faninDepth: options.faninDepth,
+    fanoutDepth: options.fanoutDepth,
+    focusedRootNodeIds,
+    activeFocusedRootNodeId,
+    searchFirstThreshold: options.searchFirstThreshold,
+    forceWhole: options.forceWhole
+  });
+  return { fullGraphs, workspaceInputs };
+}
+
+export function buildCompareSideWorkspace(options = {}) {
+  const {
+    side,
+    module,
+    fullGraph,
+    workspaceInput = {},
+    layoutProvider,
+    layoutPolicy,
+    presentationPolicy = null,
+    nodePositions = { left: new Map(), right: new Map() },
+    nodeSizes = { left: new Map(), right: new Map() },
+    useFanoutHubs = true,
+    collapseLargeGroups = false,
+    expandedGroupIds = new Set(),
+    artifactCache = null,
+    artifactIdentity = null,
+    signal = null,
+    sideSignal = null,
+    onSideStatus = () => {}
+  } = options;
+  const activeSignal = sideSignal || signal;
+  throwIfAborted(signal);
+  throwIfAborted(activeSignal);
+  onSideStatus(side, "loading", { moduleName: module?.name || null });
+  try {
+    const result = buildModuleWorkspace({
+      module,
+      preparedFullGraph: fullGraph,
+      layoutProvider,
+      layoutPolicy,
+      presentationPolicy,
+      nodePositions: nodePositions[side],
+      nodeSizes: nodeSizes[side],
+      useFanoutHubs,
+      collapseLargeGroups,
+      expandedGroupIds,
+      artifactCache,
+      artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
+      ...workspaceInput
+    });
+    const finish = (value) => {
+      throwIfAborted(signal);
+      throwIfAborted(activeSignal);
+      onSideStatus(side, "ready", { moduleName: module?.name || null });
+      return value;
+    };
+    if (isPromise(result)) {
+      return result.then(finish).catch((error) => {
+        onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
+          moduleName: module?.name || null,
+          error
+        });
+        throw error;
+      });
+    }
+    return finish(result);
+  } catch (error) {
+    onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
+      moduleName: module?.name || null,
+      error
+    });
+    throw error;
+  }
+}
+
+export function buildCompareWorkspace(options = {}) {
+  const {
+    leftModule,
+    rightModule,
+    signal = null,
+    onSideStatus = () => {}
+  } = options;
+  const prepared = prepareCompareWorkspace(options);
+  const buildSide = (side, module) => buildCompareSideWorkspace({
+    ...options,
+    side,
+    module,
+    fullGraph: prepared.fullGraphs[side],
+    workspaceInput: prepared.workspaceInputs[side],
+    signal,
+    onSideStatus
+  });
+  const leftLayout = buildSide("left", leftModule);
+  const rightLayout = buildSide("right", rightModule);
+  const finalize = ([left, right]) => {
+    throwIfAborted(signal);
+    return {
+      fullGraphs: prepared.fullGraphs,
+      autoGraphs: { left: left.autoGraph, right: right.autoGraph },
+      graphs: { left: left.graph, right: right.graph },
+      scenes: { left: left.scene, right: right.scene },
+      analysis: compareModules(leftModule, rightModule, prepared.fullGraphs.left, prepared.fullGraphs.right)
+    };
+  };
+  return isPromise(leftLayout) || isPromise(rightLayout)
+    ? Promise.all([leftLayout, rightLayout]).then(finalize)
+    : finalize([leftLayout, rightLayout]);
+}
+
+function resolveWorkspaceInputs({
+  leftModule,
+  rightModule,
+  fullGraphs,
+  outputName = null,
+  coneDepth = 3,
+  faninDepth = coneDepth,
+  fanoutDepth = coneDepth,
+  focusedRootNodeIds = { left: [], right: [] },
+  activeFocusedRootNodeId = { left: null, right: null },
+  searchFirstThreshold = 500,
+  forceWhole = false
+}) {
   const workspaceInputs = {};
   for (const side of ["left", "right"]) {
     const rootNodeIds = normalizeRootNodeIds(focusedRootNodeIds?.[side]);
@@ -90,65 +205,7 @@ export function buildCompareWorkspace(options) {
       workspaceInputs[side] = { viewMode: "search-first" };
     }
   }
-  const buildSide = (side, module) => {
-    throwIfAborted(signal);
-    onSideStatus(side, "loading", { moduleName: module?.name || null });
-    try {
-      const result = buildModuleWorkspace({
-        module,
-        preparedFullGraph: fullGraphs[side],
-        layoutProvider,
-        layoutPolicy,
-        presentationPolicy,
-        nodePositions: nodePositions[side],
-        nodeSizes: nodeSizes[side],
-        useFanoutHubs,
-        collapseLargeGroups,
-        expandedGroupIds,
-        artifactCache,
-        artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
-        ...(workspaceInputs[side] || {})
-      });
-      if (isPromise(result)) {
-        return result.then((value) => {
-          throwIfAborted(signal);
-          onSideStatus(side, "ready", { moduleName: module?.name || null });
-          return value;
-        }).catch((error) => {
-          onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
-            moduleName: module?.name || null,
-            error
-          });
-          throw error;
-        });
-      }
-      throwIfAborted(signal);
-      onSideStatus(side, "ready", { moduleName: module?.name || null });
-      return result;
-    } catch (error) {
-      onSideStatus(side, error?.name === "AbortError" ? "cancelled" : "failed", {
-        moduleName: module?.name || null,
-        error
-      });
-      throw error;
-    }
-  };
-  const leftLayout = buildSide("left", leftModule);
-  const rightLayout = buildSide("right", rightModule);
-  const finalize = ([left, right]) => {
-    throwIfAborted(signal);
-    return {
-      fullGraphs,
-      autoGraphs: { left: left.autoGraph, right: right.autoGraph },
-      graphs: { left: left.graph, right: right.graph },
-      scenes: { left: left.scene, right: right.scene },
-      analysis: compareModules(leftModule, rightModule, fullGraphs.left, fullGraphs.right)
-    };
-  };
-  return isPromise(leftLayout) || isPromise(rightLayout)
-    ? Promise.all([leftLayout, rightLayout]).then(finalize)
-    : finalize([leftLayout, rightLayout]);
-
+  return workspaceInputs;
 }
 
 function normalizeRootNodeIds(value) {
