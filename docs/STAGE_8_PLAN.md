@@ -538,6 +538,19 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `npm test` 通过（483 tests）。
 - `npm run release:windows` 重新通过（483 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），
   当前包 SHA-256 为 `33cc3afe3101e5d0d313d22c1e1237816674fe2b23f7f089d8d49efe4bc6a9e5`。
+- `8b27322` 修正历史标签语义：只有真正完成且未取消的 Single/Compare canvas pan 才标记为
+  `Viewport gesture`，选择、presentation、override 等其他持久化操作使用通用 View change 标签；
+  新增静态回归后 `npm test` 通过（484 tests）。
+- `41b05e3` 将 Search 的“画布定位图命中判定”抽成纯策略：cell/net 在 positioned graph 中只定位，
+  不在其中但存在于 full graph 时才自动 `selection.reveal`/Focused；port 等不可 Focus 对象不扩 cone。
+  新增策略单测后 `npm test` 通过（486 tests）。
+- `39463fb` 增加 `npm run benchmark:interaction`，覆盖缓存命中后的 node move/resize reroute 与
+  Focused cone。当前 1K/4K chain 的 base cold→warm 为 `183.5/5.0 ms`、`846.1/30.0 ms`，
+  override warm 为 `47.9/237.5 ms`，Focused warm 为 `0.1/0.0 ms`；该基准只测 JS workspace，
+  不替代浏览器 DOM 全链路 30% 验收。
+- 重新执行 `npm run benchmark`：1K/4K/8K pipeline 中位数为 `154.9/950.2/2951.8 ms`，
+  progressive first batch 为 `1.2/1.0/1.1 ms`。重新发布包通过（486 个单元测试、启动器 smoke、
+  离线 ZIP 与 ELK license），SHA-256 为 `5348eb9aeddabd1df5e710e974e5eaa9ebc1c69fbe4580f47845207914b54358`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
