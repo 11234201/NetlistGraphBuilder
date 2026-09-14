@@ -559,6 +559,22 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
+### Stage 8 执行记录（2026-09-14，局部 reroute/label 增量优化）
+
+- `applyPositionedOverrides()` 现在按受影响的 net group 增量重建 physical wire route；未受影响的
+  route segments/junctions 直接复用，并只刷新当前 label metadata。label placement 同步按受影响 edge
+  增量处理，保留未移动 edge 的已完成 label/hit geometry；若缺少可复用 artifact 则回退到完整构建。
+- 新增 `createIncrementalEdgeRouteSegmentIndex()`、`placeWireLabelsIncremental()` 和
+  `updateWireRoutes()`，并补充 untouched group/label preservation 回归，保持边数组排列稳定和旧图兼容。
+- `npm test` 通过（501 tests），`git diff --check` 通过。`npm run benchmark:interaction` 当前结果：
+  1K move cold→warm `45.2/34.4 ms`、4K `147.7/138.5 ms`；同一环境此前 4K move cold→warm
+  `239.0/227.2 ms`，本次 warm 约下降 39%，但仍需浏览器 DOM 全链路和同口径 Stage 8-0 基线确认，
+  暂不把它写成最终 30% 验收结论。`npm run benchmark` 的 1K/4K/8K pipeline 为
+  `161.3/920.7/2819.1 ms`，progressive first batch 为 `1.2/1.0/1.1 ms`。
+- `npm run test:mapped-cases` 在允许 worker 进程后仍为 47 cases、40 failed、34955/120 violations、
+  `hardInvariants=false`；失败类别仍集中在既有 `missing-route`/`wire-route-disconnected`，未出现
+  新的增量 route/label 失败类别，因此不宣称 mapped 通过或 Stage 8 已完成。
+
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
 - Compare compound View History：历史快照补充左右 module、Focused roots/active root、output、layout、

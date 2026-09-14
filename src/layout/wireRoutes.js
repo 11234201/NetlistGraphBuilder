@@ -28,6 +28,48 @@ export function buildWireRoutes(edges = []) {
     .map(([netKey, groupEdges]) => buildPhysicalWireRoute(netKey, groupEdges));
 }
 
+/**
+ * Rebuild only physical net groups whose logical routes changed.
+ *
+ * A node override normally invalidates a small set of net groups, while the
+ * surrounding graph can contain thousands of already-routed wires. Reusing
+ * an untouched route is safe only when its logical edge membership is still
+ * identical; otherwise the function deliberately falls back to a full group
+ * rebuild. Label metadata is refreshed from the current logical edges without
+ * touching the physical segments or junctions.
+ */
+export function updateWireRoutes(
+  edges = [],
+  previousWireRoutes = [],
+  affectedNetGroupKeys = null
+) {
+  if (!Array.isArray(previousWireRoutes) || previousWireRoutes.length === 0 ||
+      !(affectedNetGroupKeys instanceof Set)) {
+    return buildWireRoutes(edges);
+  }
+
+  const groups = new Map();
+  for (const edge of edges) {
+    const netKey = getPhysicalNetKey(edge);
+    if (!groups.has(netKey)) groups.set(netKey, []);
+    groups.get(netKey).push(edge);
+  }
+  const previousByKey = new Map(previousWireRoutes.map((route) => [route.netGroupKey, route]));
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([netKey, groupEdges]) => {
+      const previous = previousByKey.get(netKey);
+      const edgeIds = groupEdges
+        .map((edge) => String(edge.id))
+        .sort((left, right) => left.localeCompare(right));
+      if (previous && !affectedNetGroupKeys.has(netKey) &&
+          sameSortedIds(previous.logicalEdgeIds, edgeIds)) {
+        return refreshWireRouteLabels(previous, groupEdges);
+      }
+      return buildPhysicalWireRoute(netKey, groupEdges);
+    });
+}
+
 export function getPhysicalNetKey(edge) {
   return getCanonicalPhysicalNetKey(edge);
 }
@@ -100,6 +142,30 @@ export function buildPhysicalWireRoute(netKey, edges) {
     // the pre-tree segments can place dots on same-net crossings that are
     // not electrically connected in the final route.
     junctions: findJunctions(tree.segments),
+    label: labelEdge?.label || labelEdge?.net || "",
+    labelPoint,
+    labelAnchor: labelEdge?.labelAnchor || "middle",
+    showLabel: Boolean(labelEdge?.label) && labelEdge?.showLabel !== false
+  };
+}
+
+function sameSortedIds(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => String(value) === right[index]);
+}
+
+function refreshWireRouteLabels(route, edges) {
+  const sortedEdges = [...edges].sort(compareEdges);
+  const labelEdge = sortedEdges.find((edge) => edge.showLabel !== false && edge.label) ||
+    sortedEdges.find((edge) => edge.label) || sortedEdges[0];
+  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, route.segments)
+    ? labelEdge.labelPoint
+    : isPointOnSegments(route.labelPoint, route.segments)
+      ? route.labelPoint
+      : chooseLabelPoint(route.segments);
+  return {
+    ...route,
+    net: labelEdge?.net || labelEdge?.label || route.net,
     label: labelEdge?.label || labelEdge?.net || "",
     labelPoint,
     labelAnchor: labelEdge?.labelAnchor || "middle",

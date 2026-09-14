@@ -8,7 +8,10 @@ import {
   SpatialHashIndex
 } from "./spatialIndex.js";
 import { compareGraphEdges } from "./layoutTopology.js";
-import { createEdgeRouteSegmentIndex } from "./routeSegmentIndex.js";
+import {
+  createEdgeRouteSegmentIndex,
+  createIncrementalEdgeRouteSegmentIndex
+} from "./routeSegmentIndex.js";
 
 export function placeWireLabels(edges, nodes, options = {}) {
   const collisionIndexes = {
@@ -28,6 +31,71 @@ export function placeWireLabels(edges, nodes, options = {}) {
       collisionIndexes,
       options
     );
+    if (!placement) {
+      placedById.set(edge.id, { ...edge, showLabel: false });
+      continue;
+    }
+    collisionIndexes.labels.insert(placement, placement.box);
+    placedById.set(edge.id, {
+      ...edge,
+      labelPoint: placement.point,
+      labelAnchor: placement.anchor,
+      showLabel: true
+    });
+  }
+  return edges.map((edge) => placedById.get(edge.id) || edge);
+}
+
+/**
+ * Place labels for invalidated edges while retaining the completed placement
+ * of untouched edges. This is the label-side counterpart to incremental wire
+ * route rebuilding used by node move/resize overrides.
+ */
+export function placeWireLabelsIncremental(edges, nodes, options = {}) {
+  const previousEdges = options.previousEdges;
+  const affectedEdgeIds = options.affectedEdgeIds;
+  if (!Array.isArray(previousEdges) || !(affectedEdgeIds instanceof Set)) {
+    return placeWireLabels(edges, nodes, options);
+  }
+  const affected = new Set([...affectedEdgeIds].map(String));
+  const compareEdges = options.compareEdges || compareGraphEdges;
+  const collisionIndexes = {
+    nodes: createNodeSpatialIndex(nodes),
+    segments: createIncrementalEdgeRouteSegmentIndex(
+      previousEdges,
+      edges,
+      affected
+    ),
+    labels: new SpatialHashIndex()
+  };
+  const previousById = new Map(previousEdges.map((edge) => [String(edge.id), edge]));
+  const placedById = new Map();
+
+  // Reserve unchanged labels first so a moved edge cannot claim their space.
+  for (const edge of edges) {
+    if (affected.has(String(edge.id))) continue;
+    const previous = previousById.get(String(edge.id));
+    const preserved = previous ? {
+      ...edge,
+      labelPoint: previous.labelPoint,
+      labelAnchor: previous.labelAnchor,
+      showLabel: previous.showLabel
+    } : edge;
+    placedById.set(edge.id, preserved);
+    if (preserved.showLabel === false || !preserved.label || !preserved.labelPoint) continue;
+    const width = estimateWireLabelWidth(preserved.label);
+    const anchor = preserved.labelAnchor || "middle";
+    collisionIndexes.labels.insert({ edgeId: preserved.id, box: labelBox(preserved.labelPoint, width, anchor) },
+      labelBox(preserved.labelPoint, width, anchor));
+  }
+
+  for (const edge of edges.toSorted(compareEdges)) {
+    if (!affected.has(String(edge.id))) continue;
+    if (edge.showLabel === false) {
+      placedById.set(edge.id, edge);
+      continue;
+    }
+    const placement = findClearLabelPlacement(edge, collisionIndexes, options);
     if (!placement) {
       placedById.set(edge.id, { ...edge, showLabel: false });
       continue;

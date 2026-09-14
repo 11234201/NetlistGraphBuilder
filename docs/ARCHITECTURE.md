@@ -203,6 +203,8 @@ Layout policy:
   and labels. It contains no candidate-generation geometry. Adjust reroutes single-load nets first and
   uses a stable topology key so reservation order cannot drift with parser edge order. Rerouted edges keep
   `routeKind: positioned-override` for origin and record the chosen candidate in `routeStrategy`.
+  Unaffected physical net groups and their completed label placements are reused when edge membership is
+  unchanged; missing or incompatible artifacts fall back to the complete route/label build.
 - `src/layout/rerouteInvalidation.js` owns Adjust route invalidation. It indexes existing route segments
   and queries changed node boxes; batch overrides must not scan every changed-node/edge pair.
 - `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.

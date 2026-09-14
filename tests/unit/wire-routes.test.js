@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWireRoutes } from "../../src/layout/wireRoutes.js";
+import { buildWireRoutes, updateWireRoutes } from "../../src/layout/wireRoutes.js";
 import { buildNetTreeSegments } from "../../src/layout/netTreeRouter.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
@@ -84,6 +84,28 @@ test("net tree selection keeps disconnected provider geometry as a marked fallba
 
 test("wire route geometry is invariant to logical edge order", () => {
   assert.deepEqual(buildWireRoutes(fanoutEdges()), buildWireRoutes(fanoutEdges(["b", "a"])));
+});
+
+test("incremental wire route updates reuse untouched physical groups", () => {
+  const edges = [
+    ...fanoutEdges(),
+    {
+      id: "edge-other",
+      source: "other-driver",
+      target: "other-sink",
+      net: "other",
+      points: [{ x: 0, y: 200 }, { x: 100, y: 200 }]
+    }
+  ];
+  const previous = buildWireRoutes(edges);
+  const next = updateWireRoutes(edges, previous, new Set(["driver\u0000shared"]));
+  const oldOther = previous.find((route) => route.netGroupKey === "other-driver\u0000other");
+  const nextOther = next.find((route) => route.netGroupKey === "other-driver\u0000other");
+  assert.equal(nextOther.segments, oldOther.segments);
+  assert.equal(nextOther.junctions, oldOther.junctions);
+  assert.deepEqual(nextOther.logicalEdgeIds, oldOther.logicalEdgeIds);
+  const nextShared = next.find((route) => route.netGroupKey === "driver\u0000shared");
+  assert.notEqual(nextShared, previous.find((route) => route.netGroupKey === "driver\u0000shared"));
 });
 
 test("junction markers follow the selected physical tree", () => {

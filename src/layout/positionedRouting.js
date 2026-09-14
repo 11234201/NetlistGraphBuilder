@@ -11,13 +11,13 @@ import {
   getRouteSegments
 } from "./orthogonalRouting.js";
 import { createNodeSpatialIndex, RouteSegmentIndex } from "./spatialIndex.js";
-import { placeWireLabels } from "./wireLabelPlacement.js";
+import { placeWireLabelsIncremental } from "./wireLabelPlacement.js";
 import { createFanoutPriorityComparator } from "./layoutTopology.js";
 import {
   collectRerouteEdgeIds,
   expandRerouteEdgeIdsByNetGroup
 } from "./rerouteInvalidation.js";
-import { buildWireRoutes } from "./wireRoutes.js";
+import { updateWireRoutes } from "./wireRoutes.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 import { finalizeLayoutGraph } from "./layoutValidator.js";
 
@@ -41,6 +41,11 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const rerouteEdgeIds = expandRerouteEdgeIdsByNetGroup(
     positionedGraph.edges,
     initialRerouteEdgeIds
+  );
+  const affectedNetGroupKeys = new Set(
+    positionedGraph.edges
+      .filter((edge) => rerouteEdgeIds.has(edge.id))
+      .map((edge) => getNetGroupKey(edge))
   );
   const reservedSegments = new RouteSegmentIndex(positionedGraph.edges
     .filter((edge) => !rerouteEdgeIds.has(edge.id))
@@ -88,8 +93,16 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     routedById.set(edge.id, routedEdge);
   }
   const routedEdges = positionedGraph.edges.map((edge) => routedById.get(edge.id) || edge);
-  const edges = placeWireLabels(routedEdges, nodes, { compareEdges });
-  const wireRoutes = buildWireRoutes(edges);
+  const edges = placeWireLabelsIncremental(routedEdges, nodes, {
+    compareEdges,
+    previousEdges: positionedGraph.edges,
+    affectedEdgeIds: rerouteEdgeIds
+  });
+  const wireRoutes = updateWireRoutes(
+    edges,
+    positionedGraph.wireRoutes,
+    affectedNetGroupKeys
+  );
   const bounds = computeBoundsWithRoutes(nodes, edges, wireRoutes);
   translateLayoutGeometry(nodes, edges, wireRoutes, {
     x: Math.max(0, -bounds.left),
