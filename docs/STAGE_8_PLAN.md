@@ -525,6 +525,11 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
   `npm test` 通过（480 tests）。
 - `npm run release:windows` 重新通过（480 个单元测试、启动器 smoke、离线 ZIP 与 ELK license），
   当前包 SHA-256 为 `f8786a1cc218343684fca3a0e52e63d2ea0a0676a759f005aecf6486ffda7000`。
+- `ac12e9f` 为 Single View History 恢复增加 workspace identity diff：selection/viewport-only 回退
+  复用现有 graph/layout，presentation-only 回退只重建 Scene；`bdbcb5b` 对 Compare compound history
+  增加相同的左右 workspace 复用路径，避免恢复操作重复调用 provider。新增静态回归后 `npm test`
+  通过（482 tests）。
+- 重新发布包 SHA-256 为 `23dfc184c1399f2d403c862e069c19e15be2fc545b44450e02788725f5b47df0`。
 - 当前 Stage 8 仍保持“进行中”：mapped fixture 的既有 `missing-route`/`wire-route-disconnected`
   基线、全链路 30% 性能证据和完整 command-bus 收口尚未满足完成定义。
 
