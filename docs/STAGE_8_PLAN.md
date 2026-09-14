@@ -589,6 +589,8 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 - 该 command boundary 提交后的 `npm run release:windows` 通过（503 个单元测试、启动器 smoke、
   离线 ZIP 与 ELK license），最新产物 SHA-256 为
   `7c2d391b9490f57172fe0004682607ca4256cb02e3200a4f899566196ff3c961`。
+- command boundary 提交后复测 `npm run benchmark:interaction`：1K base/move/focused 为
+  `182.9/35.4/0.1 ms` warm，4K 为 `828.2/135.0/0.0 ms` warm；与局部 reroute 优化结论一致。
 
 ### Stage 8 执行记录（2026-09-13，提交 `bb49de0`）
 
