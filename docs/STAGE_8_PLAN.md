@@ -132,9 +132,10 @@ Net root 不改变基础 graph 形状，而是在查询边界展开为 seed：
 Search 只产生 `selection.locate` 意图；是否需要改变显示查询由 application policy 决定：
 
 1. 目标已在当前 positioned graph：只选择和居中，不改变 roots，不运行 provider。
-2. 当前是小图 Focused 且目标在 full graph：切回或复用 Whole artifact 定位，原 roots 保留。
-3. 当前是大型 module Search-first，且没有可用 Whole positioned artifact：自动 `focus.add`，局部
-   layout/render 完成后定位。
+2. 目标不在当前 positioned graph 但存在于 full graph：统一执行 `selection.reveal`/`focus.add`，局部
+   layout/render 完成后定位；不因为图规模切回 Whole，也不把隐藏对象写成 dangling selection。
+3. 目标既不在 positioned graph 也不在 full graph，或属于不可 Focus 的 module/port：只报告不可用，
+   不改变 roots。
 4. 搜索结果的显式 `+ Focus` 始终直接操作 roots；清空搜索不清除 selection 或 roots。
 
 跨 module 搜索是一个复合事务：切换 definition/occurrence context、定位目标和必要的 Search-first
@@ -615,7 +616,7 @@ module template/full graph，工作量受显式 frontier/node budget 限制。
 | --- | --- |
 | occurrence identity / hierarchy query | 重复 occurrence、上下穿层、歧义 context、cycle、escaped/vector/inout、排列不变性 |
 | Cell/Net Focused | driver/load、alias、多 driver、高扇出预算、输入不变性、Single/Compare 一致 |
-| Search policy | Whole 可见定位不改 roots；小图隐藏目标复用 Whole；Search-first 大图才自动 Add |
+| Search policy | positioned graph 命中只定位；任意隐藏且存在于 full graph 的 cell/net 自动 Add/Focused；不可用目标不写入隐藏 selection |
 | artifact/cache/jobs | key/失效/容量/释放、source/session revision、旧成功/失败/progress 不提交、provider 调用计数 |
 | move/resize/cone hot path | frame coalescing、手势提交一次、cached override、局部 reroute/Scene patch、完成态完整 geometry |
 | gate symbol mode | policy/codec、旧值 fallback、开关与历史、Scene primitive、零 layout/reroute、bounds/ports/edge signature、Compare/导出一致、unknown fallback |
