@@ -120,3 +120,14 @@
 - These modules are not yet connected to the default layout pipeline. The next step is a layout-internal
   `LayeredGraph` that combines oriented edges, logical ordering references and physical carriers without
   mutating Netlist IR.
+
+## 2026-09-16 — S04 LayeredGraph assembled
+
+- Added the layout-internal `LayeredGraph` builder. It combines reversible oriented edges, feasible
+  levels, logical long-edge chains, ordered layers and physical-net carriers while retaining the original
+  graph and real edges unchanged.
+- Preserved the semantic physical-net key before reversing an edge for layout; otherwise a reversed
+  feedback edge would be regrouped under its target and could not be restored atomically.
+- Added whole-object permutation and immutability tests plus the unit-span segment invariant. The default
+  provider still does not consume this structure; activation waits for carrier placement and join-back.
+- Complete Linux suite: 562/562 passing.

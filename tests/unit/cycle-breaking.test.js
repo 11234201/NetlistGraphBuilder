@@ -25,6 +25,7 @@ test("cycle orientation is acyclic, reversible, and permutation stable", () => {
   assert.equal(hasDirectedCycle(forward.edges.filter((edge) => !edge.ignoredForLayering)), false);
   assert.deepEqual(reversed.edges, forward.edges);
   assert.deepEqual(forward.reversedEdgeIds, ["ca"]);
+  assert.equal(forward.edges.find((edge) => edge.id === "ca").physicalNetKey, "c\u0000ca");
   assert.deepEqual(
     forward.edges.map(restoreOrientedEdge),
     graph.edges.toSorted((left, right) => left.id.localeCompare(right.id))

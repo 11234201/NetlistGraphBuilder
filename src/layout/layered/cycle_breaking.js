@@ -1,4 +1,5 @@
 import { compareNodes } from "../nodePlacementShared.js";
+import { getPhysicalNetKey } from "../layoutTopology.js";
 
 export function orientCyclesForLayering(graph = {}) {
   const nodes = [...(graph.nodes || [])].toSorted(compareNodes);
@@ -44,6 +45,7 @@ export function orientCyclesForLayering(graph = {}) {
       target: reversedForLayout ? edge.source : edge.target,
       originalSource: edge.source,
       originalTarget: edge.target,
+      physicalNetKey: getPhysicalNetKey(edge),
       reversedForLayout,
       ignoredForLayering: selfLoop
     };
@@ -55,6 +57,7 @@ export function restoreOrientedEdge(edge) {
   const {
     originalSource,
     originalTarget,
+    physicalNetKey: _physicalNetKey,
     reversedForLayout: _reversedForLayout,
     ignoredForLayering: _ignoredForLayering,
     ...rest

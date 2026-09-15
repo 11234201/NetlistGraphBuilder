@@ -7,7 +7,7 @@ export function buildPhysicalNetCarriers(graph = {}, levels = new Map()) {
   const columnByLevel = new Map(levelKeys.map((level, index) => [level, index]));
   const groups = new Map();
   for (const edge of [...(graph.edges || [])].toSorted(compareEdges)) {
-    const key = getPhysicalNetKey(edge);
+    const key = physicalNetKey(edge);
     const members = groups.get(key) || [];
     members.push(edge);
     groups.set(key, members);
@@ -54,7 +54,11 @@ function columnOf(nodeId, levels, columnByLevel) {
 }
 
 function compareEdges(left, right) {
-  return compareIds(getPhysicalNetKey(left), getPhysicalNetKey(right)) || compareIds(left.id, right.id);
+  return compareIds(physicalNetKey(left), physicalNetKey(right)) || compareIds(left.id, right.id);
+}
+
+function physicalNetKey(edge) {
+  return edge?.physicalNetKey ?? getPhysicalNetKey(edge);
 }
 
 function compareIds(left, right) {
