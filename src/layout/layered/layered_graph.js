@@ -10,10 +10,13 @@ export function buildLayeredGraph(graph = {}, options = {}) {
   const oriented = orientCyclesForLayering(graph);
   const constrainedEdges = oriented.edges.filter((edge) => !edge.ignoredForLayering);
   const orientedGraph = { ...graph, nodes: [...(graph.nodes || [])], edges: constrainedEdges };
-  const initialLevels = assignSimpleLevels(orientedGraph);
-  const levels = options.minimalSpanLayering
-    ? relaxToMinimalSpan(orientedGraph, initialLevels, options.layering)
-    : initialLevels;
+  const suppliedLevels = options.levels instanceof Map ? options.levels : null;
+  const initialLevels = suppliedLevels || assignSimpleLevels(orientedGraph);
+  const levels = suppliedLevels
+    ? new Map(suppliedLevels)
+    : options.minimalSpanLayering
+      ? relaxToMinimalSpan(orientedGraph, initialLevels, options.layering)
+      : initialLevels;
   const buckets = bucketNodes(graph.nodes || [], levels);
   const logicalChains = buildLongEdgeChains(orientedGraph, levels, options.layering);
   addDummyNodesToBuckets(buckets, logicalChains);

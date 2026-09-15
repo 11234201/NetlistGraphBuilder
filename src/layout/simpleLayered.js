@@ -6,11 +6,10 @@ import {
   normalizeRoutingGeometry
 } from "./channelCapacity.js";
 import { relaxToMinimalSpan } from "./layered/minSpanLayering.js";
-import {
-  addDummyNodesToBuckets,
-  buildLongEdgeChains,
-  stripDummyNodes
-} from "./layered/longEdgeDummies.js";
+import { stripDummyNodes } from "./layered/longEdgeDummies.js";
+import { applyCarrierPlacementSlots } from "./layered/carrier_placement.js";
+import { buildLayeredGraph } from "./layered/layered_graph.js";
+import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
   buildNodePorts,
@@ -76,23 +75,30 @@ export function layoutGraph(graph, options = {}) {
     requestedTopWireSpace
   );
   const topWireSpace = topWireHeadroom.topWireSpace;
-  const buckets = bucketNodesByLevel(graph.nodes, levels);
-  const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
+  let buckets = bucketNodesByLevel(graph.nodes, levels);
+  let levelKeys = [...buckets.keys()].sort((left, right) => left - right);
   // A long edge is invisible to every column it passes through: it contributes
   // a barycenter only at its two endpoints. Splitting it into a chain of
   // dummies makes it a normal unit-span edge in each of those columns, which is
   // the only way it can take part in their ordering. The dummies are stripped
   // again immediately after ordering; nothing downstream sees them yet.
-  const dummyChains = policy.features.longEdgeDummies
-    ? buildLongEdgeChains(graph, levels, policy.layering)
+  const layeredGraph = policy.features.longEdgeDummies
+    ? buildLayeredGraph(graph, {
+      levels,
+      layering: policy.layering,
+      placement: {
+        carrierSpan: wireLanePitch,
+        minimumFanout: policy.layering.carrierMinimumFanout
+      }
+    })
     : null;
-  if (dummyChains) addDummyNodesToBuckets(buckets, dummyChains);
-  orderSimpleLayers(
-    buckets,
-    levelKeys,
-    dummyChains ? dummyChains.orderingEdges : graph.edges
-  );
-  if (dummyChains) stripDummyNodes(buckets, dummyChains);
+  if (layeredGraph) {
+    buckets = new Map(layeredGraph.layers.map((layer) => [layer.level, [...layer.nodes]]));
+    levelKeys = layeredGraph.layers.map((layer) => layer.level);
+    stripDummyNodes(buckets, layeredGraph.logicalChains);
+  } else {
+    orderSimpleLayers(buckets, levelKeys, graph.edges);
+  }
   reportStage("layer-order-complete");
 
   const nodeSizes = new Map(graph.nodes.map((node) => [
@@ -109,7 +115,8 @@ export function layoutGraph(graph, options = {}) {
     margin,
     policy.features.localizeSingleFanoutInputs,
     layoutIntent,
-    policy.spacing
+    policy.spacing,
+    policy.features.routingDrivenLayerSpacing
   );
   const positionedNodes = placeInitialNodes({
     buckets,
@@ -134,6 +141,13 @@ export function layoutGraph(graph, options = {}) {
     policy,
     nodePositions: options.nodePositions
   }, { onStage: options.onPlacementStage });
+  let carrierPlacement = null;
+  if (layeredGraph && policy.features.physicalCarrierRouting) {
+    carrierPlacement = applyCarrierPlacementSlots(
+      positionedNodes,
+      layeredGraph.placementLayers
+    );
+  }
   reportStage("placement-complete");
 
   const initialCapacityPlan = buildRoutingCapacityPlan(
@@ -160,6 +174,13 @@ export function layoutGraph(graph, options = {}) {
     margin,
     policy.spacing.cellSpacing
   );
+  if (carrierPlacement) {
+    carrierPlacement = applyCarrierPlacementSlots(
+      positionedNodes,
+      layeredGraph.placementLayers,
+      { applyShift: false }
+    );
+  }
   const routingCapacity = buildRoutingCapacityPlan(
     graph,
     levels,
@@ -174,6 +195,18 @@ export function layoutGraph(graph, options = {}) {
   );
   reportStage("capacity-plan-complete");
 
+  const carrierRouting = carrierPlacement
+    ? buildCarrierPhysicalNetRoutes(
+      layeredGraph,
+      positionedNodes,
+      carrierPlacement.carrierYById
+    )
+    : null;
+  const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
+    .filter((group) => group.commit.status === "routed" &&
+      group.edges.length >= policy.layering.carrierMinimumFanout)
+    .map((group) => [group.physicalNetKey, group.edges]));
+
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
     routePlan,
@@ -181,6 +214,7 @@ export function layoutGraph(graph, options = {}) {
     topWireLanePitch,
     routingGeometry,
     routingCapacity,
+    carrierRoutesByPhysicalNet,
     margin,
     strictRouting: options.strictRouting === true,
     onRoutingProgress: options.onRoutingProgress,

@@ -32,7 +32,13 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // -26%) but the router cannot yet place the resulting long edges, which
     // pushes unroutable edges from 4 to 68. Stage S2b has to reserve grouped
     // physical-net carriers and route their trees before this can ship.
-    longEdgeDummies: false
+    longEdgeDummies: false,
+    // Atomically route long physical nets through the carrier slots produced
+    // by the proper layered graph. Kept independent while S2b is measured.
+    physicalCarrierRouting: false,
+    // Let the physical capacity pass determine inter-layer width instead of
+    // multiplying the initial gap by logical fanout.
+    routingDrivenLayerSpacing: false
   }),
   layering: Object.freeze({
     // Bounded deterministic relaxation that replaces the longest-path
@@ -45,6 +51,9 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // they are excluded from the relaxation. Only nodes a Focused query
     // synthesized are free to move.
     anchorPrimaryPorts: true,
+    // S2b initially reserves explicit through-layer tracks only for physical
+    // nets whose branch count justifies a shared trunk.
+    carrierMinimumFanout: 8,
     // Upper bound on the dummy nodes `longEdgeDummies` may create.
     maxDummyNodes: 40000
   })
@@ -52,6 +61,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
 
 export const LAYERING_LIMITS = Object.freeze({
   relaxationSweeps: Object.freeze([0, 64]),
+  carrierMinimumFanout: Object.freeze([2, 1024]),
   maxDummyNodes: Object.freeze([0, 500000])
 });
 
@@ -127,6 +137,10 @@ function normalizeLayering(layering) {
     layering.anchorPrimaryPorts,
     DEFAULT_LAYOUT_POLICY.layering.anchorPrimaryPorts
   );
+  const carrierMinimumFanout = Number(layering.carrierMinimumFanout);
+  layering.carrierMinimumFanout = Number.isFinite(carrierMinimumFanout)
+    ? clamp(Math.floor(carrierMinimumFanout), ...LAYERING_LIMITS.carrierMinimumFanout)
+    : DEFAULT_LAYOUT_POLICY.layering.carrierMinimumFanout;
   const maximumDummies = Number(layering.maxDummyNodes);
   layering.maxDummyNodes = Number.isFinite(maximumDummies)
     ? clamp(Math.floor(maximumDummies), ...LAYERING_LIMITS.maxDummyNodes)

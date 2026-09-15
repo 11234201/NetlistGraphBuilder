@@ -230,10 +230,29 @@ function compareNodeCenters(left, right) {
 
 function parseLayoutPolicy(argumentsList) {
   const spacingArgument = argumentsList.find((argument) => argument.startsWith("--cell-spacing="));
-  if (!spacingArgument) return undefined;
-  const cellSpacing = Number(spacingArgument.slice("--cell-spacing=".length));
-  if (!Number.isFinite(cellSpacing)) throw new Error("--cell-spacing must be a finite number");
-  return { spacing: { cellSpacing } };
+  const fanoutXArgument = argumentsList.find((argument) => argument.startsWith("--fanout-x="));
+  const features = {
+    ...(argumentsList.includes("--minimal-span") ? { minimalSpanLayering: true } : {}),
+    ...(argumentsList.includes("--long-edge-dummies") ? { longEdgeDummies: true } : {}),
+    ...(argumentsList.includes("--physical-carriers") ? { physicalCarrierRouting: true } : {}),
+    ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {})
+  };
+  if (!spacingArgument && !fanoutXArgument && Object.keys(features).length === 0) return undefined;
+  const spacing = {};
+  if (spacingArgument) {
+    const cellSpacing = Number(spacingArgument.slice("--cell-spacing=".length));
+    if (!Number.isFinite(cellSpacing)) throw new Error("--cell-spacing must be a finite number");
+    spacing.cellSpacing = cellSpacing;
+  }
+  if (fanoutXArgument) {
+    const fanoutX = Number(fanoutXArgument.slice("--fanout-x=".length));
+    if (!Number.isFinite(fanoutX)) throw new Error("--fanout-x must be a finite number");
+    spacing.fanoutX = fanoutX;
+  }
+  return {
+    ...(Object.keys(spacing).length > 0 ? { spacing } : {}),
+    ...(Object.keys(features).length > 0 ? { features } : {})
+  };
 }
 
 function parseScenario(argumentsList, layoutPolicy) {

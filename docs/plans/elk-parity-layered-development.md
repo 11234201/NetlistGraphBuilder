@@ -188,6 +188,12 @@ joinLongEdgeChains(layered, segmentsByEdge):
 logical dummy，只保留每个物理网/边界一个带最小跨度的 carrier slot。该模型尚未接入默认 Simple
 放置与路由；2026-09-16 本地全量单测 568/568 通过，远端 Linux 因 SSH 超时待补跑。
 
+2026-09-16 后续实验：按实际物理容量驱动层间距后，场景 B 宽度由 33,504 降到
+5,010–5,914（ELK 6,374），交叉数最低约 26,220；但旧路由器在紧凑几何上产生 130+ missing。
+carrier 树提前提交会阻塞异网，改成失败物理网的原子后修复后仍因既有异网占位无法接管。
+因此三个新能力继续独立且默认关闭；下一步必须让 gap 扫描路由与 x 放置同步，而不是把紧凑
+放置交给旧的全局补救路由。
+
 1. 逻辑 dummy 继续参与排序，但放置与容量必须按现有 `physicalNetKey` 合并：每个
    `(physicalNetKey, boundary)` 只能有一个 carrier 槽位。不得让 clk/rst_n 的每条逻辑分支各占一条通道。
 2. carrier 保留到放置结束，记录每个跨层物理网的逐列 y 锚点；逻辑 dummy 本身不产生独立间距。

@@ -46,6 +46,7 @@ export function buildPhysicalNetCarriers(graph = {}, levels = new Map()) {
         id: `carrier:${encodeURIComponent(netGroupKey)}:${boundaryColumn}`,
         netGroupKey,
         sourceNodeId: String(edges[0]?.source || ""),
+        physicalNetFanout: edges.length,
         boundaryColumn,
         leftLevel: levelKeys[boundaryColumn],
         rightLevel: levelKeys[boundaryColumn + 1],

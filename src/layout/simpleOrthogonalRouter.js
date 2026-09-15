@@ -256,6 +256,20 @@ export function routeSimpleEdges(graph, nodes, options) {
     }
   }
 
+  repairUnroutablePhysicalNetsWithCarriers({
+    carrierRoutesByPhysicalNet: options.carrierRoutesByPhysicalNet,
+    edgesByPhysicalNet,
+    routedById,
+    reservedSegments,
+    routingMetrics,
+    unroutablePhysicalNets,
+    overflowUnroutablePhysicalNets,
+    nodes,
+    nodeIndex,
+    nodeById,
+    targetEntryLanes
+  });
+
   const routedEdges = graph.edges.map((edge) => routedById.get(edge.id) || edge);
   options.onRoutingStage?.("labels-start");
   const labeledEdges = placeWireLabels(routedEdges, nodes, {
@@ -286,6 +300,52 @@ function groupEdgesByPhysicalNet(edges) {
     groups.set(key, entries);
   }
   return groups;
+}
+
+function tryCarrierPhysicalNetGroup(edges, carrierRoutes, context) {
+  if (!Array.isArray(carrierRoutes) || carrierRoutes.length !== edges.length) return null;
+  const expectedIds = edges.map((edge) => String(edge.id)).toSorted();
+  const actualIds = carrierRoutes.map((edge) => String(edge.id)).toSorted();
+  if (expectedIds.some((edgeId, index) => edgeId !== actualIds[index])) return null;
+  if (carrierRoutes.some((edge) => routeOverlapsReserved(
+    edge.points,
+    edge.net,
+    context.reservedSegments,
+    getNetGroupKey(edge)
+  ))) return null;
+  const commit = validatePhysicalNetCommit(carrierRoutes, context.nodes, {
+    nodeIndex: context.nodeIndex
+  });
+  return commit.status === "routed" ? carrierRoutes : null;
+}
+
+function repairUnroutablePhysicalNetsWithCarriers(context) {
+  if (!(context.carrierRoutesByPhysicalNet instanceof Map)) return;
+  for (const physicalNetKey of [...context.unroutablePhysicalNets].toSorted()) {
+    const physicalNetEdges = context.edgesByPhysicalNet.get(physicalNetKey) || [];
+    const carrierRoutes = tryCarrierPhysicalNetGroup(
+      physicalNetEdges,
+      context.carrierRoutesByPhysicalNet.get(physicalNetKey),
+      context
+    );
+    if (!carrierRoutes) continue;
+    for (const edge of physicalNetEdges) {
+      const previous = context.routedById.get(edge.id);
+      if (!previous?.routeKind) continue;
+      context.routingMetrics.routeKinds[previous.routeKind] = Math.max(
+        0,
+        (context.routingMetrics.routeKinds[previous.routeKind] || 0) - 1
+      );
+    }
+    context.reservedSegments.removeOwner(physicalNetKey);
+    context.unroutablePhysicalNets.delete(physicalNetKey);
+    context.overflowUnroutablePhysicalNets.delete(physicalNetKey);
+    context.routingMetrics.carrierPhysicalNetTreeCount =
+      (context.routingMetrics.carrierPhysicalNetTreeCount || 0) + 1;
+    context.routingMetrics.carrierRepairedEdgeCount =
+      (context.routingMetrics.carrierRepairedEdgeCount || 0) + carrierRoutes.length;
+    commitPhysicalNetRoutes(carrierRoutes, context);
+  }
 }
 
 /**
