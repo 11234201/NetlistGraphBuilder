@@ -31,20 +31,34 @@ export function buildPhysicalNetCarriers(graph = {}, levels = new Map()) {
       continue;
     }
     const maximumTargetColumn = Math.max(...targetEntries.map((entry) => entry.column));
+    const groupCarriers = [];
     for (let boundaryColumn = sourceColumn; boundaryColumn < maximumTargetColumn; boundaryColumn += 1) {
-      const crossingEdges = targetEntries
-        .filter((entry) => entry.column > boundaryColumn)
+      const crossingEntries = targetEntries.filter((entry) => entry.column > boundaryColumn);
+      const crossingEdges = crossingEntries
         .map((entry) => String(entry.edge.id || ""))
         .toSorted(compareIds);
-      carriers.push({
+      const terminatingEdgeIds = crossingEntries
+        .filter((entry) => entry.column === boundaryColumn + 1)
+        .map((entry) => String(entry.edge.id || ""))
+        .toSorted(compareIds);
+      const terminatingEdgeIdSet = new Set(terminatingEdgeIds);
+      groupCarriers.push({
         id: `carrier:${encodeURIComponent(netGroupKey)}:${boundaryColumn}`,
         netGroupKey,
+        sourceNodeId: String(edges[0]?.source || ""),
         boundaryColumn,
         leftLevel: levelKeys[boundaryColumn],
         rightLevel: levelKeys[boundaryColumn + 1],
-        logicalEdgeIds: crossingEdges
+        logicalEdgeIds: crossingEdges,
+        terminatingEdgeIds,
+        continuingEdgeIds: crossingEdges.filter((edgeId) => !terminatingEdgeIdSet.has(edgeId))
       });
     }
+    groupCarriers.forEach((carrier, index) => carriers.push({
+      ...carrier,
+      previousCarrierId: groupCarriers[index - 1]?.id || null,
+      nextCarrierId: groupCarriers[index + 1]?.id || null
+    }));
   }
   return { carriers, diagnostics, levelKeys };
 }

@@ -3,6 +3,7 @@ import { orientCyclesForLayering } from "./cycle_breaking.js";
 import { addDummyNodesToBuckets, buildLongEdgeChains } from "./longEdgeDummies.js";
 import { relaxToMinimalSpan } from "./minSpanLayering.js";
 import { buildPhysicalNetCarriers } from "./physical_net_carriers.js";
+import { orderPhysicalNetCarriers } from "./carrier_ordering.js";
 
 export function buildLayeredGraph(graph = {}, options = {}) {
   const oriented = orientCyclesForLayering(graph);
@@ -19,7 +20,7 @@ export function buildLayeredGraph(graph = {}, options = {}) {
   orderSimpleLayers(buckets, levelKeys, logicalChains.orderingEdges);
   const carrierView = buildPhysicalNetCarriers(orientedGraph, levels);
 
-  return {
+  const result = {
     layers: levelKeys.map((level) => ({ level, nodes: [...(buckets.get(level) || [])] })),
     levels,
     realEdges: [...(graph.edges || [])],
@@ -32,6 +33,10 @@ export function buildLayeredGraph(graph = {}, options = {}) {
       ...oriented.selfLoopEdgeIds.map((edgeId) => ({ code: "layered-self-loop", edgeId }))
     ]
   };
+  const carrierOrder = orderPhysicalNetCarriers(result);
+  result.carrierBoundaries = carrierOrder.boundaries;
+  result.diagnostics.push(...carrierOrder.diagnostics);
+  return result;
 }
 
 function bucketNodes(nodes, levels) {

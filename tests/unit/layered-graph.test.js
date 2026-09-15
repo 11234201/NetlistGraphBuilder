@@ -56,6 +56,7 @@ function summarize(layered) {
     })),
     edges: layered.orientedEdges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
     carriers: layered.carriers,
+    carrierBoundaries: layered.carrierBoundaries,
     diagnostics: layered.diagnostics
   };
 }
