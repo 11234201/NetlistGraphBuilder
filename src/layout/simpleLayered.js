@@ -5,6 +5,12 @@ import {
   computeTopWireHeadroom,
   normalizeRoutingGeometry
 } from "./channelCapacity.js";
+import { relaxToMinimalSpan } from "./layered/minSpanLayering.js";
+import {
+  addDummyNodesToBuckets,
+  buildLongEdgeChains,
+  stripDummyNodes
+} from "./layered/longEdgeDummies.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
   buildNodePorts,
@@ -44,7 +50,13 @@ export function layoutGraph(graph, options = {}) {
   const wireLanePitch = policy.spacing.wireLanePitch;
   const routingGeometry = normalizeRoutingGeometry(policy.spacing, options.routingGeometry);
   const topWireLanePitch = routingGeometry.wireLanePitch;
-  const levels = assignSimpleLevels(graph);
+  // Source-anchored longest-path ranking can leave boundary nodes far from
+  // deep consumers. The experimental bounded span relaxation moves eligible
+  // nodes toward the tighter side of their constraints.
+  const initialLevels = assignSimpleLevels(graph);
+  const levels = policy.features.minimalSpanLayering
+    ? relaxToMinimalSpan(graph, initialLevels, policy.layering)
+    : initialLevels;
   reportStage("levels-complete");
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   reportStage("intent-complete");
@@ -66,7 +78,21 @@ export function layoutGraph(graph, options = {}) {
   const topWireSpace = topWireHeadroom.topWireSpace;
   const buckets = bucketNodesByLevel(graph.nodes, levels);
   const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
-  orderSimpleLayers(buckets, levelKeys, graph.edges);
+  // A long edge is invisible to every column it passes through: it contributes
+  // a barycenter only at its two endpoints. Splitting it into a chain of
+  // dummies makes it a normal unit-span edge in each of those columns, which is
+  // the only way it can take part in their ordering. The dummies are stripped
+  // again immediately after ordering; nothing downstream sees them yet.
+  const dummyChains = policy.features.longEdgeDummies
+    ? buildLongEdgeChains(graph, levels, policy.layering)
+    : null;
+  if (dummyChains) addDummyNodesToBuckets(buckets, dummyChains);
+  orderSimpleLayers(
+    buckets,
+    levelKeys,
+    dummyChains ? dummyChains.orderingEdges : graph.edges
+  );
+  if (dummyChains) stripDummyNodes(buckets, dummyChains);
   reportStage("layer-order-complete");
 
   const nodeSizes = new Map(graph.nodes.map((node) => [

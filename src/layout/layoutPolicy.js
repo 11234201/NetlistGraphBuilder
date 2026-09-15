@@ -20,8 +20,39 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
   features: Object.freeze({
     alignDrivenLinks: true,
     branchAwareLanes: true,
-    localizeSingleFanoutInputs: true
+    localizeSingleFanoutInputs: true,
+    // Experimental until proper long-edge placement and chain routing land.
+    // Enabling span minimization alone changes the geometry seen by the
+    // legacy router and currently regresses valid mapped/focused fixtures.
+    minimalSpanLayering: false,
+    // Insert a dummy node for every column a long edge crosses so the edge
+    // takes part in the ordering of the columns it passes through.
+    // Off by default: ordering alone makes the drawing much better (eq012
+    // `_1471_` depth 3/3 crossings 46,097 -> 31,003, average wire length
+    // -26%) but the router cannot yet place the resulting long edges, which
+    // pushes unroutable edges from 4 to 68. Stage S2b has to reserve grouped
+    // physical-net carriers and route their trees before this can ship.
+    longEdgeDummies: false
+  }),
+  layering: Object.freeze({
+    // Bounded deterministic relaxation that replaces the longest-path
+    // ranking with a minimal-total-span ranking.
+    relaxationSweeps: 8,
+    // "constrained" places boundary nodes by constraint, next to their
+    // targets. "source" keeps the legacy pin-to-first-level behaviour.
+    boundaryAnchor: "constrained",
+    // Primary ports belong on the leading or trailing edge of a schematic, so
+    // they are excluded from the relaxation. Only nodes a Focused query
+    // synthesized are free to move.
+    anchorPrimaryPorts: true,
+    // Upper bound on the dummy nodes `longEdgeDummies` may create.
+    maxDummyNodes: 40000
   })
+});
+
+export const LAYERING_LIMITS = Object.freeze({
+  relaxationSweeps: Object.freeze([0, 64]),
+  maxDummyNodes: Object.freeze([0, 500000])
 });
 
 export const LAYOUT_SPACING_LIMITS = Object.freeze({
@@ -67,17 +98,39 @@ export function normalizeLayoutPolicy(policy = {}, legacyOptions = {}) {
     ...DEFAULT_LAYOUT_POLICY.features,
     ...(policy.features || {})
   };
+  const layering = {
+    ...DEFAULT_LAYOUT_POLICY.layering,
+    ...(policy.layering || {})
+  };
 
   applyLegacySpacing(spacing, legacyOptions);
   applyLegacyFeatures(features, legacyOptions);
   normalizeSpacing(spacing);
   normalizeFeatures(features);
+  normalizeLayering(layering);
 
   return {
     name: policy.name || DEFAULT_LAYOUT_POLICY.name,
     spacing,
-    features
+    features,
+    layering
   };
+}
+
+function normalizeLayering(layering) {
+  const sweeps = Number(layering.relaxationSweeps);
+  layering.relaxationSweeps = Number.isFinite(sweeps)
+    ? clamp(Math.floor(sweeps), LAYERING_LIMITS.relaxationSweeps[0], LAYERING_LIMITS.relaxationSweeps[1])
+    : DEFAULT_LAYOUT_POLICY.layering.relaxationSweeps;
+  layering.boundaryAnchor = layering.boundaryAnchor === "source" ? "source" : "constrained";
+  layering.anchorPrimaryPorts = toBoolean(
+    layering.anchorPrimaryPorts,
+    DEFAULT_LAYOUT_POLICY.layering.anchorPrimaryPorts
+  );
+  const maximumDummies = Number(layering.maxDummyNodes);
+  layering.maxDummyNodes = Number.isFinite(maximumDummies)
+    ? clamp(Math.floor(maximumDummies), ...LAYERING_LIMITS.maxDummyNodes)
+    : DEFAULT_LAYOUT_POLICY.layering.maxDummyNodes;
 }
 
 function normalizeSpacing(spacing) {

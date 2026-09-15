@@ -13,6 +13,10 @@
     "benchmark:mapped": "node tools/benchmark-mapped-cases.mjs",
     "benchmark:workspace": "node tools/benchmark-workspace-cache.mjs",
     "benchmark:interaction": "node tools/benchmark-interaction.mjs",
+    "analyze:eq012-layouts": "node tools/compare_eq012_layouts.mjs",
+    "analyze:layer-spans": "node tools/inspect_layer_spans.mjs",
+    "analyze:long-edges": "node tools/inspect_long_edges.mjs",
+    "analyze:unroutable": "node tools/inspect_unroutable.mjs",
     "release:windows": "powershell -ExecutionPolicy Bypass -File tools/build-windows-release.ps1"
   }
 }
