@@ -4,6 +4,7 @@ import { addDummyNodesToBuckets, buildLongEdgeChains } from "./longEdgeDummies.j
 import { relaxToMinimalSpan } from "./minSpanLayering.js";
 import { buildPhysicalNetCarriers } from "./physical_net_carriers.js";
 import { orderPhysicalNetCarriers } from "./carrier_ordering.js";
+import { buildCarrierPlacementLayers } from "./carrier_placement.js";
 
 export function buildLayeredGraph(graph = {}, options = {}) {
   const oriented = orientCyclesForLayering(graph);
@@ -36,6 +37,9 @@ export function buildLayeredGraph(graph = {}, options = {}) {
   const carrierOrder = orderPhysicalNetCarriers(result);
   result.carrierBoundaries = carrierOrder.boundaries;
   result.diagnostics.push(...carrierOrder.diagnostics);
+  const carrierPlacement = buildCarrierPlacementLayers(result, options.placement);
+  result.placementLayers = carrierPlacement.layers;
+  result.diagnostics.push(...carrierPlacement.diagnostics);
   return result;
 }
 

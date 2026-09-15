@@ -11,6 +11,8 @@ test("layered graph combines reversible cycles, unit-span chains, and physical c
   assert.ok(layered.orientedEdges.some((edge) => edge.reversedForLayout));
   assert.ok(layered.logicalChains.dummies.length > 0);
   assert.ok(layered.carriers.length > 0);
+  assert.ok(layered.placementLayers.some((layer) =>
+    layer.entries.some((entry) => entry.kind === "layout-carrier-slot")));
   assert.equal(layered.realEdges[0], graph.edges[0]);
   assert.equal(allSegmentsAreUnitSpan(layered), true);
 });
@@ -57,6 +59,14 @@ function summarize(layered) {
     edges: layered.orientedEdges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
     carriers: layered.carriers,
     carrierBoundaries: layered.carrierBoundaries,
+    placementLayers: layered.placementLayers.map((layer) => ({
+      level: layer.level,
+      entries: layer.entries.map((entry) => ({
+        id: entry.id,
+        kind: entry.kind,
+        preferredRank: entry.preferredRank
+      }))
+    })),
     diagnostics: layered.diagnostics
   };
 }
