@@ -94,6 +94,39 @@ test("the first carrier stays next to its physical source", () => {
   assert.equal(result.carrierXById.get("carrier:n:0"), 104);
 });
 
+test("wide boundaries expose more than the legacy 65 carrier tracks", () => {
+  const carriers = Array.from({ length: 80 }, (_, index) => ({
+    id: `carrier:n${index}:0`,
+    sourceNodeId: "src",
+    boundaryColumn: 0,
+    order: index,
+    logicalEdgeIds: [`edge:${index}`]
+  }));
+  const orientedEdges = carriers.map((carrier, index) => ({
+    id: carrier.logicalEdgeIds[0],
+    source: "src",
+    target: "target",
+    net: `n${index}`,
+    physicalNetKey: `src\u0000n${index}`
+  }));
+  const result = buildCarrierPhysicalNetRoutes({
+    orientedEdges,
+    carriers,
+    carrierBoundaries: [{
+      boundaryColumn: 0,
+      leftLevel: 0,
+      rightLevel: 1,
+      carriers
+    }]
+  }, [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 0, width: 80, height: 32, ports: [] },
+    { id: "target", kind: "cell", level: 1, x: 2000, y: 0, width: 80, height: 32, ports: [] }
+  ], new Map(carriers.map((carrier, index) => [carrier.id, 40 + index * 8])));
+
+  assert.equal(result.carrierXById.size, 80);
+  assert.equal(new Set(result.carrierXById.values()).size, 80);
+});
+
 function makeLayeredGraph() {
   const edges = [
     { id: "a", source: "src", target: "a", sourcePin: "Z", targetPin: "A", net: "n", physicalNetKey: "src\0n" },

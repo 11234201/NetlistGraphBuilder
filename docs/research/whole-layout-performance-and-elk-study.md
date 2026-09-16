@@ -182,4 +182,14 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 
 曾验证过直接把 inter-layer 容量分配连接成整网候选。eq012 上没有任何候选通过硬校验，并额外消耗约 5.8 秒，因此未保留。原因是 inter-layer allocation 只保证相邻列间隙中的竖向轨道，不保证横穿中间节点列的线段无障碍；它不是 ELK dummy slot 的替代物。Stage D 后续必须让长边 dummy 在放置阶段保留真实层内占位，再由这些占位生成物理网树，不能在 dummy 排序后立即全部剥离。
 
+随后检查发现 carrier X 轨道生成器只采样 65 个位置，与容量规划器每 scope 最多 256 lane 的边界不一致。将它改为固定、命名的 256-track 上限，并把 Whole proper-layering 的 carrier 最小扇出从 8 独立降为 2（Focused 继续使用 8）后：
+
+- eq012：missing 441 → 270，失败物理网 202 → 142，总布局 34.7 秒 → 28.2 秒；宽度仍为 41,399。
+- eq007：missing 235 → 219，总布局约 34.7 秒 → 33.3 秒；宽度仍为 14,796。
+- eq012 采用 carrier 的边数由 128 增至 634，legacy routing 阶段约 31.1 秒降至 24.3 秒。
+
+该改动仍未达到正确性验收：eq012 剩余 270 条 missing 中，127 条仍来自 `clk`，另有 140 条失败物理网是跨至少三层的单扇出网。下一步需要解决超过 256 个同时活动 carrier 的边界分段/复用，以及高扇出 `clk` 的分层分支树，不能继续简单提高固定上限。
+
+验证方面，单元测试 585/585 通过；远端规模基准的 1024/4096/8192-cell 布局中位数约为 167 ms / 1.15 s / 4.90 s。`MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完整执行，但默认（未开启 Whole proper-layering）基线仍有 30/47 case 因既有 missing-route、violation budget 或 45 秒超时失败，因此不能把该结果作为本轮 proper-layering 的通过证据。
+
 因此 Whole 当前已经从“性能悬崖”转为“路由正确性/批量通道模型”问题。下一项工作仍是按 gap 统一提交 physical nets，不能以放宽校验或接受 missing 换取默认启用。

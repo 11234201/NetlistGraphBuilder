@@ -8,7 +8,11 @@ export const ROUTE_SEARCH_LIMITS = Object.freeze({
   // obstacle checks.
   minimumOuterLaneAttempts: 8,
   maximumOuterLaneAttempts: 32,
-  maximumGlobalLaneCandidates: 512
+  maximumGlobalLaneCandidates: 512,
+  // Carrier tracks are allocated inside an already bounded inter-layer gap.
+  // Keep this aligned with the capacity planner's per-scope lane ceiling so
+  // route generation can consume reserved space without graph-sized search.
+  maximumBoundaryCarrierTracks: 256
 });
 
 export const ROUTE_SELECTION_POLICY = Object.freeze({
@@ -24,5 +28,6 @@ export const ROUTE_GEOMETRY_POLICY = Object.freeze({
   minimumVisibleTargetCornerGap: 16,
   maximumEndpointInset: 24,
   minimumEndpointInset: 2,
-  reverseEndpointInset: 12
+  reverseEndpointInset: 12,
+  boundaryCarrierTrackPitch: 8
 });

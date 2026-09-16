@@ -23,8 +23,14 @@ const providers = [
 if (providers.length === 0) {
   throw new Error(`Unknown LAYOUT_PROVIDER: ${requestedProvider}`);
 }
+const requestedCarrierMinimumFanout = Number(process.env.SIMPLE_CARRIER_MINIMUM_FANOUT);
 const simpleLayoutPolicy = process.env.SIMPLE_WHOLE_PROPER_LAYERING === "1"
-  ? { features: { wholeProperLayering: true } }
+  ? {
+    features: { wholeProperLayering: true },
+    ...(Number.isFinite(requestedCarrierMinimumFanout)
+      ? { layering: { wholeCarrierMinimumFanout: requestedCarrierMinimumFanout } }
+      : {})
+  }
   : undefined;
 const reports = [];
 
@@ -94,6 +100,9 @@ function summarizeRoutingMetrics(metrics) {
     localCandidates: metrics.localCandidates || 0,
     globalFallbacks: metrics.globalFallbacks || 0,
     phaseElapsedMs: metrics.phaseElapsedMs || {},
+    carrierCandidatePhysicalNetCount: metrics.carrierCandidatePhysicalNetCount || 0,
+    carrierPhysicalNetTreeCount: metrics.carrierPhysicalNetTreeCount || 0,
+    carrierRoutingSummary: metrics.carrierRoutingSummary || null,
     physicalNetCount: metrics.physicalNetCount || 0,
     unroutablePhysicalNetCount: metrics.unroutablePhysicalNetCount || 0,
     routeKinds: metrics.routeKinds || {},

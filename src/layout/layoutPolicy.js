@@ -56,6 +56,9 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // S2b initially reserves explicit through-layer tracks only for physical
     // nets whose branch count justifies a shared trunk.
     carrierMinimumFanout: 8,
+    // Whole proper-layering needs slots for low-fanout long nets as well;
+    // unlike Focused, it cannot rely on generous local whitespace.
+    wholeCarrierMinimumFanout: 2,
     // Upper bound on the dummy nodes `longEdgeDummies` may create.
     maxDummyNodes: 40000
   })
@@ -64,6 +67,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
 export const LAYERING_LIMITS = Object.freeze({
   relaxationSweeps: Object.freeze([0, 64]),
   carrierMinimumFanout: Object.freeze([2, 1024]),
+  wholeCarrierMinimumFanout: Object.freeze([1, 1024]),
   maxDummyNodes: Object.freeze([0, 500000])
 });
 
@@ -144,6 +148,10 @@ function normalizeLayering(layering) {
   layering.carrierMinimumFanout = Number.isFinite(carrierMinimumFanout)
     ? clamp(Math.floor(carrierMinimumFanout), ...LAYERING_LIMITS.carrierMinimumFanout)
     : DEFAULT_LAYOUT_POLICY.layering.carrierMinimumFanout;
+  const wholeCarrierMinimumFanout = Number(layering.wholeCarrierMinimumFanout);
+  layering.wholeCarrierMinimumFanout = Number.isFinite(wholeCarrierMinimumFanout)
+    ? clamp(Math.floor(wholeCarrierMinimumFanout), ...LAYERING_LIMITS.wholeCarrierMinimumFanout)
+    : DEFAULT_LAYOUT_POLICY.layering.wholeCarrierMinimumFanout;
   const maximumDummies = Number(layering.maxDummyNodes);
   layering.maxDummyNodes = Number.isFinite(maximumDummies)
     ? clamp(Math.floor(maximumDummies), ...LAYERING_LIMITS.maxDummyNodes)

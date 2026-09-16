@@ -2,6 +2,7 @@ import { getConnectionPoint } from "../nodeGeometry.js";
 import { compactOrthogonalPoints } from "../orthogonalRouting.js";
 import { validatePhysicalNetCommit } from "../physical_net_commit.js";
 import { computeNodeCollectionBox, createNodeSpatialIndex } from "../spatialIndex.js";
+import { ROUTE_GEOMETRY_POLICY, ROUTE_SEARCH_LIMITS } from "../routeSearchPolicy.js";
 
 /**
  * Join logical branches back through their physical carrier chain. Every net
@@ -262,8 +263,13 @@ function buildCarrierXMap(
 function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBounds, count) {
   if (!(maximum >= minimum) || count <= 0) return [];
   const candidates = [preferred, minimum, maximum];
-  for (let step = 1; step <= 32; step += 1) {
-    candidates.push(preferred - step * 8, preferred + step * 8);
+  const pitch = ROUTE_GEOMETRY_POLICY.boundaryCarrierTrackPitch;
+  const maximumTracks = ROUTE_SEARCH_LIMITS.maximumBoundaryCarrierTracks;
+  for (let step = 1; candidates.length < maximumTracks; step += 1) {
+    const left = preferred - step * pitch;
+    const right = preferred + step * pitch;
+    if (left < minimum && right > maximum) break;
+    candidates.push(left, right);
   }
   return [...new Set(candidates
     .filter((value) => Number.isFinite(value) && value >= minimum && value <= maximum)
@@ -275,7 +281,7 @@ function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBound
       bottom: nodeBounds.bottom
     }).every((node) =>
       value <= Number(node.x) - 8 || value >= Number(node.x) + Number(node.width) + 8)))]
-    .slice(0, count);
+    .slice(0, Math.min(count, maximumTracks));
 }
 
 function isStructuralLayerNode(node) {

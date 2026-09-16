@@ -101,6 +101,9 @@ export function layoutGraph(graph, options = {}) {
   const hasFocusedBoundary = graph.nodes.some((node) =>
     node.kind === "focus-input" || node.kind === "focus-output");
   const useProperLayering = hasFocusedBoundary || policy.features.wholeProperLayering;
+  const carrierMinimumFanout = hasFocusedBoundary
+    ? policy.layering.carrierMinimumFanout
+    : policy.layering.wholeCarrierMinimumFanout;
   const hasExplicitFocusedFanoutX =
     options.layoutPolicy?.spacing?.focusedFanoutX !== undefined;
   const hasExplicitFanoutX = options.layoutPolicy?.spacing?.fanoutX !== undefined ||
@@ -119,7 +122,7 @@ export function layoutGraph(graph, options = {}) {
       layering: policy.layering,
       placement: {
         carrierSpan: wireLanePitch,
-        minimumFanout: policy.layering.carrierMinimumFanout
+        minimumFanout: carrierMinimumFanout
       }
     })
     : null;
@@ -253,7 +256,7 @@ export function layoutGraph(graph, options = {}) {
     : null;
   const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
     .filter((group) => group.variants.some((variant) => variant.commit.status === "routed") &&
-      group.edges.length >= policy.layering.carrierMinimumFanout)
+      group.edges.length >= carrierMinimumFanout)
     .map((group) => [
       group.physicalNetKey,
       group.variants
@@ -263,7 +266,8 @@ export function layoutGraph(graph, options = {}) {
   reportStage("carrier-routing-complete", carrierRouting ? {
     groupCount: carrierRouting.groups.length,
     validGroupCount: carrierRoutesByPhysicalNet.size,
-    diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics)
+    diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics),
+    violationCounts: countCarrierViolationCodes(carrierRouting.diagnostics)
   } : null);
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
@@ -278,6 +282,7 @@ export function layoutGraph(graph, options = {}) {
       groupCount: carrierRouting.groups.length,
       validGroupCount: carrierRoutesByPhysicalNet.size,
       diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics),
+      violationCounts: countCarrierViolationCodes(carrierRouting.diagnostics),
       diagnosticSamples: carrierRouting.diagnostics
         .filter((diagnostic) => diagnostic.code === "layered-carrier-physical-net-invalid")
         .slice(0, 8)
@@ -333,6 +338,16 @@ function countDiagnosticCodes(diagnostics = []) {
   for (const diagnostic of diagnostics) {
     const code = diagnostic?.code || "unknown";
     counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
+}
+
+function countCarrierViolationCodes(diagnostics = []) {
+  const counts = {};
+  for (const diagnostic of diagnostics) {
+    for (const [code, count] of Object.entries(diagnostic?.violationCounts || {})) {
+      counts[code] = (counts[code] || 0) + Number(count || 0);
+    }
   }
   return counts;
 }
