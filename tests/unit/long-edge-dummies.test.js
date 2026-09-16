@@ -224,13 +224,17 @@ test("a graph without long edges orders identically with and without dummies", (
   assert.equal(withDummies.get(1).length, 1);
 });
 
-test("the layout policy keeps long-edge dummies off until routing can place them", () => {
+test("the layout policy enables bounded long-edge dummies", () => {
   const policy = normalizeLayoutPolicy();
   assert.equal(policy.features.longEdgeDummies, true);
+  assert.equal(policy.features.wholeProperLayering, false);
   assert.equal(policy.layering.maxDummyNodes, 40000);
 
   const enabled = normalizeLayoutPolicy({ features: { longEdgeDummies: true } });
   assert.equal(enabled.features.longEdgeDummies, true);
+
+  const wholeEnabled = normalizeLayoutPolicy({ features: { wholeProperLayering: true } });
+  assert.equal(wholeEnabled.features.wholeProperLayering, true);
 
   const clamped = normalizeLayoutPolicy({ layering: { maxDummyNodes: -5 } });
   assert.equal(clamped.layering.maxDummyNodes, 0);

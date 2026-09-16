@@ -16,13 +16,17 @@ export function buildCarrierPhysicalNetRoutes(
 ) {
   const anchorOffsets = normalizeAnchorOffsets(options.anchorOffsets);
   const nodeById = new Map((positionedNodes || []).map((node) => [node.id, node]));
+  const nodeIndex = options.nodeIndex || createNodeSpatialIndex(positionedNodes || []);
+  const nodeBounds = computeNodeCollectionBox(positionedNodes || []);
   const edgeById = new Map((layeredGraph.orientedEdges || []).map((edge) => [String(edge.id), edge]));
   const carrierXById = buildCarrierXMap(
     layeredGraph,
     positionedNodes,
     edgeById,
     nodeById,
-    carrierYById
+    carrierYById,
+    nodeIndex,
+    nodeBounds
   );
   const carriersByEdge = indexCarriersByEdge(layeredGraph.carriers || []);
   const groupsByOffset = new Map(anchorOffsets.map((offset) => [offset, new Map()]));
@@ -78,7 +82,14 @@ export function buildCarrierPhysicalNetRoutes(
       return {
         offset,
         edges,
-        commit: validatePhysicalNetCommit(edges, positionedNodes, options)
+        // Candidate generation only needs the first hard failure. Collecting
+        // dozens of equivalent diagnostics for every offset made dense Whole
+        // carrier trials dominate runtime without changing the decision.
+        commit: validatePhysicalNetCommit(edges, positionedNodes, {
+          ...options,
+          nodeIndex,
+          maxViolations: Math.min(Number(options.maxViolations) || 1, 8)
+        })
       };
     });
     const primary = variants[0];
@@ -174,9 +185,15 @@ function indexCarriersByEdge(carriers) {
   return byEdge;
 }
 
-function buildCarrierXMap(layeredGraph, positionedNodes, edgeById, nodeById, carrierYById) {
-  const nodeIndex = createNodeSpatialIndex(positionedNodes || []);
-  const nodeBounds = computeNodeCollectionBox(positionedNodes || []);
+function buildCarrierXMap(
+  layeredGraph,
+  positionedNodes,
+  edgeById,
+  nodeById,
+  carrierYById,
+  nodeIndex,
+  nodeBounds
+) {
   const nodesByLevel = new Map();
   for (const node of positionedNodes || []) {
     const entries = nodesByLevel.get(node.level) || [];

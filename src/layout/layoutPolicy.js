@@ -37,7 +37,10 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     physicalCarrierRouting: true,
     // Let the physical capacity pass determine inter-layer width instead of
     // multiplying the initial gap by logical fanout.
-    routingDrivenLayerSpacing: true
+    routingDrivenLayerSpacing: true,
+    // Whole graphs opt into the proper-layering path only after their carrier
+    // and gap routing acceptance gates pass. Focused graphs already use it.
+    wholeProperLayering: false
   }),
   layering: Object.freeze({
     // Bounded deterministic relaxation that replaces the longest-path

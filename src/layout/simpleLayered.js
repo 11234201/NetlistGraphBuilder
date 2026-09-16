@@ -44,7 +44,20 @@ export {
 } from "./nodeGeometry.js";
 
 export function layoutGraph(graph, options = {}) {
-  const reportStage = (stage, detail = null) => options.onLayoutStage?.(stage, detail);
+  const layoutStartedAt = now();
+  let previousStageAt = layoutStartedAt;
+  const layoutStages = [];
+  const reportStage = (stage, detail = null) => {
+    const stageAt = now();
+    const timing = Object.freeze({
+      stage,
+      elapsedMs: roundMilliseconds(stageAt - layoutStartedAt),
+      deltaMs: roundMilliseconds(stageAt - previousStageAt)
+    });
+    layoutStages.push(timing);
+    previousStageAt = stageAt;
+    options.onLayoutStage?.(stage, detail, timing);
+  };
   const policy = normalizeLayoutPolicy(options.layoutPolicy, options);
   const ySpacing = policy.spacing.y;
   const margin = policy.spacing.margin;
@@ -87,6 +100,7 @@ export function layoutGraph(graph, options = {}) {
   // again immediately after ordering; nothing downstream sees them yet.
   const hasFocusedBoundary = graph.nodes.some((node) =>
     node.kind === "focus-input" || node.kind === "focus-output");
+  const useProperLayering = hasFocusedBoundary || policy.features.wholeProperLayering;
   const hasExplicitFocusedFanoutX =
     options.layoutPolicy?.spacing?.focusedFanoutX !== undefined;
   const hasExplicitFanoutX = options.layoutPolicy?.spacing?.fanoutX !== undefined ||
@@ -99,7 +113,7 @@ export function layoutGraph(graph, options = {}) {
         : policy.spacing.fanoutX
     }
     : policy.spacing;
-  const layeredGraph = policy.features.longEdgeDummies && hasFocusedBoundary
+  const layeredGraph = policy.features.longEdgeDummies && useProperLayering
     ? buildLayeredGraph(graph, {
       levels,
       layering: policy.layering,
@@ -117,6 +131,9 @@ export function layoutGraph(graph, options = {}) {
     orderSimpleLayers(buckets, levelKeys, graph.edges);
   }
   reportStage("layer-order-complete");
+  const useRoutingDrivenLayerSpacing = policy.features.routingDrivenLayerSpacing &&
+    Boolean(layeredGraph) &&
+    (hasFocusedBoundary || (layeredGraph.logicalChains?.dummies?.length || 0) > 0);
 
   const nodeSizes = new Map(graph.nodes.map((node) => [
     node.id,
@@ -133,7 +150,7 @@ export function layoutGraph(graph, options = {}) {
     policy.features.localizeSingleFanoutInputs,
     layoutIntent,
     adaptiveSpacing,
-    policy.features.routingDrivenLayerSpacing && hasFocusedBoundary
+    useRoutingDrivenLayerSpacing
   );
   const positionedNodes = placeInitialNodes({
     buckets,
@@ -223,7 +240,15 @@ export function layoutGraph(graph, options = {}) {
       layeredGraph,
       positionedNodes,
       carrierPlacement.carrierYById,
-      { anchorOffsets: [0, -8, 8, -16, 16, -24, 24, -32, 32] }
+      {
+        // Whole graphs can contain thousands of carrier branches. Their
+        // variants are fallback geometry, not a graph-sized search budget.
+        // Keep the richer repair family for Focused views and one canonical
+        // carrier candidate for experimental Whole proper-layering.
+        anchorOffsets: hasFocusedBoundary
+          ? [0, -8, 8, -16, 16, -24, 24, -32, 32]
+          : [0]
+      }
     )
     : null;
   const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
@@ -235,6 +260,11 @@ export function layoutGraph(graph, options = {}) {
         .filter((variant) => variant.commit.status === "routed")
         .map((variant) => variant.edges)
     ]));
+  reportStage("carrier-routing-complete", carrierRouting ? {
+    groupCount: carrierRouting.groups.length,
+    validGroupCount: carrierRoutesByPhysicalNet.size,
+    diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics)
+  } : null);
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
@@ -280,9 +310,21 @@ export function layoutGraph(graph, options = {}) {
     height: safeExtent.height,
     placementCapacity: {
       topWireHeadroom
-    }
+    },
+    layeredDiagnostics: layeredGraph?.diagnostics || []
   });
   reportStage("validation-complete", result.validationMetrics || null);
+  result.layoutMetrics = Object.freeze({
+    elapsedMs: roundMilliseconds(now() - layoutStartedAt),
+    stages: Object.freeze(layoutStages.map((stage) => Object.freeze({ ...stage }))),
+    layered: Object.freeze({
+      enabled: Boolean(layeredGraph),
+      dummyCount: layeredGraph?.logicalChains?.dummies?.length || 0,
+      splitEdgeCount: layeredGraph?.logicalChains?.chainsByEdge?.size || 0,
+      carrierCount: layeredGraph?.carriers?.length || 0,
+      diagnosticCounts: Object.freeze(countDiagnosticCodes(layeredGraph?.diagnostics || []))
+    })
+  });
   return result;
 }
 
@@ -293,6 +335,14 @@ function countDiagnosticCodes(diagnostics = []) {
     counts[code] = (counts[code] || 0) + 1;
   }
   return counts;
+}
+
+function now() {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+function roundMilliseconds(value) {
+  return Math.round(Number(value) * 1000) / 1000;
 }
 
 function readMeasuredSize(node, cellPinPitch) {

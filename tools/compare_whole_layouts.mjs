@@ -18,12 +18,17 @@ const providers = [
   new SimpleLayeredLayoutProvider(),
   new ElkLayoutProvider({ elkFactory: () => new Elk() })
 ];
+const simpleLayoutPolicy = process.env.SIMPLE_WHOLE_PROPER_LAYERING === "1"
+  ? { features: { wholeProperLayering: true } }
+  : undefined;
 const reports = [];
 
 for (const provider of providers) {
   console.error(`[${provider.id}] layout start`);
   const startedAt = performance.now();
-  const graph = await provider.layout(sourceGraph);
+  const graph = await provider.layout(sourceGraph, provider.id === "simple-layered" && simpleLayoutPolicy
+    ? { layoutPolicy: simpleLayoutPolicy }
+    : {});
   const elapsedMs = performance.now() - startedAt;
   console.error(`[${provider.id}] layout ${round(elapsedMs)} ms`);
   const validationStartedAt = performance.now();
@@ -54,6 +59,7 @@ for (const provider of providers) {
     violations: violations.length,
     violationCodes: countCodes(violations),
     routingElapsedMs: round(graph.routingMetrics?.elapsedMs || 0),
+    layoutMetrics: graph.layoutMetrics || null,
     routingMetrics: summarizeRoutingMetrics(graph.routingMetrics),
     physicalCrossings: quality.physicalCrossingCount,
     physicalOverlaps: quality.physicalOverlapCount,

@@ -154,3 +154,14 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 ## 推荐开发顺序
 
 先完成 A+B+C+D，再评估 E。对 Whole 最关键的是统一 dummy/physical-net 数据模型和 gap router；完整复刻 network simplex 或 BK 不是开始开发的前置条件。这样可以先消除 eq012 的候选悬崖和不可布线，再逐步逼近 ELK 的紧凑与对称性。
+
+## 实施记录
+
+### 2026-09-16：阶段 A 完成，阶段 B 进入受控实验
+
+- `layoutGraph()` 现在返回各主阶段的增量/累计时间，以及 dummy、split edge、carrier 和 layered diagnostic 数量；回调同时取得同一份 timing 数据。
+- `analyze:whole-layouts` 会输出这些阶段指标。设置 `SIMPLE_WHOLE_PROPER_LAYERING=1` 可运行 Whole proper-layering 实验；产品默认路径尚未切换。
+- Whole 实验已接通现有 dummy/carrier/routing-driven spacing，并保持 `maxDummyNodes` 硬上限、稳定拓扑键和输入排列不变性。
+- carrier 预验证复用单个 node spatial index，并在候选阶段遇到首个硬错误即停止收集重复诊断；Whole 每个 physical net 只生成一个规范 carrier 变体，Focused 保留九个有界修复偏移。
+
+实测表明阶段 B 还不能默认启用：eq006 宽度 11,448 → 3,540，仍为 0 missing / 0 violation；但 eq007 虽然宽度 152,964 → 14,796，却出现 235 missing。将 Whole carrier 变体从九个收敛到一个后，eq007 总耗时由 97.2 秒降至 59.8 秒，carrier 构建由 40.2 秒降至 4.7 秒；旧逐边路由仍占 47.6 秒。这个证据确认下一步必须实现阶段 D 的 gap/physical-net 批量路由，不能把紧凑放置继续交给旧逐边 router。`wholeProperLayering` 因此默认 `false`，避免把已知回退带入产品路径。

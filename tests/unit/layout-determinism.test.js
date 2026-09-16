@@ -47,6 +47,35 @@ test("feedback cycle breaking is invariant to node array order", () => {
   assert.deepEqual(normalizeLayout(layoutGraph(reversed)), normalizeLayout(layoutGraph(graph)));
 });
 
+test("Whole layout reports bounded proper-layering metrics and stage timings", () => {
+  const source = `
+    module whole_metrics (output y, input a, b);
+      wire n0, n1;
+      AND2X1 u0 (.A(a), .B(b), .Y(n0));
+      BUFX1 u1 (.A(n0), .Y(n1));
+      XOR2X1 u2 (.A(n0), .B(n1), .Y(y));
+    endmodule
+  `;
+  const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
+  const callbacks = [];
+  const positioned = layoutGraph(graph, {
+    layoutPolicy: { features: { wholeProperLayering: true } },
+    onLayoutStage: (stage, detail, timing) => callbacks.push({ stage, detail, timing })
+  });
+
+  assert.equal(positioned.layoutMetrics.layered.enabled, true);
+  assert.ok(positioned.layoutMetrics.layered.dummyCount >= 1);
+  assert.ok(positioned.layoutMetrics.layered.splitEdgeCount >= 1);
+  assert.deepEqual(
+    positioned.layoutMetrics.stages.map((entry) => entry.stage),
+    callbacks.map((entry) => entry.stage)
+  );
+  assert.equal(positioned.layoutMetrics.stages.at(-1).stage, "validation-complete");
+  assert.ok(positioned.layoutMetrics.stages.every((entry) =>
+    Number.isFinite(entry.elapsedMs) && entry.elapsedMs >= 0 &&
+    Number.isFinite(entry.deltaMs) && entry.deltaMs >= 0));
+});
+
 function normalizeLayout(graph) {
   return {
     width: graph.width,
