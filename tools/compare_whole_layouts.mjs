@@ -14,10 +14,14 @@ const design = parseVerilog(source);
 const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
 if (!module) throw new Error("No Verilog module found");
 const sourceGraph = buildSchematicGraph(module, { moduleLibrary: design.modules });
+const requestedProvider = process.env.LAYOUT_PROVIDER;
 const providers = [
   new SimpleLayeredLayoutProvider(),
   new ElkLayoutProvider({ elkFactory: () => new Elk() })
-];
+].filter((provider) => !requestedProvider || provider.id === requestedProvider);
+if (providers.length === 0) {
+  throw new Error(`Unknown LAYOUT_PROVIDER: ${requestedProvider}`);
+}
 const simpleLayoutPolicy = process.env.SIMPLE_WHOLE_PROPER_LAYERING === "1"
   ? { features: { wholeProperLayering: true } }
   : undefined;
@@ -87,6 +91,7 @@ function summarizeRoutingMetrics(metrics) {
     localFallbacks: metrics.localFallbacks || 0,
     localCandidates: metrics.localCandidates || 0,
     globalFallbacks: metrics.globalFallbacks || 0,
+    phaseElapsedMs: metrics.phaseElapsedMs || {},
     physicalNetCount: metrics.physicalNetCount || 0,
     unroutablePhysicalNetCount: metrics.unroutablePhysicalNetCount || 0,
     routeKinds: metrics.routeKinds || {},

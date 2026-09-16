@@ -103,7 +103,17 @@ export function routeSegmentIsClear(
 ) {
   if (!near(start.x, end.x) && !near(start.y, end.y)) return false;
   const segment = { start, end };
-  return !context.nodeIndex.query(segmentBox(segment, padding)).some((node) =>
+  const isVertical = near(start.x, end.x);
+  const queryMethod = isVertical ? "queryVerticalSegment" : "queryHorizontalSegment";
+  const segmentLength = isVertical
+    ? Math.abs(Number(start.y) - Number(end.y))
+    : Math.abs(Number(start.x) - Number(end.x));
+  const directionalThreshold = Math.max(512, Number(context.nodeIndex.cellSize) * 4 || 512);
+  const candidates = segmentLength >= directionalThreshold &&
+    typeof context.nodeIndex[queryMethod] === "function"
+    ? context.nodeIndex[queryMethod](segment, padding)
+    : context.nodeIndex.query(segmentBox(segment, padding));
+  return !candidates.some((node) =>
     node.id !== context.source.id &&
     node.id !== context.target.id &&
     intersectsObstacle(start, end, nodeBox(node, padding), allowPaddingBoundary)

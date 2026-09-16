@@ -271,6 +271,57 @@ export class RouteSegmentIndex {
   }
 }
 
+export class NodeSpatialIndex extends SpatialHashIndex {
+  constructor(nodes = [], cellSize = 128) {
+    super(cellSize);
+    this.horizontalBuckets = new Map();
+    this.verticalBuckets = new Map();
+    for (const node of nodes) this.insertNode(node);
+  }
+
+  insertNode(node) {
+    const box = {
+      left: node.x,
+      right: node.x + node.width,
+      top: node.y,
+      bottom: node.y + node.height
+    };
+    super.insert(node, box);
+    const record = { segment: node, box };
+    insertRecordRange(
+      this.verticalBuckets,
+      Math.floor(box.left / this.cellSize),
+      Math.floor(box.right / this.cellSize),
+      record
+    );
+    insertRecordRange(
+      this.horizontalBuckets,
+      Math.floor(box.top / this.cellSize),
+      Math.floor(box.bottom / this.cellSize),
+      record
+    );
+    return node;
+  }
+
+  queryVerticalSegment(segment, padding = 0) {
+    return queryNodeAxis(
+      this.verticalBuckets,
+      segmentBox(segment, padding),
+      "x",
+      this.cellSize
+    );
+  }
+
+  queryHorizontalSegment(segment, padding = 0) {
+    return queryNodeAxis(
+      this.horizontalBuckets,
+      segmentBox(segment, padding),
+      "y",
+      this.cellSize
+    );
+  }
+}
+
 function countAxisMatches(buckets, box, axis, cellSize, inactiveSegments, predicate, maximum) {
   let count = 0;
   const minimum = Math.floor((axis === "x" ? Math.min(box.left, box.right) : Math.min(box.top, box.bottom)) / cellSize);
@@ -343,16 +394,21 @@ function boxesIntersect(left, right) {
 }
 
 export function createNodeSpatialIndex(nodes, cellSize = 128) {
-  const index = new SpatialHashIndex(cellSize);
-  for (const node of nodes) {
-    index.insert(node, {
-      left: node.x,
-      right: node.x + node.width,
-      top: node.y,
-      bottom: node.y + node.height
-    });
+  return new NodeSpatialIndex(nodes, cellSize);
+}
+
+function insertRecordRange(buckets, minimum, maximum, record) {
+  for (let key = minimum; key <= maximum; key += 1) {
+    insertAxisBucket(buckets, key, record);
   }
-  return index;
+}
+
+function queryNodeAxis(buckets, box, axis, cellSize) {
+  const minimum = Math.floor((axis === "x" ? box.left : box.top) / cellSize);
+  const maximum = Math.floor((axis === "x" ? box.right : box.bottom) / cellSize);
+  const found = new Set();
+  queryAxisBuckets(buckets, minimum, maximum, box, found);
+  return [...found].map((record) => record.segment);
 }
 
 export function computeNodeCollectionBox(nodes, padding = 0) {

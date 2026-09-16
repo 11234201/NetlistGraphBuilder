@@ -88,6 +88,7 @@ export function routeSimpleEdges(graph, nodes, options) {
       }
       : null
   };
+  let phaseStartedAt = now();
 
   for (const [groupIndex, [physicalNetKey, physicalNetEdges]] of [...edgesByPhysicalNet]
     .filter(([, edges]) => edges.length >= 2 &&
@@ -134,6 +135,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       targetEntryLanes
     });
   }
+  recordRoutingPhase(routingMetrics, "focusedPhysicalNets", phaseStartedAt);
+  phaseStartedAt = now();
 
   for (const [physicalNetKey, candidates] of [...(options.carrierRoutesByPhysicalNet || new Map())]
     .toSorted(([left], [right]) => String(left).localeCompare(String(right)))) {
@@ -157,6 +160,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       targetEntryLanes
     });
   }
+  recordRoutingPhase(routingMetrics, "carrierPhysicalNets", phaseStartedAt);
+  phaseStartedAt = now();
 
   for (const [edgeIndex, edge] of orderedEdges.entries()) {
     if (routedById.has(edge.id)) continue;
@@ -327,6 +332,8 @@ export function routeSimpleEdges(graph, nodes, options) {
       });
     }
   }
+  recordRoutingPhase(routingMetrics, "legacyEdges", phaseStartedAt);
+  phaseStartedAt = now();
 
   repairUnroutablePhysicalNetsWithCarriers({
     carrierRoutesByPhysicalNet: options.carrierRoutesByPhysicalNet,
@@ -341,6 +348,8 @@ export function routeSimpleEdges(graph, nodes, options) {
     nodeById,
     targetEntryLanes
   });
+  recordRoutingPhase(routingMetrics, "carrierRepairs", phaseStartedAt);
+  phaseStartedAt = now();
 
   const routedEdges = graph.edges.map((edge) => routedById.get(edge.id) || edge);
   options.onRoutingStage?.("labels-start");
@@ -349,6 +358,7 @@ export function routeSimpleEdges(graph, nodes, options) {
     compareEdges: (left, right) => compareEdgesByLayoutPriority(left, right, layoutIntent)
   });
   options.onRoutingStage?.("labels-complete");
+  recordRoutingPhase(routingMetrics, "labels", phaseStartedAt);
   routingMetrics.elapsedMs = Math.round(now() - startedAt);
   routingMetrics.physicalNetCount = new Set(graph.edges.map(getNetGroupKey)).size;
   routingMetrics.reservedSegments = reservedSegments.metrics;
@@ -394,9 +404,7 @@ function validateCarrierPhysicalNetCandidate(edges, carrierRoutes, context) {
     context.reservedSegments,
     getNetGroupKey(edge)
   ))) return null;
-  const commit = validatePhysicalNetCommit(carrierRoutes, context.nodes, {
-    nodeIndex: context.nodeIndex
-  });
+  const commit = validateRoutingCandidatePhysicalNet(carrierRoutes, context);
   return commit.status === "routed" ? carrierRoutes : null;
 }
 
@@ -516,9 +524,7 @@ function tryRouteCapacityBlockedPhysicalNetGroup(edges, context) {
     edge.net,
     context.reservedSegments,
     getNetGroupKey(edge)
-  )) || validatePhysicalNetCommit(directRoutes, context.nodes, {
-    nodeIndex: context.nodeIndex
-  }).status !== "routed") {
+  )) || validateRoutingCandidatePhysicalNet(directRoutes, context).status !== "routed") {
     return inspected.map((failed) => createCapacityBlockedPositionedEdge(failed));
   }
   return directRoutes;
@@ -808,9 +814,7 @@ function tryRoutePhysicalNetGroup(edges, context) {
       recordPhysicalNetTrial(context, sortedEdges, "reserved-overlap");
       continue;
     }
-    const commit = validatePhysicalNetCommit(positionedEdges, context.nodes, {
-      nodeIndex: context.nodeIndex
-    });
+    const commit = validateRoutingCandidatePhysicalNet(positionedEdges, context);
     if (commit.status === "routed") return positionedEdges;
     recordPhysicalNetTrial(context, sortedEdges, "hard-validation", commit.diagnostics);
   }
@@ -898,10 +902,23 @@ function tryRoutePhysicalNetGroupWithCandidates(edges, context) {
       edgePlan
     ));
   }
-  const commit = validatePhysicalNetCommit(positionedEdges, context.nodes, {
-    nodeIndex: context.nodeIndex
-  });
+  const commit = validateRoutingCandidatePhysicalNet(positionedEdges, context);
   return commit.status === "routed" ? positionedEdges : null;
+}
+
+function validateRoutingCandidatePhysicalNet(edges, context) {
+  return validatePhysicalNetCommit(edges, context.nodes, {
+    nodeIndex: context.nodeIndex,
+    // Candidate selection is boolean. The completed graph still receives the
+    // full validator pass, so collecting more than the first hard failure here
+    // only multiplies work without changing routing behavior.
+    maxViolations: 1
+  });
+}
+
+function recordRoutingPhase(metrics, phase, startedAt) {
+  metrics.phaseElapsedMs ||= {};
+  metrics.phaseElapsedMs[phase] = Math.round((now() - startedAt) * 1000) / 1000;
 }
 
 function buildBoundedTrunkXs(minimum, maximum, sourceX, targetX) {

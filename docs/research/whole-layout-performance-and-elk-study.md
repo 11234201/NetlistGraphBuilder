@@ -165,3 +165,13 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 - carrier 预验证复用单个 node spatial index，并在候选阶段遇到首个硬错误即停止收集重复诊断；Whole 每个 physical net 只生成一个规范 carrier 变体，Focused 保留九个有界修复偏移。
 
 实测表明阶段 B 还不能默认启用：eq006 宽度 11,448 → 3,540，仍为 0 missing / 0 violation；但 eq007 虽然宽度 152,964 → 14,796，却出现 235 missing。将 Whole carrier 变体从九个收敛到一个后，eq007 总耗时由 97.2 秒降至 59.8 秒，carrier 构建由 40.2 秒降至 4.7 秒；旧逐边路由仍占 47.6 秒。这个证据确认下一步必须实现阶段 D 的 gap/physical-net 批量路由，不能把紧凑放置继续交给旧逐边 router。`wholeProperLayering` 因此默认 `false`，避免把已知回退带入产品路径。
+
+### 2026-09-16：方向感知节点索引消除高画布查询悬崖
+
+阶段细分确认 legacy edge 路径的主要成本是长竖段避障查询。旧二维 spatial hash 会沿一条约 10 万像素竖段枚举大量空 row bucket；新的 node index 额外维护 x/y 方向桶，竖段只查询相邻 x 桶、横段只查询相邻 y 桶，之后仍使用原几何谓词作权威判定。候选集合、评分和 hard rule 没有改变。
+
+- eq007 Whole proper-layering：59.8 秒 → 34.7 秒；legacy edge 阶段 41.6 秒 → 17.6 秒；几何指标不变。
+- eq012 默认 Whole：115.4 秒 → 37.0 秒；missing 仍为 177，几何指标不变。
+- eq012 Whole proper-layering：34.7 秒，已经约为 ELK 23.3 秒的 1.49 倍，达到第一阶段性能门槛；但 compact geometry 下 missing 增至 441，仍不能启用。
+
+因此 Whole 当前已经从“性能悬崖”转为“路由正确性/批量通道模型”问题。下一项工作仍是按 gap 统一提交 physical nets，不能以放宽校验或接受 missing 换取默认启用。

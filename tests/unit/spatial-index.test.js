@@ -84,6 +84,26 @@ test("node index bounds candidate counts on large sparse layouts", () => {
   assert.ok(nearby.length > 0);
 });
 
+test("node index uses orientation-specific segment queries", () => {
+  const nodes = [
+    { id: "near", x: 96, y: 1000, width: 40, height: 40 },
+    { id: "far-x", x: 500, y: 1000, width: 40, height: 40 },
+    { id: "far-y", x: 96, y: 5000, width: 40, height: 40 }
+  ];
+  const index = createNodeSpatialIndex(nodes);
+
+  assert.deepEqual(
+    index.queryVerticalSegment({ start: { x: 100, y: 900 }, end: { x: 100, y: 1100 } })
+      .map((node) => node.id),
+    ["near"]
+  );
+  assert.deepEqual(
+    index.queryHorizontalSegment({ start: { x: 80, y: 1020 }, end: { x: 560, y: 1020 } })
+      .map((node) => node.id),
+    ["near", "far-x"]
+  );
+});
+
 test("indexed route conflicts match array scanning after dynamic insertions", () => {
   const segments = [
     { start: { x: 100, y: 0 }, end: { x: 100, y: 200 }, net: "vertical" },
