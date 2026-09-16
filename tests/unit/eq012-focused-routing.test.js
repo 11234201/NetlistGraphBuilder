@@ -7,6 +7,7 @@ import {
 } from "../../src/app/graphWorkspace.js";
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
+import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { DEFAULT_ROUTING_GEOMETRY } from "../../src/layout/channelCapacity.js";
 import { getConnectionPoint } from "../../src/layout/nodeGeometry.js";
@@ -43,7 +44,16 @@ test("eq012 terminal DFF outputs stay on local direct rows at spacing 88", async
   ).map((edge) => edge.id));
   assert.ok(terminalEdgeIds.size > 100);
 
-  const laidOut = layoutGraph(graph, { layoutPolicy: { spacing: { cellSpacing: 88 } } });
+  const laidOut = layoutGraph(graph, {
+    layoutPolicy: {
+      spacing: { cellSpacing: 88 },
+      features: {
+        longEdgeDummies: false,
+        physicalCarrierRouting: false,
+        routingDrivenLayerSpacing: false
+      }
+    }
+  });
   const laidOutNodes = new Map(laidOut.nodes.map((node) => [node.id, node]));
   for (const edge of laidOut.edges.filter((item) => terminalEdgeIds.has(item.id))) {
     const sourcePoint = getConnectionPoint(laidOutNodes.get(edge.source), edge.sourcePin, "source");
@@ -163,3 +173,36 @@ test("eq012 clock fanout reserves each physical trunk geometry once", async () =
   assert.equal(keys.size, clockRoute.segments.length);
   assert.equal(clockRoute.treeFallback, false);
 });
+
+test("eq012 focused _1471_ depth 3/3 is compact and fully routable by default", async () => {
+  const graph = await buildEq012FocusedGraph({
+    rootNodeIds: ["cell:_1471_"],
+    faninDepth: 3,
+    fanoutDepth: 3
+  });
+  assertFocusedAcceptance(graph, { maximumWidth: 6600 });
+});
+
+async function buildEq012FocusedGraph(options) {
+  const source = await readFile(fixtureUrl, "utf8");
+  const design = parseVerilog(source);
+  const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
+  const focused = selectWorkspaceGraphView(buildSchematicGraph(module), {
+    viewMode: "focused",
+    ...options
+  });
+  return layoutGraph(applyWorkspaceGraphTransforms(focused, { collapseLargeGroups: false }));
+}
+
+function assertFocusedAcceptance(graph, { maximumWidth }) {
+  assert.deepEqual(validateLayoutGraph(graph, { checkBounds: true }), []);
+  assert.ok(graph.width <= maximumWidth, `width ${graph.width} exceeds ${maximumWidth}`);
+  assert.equal(graph.edges.some((edge) =>
+    edge.routeKind === "unroutable" ||
+    edge.routeStatus === "unroutable" ||
+    !Array.isArray(edge.points) ||
+    edge.points.length < 2
+  ), false);
+  const quality = analyzeLayoutQuality(graph);
+  assert.equal(quality.physicalOverlapCount, 0);
+}

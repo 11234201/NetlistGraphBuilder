@@ -63,6 +63,7 @@ export function analyzeLayoutQuality(graph) {
     (total, route) => total + overlappingSegmentLength(route.segments || []),
     0
   );
+  const physicalConflicts = countPhysicalRouteConflicts(wireRoutes);
   return {
     nodeCount: graph.nodes?.length || 0,
     edgeCount,
@@ -76,6 +77,8 @@ export function analyzeLayoutQuality(graph) {
     averageDetourRatio: round(totalDetour / Math.max(1, detourRouteCount)),
     crossingCount: conflicts.crossings,
     overlapCount: conflicts.overlaps,
+    physicalCrossingCount: physicalConflicts.crossings,
+    physicalOverlapCount: physicalConflicts.overlaps,
     hiddenLabelCount,
     outerRouteCount,
     outerRouteRatio: ratio(outerRouteCount, edgeCount),
@@ -95,6 +98,28 @@ export function analyzeLayoutQuality(graph) {
   };
 }
 
+function countPhysicalRouteConflicts(wireRoutes) {
+  const index = new RouteSegmentIndex();
+  let crossings = 0;
+  let overlaps = 0;
+  for (const route of wireRoutes || []) {
+    for (const segment of route.segments || []) {
+      const candidate = { ...segment, net: route.netGroupKey };
+      for (const existing of index.querySegment(candidate, MINIMUM_FOREIGN_WIRE_SEPARATION)) {
+        if (existing.net === candidate.net) continue;
+        if (collinearSegmentsOverlap(existing, candidate) ||
+          parallelSegmentsOverlap(existing, candidate)) {
+          overlaps += 1;
+        } else if (segmentsConflict(existing, candidate)) {
+          crossings += 1;
+        }
+      }
+      index.push(candidate);
+    }
+  }
+  return { crossings, overlaps };
+}
+
 export function compareLayoutQuality(baseGraph, candidateGraph) {
   const base = analyzeLayoutQuality(baseGraph);
   const candidate = analyzeLayoutQuality(candidateGraph);
@@ -108,6 +133,8 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
     "averageDetourRatio",
     "crossingCount",
     "overlapCount",
+    "physicalCrossingCount",
+    "physicalOverlapCount",
     "hiddenLabelCount",
     "outerRouteCount",
     "outerRouteRatio",

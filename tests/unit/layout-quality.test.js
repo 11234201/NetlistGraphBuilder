@@ -45,11 +45,36 @@ test("layout quality summarizes bends, detours, crossings and overlaps", () => {
   assert.equal(quality.totalBends, 4);
   assert.equal(quality.crossingCount, 2);
   assert.equal(quality.overlapCount, 0);
+  assert.equal(quality.physicalCrossingCount, 2);
+  assert.equal(quality.physicalOverlapCount, 0);
   assert.equal(quality.hiddenLabelCount, 1);
   assert.equal(quality.routeKinds.direct, 2);
   assert.equal(quality.routeStrategies["local-detour"], 1);
   assert.equal(quality.outerRouteCount, 1);
   assert.equal(quality.outerRouteRatio, 0.25);
+});
+
+test("physical crossing count deduplicates a rendered fanout trunk", () => {
+  const quality = analyzeLayoutQuality({
+    nodes: [],
+    edges: [
+      {
+        id: "branch-a", source: "src", target: "a", net: "shared",
+        points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 }]
+      },
+      {
+        id: "branch-b", source: "src", target: "b", net: "shared",
+        points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: -40 }]
+      },
+      {
+        id: "foreign", source: "c", target: "d", net: "foreign",
+        points: [{ x: 50, y: -20 }, { x: 50, y: 20 }]
+      }
+    ]
+  });
+
+  assert.equal(quality.crossingCount, 2);
+  assert.equal(quality.physicalCrossingCount, 1);
 });
 
 test("layout quality comparison exposes stable signed deltas", () => {

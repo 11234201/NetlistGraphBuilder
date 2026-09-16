@@ -14,6 +14,8 @@ import {
 
 test("default routing channels use 24-pixel lane spacing", () => {
   assert.equal(DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch, 24);
+  assert.equal(DEFAULT_LAYOUT_POLICY.spacing.fanoutX, 292);
+  assert.equal(DEFAULT_LAYOUT_POLICY.spacing.focusedFanoutX, 560);
   assert.equal(DEFAULT_WIRE_LANE_PITCH, 24);
   assert.equal(DEFAULT_TOP_WIRE_LANE_PITCH, 24);
 });

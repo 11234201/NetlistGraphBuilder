@@ -237,7 +237,8 @@ export function computeLevelXs(
   margin,
   localizeSingleFanoutInputs = true,
   layoutIntent = null,
-  adaptiveSpacing = null
+  adaptiveSpacing = null,
+  routingDrivenLayerSpacing = false
 ) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const outgoingCounts = new Map();
@@ -297,7 +298,9 @@ export function computeLevelXs(
     const compactX = Number(adaptiveSpacing?.compactX) || baseSpacing;
     const fanoutX = Number(adaptiveSpacing?.fanoutX) || baseSpacing;
     const lanePitch = Number(adaptiveSpacing?.wireLanePitch) || 18;
-    const requestedStep = pressure > 1 ? fanoutX + pressure * lanePitch : compactX;
+    const requestedStep = pressure > 1
+      ? fanoutX + (routingDrivenLayerSpacing ? 0 : pressure * lanePitch)
+      : compactX;
     const congestion = getLevelCongestion(buckets.get(level) || [], buckets.get(nextLevel) || [], pressure);
     const routingClearance = (pressure > 1 ? 72 : 40) + Math.max(0, cellSpacing - 8) + congestion;
     const adaptiveStep = Math.max(requestedStep, levelWidth + routingClearance);

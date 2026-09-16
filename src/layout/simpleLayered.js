@@ -5,6 +5,14 @@ import {
   computeTopWireHeadroom,
   normalizeRoutingGeometry
 } from "./channelCapacity.js";
+import { relaxToMinimalSpan } from "./layered/minSpanLayering.js";
+import { stripDummyNodes } from "./layered/longEdgeDummies.js";
+import {
+  applyCarrierPlacementSlots,
+  reserveLeadingCarrierLane
+} from "./layered/carrier_placement.js";
+import { buildLayeredGraph } from "./layered/layered_graph.js";
+import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
   buildNodePorts,
@@ -44,7 +52,13 @@ export function layoutGraph(graph, options = {}) {
   const wireLanePitch = policy.spacing.wireLanePitch;
   const routingGeometry = normalizeRoutingGeometry(policy.spacing, options.routingGeometry);
   const topWireLanePitch = routingGeometry.wireLanePitch;
-  const levels = assignSimpleLevels(graph);
+  // Source-anchored longest-path ranking can leave boundary nodes far from
+  // deep consumers. The experimental bounded span relaxation moves eligible
+  // nodes toward the tighter side of their constraints.
+  const initialLevels = assignSimpleLevels(graph);
+  const levels = policy.features.minimalSpanLayering
+    ? relaxToMinimalSpan(graph, initialLevels, policy.layering)
+    : initialLevels;
   reportStage("levels-complete");
   const layoutIntent = analyzeLayoutIntent(graph, levels);
   reportStage("intent-complete");
@@ -64,9 +78,44 @@ export function layoutGraph(graph, options = {}) {
     requestedTopWireSpace
   );
   const topWireSpace = topWireHeadroom.topWireSpace;
-  const buckets = bucketNodesByLevel(graph.nodes, levels);
-  const levelKeys = [...buckets.keys()].sort((left, right) => left - right);
-  orderSimpleLayers(buckets, levelKeys, graph.edges);
+  let buckets = bucketNodesByLevel(graph.nodes, levels);
+  let levelKeys = [...buckets.keys()].sort((left, right) => left - right);
+  // A long edge is invisible to every column it passes through: it contributes
+  // a barycenter only at its two endpoints. Splitting it into a chain of
+  // dummies makes it a normal unit-span edge in each of those columns, which is
+  // the only way it can take part in their ordering. The dummies are stripped
+  // again immediately after ordering; nothing downstream sees them yet.
+  const hasFocusedBoundary = graph.nodes.some((node) =>
+    node.kind === "focus-input" || node.kind === "focus-output");
+  const hasExplicitFocusedFanoutX =
+    options.layoutPolicy?.spacing?.focusedFanoutX !== undefined;
+  const hasExplicitFanoutX = options.layoutPolicy?.spacing?.fanoutX !== undefined ||
+    options.fanoutX !== undefined;
+  const adaptiveSpacing = hasFocusedBoundary
+    ? {
+      ...policy.spacing,
+      fanoutX: hasExplicitFocusedFanoutX || !hasExplicitFanoutX
+        ? policy.spacing.focusedFanoutX
+        : policy.spacing.fanoutX
+    }
+    : policy.spacing;
+  const layeredGraph = policy.features.longEdgeDummies && hasFocusedBoundary
+    ? buildLayeredGraph(graph, {
+      levels,
+      layering: policy.layering,
+      placement: {
+        carrierSpan: wireLanePitch,
+        minimumFanout: policy.layering.carrierMinimumFanout
+      }
+    })
+    : null;
+  if (layeredGraph) {
+    buckets = new Map(layeredGraph.layers.map((layer) => [layer.level, [...layer.nodes]]));
+    levelKeys = layeredGraph.layers.map((layer) => layer.level);
+    stripDummyNodes(buckets, layeredGraph.logicalChains);
+  } else {
+    orderSimpleLayers(buckets, levelKeys, graph.edges);
+  }
   reportStage("layer-order-complete");
 
   const nodeSizes = new Map(graph.nodes.map((node) => [
@@ -83,7 +132,8 @@ export function layoutGraph(graph, options = {}) {
     margin,
     policy.features.localizeSingleFanoutInputs,
     layoutIntent,
-    policy.spacing
+    adaptiveSpacing,
+    policy.features.routingDrivenLayerSpacing && hasFocusedBoundary
   );
   const positionedNodes = placeInitialNodes({
     buckets,
@@ -108,6 +158,16 @@ export function layoutGraph(graph, options = {}) {
     policy,
     nodePositions: options.nodePositions
   }, { onStage: options.onPlacementStage });
+  let carrierPlacement = null;
+  if (layeredGraph && policy.features.physicalCarrierRouting) {
+    carrierPlacement = applyCarrierPlacementSlots(
+      positionedNodes,
+      layeredGraph.placementLayers,
+      {
+        useActualGaps: true
+      }
+    );
+  }
   reportStage("placement-complete");
 
   const initialCapacityPlan = buildRoutingCapacityPlan(
@@ -124,6 +184,9 @@ export function layoutGraph(graph, options = {}) {
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
   reportStage("capacity-expansion-complete");
+  if ((carrierPlacement?.carrierYById?.size || 0) > 0) {
+    reserveLeadingCarrierLane(positionedNodes, wireLanePitch);
+  }
   // Row-gap capacity expansion can move only part of a source column and
   // create a new line-of-sight obstruction that did not exist during the
   // normal locality pipeline. Repair the final source-to-group escape rows
@@ -134,6 +197,13 @@ export function layoutGraph(graph, options = {}) {
     margin,
     policy.spacing.cellSpacing
   );
+  if (carrierPlacement) {
+    carrierPlacement = applyCarrierPlacementSlots(
+      positionedNodes,
+      layeredGraph.placementLayers,
+      { useActualGaps: true }
+    );
+  }
   const routingCapacity = buildRoutingCapacityPlan(
     graph,
     levels,
@@ -148,6 +218,24 @@ export function layoutGraph(graph, options = {}) {
   );
   reportStage("capacity-plan-complete");
 
+  const carrierRouting = carrierPlacement
+    ? buildCarrierPhysicalNetRoutes(
+      layeredGraph,
+      positionedNodes,
+      carrierPlacement.carrierYById,
+      { anchorOffsets: [0, -8, 8, -16, 16, -24, 24, -32, 32] }
+    )
+    : null;
+  const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
+    .filter((group) => group.variants.some((variant) => variant.commit.status === "routed") &&
+      group.edges.length >= policy.layering.carrierMinimumFanout)
+    .map((group) => [
+      group.physicalNetKey,
+      group.variants
+        .filter((variant) => variant.commit.status === "routed")
+        .map((variant) => variant.edges)
+    ]));
+
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
     routePlan,
@@ -155,6 +243,15 @@ export function layoutGraph(graph, options = {}) {
     topWireLanePitch,
     routingGeometry,
     routingCapacity,
+    carrierRoutesByPhysicalNet,
+    carrierRoutingSummary: carrierRouting ? {
+      groupCount: carrierRouting.groups.length,
+      validGroupCount: carrierRoutesByPhysicalNet.size,
+      diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics),
+      diagnosticSamples: carrierRouting.diagnostics
+        .filter((diagnostic) => diagnostic.code === "layered-carrier-physical-net-invalid")
+        .slice(0, 8)
+    } : null,
     margin,
     strictRouting: options.strictRouting === true,
     onRoutingProgress: options.onRoutingProgress,
@@ -187,6 +284,15 @@ export function layoutGraph(graph, options = {}) {
   });
   reportStage("validation-complete", result.validationMetrics || null);
   return result;
+}
+
+function countDiagnosticCodes(diagnostics = []) {
+  const counts = {};
+  for (const diagnostic of diagnostics) {
+    const code = diagnostic?.code || "unknown";
+    counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
 }
 
 function readMeasuredSize(node, cellPinPitch) {
