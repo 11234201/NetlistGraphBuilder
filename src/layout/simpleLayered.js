@@ -85,7 +85,9 @@ export function layoutGraph(graph, options = {}) {
   // dummies makes it a normal unit-span edge in each of those columns, which is
   // the only way it can take part in their ordering. The dummies are stripped
   // again immediately after ordering; nothing downstream sees them yet.
-  const layeredGraph = policy.features.longEdgeDummies
+  const hasFocusedBoundary = graph.nodes.some((node) =>
+    node.kind === "focus-input" || node.kind === "focus-output");
+  const layeredGraph = policy.features.longEdgeDummies && hasFocusedBoundary
     ? buildLayeredGraph(graph, {
       levels,
       layering: policy.layering,
@@ -119,7 +121,7 @@ export function layoutGraph(graph, options = {}) {
     policy.features.localizeSingleFanoutInputs,
     layoutIntent,
     policy.spacing,
-    policy.features.routingDrivenLayerSpacing
+    policy.features.routingDrivenLayerSpacing && hasFocusedBoundary
   );
   const positionedNodes = placeInitialNodes({
     buckets,
@@ -170,7 +172,7 @@ export function layoutGraph(graph, options = {}) {
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
   reportStage("capacity-expansion-complete");
-  if (policy.features.physicalCarrierRouting) {
+  if ((carrierPlacement?.carrierYById?.size || 0) > 0) {
     reserveLeadingCarrierLane(positionedNodes, wireLanePitch);
   }
   // Row-gap capacity expansion can move only part of a source column and

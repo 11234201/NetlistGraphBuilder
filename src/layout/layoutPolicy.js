@@ -13,7 +13,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     branchTopY: 80,
     branchLanePitch: 228,
     compactX: 196,
-    fanoutX: 292,
+    fanoutX: 560,
     compactYGap: 8,
     fanoutYGap: 28
   }),
@@ -27,18 +27,16 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     minimalSpanLayering: false,
     // Insert a dummy node for every column a long edge crosses so the edge
     // takes part in the ordering of the columns it passes through.
-    // Off by default: ordering alone makes the drawing much better (eq012
-    // `_1471_` depth 3/3 crossings 46,097 -> 31,003, average wire length
-    // -26%) but the router cannot yet place the resulting long edges, which
-    // pushes unroutable edges from 4 to 68. Stage S2b has to reserve grouped
-    // physical-net carriers and route their trees before this can ship.
-    longEdgeDummies: false,
+    // Long edges participate in every crossed layer's ordering. The physical
+    // carrier pass below then turns their logical dummy chains into one shared
+    // rendered net tree.
+    longEdgeDummies: true,
     // Atomically route long physical nets through the carrier slots produced
-    // by the proper layered graph. Kept independent while S2b is measured.
-    physicalCarrierRouting: false,
+    // by the proper layered graph.
+    physicalCarrierRouting: true,
     // Let the physical capacity pass determine inter-layer width instead of
     // multiplying the initial gap by logical fanout.
-    routingDrivenLayerSpacing: false
+    routingDrivenLayerSpacing: true
   }),
   layering: Object.freeze({
     // Bounded deterministic relaxation that replaces the longest-path
