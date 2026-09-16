@@ -265,7 +265,7 @@ function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBound
   const candidates = [preferred, minimum, maximum];
   const pitch = ROUTE_GEOMETRY_POLICY.boundaryCarrierTrackPitch;
   const maximumTracks = ROUTE_SEARCH_LIMITS.maximumBoundaryCarrierTracks;
-  for (let step = 1; candidates.length < maximumTracks; step += 1) {
+  for (let step = 1; step <= maximumTracks; step += 1) {
     const left = preferred - step * pitch;
     const right = preferred + step * pitch;
     if (left < minimum && right > maximum) break;

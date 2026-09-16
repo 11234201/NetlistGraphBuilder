@@ -190,6 +190,8 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 
 该改动仍未达到正确性验收：eq012 剩余 270 条 missing 中，127 条仍来自 `clk`，另有 140 条失败物理网是跨至少三层的单扇出网。下一步需要解决超过 256 个同时活动 carrier 的边界分段/复用，以及高扇出 `clk` 的分层分支树，不能继续简单提高固定上限。
 
+后续修正了对称采样在靠近边界时只能产生约一半有效 X 坐标的问题；采样次数仍固定为 256，但越界的一侧不再提前耗尽预算。eq012 missing 小幅降至 267、carrier edge 增至 654，`clk` 仍缺 127 条。高扇出优先实验没有改变 `clk`，因此未保留；这证明问题是 carrier 候选只覆盖长边子集，无法与同一物理网的 unit-span 分支一起原子提交，而不是 `clk` 在轨道排序中被饿死。
+
 验证方面，单元测试 585/585 通过；远端规模基准的 1024/4096/8192-cell 布局中位数约为 167 ms / 1.15 s / 4.90 s。`MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完整执行，但默认（未开启 Whole proper-layering）基线仍有 30/47 case 因既有 missing-route、violation budget 或 45 秒超时失败，因此不能把该结果作为本轮 proper-layering 的通过证据。
 
 因此 Whole 当前已经从“性能悬崖”转为“路由正确性/批量通道模型”问题。下一项工作仍是按 gap 统一提交 physical nets，不能以放宽校验或接受 missing 换取默认启用。
