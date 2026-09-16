@@ -107,6 +107,12 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
       layoutStatus: graph.layoutStatus || null,
       missingEdgeCount: missingEdges.length,
       missingEdgeIds: missingEdges.slice(0, 24).map((edge) => edge.id),
+      missingEdgeSamples: missingEdges.slice(0, 8).map((edge) => ({
+        id: edge.id,
+        source: summarizeNode(graph.nodes.find((node) => node.id === edge.source)),
+        target: summarizeNode(graph.nodes.find((node) => node.id === edge.target)),
+        diagnostics: edge.routeDiagnostics || []
+      })),
       providerDiagnosticCounts: countCodes(graph.providerDiagnostics || []),
       validationViolationCount: violations.length,
       validationViolationCounts: countCodes(violations),
@@ -119,6 +125,19 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
     },
     placement: summarizePlacement(graph.nodes || []),
     quality: analyzeLayoutQuality(graph)
+  };
+}
+
+function summarizeNode(node) {
+  if (!node) return null;
+  return {
+    id: node.id,
+    kind: node.kind,
+    level: node.level,
+    x: round(node.x),
+    y: round(node.y),
+    width: round(node.width),
+    height: round(node.height)
   };
 }
 
@@ -231,14 +250,18 @@ function compareNodeCenters(left, right) {
 function parseLayoutPolicy(argumentsList) {
   const spacingArgument = argumentsList.find((argument) => argument.startsWith("--cell-spacing="));
   const fanoutXArgument = argumentsList.find((argument) => argument.startsWith("--fanout-x="));
+  const carrierMinimumFanoutArgument = argumentsList.find((argument) =>
+    argument.startsWith("--carrier-min-fanout="));
   const features = {
     ...(argumentsList.includes("--minimal-span") ? { minimalSpanLayering: true } : {}),
     ...(argumentsList.includes("--long-edge-dummies") ? { longEdgeDummies: true } : {}),
     ...(argumentsList.includes("--physical-carriers") ? { physicalCarrierRouting: true } : {}),
     ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {})
   };
-  if (!spacingArgument && !fanoutXArgument && Object.keys(features).length === 0) return undefined;
+  if (!spacingArgument && !fanoutXArgument && !carrierMinimumFanoutArgument &&
+    Object.keys(features).length === 0) return undefined;
   const spacing = {};
+  const layering = {};
   if (spacingArgument) {
     const cellSpacing = Number(spacingArgument.slice("--cell-spacing=".length));
     if (!Number.isFinite(cellSpacing)) throw new Error("--cell-spacing must be a finite number");
@@ -249,9 +272,19 @@ function parseLayoutPolicy(argumentsList) {
     if (!Number.isFinite(fanoutX)) throw new Error("--fanout-x must be a finite number");
     spacing.fanoutX = fanoutX;
   }
+  if (carrierMinimumFanoutArgument) {
+    const carrierMinimumFanout = Number(
+      carrierMinimumFanoutArgument.slice("--carrier-min-fanout=".length)
+    );
+    if (!Number.isFinite(carrierMinimumFanout)) {
+      throw new Error("--carrier-min-fanout must be a finite number");
+    }
+    layering.carrierMinimumFanout = carrierMinimumFanout;
+  }
   return {
     ...(Object.keys(spacing).length > 0 ? { spacing } : {}),
-    ...(Object.keys(features).length > 0 ? { features } : {})
+    ...(Object.keys(features).length > 0 ? { features } : {}),
+    ...(Object.keys(layering).length > 0 ? { layering } : {})
   };
 }
 

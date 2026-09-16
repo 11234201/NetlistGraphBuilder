@@ -71,12 +71,28 @@ export function applyCarrierPlacementSlots(
   options = {}
 ) {
   const applyShift = options.applyShift !== false;
+  const enforceEntryOrder = options.enforceEntryOrder === true;
+  const useActualGaps = options.useActualGaps === true;
   const nodeById = new Map((positionedNodes || []).map((node) => [node.id, node]));
   const carrierYById = new Map();
   const diagnostics = [];
   let totalShift = 0;
 
   for (const layer of placementLayers || []) {
+    if (applyShift && useActualGaps) {
+      totalShift = Math.max(
+        totalShift,
+        placeLayerInActualGaps(layer, nodeById, carrierYById, diagnostics)
+      );
+      continue;
+    }
+    if (applyShift && enforceEntryOrder) {
+      totalShift = Math.max(
+        totalShift,
+        placeLayerInEntryOrder(layer, nodeById, carrierYById, diagnostics, options)
+      );
+      continue;
+    }
     let cumulativeShift = 0;
     for (const entry of layer.entries || []) {
       if (entry.kind === CARRIER_SLOT_KIND) {
@@ -99,6 +115,104 @@ export function applyCarrierPlacementSlots(
   }
 
   return { carrierYById, diagnostics, totalShift };
+}
+
+function placeLayerInActualGaps(layer, nodeById, carrierYById, diagnostics) {
+  const realNodes = (layer.entries || [])
+    .filter((entry) => entry.kind !== CARRIER_SLOT_KIND)
+    .map((entry) => nodeById.get(entry.id))
+    .filter(Boolean)
+    .toSorted((left, right) => Number(left.y) - Number(right.y) ||
+      String(left.id).localeCompare(String(right.id)));
+  const slots = (layer.entries || []).filter((entry) => entry.kind === CARRIER_SLOT_KIND);
+  if (slots.length === 0) return 0;
+  const maximumRank = Math.max(
+    1,
+    ...(layer.entries || []).map((entry) =>
+      Number.isFinite(entry.preferredRank) ? entry.preferredRank : 0)
+  );
+  const slotsByGap = new Map();
+  for (const slot of slots) {
+    const ratio = Number.isFinite(slot.preferredRank)
+      ? slot.preferredRank / maximumRank
+      : 1;
+    const gapIndex = Math.max(0, Math.min(
+      realNodes.length,
+      Math.round(ratio * realNodes.length)
+    ));
+    const entries = slotsByGap.get(gapIndex) || [];
+    entries.push(slot);
+    slotsByGap.set(gapIndex, entries);
+  }
+
+  let totalShift = 0;
+  for (const [gapIndex, gapSlots] of [...slotsByGap].toSorted(([left], [right]) => left - right)) {
+    gapSlots.sort((left, right) => finiteOr(left.carrierOrder, Infinity) -
+      finiteOr(right.carrierOrder, Infinity) || String(left.id).localeCompare(String(right.id)));
+    const requiredSpan = gapSlots.reduce((sum, slot) =>
+      sum + normalizePositive(slot.minimumSpan, 24), 0);
+    const previous = realNodes[gapIndex - 1] || null;
+    const next = realNodes[gapIndex] || null;
+    const top = previous
+      ? Number(previous.y) + Number(previous.height)
+      : next
+        ? Number(next.y) - requiredSpan
+        : 0;
+    const availableSpan = previous && next
+      ? Math.max(0, Number(next.y) - top)
+      : requiredSpan;
+    const shift = Math.max(0, requiredSpan - availableSpan);
+    if (shift > 0) {
+      for (let index = gapIndex; index < realNodes.length; index += 1) {
+        realNodes[index].y += shift;
+      }
+      totalShift += shift;
+    }
+    let offset = 0;
+    for (const slot of gapSlots) {
+      const span = normalizePositive(slot.minimumSpan, 24);
+      const y = top + offset + span / 2;
+      if (Number.isFinite(y)) carrierYById.set(slot.carrierId, y);
+      else diagnostics.push({
+        code: "layered-carrier-placement-anchor-missing",
+        carrierId: slot.carrierId
+      });
+      offset += span;
+    }
+  }
+  return totalShift;
+}
+
+function placeLayerInEntryOrder(layer, nodeById, carrierYById, diagnostics, options) {
+  const realNodes = (layer.entries || [])
+    .filter((entry) => entry.kind !== CARRIER_SLOT_KIND)
+    .map((entry) => nodeById.get(entry.id))
+    .filter(Boolean);
+  let cursor = realNodes.length > 0
+    ? Math.min(...realNodes.map((node) => Number(node.y)))
+    : 0;
+  const start = cursor;
+  const nodeGap = Math.max(0, Number(options.nodeGap) || 0);
+  for (const entry of layer.entries || []) {
+    if (entry.kind === CARRIER_SLOT_KIND) {
+      const span = normalizePositive(entry.minimumSpan, 24);
+      carrierYById.set(entry.carrierId, cursor + span / 2);
+      cursor += span;
+      continue;
+    }
+    const node = nodeById.get(entry.id);
+    if (!node) {
+      diagnostics.push({
+        code: "layered-carrier-placement-node-missing",
+        nodeId: entry.id,
+        level: layer.level
+      });
+      continue;
+    }
+    node.y = cursor;
+    cursor += Number(node.height) + nodeGap;
+  }
+  return cursor - start;
 }
 
 function resolveLayerCarrierYs(layer, nodeById, carrierYById, diagnostics) {

@@ -1,6 +1,7 @@
 import { getConnectionPoint } from "../nodeGeometry.js";
 import { compactOrthogonalPoints } from "../orthogonalRouting.js";
 import { validatePhysicalNetCommit } from "../physical_net_commit.js";
+import { computeNodeCollectionBox, createNodeSpatialIndex } from "../spatialIndex.js";
 
 /**
  * Join logical branches back through their physical carrier chain. Every net
@@ -13,11 +14,18 @@ export function buildCarrierPhysicalNetRoutes(
   carrierYById,
   options = {}
 ) {
+  const anchorOffsets = normalizeAnchorOffsets(options.anchorOffsets);
   const nodeById = new Map((positionedNodes || []).map((node) => [node.id, node]));
   const edgeById = new Map((layeredGraph.orientedEdges || []).map((edge) => [String(edge.id), edge]));
-  const boundaryX = buildBoundaryXMap(layeredGraph, positionedNodes);
+  const carrierXById = buildCarrierXMap(
+    layeredGraph,
+    positionedNodes,
+    edgeById,
+    nodeById,
+    carrierYById
+  );
   const carriersByEdge = indexCarriersByEdge(layeredGraph.carriers || []);
-  const groups = new Map();
+  const groupsByOffset = new Map(anchorOffsets.map((offset) => [offset, new Map()]));
   const diagnostics = [];
 
   for (const [edgeId, carriers] of carriersByEdge) {
@@ -31,42 +39,107 @@ export function buildCarrierPhysicalNetRoutes(
     }
     const anchors = carriers.map((carrier) => ({
       carrier,
-      x: boundaryX.get(carrier.boundaryColumn),
+      x: carrierXById.get(carrier.id),
       y: carrierYById?.get(carrier.id)
     }));
     if (anchors.some((anchor) => !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y))) {
       diagnostics.push({ code: "layered-carrier-route-anchor-missing", edgeId });
       continue;
     }
-    const points = buildBranchPoints(edge, source, target, anchors);
-    const positionedEdge = {
-      ...edge,
-      source: edge.originalSource ?? edge.source,
-      target: edge.originalTarget ?? edge.target,
-      points,
-      routeKind: "physical-carrier-tree",
-      routeStatus: "routed"
-    };
     const groupKey = edge.physicalNetKey;
-    const group = groups.get(groupKey) || [];
-    group.push(positionedEdge);
-    groups.set(groupKey, group);
+    for (const offset of anchorOffsets) {
+      const points = buildBranchPoints(
+        edge,
+        source,
+        target,
+        anchors.map((anchor) => ({ ...anchor, y: anchor.y + offset }))
+      );
+      const positionedEdge = {
+        ...edge,
+        source: edge.originalSource ?? edge.source,
+        target: edge.originalTarget ?? edge.target,
+        points,
+        routeKind: "physical-carrier-tree",
+        routeStatus: "routed"
+      };
+      const groups = groupsByOffset.get(offset);
+      const group = groups.get(groupKey) || [];
+      group.push(positionedEdge);
+      groups.set(groupKey, group);
+    }
   }
 
   const routedGroups = [];
-  for (const [physicalNetKey, edges] of [...groups].toSorted(([left], [right]) =>
-    String(left).localeCompare(String(right)))) {
-    const commit = validatePhysicalNetCommit(edges, positionedNodes, options);
-    routedGroups.push({ physicalNetKey, edges, commit });
-    if (commit.status !== "routed") {
+  const physicalNetKeys = [...new Set([...groupsByOffset.values()]
+    .flatMap((groups) => [...groups.keys()]))].toSorted();
+  for (const physicalNetKey of physicalNetKeys) {
+    const variants = anchorOffsets.map((offset) => {
+      const edges = groupsByOffset.get(offset).get(physicalNetKey) || [];
+      return {
+        offset,
+        edges,
+        commit: validatePhysicalNetCommit(edges, positionedNodes, options)
+      };
+    });
+    const primary = variants[0];
+    routedGroups.push({
+      physicalNetKey,
+      edges: primary.edges,
+      commit: primary.commit,
+      variants
+    });
+    if (!variants.some((variant) => variant.commit.status === "routed")) {
       diagnostics.push({
         code: "layered-carrier-physical-net-invalid",
         physicalNetKey,
-        violations: commit.diagnostics.map((item) => item.code)
+        violationCounts: countCodes(primary.commit.diagnostics),
+        samples: primary.commit.diagnostics.slice(0, 8).map((item, index) => ({
+          code: item.code,
+          edgeId: item.edgeId,
+          nodeId: item.nodeId,
+          nodeBox: summarizeNodeBox(nodeById.get(item.nodeId)),
+          sourceBox: summarizeNodeBox(nodeById.get(edgeById.get(String(item.edgeId))?.source)),
+          targetBox: summarizeNodeBox(nodeById.get(edgeById.get(String(item.edgeId))?.target)),
+          ...(index === 0 ? {
+            points: primary.edges.find((edge) => String(edge.id) === String(item.edgeId))?.points
+          } : {})
+        }))
       });
     }
   }
-  return { groups: routedGroups, diagnostics, boundaryX };
+  return { groups: routedGroups, diagnostics, carrierXById };
+}
+
+function summarizeNodeBox(node) {
+  if (!node) return null;
+  return {
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    level: node.level,
+    kind: node.kind
+  };
+}
+
+function countCodes(diagnostics) {
+  const counts = {};
+  for (const diagnostic of diagnostics || []) {
+    const code = diagnostic?.code || "unknown";
+    counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
+}
+
+function normalizeAnchorOffsets(values) {
+  const source = Array.isArray(values) && values.length > 0 ? values : [0];
+  const offsets = [];
+  for (const value of source.slice(0, 9)) {
+    const offset = Number(value);
+    if (!Number.isFinite(offset) || offsets.includes(offset)) continue;
+    offsets.push(offset);
+  }
+  return offsets.length > 0 ? offsets : [0];
 }
 
 function buildBranchPoints(edge, source, target, anchors) {
@@ -101,7 +174,9 @@ function indexCarriersByEdge(carriers) {
   return byEdge;
 }
 
-function buildBoundaryXMap(layeredGraph, positionedNodes) {
+function buildCarrierXMap(layeredGraph, positionedNodes, edgeById, nodeById, carrierYById) {
+  const nodeIndex = createNodeSpatialIndex(positionedNodes || []);
+  const nodeBounds = computeNodeCollectionBox(positionedNodes || []);
   const nodesByLevel = new Map();
   for (const node of positionedNodes || []) {
     const entries = nodesByLevel.get(node.level) || [];
@@ -110,13 +185,82 @@ function buildBoundaryXMap(layeredGraph, positionedNodes) {
   }
   const result = new Map();
   for (const boundary of layeredGraph.carrierBoundaries || []) {
-    const left = nodesByLevel.get(boundary.leftLevel) || [];
-    const right = nodesByLevel.get(boundary.rightLevel) || [];
+    const activeCarriers = (boundary.carriers || [])
+      .filter((carrier) => carrierYById?.has(carrier.id))
+      .toSorted((left, right) => (left.order || 0) - (right.order || 0) ||
+        String(left.id).localeCompare(String(right.id)));
+    if (activeCarriers.length === 0) continue;
+    const allLeft = nodesByLevel.get(boundary.leftLevel) || [];
+    const allRight = nodesByLevel.get(boundary.rightLevel) || [];
+    const structuralLeft = allLeft.filter(isStructuralLayerNode);
+    const structuralRight = allRight.filter(isStructuralLayerNode);
+    const terminatingTargets = [...new Set((boundary.carriers || [])
+      .flatMap((carrier) => carrier.terminatingEdgeIds || [])
+      .map((edgeId) => edgeById.get(String(edgeId))?.target)
+      .filter(Boolean))]
+      .map((nodeId) => nodeById.get(nodeId))
+      .filter(Boolean);
+    const startingSources = [...new Set((boundary.carriers || [])
+      .filter((carrier) => !carrier.previousCarrierId)
+      .map((carrier) => carrier.sourceNodeId)
+      .filter(Boolean))]
+      .map((nodeId) => nodeById.get(nodeId))
+      .filter(Boolean);
+    const left = structuralLeft.length > 0 ? structuralLeft : allLeft;
+    const right = terminatingTargets.length > 0
+      ? terminatingTargets
+      : structuralRight.length > 0
+        ? structuralRight
+        : allRight;
     if (left.length === 0 || right.length === 0) continue;
     const leftEdge = Math.max(...left.map((node) => Number(node.x) + Number(node.width)));
     const rightEdge = Math.min(...right.map((node) => Number(node.x)));
     if (!Number.isFinite(leftEdge) || !Number.isFinite(rightEdge) || rightEdge <= leftEdge) continue;
-    result.set(boundary.boundaryColumn, (leftEdge + rightEdge) / 2);
+    const sourceEscapeX = startingSources.length > 0
+      ? Math.max(...startingSources.map((node) => Number(node.x) + Number(node.width))) + 24
+      : null;
+    const preferredCoordinate = Number.isFinite(sourceEscapeX)
+      ? sourceEscapeX
+      : terminatingTargets.length > 0
+        ? Math.max(leftEdge + 8, rightEdge - 24)
+        : (leftEdge + rightEdge) / 2;
+    const coordinates = chooseClearBoundaryXs(
+      preferredCoordinate,
+      leftEdge + 8,
+      rightEdge - 8,
+      nodeIndex,
+      nodeBounds,
+      activeCarriers.length
+    ).toSorted((left, right) => left - right);
+    activeCarriers.forEach((carrier, index) => {
+      const coordinate = coordinates[index];
+      if (Number.isFinite(coordinate) && coordinate < rightEdge) {
+        result.set(carrier.id, coordinate);
+      }
+    });
   }
   return result;
+}
+
+function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBounds, count) {
+  if (!(maximum >= minimum) || count <= 0) return [];
+  const candidates = [preferred, minimum, maximum];
+  for (let step = 1; step <= 32; step += 1) {
+    candidates.push(preferred - step * 8, preferred + step * 8);
+  }
+  return [...new Set(candidates
+    .filter((value) => Number.isFinite(value) && value >= minimum && value <= maximum)
+    .toSorted((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred) || left - right)
+    .filter((value) => nodeIndex.query({
+      left: value - 8,
+      right: value + 8,
+      top: nodeBounds.top,
+      bottom: nodeBounds.bottom
+    }).every((node) =>
+      value <= Number(node.x) - 8 || value >= Number(node.x) + Number(node.width) + 8)))]
+    .slice(0, count);
+}
+
+function isStructuralLayerNode(node) {
+  return node?.kind === "cell" || node?.kind === "hub" || node?.kind === "group";
 }

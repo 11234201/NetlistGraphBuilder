@@ -109,6 +109,41 @@ test("consecutive physical carriers reserve distinct tracks once", () => {
   ]);
 });
 
+test("entry-order placement makes the logical order geometrically authoritative", () => {
+  const placement = buildCarrierPlacementLayers(makeLayeredGraph(), { carrierSpan: 24 });
+  const nodes = [
+    { id: "source", level: 0, y: 10, height: 20 },
+    { id: "upper", level: 1, y: 100, height: 20 },
+    { id: "lower", level: 1, y: 10, height: 20 }
+  ];
+
+  const applied = applyCarrierPlacementSlots(nodes, placement.layers, {
+    enforceEntryOrder: true,
+    nodeGap: 8
+  });
+
+  assert.equal(nodes.find((node) => node.id === "upper").y, 10);
+  assert.equal(applied.carrierYById.get("carrier:clk:0"), 50);
+  assert.equal(nodes.find((node) => node.id === "lower").y, 62);
+});
+
+test("actual-gap placement preserves geometric node order", () => {
+  const placement = buildCarrierPlacementLayers(makeLayeredGraph(), { carrierSpan: 24 });
+  const nodes = [
+    { id: "source", level: 0, y: 10, height: 20 },
+    { id: "upper", level: 1, y: 100, height: 20 },
+    { id: "lower", level: 1, y: 10, height: 20 }
+  ];
+
+  const applied = applyCarrierPlacementSlots(nodes, placement.layers, {
+    useActualGaps: true
+  });
+
+  assert.equal(nodes.find((node) => node.id === "lower").y, 10);
+  assert.equal(nodes.find((node) => node.id === "upper").y, 100);
+  assert.equal(applied.carrierYById.get("carrier:clk:0"), 42);
+});
+
 function makeLayeredGraph() {
   return {
     layers: [

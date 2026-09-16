@@ -36,6 +36,64 @@ test("carrier routing does not partially publish a group with invalid geometry",
     item.code === "layered-carrier-physical-net-invalid"));
 });
 
+test("carrier routing produces bounded slot-offset variants", () => {
+  const result = buildCarrierPhysicalNetRoutes(
+    makeLayeredGraph(),
+    makeNodes(),
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]]),
+    { anchorOffsets: [0, -4, 4] }
+  );
+
+  assert.deepEqual(result.groups[0].variants.map((variant) => variant.offset), [0, -4, 4]);
+  assert.ok(result.groups[0].variants.every((variant) => variant.commit.status === "routed"));
+  assert.deepEqual(
+    result.groups[0].variants.map((variant) => variant.edges[0].points[2].y),
+    [80, 76, 84]
+  );
+});
+
+test("terminal cells define the right boundary instead of localized inputs", () => {
+  const graph = makeLayeredGraph();
+  graph.carrierBoundaries[1].carriers = [{
+    id: "carrier:n:1",
+    terminatingEdgeIds: ["a", "b"]
+  }];
+  const nodes = makeNodes();
+  nodes.push({
+    id: "localized-input",
+    kind: "focus-input",
+    level: 2,
+    x: 300,
+    y: 200,
+    width: 40,
+    height: 20,
+    ports: []
+  });
+  const result = buildCarrierPhysicalNetRoutes(
+    graph,
+    nodes,
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]])
+  );
+
+  assert.equal(result.carrierXById.get("carrier:n:1"), 376);
+});
+
+test("the first carrier stays next to its physical source", () => {
+  const graph = makeLayeredGraph();
+  graph.carrierBoundaries[0].carriers = [{
+    id: "carrier:n:0",
+    sourceNodeId: "src",
+    previousCarrierId: null
+  }];
+  const result = buildCarrierPhysicalNetRoutes(
+    graph,
+    makeNodes(),
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]])
+  );
+
+  assert.equal(result.carrierXById.get("carrier:n:0"), 104);
+});
+
 function makeLayeredGraph() {
   const edges = [
     { id: "a", source: "src", target: "a", sourcePin: "Z", targetPin: "A", net: "n", physicalNetKey: "src\0n" },
@@ -48,8 +106,18 @@ function makeLayeredGraph() {
       { id: "carrier:n:1", boundaryColumn: 1, logicalEdgeIds: ["a", "b"] }
     ],
     carrierBoundaries: [
-      { boundaryColumn: 0, leftLevel: 0, rightLevel: 1 },
-      { boundaryColumn: 1, leftLevel: 1, rightLevel: 2 }
+      {
+        boundaryColumn: 0,
+        leftLevel: 0,
+        rightLevel: 1,
+        carriers: [{ id: "carrier:n:0", order: 0 }]
+      },
+      {
+        boundaryColumn: 1,
+        leftLevel: 1,
+        rightLevel: 2,
+        carriers: [{ id: "carrier:n:1", order: 0 }]
+      }
     ]
   };
 }

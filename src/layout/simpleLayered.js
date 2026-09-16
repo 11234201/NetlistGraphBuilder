@@ -145,7 +145,10 @@ export function layoutGraph(graph, options = {}) {
   if (layeredGraph && policy.features.physicalCarrierRouting) {
     carrierPlacement = applyCarrierPlacementSlots(
       positionedNodes,
-      layeredGraph.placementLayers
+      layeredGraph.placementLayers,
+      {
+        useActualGaps: true
+      }
     );
   }
   reportStage("placement-complete");
@@ -178,7 +181,7 @@ export function layoutGraph(graph, options = {}) {
     carrierPlacement = applyCarrierPlacementSlots(
       positionedNodes,
       layeredGraph.placementLayers,
-      { applyShift: false }
+      { useActualGaps: true }
     );
   }
   const routingCapacity = buildRoutingCapacityPlan(
@@ -199,13 +202,19 @@ export function layoutGraph(graph, options = {}) {
     ? buildCarrierPhysicalNetRoutes(
       layeredGraph,
       positionedNodes,
-      carrierPlacement.carrierYById
+      carrierPlacement.carrierYById,
+      { anchorOffsets: [0, -8, 8, -16, 16, -24, 24, -32, 32] }
     )
     : null;
   const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
-    .filter((group) => group.commit.status === "routed" &&
+    .filter((group) => group.variants.some((variant) => variant.commit.status === "routed") &&
       group.edges.length >= policy.layering.carrierMinimumFanout)
-    .map((group) => [group.physicalNetKey, group.edges]));
+    .map((group) => [
+      group.physicalNetKey,
+      group.variants
+        .filter((variant) => variant.commit.status === "routed")
+        .map((variant) => variant.edges)
+    ]));
 
   const positionedEdges = routeSimpleEdges(graph, positionedNodes, {
     layoutIntent,
@@ -215,6 +224,14 @@ export function layoutGraph(graph, options = {}) {
     routingGeometry,
     routingCapacity,
     carrierRoutesByPhysicalNet,
+    carrierRoutingSummary: carrierRouting ? {
+      groupCount: carrierRouting.groups.length,
+      validGroupCount: carrierRoutesByPhysicalNet.size,
+      diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics),
+      diagnosticSamples: carrierRouting.diagnostics
+        .filter((diagnostic) => diagnostic.code === "layered-carrier-physical-net-invalid")
+        .slice(0, 8)
+    } : null,
     margin,
     strictRouting: options.strictRouting === true,
     onRoutingProgress: options.onRoutingProgress,
@@ -247,6 +264,15 @@ export function layoutGraph(graph, options = {}) {
   });
   reportStage("validation-complete", result.validationMetrics || null);
   return result;
+}
+
+function countDiagnosticCodes(diagnostics = []) {
+  const counts = {};
+  for (const diagnostic of diagnostics) {
+    const code = diagnostic?.code || "unknown";
+    counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
 }
 
 function readMeasuredSize(node, cellPinPitch) {

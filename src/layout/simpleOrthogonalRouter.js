@@ -68,6 +68,8 @@ export function routeSimpleEdges(graph, nodes, options) {
     localCandidates: 0,
     globalFallbacks: 0,
     routeKinds: Object.create(null),
+    carrierCandidatePhysicalNetCount: options.carrierRoutesByPhysicalNet?.size || 0,
+    carrierRoutingSummary: options.carrierRoutingSummary || null,
     capacity: routingCapacity?.metrics
       ? {
         physicalNetCount: routingCapacity.metrics.physicalNetCount,
@@ -86,6 +88,29 @@ export function routeSimpleEdges(graph, nodes, options) {
       }
       : null
   };
+
+  for (const [physicalNetKey, candidates] of [...(options.carrierRoutesByPhysicalNet || new Map())]
+    .toSorted(([left], [right]) => String(left).localeCompare(String(right)))) {
+    const physicalNetEdges = edgesByPhysicalNet.get(physicalNetKey) || [];
+    const preferredCarrierRoutes = tryCarrierPhysicalNetGroup(
+      physicalNetEdges,
+      candidates,
+      { nodes, nodeIndex, reservedSegments }
+    );
+    if (!preferredCarrierRoutes) continue;
+    attemptedPhysicalNets.add(physicalNetKey);
+    routingMetrics.carrierPhysicalNetTreeCount =
+      (routingMetrics.carrierPhysicalNetTreeCount || 0) + 1;
+    commitPhysicalNetRoutes(preferredCarrierRoutes, {
+      routedById,
+      reservedSegments,
+      routingMetrics,
+      unroutablePhysicalNets,
+      overflowUnroutablePhysicalNets,
+      nodeById,
+      targetEntryLanes
+    });
+  }
 
   for (const [edgeIndex, edge] of orderedEdges.entries()) {
     if (routedById.has(edge.id)) continue;
@@ -302,7 +327,16 @@ function groupEdgesByPhysicalNet(edges) {
   return groups;
 }
 
-function tryCarrierPhysicalNetGroup(edges, carrierRoutes, context) {
+function tryCarrierPhysicalNetGroup(edges, carrierRouteCandidates, context) {
+  if (!Array.isArray(carrierRouteCandidates)) return null;
+  for (const carrierRoutes of carrierRouteCandidates) {
+    const usable = validateCarrierPhysicalNetCandidate(edges, carrierRoutes, context);
+    if (usable) return usable;
+  }
+  return null;
+}
+
+function validateCarrierPhysicalNetCandidate(edges, carrierRoutes, context) {
   if (!Array.isArray(carrierRoutes) || carrierRoutes.length !== edges.length) return null;
   const expectedIds = edges.map((edge) => String(edge.id)).toSorted();
   const actualIds = carrierRoutes.map((edge) => String(edge.id)).toSorted();
@@ -322,13 +356,25 @@ function tryCarrierPhysicalNetGroup(edges, carrierRoutes, context) {
 function repairUnroutablePhysicalNetsWithCarriers(context) {
   if (!(context.carrierRoutesByPhysicalNet instanceof Map)) return;
   for (const physicalNetKey of [...context.unroutablePhysicalNets].toSorted()) {
+    context.routingMetrics.carrierRepairAttemptCount =
+      (context.routingMetrics.carrierRepairAttemptCount || 0) + 1;
     const physicalNetEdges = context.edgesByPhysicalNet.get(physicalNetKey) || [];
+    const candidates = context.carrierRoutesByPhysicalNet.get(physicalNetKey);
+    if (!candidates) {
+      context.routingMetrics.carrierRepairMissingCandidateCount =
+        (context.routingMetrics.carrierRepairMissingCandidateCount || 0) + 1;
+      continue;
+    }
     const carrierRoutes = tryCarrierPhysicalNetGroup(
       physicalNetEdges,
-      context.carrierRoutesByPhysicalNet.get(physicalNetKey),
+      candidates,
       context
     );
-    if (!carrierRoutes) continue;
+    if (!carrierRoutes) {
+      context.routingMetrics.carrierRepairRejectedCandidateCount =
+        (context.routingMetrics.carrierRepairRejectedCandidateCount || 0) + 1;
+      continue;
+    }
     for (const edge of physicalNetEdges) {
       const previous = context.routedById.get(edge.id);
       if (!previous?.routeKind) continue;
@@ -1074,11 +1120,42 @@ function createUnroutableRoute(context, details = {}) {
 
 function findReservationFreeLaneShift(candidate, context) {
   const points = candidate?.points || [];
+  const pitch = Math.max(4, Number(context.wireLanePitch) || 24);
+  const laneX = findInteriorVerticalLaneX(points);
+  if (Number.isFinite(laneX)) {
+    const verticalLaneStep = Math.max(4, Math.min(8, pitch));
+    const offsets = [...new Set([
+      ...Array.from({ length: 12 }, (_, index) => (index + 1) * verticalLaneStep),
+      ...Array.from({ length: 12 }, (_, index) => (index + 1) * pitch)
+    ].flatMap((offset) => [offset, -offset]))];
+    for (const offset of offsets) {
+      const shiftedPoints = points.map((point, index) =>
+        index > 0 && index < points.length - 1 && Math.abs(point.x - laneX) < 0.5
+          ? { ...point, x: point.x + offset }
+          : point);
+      const shifted = { ...candidate, points: shiftedPoints };
+      if (candidateIsUsable(shifted, context) && !routeOverlapsReserved(
+        shifted.points,
+        context.net,
+        context.reservedSegments,
+        context.netGroupKey
+      )) return shifted;
+    }
+  }
   const laneY = findInteriorHorizontalLaneY(points);
   if (!Number.isFinite(laneY)) return null;
-  const pitch = Math.max(4, Number(context.wireLanePitch) || 24);
   const horizontalOffsets = [pitch, -pitch, pitch * 2, -pitch * 2, pitch * 3, -pitch * 3];
-  const verticalOffsets = [0, pitch, -pitch, pitch * 2, -pitch * 2];
+  const verticalOffsets = [
+    0,
+    pitch, -pitch,
+    pitch * 2, -pitch * 2,
+    pitch * 3, -pitch * 3,
+    pitch * 4, -pitch * 4,
+    pitch * 5, -pitch * 5,
+    pitch * 6, -pitch * 6,
+    pitch * 7, -pitch * 7,
+    pitch * 8, -pitch * 8
+  ];
   const sourceLaneX = points.length > 2 ? points[1].x : null;
   const targetLaneX = points.length > 3 ? points.at(-2).x : null;
   const shiftPlans = [
@@ -1086,8 +1163,9 @@ function findReservationFreeLaneShift(candidate, context) {
       { source: sourceOffset, target: 0 },
       { source: 0, target: sourceOffset }
     ]),
-    { source: pitch, target: pitch },
-    { source: -pitch, target: -pitch }
+    ...verticalOffsets
+      .filter((offset) => offset !== 0)
+      .map((offset) => ({ source: offset, target: offset }))
   ];
   for (const offset of horizontalOffsets) {
     for (const shift of shiftPlans) {
@@ -1121,6 +1199,22 @@ function findReservationFreeLaneShift(candidate, context) {
     }
   }
   return null;
+}
+
+function findInteriorVerticalLaneX(points) {
+  let laneX = null;
+  let longest = 0;
+  for (let index = 1; index < points.length - 2; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (Math.abs(start.x - end.x) >= 0.5) continue;
+    const length = Math.abs(start.y - end.y);
+    if (length > longest) {
+      longest = length;
+      laneX = start.x;
+    }
+  }
+  return laneX;
 }
 
 function findInteriorHorizontalLaneY(points) {
