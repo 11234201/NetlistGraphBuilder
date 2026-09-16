@@ -7,7 +7,10 @@ import {
 } from "./channelCapacity.js";
 import { relaxToMinimalSpan } from "./layered/minSpanLayering.js";
 import { stripDummyNodes } from "./layered/longEdgeDummies.js";
-import { applyCarrierPlacementSlots } from "./layered/carrier_placement.js";
+import {
+  applyCarrierPlacementSlots,
+  reserveLeadingCarrierLane
+} from "./layered/carrier_placement.js";
 import { buildLayeredGraph } from "./layered/layered_graph.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
@@ -167,6 +170,9 @@ export function layoutGraph(graph, options = {}) {
   );
   applyRoutingCapacityExpansion(positionedNodes, initialCapacityPlan);
   reportStage("capacity-expansion-complete");
+  if (policy.features.physicalCarrierRouting) {
+    reserveLeadingCarrierLane(positionedNodes, wireLanePitch);
+  }
   // Row-gap capacity expansion can move only part of a source column and
   // create a new line-of-sight obstruction that did not exist during the
   // normal locality pipeline. Repair the final source-to-group escape rows

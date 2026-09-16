@@ -5,6 +5,7 @@ import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
 import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
+import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
 
@@ -109,6 +110,16 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
       missingEdgeIds: missingEdges.slice(0, 24).map((edge) => edge.id),
       missingEdgeSamples: missingEdges.slice(0, 8).map((edge) => ({
         id: edge.id,
+        physicalNetKey: getNetGroupKey(edge),
+        physicalNetEdges: graph.edges
+          .filter((candidate) => getNetGroupKey(candidate) === getNetGroupKey(edge))
+          .map((candidate) => ({
+            id: candidate.id,
+            source: candidate.source,
+            target: candidate.target,
+            routeKind: candidate.routeKind,
+            routeStatus: candidate.routeStatus
+          })),
         source: summarizeNode(graph.nodes.find((node) => node.id === edge.source)),
         target: summarizeNode(graph.nodes.find((node) => node.id === edge.target)),
         diagnostics: edge.routeDiagnostics || []
@@ -116,7 +127,12 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
       providerDiagnosticCounts: countCodes(graph.providerDiagnostics || []),
       validationViolationCount: violations.length,
       validationViolationCounts: countCodes(violations),
-      validationViolationSamples: violations.slice(0, 24).map(summarizeViolation)
+      validationViolationSamples: violations.slice(0, 24).map((violation) => ({
+        ...summarizeViolation(violation),
+        edgePoints: graph.edges.find((edge) => edge.id === violation.edgeId)?.points,
+        edgeRouteKind: graph.edges.find((edge) => edge.id === violation.edgeId)?.routeKind,
+        nodeBox: summarizeNode(graph.nodes.find((node) => node.id === violation.nodeId))
+      }))
     },
     routing: {
       metrics: graph.routingMetrics || null,

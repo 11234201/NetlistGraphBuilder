@@ -117,6 +117,20 @@ export function applyCarrierPlacementSlots(
   return { carrierYById, diagnostics, totalShift };
 }
 
+export function reserveLeadingCarrierLane(positionedNodes, span) {
+  const levels = (positionedNodes || [])
+    .map((node) => Number(node.level))
+    .filter(Number.isFinite);
+  if (levels.length === 0) return 0;
+  const leadingLevel = Math.min(...levels);
+  const shift = Math.max(0, Number(span) || 0);
+  if (shift === 0) return 0;
+  for (const node of positionedNodes || []) {
+    if (Number(node.level) > leadingLevel) node.x += shift;
+  }
+  return shift;
+}
+
 function placeLayerInActualGaps(layer, nodeById, carrierYById, diagnostics) {
   const realNodes = (layer.entries || [])
     .filter((entry) => entry.kind !== CARRIER_SLOT_KIND)

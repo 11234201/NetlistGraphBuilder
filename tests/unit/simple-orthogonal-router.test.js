@@ -247,6 +247,40 @@ test("simple router commits a complete non-direct fanout tree atomically", () =>
   assert.ok(routed.every((edge) => edge.points[0].x === 80 && edge.points[0].y === 76));
 });
 
+test("physical fanout tree keeps an aligned primary branch in the shared tree", () => {
+  const nodes = [
+    { id: "src", kind: "focus-input", level: 0, x: 0, y: 60, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "aligned", kind: "cell", level: 1, x: 240, y: 60, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] },
+    { id: "branch", kind: "cell", level: 1, x: 240, y: 140, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [
+      { id: "aligned-edge", source: "src", target: "aligned", sourcePin: "Z", targetPin: "A", net: "n" },
+      { id: "branch-edge", source: "src", target: "branch", sourcePin: "Z", targetPin: "A", net: "n" }
+    ]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const routed = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: { edges: new Map(graph.edges.map((edge) => [edge.id, { kind: "channel" }])) },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.ok(routed.every((edge) => edge.routeKind === "physical-net-tree"));
+  assert.equal(routed.routingMetrics.alignedPhysicalNetTreeCount, 1);
+  assert.deepEqual(
+    routed.find((edge) => edge.id === "aligned-edge").points,
+    [{ x: 80, y: 76 }, { x: 240, y: 76 }]
+  );
+});
+
 test("physical fanout tree uses a vertical approach for top-side targets", () => {
   const nodes = [
     { id: "src", kind: "cell", level: 0, x: 0, y: 96, width: 80, height: 32,

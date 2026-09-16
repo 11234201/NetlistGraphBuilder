@@ -3,7 +3,8 @@ import test from "node:test";
 import {
   applyCarrierPlacementSlots,
   buildCarrierPlacementLayers,
-  CARRIER_SLOT_KIND
+  CARRIER_SLOT_KIND,
+  reserveLeadingCarrierLane
 } from "../../src/layout/layered/carrier_placement.js";
 
 test("placement replaces logical dummies with one physical carrier slot", () => {
@@ -142,6 +143,18 @@ test("actual-gap placement preserves geometric node order", () => {
   assert.equal(nodes.find((node) => node.id === "lower").y, 10);
   assert.equal(nodes.find((node) => node.id === "upper").y, 100);
   assert.equal(applied.carrierYById.get("carrier:clk:0"), 42);
+});
+
+test("leading carrier reservation shifts every downstream layer once", () => {
+  const nodes = [
+    { id: "boundary", level: 0, x: 48 },
+    { id: "first", level: 1, x: 200 },
+    { id: "second", level: 2, x: 400 },
+    { id: "localized-boundary", level: 0, x: 360 }
+  ];
+
+  assert.equal(reserveLeadingCarrierLane(nodes, 24), 24);
+  assert.deepEqual(nodes.map((node) => node.x), [48, 224, 424, 360]);
 });
 
 function makeLayeredGraph() {
