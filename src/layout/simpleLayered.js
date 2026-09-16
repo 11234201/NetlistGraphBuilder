@@ -87,6 +87,18 @@ export function layoutGraph(graph, options = {}) {
   // again immediately after ordering; nothing downstream sees them yet.
   const hasFocusedBoundary = graph.nodes.some((node) =>
     node.kind === "focus-input" || node.kind === "focus-output");
+  const hasExplicitFocusedFanoutX =
+    options.layoutPolicy?.spacing?.focusedFanoutX !== undefined;
+  const hasExplicitFanoutX = options.layoutPolicy?.spacing?.fanoutX !== undefined ||
+    options.fanoutX !== undefined;
+  const adaptiveSpacing = hasFocusedBoundary
+    ? {
+      ...policy.spacing,
+      fanoutX: hasExplicitFocusedFanoutX || !hasExplicitFanoutX
+        ? policy.spacing.focusedFanoutX
+        : policy.spacing.fanoutX
+    }
+    : policy.spacing;
   const layeredGraph = policy.features.longEdgeDummies && hasFocusedBoundary
     ? buildLayeredGraph(graph, {
       levels,
@@ -120,7 +132,7 @@ export function layoutGraph(graph, options = {}) {
     margin,
     policy.features.localizeSingleFanoutInputs,
     layoutIntent,
-    policy.spacing,
+    adaptiveSpacing,
     policy.features.routingDrivenLayerSpacing && hasFocusedBoundary
   );
   const positionedNodes = placeInitialNodes({

@@ -13,7 +13,8 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     branchTopY: 80,
     branchLanePitch: 228,
     compactX: 196,
-    fanoutX: 560,
+    fanoutX: 292,
+    focusedFanoutX: 560,
     compactYGap: 8,
     fanoutYGap: 28
   }),
@@ -75,6 +76,7 @@ export const LAYOUT_SPACING_LIMITS = Object.freeze({
   branchLanePitch: Object.freeze([40, 1000]),
   compactX: Object.freeze([80, 1000]),
   fanoutX: Object.freeze([80, 1600]),
+  focusedFanoutX: Object.freeze([80, 1600]),
   compactYGap: Object.freeze([0, 200]),
   fanoutYGap: Object.freeze([0, 400])
 });
