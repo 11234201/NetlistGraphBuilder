@@ -5,6 +5,7 @@ import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
+import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
 
@@ -62,6 +63,7 @@ for (const provider of providers) {
     missingRoutes: missing.length,
     violations: violations.length,
     violationCodes: countCodes(violations),
+    missingRouteSummary: summarizeMissingRoutes(graph, missing),
     routingElapsedMs: round(graph.routingMetrics?.elapsedMs || 0),
     layoutMetrics: graph.layoutMetrics || null,
     routingMetrics: summarizeRoutingMetrics(graph.routingMetrics),
@@ -99,6 +101,61 @@ function summarizeRoutingMetrics(metrics) {
     reservedSegments: metrics.reservedSegments || null,
     capacity: metrics.capacity || null
   };
+}
+
+function summarizeMissingRoutes(graph, missing) {
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const allEdgesByPhysicalNet = new Map();
+  for (const edge of graph.edges) {
+    const key = getNetGroupKey(edge);
+    const edges = allEdgesByPhysicalNet.get(key) || [];
+    edges.push(edge);
+    allEdgesByPhysicalNet.set(key, edges);
+  }
+  const missingByPhysicalNet = new Map();
+  for (const edge of missing) {
+    const key = getNetGroupKey(edge);
+    const edges = missingByPhysicalNet.get(key) || [];
+    edges.push(edge);
+    missingByPhysicalNet.set(key, edges);
+  }
+  const groups = [...missingByPhysicalNet].map(([physicalNetKey, edges]) => {
+    const allEdges = allEdgesByPhysicalNet.get(physicalNetKey) || edges;
+    const spans = allEdges.map((edge) => Math.abs(
+      Number(nodeById.get(edge.target)?.level || 0) -
+      Number(nodeById.get(edge.source)?.level || 0)
+    ));
+    const assignments = graph.routingCapacity?.allocationByNet?.get(physicalNetKey) || [];
+    return {
+      physicalNetKey,
+      fanout: allEdges.length,
+      missing: edges.length,
+      maximumSpan: Math.max(0, ...spans),
+      overflow: assignments.some((entry) => entry.capacityOverflow === true),
+      diagnosticCodes: countCodes(edges.flatMap((edge) => edge.routeDiagnostics || []))
+    };
+  }).sort((left, right) =>
+    right.missing - left.missing || right.maximumSpan - left.maximumSpan ||
+    left.physicalNetKey.localeCompare(right.physicalNetKey));
+  return {
+    physicalNetCount: groups.length,
+    fanoutBuckets: countBuckets(groups, (group) => group.fanout, [1, 3, 7]),
+    maximumSpanBuckets: countBuckets(groups, (group) => group.maximumSpan, [1, 2]),
+    overflowPhysicalNetCount: groups.filter((group) => group.overflow).length,
+    diagnosticCodes: countCodes(missing.flatMap((edge) => edge.routeDiagnostics || [])),
+    samples: groups.slice(0, 12)
+  };
+}
+
+function countBuckets(items, getValue, upperBounds) {
+  const counts = {};
+  for (const item of items) {
+    const value = Number(getValue(item)) || 0;
+    const upper = upperBounds.find((bound) => value <= bound);
+    const key = upper === undefined ? `>${upperBounds.at(-1)}` : `<=${upper}`;
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
 }
 
 function round(value) {

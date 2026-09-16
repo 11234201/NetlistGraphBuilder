@@ -174,4 +174,12 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 - eq012 默认 Whole：115.4 秒 → 37.0 秒；missing 仍为 177，几何指标不变。
 - eq012 Whole proper-layering：34.7 秒，已经约为 ELK 23.3 秒的 1.49 倍，达到第一阶段性能门槛；但 compact geometry 下 missing 增至 441，仍不能启用。
 
+### Stage D 失败分布（2026-09-16）
+
+`analyze:whole-layouts` 现在会按物理网汇总 missing route 的扇出、最大跨层跨度、容量溢出和诊断码。eq012 Whole proper-layering 的 441 条 missing 属于 202 条物理网：其中 132 条是单扇出网，136 条物理网跨越至少三层，97 条物理网发生容量溢出。最大单项是 `clk`：832 扇出中仍有 128 条 missing，且不是容量溢出。
+
+这组数据排除了“只提高高扇出 carrier 阈值”作为完整解法。低扇出长网才是未布通物理网的主体；同时，容量溢出只能解释约一半物理网，不能解释 `clk` 的剩余失败。
+
+曾验证过直接把 inter-layer 容量分配连接成整网候选。eq012 上没有任何候选通过硬校验，并额外消耗约 5.8 秒，因此未保留。原因是 inter-layer allocation 只保证相邻列间隙中的竖向轨道，不保证横穿中间节点列的线段无障碍；它不是 ELK dummy slot 的替代物。Stage D 后续必须让长边 dummy 在放置阶段保留真实层内占位，再由这些占位生成物理网树，不能在 dummy 排序后立即全部剥离。
+
 因此 Whole 当前已经从“性能悬崖”转为“路由正确性/批量通道模型”问题。下一项工作仍是按 gap 统一提交 physical nets，不能以放宽校验或接受 missing 换取默认启用。
