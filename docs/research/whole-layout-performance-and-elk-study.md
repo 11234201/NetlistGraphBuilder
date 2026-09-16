@@ -195,3 +195,17 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 验证方面，单元测试 585/585 通过；远端规模基准的 1024/4096/8192-cell 布局中位数约为 167 ms / 1.15 s / 4.90 s。`MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完整执行，但默认（未开启 Whole proper-layering）基线仍有 30/47 case 因既有 missing-route、violation budget 或 45 秒超时失败，因此不能把该结果作为本轮 proper-layering 的通过证据。
 
 因此 Whole 当前已经从“性能悬崖”转为“路由正确性/批量通道模型”问题。下一项工作仍是按 gap 统一提交 physical nets，不能以放宽校验或接受 missing 换取默认启用。
+
+### 2026-09-17：边界局部 X 轨恢复高扇出整网 carrier
+
+新增的 carrier 覆盖摘要按物理网报告 fanout、所需 carrier、X/Y 锚点和缺失边界，并单独统计真正启用但锚点不完整的物理网。它揭示此前“候选只覆盖长边子集”的推断不准确：eq012 的 `clk` 与 `rst_n` 都有 9 个 Y 槽，唯独 boundary 0 缺 X，因此整个物理网候选在生成前被丢弃。
+
+根因有两层：边界范围曾由该层所有节点决定，已经局部化到后续逻辑旁边的 input 会把 `leftEdge` 推过 `rightEdge`；X 安全检查又曾把候选竖线当作贯穿全图高度，其他层同 X 的节点也会误杀轨道。现实现只用实际启用 carrier 的 source/terminating target 定义水平通道，并按这些 carrier 真正覆盖的 Y 区间查询节点索引。候选数仍受共享 256-track 上限约束，最终几何仍由整物理网原子 validator 判定，不放宽任何 hard rule。
+
+固定远端环境结果：
+
+- eq012：missing 267 → 140，`clk` 的 127 条 missing 全部消失；布局 27.9 秒 → 24.2 秒，legacy edge routing 24.1 秒 → 11.6 秒；outer route ratio 7.9% → 0.9%。宽度保持 41,399，剩余 140 条全部是单扇出网。
+- eq007：missing 219 → 215，布局约 33.3 秒 → 32.2 秒，宽度保持 14,796；`clk`/`rst_n` carrier 均完整。
+- 单元测试 587/587 通过；1024/4096/8192-cell 布局中位数约为 165 ms / 1.16 s / 4.55 s。
+
+高扇出树被接受后，eq012 的平均 bends 从约 1.89 上升到 2.94，但这是用边界内共享 carrier 取代逐边 outer fallback 的结果；物理 overlap 仍为 0，且画布宽度没有扩大。下一瓶颈已经明确转为 fanout=1 的长跨层网：它们目前被 Whole 的 `wholeCarrierMinimumFanout=2` 排除，eq012 剩余失败主要跨 3 至 7 层；eq007 剩余失败则主要是相邻层单网。下一步需要为单扇出长网提供不按每网永久扩高画布的共享 dummy/gap 轨道，并另行处理相邻层局部拥塞。

@@ -1,7 +1,7 @@
 import { getConnectionPoint } from "../nodeGeometry.js";
 import { compactOrthogonalPoints } from "../orthogonalRouting.js";
 import { validatePhysicalNetCommit } from "../physical_net_commit.js";
-import { computeNodeCollectionBox, createNodeSpatialIndex } from "../spatialIndex.js";
+import { createNodeSpatialIndex } from "../spatialIndex.js";
 import { ROUTE_GEOMETRY_POLICY, ROUTE_SEARCH_LIMITS } from "../routeSearchPolicy.js";
 
 /**
@@ -18,7 +18,6 @@ export function buildCarrierPhysicalNetRoutes(
   const anchorOffsets = normalizeAnchorOffsets(options.anchorOffsets);
   const nodeById = new Map((positionedNodes || []).map((node) => [node.id, node]));
   const nodeIndex = options.nodeIndex || createNodeSpatialIndex(positionedNodes || []);
-  const nodeBounds = computeNodeCollectionBox(positionedNodes || []);
   const edgeById = new Map((layeredGraph.orientedEdges || []).map((edge) => [String(edge.id), edge]));
   const carrierXById = buildCarrierXMap(
     layeredGraph,
@@ -26,8 +25,12 @@ export function buildCarrierPhysicalNetRoutes(
     edgeById,
     nodeById,
     carrierYById,
-    nodeIndex,
-    nodeBounds
+    nodeIndex
+  );
+  const coverage = summarizeCarrierCoverage(
+    layeredGraph.carriers || [],
+    carrierXById,
+    carrierYById
   );
   const carriersByEdge = indexCarriersByEdge(layeredGraph.carriers || []);
   const groupsByOffset = new Map(anchorOffsets.map((offset) => [offset, new Map()]));
@@ -119,7 +122,73 @@ export function buildCarrierPhysicalNetRoutes(
       });
     }
   }
-  return { groups: routedGroups, diagnostics, carrierXById };
+  return { groups: routedGroups, diagnostics, carrierXById, coverage };
+}
+
+function summarizeCarrierCoverage(carriers, carrierXById, carrierYById) {
+  const byPhysicalNet = new Map();
+  const byBoundary = new Map();
+  for (const carrier of carriers) {
+    const physicalNetKey = String(carrier.netGroupKey || "");
+    const entry = byPhysicalNet.get(physicalNetKey) || {
+      physicalNetKey,
+      fanout: Number(carrier.physicalNetFanout) || 0,
+      carrierCount: 0,
+      xAnchorCount: 0,
+      yAnchorCount: 0,
+      completeAnchorCount: 0,
+      missingBoundaryColumns: []
+    };
+    const hasX = carrierXById.has(carrier.id);
+    const hasY = carrierYById?.has(carrier.id) === true;
+    entry.fanout = Math.max(entry.fanout, Number(carrier.physicalNetFanout) || 0);
+    entry.carrierCount += 1;
+    if (hasX) entry.xAnchorCount += 1;
+    if (hasY) entry.yAnchorCount += 1;
+    if (hasX && hasY) entry.completeAnchorCount += 1;
+    else entry.missingBoundaryColumns.push(carrier.boundaryColumn);
+    byPhysicalNet.set(physicalNetKey, entry);
+
+    const boundary = byBoundary.get(carrier.boundaryColumn) || {
+      boundaryColumn: carrier.boundaryColumn,
+      carrierCount: 0,
+      xAnchorCount: 0,
+      yAnchorCount: 0,
+      completeAnchorCount: 0
+    };
+    boundary.carrierCount += 1;
+    if (hasX) boundary.xAnchorCount += 1;
+    if (hasY) boundary.yAnchorCount += 1;
+    if (hasX && hasY) boundary.completeAnchorCount += 1;
+    byBoundary.set(carrier.boundaryColumn, boundary);
+  }
+  const physicalNets = [...byPhysicalNet.values()]
+    .map((entry) => ({
+      ...entry,
+      missingBoundaryColumns: [...new Set(entry.missingBoundaryColumns)].toSorted((left, right) => left - right)
+    }))
+    .toSorted((left, right) => right.fanout - left.fanout ||
+      right.carrierCount - left.carrierCount ||
+      left.physicalNetKey.localeCompare(right.physicalNetKey));
+  const eligiblePhysicalNets = physicalNets.filter((entry) => entry.yAnchorCount > 0);
+  const incompletePhysicalNets = eligiblePhysicalNets.filter((entry) =>
+    entry.completeAnchorCount < entry.carrierCount);
+  const boundaries = [...byBoundary.values()]
+    .toSorted((left, right) => Number(left.boundaryColumn) - Number(right.boundaryColumn));
+  return {
+    physicalNetCount: physicalNets.length,
+    eligiblePhysicalNetCount: eligiblePhysicalNets.length,
+    inactivePhysicalNetCount: physicalNets.length - eligiblePhysicalNets.length,
+    incompletePhysicalNetCount: incompletePhysicalNets.length,
+    boundaryCount: boundaries.length,
+    saturatedBoundaryCount: boundaries.filter((entry) =>
+      entry.xAnchorCount < entry.yAnchorCount).length,
+    topPhysicalNets: physicalNets.slice(0, 8),
+    topIncompletePhysicalNets: incompletePhysicalNets.slice(0, 8),
+    saturatedBoundaries: boundaries
+      .filter((entry) => entry.xAnchorCount < entry.yAnchorCount)
+      .slice(0, 16)
+  };
 }
 
 function summarizeNodeBox(node) {
@@ -192,8 +261,7 @@ function buildCarrierXMap(
   edgeById,
   nodeById,
   carrierYById,
-  nodeIndex,
-  nodeBounds
+  nodeIndex
 ) {
   const nodesByLevel = new Map();
   for (const node of positionedNodes || []) {
@@ -212,19 +280,23 @@ function buildCarrierXMap(
     const allRight = nodesByLevel.get(boundary.rightLevel) || [];
     const structuralLeft = allLeft.filter(isStructuralLayerNode);
     const structuralRight = allRight.filter(isStructuralLayerNode);
-    const terminatingTargets = [...new Set((boundary.carriers || [])
+    const terminatingTargets = [...new Set(activeCarriers
       .flatMap((carrier) => carrier.terminatingEdgeIds || [])
       .map((edgeId) => edgeById.get(String(edgeId))?.target)
       .filter(Boolean))]
       .map((nodeId) => nodeById.get(nodeId))
       .filter(Boolean);
-    const startingSources = [...new Set((boundary.carriers || [])
+    const startingSources = [...new Set(activeCarriers
       .filter((carrier) => !carrier.previousCarrierId)
       .map((carrier) => carrier.sourceNodeId)
       .filter(Boolean))]
       .map((nodeId) => nodeById.get(nodeId))
       .filter(Boolean);
-    const left = structuralLeft.length > 0 ? structuralLeft : allLeft;
+    const left = structuralLeft.length > 0
+      ? structuralLeft
+      : startingSources.length > 0
+        ? startingSources
+        : allLeft;
     const right = terminatingTargets.length > 0
       ? terminatingTargets
       : structuralRight.length > 0
@@ -242,12 +314,18 @@ function buildCarrierXMap(
       : terminatingTargets.length > 0
         ? Math.max(leftEdge + 8, rightEdge - 24)
         : (leftEdge + rightEdge) / 2;
+    const verticalRange = computeActiveCarrierVerticalRange(
+      activeCarriers,
+      carrierYById,
+      edgeById,
+      nodeById
+    );
     const coordinates = chooseClearBoundaryXs(
       preferredCoordinate,
       leftEdge + 8,
       rightEdge - 8,
       nodeIndex,
-      nodeBounds,
+      verticalRange,
       activeCarriers.length
     ).toSorted((left, right) => left - right);
     activeCarriers.forEach((carrier, index) => {
@@ -260,7 +338,27 @@ function buildCarrierXMap(
   return result;
 }
 
-function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBounds, count) {
+function computeActiveCarrierVerticalRange(activeCarriers, carrierYById, edgeById, nodeById) {
+  const values = [];
+  for (const carrier of activeCarriers) {
+    const carrierY = carrierYById?.get(carrier.id);
+    if (Number.isFinite(carrierY)) values.push(carrierY);
+    if (!carrier.previousCarrierId) {
+      const source = nodeById.get(carrier.sourceNodeId);
+      if (source) values.push(Number(source.y), Number(source.y) + Number(source.height));
+    }
+    for (const edgeId of carrier.terminatingEdgeIds || []) {
+      const target = nodeById.get(edgeById.get(String(edgeId))?.target);
+      if (target) values.push(Number(target.y), Number(target.y) + Number(target.height));
+    }
+  }
+  const finiteValues = values.filter(Number.isFinite);
+  return finiteValues.length > 0
+    ? { top: Math.min(...finiteValues) - 8, bottom: Math.max(...finiteValues) + 8 }
+    : null;
+}
+
+function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, verticalRange, count) {
   if (!(maximum >= minimum) || count <= 0) return [];
   const candidates = [preferred, minimum, maximum];
   const pitch = ROUTE_GEOMETRY_POLICY.boundaryCarrierTrackPitch;
@@ -274,13 +372,14 @@ function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, nodeBound
   return [...new Set(candidates
     .filter((value) => Number.isFinite(value) && value >= minimum && value <= maximum)
     .toSorted((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred) || left - right)
-    .filter((value) => nodeIndex.query({
+    .filter((value) => !verticalRange || nodeIndex.query({
       left: value - 8,
       right: value + 8,
-      top: nodeBounds.top,
-      bottom: nodeBounds.bottom
-    }).every((node) =>
-      value <= Number(node.x) - 8 || value >= Number(node.x) + Number(node.width) + 8)))]
+      top: verticalRange.top,
+      bottom: verticalRange.bottom
+    }).every((node) => value <= Number(node.x) - 8 ||
+      value >= Number(node.x) + Number(node.width) + 8))
+  )]
     .slice(0, Math.min(count, maximumTracks));
 }
 

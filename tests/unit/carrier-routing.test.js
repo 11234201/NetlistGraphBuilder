@@ -94,6 +94,67 @@ test("the first carrier stays next to its physical source", () => {
   assert.equal(result.carrierXById.get("carrier:n:0"), 104);
 });
 
+test("an unrelated node at the same x does not erase a boundary-local carrier track", () => {
+  const graph = makeLayeredGraph();
+  graph.carrierBoundaries[0].carriers = [{
+    id: "carrier:n:0",
+    sourceNodeId: "src",
+    previousCarrierId: null
+  }];
+  const nodes = makeNodes();
+  nodes.push({
+    id: "distant",
+    kind: "cell",
+    level: 3,
+    x: 96,
+    y: 1000,
+    width: 16,
+    height: 32,
+    ports: []
+  });
+  const result = buildCarrierPhysicalNetRoutes(
+    graph,
+    nodes,
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]])
+  );
+
+  assert.equal(result.carrierXById.get("carrier:n:0"), 104);
+});
+
+test("inactive localized sources do not close an active carrier boundary", () => {
+  const graph = makeLayeredGraph();
+  graph.carrierBoundaries[0].carriers = [
+    {
+      id: "carrier:n:0",
+      sourceNodeId: "src",
+      previousCarrierId: null
+    },
+    {
+      id: "carrier:inactive:0",
+      sourceNodeId: "localized",
+      previousCarrierId: null
+    }
+  ];
+  const nodes = makeNodes();
+  nodes.push({
+    id: "localized",
+    kind: "input",
+    level: 0,
+    x: 300,
+    y: 1000,
+    width: 200,
+    height: 32,
+    ports: []
+  });
+  const result = buildCarrierPhysicalNetRoutes(
+    graph,
+    nodes,
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]])
+  );
+
+  assert.equal(result.carrierXById.get("carrier:n:0"), 104);
+});
+
 test("wide boundaries expose more than the legacy 65 carrier tracks", () => {
   const carriers = Array.from({ length: 80 }, (_, index) => ({
     id: `carrier:n${index}:0`,
@@ -125,6 +186,59 @@ test("wide boundaries expose more than the legacy 65 carrier tracks", () => {
 
   assert.equal(result.carrierXById.size, 80);
   assert.equal(new Set(result.carrierXById.values()).size, 80);
+});
+
+test("carrier routing reports bounded physical-net and saturated-boundary coverage", () => {
+  const carriers = Array.from({ length: 300 }, (_, index) => ({
+    id: `carrier:n${index}:0`,
+    netGroupKey: `src\0n${index}`,
+    physicalNetFanout: index === 299 ? 100 : 1,
+    sourceNodeId: "src",
+    boundaryColumn: 0,
+    order: index,
+    logicalEdgeIds: [`edge:${index}`]
+  }));
+  const result = buildCarrierPhysicalNetRoutes({
+    orientedEdges: carriers.map((carrier, index) => ({
+      id: carrier.logicalEdgeIds[0],
+      source: "src",
+      target: "target",
+      net: `n${index}`,
+      physicalNetKey: carrier.netGroupKey
+    })),
+    carriers,
+    carrierBoundaries: [{
+      boundaryColumn: 0,
+      leftLevel: 0,
+      rightLevel: 1,
+      carriers
+    }]
+  }, [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 0, width: 80, height: 32, ports: [] },
+    { id: "target", kind: "cell", level: 1, x: 5000, y: 0, width: 80, height: 32, ports: [] }
+  ], new Map(carriers.map((carrier, index) => [carrier.id, 40 + index * 8])));
+
+  assert.equal(result.coverage.physicalNetCount, 300);
+  assert.equal(result.coverage.eligiblePhysicalNetCount, 300);
+  assert.equal(result.coverage.inactivePhysicalNetCount, 0);
+  assert.equal(result.coverage.incompletePhysicalNetCount, 44);
+  assert.equal(result.coverage.saturatedBoundaryCount, 1);
+  assert.deepEqual(result.coverage.topPhysicalNets[0], {
+    physicalNetKey: "src\0n299",
+    fanout: 100,
+    carrierCount: 1,
+    xAnchorCount: 0,
+    yAnchorCount: 1,
+    completeAnchorCount: 0,
+    missingBoundaryColumns: [0]
+  });
+  assert.deepEqual(result.coverage.saturatedBoundaries, [{
+    boundaryColumn: 0,
+    carrierCount: 300,
+    xAnchorCount: 256,
+    yAnchorCount: 300,
+    completeAnchorCount: 256
+  }]);
 });
 
 function makeLayeredGraph() {

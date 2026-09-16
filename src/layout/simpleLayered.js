@@ -281,6 +281,7 @@ export function layoutGraph(graph, options = {}) {
     carrierRoutingSummary: carrierRouting ? {
       groupCount: carrierRouting.groups.length,
       validGroupCount: carrierRoutesByPhysicalNet.size,
+      coverage: carrierRouting.coverage,
       diagnosticCounts: countDiagnosticCodes(carrierRouting.diagnostics),
       violationCounts: countCarrierViolationCodes(carrierRouting.diagnostics),
       diagnosticSamples: carrierRouting.diagnostics
