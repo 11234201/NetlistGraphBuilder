@@ -20,6 +20,9 @@ export function analyzeLayoutQuality(graph) {
   let outerRouteCount = 0;
   let totalDetour = 0;
   let detourRouteCount = 0;
+  let bentRouteCount = 0;
+  let horizontalFirstRouteCount = 0;
+  let horizontalEndpointRouteCount = 0;
 
   for (const edge of graph.edges || []) {
     const points = edge.points || [];
@@ -32,6 +35,15 @@ export function analyzeLayoutQuality(graph) {
     totalBends += bends;
     maxBends = Math.max(maxBends, bends);
     if (bends === 0) directRouteCount += 1;
+    if (bends > 0) {
+      bentRouteCount += 1;
+      const firstOrientation = segmentOrientation(points[0], points[1]);
+      const lastOrientation = segmentOrientation(points.at(-2), points.at(-1));
+      if (firstOrientation === "horizontal") horizontalFirstRouteCount += 1;
+      if (firstOrientation === "horizontal" && lastOrientation === "horizontal") {
+        horizontalEndpointRouteCount += 1;
+      }
+    }
     if (edge.showLabel === false) hiddenLabelCount += 1;
     if (directDistance > 0) {
       totalDetour += length / directDistance;
@@ -69,6 +81,11 @@ export function analyzeLayoutQuality(graph) {
     edgeCount,
     directRouteCount,
     directRouteRatio: ratio(directRouteCount, edgeCount),
+    bentRouteCount,
+    horizontalFirstRouteCount,
+    horizontalFirstRouteRatio: ratio(horizontalFirstRouteCount, bentRouteCount),
+    horizontalEndpointRouteCount,
+    horizontalEndpointRouteRatio: ratio(horizontalEndpointRouteCount, bentRouteCount),
     totalLength: round(totalLength),
     averageLength: round(totalLength / Math.max(1, edgeCount)),
     totalBends,
@@ -125,6 +142,8 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
   const candidate = analyzeLayoutQuality(candidateGraph);
   const keys = [
     "directRouteRatio",
+    "horizontalFirstRouteRatio",
+    "horizontalEndpointRouteRatio",
     "totalLength",
     "averageLength",
     "totalBends",
@@ -155,6 +174,13 @@ export function compareLayoutQuality(baseGraph, candidateGraph) {
     candidate,
     delta: Object.fromEntries(keys.map((key) => [key, round(candidate[key] - base[key])]))
   };
+}
+
+function segmentOrientation(from, to) {
+  if (!from || !to) return "none";
+  if (near(from.y, to.y) && !near(from.x, to.x)) return "horizontal";
+  if (near(from.x, to.x) && !near(from.y, to.y)) return "vertical";
+  return "none";
 }
 
 function isOuterRoute(edge) {

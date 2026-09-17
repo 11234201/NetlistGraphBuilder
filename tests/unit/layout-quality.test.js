@@ -42,6 +42,9 @@ test("layout quality summarizes bends, detours, crossings and overlaps", () => {
   const quality = analyzeLayoutQuality(graph);
 
   assert.equal(quality.directRouteCount, 2);
+  assert.equal(quality.bentRouteCount, 2);
+  assert.equal(quality.horizontalFirstRouteCount, 0);
+  assert.equal(quality.horizontalEndpointRouteCount, 0);
   assert.equal(quality.totalBends, 4);
   assert.equal(quality.crossingCount, 2);
   assert.equal(quality.overlapCount, 0);

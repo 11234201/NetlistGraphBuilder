@@ -63,6 +63,8 @@ test("secondary fanout candidates use their planned source lane", () => {
 
   assert.equal(trunk.points[1].x, 140);
   assert.equal(trunk.points[2].x, 140);
+  assert.equal(trunk.points[0].y, trunk.points[1].y);
+  assert.equal(trunk.points.at(-2).y, trunk.points.at(-1).y);
 });
 
 test("group channel candidates consume node-local source and target escape lanes", () => {

@@ -91,7 +91,7 @@ ELK layered 作为视觉和结构 golden，但不要求逐坐标一致。固定�
 - [x] P1 平衡初始放置原语与单元测试（策略开关下验证，默认开启待 P2 回归）；
 - [x] P2 BK alignment blocks（四方向、type-1 冲突、block-aware compaction 与择优已完成）；
 - [x] P3 对称分支/分量 packing；
-- [ ] P4 路由一致性；
+- [x] P4 路由一致性；
 - [ ] P5 全量验收、提交、推送与合并。
 
 ### 2026-09-17 P1 A/B
@@ -165,3 +165,11 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - 弱连通分量按稳定拓扑 id 独立纵向 packing，保持分量内部几何；多分量结果若扩大画布会在同一
   raw score 门槛被淘汰。
 - P3 收尾全量测试 610/610；两张 golden 保持 `clk` legacy、`_1471_` balanced 的既有最优结果。
+
+### 2026-09-17 P4 路由方向一致性
+
+- `layoutQuality` 新增 bent route 的 horizontal-first 与 horizontal-endpoint 数量/比例；
+- basic direct、fanout trunk、capacity channel、local dogleg 保持“水平逃逸—必要垂直—水平进入侧端口”；
+- outer lane 仍只在局部硬合法候选失败后使用，不与局部候选作为普通加权同级竞争；
+- `clk` 1/1 与 `_1471_` 3/3 的 horizontal-first ratio、horizontal-endpoint ratio 均为 1.0；
+  前者 outer=0，后者 outer=4，missing/violation 均为 0/0。
