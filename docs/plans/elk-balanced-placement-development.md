@@ -118,3 +118,7 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - 策略已改为默认开启，旧路径仍是逐图自动回退点；全量单元回归 597/597 通过。
 - 双候选择优当前只作用于 Focused：8192-cell Whole benchmark 首轮从约 5.24 s 增至 5.90 s，
   证明 Whole 双跑 placement 不满足性能目标。Whole 继续单路径，待 P2 block 原地计算后再开放。
+- Whole 单路径修正后的远端 benchmark（1024/4096/8192 cells）为 200.5 ms / 1,278.3 ms /
+  5,109.1 ms，恢复并略优于此前约 207 ms / 1.40 s / 5.24 s 的基线；
+- `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases`：47 个 case 中失败 14，与进入本阶段前
+  基线一致；eq007、eq012 Whole 均 PASS 且 violation = 0。
