@@ -252,10 +252,20 @@ export function layoutGraph(graph, options = {}) {
         // Whole graphs can contain thousands of carrier branches. Their
         // variants are fallback geometry, not a graph-sized search budget.
         // Keep the richer repair family for Focused views and one canonical
-        // carrier candidate for experimental Whole proper-layering.
+        // carrier candidate for ordinary Whole graphs. Long single-load nets
+        // need only the nearest two bounded repair offsets; avoid multiplying
+        // validation work for graphs such as eq007 that contain high-fanout
+        // carriers but no eligible long single-load carrier.
         anchorOffsets: hasFocusedBoundary
           ? [0, -8, 8, -16, 16, -24, 24, -32, 32]
-          : [0]
+          : hasEligibleLongSingleCarriers(
+              layeredGraph.carriers,
+              carrierMinimumFanout,
+              carrierMinimumSpan,
+              1
+            )
+            ? [0, -8, 8]
+            : [0]
       }
     )
     : null;
@@ -359,6 +369,18 @@ function isCarrierPhysicalNetEligible(
     carrier.netGroupKey === physicalNetKey &&
     Number(carrier.physicalNetSpan) >= minimumSpan &&
     Number(carrier.sourceColumn) >= minimumLongSpanSourceColumn);
+}
+
+function hasEligibleLongSingleCarriers(
+  carriers,
+  minimumFanout,
+  minimumSpan,
+  minimumSourceColumn
+) {
+  return (carriers || []).some((carrier) =>
+    Number(carrier.physicalNetFanout) < minimumFanout &&
+    Number(carrier.physicalNetSpan) >= minimumSpan &&
+    Number(carrier.sourceColumn) >= minimumSourceColumn);
 }
 
 function countDiagnosticCodes(diagnostics = []) {

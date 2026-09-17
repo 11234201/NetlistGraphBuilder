@@ -141,7 +141,8 @@ function summarizeMissingRoutes(graph, missing) {
       missing: edges.length,
       maximumSpan: Math.max(0, ...spans),
       overflow: assignments.some((entry) => entry.capacityOverflow === true),
-      diagnosticCodes: countCodes(edges.flatMap((edge) => edge.routeDiagnostics || []))
+      diagnosticCodes: countCodes(edges.flatMap((edge) => edge.routeDiagnostics || [])),
+      diagnosticSamples: edges.flatMap((edge) => edge.routeDiagnostics || []).slice(0, 3)
     };
   }).sort((left, right) =>
     right.missing - left.missing || right.maximumSpan - left.maximumSpan ||
