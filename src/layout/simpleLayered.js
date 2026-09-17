@@ -187,23 +187,46 @@ export function layoutGraph(graph, options = {}) {
   if (policy.features.balancedLayerPlacement && hasFocusedBoundary) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
+    const blockNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
-      )
+      ),
+      alignmentBlocks: false
+    });
+    applyBalancedLayerPlacement(blockNodes, graph.edges, levelKeys, {
+      minimumY: topWireSpace + margin,
+      gap: Math.max(
+        Number(policy.spacing.cellSpacing) || 8,
+        Number(policy.spacing.compactYGap) || 8
+      ),
+      alignmentBlocks: true
     });
     runPlacement(legacyNodes);
     runPlacement(balancedNodes);
-    const selection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
+    runPlacement(blockNodes);
+    const balancedSelection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
+      gap: Math.max(
+        Number(policy.spacing.cellSpacing) || 8,
+        Number(policy.spacing.compactYGap) || 8
+      )
+    });
+    const selection = chooseBalancedPlacement(balancedSelection.nodes, blockNodes, graph.edges, {
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
       )
     });
     positionedNodes = selection.nodes;
-    options.onPlacementSelection?.(selection);
+    options.onPlacementSelection?.({
+      selected: selection.nodes === blockNodes
+        ? "alignment-blocks"
+        : balancedSelection.selected,
+      balancedSelection,
+      blockSelection: selection
+    });
   } else {
     runPlacement(positionedNodes, options.onPlacementStage);
   }

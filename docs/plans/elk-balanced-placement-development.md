@@ -122,3 +122,13 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
   5,109.1 ms，恢复并略优于此前约 207 ms / 1.40 s / 5.24 s 的基线；
 - `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases`：47 个 case 中失败 14，与进入本阶段前
   基线一致；eq007、eq012 Whole 均 PASS 且 violation = 0。
+
+### 2026-09-17 P2 alignment block 起步
+
+- 按既有层内顺序为每个 target 选择中位 predecessor，构造每层至多一个成员的确定性 path block；
+- block 使用真实端口 y offset，不假设节点中心等价于连接点；
+- 高扇出 source 标记为冲突，不绑定任意单个 branch，继续作为软中位数偏好；
+- Focused 同时保留 legacy、balanced、balanced+block 三个候选，block 只能在既有 P1 最优结果上
+  继续改善，不能替换或吞掉已经验收的 balanced 收益；
+- `_1471_` 3/3：6,322 × 25,984，physical crossing 2,844 → 2,813，outer 6 → 4，
+  missing/violation 保持 0/0；逻辑 crossing 暂为 90,009，后续四方向 variant 需将其纳入择优。

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyBalancedLayerPlacement,
+  buildAlignmentBlocks,
   chooseBalancedPlacement,
   compactOrderedLayer
 } from "../../src/layout/layered/balancedPlacement.js";
@@ -89,4 +90,67 @@ test("candidate selection accepts a compact aligned placement", () => {
   assert.equal(selection.selected, "balanced");
   assert.equal(selection.reason, "lower-placement-score");
   assert.equal(selection.candidate.alignedEdgeCount, 1);
+});
+
+test("alignment blocks choose a median predecessor and keep one node per layer", () => {
+  const nodes = [
+    node("a", 0, 0), node("b", 0, 1), node("c", 0, 2),
+    node("d", 1, 0), node("e", 2, 0)
+  ];
+  const edges = [
+    { id: "ad", source: "a", target: "d", sourcePin: "Y", targetPin: "A" },
+    { id: "bd", source: "b", target: "d", sourcePin: "Y", targetPin: "A" },
+    { id: "cd", source: "c", target: "d", sourcePin: "Y", targetPin: "A" },
+    { id: "de", source: "d", target: "e", sourcePin: "Y", targetPin: "A" }
+  ];
+
+  const result = buildAlignmentBlocks(nodes, edges, [0, 1, 2]);
+
+  assert.deepEqual(result.alignedEdges.map((edge) => edge.id), ["bd", "de"]);
+  assert.deepEqual(result.blocks[0].members.map((member) => member.nodeId), ["b", "d", "e"]);
+  assert.equal(new Set(result.blocks[0].members.map((member) => member.level)).size, 3);
+});
+
+test("alignment block construction is invariant to node and edge permutations", () => {
+  const nodes = [node("a", 0, 0), node("b", 0, 1), node("c", 1, 0), node("d", 2, 0)];
+  const edges = [
+    { id: "ac", source: "a", target: "c", sourcePin: "Y", targetPin: "A" },
+    { id: "bc", source: "b", target: "c", sourcePin: "Y", targetPin: "A" },
+    { id: "cd", source: "c", target: "d", sourcePin: "Y", targetPin: "A" }
+  ];
+  const summarize = (result) => result.blocks.map((block) =>
+    block.members.map((member) => `${member.nodeId}:${member.offset}`).join("|"));
+
+  assert.deepEqual(
+    summarize(buildAlignmentBlocks(nodes, edges, [0, 1, 2])),
+    summarize(buildAlignmentBlocks(nodes.toReversed(), edges.toReversed(), [0, 1, 2]))
+  );
+});
+
+test("alignment blocks leave fanout branches as soft preferences", () => {
+  const nodes = [node("source", 0, 0), node("left", 1, 0), node("right", 1, 1)];
+  const edges = [
+    { id: "sl", source: "source", target: "left", sourcePin: "Y", targetPin: "A" },
+    { id: "sr", source: "source", target: "right", sourcePin: "Y", targetPin: "A" }
+  ];
+
+  const result = buildAlignmentBlocks(nodes, edges, [0, 1]);
+
+  assert.deepEqual(result.blocks, []);
+  assert.deepEqual(result.alignedEdges, []);
+});
+
+test("alignment blocks leave terminal placement to its owning stage", () => {
+  const source = node("source", 0, 0);
+  const output = { ...node("output", 1, 0), kind: "focus-output" };
+  const result = buildAlignmentBlocks([source, output], [{
+    id: "terminal",
+    source: "source",
+    target: "output",
+    sourcePin: "Y",
+    targetPin: "A"
+  }], [0, 1]);
+
+  assert.deepEqual(result.blocks, []);
+  assert.deepEqual(result.alignedEdges, []);
 });
