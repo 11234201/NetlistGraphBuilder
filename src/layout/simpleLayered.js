@@ -100,7 +100,10 @@ export function layoutGraph(graph, options = {}) {
   // again immediately after ordering; nothing downstream sees them yet.
   const hasFocusedBoundary = graph.nodes.some((node) =>
     node.kind === "focus-input" || node.kind === "focus-output");
-  const useProperLayering = hasFocusedBoundary || policy.features.wholeProperLayering;
+  const useProperLayering = hasFocusedBoundary || (
+    policy.features.wholeProperLayering &&
+    graph.nodes.length >= policy.layering.wholeProperLayeringMinimumNodes
+  );
   const carrierMinimumFanout = hasFocusedBoundary
     ? policy.layering.carrierMinimumFanout
     : policy.layering.wholeCarrierMinimumFanout;

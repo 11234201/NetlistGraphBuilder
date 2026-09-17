@@ -59,7 +59,10 @@ test("Whole layout reports bounded proper-layering metrics and stage timings", (
   const graph = buildSchematicGraph(parseVerilog(source).modules[0]);
   const callbacks = [];
   const positioned = layoutGraph(graph, {
-    layoutPolicy: { features: { wholeProperLayering: true } },
+    layoutPolicy: {
+      features: { wholeProperLayering: true },
+      layering: { wholeProperLayeringMinimumNodes: 0 }
+    },
     onLayoutStage: (stage, detail, timing) => callbacks.push({ stage, detail, timing })
   });
 

@@ -246,3 +246,11 @@ eq007 的峰值同时活动区间超过旧 256 常量。固定上限逐步验证
 - eq012 Whole proper-layering：继续保持 0 missing / 0 violation，布局约 21.5 秒，宽度 45,095，physical overlaps 0。
 - 单元测试 591/591 通过；full-node mapped 默认路径从此前 30/47 失败改善为 26/47 失败，eq007 默认路径也通过 0 violation。剩余失败仍属于既有大图 violation budget 或 45 秒超时范围，没有新增失败数。
 - 1024/4096/8192-cell benchmark 中位布局约 185 ms / 1.24 s / 5.33 s。最大规模比前一检查点约 4.55 秒慢，后续默认启用 Whole proper-layering 前需继续关注，但没有出现复杂度悬崖。
+
+### 2026-09-17：大 Whole 默认启用，保留小图轻量路径
+
+直接对所有 Whole 打开 proper-layering 会改变小图的直连主链和 fanout 表达，导致 7 项既有可读性契约失败。因此默认切换不是无条件布尔翻转，而是在 layout policy 中增加并规范化 `wholeProperLayeringMinimumNodes=512`：Focused 继续始终使用 layered graph；Whole 在功能开关开启且节点数达到门槛时使用 dummy/carrier/capacity 流水线，小于门槛时保留原直接路由。
+
+不设置任何实验环境变量的产品默认路径复测：eq007 为 0 missing / 0 violation、宽度 16,980、布局约 18.8 秒；eq012 为 0 missing / 0 violation、宽度 45,095、布局约 21.9 秒。常规单元测试 591/591 通过，证明小图契约未因默认切换回退。
+
+默认切换后的 `MAPPED_CASE_NO_COLLAPSE=1` 全量回归从旧路径的 26/47 失败进一步改善为 14/47 失败，总 violation 由 5,490 降至 1,019。eq007 和 eq012 均在默认路径下通过 0 violation；多个 datapath/SOP fixture 也从 violation-budget 失败转为通过。剩余 14 项由更大图的已知 carrier 饱和、violation budget 或 45 秒超时构成，作为后续通用化工作，不阻塞本阶段 eq007/eq012 的产品切换。默认 benchmark 为约 207 ms / 1.40 s / 5.24 s（1024/4096/8192 cells）。

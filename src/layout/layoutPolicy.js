@@ -40,7 +40,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     routingDrivenLayerSpacing: true,
     // Whole graphs opt into the proper-layering path only after their carrier
     // and gap routing acceptance gates pass. Focused graphs already use it.
-    wholeProperLayering: false
+    wholeProperLayering: true
   }),
   layering: Object.freeze({
     // Bounded deterministic relaxation that replaces the longest-path
@@ -62,6 +62,10 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // Preserve dummy-chain slots for long single-load nets without turning
     // every adjacent-layer edge into a carrier.
     wholeCarrierMinimumSpan: 6,
+    // Small Whole graphs keep the lightweight direct-routing path. Proper
+    // layering becomes the product default only once graph size can benefit
+    // from dummy-aware ordering and capacity channels.
+    wholeProperLayeringMinimumNodes: 512,
     // Upper bound on the dummy nodes `longEdgeDummies` may create.
     maxDummyNodes: 40000
   })
@@ -72,6 +76,7 @@ export const LAYERING_LIMITS = Object.freeze({
   carrierMinimumFanout: Object.freeze([2, 1024]),
   wholeCarrierMinimumFanout: Object.freeze([1, 1024]),
   wholeCarrierMinimumSpan: Object.freeze([2, 64]),
+  wholeProperLayeringMinimumNodes: Object.freeze([0, 100000]),
   maxDummyNodes: Object.freeze([0, 500000])
 });
 
@@ -160,6 +165,13 @@ function normalizeLayering(layering) {
   layering.wholeCarrierMinimumSpan = Number.isFinite(wholeCarrierMinimumSpan)
     ? clamp(Math.floor(wholeCarrierMinimumSpan), ...LAYERING_LIMITS.wholeCarrierMinimumSpan)
     : DEFAULT_LAYOUT_POLICY.layering.wholeCarrierMinimumSpan;
+  const wholeProperLayeringMinimumNodes = Number(layering.wholeProperLayeringMinimumNodes);
+  layering.wholeProperLayeringMinimumNodes = Number.isFinite(wholeProperLayeringMinimumNodes)
+    ? clamp(
+      Math.floor(wholeProperLayeringMinimumNodes),
+      ...LAYERING_LIMITS.wholeProperLayeringMinimumNodes
+    )
+    : DEFAULT_LAYOUT_POLICY.layering.wholeProperLayeringMinimumNodes;
   const maximumDummies = Number(layering.maxDummyNodes);
   layering.maxDummyNodes = Number.isFinite(maximumDummies)
     ? clamp(Math.floor(maximumDummies), ...LAYERING_LIMITS.maxDummyNodes)
