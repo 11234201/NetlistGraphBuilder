@@ -12,6 +12,7 @@ import {
   reserveLeadingCarrierLane
 } from "./layered/carrier_placement.js";
 import { buildLayeredGraph } from "./layered/layered_graph.js";
+import { applyBalancedLayerPlacement } from "./layered/balancedPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -175,6 +176,16 @@ export function layoutGraph(graph, options = {}) {
     layoutIntent,
     policy
   });
+
+  if (policy.features.balancedLayerPlacement) {
+    applyBalancedLayerPlacement(positionedNodes, graph.edges, levelKeys, {
+      minimumY: topWireSpace + margin,
+      gap: Math.max(
+        Number(policy.spacing.cellSpacing) || 8,
+        Number(policy.spacing.compactYGap) || 8
+      )
+    });
+  }
 
   runSimplePlacementPipeline({
     positionedNodes,

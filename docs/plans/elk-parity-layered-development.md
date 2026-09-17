@@ -220,6 +220,9 @@ carrier 树提前提交会阻塞异网，改成失败物理网的原子后修复
 
 ### S4 — BK 放置
 
+当前执行拆解、验收基线和进度统一记录在
+[`elk-balanced-placement-development.md`](./elk-balanced-placement-development.md)。
+
 ```
 for variant in 4 个 (层遍历方向 × 层内方向) 组合:
   conflicts = markTypeOneConflicts(layered)      // 偏好拉直虚链

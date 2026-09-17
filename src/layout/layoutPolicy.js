@@ -21,6 +21,12 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
   features: Object.freeze({
     alignDrivenLinks: true,
     branchAwareLanes: true,
+    // Centre layers around one visual axis and compact them toward median
+    // neighbour-port positions while preserving the established layer order.
+    // Kept behind a policy switch until the BK block pass preserves every
+    // existing focused routing corridor. The implementation is exercised by
+    // focused placement tests while the product default remains reversible.
+    balancedLayerPlacement: false,
     localizeSingleFanoutInputs: true,
     // Experimental until proper long-edge placement and chain routing land.
     // Enabling span minimization alone changes the geometry seen by the
