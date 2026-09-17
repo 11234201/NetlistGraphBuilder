@@ -269,6 +269,7 @@ function parseLayoutPolicy(argumentsList) {
   const carrierMinimumFanoutArgument = argumentsList.find((argument) =>
     argument.startsWith("--carrier-min-fanout="));
   const features = {
+    ...(argumentsList.includes("--balanced-placement") ? { balancedLayerPlacement: true } : {}),
     ...(argumentsList.includes("--minimal-span") ? { minimalSpanLayering: true } : {}),
     ...(argumentsList.includes("--long-edge-dummies") ? { longEdgeDummies: true } : {}),
     ...(argumentsList.includes("--physical-carriers") ? { physicalCarrierRouting: true } : {}),
