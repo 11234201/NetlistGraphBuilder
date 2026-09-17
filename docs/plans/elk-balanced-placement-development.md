@@ -90,7 +90,7 @@ ELK layered 作为视觉和结构 golden，但不要求逐坐标一致。固定�
 - [x] 固定 golden、Whole 回归和性能门槛；
 - [x] P1 平衡初始放置原语与单元测试（策略开关下验证，默认开启待 P2 回归）；
 - [x] P2 BK alignment blocks（四方向、type-1 冲突、block-aware compaction 与择优已完成）；
-- [ ] P3 对称分支/分量 packing；
+- [x] P3 对称分支/分量 packing；
 - [ ] P4 路由一致性；
 - [ ] P5 全量验收、提交、推送与合并。
 
@@ -155,3 +155,13 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - 四个 raw variant 先彼此择优，只有一个进入完整 pipeline；最终仍与 balanced 同阶段比较；
 - `_1471_` 当前选择 balanced，保持 6,346 × 25,984、89,259 crossings、outer 4、0/0；
   block 能完整运行但尚未优于 balanced，后续不再以调权重作为优化手段。
+
+### 2026-09-17 P3 对称 fanout 候选
+
+- 相邻层同源 fanout 按既有 target 顺序围绕 source 真实端口上下对称展开；
+- 多 source 对同一 target 的偏好取中位数，node/edge 数组排列不影响结果；
+- symmetric 与 balanced 分离：raw score 先筛选，胜出者才进入完整 pipeline，最终再次和 balanced
+  比较；因此该实验能力不能吞掉 P1 已验收收益。
+- 弱连通分量按稳定拓扑 id 独立纵向 packing，保持分量内部几何；多分量结果若扩大画布会在同一
+  raw score 门槛被淘汰。
+- P3 收尾全量测试 610/610；两张 golden 保持 `clk` legacy、`_1471_` balanced 的既有最优结果。

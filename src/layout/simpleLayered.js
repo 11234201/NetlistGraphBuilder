@@ -189,13 +189,25 @@ export function layoutGraph(graph, options = {}) {
   if (policy.features.balancedLayerPlacement && hasFocusedBoundary) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
+    const symmetricNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
       ),
-      alignmentBlocks: false
+      alignmentBlocks: false,
+      symmetricFanout: false
+    });
+    applyBalancedLayerPlacement(symmetricNodes, graph.edges, levelKeys, {
+      minimumY: topWireSpace + margin,
+      gap: Math.max(
+        Number(policy.spacing.cellSpacing) || 8,
+        Number(policy.spacing.compactYGap) || 8
+      ),
+      alignmentBlocks: false,
+      symmetricFanout: true,
+      packComponents: true
     });
     const placementGap = Math.max(
       Number(policy.spacing.cellSpacing) || 8,
@@ -222,9 +234,16 @@ export function layoutGraph(graph, options = {}) {
       graph.edges,
       { gap: placementGap, requireImprovement: false, enforceCenter: false }
     );
+    const symmetricCandidate = chooseBestPlacementCandidate(
+      balancedNodes,
+      [symmetricNodes],
+      graph.edges,
+      { gap: placementGap }
+    );
     const blockNodes = blockCandidate.nodes;
     runPlacement(legacyNodes);
     runPlacement(balancedNodes);
+    if (symmetricCandidate.nodes !== balancedNodes) runPlacement(symmetricNodes);
     if (blockNodes !== balancedNodes) runPlacement(blockNodes);
     const balancedSelection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
       gap: Math.max(
@@ -232,9 +251,14 @@ export function layoutGraph(graph, options = {}) {
         Number(policy.spacing.compactYGap) || 8
       )
     });
+    const symmetricSelection = symmetricCandidate.nodes === balancedNodes
+      ? { nodes: balancedSelection.nodes, selected: balancedSelection.selected }
+      : chooseBalancedPlacement(balancedSelection.nodes, symmetricNodes, graph.edges, {
+        gap: placementGap
+      });
     const selection = blockNodes === balancedNodes
-      ? { nodes: balancedSelection.nodes }
-      : chooseBalancedPlacement(balancedSelection.nodes, blockNodes, graph.edges, {
+      ? { nodes: symmetricSelection.nodes }
+      : chooseBalancedPlacement(symmetricSelection.nodes, blockNodes, graph.edges, {
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
@@ -243,12 +267,13 @@ export function layoutGraph(graph, options = {}) {
     positionedNodes = selection.nodes;
     const selectedName = selection.nodes === blockNodes && blockNodes !== balancedNodes
       ? `alignment-blocks-${blockCandidate.selectedIndex}`
-      : balancedSelection.selected;
+      : selection.nodes === symmetricNodes ? "symmetric-fanout" : balancedSelection.selected;
     placementSelectionMetrics = Object.freeze({
       enabled: true,
       selected: selectedName,
       legacy: freezePlacementSummary(balancedSelection.legacy),
       balanced: freezePlacementSummary(balancedSelection.candidate),
+      symmetric: freezePlacementSummary(symmetricCandidate.summaries[0]),
       blockVariants: Object.freeze(blockCandidate.summaries.map(freezePlacementSummary)),
       blockVariantIndex: blockCandidate.selectedIndex
     });

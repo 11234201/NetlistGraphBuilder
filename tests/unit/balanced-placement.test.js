@@ -3,10 +3,12 @@ import test from "node:test";
 import {
   applyBalancedLayerPlacement,
   buildAlignmentBlocks,
+  buildSymmetricFanoutPreferences,
   chooseBestPlacementCandidate,
   chooseBalancedPlacement,
   compactAlignmentBlocks,
-  compactOrderedLayer
+  compactOrderedLayer,
+  packWeakComponents
 } from "../../src/layout/layered/balancedPlacement.js";
 
 function node(id, level, order, height = 20, pinY = 10) {
@@ -278,4 +280,56 @@ test("type-one conflict filtering rejects crossing alignment edges", () => {
 
   assert.equal(result.alignedEdges.length, 1);
   assert.equal(result.alignedEdges[0].id, "bc");
+});
+
+test("fanout preferences distribute ordered targets around the source port", () => {
+  const source = node("source", 0, 0);
+  source.y = 100;
+  const upper = node("upper", 1, 0);
+  const lower = node("lower", 1, 1);
+  upper.y = 0;
+  lower.y = 40;
+  const preferences = buildSymmetricFanoutPreferences([source, upper, lower], [
+    { id: "su", source: "source", target: "upper", sourcePin: "Y", targetPin: "A" },
+    { id: "sl", source: "source", target: "lower", sourcePin: "Y", targetPin: "A" }
+  ], { gap: 8 });
+
+  assert.equal(preferences.get("upper"), 86);
+  assert.equal(preferences.get("lower"), 114);
+  assert.equal(
+    (preferences.get("upper") + upper.height / 2 + preferences.get("lower") + lower.height / 2) / 2,
+    110
+  );
+});
+
+test("fanout preferences are invariant to graph array order", () => {
+  const nodes = [node("source", 0, 0), node("a", 1, 0), node("b", 1, 1)];
+  const edges = [
+    { id: "sa", source: "source", target: "a", sourcePin: "Y", targetPin: "A" },
+    { id: "sb", source: "source", target: "b", sourcePin: "Y", targetPin: "A" }
+  ];
+  assert.deepEqual(
+    buildSymmetricFanoutPreferences(nodes, edges, { gap: 8 }),
+    buildSymmetricFanoutPreferences(nodes.toReversed(), edges.toReversed(), { gap: 8 })
+  );
+});
+
+test("weak components pack with deterministic vertical separation", () => {
+  const nodes = [node("a", 0, 0), node("b", 1, 0), node("c", 0, 1), node("d", 1, 1)];
+  nodes[0].y = 100;
+  nodes[1].y = 120;
+  nodes[2].y = 0;
+  nodes[3].y = 10;
+  const edges = [
+    { id: "ab", source: "a", target: "b" },
+    { id: "cd", source: "c", target: "d" }
+  ];
+
+  const result = packWeakComponents(nodes, edges, { minimumY: 10, gap: 32 });
+  const firstBottom = Math.max(nodes[0].y + nodes[0].height, nodes[1].y + nodes[1].height);
+  const secondTop = Math.min(nodes[2].y, nodes[3].y);
+
+  assert.equal(result.componentCount, 2);
+  assert.equal(result.moved, true);
+  assert.ok(secondTop >= firstBottom + 32);
 });

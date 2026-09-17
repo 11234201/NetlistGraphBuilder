@@ -16,7 +16,9 @@ export function applyBalancedLayerPlacement(
     gap = 8,
     sweeps = DEFAULT_SWEEPS,
     alignmentBlocks = true,
-    alignmentVariant = {}
+    alignmentVariant = {},
+    symmetricFanout = false,
+    packComponents = false
   } = {}
 ) {
   if (!Array.isArray(nodes) || nodes.length === 0) return nodes;
@@ -53,17 +55,99 @@ export function applyBalancedLayerPlacement(
   const passes = Math.max(0, Math.min(16, Math.floor(Number(sweeps) || 0)));
   for (let pass = 0; pass < passes; pass += 1) {
     const blockPreferred = preferredYsByBlock(alignment.blocks, nodeById);
+    const fanoutPreferred = symmetricFanout
+      ? buildSymmetricFanoutPreferences(nodes, edges, { gap })
+      : new Map();
     const levels = pass % 2 === 0 ? [...(levelKeys || [])] : [...(levelKeys || [])].reverse();
     for (const level of levels) {
       const layer = orderedByLevel.get(level) || [];
       if (layer.length === 0) continue;
       const preferred = layer.map((node) => blockPreferred.get(node.id) ??
+        fanoutPreferred.get(node.id) ??
         preferredNodeY(node, incident.get(node.id), nodeById));
       const compacted = compactOrderedLayer(layer, preferred, minimumY, gap);
       for (let index = 0; index < layer.length; index += 1) layer[index].y = compacted[index];
     }
   }
+  if (packComponents) packWeakComponents(nodes, edges, { minimumY, gap: gap * 4 });
   return nodes;
+}
+
+export function packWeakComponents(nodes, edges, { minimumY = 0, gap = 32 } = {}) {
+  const orderedNodes = [...(nodes || [])].toSorted(compareNodes);
+  const parent = new Map(orderedNodes.map((node) => [node.id, node.id]));
+  const find = (id) => {
+    let root = parent.get(id);
+    while (root !== parent.get(root)) root = parent.get(root);
+    let current = id;
+    while (current !== root) {
+      const next = parent.get(current);
+      parent.set(current, root);
+      current = next;
+    }
+    return root;
+  };
+  for (const edge of [...(edges || [])].toSorted(compareEdges)) {
+    if (!parent.has(edge.source) || !parent.has(edge.target)) continue;
+    const sourceRoot = find(edge.source);
+    const targetRoot = find(edge.target);
+    if (sourceRoot === targetRoot) continue;
+    const [lower, upper] = [sourceRoot, targetRoot].sort((left, right) =>
+      String(left).localeCompare(String(right)));
+    parent.set(upper, lower);
+  }
+  const components = new Map();
+  for (const node of orderedNodes) {
+    const root = find(node.id);
+    if (!components.has(root)) components.set(root, []);
+    components.get(root).push(node);
+  }
+  const orderedComponents = [...components.entries()].sort(([left], [right]) =>
+    String(left).localeCompare(String(right)));
+  if (orderedComponents.length <= 1) return { componentCount: orderedComponents.length, moved: false };
+  let nextY = minimumY;
+  for (const [, members] of orderedComponents) {
+    const top = Math.min(...members.map((node) => node.y));
+    const bottom = Math.max(...members.map((node) => node.y + node.height));
+    const shift = nextY - top;
+    for (const node of members) node.y = round(node.y + shift);
+    nextY += bottom - top + gap;
+  }
+  return { componentCount: orderedComponents.length, moved: true };
+}
+
+export function buildSymmetricFanoutPreferences(nodes, edges, { gap = 8 } = {}) {
+  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const targetsBySource = new Map();
+  for (const edge of [...(edges || [])].toSorted(compareEdges)) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!source || !target || target.level - source.level !== 1) continue;
+    if (!targetsBySource.has(source.id)) targetsBySource.set(source.id, []);
+    targetsBySource.get(source.id).push({ edge, target });
+  }
+  const preferencesByTarget = new Map();
+  for (const [sourceId, entries] of [...targetsBySource.entries()].sort(([left], [right]) =>
+    String(left).localeCompare(String(right)))) {
+    if (entries.length < 2) continue;
+    const source = nodeById.get(sourceId);
+    const ordered = entries.toSorted((left, right) =>
+      left.target.y - right.target.y || compareNodes(left.target, right.target));
+    const totalHeight = packedHeight(ordered.map((entry) => entry.target), gap);
+    const sourcePortYs = ordered.map(({ edge }) =>
+      source.y + portOffset(source, edge.sourcePin, "source"));
+    const sourceCenterY = median(sourcePortYs.sort((left, right) => left - right));
+    let nextY = sourceCenterY - totalHeight / 2;
+    for (const { target } of ordered) {
+      if (!preferencesByTarget.has(target.id)) preferencesByTarget.set(target.id, []);
+      preferencesByTarget.get(target.id).push(nextY);
+      nextY += target.height + gap;
+    }
+  }
+  return new Map([...preferencesByTarget.entries()].map(([targetId, values]) => [
+    targetId,
+    round(median(values.sort((left, right) => left - right)))
+  ]));
 }
 
 export function compactAlignmentBlocks(
