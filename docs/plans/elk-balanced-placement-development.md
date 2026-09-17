@@ -141,3 +141,8 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - 若四种 block 都不优于 balanced，直接复用 balanced 对象，不重复运行第三次 pipeline；
 - 当前两张 golden 最终仍由既有最优候选胜出：`clk` 指标不变，`_1471_` 保持
   6,346 × 25,984、crossing 89,259、physical crossing 2,831、outer 4、0/0。
+- `layoutMetrics.placement` 现在记录选择结果及所有 variant 的 height、center spread、port delta、
+  aligned edge count 和 score；对比工具在 compact 报告中直接输出这些诊断。
+- `_1471_` 诊断显示当前 block variant 仅保留 18 条对齐边，而完整 balanced placement 为 452；
+  port delta 也从约 2.78M 增至 7.13–7.18M。根因是 block 建立后仍被逐层 compaction 拆散，
+  下一步必须实现 block-aware compaction，不通过调低权重让坏候选胜出。

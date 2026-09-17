@@ -68,6 +68,7 @@ function compactReport(reportValue) {
       elapsedMs: provider.elapsedMs,
       sourceGraph: provider.sourceGraph,
       positionedGraph: provider.positionedGraph,
+      placementSelection: provider.placementSelection,
       routingMetrics: provider.routing.metrics,
       placement: {
         nodeBounds: provider.placement.nodeBounds,
@@ -134,6 +135,7 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
         nodeBox: summarizeNode(graph.nodes.find((node) => node.id === violation.nodeId))
       }))
     },
+    placementSelection: graph.layoutMetrics?.placement || null,
     routing: {
       metrics: graph.routingMetrics || null,
       capacity: graph.routingCapacity?.metrics || null,

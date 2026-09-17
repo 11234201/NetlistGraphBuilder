@@ -187,4 +187,6 @@ test("best variant selection is stable and never accepts a centre regression", (
 
   assert.equal(selection.selectedIndex, 1);
   assert.equal(selection.nodes, improved);
+  assert.equal(selection.summaries.length, 2);
+  assert.equal(selection.summaries[1].alignedEdgeCount, 1);
 });

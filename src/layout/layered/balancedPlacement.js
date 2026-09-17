@@ -158,19 +158,21 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys, options = {}) {
 
 export function chooseBestPlacementCandidate(baseNodes, candidates, edges, { gap = 8 } = {}) {
   const base = summarizePlacement(baseNodes, edges);
+  const summaries = [];
   const centerTolerance = Math.max(gap * 2, base.centerSpread * 0.05);
   let selectedNodes = baseNodes;
   let selectedSummary = base;
   let selectedIndex = -1;
   for (const [index, nodes] of (candidates || []).entries()) {
     const summary = summarizePlacement(nodes, edges);
+    summaries.push(summary);
     if (summary.centerSpread > base.centerSpread + centerTolerance) continue;
     if (summary.score >= selectedSummary.score - 0.001) continue;
     selectedNodes = nodes;
     selectedSummary = summary;
     selectedIndex = index;
   }
-  return { nodes: selectedNodes, summary: selectedSummary, selectedIndex, base };
+  return { nodes: selectedNodes, summary: selectedSummary, selectedIndex, base, summaries };
 }
 
 export function compactOrderedLayer(nodes, preferredYs, minimumY = 0, gap = 8) {

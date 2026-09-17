@@ -185,6 +185,7 @@ export function layoutGraph(graph, options = {}) {
   // graphs, where the boundary nodes expose the asymmetric layer packing it
   // corrects. Whole graphs stay on the single-pass path until block placement
   // can reuse one pipeline pass instead of doubling large-graph work.
+  let placementSelectionMetrics = Object.freeze({ enabled: false, selected: "legacy" });
   if (policy.features.balancedLayerPlacement && hasFocusedBoundary) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
@@ -240,10 +241,19 @@ export function layoutGraph(graph, options = {}) {
       )
       });
     positionedNodes = selection.nodes;
+    const selectedName = selection.nodes === blockNodes && blockNodes !== balancedNodes
+      ? `alignment-blocks-${blockCandidate.selectedIndex}`
+      : balancedSelection.selected;
+    placementSelectionMetrics = Object.freeze({
+      enabled: true,
+      selected: selectedName,
+      legacy: freezePlacementSummary(balancedSelection.legacy),
+      balanced: freezePlacementSummary(balancedSelection.candidate),
+      blockVariants: Object.freeze(blockCandidate.summaries.map(freezePlacementSummary)),
+      blockVariantIndex: blockCandidate.selectedIndex
+    });
     options.onPlacementSelection?.({
-      selected: selection.nodes === blockNodes
-        ? "alignment-blocks"
-        : balancedSelection.selected,
+      selected: selectedName,
       balancedSelection,
       blockSelection: selection,
       blockVariantIndex: blockCandidate.selectedIndex
@@ -432,9 +442,20 @@ export function layoutGraph(graph, options = {}) {
       splitEdgeCount: layeredGraph?.logicalChains?.chainsByEdge?.size || 0,
       carrierCount: layeredGraph?.carriers?.length || 0,
       diagnosticCounts: Object.freeze(countDiagnosticCodes(layeredGraph?.diagnostics || []))
-    })
+    }),
+    placement: placementSelectionMetrics
   });
   return result;
+}
+
+function freezePlacementSummary(summary = {}) {
+  return Object.freeze({
+    height: Number(summary.height) || 0,
+    centerSpread: Number(summary.centerSpread) || 0,
+    portDelta: Number(summary.portDelta) || 0,
+    alignedEdgeCount: Number(summary.alignedEdgeCount) || 0,
+    score: Number(summary.score) || 0
+  });
 }
 
 function isCarrierPhysicalNetEligible(
