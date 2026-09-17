@@ -215,3 +215,17 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 - eq012：missing 140 → 94，总布局 24.2 秒 → 20.5 秒，routing 14.9 秒 → 11.1 秒；宽度保持 41,399，`clk/rst_n` 保持全链完整。
 - eq007：保持 215 missing、宽 14,796、physical crossings 56,516，约 32.5 秒；没有因 eq012 的长网策略扩大画布或 crossing。
 - 剩余 eq012 94 条均为 span-7 单扇出网，其中 53 条有容量溢出；当前边界 1 只有 247 个几何可用 X，仍有 135 个启用物理网链不完整。下一步应做按真实 Y 区间复用 X 轨道或分段 carrier，而不是继续提高固定轨道数。
+
+### 2026-09-17：按纵向区间复用饱和边界的 carrier X 轨
+
+carrier X 现在分为两个有界阶段。第一阶段保持原有策略：按 preferred 距离选择全活动区间都无节点阻挡的轨道，并按稳定 carrier 顺序一一分配，以保护已有图形和高优先级整网。只有超过该主轨容量的 carrier 才进入第二阶段；第二阶段使用该 carrier 的 source、前一 carrier 和 terminating target 所限定的真实纵向区间，在固定的 256 个 X 候选中复用与既有区间不相交、且局部无节点阻挡的轨道。
+
+这不是放宽重叠规则：同一 X 上的纵向区间必须不相交，最终物理网仍整体通过共享 geometry validator。搜索规模仍为每边界最多 256 个 X 候选，没有随图规模增长的重试。单元测试同时覆盖 300 个互不重叠 carrier 全部获得锚点、但只占用 256 个不同 X；原有 300 个重叠 carrier 仍只能分配 256 个。
+
+固定远端环境结果：
+
+- eq012：missing 94 → 5、violations 94 → 5；宽度 41,399 → 41,327，布局约 21.4 秒，physical crossings 300,356，outer route ratio 0.4%。`clk/rst_n` 的 9 段 carrier 继续完整。
+- eq007：保持 215 missing、宽度 14,796、physical crossings 56,516；说明主轨选择顺序兼容旧几何，溢出复用没有改变该图。
+- 单元测试 589/589 通过。
+
+eq012 剩余 5 条仍全是 span-7 单扇出网：4 条报告 capacity overflow，1 条为局部不可布线。边界 7 仍有 259 个 carrier 争用最多 256 个候选，3 个物理网链缺一个 X 锚点。下一步需要把剩余容量诊断映射到具体 gap，并验证分段 carrier 是否可在不增加全局候选上限的前提下补齐；eq007 的 215 条则是独立的 unit-span 局部拥塞问题，不能用长网 carrier 策略处理。

@@ -314,31 +314,21 @@ function buildCarrierXMap(
       : terminatingTargets.length > 0
         ? Math.max(leftEdge + 8, rightEdge - 24)
         : (leftEdge + rightEdge) / 2;
-    const verticalRange = computeActiveCarrierVerticalRange(
-      activeCarriers,
-      carrierYById,
-      edgeById,
-      nodeById
-    );
-    const coordinates = chooseClearBoundaryXs(
+    const coordinates = chooseBoundaryXCoordinates(
       preferredCoordinate,
       leftEdge + 8,
       rightEdge - 8,
-      nodeIndex,
-      verticalRange,
       activeCarriers.length
-    ).toSorted((left, right) => left - right);
-    const selectedCarriers = activeCarriers
-      .toSorted(compareCarrierPriority)
-      .slice(0, coordinates.length)
-      .toSorted((left, right) => (left.order || 0) - (right.order || 0) ||
-        String(left.id).localeCompare(String(right.id)));
-    selectedCarriers.forEach((carrier, index) => {
-      const coordinate = coordinates[index];
-      if (Number.isFinite(coordinate) && coordinate < rightEdge) {
-        result.set(carrier.id, coordinate);
-      }
-    });
+    );
+    assignCarrierXCoordinates(
+      activeCarriers,
+      coordinates,
+      carrierYById,
+      edgeById,
+      nodeById,
+      nodeIndex,
+      result
+    );
   }
   return result;
 }
@@ -350,19 +340,19 @@ function compareCarrierPriority(left, right) {
     String(left.id).localeCompare(String(right.id));
 }
 
-function computeActiveCarrierVerticalRange(activeCarriers, carrierYById, edgeById, nodeById) {
+function computeCarrierVerticalRange(carrier, carrierYById, edgeById, nodeById) {
   const values = [];
-  for (const carrier of activeCarriers) {
-    const carrierY = carrierYById?.get(carrier.id);
-    if (Number.isFinite(carrierY)) values.push(carrierY);
-    if (!carrier.previousCarrierId) {
-      const source = nodeById.get(carrier.sourceNodeId);
-      if (source) values.push(Number(source.y), Number(source.y) + Number(source.height));
-    }
-    for (const edgeId of carrier.terminatingEdgeIds || []) {
-      const target = nodeById.get(edgeById.get(String(edgeId))?.target);
-      if (target) values.push(Number(target.y), Number(target.y) + Number(target.height));
-    }
+  const carrierY = carrierYById?.get(carrier.id);
+  if (Number.isFinite(carrierY)) values.push(carrierY);
+  const previousY = carrierYById?.get(carrier.previousCarrierId);
+  if (Number.isFinite(previousY)) values.push(previousY);
+  if (!carrier.previousCarrierId) {
+    const source = nodeById.get(carrier.sourceNodeId);
+    if (source) values.push(Number(source.y), Number(source.y) + Number(source.height));
+  }
+  for (const edgeId of carrier.terminatingEdgeIds || []) {
+    const target = nodeById.get(edgeById.get(String(edgeId))?.target);
+    if (target) values.push(Number(target.y), Number(target.y) + Number(target.height));
   }
   const finiteValues = values.filter(Number.isFinite);
   return finiteValues.length > 0
@@ -370,7 +360,79 @@ function computeActiveCarrierVerticalRange(activeCarriers, carrierYById, edgeByI
     : null;
 }
 
-function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, verticalRange, count) {
+function assignCarrierXCoordinates(
+  activeCarriers,
+  coordinates,
+  carrierYById,
+  edgeById,
+  nodeById,
+  nodeIndex,
+  result
+) {
+  const intervalsByX = new Map(coordinates.map((coordinate) => [coordinate, []]));
+  const rangeByCarrierId = new Map(activeCarriers.map((carrier) => [
+    carrier.id,
+    computeCarrierVerticalRange(carrier, carrierYById, edgeById, nodeById)
+  ]));
+  const aggregateRange = aggregateVerticalRanges([...rangeByCarrierId.values()]);
+  const globallyClearCoordinates = coordinates
+    .filter((coordinate) => isCarrierXClearOfNodes(coordinate, aggregateRange, nodeIndex))
+    .slice(0, Math.min(
+      activeCarriers.length,
+      ROUTE_SEARCH_LIMITS.maximumBoundaryCarrierTracks
+    ))
+    .toSorted((left, right) => left - right);
+  const primaryCarriers = activeCarriers
+    .toSorted(compareCarrierPriority)
+    .slice(0, globallyClearCoordinates.length)
+    .toSorted((left, right) => (left.order || 0) - (right.order || 0) ||
+      String(left.id).localeCompare(String(right.id)));
+  primaryCarriers.forEach((carrier, index) => {
+    const coordinate = globallyClearCoordinates[index];
+    const verticalRange = rangeByCarrierId.get(carrier.id);
+    result.set(carrier.id, coordinate);
+    if (verticalRange) intervalsByX.get(coordinate).push(verticalRange);
+  });
+
+  const primaryIds = new Set(primaryCarriers.map((carrier) => carrier.id));
+  for (const carrier of activeCarriers.toSorted(compareCarrierPriority)) {
+    if (primaryIds.has(carrier.id)) continue;
+    const verticalRange = rangeByCarrierId.get(carrier.id);
+    const coordinate = coordinates.find((candidate) =>
+      isCarrierXClearOfNodes(candidate, verticalRange, nodeIndex) &&
+      intervalsByX.get(candidate).every((range) => !rangesOverlap(verticalRange, range)));
+    if (!Number.isFinite(coordinate)) continue;
+    result.set(carrier.id, coordinate);
+    if (verticalRange) intervalsByX.get(coordinate).push(verticalRange);
+  }
+}
+
+function aggregateVerticalRanges(ranges) {
+  const usable = ranges.filter(Boolean);
+  if (usable.length === 0) return null;
+  return {
+    top: Math.min(...usable.map((range) => range.top)),
+    bottom: Math.max(...usable.map((range) => range.bottom))
+  };
+}
+
+function isCarrierXClearOfNodes(value, verticalRange, nodeIndex) {
+  if (!verticalRange) return true;
+  return nodeIndex.query({
+    left: value - 8,
+    right: value + 8,
+    top: verticalRange.top,
+    bottom: verticalRange.bottom
+  }).every((node) => value <= Number(node.x) - 8 ||
+    value >= Number(node.x) + Number(node.width) + 8);
+}
+
+function rangesOverlap(left, right) {
+  if (!left || !right) return false;
+  return left.top <= right.bottom && right.top <= left.bottom;
+}
+
+function chooseBoundaryXCoordinates(preferred, minimum, maximum, count) {
   if (!(maximum >= minimum) || count <= 0) return [];
   const candidates = [preferred, minimum, maximum];
   const pitch = ROUTE_GEOMETRY_POLICY.boundaryCarrierTrackPitch;
@@ -384,15 +446,8 @@ function chooseClearBoundaryXs(preferred, minimum, maximum, nodeIndex, verticalR
   return [...new Set(candidates
     .filter((value) => Number.isFinite(value) && value >= minimum && value <= maximum)
     .toSorted((left, right) => Math.abs(left - preferred) - Math.abs(right - preferred) || left - right)
-    .filter((value) => !verticalRange || nodeIndex.query({
-      left: value - 8,
-      right: value + 8,
-      top: verticalRange.top,
-      bottom: verticalRange.bottom
-    }).every((node) => value <= Number(node.x) - 8 ||
-      value >= Number(node.x) + Number(node.width) + 8))
   )]
-    .slice(0, Math.min(count, maximumTracks));
+    .slice(0, maximumTracks);
 }
 
 function isStructuralLayerNode(node) {

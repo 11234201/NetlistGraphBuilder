@@ -188,6 +188,43 @@ test("wide boundaries expose more than the legacy 65 carrier tracks", () => {
   assert.equal(new Set(result.carrierXById.values()).size, 80);
 });
 
+test("saturated boundaries reuse tracks for disjoint carrier intervals", () => {
+  const carriers = Array.from({ length: 300 }, (_, index) => ({
+    id: `carrier:n${index}:0`,
+    previousCarrierId: `carrier:n${index}:previous`,
+    boundaryColumn: 0,
+    order: index,
+    logicalEdgeIds: [`edge:${index}`]
+  }));
+  const result = buildCarrierPhysicalNetRoutes({
+    orientedEdges: carriers.map((carrier, index) => ({
+      id: carrier.logicalEdgeIds[0],
+      source: "src",
+      target: "target",
+      net: `n${index}`,
+      physicalNetKey: `src\0n${index}`
+    })),
+    carriers,
+    carrierBoundaries: [{
+      boundaryColumn: 0,
+      leftLevel: 0,
+      rightLevel: 1,
+      carriers
+    }]
+  }, [
+    { id: "src", kind: "cell", level: 0, x: 0, y: 0, width: 80, height: 32, ports: [] },
+    { id: "target", kind: "cell", level: 1, x: 5000, y: 0, width: 80, height: 32, ports: [] }
+  ], new Map(carriers.flatMap((carrier, index) => {
+    const y = 100 + index * 40;
+    return [[carrier.id, y], [carrier.previousCarrierId, y]];
+  })));
+
+  assert.equal(result.carrierXById.size, 300);
+  assert.equal(new Set(result.carrierXById.values()).size, 256);
+  assert.equal(result.coverage.incompletePhysicalNetCount, 0);
+  assert.equal(result.coverage.saturatedBoundaryCount, 0);
+});
+
 test("carrier routing reports bounded physical-net and saturated-boundary coverage", () => {
   const carriers = Array.from({ length: 300 }, (_, index) => ({
     id: `carrier:n${index}:0`,
