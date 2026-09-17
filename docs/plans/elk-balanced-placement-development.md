@@ -89,7 +89,7 @@ ELK layered 作为视觉和结构 golden，但不要求逐坐标一致。固定�
 - [x] 定位顶部紧凑堆叠的根因与后处理放大机制；
 - [x] 固定 golden、Whole 回归和性能门槛；
 - [x] P1 平衡初始放置原语与单元测试（策略开关下验证，默认开启待 P2 回归）；
-- [ ] P2 BK alignment blocks（已完成双候选评分、中心轴回退与默认启用；block 构造待完成）；
+- [x] P2 BK alignment blocks（四方向、type-1 冲突、block-aware compaction 与择优已完成）；
 - [ ] P3 对称分支/分量 packing；
 - [ ] P4 路由一致性；
 - [ ] P5 全量验收、提交、推送与合并。
@@ -146,3 +146,12 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - `_1471_` 诊断显示当前 block variant 仅保留 18 条对齐边，而完整 balanced placement 为 452；
   port delta 也从约 2.78M 增至 7.13–7.18M。根因是 block 建立后仍被逐层 compaction 拆散，
   下一步必须实现 block-aware compaction，不通过调低权重让坏候选胜出。
+
+### 2026-09-17 block-aware compaction
+
+- 同一 block 使用一个共享 anchor，成员坐标由真实端口 offset 派生；
+- 同层相邻节点转为 block 间差分约束，拓扑求解最小可行坐标，检测到环则 variant 作废；
+- type-1 conflict 用层边界上的单调 rank 过滤，交叉 alignment edge 不进入同一组约束；
+- 四个 raw variant 先彼此择优，只有一个进入完整 pipeline；最终仍与 balanced 同阶段比较；
+- `_1471_` 当前选择 balanced，保持 6,346 × 25,984、89,259 crossings、outer 4、0/0；
+  block 能完整运行但尚未优于 balanced，后续不再以调权重作为优化手段。

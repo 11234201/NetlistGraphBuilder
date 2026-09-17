@@ -5,6 +5,7 @@ import {
   buildAlignmentBlocks,
   chooseBestPlacementCandidate,
   chooseBalancedPlacement,
+  compactAlignmentBlocks,
   compactOrderedLayer
 } from "../../src/layout/layered/balancedPlacement.js";
 
@@ -189,4 +190,92 @@ test("best variant selection is stable and never accepts a centre regression", (
   assert.equal(selection.nodes, improved);
   assert.equal(selection.summaries.length, 2);
   assert.equal(selection.summaries[1].alignedEdgeCount, 1);
+});
+
+test("raw variant selection can choose the least-cost candidate before full placement", () => {
+  const base = [node("a", 0, 0), node("b", 1, 0)];
+  base[0].y = 10;
+  base[1].y = 10;
+  const worse = base.map((entry) => ({ ...entry, ports: entry.ports.map((port) => ({ ...port })) }));
+  worse[1].y = 100;
+  const lessBad = base.map((entry) => ({ ...entry, ports: entry.ports.map((port) => ({ ...port })) }));
+  lessBad[1].y = 60;
+  const edges = [{ source: "a", target: "b", sourcePin: "Y", targetPin: "A" }];
+
+  const selection = chooseBestPlacementCandidate(base, [worse, lessBad], edges, {
+    requireImprovement: false,
+    enforceCenter: false
+  });
+
+  assert.equal(selection.selectedIndex, 1);
+  assert.equal(selection.nodes, lessBad);
+});
+
+test("block-aware compaction preserves block offsets and layer separation", () => {
+  const nodes = [node("a", 0, 0), node("b", 0, 1), node("c", 1, 0), node("d", 1, 1)];
+  nodes[0].y = 10;
+  nodes[1].y = 38;
+  nodes[2].y = 80;
+  nodes[3].y = 108;
+  const alignment = {
+    blocks: [
+      { id: "alignment:a", members: [
+        { nodeId: "a", level: 0, offset: 0 },
+        { nodeId: "c", level: 1, offset: 0 }
+      ] },
+      { id: "alignment:b", members: [
+        { nodeId: "b", level: 0, offset: 0 },
+        { nodeId: "d", level: 1, offset: 0 }
+      ] }
+    ]
+  };
+  const orderedByLevel = new Map([[0, [nodes[0], nodes[1]]], [1, [nodes[2], nodes[3]]]]);
+
+  const result = compactAlignmentBlocks(nodes, alignment, orderedByLevel, new Map(), {
+    minimumY: 10,
+    gap: 8
+  });
+
+  assert.equal(result.feasible, true);
+  assert.equal(nodes[0].y, nodes[2].y);
+  assert.equal(nodes[1].y, nodes[3].y);
+  assert.ok(nodes[1].y >= nodes[0].y + nodes[0].height + 8);
+});
+
+test("block-aware compaction rejects cyclic layer-order constraints", () => {
+  const nodes = [node("a", 0, 0), node("b", 0, 1), node("c", 1, 0), node("d", 1, 1)];
+  const alignment = {
+    blocks: [
+      { id: "alignment:a", members: [
+        { nodeId: "a", level: 0, offset: 0 },
+        { nodeId: "d", level: 1, offset: 0 }
+      ] },
+      { id: "alignment:b", members: [
+        { nodeId: "b", level: 0, offset: 0 },
+        { nodeId: "c", level: 1, offset: 0 }
+      ] }
+    ]
+  };
+  const orderedByLevel = new Map([[0, [nodes[0], nodes[1]]], [1, [nodes[2], nodes[3]]]]);
+
+  const result = compactAlignmentBlocks(nodes, alignment, orderedByLevel, new Map(), {
+    minimumY: 0,
+    gap: 8
+  });
+
+  assert.equal(result.feasible, false);
+  assert.equal(result.reason, "constraint-cycle");
+});
+
+test("type-one conflict filtering rejects crossing alignment edges", () => {
+  const nodes = [node("a", 0, 0), node("b", 0, 1), node("c", 1, 0), node("d", 1, 1)];
+  const edges = [
+    { id: "ad", source: "a", target: "d", sourcePin: "Y", targetPin: "A" },
+    { id: "bc", source: "b", target: "c", sourcePin: "Y", targetPin: "A" }
+  ];
+
+  const result = buildAlignmentBlocks(nodes, edges, [0, 1]);
+
+  assert.equal(result.alignedEdges.length, 1);
+  assert.equal(result.alignedEdges[0].id, "bc");
 });

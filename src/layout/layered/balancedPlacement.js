@@ -40,6 +40,16 @@ export function applyBalancedLayerPlacement(
   const alignment = alignmentBlocks
     ? buildAlignmentBlocks(nodes, edges, levelKeys, alignmentVariant)
     : { blocks: [] };
+  if (alignmentBlocks && alignment.blocks.length > 0) {
+    const compaction = compactAlignmentBlocks(
+      nodes,
+      alignment,
+      orderedByLevel,
+      incident,
+      { minimumY, gap }
+    );
+    if (compaction.feasible) return nodes;
+  }
   const passes = Math.max(0, Math.min(16, Math.floor(Number(sweeps) || 0)));
   for (let pass = 0; pass < passes; pass += 1) {
     const blockPreferred = preferredYsByBlock(alignment.blocks, nodeById);
@@ -54,6 +64,107 @@ export function applyBalancedLayerPlacement(
     }
   }
   return nodes;
+}
+
+export function compactAlignmentBlocks(
+  nodes,
+  alignment,
+  orderedByLevel,
+  incident,
+  { minimumY = 0, gap = 8 } = {}
+) {
+  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const blockRecords = [];
+  const recordByNodeId = new Map();
+  for (const block of alignment?.blocks || []) {
+    const record = {
+      id: block.id,
+      members: block.members.map((member) => ({ ...member })),
+      preferredAnchor: 0
+    };
+    blockRecords.push(record);
+    for (const member of record.members) recordByNodeId.set(member.nodeId, record);
+  }
+  for (const node of nodes || []) {
+    if (recordByNodeId.has(node.id)) continue;
+    const record = {
+      id: `singleton:${node.id}`,
+      members: [{ nodeId: node.id, level: node.level, offset: 0 }],
+      preferredAnchor: node.y
+    };
+    blockRecords.push(record);
+    recordByNodeId.set(node.id, record);
+  }
+  blockRecords.sort((left, right) => left.id.localeCompare(right.id));
+
+  for (const record of blockRecords) {
+    const preferences = record.members.map((member) => {
+      const node = nodeById.get(member.nodeId);
+      return preferredNodeY(node, incident?.get(node.id), nodeById) - member.offset;
+    }).sort((left, right) => left - right);
+    record.preferredAnchor = median(preferences);
+  }
+
+  const constraints = new Map(blockRecords.map((record) => [record.id, new Map()]));
+  const incomingConstraints = new Map(blockRecords.map((record) => [record.id, new Map()]));
+  const indegree = new Map(blockRecords.map((record) => [record.id, 0]));
+  for (const layer of orderedByLevel?.values?.() || []) {
+    for (let index = 1; index < layer.length; index += 1) {
+      const upper = layer[index - 1];
+      const lower = layer[index];
+      const upperRecord = recordByNodeId.get(upper.id);
+      const lowerRecord = recordByNodeId.get(lower.id);
+      if (!upperRecord || !lowerRecord || upperRecord === lowerRecord) continue;
+      const upperMember = upperRecord.members.find((member) => member.nodeId === upper.id);
+      const lowerMember = lowerRecord.members.find((member) => member.nodeId === lower.id);
+      const separation = upperMember.offset + upper.height + gap - lowerMember.offset;
+      const outgoing = constraints.get(upperRecord.id);
+      const previous = outgoing.get(lowerRecord.id);
+      if (previous === undefined) indegree.set(lowerRecord.id, indegree.get(lowerRecord.id) + 1);
+      outgoing.set(lowerRecord.id, Math.max(previous ?? -Infinity, separation));
+      incomingConstraints.get(lowerRecord.id).set(
+        upperRecord.id,
+        Math.max(previous ?? -Infinity, separation)
+      );
+    }
+  }
+
+  const recordById = new Map(blockRecords.map((record) => [record.id, record]));
+  const ready = blockRecords.filter((record) => indegree.get(record.id) === 0)
+    .map((record) => record.id).sort();
+  const order = [];
+  let readyCursor = 0;
+  while (readyCursor < ready.length) {
+    const id = ready[readyCursor++];
+    order.push(id);
+    for (const targetId of [...constraints.get(id).keys()].sort()) {
+      indegree.set(targetId, indegree.get(targetId) - 1);
+      if (indegree.get(targetId) === 0) ready.push(targetId);
+    }
+  }
+  if (order.length !== blockRecords.length) return { feasible: false, reason: "constraint-cycle" };
+
+  const anchorById = new Map();
+  for (const id of order) {
+    const record = recordById.get(id);
+    const minimumAnchor = Math.max(...record.members.map((member) => minimumY - member.offset));
+    let anchor = minimumAnchor;
+    for (const [predecessorId, separation] of incomingConstraints.get(id)) {
+      anchor = Math.max(anchor, anchorById.get(predecessorId) + separation);
+    }
+    anchorById.set(id, round(anchor));
+  }
+  const preferredShifts = blockRecords.map((record) =>
+    record.preferredAnchor - anchorById.get(record.id)).sort((left, right) => left - right);
+  const desiredShift = median(preferredShifts);
+  const minimumShift = Math.max(0, ...blockRecords.flatMap((record) =>
+    record.members.map((member) => minimumY - (anchorById.get(record.id) + member.offset))));
+  const globalShift = Math.max(minimumShift, desiredShift);
+  for (const record of blockRecords) {
+    const anchor = anchorById.get(record.id) + globalShift;
+    for (const member of record.members) nodeById.get(member.nodeId).y = round(anchor + member.offset);
+  }
+  return { feasible: true, blockCount: blockRecords.length };
 }
 
 /**
@@ -97,6 +208,7 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys, options = {}) {
   const nextBySource = new Map();
   const previousByTarget = new Map();
   const alignedEdges = [];
+  const lastAlignedRankByBoundary = new Map();
   const traversalLevels = layerDirection === "backward"
     ? [...(levelKeys || [])].reverse()
     : [...(levelKeys || [])];
@@ -104,23 +216,35 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys, options = {}) {
     const layer = orderedLayer(nodesByLevel.get(level), withinLayerDirection);
     if (layerDirection === "forward") {
       for (const target of layer) {
+        const boundary = Number(target.level) - 1;
+        const minimumRank = lastAlignedRankByBoundary.get(boundary) ?? -Infinity;
         const candidates = sortAlignmentCandidates(
           incomingByTarget.get(target.id),
           (edge) => rankById.get(edge.source)
         );
         const edge = chooseMedianCandidate(candidates, (candidate) =>
-          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target));
-        if (edge) commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target) &&
+          finiteOr(rankById.get(candidate.source), -Infinity) >= minimumRank);
+        if (edge) {
+          commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+          lastAlignedRankByBoundary.set(boundary, rankById.get(edge.source));
+        }
       }
     } else {
       for (const source of layer) {
+        const boundary = Number(source.level);
+        const minimumRank = lastAlignedRankByBoundary.get(boundary) ?? -Infinity;
         const candidates = sortAlignmentCandidates(
           outgoingBySource.get(source.id),
           (edge) => rankById.get(edge.target)
         );
         const edge = chooseMedianCandidate(candidates, (candidate) =>
-          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target));
-        if (edge) commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target) &&
+          finiteOr(rankById.get(candidate.target), -Infinity) >= minimumRank);
+        if (edge) {
+          commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+          lastAlignedRankByBoundary.set(boundary, rankById.get(edge.target));
+        }
       }
     }
   }
@@ -156,18 +280,23 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys, options = {}) {
   return { blocks, blockByNodeId, alignedEdges };
 }
 
-export function chooseBestPlacementCandidate(baseNodes, candidates, edges, { gap = 8 } = {}) {
+export function chooseBestPlacementCandidate(
+  baseNodes,
+  candidates,
+  edges,
+  { gap = 8, requireImprovement = true, enforceCenter = true } = {}
+) {
   const base = summarizePlacement(baseNodes, edges);
   const summaries = [];
   const centerTolerance = Math.max(gap * 2, base.centerSpread * 0.05);
   let selectedNodes = baseNodes;
-  let selectedSummary = base;
+  let selectedSummary = requireImprovement ? base : null;
   let selectedIndex = -1;
   for (const [index, nodes] of (candidates || []).entries()) {
     const summary = summarizePlacement(nodes, edges);
     summaries.push(summary);
-    if (summary.centerSpread > base.centerSpread + centerTolerance) continue;
-    if (summary.score >= selectedSummary.score - 0.001) continue;
+    if (enforceCenter && summary.centerSpread > base.centerSpread + centerTolerance) continue;
+    if (selectedSummary && summary.score >= selectedSummary.score - 0.001) continue;
     selectedNodes = nodes;
     selectedSummary = summary;
     selectedIndex = index;
@@ -313,6 +442,14 @@ function preferredYsByBlock(blocks, nodeById) {
   return preferred;
 }
 
+function median(values) {
+  if (!values.length) return 0;
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 === 1
+    ? values[middle]
+    : (values[middle - 1] + values[middle]) / 2;
+}
+
 function portOffset(node, pin, role) {
   const direction = role === "source" ? "output" : "input";
   const port = node.ports?.find((candidate) =>
@@ -365,6 +502,7 @@ function commitAlignment(edge, nextBySource, previousByTarget, alignedEdges) {
   previousByTarget.set(edge.target, edge);
   alignedEdges.push(edge);
 }
+
 
 function medianOutward(values, middle) {
   const result = [];

@@ -220,7 +220,7 @@ export function layoutGraph(graph, options = {}) {
       balancedNodes,
       blockVariants,
       graph.edges,
-      { gap: placementGap }
+      { gap: placementGap, requireImprovement: false, enforceCenter: false }
     );
     const blockNodes = blockCandidate.nodes;
     runPlacement(legacyNodes);
