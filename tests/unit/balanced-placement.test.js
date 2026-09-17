@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyBalancedLayerPlacement,
+  chooseBalancedPlacement,
   compactOrderedLayer
 } from "../../src/layout/layered/balancedPlacement.js";
 
@@ -52,4 +53,40 @@ test("balanced placement is independent of node and edge array order", () => {
 
   const first = new Map(original.map((entry) => [entry.id, entry.y]));
   assert.deepEqual(new Map(permuted.map((entry) => [entry.id, entry.y])), first);
+});
+
+test("candidate selection rejects a material column-centre regression", () => {
+  const legacy = [node("a", 0, 0), node("b", 0, 1), node("c", 1, 0)];
+  legacy[0].y = 0;
+  legacy[1].y = 28;
+  legacy[2].y = 14;
+  const candidate = legacy.map((entry) => ({
+    ...entry,
+    ports: entry.ports.map((port) => ({ ...port }))
+  }));
+  candidate[2].y = 100;
+
+  const selection = chooseBalancedPlacement(legacy, candidate, [], { gap: 8 });
+
+  assert.equal(selection.selected, "legacy");
+  assert.equal(selection.reason, "column-center-regression");
+  assert.equal(selection.nodes, legacy);
+});
+
+test("candidate selection accepts a compact aligned placement", () => {
+  const legacy = [node("a", 0, 0), node("b", 1, 0)];
+  legacy[0].y = 10;
+  legacy[1].y = 50;
+  const candidate = legacy.map((entry) => ({
+    ...entry,
+    ports: entry.ports.map((port) => ({ ...port }))
+  }));
+  candidate[1].y = 10;
+  const edges = [{ source: "a", target: "b", sourcePin: "Y", targetPin: "A" }];
+
+  const selection = chooseBalancedPlacement(legacy, candidate, edges, { gap: 8 });
+
+  assert.equal(selection.selected, "balanced");
+  assert.equal(selection.reason, "lower-placement-score");
+  assert.equal(selection.candidate.alignedEdgeCount, 1);
 });

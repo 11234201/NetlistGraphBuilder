@@ -12,7 +12,10 @@ import {
   reserveLeadingCarrierLane
 } from "./layered/carrier_placement.js";
 import { buildLayeredGraph } from "./layered/layered_graph.js";
-import { applyBalancedLayerPlacement } from "./layered/balancedPlacement.js";
+import {
+  applyBalancedLayerPlacement,
+  chooseBalancedPlacement
+} from "./layered/balancedPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -164,7 +167,7 @@ export function layoutGraph(graph, options = {}) {
     adaptiveSpacing,
     useRoutingDrivenLayerSpacing
   );
-  const positionedNodes = placeInitialNodes({
+  let positionedNodes = placeInitialNodes({
     buckets,
     levelKeys,
     levelXs,
@@ -178,25 +181,41 @@ export function layoutGraph(graph, options = {}) {
   });
 
   if (policy.features.balancedLayerPlacement) {
-    applyBalancedLayerPlacement(positionedNodes, graph.edges, levelKeys, {
+    const legacyNodes = clonePositionedNodes(positionedNodes);
+    const balancedNodes = clonePositionedNodes(positionedNodes);
+    applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
       )
     });
+    runPlacement(legacyNodes);
+    runPlacement(balancedNodes);
+    const selection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
+      gap: Math.max(
+        Number(policy.spacing.cellSpacing) || 8,
+        Number(policy.spacing.compactYGap) || 8
+      )
+    });
+    positionedNodes = selection.nodes;
+    options.onPlacementSelection?.(selection);
+  } else {
+    runPlacement(positionedNodes, options.onPlacementStage);
   }
 
-  runSimplePlacementPipeline({
-    positionedNodes,
-    graph,
-    levelKeys,
-    layoutIntent,
-    margin,
-    topWireLanePitch,
-    policy,
-    nodePositions: options.nodePositions
-  }, { onStage: options.onPlacementStage });
+  function runPlacement(nodes, onStage = null) {
+    runSimplePlacementPipeline({
+      positionedNodes: nodes,
+      graph,
+      levelKeys,
+      layoutIntent,
+      margin,
+      topWireLanePitch,
+      policy,
+      nodePositions: options.nodePositions
+    }, { onStage });
+  }
   let carrierPlacement = null;
   if (layeredGraph && policy.features.physicalCarrierRouting) {
     carrierPlacement = applyCarrierPlacementSlots(
@@ -474,4 +493,11 @@ function placeInitialNodes(context) {
     }
   }
   return positionedNodes;
+}
+
+function clonePositionedNodes(nodes) {
+  return nodes.map((node) => ({
+    ...node,
+    ports: node.ports?.map((port) => ({ ...port }))
+  }));
 }

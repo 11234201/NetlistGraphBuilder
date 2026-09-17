@@ -23,10 +23,10 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     branchAwareLanes: true,
     // Centre layers around one visual axis and compact them toward median
     // neighbour-port positions while preserving the established layer order.
-    // Kept behind a policy switch until the BK block pass preserves every
-    // existing focused routing corridor. The implementation is exercised by
-    // focused placement tests while the product default remains reversible.
-    balancedLayerPlacement: false,
+    // Generate legacy and balanced candidates, then keep the balanced result
+    // only when its bounded placement score improves without dispersing the
+    // shared column axis. The legacy path remains an automatic fallback.
+    balancedLayerPlacement: true,
     localizeSingleFanoutInputs: true,
     // Experimental until proper long-edge placement and chain routing land.
     // Enabling span minimization alone changes the geometry seen by the

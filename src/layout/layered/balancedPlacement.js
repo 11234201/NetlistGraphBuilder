@@ -72,6 +72,68 @@ export function compactOrderedLayer(nodes, preferredYs, minimumY = 0, gap = 8) {
     : forward;
 }
 
+/**
+ * Compare two completed placement candidates without using fixture identity.
+ * A candidate that materially worsens the shared column axis is rejected even
+ * when another scalar metric improves; this protects wide high-fanout layers.
+ */
+export function chooseBalancedPlacement(legacyNodes, candidateNodes, edges, { gap = 8 } = {}) {
+  const legacy = summarizePlacement(legacyNodes, edges);
+  const candidate = summarizePlacement(candidateNodes, edges);
+  const centerTolerance = Math.max(gap * 2, legacy.centerSpread * 0.05);
+  const centerRegression = candidate.centerSpread > legacy.centerSpread + centerTolerance;
+  const scoreImprovement = candidate.score < legacy.score - 0.001;
+  return {
+    nodes: !centerRegression && scoreImprovement ? candidateNodes : legacyNodes,
+    selected: !centerRegression && scoreImprovement ? "balanced" : "legacy",
+    legacy,
+    candidate,
+    reason: centerRegression
+      ? "column-center-regression"
+      : scoreImprovement ? "lower-placement-score" : "no-score-improvement"
+  };
+}
+
+export function summarizePlacement(nodes, edges) {
+  if (!nodes?.length) return {
+    height: 0,
+    centerSpread: 0,
+    portDelta: 0,
+    alignedEdgeCount: 0,
+    score: 0
+  };
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const layers = groupNodesByLevel(nodes);
+  const centers = [...layers.values()].map((layer) => {
+    const top = Math.min(...layer.map((node) => node.y));
+    const bottom = Math.max(...layer.map((node) => node.y + node.height));
+    return (top + bottom) / 2;
+  });
+  const top = Math.min(...nodes.map((node) => node.y));
+  const bottom = Math.max(...nodes.map((node) => node.y + node.height));
+  let portDelta = 0;
+  let alignedEdgeCount = 0;
+  for (const edge of edges || []) {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    if (!source || !target || source.level === target.level) continue;
+    const sourceY = source.y + portOffset(source, edge.sourcePin, "source");
+    const targetY = target.y + portOffset(target, edge.targetPin, "target");
+    const delta = Math.abs(sourceY - targetY);
+    portDelta += delta;
+    if (delta <= 0.5) alignedEdgeCount += 1;
+  }
+  const height = bottom - top;
+  const centerSpread = Math.max(...centers) - Math.min(...centers);
+  return {
+    height: round(height),
+    centerSpread: round(centerSpread),
+    portDelta: round(portDelta),
+    alignedEdgeCount,
+    score: round(height * 4 + centerSpread * 2 + portDelta)
+  };
+}
+
 function buildIncidentEdges(edges, nodeById) {
   const incident = new Map();
   for (const edge of [...(edges || [])].toSorted(compareEdges)) {
