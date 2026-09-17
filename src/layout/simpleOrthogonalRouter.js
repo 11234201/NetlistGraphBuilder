@@ -1031,6 +1031,7 @@ function applyCapacityLane(edgePlan, routingCapacity, netGroupKey, edgeContext =
       sourceEscapeInterval: selectedAssignment.sourceEscapeInterval,
       targetEscapeRanges: selectedAssignment.targetEscapeRanges
     } : undefined,
+    capacityLaneX: localAssignment?.laneCoordinateX,
     capacityEscape: localAssignment
       ? {
         sourceEscapeSide: localAssignment.sourceEscapeSide,

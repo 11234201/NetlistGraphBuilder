@@ -130,6 +130,9 @@ function summarizeMissingRoutes(graph, missing) {
   }
   const groups = [...missingByPhysicalNet].map(([physicalNetKey, edges]) => {
     const allEdges = allEdgesByPhysicalNet.get(physicalNetKey) || edges;
+    const sampleEdge = edges[0];
+    const sourceNode = nodeById.get(sampleEdge?.source);
+    const targetNode = nodeById.get(sampleEdge?.target);
     const spans = allEdges.map((edge) => Math.abs(
       Number(nodeById.get(edge.target)?.level || 0) -
       Number(nodeById.get(edge.source)?.level || 0)
@@ -142,7 +145,11 @@ function summarizeMissingRoutes(graph, missing) {
       maximumSpan: Math.max(0, ...spans),
       overflow: assignments.some((entry) => entry.capacityOverflow === true),
       diagnosticCodes: countCodes(edges.flatMap((edge) => edge.routeDiagnostics || [])),
-      diagnosticSamples: edges.flatMap((edge) => edge.routeDiagnostics || []).slice(0, 3)
+      diagnosticSamples: edges.flatMap((edge) => edge.routeDiagnostics || []).slice(0, 3),
+      endpoints: {
+        source: summarizeNode(sourceNode),
+        target: summarizeNode(targetNode)
+      }
     };
   }).sort((left, right) =>
     right.missing - left.missing || right.maximumSpan - left.maximumSpan ||
@@ -154,6 +161,18 @@ function summarizeMissingRoutes(graph, missing) {
     overflowPhysicalNetCount: groups.filter((group) => group.overflow).length,
     diagnosticCodes: countCodes(missing.flatMap((edge) => edge.routeDiagnostics || [])),
     samples: groups.slice(0, 12)
+  };
+}
+
+function summarizeNode(node) {
+  if (!node) return null;
+  return {
+    id: node.id,
+    level: node.level,
+    x: round(node.x),
+    y: round(node.y),
+    width: round(node.width),
+    height: round(node.height)
   };
 }
 

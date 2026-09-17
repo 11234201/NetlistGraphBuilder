@@ -80,6 +80,15 @@ export function createBasicSimpleRouteCandidates(context) {
     const inset = getTargetLaneInset(target, targetPoint, horizontalGap, routingGeometry);
     const minLaneX = sourcePoint.x + inset;
     const maxLaneX = targetPoint.x - inset;
+    const capacityLaneX = Number(edgePlan?.capacityLaneX);
+    if (Number.isFinite(capacityLaneX) && capacityLaneX >= minLaneX && capacityLaneX <= maxLaneX) {
+      candidates.push(createRoute("capacity-channel", [
+        sourcePoint,
+        { x: capacityLaneX, y: sourcePoint.y },
+        { x: capacityLaneX, y: targetPoint.y },
+        targetPoint
+      ]));
+    }
     for (const ratio of [0.5, 0.25, 0.75]) {
       const laneX = minLaneX + (maxLaneX - minLaneX) * ratio;
       candidates.push(createRoute("local-dogleg", [

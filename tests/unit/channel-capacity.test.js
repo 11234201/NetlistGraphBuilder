@@ -92,6 +92,32 @@ test("capacity plan preserves overflow ownership for router diagnostics", () => 
     assignment.laneIndex === null && assignment.coordinate === null));
 });
 
+test("inter-layer capacity exposes bounded x lane coordinates", () => {
+  const graph = {
+    nodes: [
+      { id: "source", kind: "cell", level: 0, x: 0, y: 0, width: 80, height: 32,
+        ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+      { id: "target", kind: "cell", level: 1, x: 240, y: 80, width: 80, height: 32,
+        ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+    ],
+    edges: [{
+      id: "edge",
+      source: "source",
+      target: "target",
+      sourcePin: "Z",
+      targetPin: "A",
+      net: "n"
+    }]
+  };
+  const levels = new Map(graph.nodes.map((node) => [node.id, node.level]));
+  const plan = buildRoutingCapacityPlan(graph, levels, graph.nodes);
+  const [assignment] = plan.allocationByNet.get("source\0n");
+
+  assert.equal(assignment.channelId, "inter-layer:0->1");
+  assert.ok(assignment.laneCoordinateX > 80);
+  assert.ok(assignment.laneCoordinateX < 240);
+});
+
 test("group inter-layer placement expansion stays bounded and reports excess demand", () => {
   const count = MAX_GROUP_INTER_LAYER_PLACEMENT_LANES + 3;
   const sources = Array.from({ length: count }, (_, index) => ({

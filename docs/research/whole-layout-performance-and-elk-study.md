@@ -233,3 +233,16 @@ eq012 剩余 5 条仍全是 span-7 单扇出网：4 条报告 capacity overflow�
 对最后 5 条进一步验证发现，canonical carrier 在提交顺序中会与已保留线路冲突；为包含合格长单扇出 carrier 的 Whole 图增加最近的 `-8/+8` 两个有界 Y 修复变体后，eq012 达到 0 missing / 0 violation，宽度降至 41,279，布局阶段约 21.9 秒，仍低于同环境此前 ELK 的约 23.3 秒。变体仍逐个通过整物理网 hard validation，不改变节点穿越或线路重叠规则。
 
 该修复不能无条件应用：eq007 只有高扇出 carrier，没有符合 span 门槛的长单网，无条件构建三个变体会把布局从约 33 秒拉到 41.5 秒。现按统一 policy 属性判断是否存在合格长单网；eq007 因此只生成 canonical 变体，复测约 34.1 秒，215 missing、宽度 14,796 和 56,516 crossings 均保持不变。后续正确性工作转向 eq007 的 unit-span 局部通道拥塞。
+
+### 2026-09-17：消费 inter-layer X lane，eq007 正确性归零
+
+eq007 的 215 条失败并非缺少容量规划。容量通道已经声明 `axis: "x"`，并按每条网的纵向覆盖区间完成 interval coloring 和层间 X 间距扩展，但 allocation 只向路由器暴露了纵向 preferred coordinate；实际分配的 X lane 没有生成和消费。结果是大量 unit-span 总线仍竞争少量 midpoint dogleg，形成 182 条 reservation overlap 和 33 条 capacity failure。
+
+现实现为每个有效 inter-layer assignment 计算层间 `laneCoordinateX`，位置从左层 core 右边界加 escape clearance 起，按固定 wire pitch 排列，并保证不超过右层 core 左边界。路由器将该坐标作为第一优先级的 `capacity-channel` 候选，之后仍由节点穿越和物理线路重叠 hard validation 决定能否提交。interval coloring 允许纵向区间不重叠的网复用同一 X，因此没有退回逐边无限探测。
+
+eq007 的峰值同时活动区间超过旧 256 常量。固定上限逐步验证为 320 时剩 5 条、336 时剩 2 条、352 时归零；最终采用 352，仍为与图规模无关的共享硬上限，实际层间扩宽只按已分配 lane 数计算。结果：
+
+- eq007 Whole proper-layering：0 missing / 0 violation，布局约 18.3 秒，routing 约 6.1 秒，宽度 16,980，physical overlaps 0；相比修复前 215 missing、约 33 秒和宽度 14,796，以约 14.8% 宽度换取完整可达性和约 45% 总布局耗时下降。
+- eq012 Whole proper-layering：继续保持 0 missing / 0 violation，布局约 21.5 秒，宽度 45,095，physical overlaps 0。
+- 单元测试 591/591 通过；full-node mapped 默认路径从此前 30/47 失败改善为 26/47 失败，eq007 默认路径也通过 0 violation。剩余失败仍属于既有大图 violation budget 或 45 秒超时范围，没有新增失败数。
+- 1024/4096/8192-cell benchmark 中位布局约 185 ms / 1.24 s / 5.33 s。最大规模比前一检查点约 4.55 秒慢，后续默认启用 Whole proper-layering 前需继续关注，但没有出现复杂度悬崖。

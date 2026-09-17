@@ -4,6 +4,40 @@ import { analyzeLayoutIntent } from "../../src/layout/layoutIntent.js";
 import { normalizeRoutingGeometry } from "../../src/layout/channelCapacity.js";
 import { routeSimpleEdges } from "../../src/layout/simpleOrthogonalRouter.js";
 
+test("simple router consumes an allocated inter-layer x lane", () => {
+  const nodes = [
+    { id: "source", kind: "cell", level: 0, x: 0, y: 0, width: 80, height: 32,
+      ports: [{ pin: "Z", direction: "output", side: "right", x: 80, y: 16 }] },
+    { id: "target", kind: "cell", level: 1, x: 240, y: 80, width: 80, height: 32,
+      ports: [{ pin: "A", direction: "input", side: "left", x: 0, y: 16 }] }
+  ];
+  const graph = {
+    nodes,
+    edges: [{ id: "edge", source: "source", target: "target", sourcePin: "Z", targetPin: "A", net: "n" }]
+  };
+  const levels = new Map(nodes.map((node) => [node.id, node.level]));
+  const [edge] = routeSimpleEdges(graph, nodes, {
+    layoutIntent: analyzeLayoutIntent(graph, levels),
+    routePlan: { edges: new Map([["edge", { kind: "channel", lane: 999 }]]) },
+    routingCapacity: {
+      allocationByNet: new Map([["source\0n", [{
+        channelId: "inter-layer:0->1",
+        coordinate: 56,
+        laneCoordinateX: 152,
+        laneIndex: 0
+      }]]]),
+      metrics: { physicalNetCount: 1, channelCount: 1, allocatedLaneCount: 1 }
+    },
+    wireLanePitch: 24,
+    topWireLanePitch: 24,
+    routingGeometry: normalizeRoutingGeometry(),
+    margin: 48
+  });
+
+  assert.equal(edge.routeKind, "capacity-channel");
+  assert.ok(edge.points.some((point) => point.x === 152));
+});
+
 test("simple router binds a skip-level edge to its source-adjacent capacity boundary", () => {
   const nodes = [
     {

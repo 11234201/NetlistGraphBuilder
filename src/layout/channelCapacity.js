@@ -5,7 +5,7 @@ const MAX_ROW_GAP_DEMANDS = 64;
 const MAX_BOUNDARY_CLUSTER_ENDPOINT_SAMPLES = 32;
 // Keep each physical channel bounded. Overflow demands retain diagnostics but
 // do not create unbounded placement expansion or a fake duplicate lane.
-export const MAX_CHANNEL_LANES_PER_SCOPE = 256;
+export const MAX_CHANNEL_LANES_PER_SCOPE = 352;
 export const MAX_GROUP_INTER_LAYER_PLACEMENT_LANES = 128;
 // Placement must reserve a useful outer band without allowing a large mapped
 // graph to turn every physical net into a full-height canvas expansion. The
@@ -219,7 +219,13 @@ export function buildRoutingCapacityPlan(
     const placementLaneCount = hasGroupBoundaryDemand
       ? Math.min(rawAllocation.laneCount, MAX_GROUP_INTER_LAYER_PLACEMENT_LANES)
       : rawAllocation.laneCount;
-    const allocation = limitPlacementAssignments(rawAllocation, placementLaneCount);
+    const allocation = assignInterLayerLaneCoordinates(
+      limitPlacementAssignments(rawAllocation, placementLaneCount),
+      leftLevel,
+      rightLevel,
+      levelBounds,
+      routingGeometry
+    );
     const requiredSpan = currentSpan === null
       ? 0
       : requiredInterLayerGap(placementLaneCount, routingGeometry);
@@ -431,6 +437,39 @@ function assignOuterLaneCoordinates(allocation, kind, positionedNodes, routingGe
   };
 }
 
+function assignInterLayerLaneCoordinates(
+  allocation,
+  leftLevel,
+  rightLevel,
+  levelBounds,
+  routingGeometry
+) {
+  const left = levelBounds.get(leftLevel);
+  const right = levelBounds.get(rightLevel);
+  if (!left?.hasCore || !right?.hasCore) return allocation;
+  const pitch = Number(routingGeometry.wireLanePitch) ||
+    DEFAULT_ROUTING_GEOMETRY.wireLanePitch;
+  const escape = Math.max(
+    Number(routingGeometry.portEscapeLength) || DEFAULT_ROUTING_GEOMETRY.portEscapeLength,
+    (Number(routingGeometry.nodeClearance) || DEFAULT_ROUTING_GEOMETRY.nodeClearance) +
+      (Number(routingGeometry.minimumVisibleTargetCornerGap) ||
+        DEFAULT_ROUTING_GEOMETRY.minimumVisibleTargetCornerGap)
+  );
+  const minimum = left.coreMaximumX + escape;
+  const maximum = right.coreMinimumX - escape;
+  return {
+    ...allocation,
+    assignments: allocation.assignments.map((assignment) => {
+      const laneIndex = Number(assignment.laneIndex);
+      if (!Number.isFinite(laneIndex)) return assignment;
+      const laneCoordinateX = minimum + laneIndex * pitch;
+      return laneCoordinateX <= maximum
+        ? { ...assignment, laneCoordinateX }
+        : assignment;
+    })
+  };
+}
+
 /**
  * Keep the allocation's demand count for diagnostics, but expose only lanes
  * that placement actually reserved.  A lane beyond that bounded span is an
@@ -475,6 +514,7 @@ function createAllocationEntry(channelId, assignment) {
     channelId,
     laneIndex: assignment.laneIndex,
     coordinate: assignment.coordinate,
+    laneCoordinateX: assignment.laneCoordinateX,
     intervalStart: assignment.intervalStart,
     intervalEnd: assignment.intervalEnd,
     boundaryClusterKey: assignment.boundaryClusterKey,
