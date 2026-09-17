@@ -132,3 +132,12 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
   继续改善，不能替换或吞掉已经验收的 balanced 收益；
 - `_1471_` 3/3：6,322 × 25,984，physical crossing 2,844 → 2,813，outer 6 → 4，
   missing/violation 保持 0/0；逻辑 crossing 暂为 90,009，后续四方向 variant 需将其纳入择优。
+
+### 2026-09-17 四方向 variant
+
+- 已实现层遍历 forward/backward × 层内 forward/backward 四种 block 构造；
+- 四个 variant 只执行轻量的居中、block 对齐和有序压缩，用 placement score 选出最多一个进入
+  完整 locality/overlap pipeline，完整后处理仍最多运行 legacy、balanced、block 三次；
+- 若四种 block 都不优于 balanced，直接复用 balanced 对象，不重复运行第三次 pipeline；
+- 当前两张 golden 最终仍由既有最优候选胜出：`clk` 指标不变，`_1471_` 保持
+  6,346 × 25,984、crossing 89,259、physical crossing 2,831、outer 4、0/0。

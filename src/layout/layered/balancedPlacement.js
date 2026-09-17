@@ -11,7 +11,13 @@ export function applyBalancedLayerPlacement(
   nodes,
   edges,
   levelKeys,
-  { minimumY = 0, gap = 8, sweeps = DEFAULT_SWEEPS, alignmentBlocks = true } = {}
+  {
+    minimumY = 0,
+    gap = 8,
+    sweeps = DEFAULT_SWEEPS,
+    alignmentBlocks = true,
+    alignmentVariant = {}
+  } = {}
 ) {
   if (!Array.isArray(nodes) || nodes.length === 0) return nodes;
   const nodesByLevel = groupNodesByLevel(nodes);
@@ -32,7 +38,7 @@ export function applyBalancedLayerPlacement(
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const incident = buildIncidentEdges(edges, nodeById);
   const alignment = alignmentBlocks
-    ? buildAlignmentBlocks(nodes, edges, levelKeys)
+    ? buildAlignmentBlocks(nodes, edges, levelKeys, alignmentVariant)
     : { blocks: [] };
   const passes = Math.max(0, Math.min(16, Math.floor(Number(sweeps) || 0)));
   for (let pass = 0; pass < passes; pass += 1) {
@@ -56,15 +62,18 @@ export function applyBalancedLayerPlacement(
  * from the same layer. The selected predecessor is the median by established
  * layer order, matching the core BK alignment preference.
  */
-export function buildAlignmentBlocks(nodes, edges, levelKeys) {
+export function buildAlignmentBlocks(nodes, edges, levelKeys, options = {}) {
+  const layerDirection = options.layerDirection === "backward" ? "backward" : "forward";
+  const withinLayerDirection = options.withinLayerDirection === "backward" ? "backward" : "forward";
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
   const nodesByLevel = groupNodesByLevel(nodes || []);
   const rankById = new Map();
   for (const level of levelKeys || []) {
-    (nodesByLevel.get(level) || []).toSorted(compareNodes)
+    orderedLayer(nodesByLevel.get(level), withinLayerDirection)
       .forEach((node, rank) => rankById.set(node.id, rank));
   }
   const incomingByTarget = new Map();
+  const outgoingBySource = new Map();
   const outgoingCount = new Map();
   for (const edge of edges || []) {
     if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
@@ -81,24 +90,38 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys) {
     if (outgoingCount.get(edge.source) !== 1) continue;
     if (!incomingByTarget.has(target.id)) incomingByTarget.set(target.id, []);
     incomingByTarget.get(target.id).push(edge);
+    if (!outgoingBySource.has(source.id)) outgoingBySource.set(source.id, []);
+    outgoingBySource.get(source.id).push(edge);
   }
 
   const nextBySource = new Map();
   const previousByTarget = new Map();
   const alignedEdges = [];
-  for (const level of levelKeys || []) {
-    for (const target of (nodesByLevel.get(level) || []).toSorted(compareNodes)) {
-      const candidates = (incomingByTarget.get(target.id) || []).toSorted((left, right) =>
-        finiteOr(rankById.get(left.source), Number.MAX_SAFE_INTEGER) -
-          finiteOr(rankById.get(right.source), Number.MAX_SAFE_INTEGER) || compareEdges(left, right));
-      if (candidates.length === 0) continue;
-      const middle = Math.floor((candidates.length - 1) / 2);
-      const orderedCandidates = medianOutward(candidates, middle);
-      const edge = orderedCandidates.find((candidate) => !nextBySource.has(candidate.source));
-      if (!edge || previousByTarget.has(edge.target)) continue;
-      nextBySource.set(edge.source, edge);
-      previousByTarget.set(edge.target, edge);
-      alignedEdges.push(edge);
+  const traversalLevels = layerDirection === "backward"
+    ? [...(levelKeys || [])].reverse()
+    : [...(levelKeys || [])];
+  for (const level of traversalLevels) {
+    const layer = orderedLayer(nodesByLevel.get(level), withinLayerDirection);
+    if (layerDirection === "forward") {
+      for (const target of layer) {
+        const candidates = sortAlignmentCandidates(
+          incomingByTarget.get(target.id),
+          (edge) => rankById.get(edge.source)
+        );
+        const edge = chooseMedianCandidate(candidates, (candidate) =>
+          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target));
+        if (edge) commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+      }
+    } else {
+      for (const source of layer) {
+        const candidates = sortAlignmentCandidates(
+          outgoingBySource.get(source.id),
+          (edge) => rankById.get(edge.target)
+        );
+        const edge = chooseMedianCandidate(candidates, (candidate) =>
+          !nextBySource.has(candidate.source) && !previousByTarget.has(candidate.target));
+        if (edge) commitAlignment(edge, nextBySource, previousByTarget, alignedEdges);
+      }
     }
   }
 
@@ -131,6 +154,23 @@ export function buildAlignmentBlocks(nodes, edges, levelKeys) {
     for (const member of members) blockByNodeId.set(member.nodeId, block);
   }
   return { blocks, blockByNodeId, alignedEdges };
+}
+
+export function chooseBestPlacementCandidate(baseNodes, candidates, edges, { gap = 8 } = {}) {
+  const base = summarizePlacement(baseNodes, edges);
+  const centerTolerance = Math.max(gap * 2, base.centerSpread * 0.05);
+  let selectedNodes = baseNodes;
+  let selectedSummary = base;
+  let selectedIndex = -1;
+  for (const [index, nodes] of (candidates || []).entries()) {
+    const summary = summarizePlacement(nodes, edges);
+    if (summary.centerSpread > base.centerSpread + centerTolerance) continue;
+    if (summary.score >= selectedSummary.score - 0.001) continue;
+    selectedNodes = nodes;
+    selectedSummary = summary;
+    selectedIndex = index;
+  }
+  return { nodes: selectedNodes, summary: selectedSummary, selectedIndex, base };
 }
 
 export function compactOrderedLayer(nodes, preferredYs, minimumY = 0, gap = 8) {
@@ -299,6 +339,29 @@ function compareEdges(left, right) {
     String(left.sourcePin || "").localeCompare(String(right.sourcePin || "")) ||
     String(left.targetPin || "").localeCompare(String(right.targetPin || "")) ||
     String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function orderedLayer(nodes, direction) {
+  const ordered = [...(nodes || [])].toSorted(compareNodes);
+  return direction === "backward" ? ordered.reverse() : ordered;
+}
+
+function sortAlignmentCandidates(edges, rankFor) {
+  return [...(edges || [])].toSorted((left, right) =>
+    finiteOr(rankFor(left), Number.MAX_SAFE_INTEGER) -
+      finiteOr(rankFor(right), Number.MAX_SAFE_INTEGER) || compareEdges(left, right));
+}
+
+function chooseMedianCandidate(candidates, predicate) {
+  if (!candidates.length) return null;
+  const middle = Math.floor((candidates.length - 1) / 2);
+  return medianOutward(candidates, middle).find(predicate) || null;
+}
+
+function commitAlignment(edge, nextBySource, previousByTarget, alignedEdges) {
+  nextBySource.set(edge.source, edge);
+  previousByTarget.set(edge.target, edge);
+  alignedEdges.push(edge);
 }
 
 function medianOutward(values, middle) {

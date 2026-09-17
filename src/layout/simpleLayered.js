@@ -14,6 +14,7 @@ import {
 import { buildLayeredGraph } from "./layered/layered_graph.js";
 import {
   applyBalancedLayerPlacement,
+  chooseBestPlacementCandidate,
   chooseBalancedPlacement
 } from "./layered/balancedPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
@@ -187,7 +188,6 @@ export function layoutGraph(graph, options = {}) {
   if (policy.features.balancedLayerPlacement && hasFocusedBoundary) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
-    const blockNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
@@ -196,36 +196,57 @@ export function layoutGraph(graph, options = {}) {
       ),
       alignmentBlocks: false
     });
-    applyBalancedLayerPlacement(blockNodes, graph.edges, levelKeys, {
-      minimumY: topWireSpace + margin,
-      gap: Math.max(
-        Number(policy.spacing.cellSpacing) || 8,
-        Number(policy.spacing.compactYGap) || 8
-      ),
-      alignmentBlocks: true
+    const placementGap = Math.max(
+      Number(policy.spacing.cellSpacing) || 8,
+      Number(policy.spacing.compactYGap) || 8
+    );
+    const blockVariants = [
+      { layerDirection: "forward", withinLayerDirection: "forward" },
+      { layerDirection: "forward", withinLayerDirection: "backward" },
+      { layerDirection: "backward", withinLayerDirection: "forward" },
+      { layerDirection: "backward", withinLayerDirection: "backward" }
+    ].map((alignmentVariant) => {
+      const nodes = clonePositionedNodes(positionedNodes);
+      applyBalancedLayerPlacement(nodes, graph.edges, levelKeys, {
+        minimumY: topWireSpace + margin,
+        gap: placementGap,
+        alignmentBlocks: true,
+        alignmentVariant
+      });
+      return nodes;
     });
+    const blockCandidate = chooseBestPlacementCandidate(
+      balancedNodes,
+      blockVariants,
+      graph.edges,
+      { gap: placementGap }
+    );
+    const blockNodes = blockCandidate.nodes;
     runPlacement(legacyNodes);
     runPlacement(balancedNodes);
-    runPlacement(blockNodes);
+    if (blockNodes !== balancedNodes) runPlacement(blockNodes);
     const balancedSelection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
       )
     });
-    const selection = chooseBalancedPlacement(balancedSelection.nodes, blockNodes, graph.edges, {
+    const selection = blockNodes === balancedNodes
+      ? { nodes: balancedSelection.nodes }
+      : chooseBalancedPlacement(balancedSelection.nodes, blockNodes, graph.edges, {
       gap: Math.max(
         Number(policy.spacing.cellSpacing) || 8,
         Number(policy.spacing.compactYGap) || 8
       )
-    });
+      });
     positionedNodes = selection.nodes;
     options.onPlacementSelection?.({
       selected: selection.nodes === blockNodes
         ? "alignment-blocks"
         : balancedSelection.selected,
       balancedSelection,
-      blockSelection: selection
+      blockSelection: selection,
+      blockVariantIndex: blockCandidate.selectedIndex
     });
   } else {
     runPlacement(positionedNodes, options.onPlacementStage);

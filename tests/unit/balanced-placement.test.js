@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applyBalancedLayerPlacement,
   buildAlignmentBlocks,
+  chooseBestPlacementCandidate,
   chooseBalancedPlacement,
   compactOrderedLayer
 } from "../../src/layout/layered/balancedPlacement.js";
@@ -153,4 +154,37 @@ test("alignment blocks leave terminal placement to its owning stage", () => {
 
   assert.deepEqual(result.blocks, []);
   assert.deepEqual(result.alignedEdges, []);
+});
+
+test("backward alignment selects a median successor deterministically", () => {
+  const nodes = [node("a", 0, 0), node("b", 1, 0), node("c", 1, 1), node("d", 1, 2)];
+  // Use distinct single-load sources so the fanout conflict rule remains in force.
+  const source = node("source", 0, 1);
+  const edges = [
+    { id: "ab", source: "a", target: "b", sourcePin: "Y", targetPin: "A" },
+    { id: "sc", source: "source", target: "c", sourcePin: "Y", targetPin: "A" }
+  ];
+  const result = buildAlignmentBlocks([...nodes, source], edges, [0, 1], {
+    layerDirection: "backward",
+    withinLayerDirection: "backward"
+  });
+
+  assert.equal(result.alignedEdges.length, 2);
+  assert.deepEqual(result.alignedEdges.map((edge) => edge.id).sort(), ["ab", "sc"]);
+});
+
+test("best variant selection is stable and never accepts a centre regression", () => {
+  const base = [node("a", 0, 0), node("b", 1, 0)];
+  base[0].y = 10;
+  base[1].y = 40;
+  const improved = base.map((entry) => ({ ...entry, ports: entry.ports.map((port) => ({ ...port })) }));
+  improved[1].y = 10;
+  const dispersed = base.map((entry) => ({ ...entry, ports: entry.ports.map((port) => ({ ...port })) }));
+  dispersed[1].y = 200;
+  const edges = [{ source: "a", target: "b", sourcePin: "Y", targetPin: "A" }];
+
+  const selection = chooseBestPlacementCandidate(base, [dispersed, improved], edges, { gap: 8 });
+
+  assert.equal(selection.selectedIndex, 1);
+  assert.equal(selection.nodes, improved);
 });
