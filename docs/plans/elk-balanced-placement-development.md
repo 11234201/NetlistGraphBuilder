@@ -92,7 +92,7 @@ ELK layered 作为视觉和结构 golden，但不要求逐坐标一致。固定�
 - [x] P2 BK alignment blocks（四方向、type-1 冲突、block-aware compaction 与择优已完成）；
 - [x] P3 对称分支/分量 packing；
 - [x] P4 路由一致性；
-- [ ] P5 全量验收、提交、推送与合并。
+- [x] P5 全量验收、提交、推送与合并。
 
 ### 2026-09-17 P1 A/B
 
@@ -173,3 +173,14 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - outer lane 仍只在局部硬合法候选失败后使用，不与局部候选作为普通加权同级竞争；
 - `clk` 1/1 与 `_1471_` 3/3 的 horizontal-first ratio、horizontal-endpoint ratio 均为 1.0；
   前者 outer=0，后者 outer=4，missing/violation 均为 0/0。
+
+### 2026-09-17 P5 最终验收
+
+- 全量单元测试 610/610 通过；布局顺序确定性、fixture invariant 与新增候选诊断均包含在回归中；
+- `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完成 47 个 full-graph case，失败 14，
+  与阶段进入前基线一致；eq007、eq012 均 PASS 且 violation = 0；
+- Linux 远端独占运行 `npm run benchmark`，1024/4096/8192 cells 的 layout 中位数分别为
+  211.9 ms / 1,367.5 ms / 5,355.9 ms；相比阶段前约 207 ms / 1.40 s / 5.24 s 无性能悬崖；
+- Focused 的完整候选选择有安全回退；Whole 保持单路径，没有承担 Focused 多候选成本；
+- golden 最终保持 `clk` 选择 legacy、`_1471_` 选择 balanced，画布、crossing、outer 与
+  missing/violation 指标均未回退；本阶段计划完成。
