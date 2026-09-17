@@ -328,7 +328,12 @@ function buildCarrierXMap(
       verticalRange,
       activeCarriers.length
     ).toSorted((left, right) => left - right);
-    activeCarriers.forEach((carrier, index) => {
+    const selectedCarriers = activeCarriers
+      .toSorted(compareCarrierPriority)
+      .slice(0, coordinates.length)
+      .toSorted((left, right) => (left.order || 0) - (right.order || 0) ||
+        String(left.id).localeCompare(String(right.id)));
+    selectedCarriers.forEach((carrier, index) => {
       const coordinate = coordinates[index];
       if (Number.isFinite(coordinate) && coordinate < rightEdge) {
         result.set(carrier.id, coordinate);
@@ -336,6 +341,13 @@ function buildCarrierXMap(
     });
   }
   return result;
+}
+
+function compareCarrierPriority(left, right) {
+  return (Number(right.physicalNetFanout) || 0) - (Number(left.physicalNetFanout) || 0) ||
+    (Number(right.physicalNetSpan) || 0) - (Number(left.physicalNetSpan) || 0) ||
+    (left.order || 0) - (right.order || 0) ||
+    String(left.id).localeCompare(String(right.id));
 }
 
 function computeActiveCarrierVerticalRange(activeCarriers, carrierYById, edgeById, nodeById) {

@@ -227,10 +227,10 @@ test("carrier routing reports bounded physical-net and saturated-boundary covera
     physicalNetKey: "src\0n299",
     fanout: 100,
     carrierCount: 1,
-    xAnchorCount: 0,
+    xAnchorCount: 1,
     yAnchorCount: 1,
-    completeAnchorCount: 0,
-    missingBoundaryColumns: [0]
+    completeAnchorCount: 1,
+    missingBoundaryColumns: []
   });
   assert.deepEqual(result.coverage.saturatedBoundaries, [{
     boundaryColumn: 0,

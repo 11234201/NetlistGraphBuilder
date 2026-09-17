@@ -41,6 +41,8 @@ test("one fanout net owns one carrier per crossed boundary", () => {
     null
   ]);
   assert.deepEqual(result.carriers.map((carrier) => carrier.sourceNodeId), ["s", "s", "s"]);
+  assert.deepEqual(result.carriers.map((carrier) => carrier.physicalNetSpan), [3, 3, 3]);
+  assert.deepEqual(result.carriers.map((carrier) => carrier.sourceColumn), [0, 0, 0]);
   assert.equal(new Set(result.carriers.map((carrier) => carrier.netGroupKey)).size, 1);
   assert.deepEqual(result.diagnostics, []);
 });

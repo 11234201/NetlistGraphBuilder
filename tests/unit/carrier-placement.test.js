@@ -46,6 +46,35 @@ test("placement can reserve carriers only above a physical fanout threshold", ()
   assert.equal(atThreshold.layers[1].entries.some((entry) => entry.kind === CARRIER_SLOT_KIND), true);
 });
 
+test("placement reserves a long single-load carrier without reserving adjacent edges", () => {
+  const graph = makeLayeredGraph();
+  graph.carrierBoundaries[0].carriers[0].physicalNetFanout = 1;
+  graph.carrierBoundaries[0].carriers[0].physicalNetSpan = 3;
+  graph.carrierBoundaries[0].carriers[0].sourceColumn = 1;
+  const long = buildCarrierPlacementLayers(graph, {
+    minimumFanout: 2,
+    minimumSpan: 2,
+    minimumLongSpanSourceColumn: 1
+  });
+  graph.carrierBoundaries[0].carriers[0].physicalNetSpan = 1;
+  const adjacent = buildCarrierPlacementLayers(graph, {
+    minimumFanout: 2,
+    minimumSpan: 2,
+    minimumLongSpanSourceColumn: 1
+  });
+  graph.carrierBoundaries[0].carriers[0].physicalNetSpan = 3;
+  graph.carrierBoundaries[0].carriers[0].sourceColumn = 0;
+  const leading = buildCarrierPlacementLayers(graph, {
+    minimumFanout: 2,
+    minimumSpan: 2,
+    minimumLongSpanSourceColumn: 1
+  });
+
+  assert.equal(long.layers[1].entries.some((entry) => entry.kind === CARRIER_SLOT_KIND), true);
+  assert.equal(adjacent.layers[1].entries.some((entry) => entry.kind === CARRIER_SLOT_KIND), false);
+  assert.equal(leading.layers[1].entries.some((entry) => entry.kind === CARRIER_SLOT_KIND), false);
+});
+
 test("carrier placement is invariant to carrier array order", () => {
   const graph = makeLayeredGraph();
   const reversed = {

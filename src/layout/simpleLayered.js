@@ -104,6 +104,9 @@ export function layoutGraph(graph, options = {}) {
   const carrierMinimumFanout = hasFocusedBoundary
     ? policy.layering.carrierMinimumFanout
     : policy.layering.wholeCarrierMinimumFanout;
+  const carrierMinimumSpan = hasFocusedBoundary
+    ? Number.POSITIVE_INFINITY
+    : policy.layering.wholeCarrierMinimumSpan;
   const hasExplicitFocusedFanoutX =
     options.layoutPolicy?.spacing?.focusedFanoutX !== undefined;
   const hasExplicitFanoutX = options.layoutPolicy?.spacing?.fanoutX !== undefined ||
@@ -122,7 +125,9 @@ export function layoutGraph(graph, options = {}) {
       layering: policy.layering,
       placement: {
         carrierSpan: wireLanePitch,
-        minimumFanout: carrierMinimumFanout
+        minimumFanout: carrierMinimumFanout,
+        minimumSpan: carrierMinimumSpan,
+        minimumLongSpanSourceColumn: hasFocusedBoundary ? 0 : 1
       }
     })
     : null;
@@ -256,7 +261,14 @@ export function layoutGraph(graph, options = {}) {
     : null;
   const carrierRoutesByPhysicalNet = new Map((carrierRouting?.groups || [])
     .filter((group) => group.variants.some((variant) => variant.commit.status === "routed") &&
-      group.edges.length >= carrierMinimumFanout)
+      isCarrierPhysicalNetEligible(
+        group.physicalNetKey,
+        group.edges.length,
+        layeredGraph?.carriers,
+        carrierMinimumFanout,
+        carrierMinimumSpan,
+        hasFocusedBoundary ? 0 : 1
+      ))
     .map((group) => [
       group.physicalNetKey,
       group.variants
@@ -332,6 +344,21 @@ export function layoutGraph(graph, options = {}) {
     })
   });
   return result;
+}
+
+function isCarrierPhysicalNetEligible(
+  physicalNetKey,
+  fanout,
+  carriers,
+  minimumFanout,
+  minimumSpan,
+  minimumLongSpanSourceColumn
+) {
+  if (fanout >= minimumFanout) return true;
+  return (carriers || []).some((carrier) =>
+    carrier.netGroupKey === physicalNetKey &&
+    Number(carrier.physicalNetSpan) >= minimumSpan &&
+    Number(carrier.sourceColumn) >= minimumLongSpanSourceColumn);
 }
 
 function countDiagnosticCodes(diagnostics = []) {

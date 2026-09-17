@@ -141,12 +141,16 @@ test("the layout policy exposes the layering knobs with bounded values", () => {
   assert.equal(policy.layering.anchorPrimaryPorts, true);
   assert.equal(policy.layering.relaxationSweeps, 8);
   assert.equal(policy.layering.wholeCarrierMinimumFanout, 2);
+  assert.equal(policy.layering.wholeCarrierMinimumSpan, 6);
 
   const clamped = normalizeLayoutPolicy({ layering: { relaxationSweeps: 9999 } });
   assert.equal(clamped.layering.relaxationSweeps, 64);
   assert.equal(normalizeLayoutPolicy({
     layering: { wholeCarrierMinimumFanout: 0 }
   }).layering.wholeCarrierMinimumFanout, 1);
+  assert.equal(normalizeLayoutPolicy({
+    layering: { wholeCarrierMinimumSpan: 1 }
+  }).layering.wholeCarrierMinimumSpan, 2);
   const disabled = normalizeLayoutPolicy({
     features: { minimalSpanLayering: false },
     layering: { boundaryAnchor: "source" }

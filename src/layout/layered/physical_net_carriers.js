@@ -47,6 +47,8 @@ export function buildPhysicalNetCarriers(graph = {}, levels = new Map()) {
         netGroupKey,
         sourceNodeId: String(edges[0]?.source || ""),
         physicalNetFanout: edges.length,
+        physicalNetSpan: maximumTargetColumn - sourceColumn,
+        sourceColumn,
         boundaryColumn,
         leftLevel: levelKeys[boundaryColumn],
         rightLevel: levelKeys[boundaryColumn + 1],

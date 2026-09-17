@@ -209,3 +209,9 @@ ELK 并不保证每个选项都适合本项目。例如 high-degree treatment �
 - 单元测试 587/587 通过；1024/4096/8192-cell 布局中位数约为 165 ms / 1.16 s / 4.55 s。
 
 高扇出树被接受后，eq012 的平均 bends 从约 1.89 上升到 2.94，但这是用边界内共享 carrier 取代逐边 outer fallback 的结果；物理 overlap 仍为 0，且画布宽度没有扩大。下一瓶颈已经明确转为 fanout=1 的长跨层网：它们目前被 Whole 的 `wholeCarrierMinimumFanout=2` 排除，eq012 剩余失败主要跨 3 至 7 层；eq007 剩余失败则主要是相邻层单网。下一步需要为单扇出长网提供不按每网永久扩高画布的共享 dummy/gap 轨道，并另行处理相邻层局部拥塞。
+
+随后为单扇出长网增加了独立 span 门槛：Whole 仅为 source 不在 leading boundary、且跨至少 6 层的单网保留 carrier；高扇出网仍按 fanout 门槛进入。边界 X 轨不足时先按 fanout、span 和稳定 order 选择，确保 `clk/rst_n` 不被大量单网挤出。选择 span 6 来自对照实验：span 2 会把 eq007 的 span-4 单网也纳入，但其真实失败全是 unit-span，结果只增加 crossing；span 6 则不改变 eq007 几何。
+
+- eq012：missing 140 → 94，总布局 24.2 秒 → 20.5 秒，routing 14.9 秒 → 11.1 秒；宽度保持 41,399，`clk/rst_n` 保持全链完整。
+- eq007：保持 215 missing、宽 14,796、physical crossings 56,516，约 32.5 秒；没有因 eq012 的长网策略扩大画布或 crossing。
+- 剩余 eq012 94 条均为 span-7 单扇出网，其中 53 条有容量溢出；当前边界 1 只有 247 个几何可用 X，仍有 135 个启用物理网链不完整。下一步应做按真实 Y 区间复用 X 轨道或分段 carrier，而不是继续提高固定轨道数。

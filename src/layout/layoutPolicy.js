@@ -59,6 +59,9 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // Whole proper-layering needs slots for low-fanout long nets as well;
     // unlike Focused, it cannot rely on generous local whitespace.
     wholeCarrierMinimumFanout: 2,
+    // Preserve dummy-chain slots for long single-load nets without turning
+    // every adjacent-layer edge into a carrier.
+    wholeCarrierMinimumSpan: 6,
     // Upper bound on the dummy nodes `longEdgeDummies` may create.
     maxDummyNodes: 40000
   })
@@ -68,6 +71,7 @@ export const LAYERING_LIMITS = Object.freeze({
   relaxationSweeps: Object.freeze([0, 64]),
   carrierMinimumFanout: Object.freeze([2, 1024]),
   wholeCarrierMinimumFanout: Object.freeze([1, 1024]),
+  wholeCarrierMinimumSpan: Object.freeze([2, 64]),
   maxDummyNodes: Object.freeze([0, 500000])
 });
 
@@ -152,6 +156,10 @@ function normalizeLayering(layering) {
   layering.wholeCarrierMinimumFanout = Number.isFinite(wholeCarrierMinimumFanout)
     ? clamp(Math.floor(wholeCarrierMinimumFanout), ...LAYERING_LIMITS.wholeCarrierMinimumFanout)
     : DEFAULT_LAYOUT_POLICY.layering.wholeCarrierMinimumFanout;
+  const wholeCarrierMinimumSpan = Number(layering.wholeCarrierMinimumSpan);
+  layering.wholeCarrierMinimumSpan = Number.isFinite(wholeCarrierMinimumSpan)
+    ? clamp(Math.floor(wholeCarrierMinimumSpan), ...LAYERING_LIMITS.wholeCarrierMinimumSpan)
+    : DEFAULT_LAYOUT_POLICY.layering.wholeCarrierMinimumSpan;
   const maximumDummies = Number(layering.maxDummyNodes);
   layering.maxDummyNodes = Number.isFinite(maximumDummies)
     ? clamp(Math.floor(maximumDummies), ...LAYERING_LIMITS.maxDummyNodes)

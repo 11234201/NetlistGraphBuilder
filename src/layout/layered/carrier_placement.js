@@ -10,6 +10,9 @@ export const CARRIER_SLOT_KIND = "layout-carrier-slot";
 export function buildCarrierPlacementLayers(layeredGraph, options = {}) {
   const carrierSpan = normalizePositive(options.carrierSpan, 24);
   const minimumFanout = normalizePositive(options.minimumFanout, 1);
+  const minimumSpan = normalizePositive(options.minimumSpan, Number.POSITIVE_INFINITY);
+  const minimumLongSpanSourceColumn = Math.max(0,
+    Number(options.minimumLongSpanSourceColumn) || 0);
   const boundaryByRightLevel = new Map((layeredGraph.carrierBoundaries || []).map((boundary) => [
     boundary.rightLevel,
     boundary
@@ -21,7 +24,10 @@ export function buildCarrierPlacementLayers(layeredGraph, options = {}) {
       .filter(({ node }) => !isDummyNode(node));
     const boundary = boundaryByRightLevel.get(layer.level);
     const carrierSlots = (boundary?.carriers || [])
-      .filter((carrier) => (carrier.physicalNetFanout || carrier.logicalEdgeIds?.length || 0) >= minimumFanout)
+      .filter((carrier) =>
+        (carrier.physicalNetFanout || carrier.logicalEdgeIds?.length || 0) >= minimumFanout ||
+        ((carrier.physicalNetSpan || 0) >= minimumSpan &&
+          Number(carrier.sourceColumn) >= minimumLongSpanSourceColumn))
       .map((carrier) => {
       if (!Number.isFinite(carrier.preferredRank)) {
         diagnostics.push({
