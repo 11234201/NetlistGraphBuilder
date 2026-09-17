@@ -180,7 +180,11 @@ export function layoutGraph(graph, options = {}) {
     policy
   });
 
-  if (policy.features.balancedLayerPlacement) {
+  // The two-candidate acceptance pass is currently justified for Focused
+  // graphs, where the boundary nodes expose the asymmetric layer packing it
+  // corrects. Whole graphs stay on the single-pass path until block placement
+  // can reuse one pipeline pass instead of doubling large-graph work.
+  if (policy.features.balancedLayerPlacement && hasFocusedBoundary) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {

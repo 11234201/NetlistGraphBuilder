@@ -116,3 +116,5 @@ variant 评分。任何候选只要不优于 legacy 几何就回退。
 - `clk` 1/1 自动选择 legacy，最终指标与原结果逐项一致；
 - `_1471_` 3/3 自动选择 balanced，保留 P1 的宽高、crossing 和 outer 改善；
 - 策略已改为默认开启，旧路径仍是逐图自动回退点；全量单元回归 597/597 通过。
+- 双候选择优当前只作用于 Focused：8192-cell Whole benchmark 首轮从约 5.24 s 增至 5.90 s，
+  证明 Whole 双跑 placement 不满足性能目标。Whole 继续单路径，待 P2 block 原地计算后再开放。
