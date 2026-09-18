@@ -470,6 +470,8 @@ function compareNodeCenters(left, right) {
 function parseLayoutPolicy(argumentsList) {
   const spacingArgument = argumentsList.find((argument) => argument.startsWith("--cell-spacing="));
   const fanoutXArgument = argumentsList.find((argument) => argument.startsWith("--fanout-x="));
+  const recursiveTreeMaximumShiftArgument = argumentsList.find((argument) =>
+    argument.startsWith("--recursive-tree-max-shift="));
   const carrierMinimumFanoutArgument = argumentsList.find((argument) =>
     argument.startsWith("--carrier-min-fanout="));
   const features = {
@@ -477,9 +479,12 @@ function parseLayoutPolicy(argumentsList) {
     ...(argumentsList.includes("--minimal-span") ? { minimalSpanLayering: true } : {}),
     ...(argumentsList.includes("--long-edge-dummies") ? { longEdgeDummies: true } : {}),
     ...(argumentsList.includes("--physical-carriers") ? { physicalCarrierRouting: true } : {}),
-    ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {})
+    ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {}),
+    ...(argumentsList.includes("--recursive-tree")
+      ? { recursiveFocusedTreePlacement: true } : {})
   };
-  if (!spacingArgument && !fanoutXArgument && !carrierMinimumFanoutArgument &&
+  if (!spacingArgument && !fanoutXArgument && !recursiveTreeMaximumShiftArgument &&
+    !carrierMinimumFanoutArgument &&
     Object.keys(features).length === 0) return undefined;
   const spacing = {};
   const layering = {};
@@ -492,6 +497,15 @@ function parseLayoutPolicy(argumentsList) {
     const fanoutX = Number(fanoutXArgument.slice("--fanout-x=".length));
     if (!Number.isFinite(fanoutX)) throw new Error("--fanout-x must be a finite number");
     spacing.fanoutX = fanoutX;
+  }
+  if (recursiveTreeMaximumShiftArgument) {
+    const maximumShift = Number(
+      recursiveTreeMaximumShiftArgument.slice("--recursive-tree-max-shift=".length)
+    );
+    if (!Number.isFinite(maximumShift)) {
+      throw new Error("--recursive-tree-max-shift must be a finite number");
+    }
+    spacing.recursiveTreeMaximumShift = maximumShift;
   }
   if (carrierMinimumFanoutArgument) {
     const carrierMinimumFanout = Number(

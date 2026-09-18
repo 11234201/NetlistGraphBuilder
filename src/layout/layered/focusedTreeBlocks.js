@@ -337,6 +337,106 @@ export function applyFocusedFaninTreeBlockPlacement(nodes, edges, levelKeys, {
   });
 }
 
+/** Expand exclusive arborescences around their current branch-root centres.
+ * This is a bounded placement candidate: shared bridges retain the positions
+ * assigned by membership-block placement and no graph node is duplicated. */
+export function applyRecursiveFocusedFaninTreePlacement(nodes, edges, _levelKeys, {
+  minimumY = 0,
+  gap = 8,
+  siblingGap = 32,
+  maximumShift = 32
+} = {}) {
+  const decomposition = buildFocusedFaninTreeBlocks(nodes, edges);
+  const hierarchy = buildFocusedFaninHierarchy(nodes, edges, decomposition);
+  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const requirementById = new Map();
+  const computeRequirement = (nodeId, active = new Set()) => {
+    if (requirementById.has(nodeId)) return requirementById.get(nodeId);
+    if (active.has(nodeId)) return Number(nodeById.get(nodeId)?.height) || gap;
+    active.add(nodeId);
+    const children = hierarchy.childrenByParent.get(nodeId) || [];
+    const childrenHeight = children.reduce((sum, childId) =>
+      sum + computeRequirement(childId, active), 0) +
+      Math.max(0, children.length - 1) * siblingGap;
+    active.delete(nodeId);
+    const requirement = Math.max(Number(nodeById.get(nodeId)?.height) || gap, childrenHeight);
+    requirementById.set(nodeId, requirement);
+    return requirement;
+  };
+  const desiredCenterById = new Map();
+  const assign = (nodeId, center, active = new Set()) => {
+    if (active.has(nodeId)) return;
+    active.add(nodeId);
+    desiredCenterById.set(nodeId, center);
+    const children = hierarchy.childrenByParent.get(nodeId) || [];
+    const total = children.reduce((sum, childId) => sum + computeRequirement(childId), 0) +
+      Math.max(0, children.length - 1) * siblingGap;
+    let cursor = center - total / 2;
+    for (const childId of children) {
+      const requirement = computeRequirement(childId);
+      assign(childId, cursor + requirement / 2, active);
+      cursor += requirement + siblingGap;
+    }
+    active.delete(nodeId);
+  };
+  for (const { rootId } of hierarchy.branches) {
+    const root = nodeById.get(rootId);
+    if (root) assign(rootId, centerY(root));
+  }
+  // Localized boundary nodes can share their final x column with nodes from a
+  // different provider level. Compacting provider levels independently lets
+  // those nodes cross in y and fragments a visible membership block. Apply
+  // the bounded projection to final visual columns so their current order is
+  // authoritative at the boundary the user actually sees.
+  const visualColumns = groupNodesByVisualColumn(nodes);
+  let layerCount = 0;
+  let movedNodeCount = 0;
+  for (const layer of visualColumns) {
+    layer.sort(comparePlacedNodes);
+    if (!layer.some((node) => desiredCenterById.has(node.id))) continue;
+    const preferred = layer.map((node) => {
+      if (!desiredCenterById.has(node.id)) return Number(node.y);
+      const current = centerY(node);
+      const requested = desiredCenterById.get(node.id);
+      const bounded = Math.max(current - maximumShift, Math.min(current + maximumShift, requested));
+      return bounded - Number(node.height) / 2;
+    });
+    const positions = compactOrderedLayer(layer, preferred, minimumY, gap);
+    for (let index = 0; index < layer.length; index += 1) {
+      if (Math.abs(Number(layer[index].y) - positions[index]) > 0.001) movedNodeCount += 1;
+      layer[index].y = round(positions[index]);
+    }
+    layerCount += 1;
+  }
+  return Object.freeze({
+    branchCount: hierarchy.branches.length,
+    layerCount,
+    movedNodeCount,
+    desiredNodeCount: desiredCenterById.size
+  });
+}
+
+function groupNodesByVisualColumn(nodes, tolerance = 2) {
+  const ordered = [...(nodes || [])].sort((left, right) =>
+    visualColumnCoordinate(left) - visualColumnCoordinate(right) || compareIds(left.id, right.id));
+  const columns = [];
+  let anchor = null;
+  for (const node of ordered) {
+    const x = visualColumnCoordinate(node);
+    if (anchor === null || Math.abs(x - anchor) > tolerance) {
+      columns.push([]);
+      anchor = x;
+    }
+    columns[columns.length - 1].push(node);
+  }
+  return columns;
+}
+
+function visualColumnCoordinate(node) {
+  const x = Number(node?.x);
+  return Number.isFinite(x) ? x : Number(node?.level) * 1000;
+}
+
 function emptyDecomposition() {
   return Object.freeze({
     rootId: null,

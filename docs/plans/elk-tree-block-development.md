@@ -73,6 +73,19 @@ each first-level branch as a flat list. The four exclusive trees contain 14/35/2
 nodes each: one joins branches 3-4, and one joins branches 1, 3 and 4. These arborescences
 are the input to the next subtree-height and parent-centering placement candidate.
 
+The first unconstrained recursive-height candidate was rejected because it expanded
+children freely and regressed physical crossings and wire length. The replacement projects
+parent-centering preferences into the existing stable per-layer order with a bounded shift.
+A second parameter scan after final-visual-column order enforcement selected a 32-pixel
+bound: on `_1471_` it keeps zero missing routes and zero hard violations, reduces physical
+crossings from 1,269 to 1,260 and unique wire length from 454,527 to 453,383.5, without
+changing the 5,938 x 28,646 canvas. Larger 80-160 pixel shifts were rejected because they
+made two to four routes infeasible. Visual comparison also confirms that shared leaves
+remain shared while the four exclusive roots read as separate parent-centred trees. The
+bounded placement is therefore enabled by default.
+`--recursive-tree-max-shift` remains available in the comparison tool for reproducible
+parameter studies.
+
 ## Quantitative and visual gates
 
 - `_1471_`: zero missing routes and zero hard routing violations; width <= 6,600 and

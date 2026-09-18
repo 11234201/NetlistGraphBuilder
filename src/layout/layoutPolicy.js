@@ -15,6 +15,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     branchBandSize: 16,
     branchBandGap: 192,
     focusedTreeGroupGap: 512,
+    recursiveTreeMaximumShift: 32,
     branchCenterGap: 2048,
     compactX: 196,
     fanoutX: 292,
@@ -35,6 +36,9 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // instead of allowing shared trunks to collapse every sink into one row
     // stack. Focused placement evaluates this as a bounded candidate.
     symmetricBranchPlacement: true,
+    // Keep exclusive focused-fanin subtrees centred around their parents while
+    // preserving the stable order and shared-node positions from block placement.
+    recursiveFocusedTreePlacement: true,
     localizeSingleFanoutInputs: true,
     // Experimental until proper long-edge placement and chain routing land.
     // Enabling span minimization alone changes the geometry seen by the
@@ -107,6 +111,7 @@ export const LAYOUT_SPACING_LIMITS = Object.freeze({
   branchBandSize: Object.freeze([2, 128]),
   branchBandGap: Object.freeze([0, 1000]),
   focusedTreeGroupGap: Object.freeze([0, 1200]),
+  recursiveTreeMaximumShift: Object.freeze([0, 1000]),
   branchCenterGap: Object.freeze([0, 6000]),
   compactX: Object.freeze([80, 1000]),
   fanoutX: Object.freeze([80, 1600]),

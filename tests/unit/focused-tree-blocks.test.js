@@ -4,6 +4,7 @@ import {
   buildFocusedFaninTreeBlocks,
   buildFocusedFaninHierarchy,
   applyFocusedFaninTreeBlockPlacement,
+  applyRecursiveFocusedFaninTreePlacement,
   summarizeFocusedFaninTreeBlocks
 } from "../../src/layout/layered/focusedTreeBlocks.js";
 
@@ -34,6 +35,48 @@ test("fanin tree decomposition retains shared leaves once with all owners", () =
   assert.deepEqual(result.membershipByNodeId.get("shared").ownerIds, ["a", "b"]);
   assert.equal(result.entries.filter((entry) => entry.nodeId === "shared").length, 1);
   assert.equal(summarizeFocusedFaninTreeBlocks(nodes, edges).sharedNodeCount, 1);
+});
+
+test("recursive tree placement centres sibling subtrees around their parent", () => {
+  const { nodes, edges } = fixture();
+  for (const node of nodes) node.x = node.level * 100;
+  applyFocusedFaninTreeBlockPlacement(nodes, edges, [1, 2, 3], {
+    gap: 8,
+    groupGap: 40,
+    targetCenter: 100
+  });
+  const result = applyRecursiveFocusedFaninTreePlacement(nodes, edges, [1, 2, 3], {
+    gap: 8,
+    siblingGap: 40
+  });
+  assert.equal(result.branchCount, 2);
+  assert.equal(result.desiredNodeCount, 4);
+  assert.ok(result.layerCount >= 2);
+  assert.equal(summarizeFocusedFaninTreeBlocks(nodes, edges).fragmentedGroupCount, 0);
+});
+
+test("recursive tree placement is invariant to graph array order", () => {
+  const first = fixture();
+  const second = fixture();
+  second.nodes.reverse();
+  second.edges.reverse();
+  for (const graph of [first, second]) {
+    for (const node of graph.nodes) node.x = node.level * 100;
+    applyFocusedFaninTreeBlockPlacement(graph.nodes, graph.edges, [1, 2, 3], {
+      gap: 8,
+      groupGap: 40,
+      targetCenter: 100
+    });
+    applyRecursiveFocusedFaninTreePlacement(graph.nodes, graph.edges, [1, 2, 3], {
+      gap: 8,
+      siblingGap: 40,
+      maximumShift: 32
+    });
+  }
+  assert.deepEqual(
+    new Map(first.nodes.map((node) => [node.id, node.y])),
+    new Map(second.nodes.map((node) => [node.id, node.y]))
+  );
 });
 
 test("fanin hierarchy keeps exclusive trees separate from shared bridges", () => {
