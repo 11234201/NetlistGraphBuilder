@@ -29,6 +29,11 @@ test("controlled sink spacing detects branch whitespace and primary order", () =
   assert.equal(summary.largeGapCount, 1);
   assert.equal(summary.maximumGap, 140);
   assert.equal(summary.columns[0].primaryOrderAgreement, 1);
+  assert.deepEqual(summary.columns[0].largeGaps, [{
+    afterNodeId: "s1",
+    beforeNodeId: "s2",
+    gap: 140
+  }]);
 });
 
 test("controlled sink metrics are invariant to node and edge order", () => {

@@ -19,6 +19,15 @@ moving only the root/fanin block produced 130 outer-lane routes, while translati
 produced 27 missing/disconnected routes. SBP-03 therefore moves next to ordering-time branch blocks instead
 of further coordinate repair after channel placement.
 
+Topology audit of the rendered ELK result shows that its two 128-DFF columns use matching gap boundaries;
+the dominant 5,442-pixel centre gap separates corresponding parent pairs in both columns. Simple's seven
+192-pixel gaps instead follow fixed groups of sixteen stable-order nodes. Raising barycentric sweep count
+from four to twelve did not change that order. The audit also exposed a horizontal dependency: Simple
+localizes the 256 data boundary inputs between the `_0354_` hub and its DFF targets, while ELK keeps that
+boundary column to the hub's left. Preventing localization without jointly reserving long-edge channels
+created 10-12 missing data routes, so horizontal source placement and branch corridors must be solved as
+one ordering/capacity decision rather than independent repairs.
+
 ## 1. Objective and non-negotiable acceptance
 
 This round is not complete unless the Simple provider renders `eq_012`, Focused on `cell:_1471_`, fanin

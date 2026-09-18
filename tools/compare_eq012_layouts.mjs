@@ -80,12 +80,55 @@ if (svgDirectoryArgument) {
   }
 }
 console.log(JSON.stringify(
-  argumentsList.includes("--branch-metrics-only")
+  argumentsList.includes("--branch-topology")
+    ? branchTopologyReport(report, positionedGraphs)
+    : argumentsList.includes("--branch-metrics-only")
     ? branchMetricsReport(report)
     : argumentsList.includes("--compact") ? compactReport(report) : report,
   null,
   2
 ));
+
+function branchTopologyReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => {
+      const spacing = summarizeControlledSinkSpacing(graph.nodes, graph.edges);
+      const incoming = new Map();
+      for (const edge of graph.edges) {
+        if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+        incoming.get(edge.target).push(edge.source);
+      }
+      return {
+        providerId: report.providers[index].providerId,
+        columns: spacing.columns.map((column) => ({
+          x: column.x,
+          sinkCount: column.sinkCount,
+          largeGaps: column.largeGaps.map((gap) => ({
+            ...gap,
+            afterAncestors: collectAncestorLevels(gap.afterNodeId, incoming, 3),
+            beforeAncestors: collectAncestorLevels(gap.beforeNodeId, incoming, 3)
+          }))
+        }))
+      };
+    })
+  };
+}
+
+function collectAncestorLevels(nodeId, incoming, maximumDepth) {
+  const result = [];
+  let frontier = [nodeId];
+  const visited = new Set(frontier);
+  for (let depth = 1; depth <= maximumDepth; depth += 1) {
+    const next = [...new Set(frontier.flatMap((id) => incoming.get(id) || []))]
+      .filter((id) => !visited.has(id))
+      .sort(compareIds);
+    result.push(next);
+    next.forEach((id) => visited.add(id));
+    frontier = next;
+  }
+  return result;
+}
 
 function branchMetricsReport(reportValue) {
   return {

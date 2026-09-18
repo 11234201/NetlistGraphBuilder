@@ -77,15 +77,22 @@ function groupByColumn(sinks) {
 function summarizeColumn(entries, largeGapFactor) {
   const ordered = entries.toSorted((left, right) =>
     Number(left.node.y) - Number(right.node.y) || compareIdsByNode(left.node, right.node));
-  const gaps = [];
+  const gapEntries = [];
   for (let index = 1; index < ordered.length; index += 1) {
-    gaps.push(Math.max(0,
-      Number(ordered[index].node.y) -
-      (Number(ordered[index - 1].node.y) + Number(ordered[index - 1].node.height))));
+    gapEntries.push({
+      afterNodeId: ordered[index - 1].node.id,
+      beforeNodeId: ordered[index].node.id,
+      gap: Math.max(0,
+        Number(ordered[index].node.y) -
+        (Number(ordered[index - 1].node.y) + Number(ordered[index - 1].node.height)))
+    });
   }
+  const gaps = gapEntries.map((entry) => entry.gap);
   const minimumGap = Math.min(...gaps);
   const threshold = Math.max(minimumGap + 1, minimumGap * largeGapFactor);
-  const largeGaps = gaps.filter((gap) => gap >= threshold);
+  const largeGaps = gapEntries
+    .filter((entry) => entry.gap >= threshold)
+    .map((entry) => Object.freeze({ ...entry, gap: round(entry.gap) }));
   return Object.freeze({
     x: round(Number(ordered[0].node.x) || 0),
     level: Number.isFinite(Number(ordered[0].node.level)) ? Number(ordered[0].node.level) : null,
@@ -95,6 +102,7 @@ function summarizeColumn(entries, largeGapFactor) {
     maximumGap: round(Math.max(...gaps)),
     largeGapThreshold: round(threshold),
     largeGapCount: largeGaps.length,
+    largeGaps: Object.freeze(largeGaps),
     largeGapRatio: round(largeGaps.length / gaps.length),
     gapCoefficientOfVariation: round(coefficientOfVariation(gaps)),
     primaryOrderAgreement: round(orderAgreement(ordered))
