@@ -49,6 +49,24 @@ layer made the outline more rigid but caused six missing/disconnected routes, so
 rejected. TBP-03 remains in progress until tree bands and the shared clk/rst/data carrier
 corridors are allocated together and a new side-by-side browser review passes.
 
+The ELK comparison now reconstructs visual ranks from x coordinates for both providers,
+instead of comparing Simple logical levels with ELK visual columns. On the exact cone,
+Simple uses eleven visual ranks and ELK twelve, so rank count is not the primary gap. The
+pre-corridor comparison exposed an ordering gap: Simple had 50,588 logical crossings
+versus ELK's 31,878. After physical-net merging, unique physical geometry and tree-shape
+metrics are authoritative because shared target approaches intentionally repeat in the
+logical-edge view. The next placement step therefore evaluates bounded forward/backward
+tree-local ordering candidates before considering selective micro-layers.
+
+The first unconditional multi-sweep candidate was rejected because it disconnected one
+physical net. Tree-local ordering remains a bounded candidate problem rather than an
+automatic overwrite. The accepted checkpoint instead assigns tree ordering before input
+locality and adds a general carrier target-approach segment for localized boundary leaves.
+All three large physical carriers are valid again, outer routes fall from 130 to one, and
+the exact layout remains at zero missing routes and zero hard violations. A normalized
+512-pixel focused-tree group gap makes the four exclusive/shared regions visible without
+increasing the 28,646-pixel canvas height; physical crossings fall to 1,269.
+
 ## Quantitative and visual gates
 
 - `_1471_`: zero missing routes and zero hard routing violations; width <= 6,600 and

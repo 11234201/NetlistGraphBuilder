@@ -68,6 +68,7 @@ export function buildFocusedFaninTreeBlocks(nodes, edges) {
 export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
   const decomposition = buildFocusedFaninTreeBlocks(nodes, edges);
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const visualRanks = inferVisualRanks(decomposition.entries, nodeById);
   const groups = new Map();
   for (const entry of decomposition.entries) {
     const group = groups.get(entry.membershipKey) || [];
@@ -78,7 +79,7 @@ export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
   for (const entry of decomposition.entries) {
     const node = nodeById.get(entry.nodeId);
     if (!node) continue;
-    const level = Number(node.level);
+    const level = visualRanks.get(node.id);
     const layer = levels.get(level) || [];
     layer.push({ entry, node });
     levels.set(level, layer);
@@ -110,6 +111,19 @@ export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
         intervalCount: [...intervals.values()].reduce((sum, count) => sum + count, 0)
       });
     });
+  const parentChildErrors = [];
+  let crossMembershipEdgeCount = 0;
+  for (const edge of edges || []) {
+    const source = decomposition.membershipByNodeId.get(edge.source);
+    const target = decomposition.membershipByNodeId.get(edge.target);
+    if (!source || !target) continue;
+    if (source.membershipKey !== target.membershipKey) crossMembershipEdgeCount += 1;
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
+    if (sourceNode && targetNode) {
+      parentChildErrors.push(Math.abs(centerY(sourceNode) - centerY(targetNode)));
+    }
+  }
   return Object.freeze({
     rootId: decomposition.rootId,
     branchRootIds: decomposition.branchRootIds,
@@ -121,6 +135,11 @@ export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
     fragmentedGroupCount,
     intervalCount,
     alternationCount,
+    visualRankCount: levels.size,
+    providerLevelsPresent: [...decomposition.entries].every(({ nodeId }) =>
+      Number.isFinite(Number(nodeById.get(nodeId)?.level))),
+    meanParentChildCenterError: round(mean(parentChildErrors)),
+    crossMembershipEdgeCount,
     groups: Object.freeze([...groups].map(([membershipKey, nodeIds]) => Object.freeze({
       ownerIds: Object.freeze(membershipKey.split(SHARED_SEPARATOR)),
       nodeCount: nodeIds.length
@@ -128,6 +147,24 @@ export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
       .localeCompare(right.ownerIds.join(SHARED_SEPARATOR)))),
     levels: Object.freeze(layerReports)
   });
+}
+
+function inferVisualRanks(entries, nodeById, tolerance = 2) {
+  const ordered = entries.map(({ nodeId }) => nodeById.get(nodeId))
+    .filter(Boolean)
+    .toSorted((left, right) => Number(left.x) - Number(right.x) || compareIds(left.id, right.id));
+  const result = new Map();
+  let rank = -1;
+  let anchor = null;
+  for (const node of ordered) {
+    const x = Number(node.x);
+    if (anchor === null || Math.abs(x - anchor) > tolerance) {
+      rank += 1;
+      anchor = x;
+    }
+    result.set(node.id, rank);
+  }
+  return result;
 }
 
 /** Place each membership group as one contiguous per-layer interval. Shared
@@ -151,6 +188,13 @@ export function applyFocusedFaninTreeBlockPlacement(nodes, edges, levelKeys, {
     return Number(left?.y) - Number(right?.y) || compareIds(leftId, rightId);
   });
   const branchIndex = new Map(branchOrder.map((id, index) => [id, index]));
+  const incoming = new Map();
+  for (const edge of [...(edges || [])].sort(compareEdges)) {
+    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
+    const sources = incoming.get(edge.target) || [];
+    sources.push(edge.source);
+    incoming.set(edge.target, sources);
+  }
   const layers = groupNodesByLevel(nodes);
   const root = nodeById.get(decomposition.rootId);
   const axis = Number.isFinite(Number(targetCenter))
@@ -173,7 +217,14 @@ export function applyFocusedFaninTreeBlockPlacement(nodes, edges, levelKeys, {
     const orderedGroups = [...groups.entries()].map(([key, groupNodes]) => {
       const owners = decomposition.membershipByNodeId.get(groupNodes[0].id).ownerIds;
       const rank = owners.reduce((sum, id) => sum + branchIndex.get(id), 0) / owners.length;
-      return { key, owners, rank, nodes: groupNodes.toSorted(comparePlacedNodes) };
+      return {
+        key,
+        owners,
+        rank,
+        nodes: groupNodes.toSorted((left, right) =>
+          compareTreeBarycenter(left, right, incoming, nodeById,
+            decomposition.membershipByNodeId) || comparePlacedNodes(left, right))
+      };
     }).sort((left, right) => left.rank - right.rank ||
       left.owners.length - right.owners.length || left.key.localeCompare(right.key));
     const orderedMembers = orderedGroups.flatMap((group) => group.nodes);
@@ -240,6 +291,30 @@ function comparePlacedNodes(left, right) {
   return Number(left.y) - Number(right.y) || compareIds(left.id, right.id);
 }
 
+function compareTreeBarycenter(left, right, incoming, nodeById, membershipByNodeId) {
+  return treeBarycenter(left, incoming, nodeById, membershipByNodeId) -
+    treeBarycenter(right, incoming, nodeById, membershipByNodeId);
+}
+
+function treeBarycenter(node, incoming, nodeById, membershipByNodeId) {
+  const membershipKey = membershipByNodeId.get(node.id)?.membershipKey;
+  const centers = (incoming.get(node.id) || [])
+    .filter((id) => membershipByNodeId.get(id)?.membershipKey === membershipKey)
+    .map((id) => nodeById.get(id))
+    .filter(Boolean)
+    .map(centerY)
+    .sort((left, right) => left - right);
+  if (centers.length === 0) return centerY(node);
+  const middle = Math.floor(centers.length / 2);
+  return centers.length % 2 === 1
+    ? centers[middle]
+    : (centers[middle - 1] + centers[middle]) / 2;
+}
+
 function centerY(node) {
   return Number(node.y) + Number(node.height) / 2;
+}
+
+function mean(values) {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
 }

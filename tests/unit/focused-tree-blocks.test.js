@@ -75,3 +75,17 @@ test("fanin tree decomposition is invariant to input permutations", () => {
     project(buildFocusedFaninTreeBlocks(second.nodes, second.edges))
   );
 });
+
+test("tree summary infers visual ranks when a provider omits logical levels", () => {
+  const { nodes, edges } = fixture();
+  for (const node of nodes) delete node.level;
+  nodes.find((node) => node.id === "root").x = 300;
+  for (const id of ["a", "b"]) nodes.find((node) => node.id === id).x = 200;
+  for (const id of ["a-leaf", "shared", "b-leaf"]) {
+    nodes.find((node) => node.id === id).x = 100;
+  }
+  const summary = summarizeFocusedFaninTreeBlocks(nodes, edges);
+  assert.equal(summary.providerLevelsPresent, false);
+  assert.equal(summary.visualRankCount, 2);
+  assert.deepEqual(summary.levels.map((level) => level.nodeCount), [3, 2]);
+});

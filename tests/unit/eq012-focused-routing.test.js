@@ -9,6 +9,7 @@ import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
 import { summarizeControlledSinkSpacing } from "../../src/layout/layered/branchPlacementMetrics.js";
+import { summarizeFocusedFaninTreeBlocks } from "../../src/layout/layered/focusedTreeBlocks.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { DEFAULT_ROUTING_GEOMETRY } from "../../src/layout/channelCapacity.js";
 import { getConnectionPoint } from "../../src/layout/nodeGeometry.js";
@@ -190,6 +191,11 @@ test("eq012 focused _1471_ depth 3/3 is compact and fully routable by default", 
   assert.ok(rightSinkColumns.every((column) => column.largeGapCount >= 7));
   assert.ok(rightSinkColumns.every((column) => column.maximumGap >= 2048));
   assert.equal(rightSinkColumns[0].maximumGap, rightSinkColumns[1].maximumGap);
+  const treeBlocks = summarizeFocusedFaninTreeBlocks(graph.nodes, graph.edges);
+  assert.equal(treeBlocks.branchCount, 4);
+  assert.equal(treeBlocks.sharedNodeCount, 8);
+  assert.equal(treeBlocks.fragmentedGroupCount, 0);
+  assert.ok(analyzeLayoutQuality(graph).outerRouteCount <= 2);
 });
 
 async function buildEq012FocusedGraph(options) {

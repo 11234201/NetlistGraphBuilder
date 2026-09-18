@@ -16,6 +16,7 @@ test("default routing channels use 24-pixel lane spacing", () => {
   assert.equal(DEFAULT_LAYOUT_POLICY.spacing.wireLanePitch, 24);
   assert.equal(DEFAULT_LAYOUT_POLICY.spacing.fanoutX, 292);
   assert.equal(DEFAULT_LAYOUT_POLICY.spacing.focusedFanoutX, 544);
+  assert.equal(DEFAULT_LAYOUT_POLICY.spacing.focusedTreeGroupGap, 512);
   assert.equal(DEFAULT_WIRE_LANE_PITCH, 24);
   assert.equal(DEFAULT_TOP_WIRE_LANE_PITCH, 24);
 });
@@ -37,6 +38,7 @@ test("layout policy normalizes numeric values without mutating its input", () =>
       cellPinPitch: 500,
       branchBandSize: 999,
       branchBandGap: -1,
+      focusedTreeGroupGap: 9999,
       branchCenterGap: 9999,
       margin: "invalid",
       topPadding: 9999
@@ -50,6 +52,8 @@ test("layout policy normalizes numeric values without mutating its input", () =>
   assert.equal(policy.spacing.cellPinPitch, LAYOUT_SPACING_LIMITS.cellPinPitch[1]);
   assert.equal(policy.spacing.branchBandSize, LAYOUT_SPACING_LIMITS.branchBandSize[1]);
   assert.equal(policy.spacing.branchBandGap, LAYOUT_SPACING_LIMITS.branchBandGap[0]);
+  assert.equal(policy.spacing.focusedTreeGroupGap,
+    LAYOUT_SPACING_LIMITS.focusedTreeGroupGap[1]);
   assert.equal(policy.spacing.branchCenterGap, LAYOUT_SPACING_LIMITS.branchCenterGap[1]);
   assert.equal(policy.spacing.margin, DEFAULT_LAYOUT_POLICY.spacing.margin);
   assert.equal(policy.spacing.topPadding, LAYOUT_SPACING_LIMITS.topPadding[1]);
@@ -60,6 +64,7 @@ test("layout policy normalizes numeric values without mutating its input", () =>
     cellPinPitch: 500,
     branchBandSize: 999,
     branchBandGap: -1,
+    focusedTreeGroupGap: 9999,
     branchCenterGap: 9999,
     margin: "invalid",
     topPadding: 9999
