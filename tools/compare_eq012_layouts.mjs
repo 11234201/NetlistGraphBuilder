@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
@@ -6,8 +7,11 @@ import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
 import { getNetGroupKey } from "../src/layout/layoutTopology.js";
+import { summarizeControlledSinkSpacing } from "../src/layout/layered/branchPlacementMetrics.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
+import { renderSchematicSvg } from "../src/domains/netlist/netlist_scene.js";
+import { createStandaloneSvg } from "../src/render/svgExport.js";
 
 const fixtureUrl = new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
 const source = await readFile(fixtureUrl, "utf8");
@@ -54,11 +58,182 @@ const report = {
   providers: reports,
   placementComparison: compareProviderPlacements(positionedGraphs[0], positionedGraphs[1])
 };
+const svgDirectoryArgument = argumentsList.find((argument) => argument.startsWith("--write-svg-dir="));
+if (svgDirectoryArgument) {
+  const outputDirectory = resolve(svgDirectoryArgument.slice("--write-svg-dir=".length));
+  await mkdir(outputDirectory, { recursive: true });
+  for (let index = 0; index < positionedGraphs.length; index += 1) {
+    const providerId = reports[index].providerId;
+    const graph = positionedGraphs[index];
+    const standalone = createStandaloneSvg(renderSchematicSvg(graph));
+    await writeFile(
+      resolve(outputDirectory, `${providerId}.svg`),
+      standalone,
+      "utf8"
+    );
+    const cropWidth = Math.min(1800, Number(graph.width) || 1800);
+    const rightCrop = standalone.replace(
+      /viewBox="[^"]+"/,
+      `viewBox="${Math.max(0, Number(graph.width) - cropWidth)} 0 ${cropWidth} ${Number(graph.height)}"`
+    );
+    await writeFile(resolve(outputDirectory, `${providerId}-right.svg`), rightCrop, "utf8");
+  }
+}
 console.log(JSON.stringify(
-  argumentsList.includes("--compact") ? compactReport(report) : report,
+  argumentsList.some((argument) => argument.startsWith("--physical-net="))
+    ? physicalNetReport(report, parseStringArgument(argumentsList, "--physical-net="))
+    : argumentsList.some((argument) => argument.startsWith("--route-kind="))
+    ? routeKindReport(report, positionedGraphs, parseStringArgument(argumentsList, "--route-kind="))
+    : argumentsList.includes("--route-bounds")
+    ? routeBoundsReport(report, positionedGraphs)
+    : argumentsList.includes("--level-bounds")
+    ? levelBoundsReport(report, positionedGraphs)
+    : argumentsList.includes("--branch-topology")
+    ? branchTopologyReport(report, positionedGraphs)
+    : argumentsList.includes("--branch-metrics-only")
+    ? branchMetricsReport(report)
+    : argumentsList.includes("--compact") ? compactReport(report) : report,
   null,
   2
 ));
+
+function physicalNetReport(report, net) {
+  return {
+    scenario: report.scenario,
+    net,
+    providers: report.providers.map((provider) => {
+      const summary = provider.routing?.metrics?.carrierRoutingSummary;
+      return {
+        providerId: provider.providerId,
+        topPhysicalNets: (summary?.coverage?.topPhysicalNets || [])
+          .filter((entry) => String(entry.physicalNetKey).includes(`\u0000${net}`)),
+        diagnostics: (summary?.diagnosticSamples || [])
+          .filter((entry) => String(entry.physicalNetKey).includes(`\u0000${net}`))
+      };
+    })
+  };
+}
+
+function routeKindReport(report, graphs, routeKind) {
+  return {
+    scenario: report.scenario,
+    routeKind,
+    providers: graphs.map((graph, index) => {
+      const matchingEdges = graph.edges.filter((edge) => edge.routeKind === routeKind);
+      return {
+      providerId: report.providers[index].providerId,
+      edgeCount: matchingEdges.length,
+      netCounts: countValues(matchingEdges, (edge) => edge.net || ""),
+      edges: matchingEdges
+        .slice(0, 16)
+        .map((edge) => ({
+          id: edge.id,
+          net: edge.net,
+          source: edge.source,
+          target: edge.target,
+          strategy: edge.routeStrategy || null
+        }))
+      };
+    })
+  };
+}
+
+function routeBoundsReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => ({
+      providerId: report.providers[index].providerId,
+      widestEdges: graph.edges.map((edge) => ({
+        id: edge.id,
+        net: edge.net,
+        routeKind: edge.routeKind,
+        minimumX: Math.min(...(edge.points || []).map((point) => Number(point.x))),
+        maximumX: Math.max(...(edge.points || []).map((point) => Number(point.x)))
+      })).sort((left, right) => right.maximumX - left.maximumX).slice(0, 16)
+    }))
+  };
+}
+
+function levelBoundsReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => {
+      const byLevel = new Map();
+      for (const node of graph.nodes) {
+        const level = Number.isFinite(Number(node.level)) ? Number(node.level) : "none";
+        const entries = byLevel.get(level) || [];
+        entries.push(node);
+        byLevel.set(level, entries);
+      }
+      return {
+        providerId: report.providers[index].providerId,
+        levels: [...byLevel.entries()].map(([level, nodes]) => ({
+          level,
+          nodeCount: nodes.length,
+          top: Math.min(...nodes.map((node) => Number(node.y))),
+          bottom: Math.max(...nodes.map((node) => Number(node.y) + Number(node.height))),
+          center: round((Math.min(...nodes.map((node) => Number(node.y))) +
+            Math.max(...nodes.map((node) => Number(node.y) + Number(node.height)))) / 2),
+          focusedRootCount: nodes.filter((node) => node.isFocusedRoot === true).length,
+          kindCounts: countValues(nodes, (node) => node.kind || "")
+        })).sort((left, right) => Number(left.level) - Number(right.level))
+      };
+    })
+  };
+}
+
+function branchTopologyReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => {
+      const spacing = summarizeControlledSinkSpacing(graph.nodes, graph.edges);
+      const incoming = new Map();
+      for (const edge of graph.edges) {
+        if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+        incoming.get(edge.target).push(edge.source);
+      }
+      return {
+        providerId: report.providers[index].providerId,
+        columns: spacing.columns.map((column) => ({
+          x: column.x,
+          sinkCount: column.sinkCount,
+          largeGaps: column.largeGaps.map((gap) => ({
+            ...gap,
+            afterAncestors: collectAncestorLevels(gap.afterNodeId, incoming, 3),
+            beforeAncestors: collectAncestorLevels(gap.beforeNodeId, incoming, 3)
+          }))
+        }))
+      };
+    })
+  };
+}
+
+function collectAncestorLevels(nodeId, incoming, maximumDepth) {
+  const result = [];
+  let frontier = [nodeId];
+  const visited = new Set(frontier);
+  for (let depth = 1; depth <= maximumDepth; depth += 1) {
+    const next = [...new Set(frontier.flatMap((id) => incoming.get(id) || []))]
+      .filter((id) => !visited.has(id))
+      .sort(compareIds);
+    result.push(next);
+    next.forEach((id) => visited.add(id));
+    frontier = next;
+  }
+  return result;
+}
+
+function branchMetricsReport(reportValue) {
+  return {
+    scenario: reportValue.scenario,
+    providers: reportValue.providers.map((provider) => ({
+      providerId: provider.providerId,
+      positionedGraph: provider.positionedGraph,
+      placementSelection: provider.placementSelection,
+      controlledSinkSpacing: provider.controlledSinkSpacing
+    }))
+  };
+}
 
 function compactReport(reportValue) {
   return {
@@ -76,7 +251,8 @@ function compactReport(reportValue) {
         verticalCenterSpread: provider.placement.verticalCenterSpread,
         meanAbsoluteColumnCenterOffset: provider.placement.meanAbsoluteColumnCenterOffset
       },
-      quality: provider.quality
+      quality: provider.quality,
+      controlledSinkSpacing: provider.controlledSinkSpacing
     })),
     placementComparison: reportValue.placementComparison
   };
@@ -142,7 +318,8 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
       channels: summarizeCapacityChannels(graph.routingCapacity?.channels || [])
     },
     placement: summarizePlacement(graph.nodes || []),
-    quality: analyzeLayoutQuality(graph)
+    quality: analyzeLayoutQuality(graph),
+    controlledSinkSpacing: summarizeControlledSinkSpacing(graph.nodes || [], graph.edges || [])
   };
 }
 

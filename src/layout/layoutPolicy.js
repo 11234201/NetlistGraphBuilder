@@ -12,9 +12,12 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     cellPinPitch: 36,
     branchTopY: 80,
     branchLanePitch: 228,
+    branchBandSize: 16,
+    branchBandGap: 192,
+    branchCenterGap: 2048,
     compactX: 196,
     fanoutX: 292,
-    focusedFanoutX: 560,
+    focusedFanoutX: 544,
     compactYGap: 8,
     fanoutYGap: 28
   }),
@@ -27,6 +30,10 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // only when its bounded placement score improves without dispersing the
     // shared column axis. The legacy path remains an automatic fallback.
     balancedLayerPlacement: true,
+    // Preserve data-flow branch bands through repeated controlled sink banks
+    // instead of allowing shared trunks to collapse every sink into one row
+    // stack. Focused placement evaluates this as a bounded candidate.
+    symmetricBranchPlacement: true,
     localizeSingleFanoutInputs: true,
     // Experimental until proper long-edge placement and chain routing land.
     // Enabling span minimization alone changes the geometry seen by the
@@ -96,6 +103,9 @@ export const LAYOUT_SPACING_LIMITS = Object.freeze({
   cellPinPitch: Object.freeze([18, 72]),
   branchTopY: Object.freeze([0, 2000]),
   branchLanePitch: Object.freeze([40, 1000]),
+  branchBandSize: Object.freeze([2, 128]),
+  branchBandGap: Object.freeze([0, 1000]),
+  branchCenterGap: Object.freeze([0, 6000]),
   compactX: Object.freeze([80, 1000]),
   fanoutX: Object.freeze([80, 1600]),
   focusedFanoutX: Object.freeze([80, 1600]),

@@ -10,6 +10,7 @@ import {
   isTargetEntryVisuallyClear
 } from "./routeCandidateValidation.js";
 import { scoreRouteCandidate } from "./routeScoring.js";
+import { ROUTE_SEARCH_LIMITS } from "./routeSearchPolicy.js";
 import {
   computeLevelBounds,
   createBasicSimpleRouteCandidates,
@@ -138,14 +139,17 @@ export function routeSimpleEdges(graph, nodes, options) {
   recordRoutingPhase(routingMetrics, "focusedPhysicalNets", phaseStartedAt);
   phaseStartedAt = now();
 
-  for (const [physicalNetKey, candidates] of [...(options.carrierRoutesByPhysicalNet || new Map())]
-    .toSorted(([left], [right]) => String(left).localeCompare(String(right)))) {
+  const carrierEntries = [...(options.carrierRoutesByPhysicalNet || new Map())]
+    .toSorted(([left], [right]) => String(left).localeCompare(String(right)));
+  const carrierPlan = planCarrierPhysicalNetGroups(carrierEntries, edgesByPhysicalNet, {
+    nodes,
+    nodeIndex,
+    reservedSegments
+  });
+  for (const [physicalNetKey, candidates] of carrierEntries) {
     const physicalNetEdges = edgesByPhysicalNet.get(physicalNetKey) || [];
-    const preferredCarrierRoutes = tryCarrierPhysicalNetGroup(
-      physicalNetEdges,
-      candidates,
-      { nodes, nodeIndex, reservedSegments }
-    );
+    const preferredCarrierRoutes = carrierPlan?.get(physicalNetKey) ||
+      tryCarrierPhysicalNetGroup(physicalNetEdges, candidates, { nodes, nodeIndex, reservedSegments });
     if (!preferredCarrierRoutes) continue;
     attemptedPhysicalNets.add(physicalNetKey);
     routingMetrics.carrierPhysicalNetTreeCount =
@@ -391,6 +395,37 @@ function tryCarrierPhysicalNetGroup(edges, carrierRouteCandidates, context) {
     if (usable) return usable;
   }
   return null;
+}
+
+function planCarrierPhysicalNetGroups(entries, edgesByPhysicalNet, context) {
+  if (!Array.isArray(entries) || entries.length < 2 ||
+      entries.length > ROUTE_SEARCH_LIMITS.maximumCarrierCombinationGroups) return null;
+  const overlay = new RouteSegmentIndex(context.reservedSegments?.items || []);
+  const plan = new Map();
+  let exploredStateCount = 0;
+
+  const search = (entryIndex) => {
+    if (entryIndex >= entries.length) return true;
+    if (exploredStateCount >= ROUTE_SEARCH_LIMITS.maximumCarrierCombinationStates) return false;
+    const [physicalNetKey, candidates] = entries[entryIndex];
+    const edges = edgesByPhysicalNet.get(physicalNetKey) || [];
+    for (const carrierRoutes of candidates || []) {
+      exploredStateCount += 1;
+      const usable = validateCarrierPhysicalNetCandidate(edges, carrierRoutes, {
+        ...context,
+        reservedSegments: overlay
+      });
+      if (!usable) continue;
+      overlay.pushUnique(...usable.flatMap((edge) => getOwnedRouteSegments(edge.points, edge)));
+      plan.set(physicalNetKey, usable);
+      if (search(entryIndex + 1)) return true;
+      plan.delete(physicalNetKey);
+      overlay.removeOwner(physicalNetKey);
+    }
+    return false;
+  };
+
+  return search(0) ? plan : null;
 }
 
 function validateCarrierPhysicalNetCandidate(edges, carrierRoutes, context) {

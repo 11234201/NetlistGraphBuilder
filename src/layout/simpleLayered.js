@@ -17,6 +17,13 @@ import {
   chooseBestPlacementCandidate,
   chooseBalancedPlacement
 } from "./layered/balancedPlacement.js";
+import {
+  applyControlledSinkBranchPlacement,
+  alignFocusedBranchBlock,
+  centerFocusedCoreLayers,
+  chooseControlledBranchPlacement,
+  findControlledSinkBankCenter
+} from "./layered/branchPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -27,10 +34,14 @@ import {
   measureNode,
   translateLayoutGeometry
 } from "./nodeGeometry.js";
-import { applyNodeSizeOverride } from "./nodeOverrides.js";
+import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
+import { placeTerminalOutputs } from "./nodeAlignment.js";
+import { applyFanoutHubLocality, applySingleFanoutInputLocality } from "./nodeLocality.js";
 import {
   computeLevelXs,
-  resolveExternalSourceEscapeOverlaps
+  resolveExternalSourceEscapeOverlaps,
+  resolveGroupEscapeOverlaps,
+  resolvePostLocalitySourceOverlaps
 } from "./nodeSpacing.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
@@ -190,6 +201,7 @@ export function layoutGraph(graph, options = {}) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
     const symmetricNodes = clonePositionedNodes(positionedNodes);
+    const branchNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
@@ -213,6 +225,13 @@ export function layoutGraph(graph, options = {}) {
       Number(policy.spacing.cellSpacing) || 8,
       Number(policy.spacing.compactYGap) || 8
     );
+    applyBalancedLayerPlacement(branchNodes, graph.edges, levelKeys, {
+      minimumY: topWireSpace + margin,
+      gap: placementGap,
+      alignmentBlocks: false,
+      symmetricFanout: false
+    });
+    let branchApplication = Object.freeze({ sinkCount: 0, movedNodeCount: 0 });
     const blockVariants = [
       { layerDirection: "forward", withinLayerDirection: "forward" },
       { layerDirection: "forward", withinLayerDirection: "backward" },
@@ -243,6 +262,26 @@ export function layoutGraph(graph, options = {}) {
     const blockNodes = blockCandidate.nodes;
     runPlacement(legacyNodes);
     runPlacement(balancedNodes);
+    if (policy.features.symmetricBranchPlacement) {
+      runPlacement(branchNodes);
+      branchApplication = applyControlledSinkBranchPlacement(branchNodes, graph.edges, levelKeys, {
+        minimumY: topWireSpace + margin,
+        gap: placementGap,
+        branchBandSize: policy.spacing.branchBandSize,
+        branchBandGap: policy.spacing.branchBandGap,
+        branchCenterGap: policy.spacing.branchCenterGap
+      });
+      placeTerminalOutputs(
+        branchNodes,
+        graph.edges,
+        layoutIntent,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      // Automatic branch placement is still upstream of explicit user
+      // overrides; reapply them after the branch-band projection.
+      applyNodePositionOverrides(branchNodes, options.nodePositions);
+    }
     if (symmetricCandidate.nodes !== balancedNodes) runPlacement(symmetricNodes);
     if (blockNodes !== balancedNodes) runPlacement(blockNodes);
     const balancedSelection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
@@ -264,8 +303,76 @@ export function layoutGraph(graph, options = {}) {
         Number(policy.spacing.compactYGap) || 8
       )
       });
-    positionedNodes = selection.nodes;
-    const selectedName = selection.nodes === blockNodes && blockNodes !== balancedNodes
+    const branchSelection = policy.features.symmetricBranchPlacement &&
+      branchApplication.movedNodeCount > 0
+      ? chooseControlledBranchPlacement(selection.nodes, branchNodes, graph.edges)
+      : Object.freeze({
+        nodes: selection.nodes,
+        selected: false,
+        reason: "disabled-or-no-movement",
+        base: null,
+        candidate: null
+      });
+    if (branchSelection.selected) {
+      const focusedRootCount = branchSelection.nodes.filter((node) =>
+        node.isFocusedRoot === true && node.kind === "cell").length;
+      const corePlacement = focusedRootCount === 1
+        ? centerFocusedCoreLayers(
+            branchSelection.nodes,
+            graph.edges,
+            levelKeys,
+            { minimumY: topWireSpace + margin }
+          )
+        : Object.freeze({ layerCount: 0, movedNodeCount: 0 });
+      const focusedBlock = corePlacement.layerCount === 0
+        ? alignFocusedBranchBlock(branchSelection.nodes, graph.edges, levelKeys, {
+            minimumY: topWireSpace + margin,
+            gap: placementGap,
+            faninDepth: 1,
+            targetCenter: findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
+          })
+        : Object.freeze({ blockCount: 0, movedNodeCount: 0 });
+      applyFanoutHubLocality(branchSelection.nodes, graph.edges, margin);
+      if (policy.features.localizeSingleFanoutInputs) {
+        applySingleFanoutInputLocality(
+          branchSelection.nodes,
+          graph.edges,
+          margin,
+          layoutIntent,
+          topWireLanePitch,
+          Number(policy.spacing.cellSpacing) || 8
+        );
+      }
+      resolvePostLocalitySourceOverlaps(
+        branchSelection.nodes,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      resolveGroupEscapeOverlaps(
+        branchSelection.nodes,
+        graph.edges,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      placeTerminalOutputs(
+        branchSelection.nodes,
+        graph.edges,
+        layoutIntent,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      branchApplication = Object.freeze({
+        ...branchApplication,
+        centeredCoreLayerCount: corePlacement.layerCount,
+        focusedBlockCount: focusedBlock.blockCount,
+        movedNodeCount: branchApplication.movedNodeCount + corePlacement.movedNodeCount +
+          focusedBlock.movedNodeCount
+      });
+      applyNodePositionOverrides(branchSelection.nodes, options.nodePositions);
+    }
+    positionedNodes = branchSelection.nodes;
+    const selectedName = branchSelection.selected
+      ? "controlled-branch-bands"
+      : selection.nodes === blockNodes && blockNodes !== balancedNodes
       ? `alignment-blocks-${blockCandidate.selectedIndex}`
       : selection.nodes === symmetricNodes ? "symmetric-fanout" : balancedSelection.selected;
     placementSelectionMetrics = Object.freeze({
@@ -274,6 +381,7 @@ export function layoutGraph(graph, options = {}) {
       legacy: freezePlacementSummary(balancedSelection.legacy),
       balanced: freezePlacementSummary(balancedSelection.candidate),
       symmetric: freezePlacementSummary(symmetricCandidate.summaries[0]),
+      controlledBranch: freezeBranchSelection(branchSelection),
       blockVariants: Object.freeze(blockCandidate.summaries.map(freezePlacementSummary)),
       blockVariantIndex: blockCandidate.selectedIndex
     });
@@ -480,6 +588,25 @@ function freezePlacementSummary(summary = {}) {
     portDelta: Number(summary.portDelta) || 0,
     alignedEdgeCount: Number(summary.alignedEdgeCount) || 0,
     score: Number(summary.score) || 0
+  });
+}
+
+function freezeBranchSelection(selection = {}) {
+  const summarize = (value) => value ? Object.freeze({
+    placement: freezePlacementSummary(value.placement),
+    controlled: Object.freeze({
+      sinkCount: Number(value.controlled?.sinkCount) || 0,
+      columnCount: Number(value.controlled?.columnCount) || 0,
+      largeGapCount: Number(value.controlled?.largeGapCount) || 0,
+      maximumGap: Number(value.controlled?.maximumGap) || 0,
+      meanPrimaryAlignmentError: Number(value.controlled?.meanPrimaryAlignmentError) || 0
+    })
+  }) : null;
+  return Object.freeze({
+    selected: selection.selected === true,
+    reason: selection.reason || null,
+    base: summarize(selection.base),
+    candidate: summarize(selection.candidate)
   });
 }
 
