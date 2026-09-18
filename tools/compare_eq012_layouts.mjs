@@ -86,6 +86,8 @@ console.log(JSON.stringify(
     ? routeKindReport(report, positionedGraphs, parseStringArgument(argumentsList, "--route-kind="))
     : argumentsList.includes("--route-bounds")
     ? routeBoundsReport(report, positionedGraphs)
+    : argumentsList.includes("--level-bounds")
+    ? levelBoundsReport(report, positionedGraphs)
     : argumentsList.includes("--branch-topology")
     ? branchTopologyReport(report, positionedGraphs)
     : argumentsList.includes("--branch-metrics-only")
@@ -149,6 +151,34 @@ function routeBoundsReport(report, graphs) {
         maximumX: Math.max(...(edge.points || []).map((point) => Number(point.x)))
       })).sort((left, right) => right.maximumX - left.maximumX).slice(0, 16)
     }))
+  };
+}
+
+function levelBoundsReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => {
+      const byLevel = new Map();
+      for (const node of graph.nodes) {
+        const level = Number.isFinite(Number(node.level)) ? Number(node.level) : "none";
+        const entries = byLevel.get(level) || [];
+        entries.push(node);
+        byLevel.set(level, entries);
+      }
+      return {
+        providerId: report.providers[index].providerId,
+        levels: [...byLevel.entries()].map(([level, nodes]) => ({
+          level,
+          nodeCount: nodes.length,
+          top: Math.min(...nodes.map((node) => Number(node.y))),
+          bottom: Math.max(...nodes.map((node) => Number(node.y) + Number(node.height))),
+          center: round((Math.min(...nodes.map((node) => Number(node.y))) +
+            Math.max(...nodes.map((node) => Number(node.y) + Number(node.height)))) / 2),
+          focusedRootCount: nodes.filter((node) => node.isFocusedRoot === true).length,
+          kindCounts: countValues(nodes, (node) => node.kind || "")
+        })).sort((left, right) => Number(left.level) - Number(right.level))
+      };
+    })
   };
 }
 

@@ -251,6 +251,44 @@ export function findControlledSinkBankCenter(nodes, edges, {
   return centers.length > 0 ? median(centers) : null;
 }
 
+/** Centre every intermediate layer as one rigid row-ordered block on the
+ * controlled-bank axis. Unlike moving a selected fanin subset, this keeps all
+ * intra-layer offsets and therefore cannot introduce a new order crossing. */
+export function centerFocusedCoreLayers(nodes, edges, levelKeys, {
+  minimumY = 0,
+  minimumBankSize = 32
+} = {}) {
+  const bankCenter = findControlledSinkBankCenter(nodes, edges, { minimumBankSize });
+  if (!Number.isFinite(bankCenter)) return Object.freeze({ layerCount: 0, movedNodeCount: 0 });
+  const sinks = collectControlledSinks(nodes, edges);
+  const sinkCountsByLevel = new Map();
+  for (const { node } of sinks) {
+    const level = Number(node.level);
+    sinkCountsByLevel.set(level, (sinkCountsByLevel.get(level) || 0) + 1);
+  }
+  const bankLevels = [...sinkCountsByLevel]
+    .filter(([, count]) => count >= minimumBankSize)
+    .map(([level]) => level);
+  if (bankLevels.length === 0) return Object.freeze({ layerCount: 0, movedNodeCount: 0 });
+  const firstBankLevel = Math.min(...bankLevels);
+  const layers = groupNodesByLevel(nodes);
+  let layerCount = 0;
+  let movedNodeCount = 0;
+  for (const level of levelKeys || []) {
+    if (Number(level) <= 0 || Number(level) >= firstBankLevel) continue;
+    const layer = layers.get(level) || [];
+    if (layer.length === 0) continue;
+    const top = Math.min(...layer.map((node) => Number(node.y)));
+    const bottom = Math.max(...layer.map((node) => Number(node.y) + Number(node.height)));
+    const shift = Math.max(minimumY - top, bankCenter - (top + bottom) / 2);
+    if (Math.abs(shift) <= 0.001) continue;
+    layerCount += 1;
+    movedNodeCount += layer.length;
+    for (const node of layer) node.y = round(Number(node.y) + shift);
+  }
+  return Object.freeze({ layerCount, movedNodeCount, bankCenter, firstBankLevel });
+}
+
 function distributeBranchBandWhitespace(layer, positions, sinkById, {
   branchBandSize,
   branchBandGap,

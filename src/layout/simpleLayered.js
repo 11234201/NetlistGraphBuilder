@@ -20,6 +20,7 @@ import {
 import {
   applyControlledSinkBranchPlacement,
   alignFocusedBranchBlock,
+  centerFocusedCoreLayers,
   chooseControlledBranchPlacement,
   findControlledSinkBankCenter
 } from "./layered/branchPlacement.js";
@@ -35,9 +36,12 @@ import {
 } from "./nodeGeometry.js";
 import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
 import { placeTerminalOutputs } from "./nodeAlignment.js";
+import { applyFanoutHubLocality, applySingleFanoutInputLocality } from "./nodeLocality.js";
 import {
   computeLevelXs,
-  resolveExternalSourceEscapeOverlaps
+  resolveExternalSourceEscapeOverlaps,
+  resolveGroupEscapeOverlaps,
+  resolvePostLocalitySourceOverlaps
 } from "./nodeSpacing.js";
 import { assignSimpleLevels, orderSimpleLayers } from "./simpleLayering.js";
 import { routeSimpleEdges } from "./simpleOrthogonalRouter.js";
@@ -310,17 +314,60 @@ export function layoutGraph(graph, options = {}) {
         candidate: null
       });
     if (branchSelection.selected) {
-      const focusedBlock = alignFocusedBranchBlock(branchSelection.nodes, graph.edges, levelKeys, {
-        minimumY: topWireSpace + margin,
-        gap: placementGap,
-        faninDepth: 1,
-        targetCenter: findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
-      });
+      const focusedRootCount = branchSelection.nodes.filter((node) =>
+        node.isFocusedRoot === true && node.kind === "cell").length;
+      const corePlacement = focusedRootCount === 1
+        ? centerFocusedCoreLayers(
+            branchSelection.nodes,
+            graph.edges,
+            levelKeys,
+            { minimumY: topWireSpace + margin }
+          )
+        : Object.freeze({ layerCount: 0, movedNodeCount: 0 });
+      const focusedBlock = corePlacement.layerCount === 0
+        ? alignFocusedBranchBlock(branchSelection.nodes, graph.edges, levelKeys, {
+            minimumY: topWireSpace + margin,
+            gap: placementGap,
+            faninDepth: 1,
+            targetCenter: findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
+          })
+        : Object.freeze({ blockCount: 0, movedNodeCount: 0 });
+      applyFanoutHubLocality(branchSelection.nodes, graph.edges, margin);
+      if (policy.features.localizeSingleFanoutInputs) {
+        applySingleFanoutInputLocality(
+          branchSelection.nodes,
+          graph.edges,
+          margin,
+          layoutIntent,
+          topWireLanePitch,
+          Number(policy.spacing.cellSpacing) || 8
+        );
+      }
+      resolvePostLocalitySourceOverlaps(
+        branchSelection.nodes,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      resolveGroupEscapeOverlaps(
+        branchSelection.nodes,
+        graph.edges,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      placeTerminalOutputs(
+        branchSelection.nodes,
+        graph.edges,
+        layoutIntent,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
       branchApplication = Object.freeze({
         ...branchApplication,
+        centeredCoreLayerCount: corePlacement.layerCount,
         focusedBlockCount: focusedBlock.blockCount,
-        movedNodeCount: branchApplication.movedNodeCount + focusedBlock.movedNodeCount
+        movedNodeCount: branchApplication.movedNodeCount + corePlacement.movedNodeCount +
+          focusedBlock.movedNodeCount
       });
+      applyNodePositionOverrides(branchSelection.nodes, options.nodePositions);
     }
     positionedNodes = branchSelection.nodes;
     const selectedName = branchSelection.selected

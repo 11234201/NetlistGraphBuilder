@@ -4,6 +4,7 @@ import {
   applyControlledSinkBranchPlacement,
   alignFocusedBranchBlock,
   alignFocusedRootSpine,
+  centerFocusedCoreLayers,
   chooseControlledBranchPlacement,
   findControlledSinkBankCenter
 } from "../../src/layout/layered/branchPlacement.js";
@@ -152,4 +153,28 @@ test("controlled sink bank center follows topology-selected large columns", () =
     sharedSourceFanout: 4,
     primarySourceFanout: 1
   }), 160);
+});
+
+test("focused core centering translates whole layers without changing their order or offsets", () => {
+  const nodes = [node("control", 0, 0), node("a", 1, 0), node("b", 1, 40)];
+  const edges = [];
+  for (let index = 0; index < 4; index += 1) {
+    nodes.push(node(`p${index}`, 1, index * 100));
+    nodes.push(node(`s${index}`, 2, 400 + index * 100));
+    edges.push(
+      { id: `c${index}`, source: "control", target: `s${index}` },
+      { id: `d${index}`, source: `p${index}`, target: `s${index}` }
+    );
+  }
+  const beforeDelta = nodes.find((entry) => entry.id === "b").y -
+    nodes.find((entry) => entry.id === "a").y;
+  const result = centerFocusedCoreLayers(nodes, edges, [0, 1, 2], {
+    minimumBankSize: 4
+  });
+
+  assert.equal(result.layerCount, 1);
+  assert.equal(nodes.find((entry) => entry.id === "b").y -
+    nodes.find((entry) => entry.id === "a").y, beforeDelta);
+  assert.equal(nodes.find((entry) => entry.id === "a").y <
+    nodes.find((entry) => entry.id === "b").y, true);
 });

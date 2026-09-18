@@ -188,7 +188,7 @@ test("eq012 focused _1471_ depth 3/3 is compact and fully routable by default", 
     column.x > 5000 && column.sinkCount === 128);
   assert.equal(rightSinkColumns.length, 2);
   assert.ok(rightSinkColumns.every((column) => column.largeGapCount >= 7));
-  assert.ok(rightSinkColumns.every((column) => column.maximumGap >= 600));
+  assert.ok(rightSinkColumns.every((column) => column.maximumGap >= 2048));
   assert.equal(rightSinkColumns[0].maximumGap, rightSinkColumns[1].maximumGap);
 });
 

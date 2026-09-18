@@ -93,6 +93,22 @@ preserve the internal order/relative offsets of the cone while allocating the DF
 the block, then reserve its boundary channels before routing. Until that browser result resembles ELK's
 central waist, SBP-03 and the round remain in progress.
 
+### 2026-09-18 core-block checkpoint
+
+The selective-node experiment above was replaced by rigid per-layer core placement. For a single focused
+cell with large controlled-sink banks, every intermediate layer is translated as a whole onto the banks'
+topology-derived common axis; node order and intra-layer offsets are unchanged. Input locality, shared-hub
+locality, terminal output alignment, collision repair and explicit overrides are then reapplied at their
+own boundaries. Multi-root and net-focused views retain their existing placement path.
+
+For `_1471_` depth 3/3, the selected Simple result is now 6,122 x 28,640, compared with ELK's
+6,374 x 32,160.5. It has zero missing routes, zero hard violations, zero outer routes, a 2,048-pixel
+matching centre gap in both 128-DFF columns, and zero mean data-parent alignment error. Logical crossings
+are 82,122 and physical crossings 1,652 (the pre-core checkpoint was 134,533 and 4,302). Browser review
+shows the focused cone centred in the shared aperture with matching upper/lower DFF banks and regular
+shared clk/rst/data trunks. This satisfies the SBP-03/SBP-04 target geometry; SBP-06 release verification
+and delivery remain outstanding.
+
 ## 3. Work packages
 
 ### SBP-01 — Visual oracle and measurable structure

@@ -14,7 +14,7 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     branchLanePitch: 228,
     branchBandSize: 16,
     branchBandGap: 192,
-    branchCenterGap: 600,
+    branchCenterGap: 2048,
     compactX: 196,
     fanoutX: 292,
     focusedFanoutX: 544,
