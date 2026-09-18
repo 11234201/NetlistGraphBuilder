@@ -67,6 +67,12 @@ the exact layout remains at zero missing routes and zero hard violations. A norm
 512-pixel focused-tree group gap makes the four exclusive/shared regions visible without
 increasing the 28,646-pixel canvas height; physical crossings fall to 1,269.
 
+Recursive decomposition now exposes the internal acceptance structure instead of treating
+each first-level branch as a flat list. The four exclusive trees contain 14/35/28/30 nodes,
+5/20/15/16 leaves, and maximum depths 3/3/3/4. Two explicit shared bridges contain four
+nodes each: one joins branches 3-4, and one joins branches 1, 3 and 4. These arborescences
+are the input to the next subtree-height and parent-centering placement candidate.
+
 ## Quantitative and visual gates
 
 - `_1471_`: zero missing routes and zero hard routing violations; width <= 6,600 and

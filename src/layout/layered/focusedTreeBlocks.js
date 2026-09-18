@@ -67,6 +67,7 @@ export function buildFocusedFaninTreeBlocks(nodes, edges) {
 
 export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
   const decomposition = buildFocusedFaninTreeBlocks(nodes, edges);
+  const hierarchy = buildFocusedFaninHierarchy(nodes, edges, decomposition);
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
   const visualRanks = inferVisualRanks(decomposition.entries, nodeById);
   const groups = new Map();
@@ -140,12 +141,83 @@ export function summarizeFocusedFaninTreeBlocks(nodes, edges) {
       Number.isFinite(Number(nodeById.get(nodeId)?.level))),
     meanParentChildCenterError: round(mean(parentChildErrors)),
     crossMembershipEdgeCount,
+    hierarchy,
     groups: Object.freeze([...groups].map(([membershipKey, nodeIds]) => Object.freeze({
       ownerIds: Object.freeze(membershipKey.split(SHARED_SEPARATOR)),
       nodeCount: nodeIds.length
     })).sort((left, right) => left.ownerIds.join(SHARED_SEPARATOR)
       .localeCompare(right.ownerIds.join(SHARED_SEPARATOR)))),
     levels: Object.freeze(layerReports)
+  });
+}
+
+/** Build one deterministic arborescence inside every exclusive membership.
+ * Reconvergent DAG nodes select their nearest downstream parent; shared nodes
+ * remain outside the exclusive trees and are reported as explicit bridges. */
+export function buildFocusedFaninHierarchy(nodes, edges, existingDecomposition = null) {
+  const decomposition = existingDecomposition || buildFocusedFaninTreeBlocks(nodes, edges);
+  const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
+  const outgoing = new Map();
+  for (const edge of [...(edges || [])].sort(compareEdges)) {
+    if (!decomposition.membershipByNodeId.has(edge.source) ||
+        !decomposition.membershipByNodeId.has(edge.target)) continue;
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target]);
+  }
+  const childrenByParent = new Map();
+  for (const entry of decomposition.entries) {
+    if (entry.shared || decomposition.branchRootIds.includes(entry.nodeId)) continue;
+    const node = nodeById.get(entry.nodeId);
+    const candidates = (outgoing.get(entry.nodeId) || [])
+      .filter((targetId) => decomposition.membershipByNodeId.get(targetId)?.membershipKey ===
+        entry.membershipKey)
+      .map((targetId) => nodeById.get(targetId))
+      .filter(Boolean)
+      .sort((left, right) => {
+        const leftDistance = Math.max(0, Number(left.level) - Number(node?.level));
+        const rightDistance = Math.max(0, Number(right.level) - Number(node?.level));
+        return leftDistance - rightDistance || compareIds(left.id, right.id);
+      });
+    const parent = candidates[0];
+    if (!parent) continue;
+    childrenByParent.set(parent.id, [...(childrenByParent.get(parent.id) || []), entry.nodeId]);
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort((leftId, rightId) => comparePlacedNodes(
+      nodeById.get(leftId), nodeById.get(rightId)));
+  }
+  const branches = decomposition.branchRootIds.map((rootId) => {
+    const visited = new Set();
+    let leafCount = 0;
+    let maximumDepth = 0;
+    const visit = (nodeId, depth) => {
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+      maximumDepth = Math.max(maximumDepth, depth);
+      const children = childrenByParent.get(nodeId) || [];
+      if (children.length === 0) leafCount += 1;
+      for (const childId of children) visit(childId, depth + 1);
+    };
+    visit(rootId, 0);
+    return Object.freeze({ rootId, nodeCount: visited.size, leafCount, maximumDepth });
+  });
+  const sharedGroups = new Map();
+  for (const entry of decomposition.entries.filter((item) => item.shared)) {
+    const group = sharedGroups.get(entry.membershipKey) || {
+      ownerIds: entry.ownerIds,
+      nodeIds: []
+    };
+    group.nodeIds.push(entry.nodeId);
+    sharedGroups.set(entry.membershipKey, group);
+  }
+  return Object.freeze({
+    branches: Object.freeze(branches),
+    sharedGroups: Object.freeze([...sharedGroups.values()].map((group) => Object.freeze({
+      ownerIds: group.ownerIds,
+      nodeCount: group.nodeIds.length,
+      nodeIds: Object.freeze(group.nodeIds.toSorted(compareIds))
+    }))),
+    childrenByParent: new Map([...childrenByParent].map(([parentId, children]) =>
+      [parentId, Object.freeze([...children])]))
   });
 }
 

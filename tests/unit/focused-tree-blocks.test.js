@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildFocusedFaninTreeBlocks,
+  buildFocusedFaninHierarchy,
   applyFocusedFaninTreeBlockPlacement,
   summarizeFocusedFaninTreeBlocks
 } from "../../src/layout/layered/focusedTreeBlocks.js";
@@ -33,6 +34,18 @@ test("fanin tree decomposition retains shared leaves once with all owners", () =
   assert.deepEqual(result.membershipByNodeId.get("shared").ownerIds, ["a", "b"]);
   assert.equal(result.entries.filter((entry) => entry.nodeId === "shared").length, 1);
   assert.equal(summarizeFocusedFaninTreeBlocks(nodes, edges).sharedNodeCount, 1);
+});
+
+test("fanin hierarchy keeps exclusive trees separate from shared bridges", () => {
+  const { nodes, edges } = fixture();
+  const hierarchy = buildFocusedFaninHierarchy(nodes, edges);
+  assert.deepEqual(hierarchy.branches.map(({ rootId, nodeCount, leafCount }) =>
+    ({ rootId, nodeCount, leafCount })), [
+    { rootId: "a", nodeCount: 2, leafCount: 1 },
+    { rootId: "b", nodeCount: 2, leafCount: 1 }
+  ]);
+  assert.deepEqual(hierarchy.sharedGroups.map(({ ownerIds, nodeCount }) =>
+    ({ ownerIds, nodeCount })), [{ ownerIds: ["a", "b"], nodeCount: 1 }]);
 });
 
 test("tree-block placement makes every membership contiguous in each layer", () => {
