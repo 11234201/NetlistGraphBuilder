@@ -1,6 +1,6 @@
 # ELK-style symmetric branch placement — next-round plan
 
-Updated: 2026-09-18. Status: in_progress (SBP-06 delivery). Target branch: `dev`.
+Updated: 2026-09-18. Status: completed. Delivery branches: `dev` and `master`.
 
 | Work package | Status | Current evidence |
 | --- | --- | --- |
@@ -9,7 +9,7 @@ Updated: 2026-09-18. Status: in_progress (SBP-06 delivery). Target branch: `dev`
 | SBP-03 symmetric placement | completed | Rigid intermediate-layer blocks are centred on the shared 2,048-pixel DFF aperture without changing layer order or internal offsets |
 | SBP-04 regular routing | completed | Exact fixture has zero missing/violating/outer routes; clk/rst/data carriers are selected atomically with bounded joint search |
 | SBP-05 scoring | completed | Controlled branch structure is a named candidate gate and wins the exact fixture without fixture IDs or relaxed validation |
-| SBP-06 verification | in_progress | Unit, exact focused, browser, mapped-baseline and Whole benchmark gates pass; final commit/push and master merge pending |
+| SBP-06 verification | completed | 621/621 unit tests, exact focused checks, browser review, mapped baseline and Whole benchmark pass; dev and master are pushed |
 
 Latest checkpoint: the accepted Simple candidate is 6,122 x 28,640 with zero missing routes, zero hard
 violations and zero outer routes. Each 128-DFF column has the same 2,048-pixel centre aperture, mean
@@ -208,6 +208,6 @@ push `master`. Preserve user-owned workspace files.
 
 ## 5. Completion rule
 
-This document stays planned/in-progress until both machine gates and the browser visual gate pass. In
-particular, successful unit tests, compact bounds, or safe fallback do not close the round while `_1471_`
-still lacks ELK-like orderly symmetric branches and regular nets.
+Completion evidence is recorded above: both machine gates and the browser visual gate pass, and the
+verified dev history has been merged and pushed to master. Future generic large-Whole routing work remains
+separate from this `_1471_` symmetric-branch acceptance round.
