@@ -1,23 +1,21 @@
 # ELK-style symmetric branch placement — next-round plan
 
-Updated: 2026-09-18. Status: in_progress (SBP-02/SBP-03). Target branch: `dev`.
+Updated: 2026-09-18. Status: in_progress (SBP-06 delivery). Target branch: `dev`.
 
 | Work package | Status | Current evidence |
 | --- | --- | --- |
 | SBP-01 visual oracle | completed | Controlled-sink columns now report minimum/median/maximum gap, large-gap count, gap variation, primary order and data-parent alignment; exact Simple/ELK baseline frozen below |
-| SBP-02 branch decomposition | in_progress | Shared-control/low-fanout-data ownership identifies 267 controlled sinks deterministically; full focused branch-block ownership still experimental |
-| SBP-03 symmetric placement | in_progress | Policy-owned 16-sink branch bands are selected and valid; post-placement root/block and whole-upstream-layer centering were rejected by routing gates |
-| SBP-04 regular routing | planned | Existing router validates current branch-band candidate; root-spine movement still needs channel-aware routing |
-| SBP-05 scoring | in_progress | Branch structure has a separate acceptance gate; final routing-aware lexicographic selection remains |
-| SBP-06 verification | planned | Focused tests and full unit suite pass; mapped, benchmark and browser final gate pending |
+| SBP-02 branch decomposition | completed | Topology-owned controlled sinks form deterministic large bank columns; shared physical carriers retain atomic net identity and permutation tests cover the derived axis |
+| SBP-03 symmetric placement | completed | Rigid intermediate-layer blocks are centred on the shared 2,048-pixel DFF aperture without changing layer order or internal offsets |
+| SBP-04 regular routing | completed | Exact fixture has zero missing/violating/outer routes; clk/rst/data carriers are selected atomically with bounded joint search |
+| SBP-05 scoring | completed | Controlled branch structure is a named candidate gate and wins the exact fixture without fixture IDs or relaxed validation |
+| SBP-06 verification | in_progress | Unit, exact focused, browser, mapped-baseline and Whole benchmark gates pass; final commit/push and master merge pending |
 
-Latest checkpoint: the accepted Simple candidate is 6,274 x 26,888 with zero missing routes and zero hard
-violations. Each 128-DFF right column has seven deliberate 192-pixel inter-band gaps, and mean data-parent
-alignment error is 228.195 (baseline 847.506). The branch-band size and gap now belong to normalized layout
-policy rather than private placement constants. Two post-placement centering approaches remain rejected:
-moving only the root/fanin block produced 130 outer-lane routes, while translating complete upstream layers
-produced 27 missing/disconnected routes. SBP-03 therefore moves next to ordering-time branch blocks instead
-of further coordinate repair after channel placement.
+Latest checkpoint: the accepted Simple candidate is 6,122 x 28,640 with zero missing routes, zero hard
+violations and zero outer routes. Each 128-DFF column has the same 2,048-pixel centre aperture, mean
+data-parent alignment error is zero, and the focused intermediate layers form one centred visual waist.
+The branch-band size/gaps and bounded carrier-combination limits belong to normalized policy rather than
+fixture-specific constants.
 
 Topology audit of the rendered ELK result shows that its two 128-DFF columns use matching gap boundaries;
 the dominant 5,442-pixel centre gap separates corresponding parent pairs in both columns. Simple's seven
@@ -108,6 +106,14 @@ are 82,122 and physical crossings 1,652 (the pre-core checkpoint was 134,533 and
 shows the focused cone centred in the shared aperture with matching upper/lower DFF banks and regular
 shared clk/rst/data trunks. This satisfies the SBP-03/SBP-04 target geometry; SBP-06 release verification
 and delivery remain outstanding.
+
+SBP-06 Linux verification on `mfs-remote` used `origin/dev` at `db35a6f`. Full-node mapped regression
+completed all 47 fixtures with the established 14/47 failure baseline and exactly the established 1,019
+violations (budget 120); eq012 passed with zero violations. No new mapped failure category or count was
+introduced. The 1,024/4,096/8,192-cell Whole benchmark medians were 202.2/1,243.2/5,135.7 ms, so the
+8,192-cell result improves on the 5,355.9 ms reference and remains inside the 10% gate. The exact `clk`
+depth 1/1 check remains at zero missing routes, zero violations, zero outer routes and 100% horizontal
+first/endpoint routing. Final full-test rerun, delivery commit, and master merge remain.
 
 ## 3. Work packages
 

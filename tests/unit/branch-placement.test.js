@@ -158,7 +158,7 @@ test("controlled sink bank center follows topology-selected large columns", () =
 test("focused core centering translates whole layers without changing their order or offsets", () => {
   const nodes = [node("control", 0, 0), node("a", 1, 0), node("b", 1, 40)];
   const edges = [];
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 16; index += 1) {
     nodes.push(node(`p${index}`, 1, index * 100));
     nodes.push(node(`s${index}`, 2, 400 + index * 100));
     edges.push(
@@ -169,7 +169,7 @@ test("focused core centering translates whole layers without changing their orde
   const beforeDelta = nodes.find((entry) => entry.id === "b").y -
     nodes.find((entry) => entry.id === "a").y;
   const result = centerFocusedCoreLayers(nodes, edges, [0, 1, 2], {
-    minimumBankSize: 4
+    minimumBankSize: 16
   });
 
   assert.equal(result.layerCount, 1);
@@ -177,4 +177,30 @@ test("focused core centering translates whole layers without changing their orde
     nodes.find((entry) => entry.id === "a").y, beforeDelta);
   assert.equal(nodes.find((entry) => entry.id === "a").y <
     nodes.find((entry) => entry.id === "b").y, true);
+});
+
+test("focused core centering is invariant to node and edge permutations", () => {
+  const build = () => {
+    const nodes = [node("control", 0, 0), node("a", 1, 0), node("b", 1, 40)];
+    const edges = [];
+    for (let index = 0; index < 16; index += 1) {
+      nodes.push(node(`p${index}`, 1, index * 100), node(`s${index}`, 2, 400 + index * 100));
+      edges.push(
+        { id: `c${index}`, source: "control", target: `s${index}` },
+        { id: `d${index}`, source: `p${index}`, target: `s${index}` }
+      );
+    }
+    return { nodes, edges };
+  };
+  const first = build();
+  const second = build();
+  second.nodes.reverse();
+  second.edges.reverse();
+  centerFocusedCoreLayers(first.nodes, first.edges, [0, 1, 2], { minimumBankSize: 16 });
+  centerFocusedCoreLayers(second.nodes, second.edges, [0, 1, 2], { minimumBankSize: 16 });
+
+  assert.deepEqual(
+    new Map(first.nodes.map((entry) => [entry.id, entry.y])),
+    new Map(second.nodes.map((entry) => [entry.id, entry.y]))
+  );
 });
