@@ -19,7 +19,9 @@ import {
 } from "./layered/balancedPlacement.js";
 import {
   applyControlledSinkBranchPlacement,
-  chooseControlledBranchPlacement
+  alignFocusedBranchBlock,
+  chooseControlledBranchPlacement,
+  findControlledSinkBankCenter
 } from "./layered/branchPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
@@ -262,7 +264,8 @@ export function layoutGraph(graph, options = {}) {
         minimumY: topWireSpace + margin,
         gap: placementGap,
         branchBandSize: policy.spacing.branchBandSize,
-        branchBandGap: policy.spacing.branchBandGap
+        branchBandGap: policy.spacing.branchBandGap,
+        branchCenterGap: policy.spacing.branchCenterGap
       });
       placeTerminalOutputs(
         branchNodes,
@@ -306,6 +309,19 @@ export function layoutGraph(graph, options = {}) {
         base: null,
         candidate: null
       });
+    if (branchSelection.selected) {
+      const focusedBlock = alignFocusedBranchBlock(branchSelection.nodes, graph.edges, levelKeys, {
+        minimumY: topWireSpace + margin,
+        gap: placementGap,
+        faninDepth: 1,
+        targetCenter: findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
+      });
+      branchApplication = Object.freeze({
+        ...branchApplication,
+        focusedBlockCount: focusedBlock.blockCount,
+        movedNodeCount: branchApplication.movedNodeCount + focusedBlock.movedNodeCount
+      });
+    }
     positionedNodes = branchSelection.nodes;
     const selectedName = branchSelection.selected
       ? "controlled-branch-bands"

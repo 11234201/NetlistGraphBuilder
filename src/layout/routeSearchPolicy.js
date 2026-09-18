@@ -9,6 +9,11 @@ export const ROUTE_SEARCH_LIMITS = Object.freeze({
   minimumOuterLaneAttempts: 8,
   maximumOuterLaneAttempts: 32,
   maximumGlobalLaneCandidates: 512,
+  // Jointly select carrier variants for a small set of competing physical
+  // nets. This prevents lexical greedy order from sacrificing an entire
+  // clock/reset tree while keeping the search independent of graph size.
+  maximumCarrierCombinationGroups: 8,
+  maximumCarrierCombinationStates: 1024,
   // Carrier tracks are allocated inside an already bounded inter-layer gap.
   // Keep this aligned with the capacity planner's per-scope lane ceiling so
   // route generation can consume reserved space without graph-sized search.

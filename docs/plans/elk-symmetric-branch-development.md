@@ -77,6 +77,22 @@ large gaps (minimum/median 56 and 28; maximum 56 and 48), whereas ELK had nine l
 minimum/median 48 and maximum 5,442. Simple's mean data-parent alignment error was 847.506 versus ELK's
 42.526. These values, rather than whole-canvas centering alone, now gate visual progress.
 
+### 2026-09-18 implementation checkpoint
+
+The controlled-bank candidate now creates the same topology-derived centre boundary in both 128-sink DFF
+columns. The default centre gap is 600 pixels (the ordinary 16-sink band gaps remain 192), canvas width stays
+within 6,600, and the exact fixture remains at zero missing routes and zero validator violations. A bounded
+joint carrier-variant selector prevents greedy clk/rst ordering from forcing an entire 128-edge tree onto
+outer lanes; the remaining outer-lane count is two ordinary edges.
+
+This is not the visual exit gate. Browser comparison shows that the two DFF columns now have matching
+whitespace, but most of the focused combinational cone is still above that opening. Moving two or three
+fanin levels independently into the opening creates layer-order obstacles and missing routes, so that
+selective-node translation is rejected. The next implementation step is a true multi-layer core block:
+preserve the internal order/relative offsets of the cone while allocating the DFF centre aperture around
+the block, then reserve its boundary channels before routing. Until that browser result resembles ELK's
+central waist, SBP-03 and the round remain in progress.
+
 ## 3. Work packages
 
 ### SBP-01 — Visual oracle and measurable structure

@@ -18,7 +18,8 @@ export function applyControlledSinkBranchPlacement(nodes, edges, levelKeys, {
   sharedSourceFanout = 16,
   primarySourceFanout = 4,
   branchBandSize = DEFAULT_LAYOUT_POLICY.spacing.branchBandSize,
-  branchBandGap = DEFAULT_LAYOUT_POLICY.spacing.branchBandGap
+  branchBandGap = DEFAULT_LAYOUT_POLICY.spacing.branchBandGap,
+  branchCenterGap = DEFAULT_LAYOUT_POLICY.spacing.branchCenterGap
 } = {}) {
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
   const sinks = collectControlledSinks(nodes, edges, {
@@ -41,7 +42,8 @@ export function applyControlledSinkBranchPlacement(nodes, edges, levelKeys, {
     const positions = compactOrderedLayer(layer, preferred, minimumY, gap);
     distributeBranchBandWhitespace(layer, positions, sinkById, {
       branchBandSize,
-      branchBandGap
+      branchBandGap,
+      branchCenterGap
     });
     preserveLayerCenter(layer, positions, originalCenter, minimumY);
     for (let index = 0; index < layer.length; index += 1) {
@@ -133,7 +135,8 @@ export function alignFocusedBranchBlock(nodes, edges, levelKeys, {
   minimumY = 0,
   gap = 8,
   faninDepth = 3,
-  fanoutDepth = 6
+  fanoutDepth = 6,
+  targetCenter = null
 } = {}) {
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
   const incoming = new Map();
@@ -182,7 +185,9 @@ export function alignFocusedBranchBlock(nodes, edges, levelKeys, {
   if (anchors.length === 0 || selected.size === 0) {
     return Object.freeze({ blockCount: 0, selectedNodeCount: selected.size, movedNodeCount: 0 });
   }
-  const anchorCenter = median(anchors.map(centerY).sort((left, right) => left - right));
+  const anchorCenter = targetCenter !== null && Number.isFinite(Number(targetCenter))
+    ? Number(targetCenter)
+    : median(anchors.map(centerY).sort((left, right) => left - right));
   const layers = groupNodesByLevel(nodes);
   let movedNodeCount = 0;
   for (const level of levelKeys || []) {
@@ -215,22 +220,60 @@ export function alignFocusedBranchBlock(nodes, edges, levelKeys, {
   });
 }
 
+/** Return the shared visual axis of large controlled-sink banks. The value is
+ * derived from topology-selected sink columns, never from fixture identities. */
+export function findControlledSinkBankCenter(nodes, edges, {
+  minimumBankSize = 32,
+  sharedSourceFanout = 16,
+  primarySourceFanout = 4
+} = {}) {
+  const sinks = collectControlledSinks(nodes, edges, {
+    sharedSourceFanout,
+    primarySourceFanout
+  });
+  const byLevel = new Map();
+  for (const { node } of sinks) {
+    const level = Number(node.level);
+    if (!Number.isFinite(level)) continue;
+    const column = byLevel.get(level) || [];
+    column.push(node);
+    byLevel.set(level, column);
+  }
+  const centers = [...byLevel.values()]
+    .filter((column) => column.length >= minimumBankSize)
+    .map((column) => {
+      const ordered = column.toSorted(comparePlacedNodes);
+      const lower = ordered[Math.floor((ordered.length - 1) / 2)];
+      const upper = ordered[Math.ceil((ordered.length - 1) / 2)];
+      return (centerY(lower) + centerY(upper)) / 2;
+    })
+    .sort((left, right) => left - right);
+  return centers.length > 0 ? median(centers) : null;
+}
+
 function distributeBranchBandWhitespace(layer, positions, sinkById, {
   branchBandSize,
-  branchBandGap
+  branchBandGap,
+  branchCenterGap
 }) {
   const bandSize = Math.max(2, Math.floor(Number(branchBandSize)));
   const bandGap = Math.max(0, Number(branchBandGap) || 0);
   if (bandGap <= 0) return;
   let controlledCount = 0;
   let previousControlledIndex = -1;
+  const controlledTotal = layer.filter((node) => sinkById.has(node.id)).length;
+  const centerBoundary = controlledTotal >= bandSize * 2 ? Math.floor(controlledTotal / 2) : -1;
   for (let index = 0; index < layer.length; index += 1) {
     if (!sinkById.has(layer[index].id)) continue;
-    if (controlledCount > 0 && controlledCount % bandSize === 0) {
+    if (controlledCount > 0 &&
+        (controlledCount % bandSize === 0 || controlledCount === centerBoundary)) {
       const previous = layer[previousControlledIndex];
       const currentGap = positions[index] -
         (positions[previousControlledIndex] + Number(previous.height));
-      const shift = Math.max(0, bandGap - currentGap);
+      const requestedGap = controlledCount === centerBoundary
+        ? Math.max(bandGap, Number(branchCenterGap) || 0)
+        : bandGap;
+      const shift = Math.max(0, requestedGap - currentGap);
       if (shift > 0) {
         for (let suffix = index; suffix < positions.length; suffix += 1) {
           positions[suffix] = round(positions[suffix] + shift);

@@ -80,7 +80,13 @@ if (svgDirectoryArgument) {
   }
 }
 console.log(JSON.stringify(
-  argumentsList.includes("--branch-topology")
+  argumentsList.some((argument) => argument.startsWith("--physical-net="))
+    ? physicalNetReport(report, parseStringArgument(argumentsList, "--physical-net="))
+    : argumentsList.some((argument) => argument.startsWith("--route-kind="))
+    ? routeKindReport(report, positionedGraphs, parseStringArgument(argumentsList, "--route-kind="))
+    : argumentsList.includes("--route-bounds")
+    ? routeBoundsReport(report, positionedGraphs)
+    : argumentsList.includes("--branch-topology")
     ? branchTopologyReport(report, positionedGraphs)
     : argumentsList.includes("--branch-metrics-only")
     ? branchMetricsReport(report)
@@ -88,6 +94,63 @@ console.log(JSON.stringify(
   null,
   2
 ));
+
+function physicalNetReport(report, net) {
+  return {
+    scenario: report.scenario,
+    net,
+    providers: report.providers.map((provider) => {
+      const summary = provider.routing?.metrics?.carrierRoutingSummary;
+      return {
+        providerId: provider.providerId,
+        topPhysicalNets: (summary?.coverage?.topPhysicalNets || [])
+          .filter((entry) => String(entry.physicalNetKey).includes(`\u0000${net}`)),
+        diagnostics: (summary?.diagnosticSamples || [])
+          .filter((entry) => String(entry.physicalNetKey).includes(`\u0000${net}`))
+      };
+    })
+  };
+}
+
+function routeKindReport(report, graphs, routeKind) {
+  return {
+    scenario: report.scenario,
+    routeKind,
+    providers: graphs.map((graph, index) => {
+      const matchingEdges = graph.edges.filter((edge) => edge.routeKind === routeKind);
+      return {
+      providerId: report.providers[index].providerId,
+      edgeCount: matchingEdges.length,
+      netCounts: countValues(matchingEdges, (edge) => edge.net || ""),
+      edges: matchingEdges
+        .slice(0, 16)
+        .map((edge) => ({
+          id: edge.id,
+          net: edge.net,
+          source: edge.source,
+          target: edge.target,
+          strategy: edge.routeStrategy || null
+        }))
+      };
+    })
+  };
+}
+
+function routeBoundsReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => ({
+      providerId: report.providers[index].providerId,
+      widestEdges: graph.edges.map((edge) => ({
+        id: edge.id,
+        net: edge.net,
+        routeKind: edge.routeKind,
+        minimumX: Math.min(...(edge.points || []).map((point) => Number(point.x))),
+        maximumX: Math.max(...(edge.points || []).map((point) => Number(point.x)))
+      })).sort((left, right) => right.maximumX - left.maximumX).slice(0, 16)
+    }))
+  };
+}
 
 function branchTopologyReport(report, graphs) {
   return {

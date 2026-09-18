@@ -4,7 +4,8 @@ import {
   applyControlledSinkBranchPlacement,
   alignFocusedBranchBlock,
   alignFocusedRootSpine,
-  chooseControlledBranchPlacement
+  chooseControlledBranchPlacement,
+  findControlledSinkBankCenter
 } from "../../src/layout/layered/branchPlacement.js";
 
 function node(id, level, y, height = 20) {
@@ -75,15 +76,21 @@ test("controlled sink placement is invariant to graph array order", () => {
 
 test("controlled sink placement reserves regular whitespace between branch bands", () => {
   const { nodes, edges } = graph();
+  nodes.push(node("p3", 1, 340), node("s3", 2, 84));
+  edges.push(
+    { id: "c3", source: "control", target: "s3" },
+    { id: "d3", source: "p3", target: "s3" }
+  );
   applyControlledSinkBranchPlacement(nodes, edges, [0, 1, 2], {
     gap: 8,
-    sharedSourceFanout: 3,
+    sharedSourceFanout: 4,
     primarySourceFanout: 1,
     branchBandSize: 2,
-    branchBandGap: 60
+    branchBandGap: 60,
+    branchCenterGap: 120
   });
-  const sinks = nodes.slice(4).sort((left, right) => left.y - right.y);
-  assert.ok(sinks[2].y - (sinks[1].y + sinks[1].height) >= 60);
+  const sinks = nodes.filter((entry) => entry.id.startsWith("s")).sort((left, right) => left.y - right.y);
+  assert.ok(sinks[2].y - (sinks[1].y + sinks[1].height) >= 120);
 });
 
 test("focused root spine aligns to its high-fanout branch source", () => {
@@ -127,4 +134,22 @@ test("focused branch block moves the fanin cone with the root spine", () => {
   assert.equal(gate.y, 200);
   assert.equal(root.y, 200);
   assert.equal(middle.y, 200);
+});
+
+test("controlled sink bank center follows topology-selected large columns", () => {
+  const nodes = [node("control", 0, 0)];
+  const edges = [];
+  for (let index = 0; index < 4; index += 1) {
+    nodes.push(node(`p${index}`, 1, index * 100));
+    nodes.push(node(`s${index}`, 2, index * 100));
+    edges.push(
+      { id: `c${index}`, source: "control", target: `s${index}` },
+      { id: `d${index}`, source: `p${index}`, target: `s${index}` }
+    );
+  }
+  assert.equal(findControlledSinkBankCenter(nodes, edges, {
+    minimumBankSize: 4,
+    sharedSourceFanout: 4,
+    primarySourceFanout: 1
+  }), 160);
 });
