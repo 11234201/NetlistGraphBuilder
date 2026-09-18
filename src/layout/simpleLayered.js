@@ -260,7 +260,9 @@ export function layoutGraph(graph, options = {}) {
       runPlacement(branchNodes);
       branchApplication = applyControlledSinkBranchPlacement(branchNodes, graph.edges, levelKeys, {
         minimumY: topWireSpace + margin,
-        gap: placementGap
+        gap: placementGap,
+        branchBandSize: policy.spacing.branchBandSize,
+        branchBandGap: policy.spacing.branchBandGap
       });
       placeTerminalOutputs(
         branchNodes,

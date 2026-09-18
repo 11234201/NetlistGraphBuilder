@@ -8,6 +8,7 @@ import {
 import { buildSchematicGraph } from "../../src/netlist/graph.js";
 import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { analyzeLayoutQuality } from "../../src/layout/layoutQuality.js";
+import { summarizeControlledSinkSpacing } from "../../src/layout/layered/branchPlacementMetrics.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
 import { DEFAULT_ROUTING_GEOMETRY } from "../../src/layout/channelCapacity.js";
 import { getConnectionPoint } from "../../src/layout/nodeGeometry.js";
@@ -181,6 +182,13 @@ test("eq012 focused _1471_ depth 3/3 is compact and fully routable by default", 
     fanoutDepth: 3
   });
   assertFocusedAcceptance(graph, { maximumWidth: 6600 });
+  assert.equal(graph.layoutMetrics?.placement?.selected, "controlled-branch-bands");
+  const branchSpacing = summarizeControlledSinkSpacing(graph.nodes, graph.edges);
+  const rightSinkColumns = branchSpacing.columns.filter((column) =>
+    column.x > 5000 && column.sinkCount === 128);
+  assert.equal(rightSinkColumns.length, 2);
+  assert.ok(rightSinkColumns.every((column) => column.largeGapCount >= 7));
+  assert.ok(rightSinkColumns.every((column) => column.maximumGap >= 192));
 });
 
 async function buildEq012FocusedGraph(options) {

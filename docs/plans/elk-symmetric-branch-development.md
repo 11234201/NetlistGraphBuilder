@@ -6,10 +6,18 @@ Updated: 2026-09-18. Status: in_progress (SBP-02/SBP-03). Target branch: `dev`.
 | --- | --- | --- |
 | SBP-01 visual oracle | completed | Controlled-sink columns now report minimum/median/maximum gap, large-gap count, gap variation, primary order and data-parent alignment; exact Simple/ELK baseline frozen below |
 | SBP-02 branch decomposition | in_progress | Shared-control/low-fanout-data ownership identifies 267 controlled sinks deterministically; full focused branch-block ownership still experimental |
-| SBP-03 symmetric placement | in_progress | Bounded 16-sink branch bands are selected and valid; root/fanin block centering was rejected after creating missing routes |
+| SBP-03 symmetric placement | in_progress | Policy-owned 16-sink branch bands are selected and valid; post-placement root/block and whole-upstream-layer centering were rejected by routing gates |
 | SBP-04 regular routing | planned | Existing router validates current branch-band candidate; root-spine movement still needs channel-aware routing |
 | SBP-05 scoring | in_progress | Branch structure has a separate acceptance gate; final routing-aware lexicographic selection remains |
 | SBP-06 verification | planned | Focused tests and full unit suite pass; mapped, benchmark and browser final gate pending |
+
+Latest checkpoint: the accepted Simple candidate is 6,274 x 26,888 with zero missing routes and zero hard
+violations. Each 128-DFF right column has seven deliberate 192-pixel inter-band gaps, and mean data-parent
+alignment error is 228.195 (baseline 847.506). The branch-band size and gap now belong to normalized layout
+policy rather than private placement constants. Two post-placement centering approaches remain rejected:
+moving only the root/fanin block produced 130 outer-lane routes, while translating complete upstream layers
+produced 27 missing/disconnected routes. SBP-03 therefore moves next to ordering-time branch blocks instead
+of further coordinate repair after channel placement.
 
 ## 1. Objective and non-negotiable acceptance
 

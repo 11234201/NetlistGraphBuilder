@@ -1,4 +1,5 @@
 import { groupNodesByLevel, round } from "../nodePlacementShared.js";
+import { DEFAULT_LAYOUT_POLICY } from "../layoutPolicy.js";
 import {
   collectControlledSinks,
   summarizeControlledSinkSpacing
@@ -16,8 +17,8 @@ export function applyControlledSinkBranchPlacement(nodes, edges, levelKeys, {
   gap = 8,
   sharedSourceFanout = 16,
   primarySourceFanout = 4,
-  branchBandSize = 16,
-  branchBandGap = 192
+  branchBandSize = DEFAULT_LAYOUT_POLICY.spacing.branchBandSize,
+  branchBandGap = DEFAULT_LAYOUT_POLICY.spacing.branchBandGap
 } = {}) {
   const nodeById = new Map((nodes || []).map((node) => [node.id, node]));
   const sinks = collectControlledSinks(nodes, edges, {
@@ -36,17 +37,38 @@ export function applyControlledSinkBranchPlacement(nodes, edges, levelKeys, {
       if (!entry?.primaryNode) return node.y;
       return centerY(entry.primaryNode) - Number(node.height) / 2;
     });
+    const originalCenter = layerCenter(layer, layer.map((node) => Number(node.y)));
     const positions = compactOrderedLayer(layer, preferred, minimumY, gap);
     distributeBranchBandWhitespace(layer, positions, sinkById, {
       branchBandSize,
       branchBandGap
     });
+    preserveLayerCenter(layer, positions, originalCenter, minimumY);
     for (let index = 0; index < layer.length; index += 1) {
       if (Math.abs(Number(layer[index].y) - positions[index]) > 0.001) movedNodeCount += 1;
       layer[index].y = round(positions[index]);
     }
   }
   return Object.freeze({ sinkCount: sinks.length, movedNodeCount });
+}
+
+function preserveLayerCenter(layer, positions, originalCenter, minimumY) {
+  const newCenter = layerCenter(layer, positions);
+  const requestedShift = originalCenter - newCenter;
+  const minimumPosition = Math.min(...positions);
+  const shift = Math.max(requestedShift, minimumY - minimumPosition);
+  if (Math.abs(shift) <= 0.001) return;
+  for (let index = 0; index < positions.length; index += 1) {
+    positions[index] = round(positions[index] + shift);
+  }
+}
+
+function layerCenter(layer, positions) {
+  if (layer.length === 0) return 0;
+  const top = Math.min(...positions);
+  const bottom = Math.max(...positions.map((position, index) =>
+    position + Number(layer[index].height)));
+  return (top + bottom) / 2;
 }
 
 /** Align the focused root's single-forward path with the first high-fanout
@@ -197,7 +219,7 @@ function distributeBranchBandWhitespace(layer, positions, sinkById, {
   branchBandSize,
   branchBandGap
 }) {
-  const bandSize = Math.max(2, Math.floor(Number(branchBandSize) || 16));
+  const bandSize = Math.max(2, Math.floor(Number(branchBandSize)));
   const bandGap = Math.max(0, Number(branchBandGap) || 0);
   if (bandGap <= 0) return;
   let controlledCount = 0;

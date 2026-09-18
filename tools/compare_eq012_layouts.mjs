@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
@@ -9,6 +10,8 @@ import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 import { summarizeControlledSinkSpacing } from "../src/layout/layered/branchPlacementMetrics.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
+import { renderSchematicSvg } from "../src/domains/netlist/netlist_scene.js";
+import { createStandaloneSvg } from "../src/render/svgExport.js";
 
 const fixtureUrl = new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
 const source = await readFile(fixtureUrl, "utf8");
@@ -55,6 +58,27 @@ const report = {
   providers: reports,
   placementComparison: compareProviderPlacements(positionedGraphs[0], positionedGraphs[1])
 };
+const svgDirectoryArgument = argumentsList.find((argument) => argument.startsWith("--write-svg-dir="));
+if (svgDirectoryArgument) {
+  const outputDirectory = resolve(svgDirectoryArgument.slice("--write-svg-dir=".length));
+  await mkdir(outputDirectory, { recursive: true });
+  for (let index = 0; index < positionedGraphs.length; index += 1) {
+    const providerId = reports[index].providerId;
+    const graph = positionedGraphs[index];
+    const standalone = createStandaloneSvg(renderSchematicSvg(graph));
+    await writeFile(
+      resolve(outputDirectory, `${providerId}.svg`),
+      standalone,
+      "utf8"
+    );
+    const cropWidth = Math.min(1800, Number(graph.width) || 1800);
+    const rightCrop = standalone.replace(
+      /viewBox="[^"]+"/,
+      `viewBox="${Math.max(0, Number(graph.width) - cropWidth)} 0 ${cropWidth} ${Number(graph.height)}"`
+    );
+    await writeFile(resolve(outputDirectory, `${providerId}-right.svg`), rightCrop, "utf8");
+  }
+}
 console.log(JSON.stringify(
   argumentsList.includes("--branch-metrics-only")
     ? branchMetricsReport(report)
