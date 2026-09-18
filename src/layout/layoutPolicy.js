@@ -27,6 +27,10 @@ export const DEFAULT_LAYOUT_POLICY = Object.freeze({
     // only when its bounded placement score improves without dispersing the
     // shared column axis. The legacy path remains an automatic fallback.
     balancedLayerPlacement: true,
+    // Preserve data-flow branch bands through repeated controlled sink banks
+    // instead of allowing shared trunks to collapse every sink into one row
+    // stack. Focused placement evaluates this as a bounded candidate.
+    symmetricBranchPlacement: true,
     localizeSingleFanoutInputs: true,
     // Experimental until proper long-edge placement and chain routing land.
     // Enabling span minimization alone changes the geometry seen by the

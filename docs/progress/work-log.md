@@ -1,5 +1,55 @@
 # ELK-inspired Simple layout and routing work log
 
+## 2026-09-18 — ELK-S08 next-round visual acceptance planned
+
+- Trigger: browser review showed that eq012 Focused `cell:_1471_`, depth 3/3, still presents the right-side
+  DFFs as a tight top-to-bottom stack. The prior round's 0 missing/0 violations and small bounds improvement
+  therefore do not satisfy the user's visual objective.
+- Reproduced current evidence: Simple selects `balanced` at 6,346 x 25,984. Its placement score improves
+  only from 2,909,654 to 2,907,856. The `symmetric-fanout` candidate reduces raw height to 19,780 but loses
+  aligned edges (452 to 5) and raises port delta from about 2.78M to 6.53M, so it is rejected.
+- Decision: do not tune the current adjacent-layer fanout preference or weaken its score. The next round will
+  first model deterministic multi-layer branch blocks, then place sibling blocks around a root spine with
+  explicit whitespace, followed by branch-aware trunk/tap routing.
+- Acceptance change: a centered minimum-gap column no longer passes. Completion requires machine metrics
+  plus a same-query, same-viewport browser comparison showing orderly symmetric branches and regular nets.
+- Planned artifact: `docs/plans/elk-symmetric-branch-development.md`; steps ELK-S08 through ELK-S12 are
+  registered in `docs/plans/execution-plan.md` before implementation.
+- Risks: branch ownership for shared logic, placement/routing objective conflict, and accidental Whole-path
+  cost. Stop rather than introduce fixture names, unbounded search, relaxed validation or hidden regressions.
+- Status: planned; no implementation code changed in this entry.
+
+## 2026-09-18 — ELK-S08 implementation started
+
+- Branch: switched from `master` to the existing `dev`, both initially at `c6dc1f5`.
+- Preserved user-owned `.vscode/settings.json`, `.workbuddy/`, `tools/debug_flex.mjs`, and
+  `tools/debug_sop015.mjs`; they are outside this round's staging scope.
+- First action: extend the exact eq012 comparison boundary with topology-derived branch, whitespace and
+  route-regularity diagnostics before changing placement. This freezes a falsifiable visual baseline and
+  prevents another aggregate-score-only completion.
+- Status: ELK-S08 / SBP-01 in progress.
+
+## 2026-09-18 — ELK-S08 baseline closed; first branch-band candidate accepted
+
+- Added topology-only controlled-sink diagnostics. A controlled sink has both a high-fanout shared source
+  and a bounded-fanout primary data parent; no cell type, fixture name or instance identity is used.
+- Exact baseline: Simple's two 128-sink right columns had 0 large gaps and mean primary alignment error
+  847.506. ELK had 9 large gaps per column, maximum gap 5,442, and mean alignment error 42.526.
+- Added a bounded candidate that propagates primary data-parent rows and inserts a 192-pixel separator after
+  each topology-ordered band of 16 controlled sinks. The same band geometry propagates across adjacent sink
+  layers rather than being added twice.
+- Current exact result selects `controlled-branch-bands`: 6,274 x 26,888, 7 large gaps in each 128-sink
+  right column, mean alignment error 228.195, 0 missing routes, 0 validation violations, horizontal-first and
+  horizontal-endpoint ratios 1.0, and outer routes 2. The previous accepted result was 6,346 x 25,984 with
+  no branch gaps and outer routes 4.
+- The current candidate raises logical crossings from 89,259 to 128,448 and physical crossings from 2,831
+  to 3,264. This is not final acceptance; SBP-04 must improve branch routing/order rather than hiding it.
+- Rejected experiment: moving the focused root plus its three-level fanin block to the high-fanout hub axis
+  created 25 missing routes. The generic experimental primitive and unit test remain isolated, but it is not
+  connected to the default candidate. Root-spine centering will resume only with routing-channel evidence.
+- Verification: focused branch/eq012 tests pass; full `npm test` passes 618/618.
+- Status: ELK-S08 complete; ELK-S09/S10 in progress; browser final visual gate remains pending.
+
 ## 2026-09-15 19:00 +08:00 — ELK-S01 started
 
 - Goal: establish a reproducible Simple-versus-ELK baseline for `eq_012` Focused net `clk`, fanin/fanout

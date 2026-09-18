@@ -6,6 +6,7 @@ import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
 import { getNetGroupKey } from "../src/layout/layoutTopology.js";
+import { summarizeControlledSinkSpacing } from "../src/layout/layered/branchPlacementMetrics.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
 
@@ -55,10 +56,24 @@ const report = {
   placementComparison: compareProviderPlacements(positionedGraphs[0], positionedGraphs[1])
 };
 console.log(JSON.stringify(
-  argumentsList.includes("--compact") ? compactReport(report) : report,
+  argumentsList.includes("--branch-metrics-only")
+    ? branchMetricsReport(report)
+    : argumentsList.includes("--compact") ? compactReport(report) : report,
   null,
   2
 ));
+
+function branchMetricsReport(reportValue) {
+  return {
+    scenario: reportValue.scenario,
+    providers: reportValue.providers.map((provider) => ({
+      providerId: provider.providerId,
+      positionedGraph: provider.positionedGraph,
+      placementSelection: provider.placementSelection,
+      controlledSinkSpacing: provider.controlledSinkSpacing
+    }))
+  };
+}
 
 function compactReport(reportValue) {
   return {
@@ -76,7 +91,8 @@ function compactReport(reportValue) {
         verticalCenterSpread: provider.placement.verticalCenterSpread,
         meanAbsoluteColumnCenterOffset: provider.placement.meanAbsoluteColumnCenterOffset
       },
-      quality: provider.quality
+      quality: provider.quality,
+      controlledSinkSpacing: provider.controlledSinkSpacing
     })),
     placementComparison: reportValue.placementComparison
   };
@@ -142,7 +158,8 @@ function summarizeWorkspace(provider, workspace, elapsedMs) {
       channels: summarizeCapacityChannels(graph.routingCapacity?.channels || [])
     },
     placement: summarizePlacement(graph.nodes || []),
-    quality: analyzeLayoutQuality(graph)
+    quality: analyzeLayoutQuality(graph),
+    controlledSinkSpacing: summarizeControlledSinkSpacing(graph.nodes || [], graph.edges || [])
   };
 }
 

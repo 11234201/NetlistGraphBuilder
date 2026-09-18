@@ -17,6 +17,10 @@ import {
   chooseBestPlacementCandidate,
   chooseBalancedPlacement
 } from "./layered/balancedPlacement.js";
+import {
+  applyControlledSinkBranchPlacement,
+  chooseControlledBranchPlacement
+} from "./layered/branchPlacement.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -27,7 +31,8 @@ import {
   measureNode,
   translateLayoutGeometry
 } from "./nodeGeometry.js";
-import { applyNodeSizeOverride } from "./nodeOverrides.js";
+import { applyNodePositionOverrides, applyNodeSizeOverride } from "./nodeOverrides.js";
+import { placeTerminalOutputs } from "./nodeAlignment.js";
 import {
   computeLevelXs,
   resolveExternalSourceEscapeOverlaps
@@ -190,6 +195,7 @@ export function layoutGraph(graph, options = {}) {
     const legacyNodes = clonePositionedNodes(positionedNodes);
     const balancedNodes = clonePositionedNodes(positionedNodes);
     const symmetricNodes = clonePositionedNodes(positionedNodes);
+    const branchNodes = clonePositionedNodes(positionedNodes);
     applyBalancedLayerPlacement(balancedNodes, graph.edges, levelKeys, {
       minimumY: topWireSpace + margin,
       gap: Math.max(
@@ -213,6 +219,13 @@ export function layoutGraph(graph, options = {}) {
       Number(policy.spacing.cellSpacing) || 8,
       Number(policy.spacing.compactYGap) || 8
     );
+    applyBalancedLayerPlacement(branchNodes, graph.edges, levelKeys, {
+      minimumY: topWireSpace + margin,
+      gap: placementGap,
+      alignmentBlocks: false,
+      symmetricFanout: false
+    });
+    let branchApplication = Object.freeze({ sinkCount: 0, movedNodeCount: 0 });
     const blockVariants = [
       { layerDirection: "forward", withinLayerDirection: "forward" },
       { layerDirection: "forward", withinLayerDirection: "backward" },
@@ -243,6 +256,23 @@ export function layoutGraph(graph, options = {}) {
     const blockNodes = blockCandidate.nodes;
     runPlacement(legacyNodes);
     runPlacement(balancedNodes);
+    if (policy.features.symmetricBranchPlacement) {
+      runPlacement(branchNodes);
+      branchApplication = applyControlledSinkBranchPlacement(branchNodes, graph.edges, levelKeys, {
+        minimumY: topWireSpace + margin,
+        gap: placementGap
+      });
+      placeTerminalOutputs(
+        branchNodes,
+        graph.edges,
+        layoutIntent,
+        margin,
+        Number(policy.spacing.cellSpacing) || 8
+      );
+      // Automatic branch placement is still upstream of explicit user
+      // overrides; reapply them after the branch-band projection.
+      applyNodePositionOverrides(branchNodes, options.nodePositions);
+    }
     if (symmetricCandidate.nodes !== balancedNodes) runPlacement(symmetricNodes);
     if (blockNodes !== balancedNodes) runPlacement(blockNodes);
     const balancedSelection = chooseBalancedPlacement(legacyNodes, balancedNodes, graph.edges, {
@@ -264,8 +294,20 @@ export function layoutGraph(graph, options = {}) {
         Number(policy.spacing.compactYGap) || 8
       )
       });
-    positionedNodes = selection.nodes;
-    const selectedName = selection.nodes === blockNodes && blockNodes !== balancedNodes
+    const branchSelection = policy.features.symmetricBranchPlacement &&
+      branchApplication.movedNodeCount > 0
+      ? chooseControlledBranchPlacement(selection.nodes, branchNodes, graph.edges)
+      : Object.freeze({
+        nodes: selection.nodes,
+        selected: false,
+        reason: "disabled-or-no-movement",
+        base: null,
+        candidate: null
+      });
+    positionedNodes = branchSelection.nodes;
+    const selectedName = branchSelection.selected
+      ? "controlled-branch-bands"
+      : selection.nodes === blockNodes && blockNodes !== balancedNodes
       ? `alignment-blocks-${blockCandidate.selectedIndex}`
       : selection.nodes === symmetricNodes ? "symmetric-fanout" : balancedSelection.selected;
     placementSelectionMetrics = Object.freeze({
@@ -274,6 +316,7 @@ export function layoutGraph(graph, options = {}) {
       legacy: freezePlacementSummary(balancedSelection.legacy),
       balanced: freezePlacementSummary(balancedSelection.candidate),
       symmetric: freezePlacementSummary(symmetricCandidate.summaries[0]),
+      controlledBranch: freezeBranchSelection(branchSelection),
       blockVariants: Object.freeze(blockCandidate.summaries.map(freezePlacementSummary)),
       blockVariantIndex: blockCandidate.selectedIndex
     });
@@ -480,6 +523,25 @@ function freezePlacementSummary(summary = {}) {
     portDelta: Number(summary.portDelta) || 0,
     alignedEdgeCount: Number(summary.alignedEdgeCount) || 0,
     score: Number(summary.score) || 0
+  });
+}
+
+function freezeBranchSelection(selection = {}) {
+  const summarize = (value) => value ? Object.freeze({
+    placement: freezePlacementSummary(value.placement),
+    controlled: Object.freeze({
+      sinkCount: Number(value.controlled?.sinkCount) || 0,
+      columnCount: Number(value.controlled?.columnCount) || 0,
+      largeGapCount: Number(value.controlled?.largeGapCount) || 0,
+      maximumGap: Number(value.controlled?.maximumGap) || 0,
+      meanPrimaryAlignmentError: Number(value.controlled?.meanPrimaryAlignmentError) || 0
+    })
+  }) : null;
+  return Object.freeze({
+    selected: selection.selected === true,
+    reason: selection.reason || null,
+    base: summarize(selection.base),
+    candidate: summarize(selection.candidate)
   });
 }
 
