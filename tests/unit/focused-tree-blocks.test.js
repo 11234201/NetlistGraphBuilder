@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildFocusedFaninTreeBlocks,
+  applyFocusedFaninTreeBlockPlacement,
+  summarizeFocusedFaninTreeBlocks
+} from "../../src/layout/layered/focusedTreeBlocks.js";
+
+function fixture() {
+  const nodes = [
+    { id: "root", kind: "cell", isFocusedRoot: true, level: 3, y: 100 },
+    { id: "a", kind: "cell", level: 2, y: 0 },
+    { id: "b", kind: "cell", level: 2, y: 200 },
+    { id: "a-leaf", kind: "cell", level: 1, y: 0 },
+    { id: "shared", kind: "cell", level: 1, y: 100 },
+    { id: "b-leaf", kind: "cell", level: 1, y: 200 }
+  ];
+  const edges = [
+    { id: "ar", source: "a", target: "root" },
+    { id: "br", source: "b", target: "root" },
+    { id: "aa", source: "a-leaf", target: "a" },
+    { id: "sa", source: "shared", target: "a" },
+    { id: "sb", source: "shared", target: "b" },
+    { id: "bb", source: "b-leaf", target: "b" }
+  ];
+  return { nodes, edges };
+}
+
+test("fanin tree decomposition retains shared leaves once with all owners", () => {
+  const { nodes, edges } = fixture();
+  const result = buildFocusedFaninTreeBlocks(nodes, edges);
+  assert.deepEqual(result.branchRootIds, ["a", "b"]);
+  assert.deepEqual(result.membershipByNodeId.get("shared").ownerIds, ["a", "b"]);
+  assert.equal(result.entries.filter((entry) => entry.nodeId === "shared").length, 1);
+  assert.equal(summarizeFocusedFaninTreeBlocks(nodes, edges).sharedNodeCount, 1);
+});
+
+test("tree-block placement makes every membership contiguous in each layer", () => {
+  const { nodes, edges } = fixture();
+  nodes.find((node) => node.id === "a-leaf").y = 0;
+  nodes.find((node) => node.id === "b-leaf").y = 50;
+  nodes.find((node) => node.id === "shared").y = 100;
+  applyFocusedFaninTreeBlockPlacement(nodes, edges, [1, 2, 3], {
+    gap: 8,
+    groupGap: 40,
+    targetCenter: 100
+  });
+  const summary = summarizeFocusedFaninTreeBlocks(nodes, edges);
+  assert.equal(summary.fragmentedGroupCount, 0);
+  assert.equal(summary.sharedNodeCount, 1);
+});
+
+test("tree-block placement is invariant to node and edge permutations", () => {
+  const first = fixture();
+  const second = fixture();
+  second.nodes.reverse();
+  second.edges.reverse();
+  const options = { gap: 8, groupGap: 40, targetCenter: 100 };
+  applyFocusedFaninTreeBlockPlacement(first.nodes, first.edges, [1, 2, 3], options);
+  applyFocusedFaninTreeBlockPlacement(second.nodes, second.edges, [1, 2, 3], options);
+  assert.deepEqual(
+    new Map(first.nodes.map((node) => [node.id, node.y])),
+    new Map(second.nodes.map((node) => [node.id, node.y]))
+  );
+});
+
+test("fanin tree decomposition is invariant to input permutations", () => {
+  const first = fixture();
+  const second = fixture();
+  second.nodes.reverse();
+  second.edges.reverse();
+  const project = (result) => result.entries.map(({ nodeId, ownerIds }) => [nodeId, ownerIds]);
+  assert.deepEqual(
+    project(buildFocusedFaninTreeBlocks(first.nodes, first.edges)),
+    project(buildFocusedFaninTreeBlocks(second.nodes, second.edges))
+  );
+});

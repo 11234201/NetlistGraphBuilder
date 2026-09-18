@@ -24,6 +24,7 @@ import {
   chooseControlledBranchPlacement,
   findControlledSinkBankCenter
 } from "./layered/branchPlacement.js";
+import { applyFocusedFaninTreeBlockPlacement } from "./layered/focusedTreeBlocks.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -360,12 +361,31 @@ export function layoutGraph(graph, options = {}) {
         margin,
         Number(policy.spacing.cellSpacing) || 8
       );
+      // Locality intentionally runs first: boundary inputs are leaves of the
+      // fanin trees, so tree-block placement must be the final automatic
+      // ordering authority or those leaves become interleaved again.
+      const treeBlocks = focusedRootCount === 1
+        ? applyFocusedFaninTreeBlockPlacement(
+            branchSelection.nodes,
+            graph.edges,
+            levelKeys,
+            {
+              minimumY: topWireSpace + margin,
+              gap: placementGap,
+              groupGap: policy.spacing.branchBandGap,
+              targetCenter: corePlacement.bankCenter ??
+                findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
+            }
+          )
+        : Object.freeze({ branchCount: 0, layerCount: 0, movedNodeCount: 0 });
       branchApplication = Object.freeze({
         ...branchApplication,
         centeredCoreLayerCount: corePlacement.layerCount,
         focusedBlockCount: focusedBlock.blockCount,
+        focusedTreeBranchCount: treeBlocks.branchCount,
+        focusedTreeLayerCount: treeBlocks.layerCount,
         movedNodeCount: branchApplication.movedNodeCount + corePlacement.movedNodeCount +
-          focusedBlock.movedNodeCount
+          focusedBlock.movedNodeCount + treeBlocks.movedNodeCount
       });
       applyNodePositionOverrides(branchSelection.nodes, options.nodePositions);
     }
