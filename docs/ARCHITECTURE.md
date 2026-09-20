@@ -140,6 +140,8 @@ LayoutProvider
 项目将新增 `elk-replica-layered` provider，以项目原生代码复刻 ELK layered 的阶段语义。它是
 独立实现，不是 Simple placement/routing 的增量策略。完整实施路线和验收矩阵见
 [`docs/plans/elk_replica_layered_development.md`](plans/elk_replica_layered_development.md)。
+Simple 的实现提交、验收指标和允许修改范围固定在
+[`docs/plans/simple_layout_freeze_baseline.md`](plans/simple_layout_freeze_baseline.md)。
 
 开发期间必须保持以下隔离边界：
 

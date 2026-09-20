@@ -1,6 +1,6 @@
 # ELK Replica layered provider implementation plan
 
-Date: 2026-09-20. Status: planned. Development branch: `dev`.
+Date: 2026-09-20. Status: in progress; ERL-00 complete. Development branch: `dev`.
 
 This plan creates a new `elk-replica-layered` provider. It supersedes further attempts to turn the
 existing Simple provider into ELK by incremental placement or routing flags. The existing Simple
@@ -66,7 +66,7 @@ Source graph
 
 | ID | Work | Exit gate | Status |
 | --- | --- | --- | --- |
-| ERL-00 | Freeze and baseline | Simple unchanged; three-provider comparison and durable metrics | pending |
+| ERL-00 | Freeze and baseline | Simple unchanged; durable metrics and handoff boundary | completed |
 | ERL-01 | Canonical graph model | Stable internal identities and permutation tests | pending |
 | ERL-02 | Cycle breaking and ranks | Reversible acyclic orientation and deterministic ranks | pending |
 | ERL-03 | Proper layering | Every internal edge crosses one adjacent boundary | pending |
@@ -79,6 +79,10 @@ Source graph
 | ERL-10 | Product acceptance | Same-viewport review and explicit default-provider decision | pending |
 
 ## ERL-00 — Freeze Simple and capture evidence
+
+Completed on 2026-09-20. The implementation and metric baseline is recorded in
+[`simple_layout_freeze_baseline.md`](simple_layout_freeze_baseline.md). Three-provider comparison becomes
+active after Replica has a runnable provider shell; it is not a reason to modify the frozen Simple path.
 
 - Remove uncommitted experiments that alter Simple.
 - Add `elk-replica-layered` to the provider registry as Experimental only after it can return a valid
