@@ -1,5 +1,8 @@
 # ELK-parity layered pipeline plan
 
+> Frozen on 2026-09-20. This plan modified the Simple pipeline and is superseded by the independent
+> [`elk_replica_layered_development.md`](elk_replica_layered_development.md) provider plan.
+
 Date: 2026-09-15. Target branch: `dev`.
 Acceptance scenarios: eq012 Focused net `clk` depth 1/1, and eq012 Focused `cell:_1471_` depth 3/3.
 Supersedes `docs/plans/elk-inspired-simple-roadmap.md`.
