@@ -1,8 +1,8 @@
-# ELK Replica layered provider implementation plan
+# Native Layered provider implementation plan
 
-Date: 2026-09-20. Status: in progress; ERL-00 complete. Development branch: `dev`.
+Date: 2026-09-20. Status: in progress; NLD-00 complete. Development branch: `dev`.
 
-This plan creates a new `elk-replica-layered` provider. It supersedes further attempts to turn the
+This plan creates a new `native-layered` provider. It supersedes further attempts to turn the
 existing Simple provider into ELK by incremental placement or routing flags. The existing Simple
 provider remains unchanged and stays the product default until the replacement gates in this document
 are complete.
@@ -19,20 +19,20 @@ Reproduce the useful phase semantics of ELK layered in project-native, dependenc
 - deterministic results independent of parser/node/edge array order.
 
 The implementation is behavioral, not a source-code port. Vendored ELK remains the visual and
-quantitative golden. Replica may intentionally improve a result where ELK has a known defect, but every
+quantitative golden. Native Layered may intentionally improve a result where ELK has a known defect, but every
 deviation must be explained by topology and shared metrics rather than fixture identity.
 
 ## Non-goals and isolation rules
 
-- Do not modify Simple placement, Simple routing, or its defaults while developing Replica.
-- Do not insert Replica stages into `simpleLayered.js` behind feature flags.
+- Do not modify Simple placement, Simple routing, or its defaults while developing Native Layered.
+- Do not insert Native Layered stages into `simpleLayered.js` behind feature flags.
 - Do not copy ELK source into the production module or require a bundler/network dependency.
 - Do not encode `eq012`, `_1471_`, instance names, net names, or absolute coordinates in algorithms.
 - Do not mutate parser output, Netlist IR, automatic provider input, or the caller's graph arrays.
-- Do not relax the shared orthogonal validator or acceptance budgets to admit a Replica result.
+- Do not relax the shared orthogonal validator or acceptance budgets to admit a Native Layered result.
 - Do not use group collapse as performance or correctness evidence.
 
-Replica may reuse only shared boundaries: layout-provider contracts, node measurement, canonical net
+Native Layered may reuse only shared boundaries: layout-provider contracts, node measurement, canonical net
 keys, orthogonal geometry predicates, validators, spatial indexes, wire-route normalization, label
 placement, renderer, workspace caching, cancellation and progress reporting.
 
@@ -45,20 +45,20 @@ Primary golden scenarios:
 3. Full-node Whole mapped cases under `tests/fixtures/mapped/`.
 4. Generated 1,024/4,096/8,192-cell performance fixtures.
 
-Simple, vendored ELK and Replica must be rendered and measured from the same source graph and viewport.
+Simple, vendored ELK and Native Layered must be rendered and measured from the same source graph and viewport.
 
 ## Target pipeline
 
 ```text
 Source graph
-  -> ERL-01 canonical graph model
-  -> ERL-02 cycle breaking and layer assignment
-  -> ERL-03 proper layering / dummy chains
-  -> ERL-04 crossing minimization
-  -> ERL-05 Brandes–Köpf block placement
-  -> ERL-06 tree/shared structure and component packing
-  -> ERL-07 port ordering and channel allocation
-  -> ERL-08 orthogonal physical-net routing
+  -> NLD-01 canonical graph model
+  -> NLD-02 cycle breaking and layer assignment
+  -> NLD-03 proper layering / dummy chains
+  -> NLD-04 crossing minimization
+  -> NLD-05 Brandes–Köpf block placement
+  -> NLD-06 tree/shared structure and component packing
+  -> NLD-07 port ordering and channel allocation
+  -> NLD-08 orthogonal physical-net routing
   -> shared validation, labels and PositionedGraph normalization
 ```
 
@@ -66,35 +66,35 @@ Source graph
 
 | ID | Work | Exit gate | Status |
 | --- | --- | --- | --- |
-| ERL-00 | Freeze and baseline | Simple unchanged; durable metrics and handoff boundary | completed |
-| ERL-01 | Canonical graph model | Stable internal identities and permutation tests | pending |
-| ERL-02 | Cycle breaking and ranks | Reversible acyclic orientation and deterministic ranks | pending |
-| ERL-03 | Proper layering | Every internal edge crosses one adjacent boundary | pending |
-| ERL-04 | Crossing minimization | Bounded deterministic sweeps improve or retain the initial order | pending |
-| ERL-05 | BK block placement | Recursive subtrees centre around parents without top packing | pending |
-| ERL-06 | Tree/shared/component packing | Exclusive trees remain distinct; shared nodes appear once | pending |
-| ERL-07 | Ports and channel capacity | Every routed demand owns bounded inter-layer capacity | pending |
-| ERL-08 | Physical-net routing | Zero missing/disconnected/hard violations on focused gates | pending |
-| ERL-09 | Whole/performance hardening | Mapped cases and benchmark budgets pass | pending |
-| ERL-10 | Product acceptance | Same-viewport review and explicit default-provider decision | pending |
+| NLD-00 | Freeze and baseline | Simple unchanged; durable metrics and handoff boundary | completed |
+| NLD-01 | Canonical graph model | Stable internal identities and permutation tests | pending |
+| NLD-02 | Cycle breaking and ranks | Reversible acyclic orientation and deterministic ranks | pending |
+| NLD-03 | Proper layering | Every internal edge crosses one adjacent boundary | pending |
+| NLD-04 | Crossing minimization | Bounded deterministic sweeps improve or retain the initial order | pending |
+| NLD-05 | BK block placement | Recursive subtrees centre around parents without top packing | pending |
+| NLD-06 | Tree/shared/component packing | Exclusive trees remain distinct; shared nodes appear once | pending |
+| NLD-07 | Ports and channel capacity | Every routed demand owns bounded inter-layer capacity | pending |
+| NLD-08 | Physical-net routing | Zero missing/disconnected/hard violations on focused gates | pending |
+| NLD-09 | Whole/performance hardening | Mapped cases and benchmark budgets pass | pending |
+| NLD-10 | Product acceptance | Same-viewport review and explicit default-provider decision | pending |
 
-## ERL-00 — Freeze Simple and capture evidence
+## NLD-00 — Freeze Simple and capture evidence
 
 Completed on 2026-09-20. The implementation and metric baseline is recorded in
 [`simple_layout_freeze_baseline.md`](simple_layout_freeze_baseline.md). Three-provider comparison becomes
-active after Replica has a runnable provider shell; it is not a reason to modify the frozen Simple path.
+active after Native Layered has a runnable provider shell; it is not a reason to modify the frozen Simple path.
 
 - Remove uncommitted experiments that alter Simple.
-- Add `elk-replica-layered` to the provider registry as Experimental only after it can return a valid
+- Add `native-layered` to the provider registry as Experimental only after it can return a valid
   empty/synthetic graph.
-- Extend the comparison harness to run Simple, vendored ELK and Replica without changing input graphs.
+- Extend the comparison harness to run Simple, vendored ELK and Native Layered without changing input graphs.
 - Record dimensions, area, missing routes, hard violations, logical/physical crossings, bends, unique
   wire length, outer routes, phase time and peak memory.
-- Add a guard proving a Replica run does not change the Simple result or its normalized policy.
+- Add a guard proving a Native Layered run does not change the Simple result or its normalized policy.
 
-Exit gate: Simple golden output is byte/metric stable and no Replica module is imported by Simple.
+Exit gate: Simple golden output is byte/metric stable and no Native Layered module is imported by Simple.
 
-## ERL-01 — Canonical internal graph
+## NLD-01 — Canonical internal graph
 
 Create immutable provider-private records for layout nodes, ports, logical edges and physical nets.
 
@@ -108,7 +108,7 @@ Create immutable provider-private records for layout nodes, ports, logical edges
 Tests: empty graph, disconnected graph, multi-edge physical net, feedback cycle, escaped names and
 node/edge permutations.
 
-## ERL-02 — Cycle breaking and rank assignment
+## NLD-02 — Cycle breaking and rank assignment
 
 - Use deterministic cycle breaking to build an acyclic layout orientation.
 - Record every reversal and restore real source/target and pin meaning before output.
@@ -120,7 +120,7 @@ node/edge permutations.
 Exit gate: the oriented graph is acyclic, rank constraints hold, restoration is exact, and permutations
 produce identical ranks.
 
-## ERL-03 — Proper layering
+## NLD-03 — Proper layering
 
 - Split every edge spanning more than one rank into a provider-private dummy chain.
 - Give each dummy a stable key based on physical net, oriented endpoints and crossed boundary.
@@ -129,7 +129,7 @@ produce identical ranks.
 
 Exit gate: every internal segment connects adjacent ranks and join-back reconstructs every logical edge.
 
-## ERL-04 — Crossing minimization
+## NLD-04 — Crossing minimization
 
 - Build an initial stable order per rank.
 - Run alternating forward/backward median or barycenter sweeps.
@@ -141,7 +141,7 @@ Exit gate: every internal segment connects adjacent ranks and join-back reconstr
 Exit gate: no candidate is worse than the initial order, the iteration bound is reported, and the result
 is invariant under graph-array permutation.
 
-## ERL-05 — Brandes–Köpf block placement
+## NLD-05 — Brandes–Köpf block placement
 
 Implement conflict marking, vertical alignment and compaction for four candidates:
 
@@ -160,7 +160,7 @@ from the top of a layer.
 
 Exit gate: recursive synthetic trees at depths 2-5 remain centred at every depth and do not top-pack.
 
-## ERL-06 — Tree, shared-DAG and component packing
+## NLD-06 — Tree, shared-DAG and component packing
 
 - Derive immediate focused branches from topology.
 - Propagate exclusive/shared membership through the visible DAG.
@@ -173,7 +173,7 @@ Exit gate: recursive synthetic trees at depths 2-5 remain centred at every depth
 Exit gate on `_1471_`: four input branches are visually distinct, exclusive membership is contiguous in
 every visual column, the two shared regions appear once, and second/third-level subtrees remain centred.
 
-## ERL-07 — Port order and channel capacity
+## NLD-07 — Port order and channel capacity
 
 - Resolve port order before final routing.
 - Build per-boundary physical-net intervals from proper-layer dummy chains.
@@ -186,9 +186,9 @@ every visual column, the two shared regions appear once, and second/third-level 
 Exit gate: every demand has a capacity assignment or a stable overflow diagnostic before route geometry is
 generated.
 
-## ERL-08 — Orthogonal physical-net routing
+## NLD-08 — Orthogonal physical-net routing
 
-Replica routing is provider-private automatic routing; it does not call the Simple router.
+Native Layered routing is provider-private automatic routing; it does not call the Simple router.
 
 - Prefer source-horizontal, channel-vertical and target-horizontal geometry.
 - Route a physical net atomically with shared trunks and explicit junctions.
@@ -201,7 +201,7 @@ Replica routing is provider-private automatic routing; it does not call the Simp
 Exit gate: both focused scenarios have zero missing routes, zero disconnected wire routes and zero hard
 validation violations.
 
-## ERL-09 — Whole and performance hardening
+## NLD-09 — Whole and performance hardening
 
 - Run ordinary unit, determinism and fixture invariant suites.
 - Run `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases`.
@@ -213,7 +213,7 @@ validation violations.
 Performance target: Focused may initially take up to about twice vendored ELK time, but must have bounded
 growth. Whole performance must move toward ELK without edge-count cliffs or quadratic candidate growth.
 
-## ERL-10 — Product acceptance and replacement
+## NLD-10 — Product acceptance and replacement
 
 ### `clk`, depth 1/1
 
@@ -237,9 +237,9 @@ growth. Whole performance must move toward ELK without edge-count cliffs or quad
 - Node and edge permutations produce identical positions and routes.
 - Repeated runs are identical.
 - Simple output is unchanged.
-- Same-viewport browser review passes for Simple, vendored ELK and Replica.
+- Same-viewport browser review passes for Simple, vendored ELK and Native Layered.
 
-Passing Focused gates permits exposing Replica as a user-selectable Experimental provider. Passing Whole,
+Passing Focused gates permits exposing Native Layered as a user-selectable Experimental provider. Passing Whole,
 mapped-case, benchmark and browser gates permits a separate decision about making it the default. Simple
 remains a fallback until an explicit removal task is approved; implementation completion alone never
 replaces the default.

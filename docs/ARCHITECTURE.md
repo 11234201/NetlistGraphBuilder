@@ -135,26 +135,26 @@ LayoutProvider
 - `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
 - `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
 
-#### ELK Replica 独立 provider（规划基线，2026-09-20）
+#### Native Layered 独立 provider（规划基线，2026-09-20）
 
-项目将新增 `elk-replica-layered` provider，以项目原生代码复刻 ELK layered 的阶段语义。它是
+项目将新增 `native-layered` provider，以项目原生代码实现 ELK layered 所采用的分层布局阶段。它是
 独立实现，不是 Simple placement/routing 的增量策略。完整实施路线和验收矩阵见
-[`docs/plans/elk_replica_layered_development.md`](plans/elk_replica_layered_development.md)。
+[`docs/plans/native_layered_development.md`](plans/native_layered_development.md)。
 Simple 的实现提交、验收指标和允许修改范围固定在
 [`docs/plans/simple_layout_freeze_baseline.md`](plans/simple_layout_freeze_baseline.md)。
 
 开发期间必须保持以下隔离边界：
 
-- `SimpleLayeredLayoutProvider` 的结果、默认策略和私有流水线冻结。Replica 不得 import
+- `SimpleLayeredLayoutProvider` 的结果、默认策略和私有流水线冻结。Native Layered 不得 import
   `simpleLayered.js`、`simplePlacementPipeline.js`、`simpleLayering.js`、`simpleRoutingPlan.js`、
   `simpleOrthogonalRouter.js` 或 `simpleRouteCandidates.js`。
-- Replica 可以复用 provider contract、节点测量、正交硬约束、validator、物理 wire-route
+- Native Layered 可以复用 provider contract、节点测量、正交硬约束、validator、物理 wire-route
   规范化、label placement、spatial index、renderer 和 workspace/job 边界；这些模块不得反向依赖
-  Replica。
-- Replica 的 cycle orientation、proper layering、dummy chain、crossing reduction、Brandes–Köpf
+  Native Layered。
+- Native Layered 的 cycle orientation、proper layering、dummy chain、crossing reduction、Brandes–Köpf
   block alignment、component packing、channel allocation 和 automatic routing 均位于
-  `src/layout/elk_replica/`，不得以 feature flag 插入 Simple 流水线。
-- Replica 的 dummy、reversed edge、alignment block、channel demand 等对象只存在于内部 layout
+  `src/layout/native_layered/`，不得以 feature flag 插入 Simple 流水线。
+- Native Layered 的 dummy、reversed edge、alignment block、channel demand 等对象只存在于内部 layout
   model。它们不能进入 Netlist IR，也不能作为 UI graph node 返回。
 - 自动布局输出仍是普通 `PositionedGraph`。手工 override 位于 provider 之后，继续通过共享
   `positionedRouting` 边界工作。
@@ -162,7 +162,7 @@ Simple 的实现提交、验收指标和允许修改范围固定在
 目标目录边界：
 
 ```text
-src/layout/elk_replica/
+src/layout/native_layered/
   graph_model.js             canonical internal graph and stable topology keys
   cycle_breaking.js          reversible layout orientation
   layer_assignment.js        rank assignment and span refinement
@@ -179,7 +179,7 @@ src/layout/elk_replica/
   provider.js                LayoutProvider adapter
 ```
 
-Replica pipeline 顺序固定为：
+Native Layered pipeline 顺序固定为：
 
 ```text
 source graph
@@ -200,7 +200,7 @@ Placement 和 routing 必须联合规划：相邻层间的物理 net demand 在�
 alignment block 和子树跨度决定，后续合法化只能移动完整 block，不能再把 block 内 cell 从画布
 顶部开始逐个压紧。
 
-在 Focused、Whole、mapped-case、性能和浏览器视觉验收全部完成前，Replica 只作为 Experimental
+在 Focused、Whole、mapped-case、性能和浏览器视觉验收全部完成前，Native Layered 只作为 Experimental
 provider 暴露；Simple 保持默认和稳定 fallback。提升为默认属于单独决策，不随实现完成自动发生。
 
 手动布局校准不改变 Netlist IR，也不替代 layout provider。实现时应把用户拖动得到的节点位置作为 layout override/golden 叠加在 positioned graph 上，再让路由和渲染层基于覆盖后的节点位置工作。

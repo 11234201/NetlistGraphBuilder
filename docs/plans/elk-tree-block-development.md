@@ -1,10 +1,10 @@
 # ELK-like focused tree-block layout plan
 
 Updated: 2026-09-20. Status: frozen; superseded by
-[`elk_replica_layered_development.md`](elk_replica_layered_development.md). Development branch: `dev`.
+[`native_layered_development.md`](native_layered_development.md). Development branch: `dev`.
 
 No further tree-block stages from this plan are to be added to Simple. Completed checkpoints remain
-historical evidence for the Replica acceptance baseline.
+historical evidence for the Native Layered acceptance baseline.
 
 ## Acceptance target
 
