@@ -1,9 +1,14 @@
 const OUTPUT_PINS = new Set(["Z", "ZN", "Y", "Q", "QN", "CO"]);
 const INVERTING_OUTPUT_GATES = new Set(["nand", "nor", "inv", "xnor"]);
 const MUX_SELECT_PINS = /^(S|S\d+|SEL|SELECT)$/;
+const UNIT_CELL_KINDS = Object.freeze({
+  UNIT_ADFFR_PN_GATE: "dff", UNIT_AND: "and", UNIT_OR: "or",
+  UNIT_NOT: "inv", UNIT_LOGIC_NOT: "blackbox", UNIT_EQ: "blackbox"
+});
 
 export function inferCellKind(cellType) {
   const type = cellType.toUpperCase();
+  if (Object.hasOwn(UNIT_CELL_KINDS, type)) return inference(UNIT_CELL_KINDS[type], "rule");
 
   if (isDffCellType(type)) {
     return inference("dff", "rule");
@@ -36,6 +41,9 @@ export function inferCellKind(cellType) {
 export function inferPinDirection(pinName, cellType = "") {
   const pin = pinName.toUpperCase();
   const type = String(cellType).toUpperCase();
+  if (type === "UNIT_ADFFR_PN_GATE" && ["CLOCKED_ON", "NEXT_STATE", "CLEAR"].includes(pin)) {
+    return { direction: "input", source: "cell-rule" };
+  }
   if (isMuxCellType(type) && MUX_SELECT_PINS.test(pin)) {
     return {
       direction: "input",

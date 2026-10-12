@@ -1,4 +1,5 @@
 import { inferCellKind, inferPinDirection } from "../../infer/defaultCellRules.js";
+import { getPinNetReferences } from "../../netlist/model.js";
 
 export const DEFAULT_HIERARCHY_CONE_LIMITS = Object.freeze({
   faninDepth: 3,
@@ -33,20 +34,21 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
   const portByName = new Map(ports.map((port) => [port.name, port]));
   const cells = [...(module?.cells || [])].toSorted(compareNamed).map((cell) => {
     const childModule = moduleByName.get(cell.type) || null;
-    const pins = [...(cell.pins || [])].map((pin) => {
+    const pins = [...(cell.pins || [])].flatMap((pin) => {
       const pinName = pin.pin;
       const childPort = childModule ? childModule.ports?.find((port) => port.name === pinName) : null;
       const direction = childPort
         ? normalizeDirection(childPort.direction)
         : normalizeDirection(inferPinDirection(pinName, cell.type)?.direction);
-      return {
+      const references = getPinNetReferences(pin);
+      return (references.length ? references : [{ name: "", displayName: "" }]).map((reference) => ({
         name: pinName,
         displayName: pin.pinDisplayName || pinName,
-        net: pin.net || "",
-        netDisplayName: pin.netDisplayName || pin.net || "",
+        net: reference.name,
+        netDisplayName: reference.displayName,
         direction,
         childPortName: childPort?.name || null
-      };
+      }));
     }).toSorted(compareNamed);
     return {
       instance: cell.instance,

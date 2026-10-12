@@ -73,10 +73,23 @@ export function ensureNet(module, name, displayName = name, declaredKind = "impl
 export function addCell(module, cell) {
   module.cells.push(cell);
   for (const pin of cell.pins) {
-    if (pin.net) {
-      ensureNet(module, pin.net, pin.netDisplayName || pin.net, "implicit");
+    for (const reference of getPinNetReferences(pin)) {
+      ensureNet(module, reference.name, reference.displayName, "implicit");
     }
   }
+}
+
+export function getPinNetReferences(pin) {
+  if (!pin.connection) {
+    return pin.net ? [{ name: pin.net, displayName: pin.netDisplayName || pin.net }] : [];
+  }
+  const references = [];
+  const visit = (connection) => {
+    if (connection.kind === "reference") references.push(connection);
+    else if (connection.kind === "concat") connection.items.forEach(visit);
+  };
+  visit(pin.connection);
+  return references;
 }
 
 export function addAssign(module, assign) {

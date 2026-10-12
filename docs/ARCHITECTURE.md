@@ -78,7 +78,15 @@ Cell
 PinConnection
   pin
   net
+  connection?    # concat {kind, items}; unsupported expressions retain text
 ```
+
+单网连接保留 `net/netDisplayName` 兼容字段；拼接连接以 `connection` 保存有序、可嵌套的
+`concat` / `reference` 结构，引用分别保留 canonical name 与 display name。拼接自身不是 net。
+`getPinNetReferences` 在 IR 边界统一枚举引用，建图、连接模板和详情消费同一结果；不支持的表达式
+保留原文并产生诊断，不截取第一个标识符伪造成连接。
+显示图通过 `getPinConnectionEndpoints` 为拼接成员提供独立的 `A{ordinal}` 端点，避免不同 net
+共用同一引脚坐标；ordinal 表示拼接成员顺序，不冒充源引脚的 bit index。源 IR 不受影响。
 
 ### `src/infer/`
 

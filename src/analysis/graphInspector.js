@@ -1,4 +1,5 @@
 import { analyzeGraphCone } from "./graphCone.js";
+import { getPinConnectionEndpoints } from "../netlist/pin_connections.js";
 
 export function inspectGraphNode(graph, node, options = {}) {
   if (!node) {
@@ -203,12 +204,15 @@ function uniqueNetEndpoints(endpoints) {
 
 function getNodeConnections(graph, node) {
   if (node.kind === "cell") {
-    return (node.ref?.pins || []).map((pin) => {
+    return (node.ref?.pins || []).flatMap((pin) => {
       const pinName = pin.pinDisplayName || pin.pin;
       const direction = node.pinDirections?.[pinName]?.direction ||
         node.pinDirections?.[pin.pin]?.direction ||
         inferDirectionFromEdges(graph, node.id, pinName);
-      return inspectPin(graph, node, pinName, pin.netDisplayName || pin.net, pin.net, direction);
+      const references = getPinConnectionEndpoints(pin);
+      if (references.length === 0) return [inspectPin(graph, node, pinName, pin.netDisplayName || pin.net, pin.net, direction)];
+      return references.map((reference) => inspectPin(graph, node, reference.pin,
+        reference.displayName, reference.name, direction));
     });
   }
 
