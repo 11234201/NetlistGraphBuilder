@@ -307,10 +307,16 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 左侧 `Layout` 可选择：
 
-- `Simple Layered`：默认、确定性、离线的项目布局器。
+- `Simple Layered`：可手动选择的旧布局方案，保留为失败回退。
 - `ELK Layered (Experimental)`：vendored ELK 布局，适合尝试不同的大图初始排布；失败时回退 Simple。
+- `Native Layered H08`：默认的项目静态布局/正交布线引擎，Single/Compare 共用同一路径；失败显示诊断并回退 Simple，不混入旧 Native 相位。
 
 切换 provider 会重新布局当前视图。
+新会话及EDA启动默认使用H08。旧session中明确保存的Simple/ELK选择继续恢复；如希望改用H08，请手动切换一次。
+
+H08 当前范围是平面图、固定左右侧端口及已声明的验收语料，并非 ELK 全部选项的替代品。
+复杂自环与分组组合等不支持输入会明确报错，不应通过调大超时或隐藏诊断强行验收。
+`Wire spacing` 的 Simple/Adjust lane 设置不保证在 H08 中产生同样布局；H08 仍采用自身版本化策略。
 
 ### 9.2 Wire spacing 与 Cell spacing
 

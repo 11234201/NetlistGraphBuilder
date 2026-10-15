@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>H08 offline ES-module smoke</title>
+<style>body{font:16px system-ui;margin:36px;color:#172238;background:#edf2f6}pre{padding:24px;background:white;white-space:pre-wrap}h1{font-size:24px}</style>
+<h1>H08 浏览器原生静态模块检查</h1>
+<p>直接导入仓库静态入口；无需 Node、安装依赖或动态源码编译。</p>
+<pre id="result" data-status="pending">Running…</pre>
+<script type="module">
+import {layoutGraph,PACKAGE_VERSION,H08_PROFILE_VERSION} from '../../src/layout/elk_native/h08.js';
+const output=document.getElementById('result');
+try{
+  const input={nodes:[{id:'a',width:40,height:30,ports:[{id:'a:o',side:'EAST',x:40,y:15}]},
+    {id:'b',width:40,height:30,ports:[{id:'b:i',side:'WEST',x:0,y:15}]}],
+    edges:[{id:'ab',physicalNetId:'signal',sourcePortId:'a:o',targetPortId:'b:i'}]};
+  const before=JSON.stringify(input),phases=[];
+  const result=await layoutGraph(input,{onPhase:graph=>phases.push(graph.phase)});
+  if(JSON.stringify(input)!==before||!Object.isFrozen(result)||result.phase!=='complete'
+    ||result.phaseData.profile.id!=='h08'||result.edges[0].points.length<2)throw Error('static contract failed');
+  let cancelled=false;
+  try{await layoutGraph(input,{signal:AbortSignal.abort()});}catch(error){if(error.name!=='AbortError')throw error;cancelled=true;}
+  if(!cancelled)throw Error('cancellation failed');
+  output.dataset.status='passed';
+  output.textContent='PASS\n'+JSON.stringify({package:PACKAGE_VERSION,profile:H08_PROFILE_VERSION,
+    phases,nodes:result.nodes.length,edges:result.edges.length,immutable:true,inputUnchanged:true,cancellation:true},null,2);
+  document.title='PASS — H08 offline ES-module smoke';
+}catch(error){output.dataset.status='failed';output.textContent='FAIL\n'+String(error.stack||error);document.title='FAIL — H08 smoke';}
+</script>
+</html>

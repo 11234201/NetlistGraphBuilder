@@ -19,11 +19,11 @@ test("concrete 1024-cell example supports a bounded output cone smoke flow", asy
   const module = design.modules[0];
   const graph = buildSchematicGraph(module);
   const layoutStartedAt = performance.now();
-  const fullLayout = getLayoutProvider().layout(graph);
+  const fullLayout = getLayoutProvider("simple-layered").layout(graph);
   const layoutElapsed = performance.now() - layoutStartedAt;
   const output = graph.nodes.find((node) => node.kind === "output" && node.ref?.name === "data_out");
   const cone = createConeGraph(graph, output.id, { direction: "fanin", maxDepth: 12 });
-  const positioned = getLayoutProvider().layout(cone);
+  const positioned = getLayoutProvider("simple-layered").layout(cone);
   const svg = renderSchematicSvg(positioned);
   const movedNode = fullLayout.nodes.find((node) => node.label === "u_buf_512");
   const adjustStartedAt = performance.now();

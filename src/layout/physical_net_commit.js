@@ -32,7 +32,11 @@ export function validatePhysicalNetCommit(edges = [], nodes = [], options = {}) 
   }, {
     nodeIndex: options.nodeIndex,
     checkObstacles: options.checkObstacles !== false,
-    checkOverlaps: true,
+    // Every edge was proven to have the same physical-net owner above, and
+    // the edge overlap validator deliberately ignores same-owner pairs. The
+    // physical wire-tree validator below still checks duplicate/overlapping
+    // segments, so building a per-net edge index here cannot add a diagnostic.
+    checkOverlaps: false,
     checkBounds: options.checkBounds === true,
     maxViolations: options.maxViolations ?? 64
   });

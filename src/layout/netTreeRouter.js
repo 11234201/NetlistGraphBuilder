@@ -30,22 +30,40 @@ export function buildNetTreeSegments(segments = [], edges = []) {
       pointKey: pointKey(edge?.points?.at(-1))
     }));
   const shortestPaths = findMultiSourceTree(adjacency, sourceKeys);
-  const selectedIndices = new Set();
-  const ownership = new Map();
+  // Intern only the completed tree's traversal identities. Dijkstra and its
+  // string tie-breaking remain untouched; no arithmetic is recomputed here.
+  const vertexIndex = new Map([...adjacency.keys()].map((key, index) => [key, index]));
+  const parentsByVertex = [], sourceVertices = new Uint8Array(vertexIndex.size);
+  const reachableVertices = new Uint8Array(vertexIndex.size);
+  for (const key of shortestPaths.distance.keys()) reachableVertices[vertexIndex.get(key)] = 1;
+  for (const key of sourceKeys) {
+    const index = vertexIndex.get(key);
+    if (index !== undefined) sourceVertices[index] = 1;
+  }
+  for (const [key, parent] of shortestPaths.parent) parentsByVertex[vertexIndex.get(key)] = {
+    from: vertexIndex.get(parent.from), segmentIndex: parent.segmentIndex
+  };
+  // Segment indices are private ordinals from the original input. Preserve
+  // those ordinals even when unusable segments leave gaps in the filtered list.
+  const selectedIndices = new Uint8Array(segments.length);
+  const ownership = [];
+  const visitedByTarget = new Float64Array(vertexIndex.size);
   let reachableTargetCount = 0;
-  for (const target of targetRecords) {
-    if (!target.pointKey || !shortestPaths.distance.has(target.pointKey)) continue;
+  for (let targetIndex = 0; targetIndex < targetRecords.length; targetIndex++) {
+    const target = targetRecords[targetIndex];
+    const targetVertex = vertexIndex.get(target.pointKey);
+    if (!target.pointKey || reachableVertices[targetVertex] !== 1) continue;
     reachableTargetCount += 1;
-    let cursor = target.pointKey;
-    const visited = new Set();
-    while (!sourceKeys.includes(cursor)) {
-      if (visited.has(cursor)) break;
-      visited.add(cursor);
-      const parent = shortestPaths.parent.get(cursor);
+    let cursor = targetVertex;
+    const epoch = targetIndex + 1;
+    while (sourceVertices[cursor] !== 1) {
+      if (visitedByTarget[cursor] === epoch) break;
+      visitedByTarget[cursor] = epoch;
+      const parent = parentsByVertex[cursor];
       if (!parent) break;
-      selectedIndices.add(parent.segmentIndex);
-      if (!ownership.has(parent.segmentIndex)) ownership.set(parent.segmentIndex, new Set());
-      ownership.get(parent.segmentIndex).add(target.edgeId);
+      selectedIndices[parent.segmentIndex] = 1;
+      if (!ownership[parent.segmentIndex]) ownership[parent.segmentIndex] = new Set();
+      ownership[parent.segmentIndex].add(target.edgeId);
       cursor = parent.from;
     }
   }
@@ -54,12 +72,12 @@ export function buildNetTreeSegments(segments = [], edges = []) {
     sourceKeys.length === 0;
   const selected = treeFallback
     ? usable
-    : usable.filter((_, index) => selectedIndices.has(index));
+    : usable.filter((record) => selectedIndices[record.index] === 1);
   const routedSegments = selected.map((record) => ({
     ...record.segment,
     logicalEdgeIds: treeFallback
       ? [...record.segment.logicalEdgeIds]
-      : [...(ownership.get(record.index) || record.segment.logicalEdgeIds)]
+      : [...(ownership[record.index] || record.segment.logicalEdgeIds)]
   }));
   const componentCount = countComponents(selected);
   const cycleCount = Math.max(0, selected.length - countVertices(selected) + componentCount);

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const location=new URL('./compare_quality_corpus.mjs',import.meta.url);
+let source=await readFile(location,'utf8');
+const anchor="import {layoutGraph} from '../../../src/layout/elk_native/index.js';";
+assert.equal(source.split(anchor).length,2);
+source=source.replace(anchor,`import {compileWorkingOrderLayout} from '${new URL('./probe_p3_working_order.mjs',import.meta.url).href}';
+const layoutGraph=await compileWorkingOrderLayout();`);
+const main="if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){";
+assert.equal(source.split(main).length,2);
+source=source.replace(main,'if(true){');
+source=source.replace(/from '(\.[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);
+source=source.replaceAll('import.meta.url',JSON.stringify(location.href));
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);

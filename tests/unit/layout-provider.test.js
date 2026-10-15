@@ -7,6 +7,7 @@ import {
   SimpleLayeredLayoutProvider
 } from "../../src/layout/layoutProvider.js";
 import { ELK_LAYOUT_PROVIDER_ID, ElkLayoutProvider } from "../../src/layout/elkLayoutProvider.js";
+import { NATIVE_LAYERED_LAYOUT_PROVIDER_ID, NativeLayeredLayoutProvider } from "../../src/layout/elk_native_layout_provider.js";
 
 const graph = {
   moduleName: "m",
@@ -32,9 +33,15 @@ test("simple layered provider exposes a stable layout contract", () => {
 test("layout provider registry falls back to simple layered", () => {
   assert.deepEqual(listLayoutProviders().map((provider) => provider.id), [
     SIMPLE_LAYOUT_PROVIDER_ID,
-    ELK_LAYOUT_PROVIDER_ID
+    ELK_LAYOUT_PROVIDER_ID,
+    NATIVE_LAYERED_LAYOUT_PROVIDER_ID
   ]);
   assert.equal(getLayoutProvider("missing").id, SIMPLE_LAYOUT_PROVIDER_ID);
+  assert.equal(getLayoutProvider().id, NATIVE_LAYERED_LAYOUT_PROVIDER_ID);
+  const native = getLayoutProvider(NATIVE_LAYERED_LAYOUT_PROVIDER_ID);
+  assert.ok(native instanceof NativeLayeredLayoutProvider);
+  assert.equal(native.profile, "h08");
+  assert.equal(native.experimental, false);
 });
 
 test("ELK provider normalizes async layout output", async () => {

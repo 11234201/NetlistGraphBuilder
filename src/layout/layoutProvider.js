@@ -1,5 +1,10 @@
 import { layoutGraph } from "./simpleLayered.js";
 import { ELK_LAYOUT_PROVIDER_ID, ElkLayoutProvider } from "./elkLayoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID, FALLBACK_LAYOUT_PROVIDER_ID } from "./providerDefaults.js";
+import {
+  NATIVE_LAYERED_LAYOUT_PROVIDER_ID,
+  NativeLayeredLayoutProvider
+} from "./elk_native_layout_provider.js";
 
 export const SIMPLE_LAYOUT_PROVIDER_ID = "simple-layered";
 
@@ -16,11 +21,12 @@ export class SimpleLayeredLayoutProvider {
 
 const providers = new Map([
   [SIMPLE_LAYOUT_PROVIDER_ID, new SimpleLayeredLayoutProvider()],
-  [ELK_LAYOUT_PROVIDER_ID, new ElkLayoutProvider()]
+  [ELK_LAYOUT_PROVIDER_ID, new ElkLayoutProvider()],
+  [NATIVE_LAYERED_LAYOUT_PROVIDER_ID, new NativeLayeredLayoutProvider({ profile: "h08" })]
 ]);
 
-export function getLayoutProvider(providerId = SIMPLE_LAYOUT_PROVIDER_ID) {
-  return providers.get(providerId) || providers.get(SIMPLE_LAYOUT_PROVIDER_ID);
+export function getLayoutProvider(providerId = DEFAULT_LAYOUT_PROVIDER_ID) {
+  return providers.get(providerId) || providers.get(FALLBACK_LAYOUT_PROVIDER_ID);
 }
 
 export function listLayoutProviders() {

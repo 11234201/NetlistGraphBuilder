@@ -1,3 +1,6 @@
+// Opt-in caches do not add construction work to ordinary index consumers.
+const foreignBucketCaches = new WeakMap();
+
 export class SpatialHashIndex {
   constructor(cellSize = 128) {
     this.cellSize = Math.max(16, Number(cellSize) || 128);
@@ -157,6 +160,7 @@ export class RouteSegmentIndex {
   }
 
   rebuild(segments = []) {
+    foreignBucketCaches.delete(this);
     this.items = [];
     this.inactiveSegments = new Set();
     this.geometryKeys = new Set();
@@ -178,6 +182,21 @@ export class RouteSegmentIndex {
       this.verticalBuckets,
       Math.floor(box.left / this.cellSize),
       Math.floor(box.right / this.cellSize),
+      box,
+      found
+    );
+    return [...found]
+      .filter((record) => !this.inactiveSegments.has(record.segment))
+      .map((record) => record.segment);
+  }
+
+  queryHorizontalSegment(segment, padding = 0) {
+    const box = segmentBox(segment, padding);
+    const found = new Set();
+    queryAxisBuckets(
+      this.horizontalBuckets,
+      Math.floor(box.top / this.cellSize),
+      Math.floor(box.bottom / this.cellSize),
       box,
       found
     );
@@ -234,6 +253,37 @@ export class RouteSegmentIndex {
     )) return count;
     for (const record of this.otherIndex.query(box)) {
       if (boxesIntersect(record.box, box) && visit(record.segment)) break;
+    }
+    return count;
+  }
+
+  // Same candidate geometry as the ordinary queries, excluding one exact net
+  // identity before materialization. Frozen own data keys alone are grouped.
+  queryHorizontalForeignSegment(segment, padding, netGroupKey) {
+    return queryForeignAxis(this, this.horizontalBuckets, segmentBox(segment, padding), "y", netGroupKey);
+  }
+
+  queryVerticalForeignSegment(segment, padding, netGroupKey) {
+    return queryForeignAxis(this, this.verticalBuckets, segmentBox(segment, padding), "x", netGroupKey);
+  }
+
+  // Predicates must be pure; group traversal can differ from record order.
+  // Counts, duplicate insertions and maximum/early-stop semantics are retained.
+  countForeignBox(box, netGroupKey, predicate, maximum = Infinity) {
+    let count = 0;
+    const visit = (record) => {
+      if (this.inactiveSegments.has(record.segment) || record.segment.netGroupKey === netGroupKey
+        || !predicate(record.segment)) return false;
+      count++;
+      return count >= maximum;
+    };
+    for (const [buckets, axis] of [[this.horizontalBuckets, "y"], [this.verticalBuckets, "x"]]) {
+      const [minimum, maximumBucket] = axisRange(box, axis, this.cellSize);
+      if (visitAxisBuckets(buckets, minimum, maximumBucket, (records) =>
+        visitForeignRecords(this, records, box, netGroupKey, visit))) return count;
+    }
+    for (const record of this.otherIndex.query(box)) {
+      if (boxesIntersect(record.box, box) && visit(record)) break;
     }
     return count;
   }
@@ -347,17 +397,10 @@ function routeSegmentGeometryKey(segment) {
 }
 
 function queryAxisBuckets(buckets, minimum, maximum, box, found) {
-  const span = maximum - minimum + 1;
-  if (span <= buckets.size * 2) {
-    for (let key = minimum; key <= maximum; key += 1) {
-      collectIntersectingRecords(buckets.get(key), box, found);
-    }
-    return;
-  }
-  for (const [key, records] of buckets) {
-    if (key < minimum || key > maximum) continue;
+  visitAxisBuckets(buckets, minimum, maximum, (records) => {
     collectIntersectingRecords(records, box, found);
-  }
+    return false;
+  }, true);
 }
 
 function someAxisBuckets(buckets, minimum, maximum, box, predicate) {
@@ -367,6 +410,10 @@ function someAxisBuckets(buckets, minimum, maximum, box, predicate) {
     }
     return false;
   };
+  return visitAxisBuckets(buckets, minimum, maximum, visit);
+}
+
+function visitAxisBuckets(buckets, minimum, maximum, visit, includeIndeterminate = false) {
   const span = maximum - minimum + 1;
   if (span <= buckets.size * 2) {
     for (let key = minimum; key <= maximum; key += 1) {
@@ -375,9 +422,93 @@ function someAxisBuckets(buckets, minimum, maximum, box, predicate) {
     return false;
   }
   for (const [key, records] of buckets) {
-    if (key >= minimum && key <= maximum && visit(records)) return true;
+    if ((includeIndeterminate ? !(key < minimum || key > maximum) : key >= minimum && key <= maximum)
+      && visit(records)) return true;
   }
   return false;
+}
+
+function axisRange(box, axis, cellSize) {
+  return axis === "x"
+    ? [Math.floor(Math.min(box.left, box.right) / cellSize), Math.floor(Math.max(box.left, box.right) / cellSize)]
+    : [Math.floor(Math.min(box.top, box.bottom) / cellSize), Math.floor(Math.max(box.top, box.bottom) / cellSize)];
+}
+
+function foreignGroups(index, records) {
+  let cache = foreignBucketCaches.get(index);
+  if (!cache) { cache = new WeakMap(); foreignBucketCaches.set(index, cache); }
+  let entry = cache.get(records);
+  if (!entry || entry.length > records.length) {
+    entry = { length: 0, rows: [], owners: new Map(), orderByRecord: null };
+    cache.set(records, entry);
+  }
+  for (; entry.length < records.length; entry.length++) {
+    const record = records[entry.length];
+    if (entry.orderByRecord) entry.orderByRecord.set(record, entry.length);
+    const descriptor = Object.getOwnPropertyDescriptor(record.segment, "netGroupKey");
+    const immutable = Object.isFrozen(record.segment) && descriptor && Object.hasOwn(descriptor, "value")
+      && !Number.isNaN(record.box.left) && !Number.isNaN(record.box.right)
+      && !Number.isNaN(record.box.top) && !Number.isNaN(record.box.bottom);
+    const owner = immutable ? descriptor.value : undefined;
+    let holder = immutable ? entry.owners.get(owner) : undefined;
+    if (!holder) {
+      if (immutable) entry.owners.set(owner, { row: record, position: entry.rows.length });
+      entry.rows.push(record);
+    } else {
+      if (holder.row.segment) {
+        holder.row = { owner, box: { ...holder.row.box }, members: [holder.row] };
+        entry.rows[holder.position] = holder.row;
+        if (!entry.orderByRecord) entry.orderByRecord = new Map(records.map((item, order) => [item, order]));
+      }
+      const row = holder.row;
+      row.members.push(record);
+      row.box.left = Math.min(row.box.left, record.box.left);
+      row.box.right = Math.max(row.box.right, record.box.right);
+      row.box.top = Math.min(row.box.top, record.box.top);
+      row.box.bottom = Math.max(row.box.bottom, record.box.bottom);
+    }
+  }
+  return entry;
+}
+
+function visitForeignRecords(index, records, box, netGroupKey, visit) {
+  if (!records?.length) return false;
+  for (const row of foreignGroups(index, records).rows) {
+    if (row.segment) {
+      if (boxesIntersect(row.box, box) && visit(row)) return true;
+      continue;
+    }
+    if (row.owner === netGroupKey || !boxesIntersect(row.box, box)) continue;
+    for (const record of row.members) {
+      if (boxesIntersect(record.box, box) && visit(record)) return true;
+    }
+  }
+  return false;
+}
+
+function queryForeignAxis(index, buckets, box, axis, netGroupKey) {
+  const minimum = Math.floor((axis === "x" ? box.left : box.top) / index.cellSize);
+  const maximum = Math.floor((axis === "x" ? box.right : box.bottom) / index.cellSize);
+  const found = new Set();
+  visitAxisBuckets(buckets, minimum, maximum, (records) => {
+    if (!records?.length) return false;
+    const entry = foreignGroups(index, records);
+    if (!entry.orderByRecord) {
+      for (const record of entry.rows) if (boxesIntersect(record.box, box)
+        && !index.inactiveSegments.has(record.segment) && record.segment.netGroupKey !== netGroupKey) found.add(record);
+      return false;
+    }
+    const accepted = [];
+    visitForeignRecords(index, records, box, netGroupKey, (record) => {
+      if (!index.inactiveSegments.has(record.segment) && record.segment.netGroupKey !== netGroupKey)
+        accepted.push(record);
+      return false;
+    });
+    accepted.sort((a, b) => entry.orderByRecord.get(a) - entry.orderByRecord.get(b));
+    for (const record of accepted) found.add(record);
+    return false;
+  }, true);
+  return [...found].map((record) => record.segment);
 }
 
 function collectIntersectingRecords(records, box, found) {

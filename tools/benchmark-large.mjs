@@ -1,6 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { collapseLargeGraph } from "../src/analysis/groupCollapse.js";
-import { layoutGraph } from "../src/layout/simpleLayered.js";
+import { getLayoutProvider } from "../src/layout/layoutProvider.js";
 import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import {
@@ -10,6 +9,8 @@ import {
 
 const sizes = parseSizes(process.env.BENCHMARK_SIZES);
 const runs = clampInteger(process.env.BENCHMARK_RUNS, 3, 1, 20);
+const providerId = process.env.BENCHMARK_PROVIDER || "simple-layered";
+const provider = getLayoutProvider(providerId);
 
 // Warm up module loading and the main JIT paths before collecting measurements.
 runOnce(createBufferChain(32));
@@ -21,17 +22,22 @@ for (const cells of sizes) {
   results.push(summarize(cells, source.length, samples));
 }
 
-console.log(`Large graph benchmark (${runs} run${runs === 1 ? "" : "s"} per size, median)`);
+console.log(`Large graph benchmark (${providerId}; ${runs} run${runs === 1 ? "" : "s"} per size, median)`);
 console.table(results);
+console.log(JSON.stringify({
+  providerId,
+  fullNode: true,
+  phases: results.map(({ cells, phaseMetrics }) => ({ cells, phaseMetrics }))
+}));
 
 function runOnce(source) {
   const parse = measure(() => parseVerilog(source));
   const graph = measure(() => buildSchematicGraph(parse.value.modules[0]));
-  const layout = measure(() => layoutGraph(graph.value));
+  const layout = measure(() => provider.layout(graph.value));
+  if (layout.value && typeof layout.value.then === "function") {
+    throw new Error(`Benchmark provider ${providerId} must be synchronous`);
+  }
   const svg = measure(() => renderSchematicSvg(layout.value));
-  const collapse = measure(() => collapseLargeGraph(graph.value));
-  const collapsedLayout = measure(() => layoutGraph(collapse.value));
-  const collapsedSvg = measure(() => renderSchematicSvg(collapsedLayout.value));
   const progressivePlan = measure(() => createProgressiveSchematicRenderPlan(layout.value));
   const progressiveFirstBatch = measure(() => renderFirstBatch(progressivePlan.value, 120));
   return {
@@ -40,16 +46,16 @@ function runOnce(source) {
     layoutMs: layout.ms,
     svgMs: svg.ms,
     svgBytes: svg.value.length,
-    collapseMs: collapse.ms,
-    collapsedNodes: collapse.value.nodes.length,
-    collapsedLayoutMs: collapsedLayout.ms,
-    collapsedSvgMs: collapsedSvg.ms,
+    layoutStatus: layout.value.layoutStatus || "unknown",
+    violations: layout.value.validationMetrics?.total || 0,
+    phaseMetrics: layout.value.layoutMetrics?.phases || null,
     progressivePlanMs: progressivePlan.ms,
     progressiveFirstBatchMs: progressiveFirstBatch.ms
   };
 }
 
 function summarize(cells, sourceBytes, samples) {
+  const medianSample = [...samples].sort((left, right) => left.layoutMs - right.layoutMs)[Math.floor(samples.length / 2)];
   return {
     cells,
     sourceKiB: round(sourceBytes / 1024),
@@ -60,10 +66,9 @@ function summarize(cells, sourceBytes, samples) {
     pipelineMs: round(median(samples.map((sample) =>
       sample.parseMs + sample.graphMs + sample.layoutMs + sample.svgMs))),
     svgMiB: round(median(samples.map((sample) => sample.svgBytes)) / 1048576),
-    collapseMs: round(median(samples.map((sample) => sample.collapseMs))),
-    collapsedNodes: Math.round(median(samples.map((sample) => sample.collapsedNodes))),
-    collapsedLayoutMs: round(median(samples.map((sample) => sample.collapsedLayoutMs))),
-    collapsedSvgMs: round(median(samples.map((sample) => sample.collapsedSvgMs))),
+    layoutStatus: samples.every((sample) => sample.layoutStatus === "routed") ? "routed" : "unroutable",
+    violations: Math.max(...samples.map((sample) => sample.violations)),
+    phaseMetrics: medianSample.phaseMetrics,
     progressivePlanMs: round(median(samples.map((sample) => sample.progressivePlanMs))),
     progressiveFirstBatchMs: round(median(samples.map((sample) => sample.progressiveFirstBatchMs)))
   };

@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { fileURLToPath } from "node:url";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
-import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
+import { SimpleLayeredLayoutProvider, getLayoutProvider } from "../src/layout/layoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
 import { getNetGroupKey } from "../src/layout/layoutTopology.js";
@@ -14,16 +15,20 @@ import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
 import { renderSchematicSvg } from "../src/domains/netlist/netlist_scene.js";
 import { createStandaloneSvg } from "../src/render/svgExport.js";
 
-const fixtureUrl = new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
-const source = await readFile(fixtureUrl, "utf8");
+const argumentsList = process.argv.slice(2);
+const fixtureArgument = parseStringArgument(argumentsList, "--fixture=");
+const fixturePath = fixtureArgument
+  ? resolve(fixtureArgument)
+  : fileURLToPath(new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url));
+const source = await readFile(fixturePath, "utf8");
 const design = parseVerilog(source);
 const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
-const argumentsList = process.argv.slice(2);
 const layoutPolicy = parseLayoutPolicy(argumentsList);
 const scenario = parseScenario(argumentsList, layoutPolicy);
 const providers = [
   new SimpleLayeredLayoutProvider(),
-  new ElkLayoutProvider({ elkFactory: () => new Elk() })
+  new ElkLayoutProvider({ elkFactory: () => new Elk() }),
+  getLayoutProvider("native-layered")
 ];
 const reports = [];
 const positionedGraphs = [];
@@ -47,7 +52,7 @@ for (const provider of providers) {
 
 const report = {
   scenario: {
-    fixture: "tests/fixtures/mapped/equal/eq_012_mapped.v",
+    fixture: relative(process.cwd(), fixturePath).replaceAll("\\", "/"),
     module: module?.name || null,
     ...scenario.reportFocus,
     faninDepth: scenario.faninDepth,
@@ -95,6 +100,10 @@ if (svgDirectoryArgument) {
 console.log(JSON.stringify(
   argumentsList.some((argument) => argument.startsWith("--physical-net="))
     ? physicalNetReport(report, parseStringArgument(argumentsList, "--physical-net="))
+    : argumentsList.some((argument) => argument.startsWith("--node-neighborhood="))
+    ? nodeNeighborhoodReport(report, positionedGraphs,
+      parseStringArgument(argumentsList, "--node-neighborhood="),
+      parseDepthArgument(argumentsList, "--neighborhood-depth=", 2))
     : argumentsList.some((argument) => argument.startsWith("--route-kind="))
     ? routeKindReport(report, positionedGraphs, parseStringArgument(argumentsList, "--route-kind="))
     : argumentsList.includes("--route-bounds")
@@ -111,6 +120,46 @@ console.log(JSON.stringify(
   null,
   2
 ));
+
+function nodeNeighborhoodReport(report, graphs, rawNodeId, maximumDepth) {
+  const nodeId = rawNodeId.includes(":") ? rawNodeId : `cell:${rawNodeId}`;
+  return {
+    scenario: report.scenario,
+    nodeId,
+    maximumDepth,
+    providers: graphs.map((graph, index) => {
+      const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+      const incoming = new Map();
+      for (const edge of graph.edges) {
+        incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge]);
+      }
+      const queue = [{ id: nodeId, depth: 0 }];
+      const visited = new Set();
+      const nodes = [];
+      for (let cursor = 0; cursor < queue.length; cursor += 1) {
+        const current = queue[cursor];
+        if (visited.has(current.id) || current.depth > maximumDepth) continue;
+        visited.add(current.id);
+        const node = nodeById.get(current.id);
+        if (!node) continue;
+        const parents = (incoming.get(current.id) || [])
+          .map((edge) => ({ id: edge.source, pin: edge.targetPin || null, net: edge.net || null }))
+          .sort((left, right) => compareIds(left.id, right.id));
+        nodes.push({
+          id: node.id,
+          depth: current.depth,
+          level: Number.isFinite(Number(node.level)) ? Number(node.level) : null,
+          x: round(Number(node.x)),
+          y: round(Number(node.y)),
+          height: round(Number(node.height)),
+          parents
+        });
+        for (const parent of parents) queue.push({ id: parent.id, depth: current.depth + 1 });
+      }
+      return { providerId: report.providers[index].providerId, nodes };
+    })
+  };
+}
 
 function treeBlockReport(report, graphs) {
   return {

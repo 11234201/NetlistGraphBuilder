@@ -1,0 +1,267 @@
+{
+  "manifestVersion": "1.0.0",
+  "snapshotSchemaVersion": "1.1.0",
+  "upstream": {
+    "repository": "https://github.com/eclipse-elk/elk.git",
+    "commit": "28e5173243cab0cf4e2c9816c803bc0d5c47ab24",
+    "license": "EPL-2.0"
+  },
+  "defaults": {
+    "algorithm": "org.eclipse.elk.layered",
+    "direction": "RIGHT",
+    "edgeRouting": "ORTHOGONAL",
+    "cycleBreaking": "GREEDY",
+    "layering": "NETWORK_SIMPLEX",
+    "crossingMinimization": "LAYER_SWEEP",
+    "nodePlacement": "BRANDES_KOEPF",
+    "portConstraints": "FIXED_ORDER",
+    "randomSeed": 1
+  },
+  "selectionPolicy": {
+    "kind": "fixed-stratified",
+    "rule": "Synthetic mechanisms first; named Focused regressions second; then one checked-in mapped fixture from small, medium and large source-size strata.",
+    "mappedSourceSizeStrataBytes": [
+      { "name": "small", "maximumInclusive": 4096 },
+      { "name": "medium", "minimumInclusive": 4097, "maximumInclusive": 32768 },
+      { "name": "large", "minimumInclusive": 32769 }
+    ]
+  },
+  "cases": [
+    {
+      "id": "oracle_smoke_001",
+      "tier": "synthetic",
+      "purpose": "One executable graph that crosses every main P1-P5 boundary and includes a cycle, fanout, reconvergence and a long edge.",
+      "mechanisms": ["p1.greedy_cycle", "p2.network_simplex", "p3.long_edge_split", "p3.layer_sweep", "p4.bk_four_directions", "p5.orthogonal_hyperedge", "p5.long_edge_join"],
+      "options": { "portConstraints": "FIXED_POS", "nodePlacementFavorStraightEdges": true },
+      "inputDigest": "sha256:0f9aafd739f9a67db67e8a853b00bcb547b9a7d2d832b16f247f574cd5fef982",
+      "graph": {
+        "nodes": [
+          { "id": "a", "width": 40, "height": 30 },
+          { "id": "b", "width": 50, "height": 34 },
+          { "id": "c", "width": 44, "height": 28 },
+          { "id": "d", "width": 46, "height": 38 },
+          { "id": "e", "width": 48, "height": 32 },
+          { "id": "f", "width": 52, "height": 36 }
+        ],
+        "edges": [
+          { "id": "e_ab", "source": "a", "target": "b", "physicalNet": "n_ab" },
+          { "id": "e_bc", "source": "b", "target": "c", "physicalNet": "n_bc" },
+          { "id": "e_ca", "source": "c", "target": "a", "physicalNet": "n_ca" },
+          { "id": "e_ad", "source": "a", "target": "d", "physicalNet": "n_fan" },
+          { "id": "e_ae", "source": "a", "target": "e", "physicalNet": "n_fan" },
+          { "id": "e_df", "source": "d", "target": "f", "physicalNet": "n_df" },
+          { "id": "e_ef", "source": "e", "target": "f", "physicalNet": "n_ef" },
+          { "id": "e_af", "source": "a", "target": "f", "physicalNet": "n_long" }
+        ]
+      }
+    },
+    {
+      "id": "p5_critical_split_001",
+      "tier": "synthetic",
+      "purpose": "White-box segment mechanism probe: two opposing critical dependencies force ELK's feedback detector and segment splitter.",
+      "mechanisms": ["p5.critical_cycle", "p5.feedback_decision", "p5.segment_split"],
+      "mechanismProbe": {
+        "kind": "orthogonal_segment_conflict",
+        "firstIncoming": [0],
+        "firstOutgoing": [10],
+        "secondIncoming": [10],
+        "secondOutgoing": [0],
+        "criticalThreshold": 0.2,
+        "edgeSpacing": 10,
+        "seed": 1
+      }
+    },
+    {
+      "id": "chain_4",
+      "tier": "synthetic",
+      "purpose": "Minimal rank, coordinate and route direction sanity case.",
+      "mechanisms": ["p2.network_simplex", "p4.bk_alignment", "p5.straight_segment"],
+      "generator": { "kind": "chain", "nodeCount": 4, "nodeSize": [40, 30] },
+      "inputDigest": "sha256:61ddd66ec9dd0f75f1bd5c7dc17fe103fc4fe757fcdd8d5d0b3c78ef28d218b1",
+      "graph": {
+        "nodes": [
+          { "id": "a", "width": 40, "height": 30 },
+          { "id": "b", "width": 40, "height": 30 },
+          { "id": "c", "width": 40, "height": 30 },
+          { "id": "d", "width": 40, "height": 30 }
+        ],
+        "edges": [
+          { "id": "e_ab", "source": "a", "target": "b", "physicalNet": "n_ab" },
+          { "id": "e_bc", "source": "b", "target": "c", "physicalNet": "n_bc" },
+          { "id": "e_cd", "source": "c", "target": "d", "physicalNet": "n_cd" }
+        ]
+      }
+    },
+    {
+      "id": "diamond",
+      "tier": "synthetic",
+      "purpose": "Symmetric fork/join with multiple valid orders.",
+      "mechanisms": ["p2.weighted_span", "p3.forward_backward_sweeps", "p4.median_alignment", "p5.shared_boundary"],
+      "generator": { "kind": "diamond", "nodeSize": [40, 30] },
+      "inputDigest": "sha256:c547d2019cfdfb2430b0d3b3cd4625a8de3cd3beb803085f5b11794caf687c06",
+      "graph": {
+        "nodes": [
+          { "id": "a", "width": 40, "height": 30 },
+          { "id": "b", "width": 40, "height": 30 },
+          { "id": "c", "width": 40, "height": 30 },
+          { "id": "d", "width": 40, "height": 30 }
+        ],
+        "edges": [
+          { "id": "e_ab", "source": "a", "target": "b", "physicalNet": "n_ab" },
+          { "id": "e_ac", "source": "a", "target": "c", "physicalNet": "n_ac" },
+          { "id": "e_bd", "source": "b", "target": "d", "physicalNet": "n_bd" },
+          { "id": "e_cd", "source": "c", "target": "d", "physicalNet": "n_cd" }
+        ]
+      }
+    },
+    {
+      "id": "balanced_tree_depth_3",
+      "tier": "synthetic",
+      "purpose": "Sibling ordering and balanced whitespace without application tree grouping.",
+      "mechanisms": ["p3.barycenter", "p4.class_constraints", "p5.regular_taps"],
+      "generator": { "kind": "tree", "branching": 2, "depth": 3, "nodeSize": [40, 30] }
+    },
+    {
+      "id": "unbalanced_tree_shared_leaf",
+      "tier": "synthetic",
+      "purpose": "Unequal branch depth with a shared descendant that must not acquire exclusive ownership.",
+      "mechanisms": ["p2.balancing", "p3.constraints", "p4.conflicts", "p5.fanout_segment"],
+      "generator": { "kind": "unbalanced_tree_shared_leaf", "nodeSize": [40, 30] }
+    },
+    {
+      "id": "reconvergent_long_edge",
+      "tier": "synthetic",
+      "purpose": "Typed long-edge dummies, lineage and inner-segment conflict preference.",
+      "mechanisms": ["p3.long_edge_split", "p3.dummy_order", "p4.type_1_conflict", "p5.long_edge_join"],
+      "generator": { "kind": "reconvergent_long_edge", "nodeSize": [40, 30] },
+      "inputDigest": "sha256:3362e45821a5782e89eeef3ce9db8ab899bf37c4c1a2c2dbdf92c7c71063b0a6",
+      "graph": {
+        "nodes": [
+          { "id": "a", "width": 40, "height": 30 },
+          { "id": "b", "width": 40, "height": 30 },
+          { "id": "c", "width": 40, "height": 30 },
+          { "id": "d", "width": 40, "height": 30 },
+          { "id": "e", "width": 40, "height": 30 }
+        ],
+        "edges": [
+          { "id": "e_ab", "source": "a", "target": "b", "physicalNet": "n_ab" },
+          { "id": "e_bc", "source": "b", "target": "c", "physicalNet": "n_bc" },
+          { "id": "e_cd", "source": "c", "target": "d", "physicalNet": "n_cd" },
+          { "id": "e_ae", "source": "a", "target": "e", "physicalNet": "n_ae" },
+          { "id": "e_ed", "source": "e", "target": "d", "physicalNet": "n_ed" },
+          { "id": "e_ad", "source": "a", "target": "d", "physicalNet": "n_long" }
+        ]
+      }
+    },
+    {
+      "id": "multi_port_fanout_hyperedge",
+      "tier": "synthetic",
+      "purpose": "Fixed west/east port order and one physical net with multiple logical sink edges.",
+      "mechanisms": ["p3.port_distribution", "p3.port_order", "p5.hyperedge_segment", "p5.junctions"],
+      "generator": { "kind": "multi_port_fanout", "fanout": 4, "fixedPortOrder": true, "sharedPhysicalNet": true },
+      "inputDigest": "sha256:68dd70493bb6998ad42d9b2e687bb707734c9322f3633cebb4e4f5aed3f73e09",
+      "graph": {
+        "nodes": [
+          { "id": "a", "width": 40, "height": 30 },
+          { "id": "b", "width": 40, "height": 30 },
+          { "id": "c", "width": 40, "height": 30 },
+          { "id": "d", "width": 40, "height": 30 },
+          { "id": "e", "width": 40, "height": 30 },
+          { "id": "f", "width": 40, "height": 60 }
+        ],
+        "edges": [
+          { "id": "e_ab", "source": "a", "target": "b", "physicalNet": "n_fan" },
+          { "id": "e_ac", "source": "a", "target": "c", "physicalNet": "n_fan" },
+          { "id": "e_ad", "source": "a", "target": "d", "physicalNet": "n_fan" },
+          { "id": "e_ae", "source": "a", "target": "e", "physicalNet": "n_fan" },
+          { "id": "e_bf", "source": "b", "target": "f", "physicalNet": "n_bf" },
+          { "id": "e_cf", "source": "c", "target": "f", "physicalNet": "n_cf" },
+          { "id": "e_df", "source": "d", "target": "f", "physicalNet": "n_df" },
+          { "id": "e_ef", "source": "e", "target": "f", "physicalNet": "n_ef" }
+        ]
+      }
+    },
+    {
+      "id": "cycle_and_self_loop",
+      "tier": "synthetic",
+      "purpose": "Feedback orientation and the scoped self-loop preprocessing/restoration path.",
+      "mechanisms": ["p1.greedy_cycle", "intermediate.self_loop", "p5.reversed_restore"],
+      "generator": { "kind": "cycle_with_self_loop", "cycleNodeCount": 4 }
+    },
+    {
+      "id": "external_boundary_ports",
+      "tier": "synthetic",
+      "purpose": "Input/output boundary dummies and their spacing/routing rules.",
+      "mechanisms": ["intermediate.external_ports", "p4.external_port_spacing", "p5.boundary_projection"],
+      "generator": { "kind": "external_ports", "inputCount": 2, "cellCount": 3, "outputCount": 2 }
+    },
+    {
+      "id": "disconnected_components",
+      "tier": "synthetic",
+      "purpose": "Component-local phases and deterministic component packing boundary.",
+      "mechanisms": ["prepost.components", "p2.component_balancing", "determinism.component_order"],
+      "generator": { "kind": "disconnected", "components": ["chain_4", "diamond", "isolated_node"] }
+    },
+    {
+      "id": "unequal_heights_dense_ports",
+      "tier": "synthetic",
+      "purpose": "Margins, port anchors, node-type spacing and same-y route conflicts.",
+      "mechanisms": ["p3.layer_total_port_ranks", "p4.inner_shift", "p4.spacing_matrix", "p5.critical_dependencies", "p5.segment_split"],
+      "generator": { "kind": "unequal_heights_dense_ports", "heights": [20, 36, 68, 104], "portsPerSide": 4 }
+    },
+    {
+      "id": "sop015_5426_focused_3_3",
+      "tier": "focused",
+      "source": "tests/fixtures/mapped/sop/sop_015_mapped.v",
+      "oracleInput": "tests/fixtures/elk_parity/inputs/sop015_5426_focused_3_3.json",
+      "inputDigest": "sha256:fe8322fbd8c4ab6354de2427c9dd3454c8a328b01f3ea0f614b4a6e2f54597b8",
+      "options": { "portConstraints": "FIXED_POS", "nodeNodeSpacing": 48, "nodeNodeBetweenLayers": 80 },
+      "query": { "kind": "cell", "value": "_5426_", "faninDepth": 3, "fanoutDepth": 3 },
+      "purpose": "Primary independent-tree separation regression around _5404_ and _5426_.S.",
+      "mechanisms": ["p2.rank_profile", "p3.long_edge_and_order", "p4.bk_tree_separation", "p5.slot_compaction"],
+      "requiredEvidence": ["_5404_->_5426_.S lineage", "nested frontier intervals", "visual columns", "logical and physical crossings", "route length"]
+    },
+    {
+      "id": "eq012_1471_focused_3_3",
+      "tier": "focused",
+      "source": "tests/fixtures/mapped/equal/eq_012_mapped.v",
+      "query": { "kind": "cell", "value": "_1471_", "faninDepth": 3, "fanoutDepth": 3 },
+      "purpose": "Multi-layer branch balance, DFF grouping and regular trunk/tap visual gate.",
+      "mechanisms": ["p3.branch_order", "p4.bk_balance", "p5.regular_trunks"],
+      "requiredEvidence": ["fixed-viewport ELK/Native SVG", "branch whitespace", "crossings", "bends", "straight trunks"]
+    },
+    {
+      "id": "eq012_clk_focused_1_1",
+      "tier": "focused",
+      "source": "tests/fixtures/mapped/equal/eq_012_mapped.v",
+      "query": { "kind": "net", "value": "clk", "faninDepth": 1, "fanoutDepth": 1 },
+      "purpose": "High-fanout physical-net connectivity and boundary routing gate.",
+      "mechanisms": ["p3.high_fanout_order", "p5.hyperedge_segment", "semantic.physical_net"],
+      "requiredEvidence": ["zero missing routes", "zero hard violations", "physical-net connectivity"]
+    },
+    {
+      "id": "mapped_small_sop001",
+      "tier": "mapped",
+      "stratum": "small",
+      "source": "tests/fixtures/mapped/sop/sop_001_mapped.v",
+      "query": { "kind": "full" },
+      "mechanisms": ["integration.full_graph", "determinism.permutation"]
+    },
+    {
+      "id": "mapped_medium_eq006",
+      "tier": "mapped",
+      "stratum": "medium",
+      "source": "tests/fixtures/mapped/equal/eq_006_mapped.v",
+      "query": { "kind": "full" },
+      "mechanisms": ["integration.full_graph", "semantic.physical_net", "determinism.permutation"]
+    },
+    {
+      "id": "mapped_large_dp002",
+      "tier": "mapped",
+      "stratum": "large",
+      "source": "tests/fixtures/mapped/datapath/dp_002_mapped.v",
+      "query": { "kind": "full" },
+      "mechanisms": ["integration.full_graph", "p3.long_edge_scale", "p5.boundary_scale", "semantic.physical_net"]
+    }
+  ]
+}

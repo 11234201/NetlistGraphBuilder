@@ -1,4 +1,5 @@
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
 import { createViewHistory } from "./viewHistory.js";
@@ -45,7 +46,7 @@ export function createAppState(layoutPolicy) {
     timingBadgeChoices: {},
     timingBadgePositions: {},
     calibrationMode: false,
-    layoutProviderId: "simple-layered",
+    layoutProviderId: DEFAULT_LAYOUT_PROVIDER_ID,
     layoutRequestId: 0,
     selectionFocusRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),

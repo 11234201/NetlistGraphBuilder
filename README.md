@@ -4,7 +4,12 @@ Linux 单文件启动器、CMake 构建和 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v0.7.3`。本版本改进 Focused 搜索结果追加、布局间距输入和 module 层次浏览，并完成面向多图领域的工作台边界重构；生产级 AIG 导入尚未提供。
+当前版本：`v1.1.2`。默认采用 H08 静态布局/布线引擎；Simple 保留为可选方案及失败回退，旧session中显式保存的选择不强制覆盖。生产级 AIG 导入尚未提供。
+
+H08 可在 clone 后直接离线 import，无构建或安装步骤，见[静态包契约](docs/design/elk_h08_package.md)。
+开发过程、失败试验、验收和限制见[H08开发总结](docs/reports/h08_development_summary.md)。
+已知限制：v1.1.1最新原47例严格复验为46/47，DP020触发原45秒超时；不把此前版本的47/47当成本版通过。
+视觉接受限于已评审语料，不代表任意图均与 ELK 等价。旧 Native 算法仅保留在测试参考目录，不进入离线运行时。
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
 
@@ -55,7 +60,7 @@ Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog sch
 
 ### Windows 正式版（无需安装 Node.js）
 
-从 Release 下载 `NetlistGraphBuilder-v1.0.1-win-x64.zip` 并完整解压，然后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
+Windows 离线包为 `NetlistGraphBuilder-v1.1.2-win-x64.zip`，完整解压后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
 
 发布包同时包含 `examples` 示例网表、README、CHANGELOG 和 ELKJS 许可证。不要只复制 exe：它需要同目录下的 `app` 资源目录。若默认端口 4173 被占用，启动器会自动尝试后续空闲端口。
 

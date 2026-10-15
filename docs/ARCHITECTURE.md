@@ -143,7 +143,23 @@ LayoutProvider
 - `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
 - `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
 
-#### Native Layered 独立 provider（规划基线，2026-09-20）
+#### Native Layered H08 产品路径（2026-10-15）
+
+`native-layered` registry 现整体采用 `elk_native_layout_provider.js` 的 H08 profile，内部完整相位
+来自 `src/layout/elk_native/`。验收后用户明确授权默认提升：1.1.1由 `providerDefaults.js` 统一
+新会话/无参数registry/EDA启动默认H08；Simple仍为失败回退，旧session显式选择继续尊重。
+无第二个 Native UI ID，也不混用旧相位。
+离线调用入口为 `elk_native/h08.js`；原 `index.js` baseline 只用于受控相位比较。
+Provider 的 `executionMode: "async"` 声明由 Single/Compare 同时消费，不能按 ELK ID 猜测异步性。
+取消仍通过共享 JobCoordinator/workspace 边界转发，过期结果不得提交。
+
+原 `src/layout/native_layered/` 的22个文件已移至 `tests/reference/retired_native_layered/`，
+仅供历史测试追溯，不进入生产依赖或 Windows 包；架构测试禁止运行时回流。
+H08 的版本化 profile、支持范围和适配契约见 [静态包说明](design/elk_h08_package.md)。
+
+以下保留早期设计基线作为迁移背景，不代表仍在运行的目录或策略。
+
+#### Native Layered 独立 provider（历史规划基线，2026-09-20）
 
 项目将新增 `native-layered` provider，以项目原生代码实现 ELK layered 所采用的分层布局阶段。它是
 独立实现，不是 Simple placement/routing 的增量策略。完整实施路线和验收矩阵见
@@ -264,6 +280,10 @@ Layout policy:
   Label collision ownership uses an explicit stable edge priority and never raw graph array order.
 - `src/layout/spatialIndex.js` provides the dynamic segment and static node indexes used by routing and
   label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
+  Opt-in foreign-net queries may skip groups with the same exact net identity before materializing
+  candidates. Only frozen own-data net keys are grouped; mutable/accessor keys use record-level checks.
+  Ordered query results retain bucket/record order and duplicate insertions. Foreign count predicates
+  must be pure. These queries do not deduplicate geometry or weaken overlap/clearance validation.
   Simple computes graph node bounds once and queries local X corridors instead of rescanning every node
   for every difficult edge.
 - `src/layout/routeSegmentIndex.js` attaches edge ownership, segment order and orientation before indexing.

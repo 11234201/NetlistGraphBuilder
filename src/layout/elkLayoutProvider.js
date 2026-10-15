@@ -19,6 +19,8 @@ export class ElkLayoutProvider {
   constructor(options = {}) {
     this.id = ELK_LAYOUT_PROVIDER_ID;
     this.label = "ELK Layered (Experimental)";
+    this.experimental = true;
+    this.executionMode = "async";
     this.elkFactory = options.elkFactory || (() => {
       if (typeof globalThis.ELK !== "function") {
         throw new Error("Vendored ELK runtime is not loaded");

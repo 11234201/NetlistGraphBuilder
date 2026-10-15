@@ -152,20 +152,53 @@ balanced alignment is requested, or when neither fixed alignment nor straight-ed
 single variant. `nodePlacement.bk.fixedAlignment` defaults to `NONE` and
 `nodePlacement.bk.edgeStraightening` defaults to `IMPROVE_STRAIGHTNESS`.
 
+### Case study: `sop_015`, Focused `_5426_`
+
+Observed on 2026-09-24 with the same Focused 3/3 graph:
+
+- `_5404_` drives `_5426_.S`; `_5404_` has three immediate fanin branches and two deeper four-node
+  frontiers rooted through `_5370_` and `_5403_`.
+- ELK leaves 124 px between those two deeper frontier bounds. Native Layered leaves 32 px, its ordinary
+  node gap, even though neither provider interleaves the two four-node sets.
+- ELK uses six visible x ranks for the assigned fanin structure; Native uses four. This is evidence that
+  ranking/proper layering and placement both contribute to the different visual decomposition.
+
+ELK does not label these gates as application-level "trees". The separation is an emergent result of the
+general layered pipeline: long-edge dummies stay in every crossed layer, barycentric sweeps keep connected
+neighbours ordered, and Brandes–Köpf builds/compacts alignment blocks using median neighbours and port-anchor
+offsets. Long-edge dummies participate in those blocks.
+
+Native's current difference is source-visible: `BuildFocusedMembership()` defines only immediate Focused-root
+owners, making the whole 45-node `_5404_` cone one group, and `PlaceAlignmentBlocks()` calls
+`CenterRecursiveTrees()` only when the entire proper graph contains no dummy. Thus nested exclusive trees
+receive neither a separate group gap nor recursive centring in this scenario. This is a general missing
+recursive-block mechanism, not a routing defect and not a reason for fixture-specific placement.
+
 ## P5 — Orthogonal edge routing and where x comes from
 
-`OrthogonalEdgeRouter` walks the layers left to right. For each layer it calls
-`LGraphUtil.placeNodesHorizontally(layer, xpos)` and then routes the gap to the next layer:
+`OrthogonalEdgeRouter` walks the layers left to right. Each iteration places the left layer's nodes at
+`xpos`, advances by that layer's own width, and then routes the gap to the next layer:
 
 ```
-startPos     = (leftLayer == null) ? xpos : xpos + edgeNodeSpacing
-slotsCount   = routingGenerator.routeEdges(...)
-routingWidth = (slotsCount - 1) * edgeEdgeSpacing
-routingWidth += edgeNodeSpacing        if leftLayer  != null
-routingWidth += edgeNodeSpacing        if rightLayer != null
-routingWidth  = max(routingWidth, nodeNodeSpacing)   when both sides are real layers
-xpos         += routingWidth           (or nodeNodeSpacing when the gap uses no slots)
+if (leftLayer != null) { placeNodesHorizontally(leftLayer, xpos); xpos += leftLayer.size.x; }
+startPos   = (leftLayer == null) ? xpos : xpos + edgeNodeSpacing
+slotsCount = routingGenerator.routeEdges(...)
+
+if (slotsCount > 0) {
+    routingWidth  = (slotsCount - 1) * edgeEdgeSpacing
+    routingWidth += edgeNodeSpacing        if leftLayer  != null
+    routingWidth += edgeNodeSpacing        if rightLayer != null
+    routingWidth  = max(routingWidth, nodeNodeSpacing)   if neither side is external
+    xpos         += routingWidth
+} else if (neither side is external) {
+    xpos         += nodeNodeSpacing        # every segment in the gap is straight
+}
 ```
+
+A side counts as external when its layer is `null` or when every node in it is an external west/east port.
+Both the `nodeNodeSpacing` floor and the no-slot branch are skipped for an external side. The layer width
+step matters: node columns consume x before any gap is measured, so an implementation that only accumulates
+`routingWidth` understates every later layer coordinate.
 
 Two facts matter for this project:
 
@@ -192,8 +225,11 @@ Thresholds and penalties in `createDependencyIfNecessary`:
 The dependency graph is built by an **all-pairs nested loop** over segments in the gap. Copying it would
 introduce an `O(m^2)` edge-count cliff and would violate this repository's bounded-routing contract. The
 project already has the scalable substitute: one physical-net demand per boundary and deterministic
-interval lane allocation in `O(D log D)`, followed by authoritative geometry validation. The plan should
-therefore keep the existing router and let layout consume its measured capacity.
+interval lane allocation in `O(D log D)`, followed by authoritative geometry validation.
+
+> **Superseded on 2026-09-21.** The former conclusion "the plan should therefore keep the existing router
+> and let layout consume its measured capacity" is revoked by *Dedicated routing follow-up — 2026-09-21*
+> below. Only the indexed-discovery alternative survives, as NLR-04 of the Native Layered plan.
 
 ## Spacing defaults actually in force
 
@@ -214,12 +250,17 @@ ELK's stock defaults.
 
 ## Transfer decisions
 
+> **Partially superseded on 2026-09-21.** The `Adapt` bullet "lane ordering stays interval-based" and any
+> reading of `Preserve` that keeps the per-edge candidate router are revoked by *Dedicated routing
+> follow-up — 2026-09-21*. The rest of this section still governs layering and placement transfer.
+
 - Adopt: minimal-total-span layering with boundary nodes placed by constraint rather than pinned to layer
   0; long-edge dummy nodes with a join-back stage (the proper-layering invariant); scored deterministic
   layer sweeps; port-aware alignment blocks with bidirectional compaction; x coordinates derived from
   measured routing slot usage.
 - Adapt: virtual long-edge influence may live in ordering data rather than mutating Netlist IR; lane
-  ordering stays interval-based rather than ELK's pairwise dependency graph; sweep diversification uses
+  ordering stays interval-based rather than ELK's pairwise dependency graph *(superseded 2026-09-21 for
+  Native routing; see the dedicated follow-up)*; sweep diversification uses
   fixed topology-keyed orientations instead of seeded randomness. Placement and routing carriers must be
   grouped by the repository's physical-net key: copying ELK's per-edge dummy structure without ELK's
   later hyperedge merging would allocate hundreds of redundant clk/rst lanes.
@@ -227,3 +268,124 @@ ELK's stock defaults.
   override boundary, and the offline native-ES-module runtime.
 - Reject: Java/elkjs runtime coupling, copied EPL source, random layout attempts, all-pairs segment
   comparison, fixture/instance-name cases, raw coordinate goldens, and group-collapse tuning.
+
+## Dedicated routing follow-up — 2026-09-21
+
+Status: source-verified design input for a new Native Layered router. This section supersedes the earlier
+recommendation to retain the existing candidate router. That recommendation was disproved by the Native
+full-node mapped evidence: `dp_002` completed placement but left 128 logical edges unroutable, dominated by
+the `clk` and `rst_n` physical nets. Adding more per-edge route variants did not repair the architectural
+problem because branches of one physical net were still selected and committed independently.
+
+### Sources inspected
+
+The authoritative source remains ELK commit
+`28e5173243cab0cf4e2c9816c803bc0d5c47ab24`, matching the vendored elkjs 0.11.1 runtime. The dedicated
+review covered:
+
+- `p5edges/OrthogonalEdgeRouter.java`;
+- `p5edges/orthogonal/OrthogonalRoutingGenerator.java`;
+- `p5edges/orthogonal/HyperEdgeSegment.java`;
+- `p5edges/orthogonal/HyperEdgeSegmentDependency.java`;
+- `p5edges/orthogonal/HyperEdgeCycleDetector.java`;
+- `p5edges/orthogonal/HyperEdgeSegmentSplitter.java`;
+- `p5edges/orthogonal/direction/WestToEastRoutingStrategy.java`;
+- `intermediate/HyperedgeDummyMerger.java`;
+- `intermediate/LongEdgeJoiner.java`.
+
+The checkout is research-only at `/home/wzh/open_source/elk-research-28e5173`; no ELK Java source will be
+copied into production.
+
+### What ELK actually routes
+
+ELK routes one boundary at a time after proper layering and node y placement. It does not reserve a lane
+for every logical edge independently:
+
+1. Starting from east ports in the left layer and west ports in the right layer, it traverses connected
+   ports and constructs one `HyperEdgeSegment` per connected boundary component.
+2. A segment stores two sorted coordinate sets: connections arriving from its left side and connections
+   leaving on its right side. Its trunk extent is the minimum-to-maximum y coordinate across both sets.
+3. A straight segment consumes no routing slot and receives no bend points.
+4. Non-straight segments are ordered by a dependency graph. Critical dependencies prevent horizontal
+   tap overlap; weighted regular dependencies prefer fewer conflicts and crossings.
+5. Critical dependency cycles are resolved by splitting a segment into two trunks joined through a free
+   y interval. Non-critical cycles are broken by reversing or removing a dependency.
+6. Topological numbering assigns routing slots. Rightward-only segments are subsequently pushed as far
+   right as their dependencies allow.
+7. The boundary width is derived from the number of slots actually used. Nodes in later layers are not
+   assigned final x coordinates before this measurement.
+8. `WestToEastRoutingStrategy` materializes one shared vertical trunk per segment and horizontal taps from
+   exact port y coordinates. Split segments add one horizontal bridge between two trunks.
+9. Junctions are recorded only where a tap meets the interior or a shared endpoint of a trunk.
+10. `LongEdgeJoiner` concatenates bend and junction geometry through proper-layer dummies after every
+    boundary has been routed.
+
+`HyperedgeDummyMerger` is also important. After crossing minimization, adjacent long-edge dummies that
+belong to the same connected hyperedge, source, or target may be merged before placement. This is one
+reason high-fanout wiring becomes a shared structure rather than hundreds of unrelated branch routes.
+
+Its position in the chain is source-verified and matters for scheduling: `OrthogonalEdgeRouter`
+registers it as `addBefore(P4_NODE_PLACEMENT, HYPEREDGE_DUMMY_MERGER)`, and it is active whenever
+`GraphProperties.HYPEREDGES` holds. ELK sets that property as soon as any port has more than one incident
+edge, so every netlist with fanout above one triggers it. Merging therefore happens after P3 ordering and
+before P4 placement — not inside routing, and not after coordinates exist.
+
+### Why the current Native router is the wrong abstraction
+
+The current experimental `channel_allocation.js` and `physical_net_routing.js` operate on logical edges,
+pre-reserve endpoint-shaped geometry, and search a fixed list of H-V-H/dogleg variants. Even though
+segments with the same physical-net key may later merge in `buildWireRoutes()`, selection already happened
+per edge. Consequently:
+
+- one branch can commit while another branch of the same physical net fails;
+- future endpoint reservations can block an otherwise valid shared trunk;
+- adding variants increases work without representing the missing shared-net decision;
+- the router needs rollback or special handling to recover atomicity;
+- channel width is projected before the final shared segment structure is known.
+
+This is not a tuning defect. The model is incompatible with the target ELK routing semantics and will not
+be used as the foundation of the replacement.
+
+### Semantics to reproduce
+
+The new Native router will reproduce the following ELK behaviors in original project-native JavaScript:
+
+- adjacent-boundary routing over the proper-layer graph;
+- connected physical-net segments with one shared trunk and explicit taps/junctions;
+- segment-level, rather than logical-edge-level, slot assignment;
+- straight-segment slot elision;
+- hard ordering constraints for tap overlap and soft ordering preferences for crossings;
+- deterministic critical-cycle splitting through a free y interval;
+- boundary width derived from the assigned slots before final x projection;
+- join-back across dummy chains and restoration of semantic edge direction;
+- atomic publication of a complete physical net.
+
+Reproduction means equivalent phase semantics and observable routing structure, not copied source or
+byte-identical coordinates. Canonical physical-net identity remains stricter than ELK port connectivity so
+same-named nets with different drivers cannot merge.
+
+### Required adaptations
+
+ELK compares every pair of segments in a boundary and uses a seeded random source while breaking cycles.
+Neither transfers directly:
+
+- conflict discovery will use sorted endpoint buckets and an interval sweep to emit only geometrically
+  relevant dependencies; no unconditional all-pairs loop is allowed;
+- ties, dependency reversal and split selection will use stable topology keys, never random iteration;
+- one bounded dependency-build pass, one SCC pass and one split pass replace retry-until-routed behavior;
+- shared orthogonal predicates and the final validator remain authoritative, but they verify generated
+  geometry rather than drive a candidate search;
+- labels remain in the shared post-routing label stage;
+- north/south ports, self-loops and feedback restoration enter as explicit later gates instead of being
+  silently forced through west-to-east logic.
+
+### Falsifiable conclusions
+
+1. If routing is performed per boundary and per connected physical-net segment, high-fanout control nets
+   should have one trunk per occupied boundary, not one independently selected trunk per load.
+2. If slot count owns inter-layer width, no separate pre-routing channel expansion should be necessary.
+3. If overlap avoidance is encoded by segment ordering, the focused gates should need no route-variant
+   list or fallback lane search.
+4. If the indexed dependency builder cannot match the exact small-boundary oracle or exhibits a dense
+   dependency cliff on generated 8K graphs, the design must stop for revision rather than reintroduce the
+   old candidate router.

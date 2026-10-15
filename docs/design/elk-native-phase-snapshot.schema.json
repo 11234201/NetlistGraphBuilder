@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netlist-graph-builder.local/schema/elk-native-phase-snapshot-1.1.0.json",
+  "title": "ELK-native normalized phase snapshot set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "producer", "fixture", "run", "snapshots"],
+  "properties": {
+    "schemaVersion": { "const": "1.1.0" },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sourceCommit", "harnessRevision"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "harnessRevision": { "type": "string", "minLength": 1 },
+        "license": { "type": "string" }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "manifestVersion", "inputDigest"],
+      "properties": {
+        "caseId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_]*$" },
+        "manifestVersion": { "type": "string" },
+        "inputDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seed", "options", "resolvedOptions"],
+      "properties": {
+        "seed": { "type": "integer" },
+        "options": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
+        },
+        "resolvedOptions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/snapshot" }
+    }
+  },
+  "$defs": {
+    "number": { "type": "number" },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "$ref": "#/$defs/number" },
+        "y": { "$ref": "#/$defs/number" }
+      }
+    },
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "$ref": "#/$defs/number" },
+        "y": { "$ref": "#/$defs/number" },
+        "width": { "$ref": "#/$defs/number" },
+        "height": { "$ref": "#/$defs/number" }
+      }
+    },
+    "margins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top", "right", "bottom", "left"],
+      "properties": {
+        "top": { "$ref": "#/$defs/number" },
+        "right": { "$ref": "#/$defs/number" },
+        "bottom": { "$ref": "#/$defs/number" },
+        "left": { "$ref": "#/$defs/number" }
+      }
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nodeId", "kind", "side", "order", "box", "anchor", "incomingEdgeIds", "outgoingEdgeIds"],
+      "properties": {
+        "id": { "type": "string" },
+        "nodeId": { "type": "string" },
+        "kind": { "enum": ["original", "dummy", "collector", "external"] },
+        "side": { "enum": ["NORTH", "EAST", "SOUTH", "WEST", "UNDEFINED"] },
+        "order": { "type": "integer", "minimum": 0 },
+        "box": { "$ref": "#/$defs/box" },
+        "anchor": { "$ref": "#/$defs/point" },
+        "incomingEdgeIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "outgoingEdgeIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "lineage": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "layer", "order", "box", "margins", "ports"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["normal", "long_edge", "external_port", "north_south_port", "label", "breaking_point", "placeholder", "nonshifting_placeholder"] },
+        "layer": { "type": ["integer", "null"], "minimum": 0 },
+        "order": { "type": ["integer", "null"], "minimum": 0 },
+        "box": { "$ref": "#/$defs/box" },
+        "margins": { "$ref": "#/$defs/margins" },
+        "ports": { "type": "array", "items": { "$ref": "#/$defs/port" } },
+        "lineage": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "logicalEdgeId", "physicalNetId", "sourcePortId", "targetPortId", "reversed", "bendPoints", "junctionPoints", "lineage"],
+      "properties": {
+        "id": { "type": "string" },
+        "logicalEdgeId": { "type": "string" },
+        "physicalNetId": { "type": "string" },
+        "sourcePortId": { "type": "string" },
+        "targetPortId": { "type": "string" },
+        "reversed": { "type": "boolean" },
+        "bendPoints": { "type": "array", "items": { "$ref": "#/$defs/point" } },
+        "junctionPoints": { "type": "array", "items": { "$ref": "#/$defs/point" } },
+        "lineage": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "nodeIds"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "nodeIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "layers", "layerlessNodeIds", "nodes", "edges"],
+      "properties": {
+        "id": { "type": "string" },
+        "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } },
+        "layerlessNodeIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+        "graphSize": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "$ref": "#/$defs/number" },
+            "height": { "$ref": "#/$defs/number" }
+          }
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "boundary", "processor", "components", "metrics", "phaseData"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "boundary": {
+          "enum": ["imported", "pre_p1", "p1", "between_p1_p2", "p2", "long_edge_split", "between_p2_p3", "p3", "hyperedge_dummy_merge", "between_p3_p4", "p4", "between_p4_p5", "p5", "restored", "final", "processor"]
+        },
+        "processor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slot", "className", "event"],
+          "properties": {
+            "slot": { "type": ["integer", "null"], "minimum": 0 },
+            "className": { "type": ["string", "null"] },
+            "event": { "enum": ["before", "after", "milestone"] }
+          }
+        },
+        "components": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/component" } },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": ["number", "integer", "boolean", "string", "null"] }
+        },
+        "phaseData": {
+          "type": "object",
+          "description": "Versioned phase-specific oracle payload: candidates, conflicts, blocks, dependencies, splits, slots or restoration records.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}
