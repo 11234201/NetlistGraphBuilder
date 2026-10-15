@@ -1,0 +1,259 @@
+import { PhaseError, compareIds, checkCancelled } from './protocol.js';
+
+export const SUBTREE_PEEL_NODE_THRESHOLD = 40;
+const NEGATIVE_CUT_TOLERANCE = -1e-10;
+const slack = (edge, ranks) => ranks.get(edge.targetNodeId) - ranks.get(edge.sourceNodeId) - edge.minimumLength;
+const otherEnd = (edge, id) => edge.sourceNodeId === id ? edge.targetNodeId : edge.sourceNodeId;
+
+// Private ordinal identities allow indexed lookup without changing Map's
+// insertion order. Plain values preserve the arithmetic's existing semantics.
+class IndexedRanks {
+  constructor(ids, capacity) {
+    this.values_ = new Array(capacity).fill(0);
+    this.present_ = new Uint8Array(capacity);
+    this.order_ = [...ids];
+    for (const id of ids) this.present_[id] = 1;
+  }
+  get(id) { return this.present_[id] ? this.values_[id] : undefined; }
+  set(id, value) {
+    if (!this.present_[id]) { this.present_[id] = 1; this.order_.push(id); }
+    this.values_[id] = value;
+    return this;
+  }
+  *values() { for (const id of this.order_) yield this.values_[id]; }
+  *[Symbol.iterator]() { for (const id of this.order_) yield [id, this.values_[id]]; }
+}
+
+function adjacency(ids, edges) {
+  const result = [];
+  for (const id of ids) result[id] = [];
+  for (const edge of edges) {
+    result[edge.sourceNodeId].push(edge);
+    result[edge.targetNodeId].push(edge);
+  }
+  return result;
+}
+
+function peelSubtrees(ids, edges) {
+  if (ids.length < SUBTREE_PEEL_NODE_THRESHOLD) return { ids, edges, peeled: [] };
+  const incident = adjacency(ids, edges);
+  const active = new Set(edges.map((edge) => edge.id));
+  const remaining = new Set(ids), degree = new Map(ids.map((id) => [id, incident[id].length]));
+  const queue = ids.filter((id) => degree.get(id) === 1), peeled = [];
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const id = queue[cursor];
+    if (!remaining.has(id) || degree.get(id) === 0) continue;
+    const edge = incident[id].find((item) => active.has(item.id));
+    const neighbor = otherEnd(edge, id);
+    remaining.delete(id); active.delete(edge.id); degree.set(id, 0);
+    degree.set(neighbor, degree.get(neighbor) - 1);
+    if (degree.get(neighbor) === 1) queue.push(neighbor);
+    peeled.push({ nodeId: id, neighborId: neighbor, edge });
+  }
+  return { ids: ids.filter((id) => remaining.has(id)), edges: edges.filter((edge) => active.has(edge.id)), peeled };
+}
+
+function initialRanks(ids, edges, capacity) {
+  const ranks = new IndexedRanks(ids, capacity);
+  const incoming = new Array(capacity).fill(0), outgoing = [];
+  for (const id of ids) outgoing[id] = [];
+  for (const edge of edges) {
+    incoming[edge.targetNodeId]++;
+    outgoing[edge.sourceNodeId].push(edge);
+  }
+  const queue = ids.filter((id) => incoming[id] === 0);
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const id = queue[cursor];
+    for (const edge of outgoing[id]) {
+      ranks.set(edge.targetNodeId, Math.max(ranks.get(edge.targetNodeId), ranks.get(id) + edge.minimumLength));
+      incoming[edge.targetNodeId]--;
+      if (incoming[edge.targetNodeId] === 0) queue.push(edge.targetNodeId);
+    }
+  }
+  if (queue.length !== ids.length) throw new PhaseError('p2', 'input-cycle');
+  return ranks;
+}
+
+function growTightTree(ids, edges, ranks, signal) {
+  const incident = adjacency(ids, edges), tree = new Map();
+  const reached = new Uint8Array(ids.at(-1) + 1);
+  // Each extension adds at least one node, so this is bounded by component size.
+  for (let extension = 0; extension < ids.length; extension++) {
+    checkCancelled(signal);
+    // Rebuild the DFS tree of the current tight subgraph. Newly tight chords
+    // can displace an old DFS edge; retaining that unvisited edge creates a cycle.
+    tree.clear();
+    reached.fill(0); reached[ids[0]] = 1;
+    const discoveryOrder = [ids[0]];
+    const stack = [{ id: ids[0], next: 0 }];
+    while (stack.length) {
+      const frame = stack.at(-1), connected = incident[frame.id];
+      if (frame.next === connected.length) { stack.pop(); continue; }
+      const edge = connected[frame.next++], other = otherEnd(edge, frame.id);
+      if (reached[other] === 1 || slack(edge, ranks) !== 0) continue;
+      reached[other] = 1; discoveryOrder.push(other); tree.set(edge.id, edge); stack.push({ id: other, next: 0 });
+    }
+    if (discoveryOrder.length === ids.length) return tree;
+    let entering = null, minimum = Infinity;
+    for (const edge of edges) if ((reached[edge.sourceNodeId] === 1) !== (reached[edge.targetNodeId] === 1)) {
+      const value = slack(edge, ranks);
+      if (value < minimum) { minimum = value; entering = edge; }
+    }
+    if (!entering) throw new PhaseError('p2', 'disconnected-tight-tree');
+    const shift = reached[entering.sourceNodeId] === 1 ? minimum : -minimum;
+    for (const id of discoveryOrder) ranks.set(id, ranks.get(id) + shift);
+  }
+  throw new PhaseError('p2', 'tight-tree-progress');
+}
+
+function initialDivergence(ids, edges) {
+  const divergence = new Map(ids.map((id) => [id, 0]));
+  for (const edge of edges) {
+    divergence.set(edge.sourceNodeId, divergence.get(edge.sourceNodeId) - edge.weight);
+    divergence.set(edge.targetNodeId, divergence.get(edge.targetNodeId) + edge.weight);
+  }
+  return divergence;
+}
+
+function treeState(ids, baseDivergence, tree, edgeCount) {
+  // IDs are sorted ordinals supplied by optimizeIndexedRanks, including gaps
+  // left by peeling. Float64 stores their full numeric range without coercion.
+  const capacity=ids.at(-1)+1;
+  const incident=Array.from({length:capacity},()=>[]);
+  for(const edge of tree.values()){
+    incident[edge.sourceNodeId].push(edge);incident[edge.targetNodeId].push(edge);
+  }
+  const parent=new Float64Array(capacity).fill(-1),parentEdge=[],order=[],index=new Float64Array(capacity);
+  const stack = [ids[0]]; parent[ids[0]]=-2;
+  while (stack.length) {
+    const id = stack.pop(); index[id]=order.length; order.push(id);
+    for (let i = incident[id].length - 1; i >= 0; i--) {
+      const edge = incident[id][i], child = otherEnd(edge, id);
+      if(child===parent[id])continue;
+      if (parent[child]!==-1) throw new PhaseError('p2', 'tree-cycle');
+      parent[child]=id; parentEdge[child]=edge; stack.push(child);
+    }
+  }
+  if (order.length !== ids.length) throw new PhaseError('p2', 'tree-not-spanning');
+  // Edge weights and reduced topology are constant across pivots. Copy their
+  // original ordered sum; subtree accumulation still uses the exact DFS order.
+  const divergence = new Float64Array(capacity);
+  for(const [id,value] of baseDivergence)divergence[id]=value;
+  const size = new Float64Array(capacity).fill(1), cuts = new Map(), childByEdge = new Float64Array(edgeCount);
+  for (let i = order.length - 1; i > 0; i--) {
+    const id = order[i], edge = parentEdge[id], p = parent[id];
+    cuts.set(edge.id, edge.targetNodeId === id ? divergence[id] : -divergence[id]);
+    childByEdge[edge.id]=id;
+    size[p]+=size[id];
+    divergence[p]+=divergence[id];
+  }
+  return { cuts, inHead: (id, edge) => {
+    const child = childByEdge[edge.id];
+    const inSubtree = index[id] >= index[child] && index[id] < index[child] + size[child];
+    return edge.targetNodeId === child ? inSubtree : !inSubtree;
+  } };
+}
+
+function balance(ids, edges, ranks, previousProfile) {
+  const incident = adjacency(ids, edges), count = [];
+  for (const rank of ranks.values()) count[rank] = (count[rank] ?? 0) + 1;
+  for (let i = 0; i < count.length; i++) count[i] = (count[i] ?? 0) + (previousProfile[i] ?? 0);
+  const shifts = [];
+  for (const id of ids) {
+    const incoming = incident[id].filter((edge) => edge.targetNodeId === id);
+    const outgoing = incident[id].filter((edge) => edge.sourceNodeId === id);
+    // Weighted equality is required for objective preservation when priorities differ.
+    if (incoming.reduce((sum, edge) => sum + edge.weight, 0)
+      !== outgoing.reduce((sum, edge) => sum + edge.weight, 0)) continue;
+    const lower = Math.max(0, ...incoming.map((edge) => ranks.get(edge.sourceNodeId) + edge.minimumLength));
+    const upper = Math.min(count.length - 1,
+      ...outgoing.map((edge) => ranks.get(edge.targetNodeId) - edge.minimumLength));
+    const from = ranks.get(id);
+    let to = from;
+    for (let rank = lower; rank <= upper; rank++) if (count[rank] < count[to]) to = rank;
+    if (to !== from) { count[from]--; count[to]++; ranks.set(id, to); shifts.push({ nodeId: id, from, to }); }
+  }
+  return shifts;
+}
+
+// Independent tight-tree simplex formulation, following the pinned ELK objective and
+// first-negative / first-minimum policies. Cut values use subtree divergence sums.
+function optimizeIndexedRanks(nodeIds, componentEdges, options, previousProfile = [], { signal } = {}) {
+  const ids = [...nodeIds].sort(compareIds), edges = [...componentEdges].sort((a, b) => compareIds(a.id, b.id));
+  checkCancelled(signal);
+  const reduced = peelSubtrees(ids, edges);
+  const ranks = initialRanks(reduced.ids, reduced.edges, ids.length);
+  const initial = [...ranks].map(([nodeId, rank]) => ({ nodeId, rank }));
+  const tree = growTightTree(reduced.ids, reduced.edges, ranks, signal);
+  const iterationLimit = options.thoroughness * 4 * Math.floor(Math.sqrt(ids.length));
+  const pivots = [];
+  const baseDivergence = initialDivergence(reduced.ids, reduced.edges);
+  let state = treeState(reduced.ids, baseDivergence, tree, edges.length);
+  while (true) {
+    checkCancelled(signal);
+    const leaving = [...tree.values()].find((edge) => state.cuts.get(edge.id) < NEGATIVE_CUT_TOLERANCE);
+    if (!leaving) break;
+    // Like the pinned upstream bounded loop, retain the feasible tight-tree
+    // solution at the budget. Do not claim optimality while negative cuts remain.
+    if (pivots.length >= iterationLimit) break;
+    let entering = null, minimum = Infinity;
+    for (const edge of reduced.edges) if (!tree.has(edge.id)
+      && state.inHead(edge.sourceNodeId, leaving) && !state.inHead(edge.targetNodeId, leaving)) {
+      const value = slack(edge, ranks);
+      if (value < minimum) { entering = edge; minimum = value; }
+    }
+    if (!entering) throw new PhaseError('p2', 'negative-cut-without-entering-edge', [leaving.id]);
+    for (const id of reduced.ids) if (state.inHead(id, leaving)) ranks.set(id, ranks.get(id) + minimum);
+    pivots.push({ leaveEdgeId: leaving.id, enterEdgeId: entering.id,
+      cutValue: state.cuts.get(leaving.id), shift: minimum });
+    tree.delete(leaving.id); tree.set(entering.id, entering);
+    state = treeState(reduced.ids, baseDivergence, tree, edges.length);
+  }
+  const balancingOrder = [...reduced.ids];
+  for (const { nodeId, neighborId, edge } of [...reduced.peeled].reverse()) {
+    ranks.set(nodeId, ranks.get(neighborId) + (edge.targetNodeId === nodeId ? edge.minimumLength : -edge.minimumLength));
+    balancingOrder.push(nodeId);
+  }
+  const minimumRank = Math.min(...ranks.values());
+  for (const [id, rank] of ranks) ranks.set(id, rank - minimumRank);
+  const balancing = options.balanceLayers ? balance(balancingOrder, edges, ranks, previousProfile) : [];
+  const objectiveWeightedSpan = edges.reduce((sum, edge) => sum + edge.weight
+    * (ranks.get(edge.targetNodeId) - ranks.get(edge.sourceNodeId)), 0);
+  const negativeCutCount=[...state.cuts.values()].filter((cut)=>cut<NEGATIVE_CUT_TOLERANCE).length;
+  return { ranks, evidence: { nodeIds: ids, initialRanks: initial, objectiveWeightedSpan, iterationLimit,
+    optimal:negativeCutCount===0,termination:negativeCutCount===0?'optimal':'iteration-limit',
+    pivotCount:pivots.length,zeroShiftCount:pivots.filter((pivot)=>pivot.shift===0).length,negativeCutCount,
+    treeEdges: [...tree.keys()], cutValues: [...tree].map(([edgeId]) => ({ edgeId, cutValue: state.cuts.get(edgeId) })),
+    pivots, peeledNodeIds: reduced.peeled.map((item) => item.nodeId), balancing } };
+}
+
+// Canonical ordering is established before interning. Integer identities only
+// replace repeated hashing of external IDs; all simplex choices remain intact.
+export function optimizeRanks(nodeIds, componentEdges, options, previousProfile = [], { signal } = {}) {
+  checkCancelled(signal);
+  const ids=[...nodeIds].sort(compareIds);
+  const edges=[...componentEdges].sort((a,b)=>compareIds(a.id,b.id));
+  const nodeIndex=new Map(ids.map((id,index)=>[id,index]));
+  const indexedEdges=edges.map((edge,index)=>({...edge,id:index,
+    sourceNodeId:nodeIndex.get(edge.sourceNodeId),targetNodeId:nodeIndex.get(edge.targetNodeId)}));
+  let result;
+  try {
+    result=optimizeIndexedRanks(ids.map((_,index)=>index),indexedEdges,options,previousProfile,{signal});
+  } catch(error) {
+    if(error instanceof PhaseError && error.diagnostic.entityIds.length) {
+      throw new PhaseError(error.diagnostic.phase,error.diagnostic.invariant,
+        error.diagnostic.entityIds.map((index)=>edges[index].id),error.diagnostic.detail);
+    }
+    throw error;
+  }
+  const evidence=result.evidence;
+  return {ranks:new Map([...result.ranks].map(([index,rank])=>[ids[index],rank])),evidence:{...evidence,
+    nodeIds:evidence.nodeIds.map((index)=>ids[index]),
+    initialRanks:evidence.initialRanks.map((entry)=>({...entry,nodeId:ids[entry.nodeId]})),
+    treeEdges:evidence.treeEdges.map((index)=>edges[index].id),
+    cutValues:evidence.cutValues.map((entry)=>({...entry,edgeId:edges[entry.edgeId].id})),
+    pivots:evidence.pivots.map((entry)=>({...entry,leaveEdgeId:edges[entry.leaveEdgeId].id,
+      enterEdgeId:edges[entry.enterEdgeId].id})),
+    peeledNodeIds:evidence.peeledNodeIds.map((index)=>ids[index]),
+    balancing:evidence.balancing.map((entry)=>({...entry,nodeId:ids[entry.nodeId]}))}};
+}

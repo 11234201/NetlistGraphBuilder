@@ -18,7 +18,7 @@ test("compare workspace composes escaped output cones through provider boundary"
   const workspace = buildCompareWorkspace({
     leftModule,
     rightModule,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     outputName: "u/out",
     coneDepth: 3
   });
@@ -43,7 +43,7 @@ test("compare workspace annotates timing on both modules", async () => {
   const workspace = buildCompareWorkspace({
     leftModule: pair.find((module) => !module.name.endsWith("_Flex")),
     rightModule: pair.find((module) => module.name.endsWith("_Flex")),
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     timing
   });
 
@@ -60,7 +60,7 @@ test("compare workspace applies layout and graph overrides independently per sid
   const workspace = buildCompareWorkspace({
     leftModule,
     rightModule,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     nodeSizes: {
       left: new Map([["cell:u0", { width: 210, height: 90 }]]),
       right: new Map([["cell:u1", { width: 170, height: 80 }]])
@@ -89,7 +89,7 @@ test("compare workspace preserves independent multi-cell focused roots per side"
   const workspace = buildCompareWorkspace({
     leftModule,
     rightModule,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     focusedRootNodeIds: {
       left: ["cell:u1", "cell:u0"],
       right: ["cell:u1"]
@@ -120,7 +120,7 @@ test("large compare modules stay Search-first until a cone or Whole is requested
   assert.equal(deferred.graphs.right.nodes.length, 0);
   assert.equal(deferred.analysis.left.cells, 520);
 
-  const whole = buildCompareWorkspace({ leftModule, rightModule, layoutProvider: getLayoutProvider(), forceWhole: true });
+  const whole = buildCompareWorkspace({ leftModule, rightModule, layoutProvider: getLayoutProvider("simple-layered"), forceWhole: true });
   assert.ok(whole.graphs.left.nodes.length > 0);
 });
 
@@ -131,7 +131,7 @@ test("compare workspace reports side lifecycle and cancels stale async layouts",
   const controller = new AbortController();
   const provider = {
     layout(graph) {
-      return new Promise((resolve) => pending.push(() => resolve(getLayoutProvider().layout(graph))));
+      return new Promise((resolve) => pending.push(() => resolve(getLayoutProvider("simple-layered").layout(graph))));
     }
   };
   const workspacePromise = buildCompareWorkspace({
@@ -156,7 +156,7 @@ test("compare sides expose independent prepared workspace boundaries", () => {
   const common = {
     leftModule,
     rightModule,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     moduleLibrary: parseVerilog(source).modules,
     artifactIdentity: { documentId: "doc:compare", sourceRevision: 1, sessionId: "compare" },
     onSideStatus: (side, status) => statuses.push(`${side}:${status}`)

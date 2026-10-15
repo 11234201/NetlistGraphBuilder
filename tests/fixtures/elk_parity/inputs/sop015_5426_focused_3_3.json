@@ -1,0 +1,4356 @@
+{
+  "inputVersion": "1.0.0",
+  "caseId": "sop015_5426_focused_3_3",
+  "source": "tests/fixtures/mapped/sop/sop_015_mapped.v",
+  "sourceDigest": "sha256:0b91b7aafb7d2cc21315a6d2385aa87c4cd570575e8539ccfd87b6acc2944ab3",
+  "module": "tc",
+  "query": {
+    "kind": "cell",
+    "value": "_5426_",
+    "faninDepth": 3,
+    "fanoutDepth": 3
+  },
+  "inputDigest": "sha256:fe8322fbd8c4ab6354de2427c9dd3454c8a328b01f3ea0f614b4a6e2f54597b8",
+  "options": {
+    "algorithm": "org.eclipse.elk.layered",
+    "direction": "RIGHT",
+    "edgeRouting": "ORTHOGONAL",
+    "cycleBreaking": "GREEDY",
+    "layering": "NETWORK_SIMPLEX",
+    "crossingMinimization": "LAYER_SWEEP",
+    "nodePlacement": "BRANDES_KOEPF",
+    "portConstraints": "FIXED_POS",
+    "randomSeed": 1,
+    "nodeNodeSpacing": 48,
+    "nodeNodeBetweenLayers": 80
+  },
+  "elkGraph": {
+    "id": "root",
+    "layoutOptions": {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.spacing.nodeNode": "48",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+      "elk.edgeRouting": "ORTHOGONAL"
+    },
+    "children": [
+      {
+        "id": "input:clk",
+        "width": 92,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "input:clk::output:clk",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:rst_n",
+        "width": 92,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "input:rst_n::output:rst_n",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:data0_in_21_",
+        "width": 126,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "input:data0_in_21_::output:data0_in%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 126,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:data1_in_21_",
+        "width": 126,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "input:data1_in_21_::output:data1_in%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 126,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:scan_en",
+        "width": 92,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "input:scan_en::output:scan_en",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "output:y_out_21_",
+        "width": 105,
+        "height": 36,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "output:y_out_21_::input:y_out%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_3870_",
+        "width": 128,
+        "height": 72,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_3870_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_3870_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5363_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5363_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5364_",
+        "width": 128,
+        "height": 216,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5364_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:B1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:B2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:C1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:C2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 180,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5365_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5365_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5369_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5369_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5370_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5370_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5380_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5380_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5389_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5389_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5392_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5392_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5402_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5402_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5403_",
+        "width": 128,
+        "height": 180,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5403_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5404_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5404_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::input:B1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::input:B2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5426_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_5426_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::input:B",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::input:S",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::output:Z",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6411_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_6411_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6411_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6795_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_6795_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6795_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6859_",
+        "width": 128,
+        "height": 144,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "cell:_6859_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6859_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f::output:_0574_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f::output:_0793_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f::output:_0966_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f::output:_0986_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f::output:_1393_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f::output:_1539_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f::output:_1693_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f::output:_1784_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f::output:_1941_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f::output:_1964_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f::output:_1988_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f::output:_1990_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f::output:_1993_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f::output:_2003_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f::output:_2007_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f::output:_2011_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f::output:_2012_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f::output:_2013_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f::output:_2017_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f::output:_2020_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f::output:_2023_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f::output:_2024_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f::output:_2028_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f::output:_2029_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f::output:_2030_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f::output:_2033_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f::output:_2035_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f::output:_2036_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f::output:_2038_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f::output:_2041_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f::output:_2044_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f",
+        "width": 154,
+        "height": 28,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f::output:_2046_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f",
+        "width": 154,
+        "height": 36,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f::input:_2049_",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b",
+        "width": 154,
+        "height": 36,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b::input:clk",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e",
+        "width": 154,
+        "height": 36,
+        "layoutOptions": {
+          "elk.portConstraints": "FIXED_POS"
+        },
+        "ports": [
+          {
+            "id": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e::input:rst_n",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge:cell:_6411_:output:y_out_21_:y_out_21_:42",
+        "sources": [
+          "cell:_6411_::output:Q"
+        ],
+        "targets": [
+          "output:y_out_21_::input:y_out%5B21%5D"
+        ]
+      },
+      {
+        "id": "edge:input:scan_en:cell:_3870_:scan_en:1275",
+        "sources": [
+          "input:scan_en::output:scan_en"
+        ],
+        "targets": [
+          "cell:_3870_::input:A"
+        ]
+      },
+      {
+        "id": "edge:cell:_5363_:cell:_5370_:_2008_:5998",
+        "sources": [
+          "cell:_5363_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5370_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5364_:cell:_5370_:_2009_:5999",
+        "sources": [
+          "cell:_5364_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5370_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5365_:cell:_5370_:_2010_:6000",
+        "sources": [
+          "cell:_5365_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5370_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5369_:cell:_5370_:_2014_:6001",
+        "sources": [
+          "cell:_5369_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5370_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5380_:cell:_5403_:_2025_:6121",
+        "sources": [
+          "cell:_5380_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5403_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5389_:cell:_5403_:_2034_:6122",
+        "sources": [
+          "cell:_5389_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5403_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5392_:cell:_5403_:_2037_:6123",
+        "sources": [
+          "cell:_5392_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5403_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5402_:cell:_5403_:_2047_:6124",
+        "sources": [
+          "cell:_5402_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5403_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_3870_:cell:_5404_:_0515_:6125",
+        "sources": [
+          "cell:_3870_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5404_::input:A"
+        ]
+      },
+      {
+        "id": "edge:cell:_5370_:cell:_5404_:_2015_:6126",
+        "sources": [
+          "cell:_5370_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5404_::input:B1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5403_:cell:_5404_:_2048_:6127",
+        "sources": [
+          "cell:_5403_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5404_::input:B2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5404_:cell:_5426_:_2049_:6151",
+        "sources": [
+          "cell:_5404_::output:ZN"
+        ],
+        "targets": [
+          "cell:_5426_::input:S"
+        ]
+      },
+      {
+        "id": "edge:cell:_6859_:cell:_5426_:data1_q_21_:6234",
+        "sources": [
+          "cell:_6859_::output:Q"
+        ],
+        "targets": [
+          "cell:_5426_::input:A"
+        ]
+      },
+      {
+        "id": "edge:cell:_6795_:cell:_5426_:data0_q_21_:6235",
+        "sources": [
+          "cell:_6795_::output:Q"
+        ],
+        "targets": [
+          "cell:_5426_::input:B"
+        ]
+      },
+      {
+        "id": "edge:input:clk:cell:_6411_:clk:7501",
+        "sources": [
+          "input:clk::output:clk"
+        ],
+        "targets": [
+          "cell:_6411_::input:CK"
+        ]
+      },
+      {
+        "id": "edge:input:clk:cell:_6795_:clk:7885",
+        "sources": [
+          "input:clk::output:clk"
+        ],
+        "targets": [
+          "cell:_6795_::input:CK"
+        ]
+      },
+      {
+        "id": "edge:input:clk:cell:_6859_:clk:7949",
+        "sources": [
+          "input:clk::output:clk"
+        ],
+        "targets": [
+          "cell:_6859_::input:CK"
+        ]
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6411_:rst_n:8590",
+        "sources": [
+          "input:rst_n::output:rst_n"
+        ],
+        "targets": [
+          "cell:_6411_::input:RN"
+        ]
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6795_:rst_n:8974",
+        "sources": [
+          "input:rst_n::output:rst_n"
+        ],
+        "targets": [
+          "cell:_6795_::input:RN"
+        ]
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6859_:rst_n:9038",
+        "sources": [
+          "input:rst_n::output:rst_n"
+        ],
+        "targets": [
+          "cell:_6859_::input:RN"
+        ]
+      },
+      {
+        "id": "edge:cell:_5426_:cell:_6411_:y_comb_21_:9677",
+        "sources": [
+          "cell:_5426_::output:Z"
+        ],
+        "targets": [
+          "cell:_6411_::input:D"
+        ]
+      },
+      {
+        "id": "edge:input:data0_in_21_:cell:_6795_:data0_in_21_:10061",
+        "sources": [
+          "input:data0_in_21_::output:data0_in%5B21%5D"
+        ],
+        "targets": [
+          "cell:_6795_::input:D"
+        ]
+      },
+      {
+        "id": "edge:input:data1_in_21_:cell:_6859_:data1_in_21_:10125",
+        "sources": [
+          "input:data1_in_21_::output:data1_in%5B21%5D"
+        ],
+        "targets": [
+          "cell:_6859_::input:D"
+        ]
+      },
+      {
+        "id": "edge:cell:_3929_:cell:_5364_:_0574_:5919:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f::output:_0574_"
+        ],
+        "targets": [
+          "cell:_5364_::input:C1"
+        ]
+      },
+      {
+        "id": "edge:cell:_4148_:cell:_5364_:_0793_:5980:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f::output:_0793_"
+        ],
+        "targets": [
+          "cell:_5364_::input:C2"
+        ]
+      },
+      {
+        "id": "edge:cell:_4321_:cell:_5363_:_0966_:5974:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f::output:_0966_"
+        ],
+        "targets": [
+          "cell:_5363_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_4341_:cell:_5365_:_0986_:5981:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f::output:_0986_"
+        ],
+        "targets": [
+          "cell:_5365_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_4748_:cell:_5365_:_1393_:5982:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f::output:_1393_"
+        ],
+        "targets": [
+          "cell:_5365_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_4894_:cell:_5365_:_1539_:5983:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f::output:_1539_"
+        ],
+        "targets": [
+          "cell:_5365_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5048_:cell:_5392_:_1693_:6084:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f::output:_1693_"
+        ],
+        "targets": [
+          "cell:_5392_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5139_:cell:_5364_:_1784_:5922:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f::output:_1784_"
+        ],
+        "targets": [
+          "cell:_5364_::input:B2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5296_:cell:_5369_:_1941_:5994:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f::output:_1941_"
+        ],
+        "targets": [
+          "cell:_5369_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5319_:cell:_5364_:_1964_:5979:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f::output:_1964_"
+        ],
+        "targets": [
+          "cell:_5364_::input:B1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5343_:cell:_5392_:_1988_:6085:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f::output:_1988_"
+        ],
+        "targets": [
+          "cell:_5392_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5345_:cell:_5363_:_1990_:5975:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f::output:_1990_"
+        ],
+        "targets": [
+          "cell:_5363_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5348_:cell:_5364_:_1993_:5978:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f::output:_1993_"
+        ],
+        "targets": [
+          "cell:_5364_::input:A"
+        ]
+      },
+      {
+        "id": "edge:cell:_5358_:cell:_5363_:_2003_:5976:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f::output:_2003_"
+        ],
+        "targets": [
+          "cell:_5363_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5362_:cell:_5363_:_2007_:5977:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f::output:_2007_"
+        ],
+        "targets": [
+          "cell:_5363_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5366_:cell:_5369_:_2011_:5995:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f::output:_2011_"
+        ],
+        "targets": [
+          "cell:_5369_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5367_:cell:_5369_:_2012_:5996:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f::output:_2012_"
+        ],
+        "targets": [
+          "cell:_5369_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5368_:cell:_5369_:_2013_:5997:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f::output:_2013_"
+        ],
+        "targets": [
+          "cell:_5369_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5372_:cell:_5380_:_2017_:6040:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f::output:_2017_"
+        ],
+        "targets": [
+          "cell:_5380_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5375_:cell:_5380_:_2020_:6041:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f::output:_2020_"
+        ],
+        "targets": [
+          "cell:_5380_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5378_:cell:_5380_:_2023_:6042:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f::output:_2023_"
+        ],
+        "targets": [
+          "cell:_5380_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5379_:cell:_5380_:_2024_:6043:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f::output:_2024_"
+        ],
+        "targets": [
+          "cell:_5380_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5383_:cell:_5389_:_2028_:6071:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f::output:_2028_"
+        ],
+        "targets": [
+          "cell:_5389_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5384_:cell:_5389_:_2029_:6072:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f::output:_2029_"
+        ],
+        "targets": [
+          "cell:_5389_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5385_:cell:_5389_:_2030_:6073:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f::output:_2030_"
+        ],
+        "targets": [
+          "cell:_5389_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5388_:cell:_5389_:_2033_:6074:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f::output:_2033_"
+        ],
+        "targets": [
+          "cell:_5389_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5390_:cell:_5392_:_2035_:6086:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f::output:_2035_"
+        ],
+        "targets": [
+          "cell:_5392_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5391_:cell:_5392_:_2036_:6087:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f::output:_2036_"
+        ],
+        "targets": [
+          "cell:_5392_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5393_:cell:_5402_:_2038_:6117:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f::output:_2038_"
+        ],
+        "targets": [
+          "cell:_5402_::input:A1"
+        ]
+      },
+      {
+        "id": "edge:cell:_5396_:cell:_5402_:_2041_:6118:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f::output:_2041_"
+        ],
+        "targets": [
+          "cell:_5402_::input:A2"
+        ]
+      },
+      {
+        "id": "edge:cell:_5399_:cell:_5402_:_2044_:6119:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f::output:_2044_"
+        ],
+        "targets": [
+          "cell:_5402_::input:A3"
+        ]
+      },
+      {
+        "id": "edge:cell:_5401_:cell:_5402_:_2046_:6120:focus-in",
+        "sources": [
+          "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f::output:_2046_"
+        ],
+        "targets": [
+          "cell:_5402_::input:A4"
+        ]
+      },
+      {
+        "id": "edge:cell:_5404_:cell:_5405_:_2049_:6130:focus-out",
+        "sources": [
+          "cell:_5404_::output:ZN"
+        ],
+        "targets": [
+          "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f::input:_2049_"
+        ]
+      },
+      {
+        "id": "edge:input:clk:cell:_6390_:clk:7480:focus-out",
+        "sources": [
+          "input:clk::output:clk"
+        ],
+        "targets": [
+          "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b::input:clk"
+        ]
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6390_:rst_n:8569:focus-out",
+        "sources": [
+          "input:rst_n::output:rst_n"
+        ],
+        "targets": [
+          "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e::input:rst_n"
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "input:clk",
+        "width": 92,
+        "height": 28,
+        "ports": [
+          {
+            "id": "input:clk::output:clk",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:rst_n",
+        "width": 92,
+        "height": 28,
+        "ports": [
+          {
+            "id": "input:rst_n::output:rst_n",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:data0_in_21_",
+        "width": 126,
+        "height": 28,
+        "ports": [
+          {
+            "id": "input:data0_in_21_::output:data0_in%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 126,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:data1_in_21_",
+        "width": 126,
+        "height": 28,
+        "ports": [
+          {
+            "id": "input:data1_in_21_::output:data1_in%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 126,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "input:scan_en",
+        "width": 92,
+        "height": 28,
+        "ports": [
+          {
+            "id": "input:scan_en::output:scan_en",
+            "width": 1,
+            "height": 1,
+            "x": 92,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "output:y_out_21_",
+        "width": 105,
+        "height": 36,
+        "ports": [
+          {
+            "id": "output:y_out_21_::input:y_out%5B21%5D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_3870_",
+        "width": 128,
+        "height": 72,
+        "ports": [
+          {
+            "id": "cell:_3870_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_3870_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5363_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5363_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5363_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5364_",
+        "width": 128,
+        "height": 216,
+        "ports": [
+          {
+            "id": "cell:_5364_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:B1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:B2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:C1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::input:C2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 180,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5364_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5365_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_5365_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5365_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5369_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5369_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5369_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5370_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5370_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5370_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5380_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5380_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5380_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5389_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5389_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5389_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5392_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5392_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5392_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5402_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5402_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5402_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5403_",
+        "width": 128,
+        "height": 180,
+        "ports": [
+          {
+            "id": "cell:_5403_::input:A1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A3",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::input:A4",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 144,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5403_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5404_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_5404_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::input:B1",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::input:B2",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5404_::output:ZN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_5426_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_5426_::input:A",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::input:B",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::input:S",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_5426_::output:Z",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6411_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_6411_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6411_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6411_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6795_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_6795_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6795_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6795_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cell:_6859_",
+        "width": 128,
+        "height": 144,
+        "ports": [
+          {
+            "id": "cell:_6859_::input:CK",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 36,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::input:D",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 72,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::input:RN",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 108,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          },
+          {
+            "id": "cell:_6859_::output:Q",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 54,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          },
+          {
+            "id": "cell:_6859_::output:QN",
+            "width": 1,
+            "height": 1,
+            "x": 128,
+            "y": 90,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f::output:_0574_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f::output:_0793_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f::output:_0966_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f::output:_0986_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f::output:_1393_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f::output:_1539_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f::output:_1693_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f::output:_1784_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f::output:_1941_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f::output:_1964_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f::output:_1988_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f::output:_1990_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f::output:_1993_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f::output:_2003_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f::output:_2007_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f::output:_2011_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f::output:_2012_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f::output:_2013_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f::output:_2017_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f::output:_2020_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f::output:_2023_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f::output:_2024_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f::output:_2028_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f::output:_2029_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f::output:_2030_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f::output:_2033_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f::output:_2035_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f::output:_2036_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f::output:_2038_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f::output:_2041_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f::output:_2044_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f",
+        "width": 154,
+        "height": 28,
+        "ports": [
+          {
+            "id": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f::output:_2046_",
+            "width": 1,
+            "height": 1,
+            "x": 154,
+            "y": 14,
+            "layoutOptions": {
+              "elk.port.side": "EAST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f",
+        "width": 154,
+        "height": 36,
+        "ports": [
+          {
+            "id": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f::input:_2049_",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b",
+        "width": 154,
+        "height": 36,
+        "ports": [
+          {
+            "id": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b::input:clk",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      },
+      {
+        "id": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e",
+        "width": 154,
+        "height": 36,
+        "ports": [
+          {
+            "id": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e::input:rst_n",
+            "width": 1,
+            "height": 1,
+            "x": 0,
+            "y": 18,
+            "layoutOptions": {
+              "elk.port.side": "WEST"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge:cell:_3870_:cell:_5404_:_0515_:6125",
+        "source": "cell:_3870_",
+        "target": "cell:_5404_",
+        "sourcePortId": "cell:_3870_::output:ZN",
+        "targetPortId": "cell:_5404_::input:A",
+        "physicalNet": "cell:_3870_\u0000_0515_"
+      },
+      {
+        "id": "edge:cell:_3929_:cell:_5364_:_0574_:5919:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f",
+        "target": "cell:_5364_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f::output:_0574_",
+        "targetPortId": "cell:_5364_::input:C1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.33.39.32.39.5f.0.5f.30.35.37.34.5f\u0000_0574_"
+      },
+      {
+        "id": "edge:cell:_4148_:cell:_5364_:_0793_:5980:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f",
+        "target": "cell:_5364_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f::output:_0793_",
+        "targetPortId": "cell:_5364_::input:C2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.34.31.34.38.5f.0.5f.30.37.39.33.5f\u0000_0793_"
+      },
+      {
+        "id": "edge:cell:_4321_:cell:_5363_:_0966_:5974:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f",
+        "target": "cell:_5363_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f::output:_0966_",
+        "targetPortId": "cell:_5363_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.32.31.5f.0.5f.30.39.36.36.5f\u0000_0966_"
+      },
+      {
+        "id": "edge:cell:_4341_:cell:_5365_:_0986_:5981:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f",
+        "target": "cell:_5365_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f::output:_0986_",
+        "targetPortId": "cell:_5365_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.34.33.34.31.5f.0.5f.30.39.38.36.5f\u0000_0986_"
+      },
+      {
+        "id": "edge:cell:_4748_:cell:_5365_:_1393_:5982:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f",
+        "target": "cell:_5365_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f::output:_1393_",
+        "targetPortId": "cell:_5365_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.34.37.34.38.5f.0.5f.31.33.39.33.5f\u0000_1393_"
+      },
+      {
+        "id": "edge:cell:_4894_:cell:_5365_:_1539_:5983:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f",
+        "target": "cell:_5365_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f::output:_1539_",
+        "targetPortId": "cell:_5365_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.34.38.39.34.5f.0.5f.31.35.33.39.5f\u0000_1539_"
+      },
+      {
+        "id": "edge:cell:_5048_:cell:_5392_:_1693_:6084:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f",
+        "target": "cell:_5392_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f::output:_1693_",
+        "targetPortId": "cell:_5392_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.30.34.38.5f.0.5f.31.36.39.33.5f\u0000_1693_"
+      },
+      {
+        "id": "edge:cell:_5139_:cell:_5364_:_1784_:5922:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f",
+        "target": "cell:_5364_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f::output:_1784_",
+        "targetPortId": "cell:_5364_::input:B2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.31.33.39.5f.0.5f.31.37.38.34.5f\u0000_1784_"
+      },
+      {
+        "id": "edge:cell:_5296_:cell:_5369_:_1941_:5994:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f",
+        "target": "cell:_5369_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f::output:_1941_",
+        "targetPortId": "cell:_5369_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.32.39.36.5f.0.5f.31.39.34.31.5f\u0000_1941_"
+      },
+      {
+        "id": "edge:cell:_5319_:cell:_5364_:_1964_:5979:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f",
+        "target": "cell:_5364_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f::output:_1964_",
+        "targetPortId": "cell:_5364_::input:B1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.31.39.5f.0.5f.31.39.36.34.5f\u0000_1964_"
+      },
+      {
+        "id": "edge:cell:_5343_:cell:_5392_:_1988_:6085:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f",
+        "target": "cell:_5392_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f::output:_1988_",
+        "targetPortId": "cell:_5392_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.33.5f.0.5f.31.39.38.38.5f\u0000_1988_"
+      },
+      {
+        "id": "edge:cell:_5345_:cell:_5363_:_1990_:5975:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f",
+        "target": "cell:_5363_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f::output:_1990_",
+        "targetPortId": "cell:_5363_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.35.5f.0.5f.31.39.39.30.5f\u0000_1990_"
+      },
+      {
+        "id": "edge:cell:_5348_:cell:_5364_:_1993_:5978:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f",
+        "target": "cell:_5364_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f::output:_1993_",
+        "targetPortId": "cell:_5364_::input:A",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.34.38.5f.0.5f.31.39.39.33.5f\u0000_1993_"
+      },
+      {
+        "id": "edge:cell:_5358_:cell:_5363_:_2003_:5976:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f",
+        "target": "cell:_5363_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f::output:_2003_",
+        "targetPortId": "cell:_5363_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.35.38.5f.0.5f.32.30.30.33.5f\u0000_2003_"
+      },
+      {
+        "id": "edge:cell:_5362_:cell:_5363_:_2007_:5977:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f",
+        "target": "cell:_5363_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f::output:_2007_",
+        "targetPortId": "cell:_5363_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.32.5f.0.5f.32.30.30.37.5f\u0000_2007_"
+      },
+      {
+        "id": "edge:cell:_5363_:cell:_5370_:_2008_:5998",
+        "source": "cell:_5363_",
+        "target": "cell:_5370_",
+        "sourcePortId": "cell:_5363_::output:ZN",
+        "targetPortId": "cell:_5370_::input:A1",
+        "physicalNet": "cell:_5363_\u0000_2008_"
+      },
+      {
+        "id": "edge:cell:_5364_:cell:_5370_:_2009_:5999",
+        "source": "cell:_5364_",
+        "target": "cell:_5370_",
+        "sourcePortId": "cell:_5364_::output:ZN",
+        "targetPortId": "cell:_5370_::input:A2",
+        "physicalNet": "cell:_5364_\u0000_2009_"
+      },
+      {
+        "id": "edge:cell:_5365_:cell:_5370_:_2010_:6000",
+        "source": "cell:_5365_",
+        "target": "cell:_5370_",
+        "sourcePortId": "cell:_5365_::output:ZN",
+        "targetPortId": "cell:_5370_::input:A3",
+        "physicalNet": "cell:_5365_\u0000_2010_"
+      },
+      {
+        "id": "edge:cell:_5366_:cell:_5369_:_2011_:5995:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f",
+        "target": "cell:_5369_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f::output:_2011_",
+        "targetPortId": "cell:_5369_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.36.5f.0.5f.32.30.31.31.5f\u0000_2011_"
+      },
+      {
+        "id": "edge:cell:_5367_:cell:_5369_:_2012_:5996:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f",
+        "target": "cell:_5369_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f::output:_2012_",
+        "targetPortId": "cell:_5369_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.37.5f.0.5f.32.30.31.32.5f\u0000_2012_"
+      },
+      {
+        "id": "edge:cell:_5368_:cell:_5369_:_2013_:5997:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f",
+        "target": "cell:_5369_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f::output:_2013_",
+        "targetPortId": "cell:_5369_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.36.38.5f.0.5f.32.30.31.33.5f\u0000_2013_"
+      },
+      {
+        "id": "edge:cell:_5369_:cell:_5370_:_2014_:6001",
+        "source": "cell:_5369_",
+        "target": "cell:_5370_",
+        "sourcePortId": "cell:_5369_::output:ZN",
+        "targetPortId": "cell:_5370_::input:A4",
+        "physicalNet": "cell:_5369_\u0000_2014_"
+      },
+      {
+        "id": "edge:cell:_5370_:cell:_5404_:_2015_:6126",
+        "source": "cell:_5370_",
+        "target": "cell:_5404_",
+        "sourcePortId": "cell:_5370_::output:ZN",
+        "targetPortId": "cell:_5404_::input:B1",
+        "physicalNet": "cell:_5370_\u0000_2015_"
+      },
+      {
+        "id": "edge:cell:_5372_:cell:_5380_:_2017_:6040:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f",
+        "target": "cell:_5380_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f::output:_2017_",
+        "targetPortId": "cell:_5380_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.32.5f.0.5f.32.30.31.37.5f\u0000_2017_"
+      },
+      {
+        "id": "edge:cell:_5375_:cell:_5380_:_2020_:6041:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f",
+        "target": "cell:_5380_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f::output:_2020_",
+        "targetPortId": "cell:_5380_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.35.5f.0.5f.32.30.32.30.5f\u0000_2020_"
+      },
+      {
+        "id": "edge:cell:_5378_:cell:_5380_:_2023_:6042:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f",
+        "target": "cell:_5380_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f::output:_2023_",
+        "targetPortId": "cell:_5380_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.38.5f.0.5f.32.30.32.33.5f\u0000_2023_"
+      },
+      {
+        "id": "edge:cell:_5379_:cell:_5380_:_2024_:6043:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f",
+        "target": "cell:_5380_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f::output:_2024_",
+        "targetPortId": "cell:_5380_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.37.39.5f.0.5f.32.30.32.34.5f\u0000_2024_"
+      },
+      {
+        "id": "edge:cell:_5380_:cell:_5403_:_2025_:6121",
+        "source": "cell:_5380_",
+        "target": "cell:_5403_",
+        "sourcePortId": "cell:_5380_::output:ZN",
+        "targetPortId": "cell:_5403_::input:A1",
+        "physicalNet": "cell:_5380_\u0000_2025_"
+      },
+      {
+        "id": "edge:cell:_5383_:cell:_5389_:_2028_:6071:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f",
+        "target": "cell:_5389_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f::output:_2028_",
+        "targetPortId": "cell:_5389_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.33.5f.0.5f.32.30.32.38.5f\u0000_2028_"
+      },
+      {
+        "id": "edge:cell:_5384_:cell:_5389_:_2029_:6072:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f",
+        "target": "cell:_5389_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f::output:_2029_",
+        "targetPortId": "cell:_5389_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.34.5f.0.5f.32.30.32.39.5f\u0000_2029_"
+      },
+      {
+        "id": "edge:cell:_5385_:cell:_5389_:_2030_:6073:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f",
+        "target": "cell:_5389_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f::output:_2030_",
+        "targetPortId": "cell:_5389_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.35.5f.0.5f.32.30.33.30.5f\u0000_2030_"
+      },
+      {
+        "id": "edge:cell:_5388_:cell:_5389_:_2033_:6074:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f",
+        "target": "cell:_5389_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f::output:_2033_",
+        "targetPortId": "cell:_5389_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.38.38.5f.0.5f.32.30.33.33.5f\u0000_2033_"
+      },
+      {
+        "id": "edge:cell:_5389_:cell:_5403_:_2034_:6122",
+        "source": "cell:_5389_",
+        "target": "cell:_5403_",
+        "sourcePortId": "cell:_5389_::output:ZN",
+        "targetPortId": "cell:_5403_::input:A2",
+        "physicalNet": "cell:_5389_\u0000_2034_"
+      },
+      {
+        "id": "edge:cell:_5390_:cell:_5392_:_2035_:6086:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f",
+        "target": "cell:_5392_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f::output:_2035_",
+        "targetPortId": "cell:_5392_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.30.5f.0.5f.32.30.33.35.5f\u0000_2035_"
+      },
+      {
+        "id": "edge:cell:_5391_:cell:_5392_:_2036_:6087:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f",
+        "target": "cell:_5392_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f::output:_2036_",
+        "targetPortId": "cell:_5392_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.31.5f.0.5f.32.30.33.36.5f\u0000_2036_"
+      },
+      {
+        "id": "edge:cell:_5392_:cell:_5403_:_2037_:6123",
+        "source": "cell:_5392_",
+        "target": "cell:_5403_",
+        "sourcePortId": "cell:_5392_::output:ZN",
+        "targetPortId": "cell:_5403_::input:A3",
+        "physicalNet": "cell:_5392_\u0000_2037_"
+      },
+      {
+        "id": "edge:cell:_5393_:cell:_5402_:_2038_:6117:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f",
+        "target": "cell:_5402_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f::output:_2038_",
+        "targetPortId": "cell:_5402_::input:A1",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.33.5f.0.5f.32.30.33.38.5f\u0000_2038_"
+      },
+      {
+        "id": "edge:cell:_5396_:cell:_5402_:_2041_:6118:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f",
+        "target": "cell:_5402_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f::output:_2041_",
+        "targetPortId": "cell:_5402_::input:A2",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.36.5f.0.5f.32.30.34.31.5f\u0000_2041_"
+      },
+      {
+        "id": "edge:cell:_5399_:cell:_5402_:_2044_:6119:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f",
+        "target": "cell:_5402_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f::output:_2044_",
+        "targetPortId": "cell:_5402_::input:A3",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.33.39.39.5f.0.5f.32.30.34.34.5f\u0000_2044_"
+      },
+      {
+        "id": "edge:cell:_5401_:cell:_5402_:_2046_:6120:focus-in",
+        "source": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f",
+        "target": "cell:_5402_",
+        "sourcePortId": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f::output:_2046_",
+        "targetPortId": "cell:_5402_::input:A4",
+        "physicalNet": "focus-boundary:in:63.65.6c.6c.3a.5f.35.34.30.31.5f.0.5f.32.30.34.36.5f\u0000_2046_"
+      },
+      {
+        "id": "edge:cell:_5402_:cell:_5403_:_2047_:6124",
+        "source": "cell:_5402_",
+        "target": "cell:_5403_",
+        "sourcePortId": "cell:_5402_::output:ZN",
+        "targetPortId": "cell:_5403_::input:A4",
+        "physicalNet": "cell:_5402_\u0000_2047_"
+      },
+      {
+        "id": "edge:cell:_5403_:cell:_5404_:_2048_:6127",
+        "source": "cell:_5403_",
+        "target": "cell:_5404_",
+        "sourcePortId": "cell:_5403_::output:ZN",
+        "targetPortId": "cell:_5404_::input:B2",
+        "physicalNet": "cell:_5403_\u0000_2048_"
+      },
+      {
+        "id": "edge:cell:_5404_:cell:_5405_:_2049_:6130:focus-out",
+        "source": "cell:_5404_",
+        "target": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f",
+        "sourcePortId": "cell:_5404_::output:ZN",
+        "targetPortId": "focus-boundary:out:63.65.6c.6c.3a.5f.35.34.30.34.5f.0.5f.32.30.34.39.5f::input:_2049_",
+        "physicalNet": "cell:_5404_\u0000_2049_"
+      },
+      {
+        "id": "edge:cell:_5404_:cell:_5426_:_2049_:6151",
+        "source": "cell:_5404_",
+        "target": "cell:_5426_",
+        "sourcePortId": "cell:_5404_::output:ZN",
+        "targetPortId": "cell:_5426_::input:S",
+        "physicalNet": "cell:_5404_\u0000_2049_"
+      },
+      {
+        "id": "edge:cell:_5426_:cell:_6411_:y_comb_21_:9677",
+        "source": "cell:_5426_",
+        "target": "cell:_6411_",
+        "sourcePortId": "cell:_5426_::output:Z",
+        "targetPortId": "cell:_6411_::input:D",
+        "physicalNet": "cell:_5426_\u0000y_comb[21]"
+      },
+      {
+        "id": "edge:cell:_6411_:output:y_out_21_:y_out_21_:42",
+        "source": "cell:_6411_",
+        "target": "output:y_out_21_",
+        "sourcePortId": "cell:_6411_::output:Q",
+        "targetPortId": "output:y_out_21_::input:y_out%5B21%5D",
+        "physicalNet": "cell:_6411_\u0000y_out[21]"
+      },
+      {
+        "id": "edge:cell:_6795_:cell:_5426_:data0_q_21_:6235",
+        "source": "cell:_6795_",
+        "target": "cell:_5426_",
+        "sourcePortId": "cell:_6795_::output:Q",
+        "targetPortId": "cell:_5426_::input:B",
+        "physicalNet": "cell:_6795_\u0000data0_q[21]"
+      },
+      {
+        "id": "edge:cell:_6859_:cell:_5426_:data1_q_21_:6234",
+        "source": "cell:_6859_",
+        "target": "cell:_5426_",
+        "sourcePortId": "cell:_6859_::output:Q",
+        "targetPortId": "cell:_5426_::input:A",
+        "physicalNet": "cell:_6859_\u0000data1_q[21]"
+      },
+      {
+        "id": "edge:input:clk:cell:_6390_:clk:7480:focus-out",
+        "source": "input:clk",
+        "target": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b",
+        "sourcePortId": "input:clk::output:clk",
+        "targetPortId": "focus-boundary:out:69.6e.70.75.74.3a.63.6c.6b.0.63.6c.6b::input:clk",
+        "physicalNet": "input:clk\u0000clk"
+      },
+      {
+        "id": "edge:input:clk:cell:_6411_:clk:7501",
+        "source": "input:clk",
+        "target": "cell:_6411_",
+        "sourcePortId": "input:clk::output:clk",
+        "targetPortId": "cell:_6411_::input:CK",
+        "physicalNet": "input:clk\u0000clk"
+      },
+      {
+        "id": "edge:input:clk:cell:_6795_:clk:7885",
+        "source": "input:clk",
+        "target": "cell:_6795_",
+        "sourcePortId": "input:clk::output:clk",
+        "targetPortId": "cell:_6795_::input:CK",
+        "physicalNet": "input:clk\u0000clk"
+      },
+      {
+        "id": "edge:input:clk:cell:_6859_:clk:7949",
+        "source": "input:clk",
+        "target": "cell:_6859_",
+        "sourcePortId": "input:clk::output:clk",
+        "targetPortId": "cell:_6859_::input:CK",
+        "physicalNet": "input:clk\u0000clk"
+      },
+      {
+        "id": "edge:input:data0_in_21_:cell:_6795_:data0_in_21_:10061",
+        "source": "input:data0_in_21_",
+        "target": "cell:_6795_",
+        "sourcePortId": "input:data0_in_21_::output:data0_in%5B21%5D",
+        "targetPortId": "cell:_6795_::input:D",
+        "physicalNet": "input:data0_in_21_\u0000data0_in[21]"
+      },
+      {
+        "id": "edge:input:data1_in_21_:cell:_6859_:data1_in_21_:10125",
+        "source": "input:data1_in_21_",
+        "target": "cell:_6859_",
+        "sourcePortId": "input:data1_in_21_::output:data1_in%5B21%5D",
+        "targetPortId": "cell:_6859_::input:D",
+        "physicalNet": "input:data1_in_21_\u0000data1_in[21]"
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6390_:rst_n:8569:focus-out",
+        "source": "input:rst_n",
+        "target": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e",
+        "sourcePortId": "input:rst_n::output:rst_n",
+        "targetPortId": "focus-boundary:out:69.6e.70.75.74.3a.72.73.74.5f.6e.0.72.73.74.5f.6e::input:rst_n",
+        "physicalNet": "input:rst_n\u0000rst_n"
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6411_:rst_n:8590",
+        "source": "input:rst_n",
+        "target": "cell:_6411_",
+        "sourcePortId": "input:rst_n::output:rst_n",
+        "targetPortId": "cell:_6411_::input:RN",
+        "physicalNet": "input:rst_n\u0000rst_n"
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6795_:rst_n:8974",
+        "source": "input:rst_n",
+        "target": "cell:_6795_",
+        "sourcePortId": "input:rst_n::output:rst_n",
+        "targetPortId": "cell:_6795_::input:RN",
+        "physicalNet": "input:rst_n\u0000rst_n"
+      },
+      {
+        "id": "edge:input:rst_n:cell:_6859_:rst_n:9038",
+        "source": "input:rst_n",
+        "target": "cell:_6859_",
+        "sourcePortId": "input:rst_n::output:rst_n",
+        "targetPortId": "cell:_6859_::input:RN",
+        "physicalNet": "input:rst_n\u0000rst_n"
+      },
+      {
+        "id": "edge:input:scan_en:cell:_3870_:scan_en:1275",
+        "source": "input:scan_en",
+        "target": "cell:_3870_",
+        "sourcePortId": "input:scan_en::output:scan_en",
+        "targetPortId": "cell:_3870_::input:A",
+        "physicalNet": "input:scan_en\u0000scan_en"
+      }
+    ]
+  }
+}

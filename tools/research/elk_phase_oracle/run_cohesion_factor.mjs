@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const staticIndex=process.argv.indexOf('--static-h08'),staticH08=staticIndex>=0;
+if(staticH08)process.argv.splice(staticIndex,1);
+const unitsIndex=process.argv.indexOf('--units'),layoutUnits=unitsIndex>=0;
+if(layoutUnits)process.argv.splice(unitsIndex,1);
+const anchorIndex=process.argv.indexOf('--physical-anchors'),physicalAnchors=anchorIndex>=0;
+if(physicalAnchors)process.argv.splice(anchorIndex,1);
+const mode=process.argv[2];
+const modes=['baseline','groups','key','ports','key+ports','groups+key','groups+ports','all'];
+assert.ok(modes.includes(mode),'invalid predeclared factorial mode');process.argv.splice(2,1);
+const groups=mode==='all'||mode.includes('groups'),key=mode==='all'||mode.includes('key'),ports=mode==='all'||mode.includes('ports');
+const location=new URL('./compare_complete_layouts.mjs',import.meta.url);let source=await readFile(location,'utf8');
+const anchor="import { NativeLayeredLayoutProvider } from '../../../src/layout/elk_native_layout_provider.js';";
+assert.equal(source.split(anchor).length,2);
+source=source.replace(anchor,staticH08?`import {NativeLayeredLayoutProvider as StaticProvider} from '${new URL('../../../src/layout/elk_native_layout_provider.js',import.meta.url).href}';
+class NativeLayeredLayoutProvider extends StaticProvider{constructor(){super({profile:'h08'});}}`:`import {CohesionResearchProvider} from '${new URL('./probe_cohesion_provider.mjs',import.meta.url).href}';
+class NativeLayeredLayoutProvider extends CohesionResearchProvider{constructor(){super(${JSON.stringify({cohesion:groups,groupSweep:groups,structuralKey:key,implicitPorts:ports,layoutUnits,physicalAnchors})});}}`)
+  .replace(/from '(\.[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);
+source=source.replaceAll('import.meta.url',JSON.stringify(location.href));
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);

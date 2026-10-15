@@ -24,6 +24,10 @@ import {
   chooseControlledBranchPlacement,
   findControlledSinkBankCenter
 } from "./layered/branchPlacement.js";
+import {
+  applyFocusedFaninTreeBlockPlacement,
+  applyRecursiveFocusedFaninTreePlacement
+} from "./layered/focusedTreeBlocks.js";
 import { buildCarrierPhysicalNetRoutes } from "./layered/carrier_routing.js";
 import { DEFAULT_LAYOUT_POLICY, normalizeLayoutPolicy } from "./layoutPolicy.js";
 import {
@@ -332,6 +336,20 @@ export function layoutGraph(graph, options = {}) {
             targetCenter: findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
           })
         : Object.freeze({ blockCount: 0, movedNodeCount: 0 });
+      const treeBlocks = focusedRootCount === 1
+        ? applyFocusedFaninTreeBlockPlacement(
+            branchSelection.nodes,
+            graph.edges,
+            levelKeys,
+            {
+              minimumY: topWireSpace + margin,
+              gap: placementGap,
+              groupGap: policy.spacing.focusedTreeGroupGap,
+              targetCenter: corePlacement.bankCenter ??
+                findControlledSinkBankCenter(branchSelection.nodes, graph.edges)
+            }
+          )
+        : Object.freeze({ branchCount: 0, layerCount: 0, movedNodeCount: 0 });
       applyFanoutHubLocality(branchSelection.nodes, graph.edges, margin);
       if (policy.features.localizeSingleFanoutInputs) {
         applySingleFanoutInputLocality(
@@ -360,12 +378,29 @@ export function layoutGraph(graph, options = {}) {
         margin,
         Number(policy.spacing.cellSpacing) || 8
       );
+      const recursiveTree = focusedRootCount === 1 &&
+        policy.features.recursiveFocusedTreePlacement
+        ? applyRecursiveFocusedFaninTreePlacement(
+            branchSelection.nodes,
+            graph.edges,
+            levelKeys,
+            {
+              minimumY: topWireSpace + margin,
+              gap: placementGap,
+              siblingGap: policy.spacing.fanoutYGap,
+              maximumShift: policy.spacing.recursiveTreeMaximumShift
+            }
+          )
+        : Object.freeze({ branchCount: 0, layerCount: 0, movedNodeCount: 0 });
       branchApplication = Object.freeze({
         ...branchApplication,
         centeredCoreLayerCount: corePlacement.layerCount,
         focusedBlockCount: focusedBlock.blockCount,
+        focusedTreeBranchCount: treeBlocks.branchCount,
+        focusedTreeLayerCount: treeBlocks.layerCount,
+        recursiveTreeLayerCount: recursiveTree.layerCount,
         movedNodeCount: branchApplication.movedNodeCount + corePlacement.movedNodeCount +
-          focusedBlock.movedNodeCount
+          focusedBlock.movedNodeCount + treeBlocks.movedNodeCount + recursiveTree.movedNodeCount
       });
       applyNodePositionOverrides(branchSelection.nodes, options.nodePositions);
     }

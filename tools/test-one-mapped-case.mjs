@@ -9,6 +9,7 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 const input = process.argv[2];
 const noCollapse = process.argv.includes("--no-collapse");
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
+const providerId = process.env.MAPPED_CASE_PROVIDER || "simple-layered";
 if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v> [--no-collapse] [--hard]");
 
 const source = await readFile(input, "utf8");
@@ -28,7 +29,11 @@ const graph = applyWorkspaceGraphTransforms(rawGraph, {
 const graphMs = performance.now() - graphStarted;
 const layoutStarted = performance.now();
 console.error("stage=layout");
-const laidOut = getLayoutProvider().layout(graph, {
+// Research-only candidate selection does not register a second UI provider.
+const provider = providerId === "elk-native-candidate"
+  ? new (await import("../src/layout/elk_native_layout_provider.js")).NativeLayeredLayoutProvider()
+  : getLayoutProvider(providerId);
+const laidOut = await provider.layout(graph, {
   strictRouting: hardInvariants
 });
 const layoutMs = performance.now() - layoutStarted;
@@ -39,10 +44,12 @@ const violations = validateLayoutGraph(laidOut, {
   checkBounds: true,
   maxViolations: 256
 });
-const routedEdges = laidOut.edges.filter((edge) => edge.routeKind).length;
+const routedEdges = laidOut.edges.filter((edge) => edge.points?.length >= 2).length;
+const edgeById = new Map(laidOut.edges.map((edge) => [String(edge.id), edge]));
 
 console.log(JSON.stringify({
   input,
+  providerId,
   bytes: Buffer.byteLength(source),
   cells: module.cells.length,
   rawNodes: rawGraph.nodes.length,
@@ -56,10 +63,18 @@ console.log(JSON.stringify({
   heapUsedMiB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
   hardInvariants,
   layoutStatus: laidOut.layoutStatus || "unknown",
+  layoutMetrics: laidOut.layoutMetrics || null,
   routingMetrics: laidOut.routingMetrics || null,
   validationMetrics: laidOut.validationMetrics || null,
   violations: violations.length,
-  violationCodes: countBy(violations, (item) => item.code)
+  violationCodes: countBy(violations, (item) => item.code),
+  violationSamples: violations.slice(0, 12).map((violation) => ({
+    ...violation,
+    edgePoints: edgeById.get(String(violation.edgeId))?.points || null,
+    otherEdgePoints: edgeById.get(String(violation.otherEdgeId))?.points || null
+  })),
+  providerDiagnosticCodes: countBy(laidOut.providerDiagnostics || [], (item) => item.code || "unknown"),
+  providerDiagnosticSamples: diagnosticSamples(laidOut.providerDiagnostics || [], 12)
 }));
 
 function countBy(items, keyFor) {
@@ -69,4 +84,22 @@ function countBy(items, keyFor) {
     counts[key] = (counts[key] || 0) + 1;
   }
   return counts;
+}
+
+function diagnosticSamples(items, limit) {
+  const selected = [];
+  const seenCodes = new Set();
+  for (const item of items) {
+    const code = item?.code || "unknown";
+    if (seenCodes.has(code)) continue;
+    selected.push(item);
+    seenCodes.add(code);
+    if (selected.length >= limit) return selected;
+  }
+  for (const item of items) {
+    if (selected.includes(item)) continue;
+    selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  return selected;
 }

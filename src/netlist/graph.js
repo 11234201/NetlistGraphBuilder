@@ -1,8 +1,9 @@
 ﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
-import { getNetDisplayName, getPortDisplayName } from "./model.js";
+import { getNetDisplayName, getPortDisplayName, getPinNetReferences } from "./model.js";
 import { ensureFallbackCellPinDirections } from "../infer/defaultCellRules.js";
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { resolveCellConfigDefinition, toInternalGateKind } from "../infer/cellConfig.js";
+import { getPinConnectionEndpoints } from "./pin_connections.js";
 
 export function buildSchematicGraph(module, options = {}) {
   const overrides = normalizeGraphOverrides(options.overrides);
@@ -105,16 +106,17 @@ export function buildSchematicGraph(module, options = {}) {
       title: getCellTitle(cell, cellKind),
       subtitle: cell.typeDisplayName || cell.type,
       pinDirections,
-      portDescriptors: cell.pins.map((pin) => {
+      portDescriptors: cell.pins.flatMap((pin) => {
         const pinName = pin.pinDisplayName || pin.pin;
         const rule = pinDirections[pinName] || pinDirections[pin.pin] || inferPinDirection(pin.pin, cell.type);
-        return {
-          pin: pinName,
+        const endpoints = getPinConnectionEndpoints(pin);
+        return (endpoints.length ? endpoints : [{ pin: pinName }]).map((endpoint) => ({
+          pin: endpoint.pin,
           rawPin: pin.pin,
           direction: rule.direction,
           role: rule.role,
           side: rule.side || (rule.direction === "output" ? "right" : "left")
-        };
+        }));
       }),
       outputBubble: isInvertingOutputGate(cellKind.kind),
       referencedModuleName: referencedModule?.name || null,
@@ -124,24 +126,24 @@ export function buildSchematicGraph(module, options = {}) {
     applyNodePropertyOverrides(node, overrides);
 
     for (const pin of cell.pins) {
-      if (!pin.net) {
-        continue;
-      }
-      const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] ||
-        inferPinDirection(pin.pin, cell.type);
-      if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
-        drivers.set(pin.net, {
-          nodeId: node.id,
-          pin: pin.pinDisplayName || pin.pin,
-          source: "cell"
-        });
-      }
-      if (pinDirection.direction !== "output") {
-        addLoad(pin.net, {
-          nodeId: node.id,
-          pin: pin.pinDisplayName || pin.pin,
-          source: "cell"
-        });
+      for (const reference of getPinConnectionEndpoints(pin)) {
+        const net = reference.name;
+        const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] ||
+          inferPinDirection(pin.pin, cell.type);
+        if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
+          drivers.set(net, {
+            nodeId: node.id,
+            pin: reference.pin,
+            source: "cell"
+          });
+        }
+        if (pinDirection.direction !== "output") {
+          addLoad(net, {
+            nodeId: node.id,
+            pin: reference.pin,
+            source: "cell"
+          });
+        }
       }
     }
   }
@@ -196,7 +198,7 @@ export function buildSchematicGraph(module, options = {}) {
 
 function collectReferencedNets(module) {
   return new Set([
-    ...module.cells.flatMap((cell) => cell.pins.map((pin) => pin.net)),
+    ...module.cells.flatMap((cell) => cell.pins.flatMap((pin) => getPinNetReferences(pin).map((ref) => ref.name))),
     ...module.assigns.flatMap((assign) => [assign.lhs, assign.rhs])
   ].filter(Boolean));
 }
@@ -245,7 +247,7 @@ function annotateGraphMetadata(graph, module) {
         const direction = node.pinDirections?.[pinName]?.direction;
         return direction === "output" || direction === "inout";
       })
-      .map((pin) => pin.netDisplayName || getNetDisplayName(module, pin.net)));
+      .flatMap((pin) => getPinNetReferences(pin).map((ref) => ref.displayName || getNetDisplayName(module, ref.name))));
     const fanout = fanoutByNodeId.get(node.id) || 0;
     node.metadata = {
       cellType: node.subtitle || "-",

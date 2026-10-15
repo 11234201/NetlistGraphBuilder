@@ -10,6 +10,7 @@ import {
   normalizeLayoutPolicy
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
@@ -472,7 +473,7 @@ async function initializeApplication(session) {
 function createStartupHandlers() {
   return {
     configureTarget(target) {
-      state.layoutProviderId = "simple-layered";
+      state.layoutProviderId = DEFAULT_LAYOUT_PROVIDER_ID;
       elements.layoutProviderSelect.value = state.layoutProviderId;
       if (target.faninDepth !== undefined) state.faninDepth = target.faninDepth;
       if (target.fanoutDepth !== undefined) state.fanoutDepth = target.fanoutDepth;
@@ -888,7 +889,7 @@ function renderCompareGraphs(options = {}) {
         analysis: compareModules(leftModule, rightModule, prepared.fullGraphs.left, prepared.fullGraphs.right)
       }, leftModule, rightModule, renderOptions);
     };
-    if (compareLayoutProvider.id === "elk-layered") {
+    if (compareLayoutProvider.executionMode === "async") {
       const jobs = sides.map((side) => {
         const session = compareViewSessions.beginComputation(side);
         const job = workspaceJobs.start({
@@ -1367,7 +1368,7 @@ function renderCurrentModuleGraph(options = {}) {
       unitId: state.currentModule?.name || null
     }
   };
-  if (layoutProvider.id === "elk-layered") {
+  if (layoutProvider.executionMode === "async") {
     const session = singleViewSession.beginComputation();
     const job = workspaceJobs.start({
       sessionId: session.sessionId,
@@ -1467,8 +1468,8 @@ function renderLayoutProviderOptions() {
 function handleLayoutProviderChange(event) {
   state.layoutProviderId = event.target.value;
   setSingleTransform({ x: 0, y: 0, scale: 1 });
-  if (state.layoutProviderId === "elk-layered") {
-    setStatus("ELK Layered is experimental; Simple Layered is recommended for schematic editing");
+  if (getLayoutProvider(state.layoutProviderId).experimental) {
+    setStatus(`${getLayoutProvider(state.layoutProviderId).label}; Simple Layered is recommended for schematic editing`);
   }
   if (state.compare.active) renderCompareGraphs();
   else renderCurrentModuleGraph();
@@ -2961,6 +2962,13 @@ function renderStats() {
   }
   const module = state.currentModule;
   const graph = state.graph;
+  if (!module || !graph) {
+    elements.stats.innerHTML = statsRows([
+      ["Module", module?.displayName || "-"],
+      ["Layout", "Pending"]
+    ]);
+    return;
+  }
   elements.stats.innerHTML = statsRows([
     ["Module", module.displayName],
     ["Ports", graph.stats.ports],

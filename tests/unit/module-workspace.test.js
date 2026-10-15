@@ -17,7 +17,7 @@ function build(overrides = {}) {
   return buildModuleWorkspace({
     module,
     moduleLibrary: [module],
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     useFanoutHubs: false,
     collapseLargeGroups: false,
     ...overrides
@@ -43,7 +43,7 @@ test("module workspace composes graph, view, layout and manual overrides", () =>
 });
 
 test("module workspace preserves asynchronous provider boundaries", async () => {
-  const provider = getLayoutProvider();
+  const provider = getLayoutProvider("simple-layered");
   const asyncProvider = {
     layout: (...args) => Promise.resolve(provider.layout(...args))
   };
@@ -53,6 +53,23 @@ test("module workspace preserves asynchronous provider boundaries", async () => 
   const workspace = await workspacePromise;
   assert.ok(workspace.graph.nodes.length > 0);
   assert.equal(workspace.graph, workspace.autoGraph);
+});
+
+test("module workspace forwards cancellation and job identity across its layout stage", async () => {
+  const controller = new AbortController();
+  let received;
+  const pending = build({signal: controller.signal, jobId: "h08-cancel", layoutProvider: {
+    async layout(graph, options) {
+      received = options;
+      await Promise.resolve();
+      if (options.signal?.aborted) throw new DOMException("Layout cancelled", "AbortError");
+      return getLayoutProvider("simple-layered").layout(graph, options);
+    }
+  }});
+  controller.abort();
+  await assert.rejects(pending, {name: "AbortError"});
+  assert.equal(received.signal, controller.signal);
+  assert.equal(received.jobId, "h08-cancel");
 });
 
 test("module workspace applies independent Focused depths", () => {
@@ -111,7 +128,7 @@ test("module workspace keeps Focused traversal inside the selected module bounda
     focusedRootNodeIds: ["cell:u_child"],
     faninDepth: 1,
     fanoutDepth: 1,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     useFanoutHubs: false,
     collapseLargeGroups: false
   });
@@ -136,7 +153,7 @@ test("module workspace does not project multiple hierarchy roots onto the canvas
     focusedRootNodeIds: ["cell:u_left", "cell:u_right"],
     faninDepth: 1,
     fanoutDepth: 1,
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     useFanoutHubs: false,
     collapseLargeGroups: false
   });
@@ -157,7 +174,7 @@ test("module hierarchy demo top builds a non-empty whole workspace", async () =>
     module: top,
     moduleLibrary: design.modules,
     viewMode: "whole",
-    layoutProvider: getLayoutProvider(),
+    layoutProvider: getLayoutProvider("simple-layered"),
     useFanoutHubs: false,
     collapseLargeGroups: false
   });

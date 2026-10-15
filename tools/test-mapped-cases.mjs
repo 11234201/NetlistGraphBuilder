@@ -11,6 +11,7 @@ const timeoutMs = numberFromEnvironment("MAPPED_CASE_TIMEOUT_MS", 45_000);
 const maximumCaseViolations = numberFromEnvironment("MAX_CASE_VIOLATIONS", 32);
 const maximumTotalViolations = numberFromEnvironment("MAX_TOTAL_VIOLATIONS", 120);
 const noCollapse = process.env.MAPPED_CASE_NO_COLLAPSE === "1";
+const providerId = process.env.MAPPED_CASE_PROVIDER || "simple-layered";
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
 const caseViolationBudget = hardInvariants ? 0 : maximumCaseViolations;
 const totalViolationBudget = hardInvariants ? 0 : maximumTotalViolations;
@@ -71,6 +72,7 @@ console.log(
   `violations=${totalViolations}/${totalViolationBudget}, ` +
   `maxLayoutMs=${maximumLayoutMs}, maxHeapMiB=${maximumHeapUsedMiB}, ` +
   `hardInvariants=${hardInvariants}`
+  + `, provider=${providerId}, noCollapse=${noCollapse}`
 );
 
 if (failed.length > 0 || totalViolations > totalViolationBudget) {

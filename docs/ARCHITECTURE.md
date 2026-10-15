@@ -78,7 +78,15 @@ Cell
 PinConnection
   pin
   net
+  connection?    # concat {kind, items}; unsupported expressions retain text
 ```
+
+单网连接保留 `net/netDisplayName` 兼容字段；拼接连接以 `connection` 保存有序、可嵌套的
+`concat` / `reference` 结构，引用分别保留 canonical name 与 display name。拼接自身不是 net。
+`getPinNetReferences` 在 IR 边界统一枚举引用，建图、连接模板和详情消费同一结果；不支持的表达式
+保留原文并产生诊断，不截取第一个标识符伪造成连接。
+显示图通过 `getPinConnectionEndpoints` 为拼接成员提供独立的 `A{ordinal}` 端点，避免不同 net
+共用同一引脚坐标；ordinal 表示拼接成员顺序，不冒充源引脚的 bit index。源 IR 不受影响。
 
 ### `src/infer/`
 
@@ -135,6 +143,90 @@ LayoutProvider
 - `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
 - `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
 
+#### Native Layered H08 产品路径（2026-10-15）
+
+`native-layered` registry 现整体采用 `elk_native_layout_provider.js` 的 H08 profile，内部完整相位
+来自 `src/layout/elk_native/`。验收后用户明确授权默认提升：1.1.1由 `providerDefaults.js` 统一
+新会话/无参数registry/EDA启动默认H08；Simple仍为失败回退，旧session显式选择继续尊重。
+无第二个 Native UI ID，也不混用旧相位。
+离线调用入口为 `elk_native/h08.js`；原 `index.js` baseline 只用于受控相位比较。
+Provider 的 `executionMode: "async"` 声明由 Single/Compare 同时消费，不能按 ELK ID 猜测异步性。
+取消仍通过共享 JobCoordinator/workspace 边界转发，过期结果不得提交。
+
+原 `src/layout/native_layered/` 的22个文件已移至 `tests/reference/retired_native_layered/`，
+仅供历史测试追溯，不进入生产依赖或 Windows 包；架构测试禁止运行时回流。
+H08 的版本化 profile、支持范围和适配契约见 [静态包说明](design/elk_h08_package.md)。
+
+以下保留早期设计基线作为迁移背景，不代表仍在运行的目录或策略。
+
+#### Native Layered 独立 provider（历史规划基线，2026-09-20）
+
+项目将新增 `native-layered` provider，以项目原生代码实现 ELK layered 所采用的分层布局阶段。它是
+独立实现，不是 Simple placement/routing 的增量策略。完整实施路线和验收矩阵见
+[`docs/plans/native_layered_development.md`](plans/native_layered_development.md)。
+Simple 的实现提交、验收指标和允许修改范围固定在
+[`docs/plans/simple_layout_freeze_baseline.md`](plans/simple_layout_freeze_baseline.md)。
+
+开发期间必须保持以下隔离边界：
+
+- `SimpleLayeredLayoutProvider` 的结果、默认策略和私有流水线冻结。Native Layered 不得 import
+  `simpleLayered.js`、`simplePlacementPipeline.js`、`simpleLayering.js`、`simpleRoutingPlan.js`、
+  `simpleOrthogonalRouter.js` 或 `simpleRouteCandidates.js`。
+- Native Layered 可以复用 provider contract、节点测量、正交硬约束、validator、物理 wire-route
+  规范化、label placement、spatial index、renderer 和 workspace/job 边界；这些模块不得反向依赖
+  Native Layered。
+- Native Layered 的 cycle orientation、proper layering、dummy chain、crossing reduction、Brandes–Köpf
+  block alignment、component packing、channel allocation 和 automatic routing 均位于
+  `src/layout/native_layered/`，不得以 feature flag 插入 Simple 流水线。
+- Native Layered 的 dummy、reversed edge、alignment block、channel demand 等对象只存在于内部 layout
+  model。它们不能进入 Netlist IR，也不能作为 UI graph node 返回。
+- 自动布局输出仍是普通 `PositionedGraph`。手工 override 位于 provider 之后，继续通过共享
+  `positionedRouting` 边界工作。
+
+目标目录边界：
+
+```text
+src/layout/native_layered/
+  graph_model.js             canonical internal graph and stable topology keys
+  cycle_breaking.js          reversible layout orientation
+  layer_assignment.js        rank assignment and span refinement
+  proper_layering.js         dummy chains for adjacent-layer edges
+  crossing_reduction.js      bounded median/barycenter sweeps and transpose
+  block_alignment.js         conflict marking and vertical alignment blocks
+  vertical_compaction.js     four-direction Brandes–Köpf candidates
+  component_packing.js       tree/shared-block/component placement
+  port_ordering.js           stable side and port constraints
+  channel_allocation.js      interval-based inter-layer lane ownership
+  orthogonal_routing.js      provider-private automatic routing
+  physical_net_routing.js    shared trunks and junction ownership
+  layout_metrics.js          phase and quality evidence
+  provider.js                LayoutProvider adapter
+```
+
+Native Layered pipeline 顺序固定为：
+
+```text
+source graph
+  -> canonical layout graph
+  -> cycle breaking
+  -> layer assignment
+  -> proper layering / dummy chains
+  -> crossing reduction
+  -> block alignment and four-direction compaction
+  -> tree/shared-block/component packing
+  -> port ordering and channel allocation
+  -> orthogonal physical-net routing
+  -> shared validation and PositionedGraph normalization
+```
+
+Placement 和 routing 必须联合规划：相邻层间的物理 net demand 在最终坐标确定前分配，容量不足时
+扩大对应层间距；router 不得在一个已压紧的布局中依靠图规模相关的重试寻找缝隙。父节点位置由
+alignment block 和子树跨度决定，后续合法化只能移动完整 block，不能再把 block 内 cell 从画布
+顶部开始逐个压紧。
+
+在 Focused、Whole、mapped-case、性能和浏览器视觉验收全部完成前，Native Layered 只作为 Experimental
+provider 暴露；Simple 保持默认和稳定 fallback。提升为默认属于单独决策，不随实现完成自动发生。
+
 手动布局校准不改变 Netlist IR，也不替代 layout provider。实现时应把用户拖动得到的节点位置作为 layout override/golden 叠加在 positioned graph 上，再让路由和渲染层基于覆盖后的节点位置工作。
 
 wire routing 策略属于 layout 层，不放到 render 层。layout 输出的 edge 可以携带 `routeKind`、`labelPoint` 和后续调试所需的 routing metadata；render 只负责按这些结果绘制 path 与文字。
@@ -188,6 +280,10 @@ Layout policy:
   Label collision ownership uses an explicit stable edge priority and never raw graph array order.
 - `src/layout/spatialIndex.js` provides the dynamic segment and static node indexes used by routing and
   label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
+  Opt-in foreign-net queries may skip groups with the same exact net identity before materializing
+  candidates. Only frozen own-data net keys are grouped; mutable/accessor keys use record-level checks.
+  Ordered query results retain bucket/record order and duplicate insertions. Foreign count predicates
+  must be pure. These queries do not deduplicate geometry or weaken overlap/clearance validation.
   Simple computes graph node bounds once and queries local X corridors instead of rescanning every node
   for every difficult edge.
 - `src/layout/routeSegmentIndex.js` attaches edge ownership, segment order and orientation before indexing.

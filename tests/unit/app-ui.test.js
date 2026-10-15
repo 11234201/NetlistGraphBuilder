@@ -36,7 +36,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   assert.equal(state.compare.layout, "vertical");
   assert.equal(state.scene, null);
   assert.deepEqual(state.compare.scenes, { left: null, right: null });
-  assert.equal(state.layoutProviderId, "simple-layered");
+  assert.equal(state.layoutProviderId, "native-layered");
   state.design = { modules: [] };
   state.timing = { instanceCount: 1 };
   state.selectedNodeId = "cell:u0";

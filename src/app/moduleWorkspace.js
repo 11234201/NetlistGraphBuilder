@@ -136,7 +136,9 @@ export function buildModuleWorkspace(options) {
       expandedGroupIds
     }),
     measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
-    layout: (graph) => layoutWorkspaceGraphAutomatically(graph, { layoutProvider, layoutPolicy }),
+    layout: (graph) => layoutWorkspaceGraphAutomatically(graph, {
+      layoutProvider, layoutPolicy, signal: options.signal, jobId: options.jobId
+    }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
     createScene: (graph, request) => createNetlistScene(graph, {
       presentationPolicy: request.presentationPolicy

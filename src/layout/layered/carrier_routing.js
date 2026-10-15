@@ -60,7 +60,8 @@ export function buildCarrierPhysicalNetRoutes(
         edge,
         source,
         target,
-        anchors.map((anchor) => ({ ...anchor, y: anchor.y + offset }))
+        anchors.map((anchor) => ({ ...anchor, y: anchor.y + offset })),
+        { nodeIndex, nodeById }
       );
       const positionedEdge = {
         ...edge,
@@ -223,7 +224,7 @@ function normalizeAnchorOffsets(values) {
   return offsets.length > 0 ? offsets : [0];
 }
 
-function buildBranchPoints(edge, source, target, anchors) {
+function buildBranchPoints(edge, source, target, anchors, { nodeIndex, nodeById } = {}) {
   const sourcePoint = getConnectionPoint(source, edge.sourcePin, "source");
   const targetPoint = getConnectionPoint(target, edge.targetPin, "target");
   const points = [sourcePoint];
@@ -234,8 +235,57 @@ function buildBranchPoints(edge, source, target, anchors) {
     points.push({ x: anchor.x, y: previous.y }, { x: anchor.x, y: anchor.y });
     previous = anchor;
   }
-  points.push({ x: previous.x, y: targetPoint.y }, targetPoint);
+  const approachX = findTargetApproachX(
+    previous,
+    targetPoint,
+    edge,
+    nodeIndex,
+    nodeById
+  );
+  if (Number.isFinite(approachX)) {
+    points.push(
+      { x: approachX, y: previous.y },
+      { x: approachX, y: targetPoint.y },
+      targetPoint
+    );
+  } else {
+    points.push({ x: previous.x, y: targetPoint.y }, targetPoint);
+  }
   return compactOrthogonalPoints(points);
+}
+
+function findTargetApproachX(previous, targetPoint, edge, nodeIndex, nodeById) {
+  if (!nodeIndex || targetPoint.x <= previous.x) return null;
+  const clearance = 8;
+  const blockers = nodeIndex.query({
+    left: previous.x + clearance,
+    right: targetPoint.x - clearance,
+    top: targetPoint.y - 1,
+    bottom: targetPoint.y + 1
+  }).filter((node) => node.id !== edge.source && node.id !== edge.target &&
+    node.id !== edge.originalSource && node.id !== edge.originalTarget &&
+    node.kind === "focus-input" &&
+    Number(node.x) + Number(node.width) >= previous.x + clearance &&
+    Number(node.x) <= targetPoint.x - clearance &&
+    targetPoint.y >= Number(node.y) &&
+    targetPoint.y <= Number(node.y) + Number(node.height));
+  if (blockers.length === 0) return null;
+  const approachX = Math.max(...blockers.map((node) =>
+    Number(node.x) + Number(node.width) + clearance));
+  if (!Number.isFinite(approachX) || approachX >= targetPoint.x - clearance) return null;
+  const top = Math.min(previous.y, targetPoint.y);
+  const bottom = Math.max(previous.y, targetPoint.y);
+  const targetId = edge.originalTarget ?? edge.target;
+  const verticalClear = nodeIndex.query({
+    left: approachX - 1,
+    right: approachX + 1,
+    top,
+    bottom
+  }).every((node) => node.id === targetId || node.id === edge.target ||
+    node.id === edge.source || node.id === (edge.originalSource ?? edge.source) ||
+    approachX <= Number(node.x) - clearance ||
+    approachX >= Number(node.x) + Number(node.width) + clearance);
+  return verticalClear && nodeById?.has(targetId) ? approachX : null;
 }
 
 function indexCarriersByEdge(carriers) {

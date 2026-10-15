@@ -1,28 +1,34 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { fileURLToPath } from "node:url";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { ElkLayoutProvider } from "../src/layout/elkLayoutProvider.js";
-import { SimpleLayeredLayoutProvider } from "../src/layout/layoutProvider.js";
+import { SimpleLayeredLayoutProvider, getLayoutProvider } from "../src/layout/layoutProvider.js";
 import { analyzeLayoutQuality } from "../src/layout/layoutQuality.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
 import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 import { summarizeControlledSinkSpacing } from "../src/layout/layered/branchPlacementMetrics.js";
+import { summarizeFocusedFaninTreeBlocks } from "../src/layout/layered/focusedTreeBlocks.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import Elk from "../vendor/elkjs-0.11.1/lib/elk.bundled.js";
 import { renderSchematicSvg } from "../src/domains/netlist/netlist_scene.js";
 import { createStandaloneSvg } from "../src/render/svgExport.js";
 
-const fixtureUrl = new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url);
-const source = await readFile(fixtureUrl, "utf8");
+const argumentsList = process.argv.slice(2);
+const fixtureArgument = parseStringArgument(argumentsList, "--fixture=");
+const fixturePath = fixtureArgument
+  ? resolve(fixtureArgument)
+  : fileURLToPath(new URL("../tests/fixtures/mapped/equal/eq_012_mapped.v", import.meta.url));
+const source = await readFile(fixturePath, "utf8");
 const design = parseVerilog(source);
 const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
-const argumentsList = process.argv.slice(2);
 const layoutPolicy = parseLayoutPolicy(argumentsList);
 const scenario = parseScenario(argumentsList, layoutPolicy);
 const providers = [
   new SimpleLayeredLayoutProvider(),
-  new ElkLayoutProvider({ elkFactory: () => new Elk() })
+  new ElkLayoutProvider({ elkFactory: () => new Elk() }),
+  getLayoutProvider("native-layered")
 ];
 const reports = [];
 const positionedGraphs = [];
@@ -46,7 +52,7 @@ for (const provider of providers) {
 
 const report = {
   scenario: {
-    fixture: "tests/fixtures/mapped/equal/eq_012_mapped.v",
+    fixture: relative(process.cwd(), fixturePath).replaceAll("\\", "/"),
     module: module?.name || null,
     ...scenario.reportFocus,
     faninDepth: scenario.faninDepth,
@@ -77,11 +83,27 @@ if (svgDirectoryArgument) {
       `viewBox="${Math.max(0, Number(graph.width) - cropWidth)} 0 ${cropWidth} ${Number(graph.height)}"`
     );
     await writeFile(resolve(outputDirectory, `${providerId}-right.svg`), rightCrop, "utf8");
+    const focusedRoot = graph.nodes.find((node) => node.isFocusedRoot === true);
+    if (focusedRoot) {
+      const focusWidth = Math.min(3400, Number(graph.width) || 3400);
+      const focusHeight = Math.min(5200, Number(graph.height) || 5200);
+      const focusX = Math.max(0, Number(focusedRoot.x) - focusWidth * 0.82);
+      const focusY = Math.max(0, Number(focusedRoot.y) - focusHeight / 2);
+      const focusCrop = standalone.replace(
+        /viewBox="[^"]+"/,
+        `viewBox="${focusX} ${focusY} ${focusWidth} ${focusHeight}"`
+      );
+      await writeFile(resolve(outputDirectory, `${providerId}-focus.svg`), focusCrop, "utf8");
+    }
   }
 }
 console.log(JSON.stringify(
   argumentsList.some((argument) => argument.startsWith("--physical-net="))
     ? physicalNetReport(report, parseStringArgument(argumentsList, "--physical-net="))
+    : argumentsList.some((argument) => argument.startsWith("--node-neighborhood="))
+    ? nodeNeighborhoodReport(report, positionedGraphs,
+      parseStringArgument(argumentsList, "--node-neighborhood="),
+      parseDepthArgument(argumentsList, "--neighborhood-depth=", 2))
     : argumentsList.some((argument) => argument.startsWith("--route-kind="))
     ? routeKindReport(report, positionedGraphs, parseStringArgument(argumentsList, "--route-kind="))
     : argumentsList.includes("--route-bounds")
@@ -90,12 +112,64 @@ console.log(JSON.stringify(
     ? levelBoundsReport(report, positionedGraphs)
     : argumentsList.includes("--branch-topology")
     ? branchTopologyReport(report, positionedGraphs)
+    : argumentsList.includes("--tree-blocks")
+    ? treeBlockReport(report, positionedGraphs)
     : argumentsList.includes("--branch-metrics-only")
     ? branchMetricsReport(report)
     : argumentsList.includes("--compact") ? compactReport(report) : report,
   null,
   2
 ));
+
+function nodeNeighborhoodReport(report, graphs, rawNodeId, maximumDepth) {
+  const nodeId = rawNodeId.includes(":") ? rawNodeId : `cell:${rawNodeId}`;
+  return {
+    scenario: report.scenario,
+    nodeId,
+    maximumDepth,
+    providers: graphs.map((graph, index) => {
+      const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+      const incoming = new Map();
+      for (const edge of graph.edges) {
+        incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge]);
+      }
+      const queue = [{ id: nodeId, depth: 0 }];
+      const visited = new Set();
+      const nodes = [];
+      for (let cursor = 0; cursor < queue.length; cursor += 1) {
+        const current = queue[cursor];
+        if (visited.has(current.id) || current.depth > maximumDepth) continue;
+        visited.add(current.id);
+        const node = nodeById.get(current.id);
+        if (!node) continue;
+        const parents = (incoming.get(current.id) || [])
+          .map((edge) => ({ id: edge.source, pin: edge.targetPin || null, net: edge.net || null }))
+          .sort((left, right) => compareIds(left.id, right.id));
+        nodes.push({
+          id: node.id,
+          depth: current.depth,
+          level: Number.isFinite(Number(node.level)) ? Number(node.level) : null,
+          x: round(Number(node.x)),
+          y: round(Number(node.y)),
+          height: round(Number(node.height)),
+          parents
+        });
+        for (const parent of parents) queue.push({ id: parent.id, depth: current.depth + 1 });
+      }
+      return { providerId: report.providers[index].providerId, nodes };
+    })
+  };
+}
+
+function treeBlockReport(report, graphs) {
+  return {
+    scenario: report.scenario,
+    providers: graphs.map((graph, index) => ({
+      providerId: report.providers[index].providerId,
+      ...summarizeFocusedFaninTreeBlocks(graph.nodes, graph.edges)
+    }))
+  };
+}
 
 function physicalNetReport(report, net) {
   return {
@@ -445,6 +519,8 @@ function compareNodeCenters(left, right) {
 function parseLayoutPolicy(argumentsList) {
   const spacingArgument = argumentsList.find((argument) => argument.startsWith("--cell-spacing="));
   const fanoutXArgument = argumentsList.find((argument) => argument.startsWith("--fanout-x="));
+  const recursiveTreeMaximumShiftArgument = argumentsList.find((argument) =>
+    argument.startsWith("--recursive-tree-max-shift="));
   const carrierMinimumFanoutArgument = argumentsList.find((argument) =>
     argument.startsWith("--carrier-min-fanout="));
   const features = {
@@ -452,9 +528,12 @@ function parseLayoutPolicy(argumentsList) {
     ...(argumentsList.includes("--minimal-span") ? { minimalSpanLayering: true } : {}),
     ...(argumentsList.includes("--long-edge-dummies") ? { longEdgeDummies: true } : {}),
     ...(argumentsList.includes("--physical-carriers") ? { physicalCarrierRouting: true } : {}),
-    ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {})
+    ...(argumentsList.includes("--routing-driven-spacing") ? { routingDrivenLayerSpacing: true } : {}),
+    ...(argumentsList.includes("--recursive-tree")
+      ? { recursiveFocusedTreePlacement: true } : {})
   };
-  if (!spacingArgument && !fanoutXArgument && !carrierMinimumFanoutArgument &&
+  if (!spacingArgument && !fanoutXArgument && !recursiveTreeMaximumShiftArgument &&
+    !carrierMinimumFanoutArgument &&
     Object.keys(features).length === 0) return undefined;
   const spacing = {};
   const layering = {};
@@ -467,6 +546,15 @@ function parseLayoutPolicy(argumentsList) {
     const fanoutX = Number(fanoutXArgument.slice("--fanout-x=".length));
     if (!Number.isFinite(fanoutX)) throw new Error("--fanout-x must be a finite number");
     spacing.fanoutX = fanoutX;
+  }
+  if (recursiveTreeMaximumShiftArgument) {
+    const maximumShift = Number(
+      recursiveTreeMaximumShiftArgument.slice("--recursive-tree-max-shift=".length)
+    );
+    if (!Number.isFinite(maximumShift)) {
+      throw new Error("--recursive-tree-max-shift must be a finite number");
+    }
+    spacing.recursiveTreeMaximumShift = maximumShift;
   }
   if (carrierMinimumFanoutArgument) {
     const carrierMinimumFanout = Number(

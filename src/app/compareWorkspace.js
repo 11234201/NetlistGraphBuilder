@@ -105,7 +105,8 @@ export function buildCompareSideWorkspace(options = {}) {
       expandedGroupIds,
       artifactCache,
       artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
-      ...workspaceInput
+      ...workspaceInput,
+      signal: activeSignal
     });
     const finish = (value) => {
       throwIfAborted(signal);

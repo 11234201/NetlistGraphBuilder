@@ -194,7 +194,7 @@ function findWireRouteViolations(wireRoutes, nodes = [], options = {}, maximumVi
       }
       seen.add(key);
 
-      for (const node of nodeIndex?.query(segmentBox(segment)) || []) {
+      for (const node of queryNodesForSegment(nodeIndex, segment)) {
         // Collapsed groups are visual summaries of hidden cells. Their
         // boundary routes are intentionally allowed to pass through the
         // summary box; validate the concrete cell/port geometry instead.
@@ -289,13 +289,26 @@ function segmentCrossesNodeBody(segment, node) {
 function findBlockingNode(points, nodeIndex, source, target, padding) {
   for (let index = 0; index < points.length - 1; index += 1) {
     const segment = { start: points[index], end: points[index + 1] };
-    for (const node of nodeIndex.query(segmentBox(segment, padding))) {
+    for (const node of queryNodesForSegment(nodeIndex, segment, padding)) {
       if (node.id === source.id || node.id === target.id) continue;
       const box = nodeBox(node, padding);
       if (orthogonalSegmentIntersectsBox(points[index], points[index + 1], box)) return node;
     }
   }
   return null;
+}
+
+function queryNodesForSegment(nodeIndex, segment, padding = 0) {
+  if (!nodeIndex || !segment?.start || !segment?.end) return [];
+  if (near(segment.start.y, segment.end.y) &&
+    typeof nodeIndex.queryHorizontalSegment === "function") {
+    return nodeIndex.queryHorizontalSegment(segment, padding);
+  }
+  if (near(segment.start.x, segment.end.x) &&
+    typeof nodeIndex.queryVerticalSegment === "function") {
+    return nodeIndex.queryVerticalSegment(segment, padding);
+  }
+  return nodeIndex.query(segmentBox(segment, padding));
 }
 
 function findNetOverlaps(edges, maximumViolations = Infinity) {
@@ -307,7 +320,7 @@ function findNetOverlaps(edges, maximumViolations = Infinity) {
       if (!horizontal && !vertical) continue;
       records.push({
         edge,
-        segment: { ...segment, validatorEdgeId: String(edge.id ?? "") },
+        segment: Object.freeze({ ...segment, validatorEdgeId: String(edge.id ?? "") }),
         orientation: horizontal ? "h" : "v",
         coordinate: horizontal ? segment.start.y : segment.start.x,
         minimum: horizontal
@@ -330,7 +343,9 @@ function findNetOverlaps(edges, maximumViolations = Infinity) {
   const violations = [];
   for (const left of records) {
     if (violations.length >= maximumViolations) break;
-    const candidates = index.querySegment(left.segment, MINIMUM_FOREIGN_WIRE_SEPARATION)
+    const candidates = (left.orientation === "h"
+      ? index.queryHorizontalForeignSegment(left.segment, MINIMUM_FOREIGN_WIRE_SEPARATION, left.segment.netGroupKey)
+      : index.queryVerticalForeignSegment(left.segment, MINIMUM_FOREIGN_WIRE_SEPARATION, left.segment.netGroupKey))
       .map((segment) => recordBySegment.get(segment))
       .filter(Boolean)
       .sort((a, b) => orderBySegment.get(a.segment) - orderBySegment.get(b.segment));

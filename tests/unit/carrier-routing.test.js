@@ -36,6 +36,28 @@ test("carrier routing does not partially publish a group with invalid geometry",
     item.code === "layered-carrier-physical-net-invalid"));
 });
 
+test("carrier target approach bypasses a localized leaf on the final horizontal segment", () => {
+  const nodes = makeNodes();
+  nodes.push({
+    id: "localized-leaf",
+    kind: "focus-input",
+    level: 1,
+    x: 350,
+    y: 4,
+    width: 32,
+    height: 24,
+    ports: []
+  });
+  const result = buildCarrierPhysicalNetRoutes(
+    makeLayeredGraph(),
+    nodes,
+    new Map([["carrier:n:0", 80], ["carrier:n:1", 80]])
+  );
+
+  assert.equal(result.groups[0].commit.status, "routed");
+  assert.ok(result.groups[0].edges[0].points.some((point) => point.x === 390));
+});
+
 test("carrier routing produces bounded slot-offset variants", () => {
   const result = buildCarrierPhysicalNetRoutes(
     makeLayeredGraph(),

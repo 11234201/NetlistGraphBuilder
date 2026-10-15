@@ -7,7 +7,7 @@
   ensurePort
 } from "../netlist/model.js";
 
-const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "="]);
+const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}"]);
 const DECLARATION_QUALIFIERS = new Set(["wire", "reg", "logic", "signed", "supply0", "supply1"]);
 
 export function parseVerilog(source) {
@@ -289,14 +289,20 @@ class StructuralParser {
       if (!pinToken || !this.matchValue("(")) {
         continue;
       }
-      const netToken = this.readConnectionNet();
+      const connection = this.readConnectionNet();
       this.matchValue(")");
+
+      if (connection?.kind === "unsupported") {
+        module.diagnostics.push({ severity: "warning", message: "Unsupported pin connection expression",
+          line: pinToken.line, column: pinToken.column });
+      }
 
       pins.push({
         pin: pinToken.value,
         pinDisplayName: pinToken.displayName,
-        net: netToken?.value || "",
-        netDisplayName: netToken?.displayName || ""
+        net: connection?.kind === "reference" ? connection.name : "",
+        netDisplayName: connection?.kind === "reference" ? connection.displayName : "",
+        ...(connection && connection.kind !== "reference" ? { connection } : {})
       });
     }
 
@@ -313,7 +319,7 @@ class StructuralParser {
 
   readConnectionNet() {
     let depth = 0;
-    let firstIdentifier = null;
+    const tokens = [];
 
     while (!this.isEof()) {
       const token = this.peek();
@@ -322,21 +328,18 @@ class StructuralParser {
       }
       if (token.value === "(") {
         depth += 1;
-        this.consume();
+        tokens.push(this.consume());
         continue;
       }
       if (token.value === ")") {
         depth -= 1;
-        this.consume();
+        tokens.push(this.consume());
         continue;
       }
-      if (!firstIdentifier && token.kind === "identifier") {
-        firstIdentifier = token;
-      }
-      this.consume();
+      tokens.push(this.consume());
     }
 
-    return firstIdentifier;
+    return parseConnectionTokens(tokens);
   }
 
   consumeUntilIdentifier(stopValue) {
@@ -418,6 +421,40 @@ class StructuralParser {
   isEof() {
     return this.peek().kind === "eof";
   }
+}
+
+function parseConnectionTokens(tokens) {
+  if (tokens.length === 0) return null;
+  const first = tokens[0];
+  if (first.value === "{" && tokens.at(-1).value === "}") {
+    const items = [];
+    let start = 1;
+    let depth = 0;
+    for (let index = 1; index < tokens.length - 1; index += 1) {
+      const value = tokens[index].value;
+      if (value === "{") depth += 1;
+      if (value === "}") depth -= 1;
+      if (value === "," && depth === 0) {
+        items.push(parseConnectionTokens(tokens.slice(start, index)));
+        start = index + 1;
+      }
+    }
+    items.push(parseConnectionTokens(tokens.slice(start, -1)));
+    if (items.every((item) => item && item.kind !== "unsupported")) {
+      return { kind: "concat", items };
+    }
+  }
+  const isReference = first.escaped ||
+    /^[A-Za-z_$][A-Za-z0-9_$]*(?:\[-?\d+(?::-?\d+)?\])?$/.test(first.value) ||
+    /^(?:\d+)?'[sS]?[bBdDhHoO][0-9a-fA-FxXzZ?_]+$/.test(first.value) ||
+    /^'[01xXzZ]$/.test(first.value) || /^-?\d+$/.test(first.value);
+  if (first.kind === "identifier" && isReference && (tokens.length === 1 ||
+      (tokens.length === 2 && /^\[(-?\d+)(:-?\d+)?\]$/.test(tokens[1].value)))) {
+    const suffix = tokens[1]?.value || "";
+    return { kind: "reference", name: first.value + suffix,
+      displayName: first.displayName + suffix, escaped: first.escaped };
+  }
+  return { kind: "unsupported", text: tokens.map((token) => token.raw).join(" ") };
 }
 
 function isRangeToken(value) {
