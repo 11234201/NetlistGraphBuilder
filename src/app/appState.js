@@ -47,6 +47,7 @@ export function createAppState(layoutPolicy) {
     timingBadgePositions: {},
     calibrationMode: false,
     layoutProviderId: DEFAULT_LAYOUT_PROVIDER_ID,
+    layoutFallbackFromProviderId: null,
     layoutRequestId: 0,
     selectionFocusRequestId: 0,
     layoutPolicy: cloneLayoutPolicy(layoutPolicy),

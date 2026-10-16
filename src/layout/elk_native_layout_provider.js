@@ -20,7 +20,8 @@ export class NativeLayeredLayoutProvider{
       return {...sized,ports:buildNodePorts(sized,sized,spacing.cellPinPitch)};
     });
     const nodeById=new Map(measured.map((node)=>[node.id,node]));
-    const portId=(nodeId,port)=>`${nodeId}::${port.direction}:${encodeURIComponent(port.rawPin||port.pin)}`;
+    // A concat's A{ordinal} terminals share rawPin A but are distinct endpoints.
+    const portId=(nodeId,port)=>`${nodeId}::${port.direction}:${encodeURIComponent(port.pin??port.rawPin)}`;
     const endpoint=(node,pin,role)=>{
       const port=getPort(node,pin,role),point=getConnectionPoint({...node,x:0,y:0},pin,role);
       return {id:port?portId(node.id,port):`${node.id}::virtual:${role}`,side:port?
@@ -29,7 +30,7 @@ export class NativeLayeredLayoutProvider{
           port?.side==='right'?point.x-node.width:0};
     };
     const input={nodes:measured.map((node)=>({id:node.id,displayName:node.label??node.id,width:node.width,height:node.height,
-      ports:node.ports.length?node.ports.map((port)=>endpoint({...node,ports:[port]},port.rawPin??port.pin,port.direction==='output'?'source':'target')):
+      ports:node.ports.length?node.ports.map((port)=>endpoint({...node,ports:[port]},port.pin??port.rawPin,port.direction==='output'?'source':'target')):
         [endpoint(node,null,'source'),endpoint(node,null,'target')]})),edges:graph.edges.map((edge)=>{
       const sourceNode=nodeById.get(edge.source),targetNode=nodeById.get(edge.target);
       if(!sourceNode||!targetNode)throw new PhaseError('adapter','missing-endpoint-node',[edge.id]);

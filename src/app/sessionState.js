@@ -2,6 +2,17 @@ import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedVi
 import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/session_codec.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { isObjectRef } from "../contracts/object_ref.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
+
+export function getSessionLayoutProviderId(session) {
+  const providerId = session?.layoutProviderId;
+  // Older snapshots cannot distinguish a persisted failure fallback from a choice.
+  if (!session?.layoutProviderPreferenceVersion && providerId === "simple-layered") {
+    return DEFAULT_LAYOUT_PROVIDER_ID;
+  }
+  return ["native-layered", "elk-layered", "simple-layered"].includes(providerId)
+    ? providerId : DEFAULT_LAYOUT_PROVIDER_ID;
+}
 
 export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
 export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
@@ -52,7 +63,8 @@ export function createSessionSnapshot(state) {
     fanoutDepth: state.fanoutDepth,
     searchQuery: state.searchQuery,
     showAliases: state.showAliases,
-    layoutProviderId: state.layoutProviderId,
+    layoutProviderId: state.layoutFallbackFromProviderId || state.layoutProviderId,
+    layoutProviderPreferenceVersion: 1,
     transform: { ...state.transform },
     useFanoutHubs: state.useFanoutHubs,
     // Retain the legacy codec field as an explicit disabled value.

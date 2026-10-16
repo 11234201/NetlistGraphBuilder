@@ -147,7 +147,10 @@ LayoutProvider
 
 `native-layered` registry 现整体采用 `elk_native_layout_provider.js` 的 H08 profile，内部完整相位
 来自 `src/layout/elk_native/`。验收后用户明确授权默认提升：1.1.1由 `providerDefaults.js` 统一
-新会话/无参数registry/EDA启动默认H08；Simple仍为失败回退，旧session显式选择继续尊重。
+新会话/无参数registry/EDA启动默认H08。UI失败依次降级H08 -> ELK -> Simple，Simple失败后停止；
+取消不触发降级。自动降级只改变当前运行的provider，session保存原始选择，避免下次启动固化回退。
+旧session无preference版本且保存Simple时一次性迁回H08（旧格式无法区分自动回退和主动选择）；
+新session保存preference版本，之后显式选择Simple/ELK继续尊重。
 无第二个 Native UI ID，也不混用旧相位。
 离线调用入口为 `elk_native/h08.js`；原 `index.js` baseline 只用于受控相位比较。
 Provider 的 `executionMode: "async"` 声明由 Single/Compare 同时消费，不能按 ELK ID 猜测异步性。

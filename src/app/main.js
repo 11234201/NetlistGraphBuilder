@@ -10,7 +10,7 @@ import {
   normalizeLayoutPolicy
 } from "../layout/layoutPolicy.js";
 import { getLayoutProvider, listLayoutProviders } from "../layout/layoutProvider.js";
-import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID, getNextLayoutProviderId } from "../layout/providerDefaults.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
@@ -82,7 +82,7 @@ import {
   setFocusedRootNodeIds
 } from "./appState.js";
 import { sampleNetlist } from "./sampleNetlist.js";
-import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
+import { createSessionSnapshot, loadSessionState, saveSessionState, getSessionLayoutProviderId } from "./sessionState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import {
   addFocusedRootNodeId,
@@ -474,6 +474,7 @@ function createStartupHandlers() {
   return {
     configureTarget(target) {
       state.layoutProviderId = DEFAULT_LAYOUT_PROVIDER_ID;
+      state.layoutFallbackFromProviderId = null;
       elements.layoutProviderSelect.value = state.layoutProviderId;
       if (target.faninDepth !== undefined) state.faninDepth = target.faninDepth;
       if (target.fanoutDepth !== undefined) state.fanoutDepth = target.fanoutDepth;
@@ -1466,6 +1467,7 @@ function renderLayoutProviderOptions() {
 }
 
 function handleLayoutProviderChange(event) {
+  state.layoutFallbackFromProviderId = null;
   state.layoutProviderId = event.target.value;
   setSingleTransform({ x: 0, y: 0, scale: 1 });
   if (getLayoutProvider(state.layoutProviderId).experimental) {
@@ -1477,10 +1479,20 @@ function handleLayoutProviderChange(event) {
 }
 
 function handleLayoutFailure(error) {
-  logProcess("error", "layout", `Layout failed; falling back to Simple Layered: ${error.message}`);
-  state.layoutProviderId = "simple-layered";
+  if (error?.name === "AbortError") return;
+  const failedProvider = getLayoutProvider(state.layoutProviderId);
+  const nextProviderId = getNextLayoutProviderId(state.layoutProviderId);
+  if (!nextProviderId) {
+    logProcess("error", "layout", `${failedProvider.label} failed; no fallback remains: ${error.message}`);
+    setStatus(`Layout failed: ${error.message}`);
+    return;
+  }
+  const nextProvider = getLayoutProvider(nextProviderId);
+  logProcess("error", "layout", `${failedProvider.label} failed; falling back to ${nextProvider.label}: ${error.message}`);
+  state.layoutFallbackFromProviderId ||= state.layoutProviderId;
+  state.layoutProviderId = nextProviderId;
   elements.layoutProviderSelect.value = state.layoutProviderId;
-  setStatus(`Layout failed; using Simple Layered: ${error.message}`);
+  setStatus(`Layout failed; trying ${nextProvider.label}: ${error.message}`);
   if (state.compare.active) renderCompareGraphs();
   else renderCurrentModuleGraph();
 }
@@ -4041,7 +4053,8 @@ function applySessionPreferences(session) {
     ), session.activeFocusedRootNodeId);
     state.focusedRootRefs = cloneObjectRefs(session.focusedRootRefs);
     state.showAliases = Boolean(session.showAliases);
-    state.layoutProviderId = session.layoutProviderId || state.layoutProviderId;
+    state.layoutProviderId = getSessionLayoutProviderId(session);
+    state.layoutFallbackFromProviderId = null;
     state.useFanoutHubs = session.useFanoutHubs !== false;
     // Group collapse is retired. Legacy sessions remain readable but cannot
     // reactivate the removed display transform.

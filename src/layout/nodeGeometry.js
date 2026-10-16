@@ -109,8 +109,8 @@ export function getConnectionPoint(node, pin, role) {
 export function getPort(node, pin, role) {
   const preferredDirection = role === "source" ? "output" : "input";
   return (
-    node.ports?.find((candidate) =>
-      (candidate.pin === pin || candidate.rawPin === pin) && candidate.direction === preferredDirection) ||
+    node.ports?.find((candidate) => candidate.pin === pin && candidate.direction === preferredDirection) ||
+    node.ports?.find((candidate) => candidate.rawPin === pin && candidate.direction === preferredDirection) ||
     node.ports?.find((candidate) => candidate.direction === preferredDirection) ||
     node.ports?.[0]
   );

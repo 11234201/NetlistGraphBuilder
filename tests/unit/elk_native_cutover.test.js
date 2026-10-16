@@ -68,7 +68,7 @@ test('app, registry and EDA startup share H08 default while explicit legacy choi
   assert.equal(state.layoutProviderId,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(elements.layoutProviderSelect.value,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(state.faninDepth,2);
-  assert.match(source,/state\.layoutProviderId = session\.layoutProviderId \|\| state\.layoutProviderId/);
+  assert.match(source,/state\.layoutProviderId = getSessionLayoutProviderId\(session\)/);
   const failure=source.slice(source.indexOf('function handleLayoutFailure('),source.indexOf('\nfunction ',source.indexOf('function handleLayoutFailure(')+10));
-  assert.match(failure,/state\.layoutProviderId = "simple-layered"/);
+  assert.match(failure,/getNextLayoutProviderId\(state\.layoutProviderId\)/);
 });

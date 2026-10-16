@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {NativeLayeredLayoutProvider} from '../../src/layout/elk_native_layout_provider.js';
 import {getConnectionPoint} from '../../src/layout/nodeGeometry.js';
+import {parseVerilog} from '../../src/parser/verilogParser.js';
+import {buildSchematicGraph} from '../../src/netlist/graph.js';
 
 function makeGraph(){
   return {moduleName:'adapter',nodes:[
@@ -42,4 +44,29 @@ test('elk_native provider returns an empty shell and rejects cancellation/missin
   await assert.rejects(provider.layout(makeGraph(),{signal:AbortSignal.abort()}),{name:'AbortError'});
   await assert.rejects(provider.layout({nodes:[],edges:[{id:'bad',source:'absent',target:'missing'}]}),
     (error)=>error.diagnostic.invariant==='missing-endpoint-node');
+});
+
+test('H08 routes each concat terminal independently on both input and output pins',async()=>{
+  const design=parseVerilog(`module concat_ports(input a, b, output x, y);
+    UNKNOWN u (.A({a,b}), .Z({x,y})); endmodule`);
+  const input=buildSchematicGraph(design.modules[0]),before=structuredClone(input);
+  const provider=new NativeLayeredLayoutProvider({profile:'h08'});
+  const result=await provider.layout(input);
+  assert.equal(result.layoutStatus,'routed');
+  assert.equal(result.validationMetrics.total,0);
+  assert.deepEqual(input,before);
+  const cell=result.nodes.find((node)=>node.id==='cell:u');
+  assert.equal(new Set(cell.ports.map((port)=>`${port.x},${port.y}`)).size,4);
+  for(const edge of result.edges){
+    const source=result.nodes.find((node)=>node.id===edge.source);
+    const target=result.nodes.find((node)=>node.id===edge.target);
+    const pin=edge.source==='cell:u'?edge.sourcePin:edge.targetPin;
+    const port=cell.ports.find((entry)=>entry.pin===pin);
+    assert.ok(port,pin);
+    assert.deepEqual(edge.points[edge.source==='cell:u'?0:edge.points.length-1],
+      {x:cell.x+port.x,y:cell.y+port.y});
+    assert.deepEqual(edge.points[0],getConnectionPoint(source,edge.sourcePin,'source'));
+    assert.deepEqual(edge.points.at(-1),getConnectionPoint(target,edge.targetPin,'target'));
+  }
+  assert.deepEqual(geometry(await provider.layout({...input,nodes:input.nodes.toReversed(),edges:input.edges.toReversed()})),geometry(result));
 });
