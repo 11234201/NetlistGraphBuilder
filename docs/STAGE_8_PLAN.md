@@ -2,6 +2,9 @@
 
 更新日期：2026-09-14。状态：进行中（改用 47 个 mapped case 复验后，真实 move/resize 性能仍需优化）。
 
+当前专项维护见 [Linux launcher/CMake/EDA 计划](plans/linux_launcher_maintenance.md)；
+以下性能实验保持历史口径，不因启动器维护而重启性能优化或宣称完成。
+
 范围决策（2026-09-14）：group collapse/expand 不再属于产品功能和 Stage 8 后续工作。后续性能、
 mapped 验收和 Compare/Focused 方案统一按 full graph、Search-first 或 Focused 设计；现有折叠字段
 只为旧 session/golden 兼容保留，不新增折叠交互、折叠专用路由或折叠基线。

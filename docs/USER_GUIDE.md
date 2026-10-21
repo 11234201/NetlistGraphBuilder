@@ -2,6 +2,10 @@
 
 本教程面向使用 Netlist Graph Builder 阅读、追踪和对比门级 structural Verilog 的工程师。内容覆盖当前版本的全部用户功能，包括数据导入、搜索、大图局部浏览、时序、Cell Config、布局调整、双 module 对比、过程日志、导出和 EDA 集成。
 
+当前源码默认 H08，失败按 H08 → ELK → Simple 降级，自动降级不覆盖保存的首选项。
+`v1.1.2` 于 2026-10-21 同版本覆盖更新，标签和附件包含后续修复；旧下载文件不会自动更新，请重新下载并核对 SHA-256。
+Linux 单文件、CMake 和 EDA/Tcl 用法见 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
+
 ## v1.0.1 新增功能速览
 
 | 新功能 | 从哪里使用 | 要点 |
@@ -309,10 +313,10 @@ Cell 数超过 500 的 module 默认进入 Search-first：
 
 - `Simple Layered`：可手动选择的旧布局方案，保留为失败回退。
 - `ELK Layered (Experimental)`：vendored ELK 布局，适合尝试不同的大图初始排布；失败时回退 Simple。
-- `Native Layered H08`：默认的项目静态布局/正交布线引擎，Single/Compare 共用同一路径；失败显示诊断并回退 Simple，不混入旧 Native 相位。
+- `Native Layered H08`：默认的项目静态布局/正交布线引擎，Single/Compare 共用同一路径；失败显示诊断，先尝试 ELK，再尝试 Simple，不混入旧 Native 相位。
 
 切换 provider 会重新布局当前视图。
-新会话及EDA启动默认使用H08。旧session中明确保存的Simple/ELK选择继续恢复；如希望改用H08，请手动切换一次。
+新会话及 EDA 启动默认 H08。没有 preference 版本的旧 Simple 会话一次性恢复 H08；之后主动选择 Simple/ELK 继续保留。自动降级只改变当前运行的 provider，不把失败回退固化为下次启动的首选项；Simple 也失败后停止重试，取消任务不触发降级。
 
 H08 当前范围是平面图、固定左右侧端口及已声明的验收语料，并非 ELK 全部选项的替代品。
 复杂自环与分组组合等不支持输入会明确报错，不应通过调大超时或隐藏诊断强行验收。
@@ -627,6 +631,9 @@ Golden 与 Cell Config 是不同格式：Golden 保存布局与显示 override�
 | `ArrowLeft` / `ArrowRight` | 调整侧栏宽度 | 侧栏分隔条获得焦点时 |
 
 ## 17. EDA/脚本启动接口
+
+Linux `ngb` 的 CMake 构建、安装、状态所有权和可复用 Tcl helper 见 [Linux 单文件指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
+`ngb` 不依赖 Node/Python；原生入口只在监听前验证文件可读性，网表和 Cell Config 语义仍由浏览器校验。
 
 ### 17.1 完整示例
 

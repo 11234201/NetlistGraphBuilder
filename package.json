@@ -7,6 +7,7 @@
     "start": "node tools/serve.mjs",
     "test": "node tools/run-unit-tests.mjs",
     "test:launcher": "node tests/e2e/launcher-e2e.mjs",
+    "test:docs": "node tools/check_docs_links.mjs",
     "test:mapped-cases": "node tools/test-mapped-cases.mjs",
     "test:mapped-hard": "node tools/test-mapped-cases.mjs --hard",
     "benchmark": "node tools/benchmark-large.mjs",

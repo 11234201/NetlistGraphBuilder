@@ -1,7 +1,12 @@
 #include "embedded_assets.hpp"
+#include "ProcessGuard.h"
 
 #include <arpa/inet.h>
+#include <atomic>
+#include <poll.h>
 #include <cerrno>
+#include <chrono>
+#include <cctype>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -52,10 +57,12 @@ struct StateRecord {
     std::string url;
     std::string stateFile;
     std::string owner;
+    std::string m_processStartTicks;
 };
 
 struct ServerContext {
     std::string startupJson;
+    std::atomic<int> m_activeClients{0};
 };
 
 void signalHandler(int) {
@@ -71,6 +78,7 @@ void installSignalHandlers() {
     sigaction(SIGINT, &action, 0);
     sigaction(SIGTERM, &action, 0);
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGCHLD, SIG_IGN);
 }
 
 void enableParentDeathCleanup() {
@@ -106,13 +114,29 @@ std::string jsonEscape(const std::string& value) {
     return output.str();
 }
 
-std::string jsonUnescape(const std::string& value) {
+bool ReadUnicodeEscape(const std::string& value, std::size_t begin, unsigned int* code) {
+    if (begin + 4 > value.size()) return false;
+    *code = 0;
+    for (std::size_t index = begin; index < begin + 4; ++index) {
+        const char digit = value[index];
+        int number = digit >= '0' && digit <= '9' ? digit - '0' :
+            digit >= 'a' && digit <= 'f' ? digit - 'a' + 10 :
+            digit >= 'A' && digit <= 'F' ? digit - 'A' + 10 : -1;
+        if (number < 0) return false;
+        *code = (*code << 4) | static_cast<unsigned int>(number);
+    }
+    return true;
+}
+
+bool DecodeJsonString(const std::string& value, std::string* decoded) {
     std::string result;
     for (std::size_t index = 0; index < value.size(); ++index) {
-        if (value[index] != '\\' || index + 1 >= value.size()) {
+        if (value[index] != '\\') {
+            if (static_cast<unsigned char>(value[index]) < 0x20) return false;
             result += value[index];
             continue;
         }
+        if (index + 1 >= value.size()) return false;
         const char escaped = value[++index];
         switch (escaped) {
             case '"': result += '"'; break;
@@ -123,10 +147,32 @@ std::string jsonUnescape(const std::string& value) {
             case 'n': result += '\n'; break;
             case 'r': result += '\r'; break;
             case 't': result += '\t'; break;
-            default: result += escaped; break;
+            case 'u': {
+                unsigned int code = 0;
+                if (!ReadUnicodeEscape(value, index + 1, &code)) return false;
+                index += 4;
+                if (code >= 0xd800 && code <= 0xdbff) {
+                    unsigned int low = 0;
+                    if (value.substr(index + 1, 2) != "\\u" ||
+                        !ReadUnicodeEscape(value, index + 3, &low) || low < 0xdc00 || low > 0xdfff) return false;
+                    code = 0x10000 + ((code - 0xd800) << 10) + low - 0xdc00;
+                    index += 6;
+                } else if (code >= 0xdc00 && code <= 0xdfff) return false;
+                if (code == 0) return false;
+                if (code < 0x80) result += static_cast<char>(code);
+                else {
+                    if (code >= 0x10000) result += static_cast<char>(0xf0 | (code >> 18));
+                    if (code >= 0x800) result += static_cast<char>((code < 0x10000 ? 0xe0 : 0x80) | ((code >> 12) & 0x3f));
+                    result += static_cast<char>((code < 0x800 ? 0xc0 : 0x80) | ((code >> 6) & 0x3f));
+                    result += static_cast<char>(0x80 | (code & 0x3f));
+                }
+                break;
+            }
+            default: return false;
         }
     }
-    return result;
+    *decoded = result;
+    return true;
 }
 
 std::string basenameOf(const std::string& path) {
@@ -151,8 +197,13 @@ bool readTextFile(const std::string& path, std::string* text, std::string* error
 }
 
 std::string absolutePath(const std::string& path) {
-    if (path.empty() || path[0] == '/') return path;
+    if (path.empty()) return path;
     char buffer[4096];
+    if (realpath(path.c_str(), buffer)) return buffer;
+    const std::size_t slash = path.find_last_of('/');
+    const std::string parent = slash == std::string::npos ? "." : path.substr(0, slash + 1);
+    if (realpath(parent.c_str(), buffer)) return std::string(buffer) + "/" + basenameOf(path);
+    if (path[0] == '/') return path;
     if (!getcwd(buffer, sizeof(buffer))) return path;
     return std::string(buffer) + "/" + path;
 }
@@ -262,20 +313,29 @@ std::string stateJson(const StateRecord& state) {
            << ",\"port\":" << state.port
            << ",\"url\":\"" << jsonEscape(state.url) << "\""
            << ",\"stateFile\":\"" << jsonEscape(state.stateFile) << "\""
-           << ",\"owner\":\"" << jsonEscape(state.owner) << "\"}\n";
+           << ",\"owner\":\"" << jsonEscape(state.owner) << "\""
+           << ",\"processStartTicks\":\"" << jsonEscape(state.m_processStartTicks) << "\"}\n";
     return output.str();
 }
 
 bool writeStateFile(const StateRecord& state, std::string* error) {
     const std::string temporary = state.stateFile + ".tmp." + std::to_string(static_cast<long long>(getpid()));
-    std::ofstream stream(temporary.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
-    if (!stream) {
+    const int descriptor = open(temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (descriptor < 0) {
         if (error) *error = "Cannot write state file " + state.stateFile + ": " + std::strerror(errno);
         return false;
     }
-    stream << stateJson(state);
-    stream.close();
-    if (!stream) {
+    const std::string contents = stateJson(state);
+    std::size_t offset = 0;
+    while (offset < contents.size()) {
+        const ssize_t count = write(descriptor, contents.data() + offset, contents.size() - offset);
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0) break;
+        offset += static_cast<std::size_t>(count);
+    }
+    const bool complete = offset == contents.size();
+    const int closed = close(descriptor);
+    if (!complete || closed != 0) {
         if (error) *error = "Cannot finish state file " + state.stateFile;
         unlink(temporary.c_str());
         return false;
@@ -288,28 +348,36 @@ bool writeStateFile(const StateRecord& state, std::string* error) {
     return true;
 }
 
-bool extractJsonNumber(const std::string& json, const std::string& key, int* value) {
-    const std::string marker = "\"" + key + "\":";
+std::size_t FindJsonValue(const std::string& json, const std::string& key) {
+    const std::string marker = "\"" + key + "\"";
     const std::size_t position = json.find(marker);
-    if (position == std::string::npos) return false;
+    if (position == std::string::npos) return position;
     std::size_t begin = position + marker.size();
+    while (begin < json.size() && std::isspace(static_cast<unsigned char>(json[begin]))) ++begin;
+    if (begin >= json.size() || json[begin++] != ':') return std::string::npos;
+    while (begin < json.size() && std::isspace(static_cast<unsigned char>(json[begin]))) ++begin;
+    return begin;
+}
+
+bool extractJsonNumber(const std::string& json, const std::string& key, int* value) {
+    const std::size_t begin = FindJsonValue(json, key);
+    if (begin == std::string::npos) return false;
     std::size_t end = begin;
     while (end < json.size() && json[end] >= '0' && json[end] <= '9') ++end;
+    if (end < json.size() && json[end] != ',' && json[end] != '}' &&
+        !std::isspace(static_cast<unsigned char>(json[end]))) return false;
     return begin != end && parseInteger(json.substr(begin, end - begin), 0, 2147483647, value);
 }
 
 bool extractJsonString(const std::string& json, const std::string& key, std::string* value) {
-    const std::string marker = "\"" + key + "\":\"";
-    const std::size_t position = json.find(marker);
-    if (position == std::string::npos) return false;
-    std::size_t begin = position + marker.size();
+    std::size_t begin = FindJsonValue(json, key);
+    if (begin == std::string::npos || begin >= json.size() || json[begin++] != '"') return false;
     std::string encoded;
     bool escaped = false;
     for (std::size_t index = begin; index < json.size(); ++index) {
         const char character = json[index];
         if (!escaped && character == '"') {
-            *value = jsonUnescape(encoded);
-            return true;
+            return DecodeJsonString(encoded, value);
         }
         if (!escaped && character == '\\') escaped = true;
         else escaped = false;
@@ -321,45 +389,37 @@ bool extractJsonString(const std::string& json, const std::string& key, std::str
 bool readStateFile(const std::string& path, StateRecord* state, std::string* error) {
     std::string content;
     if (!readTextFile(path, &content, error)) return false;
-    if (!extractJsonNumber(content, "pid", &state->pid) ||
+    int version = 0;
+    if (!extractJsonNumber(content, "version", &version) || version != 1 ||
+        !extractJsonNumber(content, "pid", &state->pid) || state->pid <= 1 ||
         !extractJsonNumber(content, "port", &state->port) ||
+        state->port < 1 || state->port > 65535 ||
         !extractJsonString(content, "url", &state->url) ||
         !extractJsonString(content, "stateFile", &state->stateFile) ||
-        !extractJsonString(content, "owner", &state->owner)) {
+        !extractJsonString(content, "owner", &state->owner) || state->owner.empty() ||
+        absolutePath(state->stateFile) != absolutePath(path)) {
         if (error) *error = "Invalid Netlist Graph Builder state file: " + path;
+        return false;
+    }
+    if (FindJsonValue(content, "processStartTicks") != std::string::npos &&
+        (!extractJsonString(content, "processStartTicks", &state->m_processStartTicks) ||
+         state->m_processStartTicks.empty() || state->m_processStartTicks.find_first_not_of("0123456789") != std::string::npos)) {
+        if (error) *error = "Invalid processStartTicks in state file: " + path;
         return false;
     }
     return true;
 }
 
-std::string readProcessCommandLine(int pid) {
-    std::ostringstream path;
-    path << "/proc/" << pid << "/cmdline";
-    std::ifstream stream(path.str().c_str(), std::ios::in | std::ios::binary);
-    if (!stream) return std::string();
-    std::ostringstream content;
-    content << stream.rdbuf();
-    std::string commandLine = content.str();
-    for (std::size_t index = 0; index < commandLine.size(); ++index) {
-        if (commandLine[index] == '\0') commandLine[index] = ' ';
-    }
-    return commandLine;
-}
-
 bool processBelongsToState(const StateRecord& state) {
-    const std::string commandLine = readProcessCommandLine(state.pid);
-    if (commandLine.empty()) return false;
-    const bool explicitStart = commandLine.find(" start") != std::string::npos;
-    const bool legacyStart = commandLine.find("--netlist") != std::string::npos ||
-        commandLine.find("--timing") != std::string::npos ||
-        commandLine.find("--cell-config") != std::string::npos;
-    return (explicitStart || legacyStart) &&
-        commandLine.find("--state-file") != std::string::npos &&
-        commandLine.find(basenameOf(state.stateFile)) != std::string::npos;
+    const std::string startTicks = ngb::ReadProcessStartTicks(state.pid);
+    return !startTicks.empty() && ngb::IsSameExecutable(state.pid) &&
+        ngb::HasExactStateArgument(state.pid, absolutePath(state.stateFile)) &&
+        (state.m_processStartTicks.empty() || state.m_processStartTicks == startTicks);
 }
 
 bool processExists(int pid) {
     if (pid <= 0) return false;
+    if (ngb::ReadProcessStartTicks(pid).empty()) return false;
     if (kill(pid, 0) == 0) return true;
     return errno == EPERM;
 }
@@ -380,7 +440,6 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
     if (access(statePath.c_str(), F_OK) != 0 && errno == ENOENT) return 0;
     errno = 0;
     if (!readStateFile(statePath, &state, &error)) {
-        if (errno == ENOENT) return 0;
         if (!quiet) std::cerr << error << std::endl;
         return 2;
     }
@@ -400,6 +459,7 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
         return 4;
     }
     if (!waitForProcessExit(state.pid, 3000) && force) {
+        if (!processBelongsToState(state)) return 3;
         kill(state.pid, SIGKILL);
         waitForProcessExit(state.pid, 1000);
     }
@@ -407,7 +467,10 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
         if (!quiet) std::cerr << "Process did not exit after SIGTERM" << std::endl;
         return 5;
     }
-    unlink(statePath.c_str());
+    StateRecord current;
+    if (readStateFile(statePath, &current, 0) && current.owner == state.owner && current.pid == state.pid) {
+        unlink(statePath.c_str());
+    }
     return 0;
 }
 
@@ -524,13 +587,26 @@ void sendResponse(int descriptor, int status, const std::string& type,
 
 void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context) {
     char buffer[16384];
-    const ssize_t received = recv(descriptor, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) {
+    timeval timeout = {2, 0};
+    setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    std::string header;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (header.size() < sizeof(buffer) && header.find("\r\n\r\n") == std::string::npos) {
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
+        if (remaining <= 0) break;
+        pollfd ready = {descriptor, POLLIN, 0};
+        if (poll(&ready, 1, static_cast<int>(remaining)) <= 0) break;
+        const ssize_t count = recv(descriptor, buffer, sizeof(buffer) - header.size(), 0);
+        if (count <= 0) break;
+        header.append(buffer, static_cast<std::size_t>(count));
+    }
+    if (header.find("\r\n\r\n") == std::string::npos) {
+        sendResponse(descriptor, 400, "text/plain; charset=utf-8", "Incomplete request\n", false, true);
         close(descriptor);
         return;
     }
-    buffer[received] = '\0';
-    std::istringstream request(std::string(buffer, static_cast<std::size_t>(received)));
+    std::istringstream request(header);
     std::string method;
     std::string target;
     std::string version;
@@ -697,6 +773,19 @@ bool parseStartOptions(int argc, char** argv, int first, StartOptions* options, 
 }
 
 int runStart(const StartOptions& options) {
+    bool hasStartup = false;
+    std::string error;
+    const std::string startupJson = createStartupManifest(options, &hasStartup, &error);
+    if (!error.empty()) {
+        std::cerr << error << std::endl;
+        return 2;
+    }
+    if (options.replaceExisting && stopState(options.stateFile, false, false) != 0) return 3;
+    ngb::StateFileLock stateLock;
+    if (!stateLock.Acquire(options.stateFile, &error)) {
+        std::cerr << error << std::endl;
+        return 3;
+    }
     if (!options.stateFile.empty() && access(options.stateFile.c_str(), F_OK) == 0 && !options.replaceExisting) {
         StateRecord existing;
         std::string stateError;
@@ -705,29 +794,13 @@ int runStart(const StartOptions& options) {
                       << options.stateFile << std::endl;
             return 2;
         }
-        if (processExists(existing.pid) && processBelongsToState(existing)) {
+        if (processExists(existing.pid)) {
             std::cerr << "A Netlist Graph Builder session is already running for state file: "
                       << options.stateFile << std::endl;
             return 3;
         }
         unlink(options.stateFile.c_str());
     }
-    if (options.replaceExisting) {
-        const int result = stopState(options.stateFile, false, true);
-        if (result != 0) {
-            std::cerr << "Cannot replace existing Netlist Graph Builder session" << std::endl;
-            return result;
-        }
-    }
-
-    bool hasStartup = false;
-    std::string error;
-    const std::string startupJson = createStartupManifest(options, &hasStartup, &error);
-    if (!error.empty()) {
-        std::cerr << error << std::endl;
-        return 2;
-    }
-
     int actualPort = 0;
     const int listener = createListener(options.port, &actualPort, &error);
     if (listener < 0) {
@@ -741,6 +814,7 @@ int runStart(const StartOptions& options) {
     state.url = buildUrl(actualPort, hasStartup);
     state.stateFile = options.stateFile;
     state.owner = makeOwnerToken();
+    state.m_processStartTicks = ngb::ReadProcessStartTicks(state.pid);
     if (!state.stateFile.empty() && !writeStateFile(state, &error)) {
         close(listener);
         std::cerr << error << std::endl;
@@ -749,7 +823,7 @@ int runStart(const StartOptions& options) {
 
     installSignalHandlers();
     if (options.watchParent) enableParentDeathCleanup();
-    std::cout << "Starting Netlist Graph Builder preview server..." << std::endl;
+    std::cerr << "Starting Netlist Graph Builder preview server..." << std::endl;
     std::cout << "{\"event\":\"ready\",\"host\":\"127.0.0.1\",\"port\":"
               << actualPort << ",\"url\":\"" << jsonEscape(state.url)
               << "\",\"startup\":{"
@@ -761,12 +835,18 @@ int runStart(const StartOptions& options) {
               << ",\"faninDepth\":" << (options.faninDepth < 0 ? "null" : std::to_string(options.faninDepth))
               << ",\"fanoutDepth\":" << (options.fanoutDepth < 0 ? "null" : std::to_string(options.fanoutDepth))
               << "}}" << std::endl;
-    if (!state.stateFile.empty()) std::cout << "State file: " << state.stateFile << std::endl;
+    if (!state.stateFile.empty()) std::cerr << "State file: " << state.stateFile << std::endl;
 
     if (options.openBrowser) openBrowser(state.url);
     const std::shared_ptr<ServerContext> context(new ServerContext);
     context->startupJson = startupJson;
     while (!g_stopRequested) {
+        pollfd ready = {listener, POLLIN, 0};
+        const int readyCount = poll(&ready, 1, 250);
+        if (readyCount <= 0) {
+            if (readyCount < 0 && errno != EINTR) break;
+            continue;
+        }
         sockaddr_in clientAddress;
         socklen_t clientLength = sizeof(clientAddress);
         const int client = accept(listener, reinterpret_cast<sockaddr*>(&clientAddress), &clientLength);
@@ -778,7 +858,20 @@ int runStart(const StartOptions& options) {
             if (!state.stateFile.empty()) unlink(state.stateFile.c_str());
             return 1;
         }
-        std::thread(handleClient, client, context).detach();
+        if (context->m_activeClients.fetch_add(1) >= 32) {
+            context->m_activeClients.fetch_sub(1);
+            close(client);
+            continue;
+        }
+        try {
+            std::thread([client, context]() {
+                handleClient(client, context);
+                context->m_activeClients.fetch_sub(1);
+            }).detach();
+        } catch (...) {
+            context->m_activeClients.fetch_sub(1);
+            close(client);
+        }
     }
     close(listener);
     if (!state.stateFile.empty()) {

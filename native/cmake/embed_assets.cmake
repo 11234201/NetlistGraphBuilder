@@ -2,16 +2,10 @@ if (NOT DEFINED NGB_OUTPUT OR NOT DEFINED NGB_SOURCE_ROOT)
     message(FATAL_ERROR "NGB_OUTPUT and NGB_SOURCE_ROOT are required")
 endif()
 
-file(GLOB_RECURSE NGB_SOURCE_ASSETS
-    "${NGB_SOURCE_ROOT}/src/*.js")
-
-set(NGB_ASSETS
-    "${NGB_SOURCE_ROOT}/index.html"
-    "${NGB_SOURCE_ROOT}/styles.css"
-    ${NGB_SOURCE_ASSETS}
-    "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/lib/elk.bundled.js"
-    "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/LICENSE.md")
-list(SORT NGB_ASSETS)
+if (NOT DEFINED NGB_ASSET_MANIFEST)
+    message(FATAL_ERROR "NGB_ASSET_MANIFEST is required")
+endif()
+file(STRINGS "${NGB_ASSET_MANIFEST}" NGB_ASSETS ENCODING UTF-8)
 
 get_filename_component(NGB_OUTPUT_DIR "${NGB_OUTPUT}" DIRECTORY)
 file(MAKE_DIRECTORY "${NGB_OUTPUT_DIR}")

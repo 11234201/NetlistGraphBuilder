@@ -1,5 +1,17 @@
 # ELK-inspired Simple layout and routing work log
 
+## 2026-10-21 — Linux single-file/CMake/EDA maintenance
+
+Maintained current README, guides, architecture and status documents without rewriting historical experiments.
+Hardened native process/state ownership and concurrency; added bounded HTTP and ready-only stdout.
+Added root/standalone CMake, UTF-8 asset manifest dependency, configurable install and Tcl ready/status/stop helper.
+Linux strict C++11/-Wall/-Wextra/-Wpedantic build passed; CTest5/5 (9 native cases plus CMake/Tcl suites),
+npm815/815, Node/Python launcher E2E and114 relative project Markdown links passed.
+Fixed existing launcher E2E's Linux python vs python3 portability failure. Windows-only isolated compile/smoke passed.
+Remote build/output: /home/wzh/my_code/netlistGraphBuilder-linux-maintenance-20261021.
+No layout/performance work or release/push; ABI/old toolchain/browser/commercial EDA matrix remains unverified.
+See docs/plans/linux_launcher_maintenance.md for scope, evidence and remaining limits.
+
 ## 2026-10-15 — Review before master merge
 
 Reviewed default/async/workspace/physical-tree/index/validator/static entry and commit scope. Fixed one

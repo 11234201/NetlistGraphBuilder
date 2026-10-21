@@ -22,6 +22,11 @@ measurement, physical wire construction, labels and renderer/workspace conversio
 only complete validated immutable geometry is returned. Diagnostics reject unsupported input rather than
 silently returning a partial drawing or invoking a fallback engine.
 
+Application integration (master after v1.1.2): H08 is the default; the UI alone tries ELK and then
+Simple on failure, stopping after Simple fails. Cancellation does not trigger fallback. Automatic
+fallback is not persisted as a user preference. The standalone package never invokes another engine.
+Concat terminals use distinct display pin identities in the adapter, even when sharing one raw pin.
+
 Optional `orderGroups` consists of `{nodeId, membershipKey}` records derived from public topology.
 The entry snapshots, validates and canonically sorts them before any asynchronous observation. It records
 a separate profile/hint digest while retaining the full canonical `inputDigest` and the exact structural

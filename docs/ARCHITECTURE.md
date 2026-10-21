@@ -483,6 +483,16 @@ Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文
 `/__ngb_startup__.json` 仅在 loopback 服务上暴露显式启动输入，ready stdout 只包含文件名和目标摘要，
 不包含网表、时序或 Cell Config 原文。
 
+## Linux 单文件与 EDA 集成（2026-10-21）
+
+native/ 是 Linux 独立进程，不把 parser/layout 或 HTTP server 链接进 EDA 主程序。
+顶层与 native/ CMake 共享 ngb target；资源清单跟踪新增/删除/修改，运行无需外部前端目录。
+原生启动前只检查文件可读性，语义校验留在浏览器；ready 仅表示 listener/manifest 就绪。
+状态锁保护并发启动；精确可执行文件、路径参数和进程启动时间共同验证 stop/replace 所有权。
+状态以 0600 独占临时文件加 rename 写入；HTTP 连接、请求头和读取时间有界。
+tools/eda/ngb.tcl 通过 ready 协议等待启动，保留 pipeline，错误交给 EDA，不直接 kill PID。
+安装由 NGB_INSTALL 与专用目录变量控制。详见 [Linux 指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
+
 ## 数据模型原则
 
 - net 名称使用 canonical form 存储，同时保留 display name。

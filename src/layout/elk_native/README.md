@@ -1,7 +1,8 @@
 # ELK-native layered package
 
 Contract 1.1.0; package version 0.3.0, H08 profile 1.0.0. Browser-native ES modules, no bundler or install step.
-The existing Experimental provider explicitly selects H08; Simple remains the default.
+The product registry selects H08 by default; UI failures try ELK and then Simple, without persisting
+automatic fallback as a user preference. The static package itself never invokes a fallback engine.
 
 Implemented: immutable canonical P0, weighted greedy P1, tight-tree Network Simplex P2, proper long-edge and
 inverted-port graphs, fixed-port dual-distributor P3, hyperedge dummy merging, four complete BK P4 candidates,

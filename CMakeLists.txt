@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(netlist_graph_builder LANGUAGES CXX)
+if (NGB_BUILD_TESTS)
+    enable_testing()
+endif()
+add_subdirectory(native)

@@ -2,6 +2,10 @@
 
 ## 产品定位
 
+当前维护入口（2026-10-21）：默认 H08，失败按 H08 → ELK → Simple 降级；
+Linux 单文件、CMake 和 EDA/Tcl 专项维护见 [维护计划](plans/linux_launcher_maintenance.md)。
+历史阶段记录不代表已发布版本拥有所有 master 修复；性能工作未因此重新启动。
+
 Netlist Graph Builder 是一个离线可用的 gate-level netlist schematic browser。它的核心价值不是把网表转成一张静态图，而是帮助工程师在没有 `.lib`、不安装大型 EDA 工具、无法访问公网的情况下，快速理解门级结构。
 
 目标用户是需要检查 synthesis、resyn、remap、ECO 或局部逻辑 cone 的工程师。第一优先级是“结构看得清、交互顺手、离线可靠”，不是完整替代商业 schematic viewer。
@@ -22,7 +26,7 @@ Structural Verilog
 
 - 语言：TypeScript / JavaScript。
 - 运行方式：纯前端静态网页优先，后续可封装为 Tauri/Electron。
-- 布局：ELK.js 作为主路线，Dagre 或简单自研层次布局作为 fallback。
+- 布局：当前默认 H08 静态分层布局/布线引擎，vendored ELK 与 Simple 依次降级；研究/验收边界单独记录。
 - 渲染：SVG 优先，超大图再考虑 Canvas/WebGL 混合。
 - 依赖策略：能 vend 到 `vendor/`，保证内网离线可用。
 

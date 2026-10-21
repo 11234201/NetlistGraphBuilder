@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const pythonCommand = process.env.NGB_PYTHON || (process.platform === "win32" ? "python" : "python3");
 const scratch = await mkdtemp(join(tmpdir(), "ngb launcher "));
 const inputs = join(scratch, "inputs with spaces");
 await mkdir(inputs);
@@ -22,11 +23,11 @@ await writeFile(badConfigPath, "{}", "utf8");
 
 try {
   await verifyLauncher(process.execPath, ["tools/serve.mjs"], "node");
-  await verifyLauncher("python", ["tools/serve.py"], "python");
+  await verifyLauncher(pythonCommand, ["tools/serve.py"], "python");
   await verifySessionLifecycle(process.execPath, ["tools/serve.mjs"], "node");
-  await verifySessionLifecycle("python", ["tools/serve.py"], "python");
+  await verifySessionLifecycle(pythonCommand, ["tools/serve.py"], "python");
   await verifyInvalidConfig(process.execPath, ["tools/serve.mjs"], "node");
-  await verifyInvalidConfig("python", ["tools/serve.py"], "python");
+  await verifyInvalidConfig(pythonCommand, ["tools/serve.py"], "python");
   console.log("Launcher end-to-end checks passed for Node and Python.");
 } finally {
   await rm(scratch, { recursive: true, force: true });
@@ -68,7 +69,7 @@ async function verifyLauncher(command, prefix, label) {
     assert.equal(manifest.inputs.netlist.text.includes("BUF u0"), true);
     assert.deepEqual(manifest.target, { module: "top", focus: "u0", faninDepth: 2, fanoutDepth: 1 });
   } finally {
-    if (child.exitCode === null) {
+    if (child.pid && child.exitCode === null && child.signalCode === null) {
       const exited = new Promise((resolveExit) => child.once("exit", resolveExit));
       child.kill();
       await exited;
@@ -91,7 +92,7 @@ async function verifySessionLifecycle(command, prefix, label) {
     await waitForExit(child);
     assert.equal(await pathExists(statePath), false);
   } finally {
-    if (child.exitCode === null) {
+    if (child.pid && child.exitCode === null && child.signalCode === null) {
       child.kill();
       await waitForExit(child);
     }
@@ -117,7 +118,7 @@ function runLauncherCommand(command, prefix, args) {
 }
 
 function waitForExit(child) {
-  if (child.exitCode !== null) return Promise.resolve();
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
   return new Promise((resolveExit) => child.once("exit", resolveExit));
 }
 

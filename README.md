@@ -4,11 +4,11 @@ Linux 单文件启动器、CMake 构建和 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
 
-当前版本：`v1.1.2`。默认采用 H08 静态布局/布线引擎；Simple 保留为可选方案及失败回退，旧session中显式保存的选择不强制覆盖。生产级 AIG 导入尚未提供。
+当前发布：`v1.1.2`（2026-10-21 按用户要求覆盖更新，同版本号重新生成附件并移动标签）。默认 H08，失败依次降级至 ELK、Simple；Simple 失败后停止。自动降级不覆盖首选项；没有 preference 版本的旧 Simple 会话一次性恢复 H08，此后主动选择 Simple/ELK 仍会保留。生产级 AIG 导入尚未提供。
 
 H08 可在 clone 后直接离线 import，无构建或安装步骤，见[静态包契约](docs/design/elk_h08_package.md)。
 开发过程、失败试验、验收和限制见[H08开发总结](docs/reports/h08_development_summary.md)。
-已知限制：v1.1.1最新原47例严格复验为46/47，DP020触发原45秒超时；不把此前版本的47/47当成本版通过。
+验证记录须区分版本和环境：v1.1.1 在 Linux 曾为 46/47（DP020 超过 45 秒）；2026-10-16 的修复源码在 Linux/Node 24.16.0 为 47/47、硬违规 0。后一次通过不撤销历史超时，也不承诺跨环境性能稳定性。
 视觉接受限于已评审语料，不代表任意图均与 ELK 等价。旧 Native 算法仅保留在测试参考目录，不进入离线运行时。
 
 完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
@@ -40,7 +40,7 @@ H08 可在 clone 后直接离线 import，无构建或安装步骤，见[静态�
 ### 布局与展示
 
 - 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
-- Simple/ELK 布局 provider 离线切换，Wire/Cell spacing 支持滑块和数字输入。
+- H08/ELK/Simple 布局 provider 离线切换，Wire/Cell spacing 支持滑块和数字输入。
 - Adjust 模式下调整节点位置、尺寸、显示属性和 pin direction；相连 wire 在操作结束后重新布线。
 - 大图支持渐进渲染、fanout hub 和低缩放降细节；后续性能路径按完整图处理，不再扩展结构分组折叠。
 - 支持保存、校验和载入 layout Golden，并导出带完整样式的离线 SVG。
@@ -54,7 +54,7 @@ H08 可在 clone 后直接离线 import，无构建或安装步骤，见[静态�
 - 识别层次化子 module 实例，双击实例可直接跳转到对应 module 定义。
 - 同一浏览器标签页刷新后恢复网表、module、Focused roots/depth、搜索、provider、布局选项和 pan/zoom。
 - 编辑、持久化和导入导出未知 cell type 的 gate/pin 定义；Process Log 可过滤、复制和导出。
-- Node、Python 和 Windows 启动器可由 EDA 工具直接指定 netlist、timing、module、focus 与局部深度。
+- Node、Python、Windows 和 Linux 单文件启动器可由 EDA 工具指定 netlist、timing、module、focus 与局部深度；Linux 提供可复用 Tcl helper。
 
 ## 运行
 
@@ -70,7 +70,25 @@ Windows 离线包为 `NetlistGraphBuilder-v1.1.2-win-x64.zip`，完整解压后�
 npm run release:windows
 ```
 
-### VS Code 一键启动（推荐）
+### Linux 单文件与 CMake
+
+Release 新增 `NetlistGraphBuilder-v1.1.2-linux-x64` 单文件 ELF 及 `.sha256`；下载后 `chmod +x` 再执行。
+它在 Linux x86-64/glibc 2.35 环境构建与验证，不承诺 CentOS 7 或任意发行版直接兼容。
+Tcl helper 可从发布附件 `ngb.tcl` 下载，也可从仓库 `tools/eda/ngb.tcl` 获取。
+
+Linux 构建机需要 CMake 3.16+、C++11 编译器和 POSIX threads；运行机无需 Node/Python 或项目资源目录，但仍依赖目标平台的系统库及浏览器：
+
+```bash
+cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNGB_BUILD_TESTS=ON
+cmake --build build/linux --target ngb -j2
+ctest --test-dir build/linux --output-on-failure
+./build/linux/native/ngb start --netlist ./examples/two_equivalent_style_modules.v --port 0 --no-open
+```
+
+`NGB_BUILD_TESTS=ON` 仅在构建测试时需要 Python 3.6+；Tcl 测试另需 `tclsh`。也可 `cmake -S native` 独立构建，此时二进制位于对应构建目录的 `ngb`。
+EDA 的安装目录、Tcl `Start/Status/Stop`、父进程清理和跨发行版限制见 [Linux 单文件指南](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+
+### VS Code 一键启动（源码预览）
 
 仓库已包含 VS Code task 和 launch 配置。在本地工作区或 Remote-SSH 工作区中打开仓库后：
 
@@ -80,7 +98,7 @@ npm run release:windows
 
 VS Code 会启动远端预览服务，并在编辑器区域的 Integrated Browser 标签页中打开网表视图。服务仅监听远端 `127.0.0.1:4173`；工作区配置会启用 VS Code 的远端浏览器代理并保留 4173 端口转发，不需要开放服务器防火墙端口。
 
-Linux 启动器按以下顺序选择运行时：
+源码预览脚本 `tools/start-preview.sh` 按以下顺序选择运行时（不是单文件 `ngb` 的依赖链）：
 
 1. 如果 `node` 可正常执行，使用 `tools/serve.mjs`；
 2. 否则，如果存在 Python 3，使用无第三方依赖的 `tools/serve.py`；
@@ -114,7 +132,7 @@ python3 -u tools/serve.py
 
 ### EDA 启动接口
 
-Node、Python 与 Windows 正式版使用同一组参数。下面的命令会加载指定网表和时序，打开 `top`，并以 `u0` 为中心显示前向 1 层、后向 2 层的局部图：
+Node、Python、Windows 与 Linux `ngb` 共享主要业务参数。下面的命令会加载指定网表和时序，打开 `top`，并以 `u0` 为中心显示前向 1 层、后向 2 层的局部图：
 
 ```powershell
 node tools/serve.mjs --netlist "C:\EDA jobs\design one.v" --timing "C:\EDA jobs\timing one.txt" --cell-config "C:\EDA jobs\cells.json" --module top --focus u0 --fanin-depth 1 --fanout-depth 2 --no-open
@@ -198,7 +216,7 @@ node tools/generate-large-example.mjs
 
 ## 大图与布局功能
 
-1. 顶部 `Layout` 默认使用稳定的 `Simple Layered`；`ELK Layered (Experimental)` 仅作为大图初始排布的可选实验布局。ELK 已 vendored 到仓库，运行时不联网；失败时自动回退 Simple。
+1. `Layout` 默认选择 `Native Layered H08`；失败依次尝试 `ELK Layered (Experimental)`、`Simple Layered`，最终失败后停止重试。ELK 已 vendored，运行时不联网；取消任务不触发降级。
 2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
 3. 结构分组折叠已退出产品范围；mapped 基线、性能优化和新交互均按完整图、Search-first 或 Focused 设计。旧 session/golden 中的折叠字段仅作兼容读取。
 4. 可见节点与连线总量达到 400 后使用分批 SVG 渲染，状态栏显示 rendering 进度；最终画面仍包含完整 wire bridge、label 和命中区域。
@@ -222,7 +240,12 @@ Compare View 使用启发式结构对比，不进行逻辑等价或形式等价�
 
 ```powershell
 npm test
+npm run test:docs
+npm run test:launcher
 ```
+
+Linux 单文件的 CMake/HTTP/Tcl 测试单独通过 `ctest --test-dir build/linux --output-on-failure` 运行，
+不会在浏览器运行时或普通 clone 时安装 Python/Tcl 依赖。
 
 测试覆盖 parser、cell/pin inference、graph extraction、layout/routing、timing annotation、搜索、对象检查、cone、alias、module compare、provider、结构简化、session 和 SVG 渲染。
 
@@ -245,7 +268,8 @@ src/diagram/          中性显示图、共享 view pipeline 与测量契约
 src/domains/netlist/  Netlist feature、领域投影、Timing/Cell Config/Golden 用例
 src/foundation/       无领域含义的 identity、结构值与图/几何基础能力
 src/infer/            无 Liberty 的 cell/pin 推断规则
-src/layout/           Simple/ELK provider、节点几何、routing 和 snap
+native/               Linux 单文件启动器、嵌入资源和 CMake 安装
+src/layout/           H08/ELK/Simple provider、节点几何、routing 和 snap
 src/netlist/          Netlist IR 与 graph extraction
 src/parser/           Structural Verilog tokenizer/parser
 src/persistence/      session/startup/source identity 等版本化 codec
@@ -257,6 +281,7 @@ src/ui/               Selection、Timing 和 Adjust 面板
 tests/fixtures/       小型测试网表
 tests/unit/           单元测试
 tools/                本地开发工具与大图示例生成器
+tools/eda/            Tcl 启动、状态查询与安全关闭 helper
 ```
 
 ## 当前限制
