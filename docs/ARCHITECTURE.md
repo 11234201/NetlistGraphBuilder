@@ -28,6 +28,14 @@ parser -> netlist IR -> inference -> graph extraction -> layout -> render -> UI
 
 ## 模块边界
 
+开发门禁使用 `tools/module_graph.mjs` 对 `src/` 全部嵌套目录建立模块依赖图，
+通过离线 Acorn AST 识别 import、重导出、literal dynamic import 和 Worker/模块 URL。
+每条边保留来源文件、行号与类型；所有相对引用必须精确解析到源码模块，无法静态解析的请求报错。
+`npm run test:architecture` 和常规单元测试按各层允许依赖检查全部边，并对完整图执行 DFS 循环检查，
+失败时输出真实引用路径。注释、普通字符串或正则表达式中的伪 import 不构成边。
+解析器仅为开发工具依赖，不进入运行时或离线发布资源；来源、许可证和摘要见
+`tools/vendor/acorn/README.md`。这里的图覆盖全部运行时源码模块，测试/研究工具不属于产品分层图。
+
 ### `src/parser/`
 
 负责把 structural Verilog 文本解析成原始语法信息。
@@ -155,6 +163,9 @@ LayoutProvider
 离线调用入口为 `elk_native/h08.js`；原 `index.js` baseline 只用于受控相位比较。
 Provider 的 `executionMode: "async"` 声明由 Single/Compare 同时消费，不能按 ELK ID 猜测异步性。
 取消仍通过共享 JobCoordinator/workspace 边界转发，过期结果不得提交。
+浏览器 Native provider 的相位计算使用离线 module Worker；每个请求独占 worker，取消时直接终止，
+成功或失败后也释放 worker。CLI 或带相位观察回调的调用使用进程内执行，并在相位边界按时间预算
+让出事件循环；单个同步相位的强制中断仅由 Worker 路径提供。
 
 原 `src/layout/native_layered/` 的22个文件已移至 `tests/reference/retired_native_layered/`，
 仅供历史测试追溯，不进入生产依赖或 Windows 包；架构测试禁止运行时回流。
@@ -402,6 +413,10 @@ and flushes the final pointer position on gesture completion.
 UI 通过明确 API 调用 application command、领域 feature 和共享 pipeline，不直接操作 parser IR
 或 renderer 内部临时结构。`bootstrap/default_domains.js` 是产品领域实现的静态注册点；界面按
 feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要复制 Netlist 主流程。
+依赖图只允许 `ui/` 继续引用 `app/quickInput.js` 与 `app/processLog.js` 两个既有纯工具兼容模块；
+其他 `app/` 控制器和状态适配器不得成为 UI 依赖，新增共享能力应落到 application、foundation
+或职责明确的 UI 模块。两个兼容模块自身也只能依赖 contracts/foundation，门禁同时约束其依赖闭包，
+避免通过重导出或间接 import 把 app 控制器重新带回 UI。
 
 当前面板边界：
 
@@ -412,6 +427,14 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 面板模块不持有全局应用状态；状态更新通过回调交给 `src/app/main.js`。
 
 ### `src/app/`
+
+维护入口的增量规则：`main.js` 负责组装与浏览器绑定；共享同步/异步调度和过期结果提交策略由
+`application/workspace_execution.js` 拥有，Single/Compare 通过注入任务与展示回调共用。
+`app/workspace_inputs.js` 只把旧 state 投影成请求，不持有状态或执行计算。新增能力先确定所有者：
+领域语义进入 domains，应用用例进入 application，DOM 生命周期进入 ui，持久化格式进入 persistence。
+新模块不得反向 import main；新 controller 使用窄接口，不传整个 state。入口行数上限由架构测试
+约束，每次迁移后只能降低；禁止提高上限或压缩排版绕过。入口现已迁出所有具名业务函数；611 行预算与各职责模块 520 行预算共同防止回流。
+完整职责落点、兼容边界和验收见 [入口收敛计划](plans/main_entry_modularization.md)。
 
 - `DocumentStore` 和共享 `ViewSessionStore` 是文档、画布及其 revision 的所有者；Single/Compare
   bridge 只负责 ObjectRef 与旧 UI/session 字段之间的兼容投影，并在 projected graph 中保留
@@ -454,6 +477,12 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - `workspaceArtifactCache.js` is the bounded LRU boundary for immutable full-graph and automatic-layout
   artifacts. Its identity includes document/source/session/module/query/provider/layout dependencies;
   viewport and selection are intentionally excluded, and document/session invalidation is explicit.
+  Automatic layouts also depend on the published full-graph object and provider instance identities,
+  including prepared Compare graphs. Compare port ordering creates a cached derived graph rather than
+  mutating the full-graph artifact. Replacing an upstream graph always invalidates downstream geometry.
+- ViewSession policies and overrides are detached immutable snapshots, including nested Map/Set data.
+  Collection reads and iteration remain available; mutation must go through a store update/command so
+  revision checks cannot be bypassed by a retained caller reference.
 - `startupController.js` sequences the versioned localhost startup manifest through injected handlers;
   decoding belongs to `persistence/startup_codec.js`. Cell Config storage, session and Golden codecs also
   live behind `persistence/` boundaries. It sequences Cell Config,
@@ -462,7 +491,7 @@ feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要
 - Single and Compare Adjust drags call `applyWorkspaceOverrides` on cached automatic graphs for every
   provider, including Simple Layered. Pointer movement must not invoke a layout provider; provider
   execution belongs to workspace rebuilds only.
-- `main.js` 当前仍承担浏览器事件绑定和一部分 legacy 状态桥接；新状态变化进入 ViewSession
+- `main.js` 仅组装与绑定；legacy 桥接由独立职责控制器和受限 ports 承接，新状态变化进入 ViewSession
   commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
 - `viewHistoryTransaction` 是 application/UI 之间的轻量事务边界：复合的 Compare pair、view-mode
   和 nested command/render 调用只在外层操作完成后提交一个快照；历史本身仍只保存可序列化的视图

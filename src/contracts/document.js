@@ -1,3 +1,5 @@
+import { immutableSnapshot } from "../foundation/immutable_snapshot.js";
+
 export function createDocumentEnvelope(value) {
   const documentId = requiredString(value?.documentId, "documentId");
   const domainId = requiredString(value?.domainId, "domainId");
@@ -10,8 +12,8 @@ export function createDocumentEnvelope(value) {
     domainId,
     sourceRevision,
     source: normalizeSourceSummary(value.source),
-    model: value.model,
-    diagnostics: Object.freeze([...(value.diagnostics || [])])
+    model: immutableSnapshot(value.model),
+    diagnostics: immutableSnapshot([...(value.diagnostics || [])])
   });
 }
 

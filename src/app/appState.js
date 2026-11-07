@@ -17,6 +17,7 @@ export function createAppState(layoutPolicy) {
     autoGraph: null,
     graph: null,
     scene: null,
+    singleWorkspaceIdentity: null,
     transform: { x: 0, y: 0, scale: 1 },
     selectedNodeId: null,
     selectedNet: null,
@@ -55,6 +56,7 @@ export function createAppState(layoutPolicy) {
     moduleWorkspaces: new Map(),
     viewHistory: createViewHistory(),
     restoringViewHistory: false,
+    pendingViewCommandMetadata: null,
     compareWorkspaces: new Map(),
     workspaceArtifactCache: createWorkspaceArtifactCache(),
     compare: createCompareState()
@@ -62,7 +64,7 @@ export function createAppState(layoutPolicy) {
 }
 
 export function createCompareState() {
-  return {
+  return Object.preventExtensions({
     active: false,
     leftModuleName: null,
     rightModuleName: null,
@@ -91,8 +93,10 @@ export function createCompareState() {
     focusedRootRefs: { left: [], right: [] },
     activeFocusedRootNodeId: { left: null, right: null },
     analysis: null,
-    layoutAbortController: null
-  };
+    singleWorkspaceInvalidated: false,
+    layoutAbortController: null,
+    workspaceIdentity: null
+  });
 }
 
 export function resetDesignWorkspace(state) {
@@ -103,6 +107,7 @@ export function resetDesignWorkspace(state) {
   state.autoGraph = null;
   state.graph = null;
   state.scene = null;
+  state.singleWorkspaceIdentity = null;
   state.selectedNodeId = null;
   state.selectedNet = null;
   state.searchResults = [];

@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFile} from 'node:fs/promises';
-import {runInNewContext} from 'node:vm';
 import {getLayoutProvider} from '../../src/layout/layoutProvider.js';
-import {DEFAULT_LAYOUT_PROVIDER_ID,getNextLayoutProviderId} from '../../src/layout/providerDefaults.js';
+import {DEFAULT_LAYOUT_PROVIDER_ID} from '../../src/layout/providerDefaults.js';
 import {createAppState} from '../../src/app/appState.js';
 import {DEFAULT_LAYOUT_POLICY} from '../../src/layout/layoutPolicy.js';
 import {createSessionSnapshot,getSessionLayoutProviderId} from '../../src/app/sessionState.js';
+import {createWorkspaceRenderController} from '../../src/app/workspace_render_controller.js';
 
 test('H08 is default; old Simple snapshots migrate once, new explicit choices survive',()=>{
   assert.equal(getSessionLayoutProviderId(null),DEFAULT_LAYOUT_PROVIDER_ID);
@@ -22,26 +21,32 @@ test('H08 is default; old Simple snapshots migrate once, new explicit choices su
 
 for(const compare of [false,true]){
   test(`shared failure handler degrades H08 -> ELK -> Simple once, compare=${compare}`,async()=>{
-    const source=await readFile(new URL('../../src/app/main.js',import.meta.url),'utf8');
-    const start=source.indexOf('function handleLayoutFailure(');
-    const body=source.slice(start,source.indexOf('\nfunction ',start+10));
-    const state={layoutProviderId:DEFAULT_LAYOUT_PROVIDER_ID,compare:{active:compare}};
+    const state=createAppState(DEFAULT_LAYOUT_POLICY);
+    state.compare.active=compare;
+    state.currentModule={name:'top',displayName:'top'};
+    state.design={modules:[state.currentModule]};
     const calls=[],logs=[],elements={layoutProviderSelect:{}};
-    const context={state,elements,getLayoutProvider,getNextLayoutProviderId,
+    const services={
       logProcess:(...args)=>logs.push(args),setStatus(){},
-      renderCurrentModuleGraph:()=>calls.push('single'),renderCompareGraphs:()=>calls.push('compare')};
-    runInNewContext(body,context);
-    runInNewContext('handleLayoutFailure({name:"AbortError",message:"cancelled"})',context);
+      renderCompareGraphs:()=>calls.push('compare'),
+      getCurrentLayoutProvider:()=>getLayoutProvider(state.layoutProviderId),
+      renderGeneration:{begin:()=>({id:1,isCurrent:()=>true})},
+      workspaceExecution:{execute:()=>calls.push('single')},
+      singleViewSession:{beginComputation:()=>({sessionId:'single:primary'})}
+    };
+    const controller=createWorkspaceRenderController({state,elements,services});
+    controller.handleLayoutFailure({name:'AbortError',message:'cancelled'});
     assert.equal(calls.length,0);
     for(const expected of ['elk-layered','simple-layered']){
-      runInNewContext('handleLayoutFailure(new Error("test failure"))',context);
+      controller.handleLayoutFailure(new Error('test failure'));
       assert.equal(state.layoutProviderId,expected);
       assert.equal(elements.layoutProviderSelect.value,expected);
       assert.equal(state.layoutFallbackFromProviderId,DEFAULT_LAYOUT_PROVIDER_ID);
     }
-    runInNewContext('handleLayoutFailure(new Error("final failure"))',context);
+    controller.handleLayoutFailure(new Error('final failure'));
     assert.deepEqual(calls,[compare?'compare':'single',compare?'compare':'single']);
-    assert.equal(logs.length,3);
-    assert.match(logs.at(-1)[2],/no fallback remains/);
+    const failures=logs.filter(([level])=>level==='error');
+    assert.equal(failures.length,3);
+    assert.match(failures.at(-1)[2],/no fallback remains/);
   });
 }

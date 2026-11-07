@@ -1,3 +1,5 @@
+import { immutableSnapshot } from "../foundation/immutable_snapshot.js";
+
 function artifactKey(sessionId, kind) {
   if (!sessionId || !kind) throw new Error("Artifact sessionId and kind are required");
   return `${encodeURIComponent(sessionId)}/${encodeURIComponent(kind)}`;
@@ -8,7 +10,7 @@ export function createArtifactStore() {
   return Object.freeze({
     put(record) {
       if (!record?.context?.sessionId || !record.kind) throw new Error("Artifact record requires context and kind");
-      const frozen = Object.freeze({ ...record, context: Object.freeze({ ...record.context }) });
+      const frozen = Object.freeze({ ...record, context: Object.freeze({ ...record.context }), value: immutableSnapshot(record.value) });
       records.set(artifactKey(record.context.sessionId, record.kind), frozen);
       return frozen;
     },

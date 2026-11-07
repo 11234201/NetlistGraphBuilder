@@ -103,6 +103,7 @@ test("synchronous jobs commit through the same artifact boundary", () => {
   });
   assert.equal(result.status, "committed");
   assert.deepEqual(result.artifact.value, { nodes: 1 });
+  assert.throws(() => { result.artifact.value.nodes = 2; }, TypeError);
   assert.deepEqual(progress, ["layout"]);
   assert.equal(state.artifacts.get("view:1", "simple-layout"), result.artifact);
 });
@@ -152,4 +153,29 @@ test("compare side jobs cancel independently and retain the peer artifact", asyn
   assert.equal((await right.promise).status, "committed");
   assert.equal(state.artifacts.get("compare:left", "compare-left-workspace"), null);
   assert.equal(state.artifacts.get("compare:right", "compare-right-workspace").value, "ready-right");
+});
+
+test("a job cancelled before its microtask never enters user code", async () => {
+  const state = setup();
+  let runs = 0;
+  const job = state.jobs.start({ sessionId: "view:1", kind: "layout", run: () => { runs += 1; } });
+  job.cancel();
+  assert.equal((await job.promise).status, "stale");
+  assert.equal(runs, 0);
+});
+
+test("runSync consumes a rejected Promise returned by an invalid sync runner", async () => {
+  const state = setup();
+  const unhandled = [];
+  const listener = (error) => unhandled.push(error);
+  process.on("unhandledRejection", listener);
+  try {
+    assert.throws(() => state.jobs.runSync({
+      sessionId: "view:1", kind: "layout", run: async () => { throw new Error("late reject"); }
+    }), /returned a Promise/);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", listener);
+  }
 });

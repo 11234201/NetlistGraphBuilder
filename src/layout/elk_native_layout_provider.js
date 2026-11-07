@@ -1,4 +1,5 @@
-import { layoutGraph,PhaseError } from './elk_native/index.js';
+import { PhaseError } from './elk_native/index.js';
+import { executeNativeLayout } from './native_layout_execution.js';
 import { buildNodePorts,getPort,getConnectionPoint,measureNode,computeBoundsWithRoutes,computeSafeLayoutExtent } from './nodeGeometry.js';
 import { getNetGroupKey } from './layoutTopology.js';
 import { buildWireRoutes } from './wireRoutes.js';
@@ -38,7 +39,7 @@ export class NativeLayeredLayoutProvider{
       return {id:edge.id,physicalNetId:getNetGroupKey(edge),sourcePortId:source.id,targetPortId:target.id,
         minimumLength:edge.minimumLength??1};
     })};
-    const result=await layoutGraph(input,{profile:this.profile,
+    const result=await executeNativeLayout(input,{profile:this.profile,
       orderGroups:this.profile==='h08'?buildFocusedFaninTreeBlocks(graph.nodes,graph.edges).entries:[],
       policy:{nodeNodeSpacing:40+cellSpacing,nodeNodeBetweenLayers:72+cellSpacing,
       ...(options.nativeLayered?.policy??{})},signal:options.signal,onPhase:options.nativeLayered?.onPhase,

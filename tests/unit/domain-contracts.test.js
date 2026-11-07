@@ -17,7 +17,10 @@ test("document and object identities validate without deriving identity from lab
   assert.throws(() => createObjectRef({ documentId: "doc:1", unitId: "top", kind: "cell" }), /localId/);
   const model = {};
   const document = createDocumentEnvelope({ documentId: "doc:1", domainId: "test", model });
-  assert.equal(document.model, model);
+  assert.deepEqual(document.model, model);
+  assert.notEqual(document.model, model);
+  model.changed = true;
+  assert.equal(document.model.changed, undefined);
   assert.equal(document.sourceRevision, 1);
   assert.equal(Object.isFrozen(document), true);
   assert.equal(normalizeSourceInput({ name: "x.aig", bytes: new Uint8Array([1]) }).kind, "bytes");

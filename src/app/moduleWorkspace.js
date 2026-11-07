@@ -7,7 +7,7 @@ import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
-import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
+import { createWorkspaceArtifactKey, workspaceArtifactReference } from "./workspaceArtifactCache.js";
 import { DEFAULT_FOCUSED_VIEW_POLICY } from "../foundation/view_policy.js";
 
 export function buildModuleWorkspace(options) {
@@ -71,6 +71,8 @@ export function buildModuleWorkspace(options) {
   const autoIdentity = artifactIdentity && {
     ...artifactIdentity,
     stage: "positioned-auto",
+    fullGraph: workspaceArtifactReference(fullGraph),
+    providerInstance: workspaceArtifactReference(layoutProvider),
     moduleName: module?.name || null,
     viewMode,
     coneRootNodeId,

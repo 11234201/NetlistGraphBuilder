@@ -12,9 +12,12 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     const context = createContext({ document, session, sessionId, kind, controller, onProgress });
     activeByKey.set(key, { context, controller });
 
-    const promise = Promise.resolve().then(() => run(context)).then(
+    const promise = Promise.resolve().then(() => {
+      if (!isCurrent(context)) return SKIPPED_JOB;
+      return run(context);
+    }).then(
       (value) => {
-        if (!isCurrent(context)) {
+        if (value === SKIPPED_JOB || !isCurrent(context)) {
           release(context);
           return Object.freeze({ status: "stale", context });
         }
@@ -46,6 +49,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     try {
       const value = run(context);
       if (value && typeof value.then === "function") {
+        Promise.resolve(value).catch(() => {});
         throw new Error(`Synchronous job ${kind} returned a Promise`);
       }
       if (!isCurrent(context)) {
@@ -130,6 +134,8 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
 
   return Object.freeze({ start, runSync, isCurrent, cancelSession, cancelDocument });
 }
+
+const SKIPPED_JOB = Symbol("skipped-job");
 
 function jobKey(sessionId, kind) {
   if (!sessionId || !kind) throw new Error("Job sessionId and kind are required");

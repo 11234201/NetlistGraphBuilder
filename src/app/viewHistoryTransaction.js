@@ -14,6 +14,11 @@ export function createViewHistoryTransaction({ commit }) {
     active = { ...metadata };
     try {
       const result = operation();
+      if (result && typeof result.then === "function") {
+        active = null;
+        Promise.resolve(result).catch(() => {});
+        throw new Error("View history transactions must be synchronous");
+      }
       const completed = active;
       active = null;
       commit(completed);

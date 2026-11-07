@@ -1,4 +1,5 @@
 import { createObjectRef, isObjectRef, objectRefKey } from "../contracts/object_ref.js";
+import { immutableSnapshot } from "../foundation/immutable_snapshot.js";
 
 const VIEW_MODES = new Set(["whole", "focused", "search-first"]);
 
@@ -31,7 +32,7 @@ export function createViewSession(value) {
     selectedObjectRef,
     layoutPolicy: normalizeRecord(value.layoutPolicy, "layoutPolicy"),
     presentationPolicy: normalizeRecord(value.presentationPolicy, "presentationPolicy"),
-    overrides: value.overrides || null,
+    overrides: immutableSnapshot(value.overrides || null),
     viewport: normalizeViewport(value.viewport)
   });
 }
@@ -156,7 +157,7 @@ function normalizeRecord(value, label) {
   if (!record || typeof record !== "object" || Array.isArray(record)) {
     throw new Error(`View ${label} must be an object`);
   }
-  return Object.freeze({ ...record });
+  return immutableSnapshot(record);
 }
 
 function normalizeViewport(value) {

@@ -179,7 +179,12 @@
           </div>
           <button id="closeNetlistTextButton" class="dialog-close" type="button" aria-label="关闭">&times;</button>
         </header>
-        <textarea id="netlistTextInput" aria-label="Verilog netlist text" placeholder="module example (input a, output y);&#10;  BUF u0 (.A(a), .Y(y));&#10;endmodule" spellcheck="false" required></textarea>
+        <textarea id="netlistTextInput" aria-label="Verilog netlist text" aria-describedby="bulkTextNotice" placeholder="module example (input a, output y);&#10;  BUF u0 (.A(a), .Y(y));&#10;endmodule" spellcheck="false" wrap="off" required></textarea>
+        <div class="bulk-text-tools">
+          <p id="bulkTextNotice" data-bulk-text-notice role="status" hidden></p>
+          <button class="dialog-button" data-bulk-text-expand type="button" title="展开完整原文；超大文本的编辑和全选可能较慢" hidden>展开编辑</button>
+          <button class="dialog-button" data-bulk-text-clear type="button">清空</button>
+        </div>
         <footer>
           <span>Ctrl + Enter 快速画图</span>
           <div>

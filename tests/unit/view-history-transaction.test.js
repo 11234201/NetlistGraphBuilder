@@ -22,3 +22,13 @@ test("failed transactions do not create history entries", () => {
   assert.deepEqual(commits, []);
   assert.equal(transactions.isActive(), false);
 });
+
+test("asynchronous operations are rejected before a history entry can commit", async () => {
+  const commits = [];
+  const transactions = createViewHistoryTransaction({ commit: (metadata) => commits.push(metadata) });
+  assert.throws(() => transactions.run({ label: "async" }, async () => { throw new Error("later"); }),
+    /must be synchronous/);
+  await Promise.resolve();
+  assert.deepEqual(commits, []);
+  assert.equal(transactions.isActive(), false);
+});

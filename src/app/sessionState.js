@@ -17,18 +17,20 @@ export function getSessionLayoutProviderId(session) {
 export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
 export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
 
-export function loadSessionState(storage = globalThis.sessionStorage) {
+export function loadSessionState(storage) {
   try {
-    const encoded = storage?.getItem(SESSION_STATE_KEY) || storage?.getItem(LEGACY_SESSION_STATE_KEY);
+    const target = arguments.length > 0 ? storage : globalThis.sessionStorage;
+    const encoded = target?.getItem(SESSION_STATE_KEY) || target?.getItem(LEGACY_SESSION_STATE_KEY);
     return encoded ? decodeSessionSnapshot(encoded) : null;
   } catch {
     return null;
   }
 }
 
-export function saveSessionState(snapshot, storage = globalThis.sessionStorage) {
+export function saveSessionState(snapshot, storage) {
   try {
-    storage?.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
+    const target = arguments.length > 1 ? storage : globalThis.sessionStorage;
+    target?.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
     return true;
   } catch {
     return false;

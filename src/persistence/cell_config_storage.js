@@ -5,17 +5,19 @@ import {
   serializeCellConfig
 } from "../infer/cellConfig.js";
 
-export function loadStoredCellConfig(storage = globalThis.localStorage) {
+export function loadStoredCellConfig(storage) {
   try {
-    const source = storage?.getItem(CELL_CONFIG_STORAGE_KEY);
+    const target = arguments.length > 0 ? storage : globalThis.localStorage;
+    const source = target?.getItem(CELL_CONFIG_STORAGE_KEY);
     return source ? parseCellConfig(source) : createEmptyCellConfig();
   } catch {
     return createEmptyCellConfig();
   }
 }
 
-export function saveStoredCellConfig(bundle, storage = globalThis.localStorage) {
+export function saveStoredCellConfig(bundle, storage) {
   const normalized = parseCellConfig(bundle);
-  storage?.setItem(CELL_CONFIG_STORAGE_KEY, serializeCellConfig(normalized));
+  const target = arguments.length > 1 ? storage : globalThis.localStorage;
+  target?.setItem(CELL_CONFIG_STORAGE_KEY, serializeCellConfig(normalized));
   return normalized;
 }

@@ -337,6 +337,21 @@ textarea {
   box-shadow: 0 0 0 2px #cce7ea;
 }
 
+.bulk-text-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 16px;
+}
+
+.bulk-text-tools p {
+  flex: 1;
+}
+
+.bulk-text-tools button {
+  flex-shrink: 0;
+}
+
 .text-input-form > footer {
   border-top: 1px solid var(--line);
 }

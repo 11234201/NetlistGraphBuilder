@@ -1,8 +1,16 @@
 import { detectQuickInputKind, getQuickInputPriority } from "../app/quickInput.js";
+import { createBulkTextInput } from "./bulk_text_input.js";
 
 export function createQuickInputController({ elements, windowTarget, loadText, setStatus, schedule = defaultSchedule }) {
   let dragDepth = 0;
   let textKind = "netlist";
+  let latestFileRequest = 0;
+  const textBuffer = createBulkTextInput({
+    input: elements.textInput,
+    notice: elements.textForm?.querySelector?.("[data-bulk-text-notice]"),
+    expandButton: elements.textForm?.querySelector?.("[data-bulk-text-expand]"),
+    clearButton: elements.textForm?.querySelector?.("[data-bulk-text-clear]")
+  });
 
   const clearDrag = () => {
     dragDepth = 0;
@@ -14,21 +22,38 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     elements.dropOverlay?.setAttribute("aria-hidden", "false");
   };
   const loadFiles = async (files) => {
-    const entries = await Promise.all([...files].map(async (file, order) => {
-      const text = await file.text();
-      return { text, kind: detectQuickInputKind(text, { name: file.name }), name: file.name, order };
-    }));
+    const requestId = ++latestFileRequest;
+    const entries = [];
+    for (const [order, file] of [...files].entries()) {
+      if (requestId !== latestFileRequest) return;
+      let text = null;
+      let kind;
+      try {
+        kind = detectQuickInputKind("", { name: file.name });
+      } catch {
+        // Ambiguous extensions only need a prefix for classification. Real File
+        // objects expose slice(); small test doubles fall back to one full read.
+        text = file.slice ? await file.slice(0, 65536).text() : await file.text();
+        kind = detectQuickInputKind(text, { name: file.name });
+      }
+      entries.push({ file, text, kind, name: file.name, order });
+    }
     entries.sort((a, b) => getQuickInputPriority(a.kind) - getQuickInputPriority(b.kind) || a.order - b.order);
     for (const entry of entries) {
-      await loadText(entry.text, { kind: entry.kind, label: entry.name });
+      if (requestId !== latestFileRequest) return;
+      const text = entry.text ?? await entry.file.text();
+      if (requestId !== latestFileRequest) return;
+      await loadText(text, { kind: entry.kind, label: entry.name });
     }
   };
   const loadInputFile = async (event, preferredKind) => {
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
+    const requestId = ++latestFileRequest;
     try {
       const text = await file.text();
+      if (requestId !== latestFileRequest) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
       await loadText(text, { kind, label: file.name });
     } catch (error) {
@@ -66,7 +91,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   });
   elements.textForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const source = elements.textInput.value.trim();
+    const source = textBuffer.getValue().trim();
     if (!source) {
       setStatus(`Paste failed: ${textKind} text is empty`);
       elements.textInput.focus();

@@ -3,37 +3,42 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { readModuleSources, buildModuleGraph, findModuleCycles, findBoundaryViolations } from "../../tools/module_graph.mjs";
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-test("contracts and Netlist domain stay independent from application implementations", () => {
-  const contractDir = join(projectRoot, "src", "contracts");
-  for (const name of readdirSync(contractDir)) {
-    if (extname(name) !== ".js") continue;
-    const source = readFileSync(join(contractDir, name), "utf8");
-    assert.doesNotMatch(source, /from\s+["']\.\.\//, `${name} must not import implementation layers`);
+test("browser entry cannot regain workspace scheduling or grow past its migration budget", () => {
+  const source = readFileSync(join(projectRoot, "src/app/main.js"), "utf8");
+  assert.ok(source.split(/\r?\n/).length <= 611, "Extract a complete responsibility before adding entry code; do not raise the budget");
+  assert.doesNotMatch(source, /^(?:async )?function\s+/m, "Entry must only compose controllers and bind browser events");
+  for (const file of sourceFiles(join(projectRoot, "src/app"))) {
+    if (!file.endsWith("_controller.js")) continue;
+    assert.ok(readFileSync(file, "utf8").split(/\r?\n/).length <= 520, `${file} exceeds the responsibility budget`);
   }
-
-  const adapter = readFileSync(join(projectRoot, "src", "domains", "netlist", "netlist_feature.js"), "utf8");
-  const legacyImports = [...adapter.matchAll(/from\s+["'](\.\.\/\.\.\/app\/[^"']+)["']/g)].map((match) => match[1]);
-  assert.deepEqual(legacyImports, []);
+  assert.doesNotMatch(source, /workspaceJobs\.(?:start|runSync)\s*\(/);
+  assert.doesNotMatch(source, /\.executionMode\s*===/);
+  assert.doesNotMatch(source, /\.dispatch\s*\(/, "Entry binds actions; command construction belongs to adapters");
 });
 
-test("shared application and layout layers do not import Netlist-only implementations", () => {
-  const forbidden = /from\s+["']\.\.\/(?:domains\/netlist|infer|netlist|parser|timing)\//;
-  for (const directory of ["application", "layout"]) {
-    const absoluteDirectory = join(projectRoot, "src", directory);
-    for (const name of readdirSync(absoluteDirectory)) {
-      if (extname(name) !== ".js") continue;
-      const source = readFileSync(join(absoluteDirectory, name), "utf8");
-      assert.doesNotMatch(source, forbidden, `${directory}/${name} must remain domain-neutral`);
-    }
-  }
-  const layoutFiles = readdirSync(join(projectRoot, "src", "layout"))
-    .filter((name) => extname(name) === ".js")
-    .map((name) => readFileSync(join(projectRoot, "src", "layout", name), "utf8"))
-    .join("\n");
-  assert.doesNotMatch(layoutFiles, /cellPinDirections|netlist-layout-golden/);
+function sourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? sourceFiles(path) : extname(path) === ".js" ? [path] : [];
+  });
+}
+
+test("complete runtime module graph is resolved, acyclic and respects layer ownership", () => {
+  const { graph, diagnostics } = buildModuleGraph(readModuleSources(join(projectRoot, "src")));
+  assert.deepEqual(diagnostics, [], diagnostics.join("\n"));
+  const violations = findBoundaryViolations(graph);
+  assert.deepEqual(violations, [], violations.join("\n"));
+  const cycles = findModuleCycles(graph);
+  assert.deepEqual(cycles, [], cycles.map((cycle) => cycle.join(" -> ")).join("\n"));
+});
+
+test("all nested layout implementations consume domain-neutral presentation fields", () => {
+  const sources = readModuleSources(join(projectRoot, "src/layout"));
+  for (const [name, source] of sources) assert.doesNotMatch(source, /cellPinDirections|netlist-layout-golden/, name);
 });
 
 test("shared layout and renderer do not interpret Netlist inference or parser references", () => {

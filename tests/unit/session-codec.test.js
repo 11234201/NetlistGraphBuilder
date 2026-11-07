@@ -86,3 +86,15 @@ test("session codec rejects malformed and unsupported inputs", () => {
   assert.throws(() => decodeSessionSnapshot("{"), /Invalid session JSON/);
   assert.throws(() => decodeSessionSnapshot({ version: 99 }), /Unsupported session version/);
 });
+
+test("session storage access errors are contained even when the global getter throws", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, get() { throw new Error("blocked"); } });
+  try {
+    assert.equal(loadSessionState(), null);
+    assert.equal(saveSessionState({ domainId: "netlist" }), false);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
+    else delete globalThis.sessionStorage;
+  }
+});

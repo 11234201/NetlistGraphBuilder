@@ -2,6 +2,7 @@ import { alignModulePorts, compareModules } from "../analysis/moduleCompare.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 import { buildModuleFullGraph, buildModuleWorkspace } from "./moduleWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
+import { workspaceArtifactReference } from "./workspaceArtifactCache.js";
 
 export function prepareCompareWorkspace(options = {}) {
   const {
@@ -48,7 +49,18 @@ export function prepareCompareWorkspace(options = {}) {
       artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: "compare:right", unitId: rightModule?.name }
     })
   };
-  alignPortNodeOrder(fullGraphs, alignModulePorts(leftModule, rightModule));
+  const alignedPorts = alignModulePorts(leftModule, rightModule);
+  for (const side of ["left", "right"]) {
+    const graph = fullGraphs[side];
+    const key = { stage: "compare-port-order", graph: workspaceArtifactReference(graph), ports: alignedPorts.map((port) => port.name) };
+    let aligned = artifactCache?.get(key);
+    if (!aligned) {
+      aligned = { ...graph, nodes: graph.nodes.map((node) => ({ ...node })) };
+      alignPortNodeOrder({ [side]: aligned }, alignedPorts);
+      artifactCache?.put(key, aligned, { documentId: artifactIdentity?.documentId, sessionId: `compare:${side}` });
+    }
+    fullGraphs[side] = aligned;
+  }
   throwIfAborted(signal);
 
   const workspaceInputs = resolveWorkspaceInputs({

@@ -29,3 +29,19 @@ test("workspace artifact cache invalidates by document and session metadata", ()
   assert.equal(cache.clearSession("session-a"), 1);
   assert.equal(cache.get("a"), null);
 });
+
+test("workspace keys distinguish undefined, holes, null and empty arrays", () => {
+  assert.notEqual(createWorkspaceArtifactKey([]), createWorkspaceArtifactKey([undefined]));
+  assert.notEqual(createWorkspaceArtifactKey([undefined]), createWorkspaceArtifactKey([null]));
+  assert.notEqual(createWorkspaceArtifactKey(new Array(1)), createWorkspaceArtifactKey([undefined]));
+});
+
+test("workspace cache enforces an aggregate weight budget and rejects oversized entries", () => {
+  const cache = createWorkspaceArtifactCache({ capacity: 10, maximumWeight: 5 });
+  cache.put("a", { value: 1 }, { weight: 3 });
+  cache.put("b", { value: 2 }, { weight: 3 });
+  assert.equal(cache.get("a"), null);
+  assert.equal(cache.stats().weight, 3);
+  cache.put("oversized", { value: 3 }, { weight: 6 });
+  assert.equal(cache.get("oversized"), null);
+});

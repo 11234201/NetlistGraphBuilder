@@ -1,3 +1,4 @@
+import { readWorkbenchSource } from "../helpers/workbench_source.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -191,8 +192,9 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
 });
 
 test("app forwards both Focused depths into the module workspace", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const workspaceCall = source.match(/buildModuleWorkspace\(\{([\s\S]*?)\n  \}\);/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const workspaceCall = await readFile(new URL("../../src/app/workspace_inputs.js", import.meta.url), "utf8");
+  assert.match(source, /createSingleWorkspaceInput\(state, layoutProvider\)/);
 
   assert.match(workspaceCall, /faninDepth: state\.faninDepth/);
   assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);
@@ -201,8 +203,8 @@ test("app forwards both Focused depths into the module workspace", async () => {
 });
 
 test("Focused depth changes preserve the active mode and roots", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function handleFocusedDepthChange\(\) \{([\s\S]*?)\n\}\n\nfunction scheduleFocusedDepthChange/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function handleFocusedDepthChange\(\) \{([\s\S]*?)\n  \}\n\n  function scheduleFocusedDepthChange/)?.[1] || "";
 
   assert.match(handler, /setSingleFocusedDepths\(/);
   assert.match(handler, /state\.viewMode === "focused" && result\?\.effects\?\.layout/);
@@ -211,9 +213,9 @@ test("Focused depth changes preserve the active mode and roots", async () => {
 });
 
 test("single-canvas Focused controls accept a selected net as the replacement root", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const controls = source.match(/function updateFocusedRootControl\(\) \{([\s\S]*?)\n\}\n\nfunction getSelectedSingleCell/)?.[1] || "";
-  const replace = source.match(/function replaceSingleFocusedRoots\(nodeIds, activeNodeId = null\) \{([\s\S]*?)\n\}\n\nfunction setSingleOverrides/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const controls = source.match(/function updateFocusedRootControl\(\) \{([\s\S]*?)\n  \}/)?.[1] || "";
+  const replace = source.match(/function replaceSingleFocusedRoots\(nodeIds, activeNodeId = null\) \{([\s\S]*?)\n  \}\n\n  function setSingleOverrides/)?.[1] || "";
 
   assert.match(controls, /selectedSingleNet/);
   assert.match(controls, /selectedCompareNet \|\| selectedSingleNet/);
@@ -222,16 +224,16 @@ test("single-canvas Focused controls accept a selected net as the replacement ro
 });
 
 test("cross-module View History applies the target entry before its only render", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createSingleWorkspaceHistoryIdentity/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n  \}\n\n  function createSingleWorkspaceHistoryIdentity/)?.[1] || "";
 
-  assert.match(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", deferRender: true \}\);\s*finish\(state\.graph\);/);
+  assert.match(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", deferRender: true \}\);[\s\S]{0,120}?finish\(state\.graph\);/);
   assert.doesNotMatch(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", onRendered: finish \}\)/);
 });
 
 test("connection navigation reveals hidden cells inside Focused instead of opening Whole", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction focusSingleSelectionTarget/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function focusSingleSelectionTarget/)?.[1] || "";
 
   assert.match(handler, /type: "selection\.reveal"/);
   assert.match(handler, /replaceActiveWhenFull: true/);
@@ -239,9 +241,9 @@ test("connection navigation reveals hidden cells inside Focused instead of openi
 });
 
 test("hierarchy net navigation switches context before its only render", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction selectionTargetChangesHierarchyContext/)?.[1] || "";
-  const netBranch = handler.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n      \}\n      selectModule/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function selectionTargetChangesHierarchyContext/)?.[1] || "";
+  const netBranch = handler.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n        \}\n        services\.selectModule/)?.[1] || "";
 
   assert.match(handler, /runViewHistoryTransaction\(\{ label: "Open hierarchy connection" \}/);
   assert.match(netBranch, /deferRender: true[\s\S]*replaceFocusWithSelectionTarget\(target\)/);
@@ -249,9 +251,9 @@ test("hierarchy net navigation switches context before its only render", async (
 });
 
 test("hierarchy connection navigation compares occurrence identity, not only module name", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n\}\n\nfunction focusSingleSelectionTarget/)?.[1] || "";
-  const contextCheck = source.match(/function selectionTargetChangesHierarchyContext\(target\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function focusSingleSelectionTarget/)?.[1] || "";
+  const contextCheck = source.match(/function selectionTargetChangesHierarchyContext\(target\) \{([\s\S]*?)\n  \}/)?.[1] || "";
 
   assert.match(handler, /selectionTargetChangesHierarchyContext\(target\)/);
   assert.match(contextCheck, /target\.moduleName !== state\.currentModule\?\.name/);
@@ -260,15 +262,15 @@ test("hierarchy connection navigation compares occurrence identity, not only mod
 });
 
 test("net selection receives the same occurrence context as cell selection", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   const handler = source.match(/function renderNetSelection\(netName\) \{([\s\S]*?)\n\}/)?.[1] || "";
 
   assert.match(handler, /inspectGraphNet\([\s\S]*hierarchyContext: currentHierarchyInspectionContext\(\)/);
 });
 
 test("module navigation distinguishes an explicit root occurrence from a missing context", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function selectModule\(moduleName, options = \{\}\) \{([\s\S]*?)\n\}\n\nfunction handleModuleHistoryShortcut/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function selectModule\(moduleName, options = \{\}\) \{([\s\S]*?)\n\}/)?.[1] || "";
 
   assert.match(handler, /hasExplicitOccurrencePath = Array\.isArray\(options\.occurrencePath\)/);
   assert.match(handler, /options\.occurrencePath\.length[\s\S]*:[\s\S]*null/);
@@ -276,9 +278,9 @@ test("module navigation distinguishes an explicit root occurrence from a missing
 });
 
 test("hinst double-click carries a unique child occurrence into the selected module", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function handleCanvasDoubleClick\(event\) \{([\s\S]*?)\n\}\n\nfunction resolveChildOccurrenceNavigation/)?.[1] || "";
-  const resolver = source.match(/function resolveChildOccurrenceNavigation\(sourceModule, node, fromCompare\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function handleCanvasDoubleClick\(event\) \{([\s\S]*?)\n  \}\n\n  function resolveChildOccurrenceNavigation/)?.[1] || "";
+  const resolver = source.match(/function resolveChildOccurrenceNavigation\(sourceModule, node, fromCompare\) \{([\s\S]*?)\n  \}/)?.[1] || "";
 
   assert.match(handler, /resolveChildOccurrenceNavigation\(sourceModule, node, state\.compare\.active\)/);
   assert.match(handler, /selectModule\(referencedModule\.name, \{ readyMessage, \.\.\.occurrenceNavigation \}\)/);
@@ -287,18 +289,18 @@ test("hinst double-click carries a unique child occurrence into the selected mod
 });
 
 test("search reveals a target outside the current canvas through Focused instead of Whole", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
 
   assert.match(handler, /revealSearchTarget\(/);
-  assert.match(source, /function revealSearchTarget\([\s\S]*?visibleObjectKeys: singleViewSession\.visibleObjectKeys\(\)/);
+  assert.match(source, /function revealSearchTarget\([\s\S]*?visibleObjectKeys: services\.singleViewSession\.visibleObjectKeys\(\)/);
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
 test("hidden net search hits never become dangling selections", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const activate = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
-  const handler = activate.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n  \}\n\n  const fullNode/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const activate = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
+  const handler = activate.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n    \}\n\n    const fullNode/)?.[1] || "";
 
   assert.match(handler, /resolveSearchTargetAction\(target, state\.graph, state\.fullGraph\)/);
   assert.match(handler, /could not be focused/);
@@ -306,23 +308,23 @@ test("hidden net search hits never become dangling selections", async () => {
 });
 
 test("search history captures the final selection and viewport together", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n\}\n\nfunction revealSearchTarget/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
 
   assert.match(handler, /setSelectedNode\(positioned\.id, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
   assert.match(handler, /setSelectedNet\(target\.name, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
 });
 
 test("fit-to-view is one explicit view-history operation", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function fitToView\(\) \{([\s\S]*?)\n\}\n\nfunction exportCurrentSvg/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function fitToView\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
 
   assert.equal((handler.match(/recordViewHistory\(\)/g) || []).length, 2);
 });
 
 test("view-history restore reuses the workspace for selection-only changes", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createSingleWorkspaceHistoryIdentity/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n  \}\n\n  function createSingleWorkspaceHistoryIdentity/)?.[1] || "";
 
   assert.match(handler, /createSingleWorkspaceHistoryIdentity\(\)/);
   assert.match(handler, /canReuseWorkspace/);
@@ -331,12 +333,12 @@ test("view-history restore reuses the workspace for selection-only changes", asy
 });
 
 test("viewport gesture history metadata is only written after a completed pan", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   const panHandlers = source.match(/onEnd\(\{ didPan, cancelled \}\) \{([\s\S]*?)\n    \}/g) || [];
 
   assert.equal(panHandlers.length, 2);
   panHandlers.forEach((handler) => {
-    assert.match(handler, /didPan && !cancelled\) persistSession\(\{[\s\S]*label: "Viewport gesture"/);
+    assert.match(handler, /didPan && !cancelled\) services\.persistSession\(\{[\s\S]*label: "Viewport gesture"/);
     assert.doesNotMatch(handler, /!didPan && !cancelled\).*Viewport gesture/);
   });
   assert.match(source, /function persistSession\(metadata = \{\}\)/);
@@ -344,7 +346,7 @@ test("viewport gesture history metadata is only written after a completed pan", 
 });
 
 test("compare history metadata identifies the side that owns an override or pan", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   const override = source.match(/function setCompareOverrides\(side, overrides\) \{([\s\S]*?)\n\}/)?.[1] || "";
   assert.match(override, /affectedSessionIds: \[`compare:\$\{side\}`\]/);
   const comparePan = source.match(/function bindCompareCanvas\(side\) \{([\s\S]*?)\n\}/)?.[1] || source;
@@ -352,7 +354,7 @@ test("compare history metadata identifies the side that owns an override or pan"
 });
 
 test("ambiguous module occurrences expose an explicit chooser wired to selectModule", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   const handler = source.match(/function handleOccurrenceChoiceClick\(event\) \{([\s\S]*?)\n\}/)?.[1] || "";
   assert.match(source, /moduleOccurrenceChoices/);
   assert.match(source, /renderOccurrenceChoices\(occurrences, moduleName\)/);
@@ -361,23 +363,23 @@ test("ambiguous module occurrences expose an explicit chooser wired to selectMod
 });
 
 test("focused net chips retain the active occurrence path", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function renderFocusedRootList\(\) \{([\s\S]*?)\n\}\n\nfunction updateFocusSelectedControl/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const handler = source.match(/function renderFocusedRootList\(\) \{([\s\S]*?)\n  \}\n\n  function updateFocusSelectedControl/)?.[1] || "";
   assert.match(handler, /netName && !context\.compare/);
   assert.match(handler, /state\.occurrenceContext\?\.occurrencePath/);
 });
 
 test("compare layout dispatches independent side jobs", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   assert.match(source, /kind: `compare-\$\{side\}-workspace`/);
-  assert.match(source, /Promise\.all\(jobs\.map\(\(job\) => job\.promise\)\)/);
+  assert.match(source, /workspaceExecution\.execute\(/);
   assert.match(source, /buildCompareSideWorkspace\(/);
 });
 
 test("compound view actions commit one history transaction", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
   assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => recordViewHistory\(metadata\)/);
-  assert.match(source, /function applyCompareSelection\(\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Compare selection" \}/);
+  assert.match(source, /function applyCompareSelection\(options = \{\}\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Compare selection" \}/);
   assert.match(source, /function setViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `View mode: \$\{mode\}` \}/);
   assert.match(source, /function setCompareViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Compare view mode: \$\{mode\}` \}/);
   assert.match(source, /function resetLayoutOverrides\(\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Reset layout overrides" \}/);
@@ -385,7 +387,7 @@ test("compound view actions commit one history transaction", async () => {
 });
 
 test("view bridges forward committed commands to the history boundary", async () => {
-  const main = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const main = await readWorkbenchSource();
   const bus = await readFile(new URL("../../src/application/command_bus.js", import.meta.url), "utf8");
   assert.match(main, /onDispatch: noteViewCommandDispatch/);
   assert.match(main, /function noteViewCommandDispatch\(command, result\)/);
@@ -394,26 +396,24 @@ test("view bridges forward committed commands to the history boundary", async ()
 });
 
 test("toolbar and Alt+Arrow use only the unified view timeline", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const navigate = source.match(/function navigateViewHistory\(delta\) \{([\s\S]*?)\n\}\n\nfunction restoreViewHistoryEntry/)?.[1] || "";
+  const source = await readWorkbenchSource();
+  const navigate = source.match(/function navigateViewHistory\(delta\) \{([\s\S]*?)\n  \}\n\n  function restoreViewHistoryEntry/)?.[1] || "";
   assert.doesNotMatch(navigate, /ModuleHistory|navigateModuleHistory/);
-  const shortcut = source.match(/function handleModuleHistoryShortcut\(event\) \{([\s\S]*?)\n\}\n\nfunction handleViewHistoryShortcut/)?.[1] || "";
+  const shortcut = source.match(/function handleModuleHistoryShortcut\(event\) \{([\s\S]*?)\n  \}\n\n  function handleViewHistoryShortcut/)?.[1] || "";
   assert.match(shortcut, /navigateViewHistory\(event\.key === "ArrowLeft" \? -1 : 1\)/);
   assert.doesNotMatch(shortcut, /navigateModuleHistory\(event\.key/);
 });
 
 test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
-  const handler = source.match(/function restoreCompareViewHistoryEntry\(entry\) \{([\s\S]*?)\n\}\n\nfunction createCompareWorkspaceHistoryIdentity/)?.[1] || "";
-
-  assert.match(handler, /createCompareWorkspaceHistoryIdentity\(\)/);
-  assert.match(handler, /canReuseWorkspace/);
-  assert.match(handler, /renderGraphMount\(elements\.leftMount/);
-  assert.match(handler, /renderCompareGraphs\(/);
+  const source = await readWorkbenchSource();
+  assert.match(source, /function restoreCompareViewHistoryEntry\(/);
+  assert.match(source, /state\.compare\.workspaceIdentity === createCompareWorkspaceHistoryIdentity\(\)/);
+  assert.match(source, /renderGraphMount\(elements\.leftMount/);
+  assert.match(source, /renderCompareGraphs\(/);
 });
 
 test("screen rendering and exports consume prepared scenes", async () => {
-  const source = await readFile(new URL("../../src/app/main.js", import.meta.url), "utf8");
+  const source = await readWorkbenchSource();
 
   assert.match(source, /renderSvgSceneIntoMount\(mount, renderOptions\.scene/);
   assert.match(source, /svgSnapshot: renderSvgScene\(state\.scene\)/);
