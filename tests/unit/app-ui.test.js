@@ -97,6 +97,9 @@ test("module and compare workspace adjustments survive switching", () => {
   state.compare.timingBadgePositions.right.u1 = "top-left";
   state.compare.focusedRootNodeIds.left = ["cell:u0"];
   state.compare.focusedRootsSynchronized = false;
+  state.compare.outputName = "y";
+  state.compare.wholeRequested = true;
+  state.compare.transforms.left = { x: 9, y: 8, scale: 1.5 };
   saveCompareWorkspace(state);
   state.compare.nodePositions.right.clear();
   state.compare.timingBadgePositions.right = {};
@@ -105,6 +108,9 @@ test("module and compare workspace adjustments survive switching", () => {
   assert.equal(state.compare.timingBadgePositions.right.u1, "top-left");
   assert.deepEqual(state.compare.focusedRootNodeIds.left, ["cell:u0"]);
   assert.equal(state.compare.focusedRootsSynchronized, false);
+  assert.equal(state.compare.outputName, "y");
+  assert.equal(state.compare.wholeRequested, true);
+  assert.deepEqual(state.compare.transforms.left, { x: 9, y: 8, scale: 1.5 });
 });
 
 test("timing panel helpers render and update badge choices without app state", () => {

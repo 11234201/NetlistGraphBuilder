@@ -25,7 +25,13 @@ export function createModuleNavigationController({ state, elements, services }) 
   function handleOccurrenceChoiceClick(event) {
     const button = event.target.closest?.("[data-occurrence-module]");
     if (!button) return;
-    const occurrencePath = button.dataset.occurrencePath?.split("/").filter(Boolean) || [];
+    let occurrencePath = [];
+    try {
+      const parsed = JSON.parse(button.dataset.occurrencePath || "[]");
+      if (Array.isArray(parsed)) occurrencePath = parsed.filter((item) => typeof item === "string" && item.length > 0);
+    } catch {
+      occurrencePath = button.dataset.occurrencePath?.split("/").filter(Boolean) || [];
+    }
     if (!occurrencePath.length) return;
     event.preventDefault();
     selectModule(button.dataset.occurrenceModule, {

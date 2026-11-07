@@ -10,6 +10,8 @@ import { createViewHistoryEntry } from "../../src/app/viewHistory.js";
 import { createInputController } from "../../src/app/input_controller.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
 import { createGoldenController } from "../../src/app/golden_controller.js";
+import { createSearchNavigationController } from "../../src/app/search_navigation_controller.js";
+import { createViewControlsController } from "../../src/app/view_controls_controller.js";
 
 test("Compare output change is exported and updates the selected output", () => {
   const state = { compare: { outputName: null, wholeRequested: true, focusedRootNodeIds: [] }, design: { modules: [] } };
@@ -28,6 +30,56 @@ test("Compare output change is exported and updates the selected output", () => 
   assert.equal(state.compare.outputName, "y");
   assert.equal(state.compare.wholeRequested, false);
   assert.equal(calls.filter(Array.isArray).length, 2);
+});
+
+test("reapplying the current Compare pair preserves its query and viewport", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const left = { name: "left", displayName: "Left" };
+  const right = { name: "right", displayName: "Right" };
+  state.design = { modules: [left, right] };
+  state.compare.active = true;
+  state.compare.leftModuleName = left.name;
+  state.compare.rightModuleName = right.name;
+  state.compare.outputName = "y";
+  state.compare.wholeRequested = true;
+  state.compare.transforms.left = { x: 10, y: 20, scale: 2 };
+  const noOp = () => {};
+  const element = { classList: { add: noOp, toggle: noOp }, setAttribute: noOp };
+  const elements = new Proxy({
+    leftModuleSelect: { value: left.name }, rightModuleSelect: { value: right.name }
+  }, { get: (target, key) => key in target ? target[key] : element });
+  const services = new Proxy({
+    workspaceJobs: { cancelSession: noOp },
+    setCompareTransform: (side, transform) => { state.compare.transforms[side] = transform; }
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  createCompareWorkspaceController({ state, elements, services }).applyCompareSelectionImpl({ deferRender: true });
+  assert.equal(state.compare.outputName, "y");
+  assert.equal(state.compare.wholeRequested, true);
+  assert.deepEqual(state.compare.transforms.left, { x: 10, y: 20, scale: 2 });
+});
+
+test("Compare Whole explicitly bypasses Search-first and Focused accepts a selected net", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.compare.active = true;
+  state.compare.selectedSide = "left";
+  state.compare.selectedKind = "net";
+  state.compare.selectedName = "n";
+  const calls = [];
+  const noOp = () => {};
+  const services = new Proxy({
+    runViewHistoryTransaction: (_metadata, operation) => operation(),
+    getFocusedRootContext: () => ({ side: "left", roots: [], fullGraph: { nodes: [] } }),
+    setCompareFocusedRootNodeIds: (side, roots) => { state.compare.focusedRootNodeIds[side] = roots; },
+    renderCompareGraphs: () => calls.push("render")
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  const control = { classList: { toggle: noOp } };
+  const elements = new Proxy({}, { get: (target, key) => target[key] ||= control });
+  const controller = createViewControlsController({ state, elements, services });
+  controller.setCompareViewModeImpl("focused");
+  assert.deepEqual(state.compare.focusedRootNodeIds.left, ["net:n"]);
+  controller.setCompareViewModeImpl("whole");
+  assert.equal(state.compare.wholeRequested, true);
+  assert.equal(calls.length, 2);
 });
 
 test("entering Compare cancels Single computation before starting Compare work", () => {
@@ -174,8 +226,37 @@ test("Compare mount rejection records and exposes a default render failure", asy
     graphs: { left: graph, right: graph }, scenes: { left: {}, right: {} }, analysis: {}
   }, left, right);
   await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.compare.workspaceIdentity, null);
   assert.match(messages.at(-1), /Compare render failed: left SVG failed/);
   assert.match(statuses.at(-1), /Compare render failed: left SVG failed/);
+});
+
+test("Compare workspace identity is published only after both mounts complete", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const left = { name: "left", displayName: "Left", ports: [] };
+  const right = { name: "right", displayName: "Right", ports: [] };
+  state.design = { modules: [left, right] };
+  state.compare.active = true;
+  const graph = { nodes: [], edges: [] };
+  const resolvers = [];
+  const noOp = () => {};
+  const elements = {
+    compareMount: { querySelector: () => ({ textContent: "" }) },
+    compareOutputSelect: {}, leftMount: {}, rightMount: {}
+  };
+  const services = new Proxy({
+    renderGeneration: { current: () => ({ isCurrent: () => true }) },
+    renderGraphMount: () => new Promise((resolve) => resolvers.push(resolve)),
+    getCurrentLayoutProvider: () => ({ label: "Test" })
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  createCompareWorkspaceController({ state, elements, services }).commitCompareWorkspace({
+    fullGraphs: { left: graph, right: graph }, autoGraphs: { left: graph, right: graph },
+    graphs: { left: graph, right: graph }, scenes: { left: {}, right: {} }, analysis: {}
+  }, left, right, { workspaceIdentity: "workspace:ready" });
+  assert.equal(state.compare.workspaceIdentity, null);
+  resolvers.forEach((resolve) => resolve({}));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.compare.workspaceIdentity, "workspace:ready");
 });
 
 test("an obsolete Compare history completion performs no selection or transform side effects", () => {
@@ -230,12 +311,16 @@ test("cancelled Single history render releases the restore lifecycle", () => {
   const services = new Proxy({
     renderCurrentModuleGraph: (options) => { renderOptions = options; }
   }, { get: (target, key) => key in target ? target[key] : noOp });
+  const elements = {
+    mount: {}, moduleBackButton: {}, moduleForwardButton: {},
+    coneDepthInput: {}, faninDepthInput: {}, fanoutDepthInput: {}
+  };
   const controller = createHistoryController({
-    state,
-    elements: { mount: {}, moduleBackButton: {}, moduleForwardButton: {} },
-    services
+    state, elements, services
   });
   controller.restoreViewHistoryEntry(entry);
+  assert.equal(elements.faninDepthInput.value, String(entry.faninDepth));
+  assert.equal(elements.fanoutDepthInput.value, String(entry.fanoutDepth));
   assert.equal(state.restoringViewHistory, true);
   renderOptions.onCancelled();
   assert.equal(state.restoringViewHistory, false);
@@ -299,10 +384,49 @@ test("design restore applies state before one final render and preserves its com
   assert.equal(renders, 1);
   assert.equal(state.viewMode, "focused");
   assert.deepEqual([state.coneDepth, state.faninDepth, state.fanoutDepth], [4, 5, 6]);
-  assert.equal(renderOptions.onFailed, failure);
-  assert.equal(renderOptions.onCancelled, cancellation);
+  assert.equal(typeof renderOptions.onFailed, "function");
+  assert.equal(typeof renderOptions.onCancelled, "function");
   renderOptions.onRendered?.({ nodes: [], edges: [] });
   assert.equal(completions, 1);
+});
+
+test("loading a design exits and clears an active Compare workspace", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.compare.active = true;
+  state.compare.leftModuleName = "old-left";
+  state.compare.rightModuleName = "old-right";
+  let exited = 0;
+  const noOp = () => {};
+  const services = new Proxy({
+    documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
+    netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: () => [],
+    exitCompareView: (options) => { exited += 1; assert.equal(options.deferSingleRender, true); },
+    selectModule(name) { state.currentModule = state.design.modules.find((module) => module.name === name); },
+    renderCurrentModuleGraph: (options) => options.onRendered({ nodes: [], edges: [] })
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  await createInputController({
+    state, elements: { coneDepthInput: {}, faninDepthInput: {}, fanoutDepthInput: {} }, services
+  }).loadDesign("module next; endmodule", "next.v");
+  assert.equal(exited, 1);
+  assert.equal(state.compare.active, false);
+  assert.equal(state.compare.leftModuleName, null);
+  assert.equal(state.currentModule.name, "next");
+});
+
+test("startup display module name resolves to its canonical escaped module", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  let selected;
+  const noOp = () => {};
+  const services = new Proxy({
+    documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
+    netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: () => [],
+    selectModule(name) { selected = name; state.currentModule = state.design.modules.find((module) => module.name === name); },
+    renderCurrentModuleGraph: (options) => options.onRendered({ nodes: [], edges: [] })
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  await createInputController({
+    state, elements: { coneDepthInput: {}, faninDepthInput: {}, fanoutDepthInput: {} }, services
+  }).loadDesign("module first; endmodule module \\foo.bar (); endmodule", "escaped.v", { moduleName: "\\foo.bar" });
+  assert.equal(selected, "foo.bar");
 });
 
 test("startup ensureDesign rejects when its final render fails or is cancelled", async () => {
@@ -322,6 +446,41 @@ test("startup ensureDesign rejects when its final render fails or is cancelled",
     else renderOptions.onCancelled();
     await assert.rejects(pending, outcome === "failed" ? /layout failed/ : /cancelled/);
   }
+});
+
+test("timing quick input resolves only after the refreshed workspace is mounted", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.currentModule = { name: "top" };
+  let renderOptions;
+  const noOp = () => {};
+  const services = new Proxy({
+    rerenderPreservingView: (_selectedNodeId, options) => { renderOptions = options; }
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  const controller = createInputController({ state, elements: {}, services });
+  let settled = false;
+  const pending = controller.loadQuickInputText(
+    "inst <top/u0> pin <A>, at 1.0, rat 0.1, slack -0.2",
+    { kind: "timing", label: "timing.log" }
+  ).then((kind) => { settled = true; return kind; });
+  await Promise.resolve();
+  assert.equal(settled, false);
+  renderOptions.onRendered({ nodes: [], edges: [] });
+  assert.equal(await pending, "timing");
+});
+
+test("startup rejects an explicit missing module before scheduling layout", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const elements = { searchInput: {}, layoutProviderSelect: {}, coneDepthInput: {}, faninDepthInput: {}, fanoutDepthInput: {} };
+  let renders = 0;
+  const noOp = () => {};
+  const services = new Proxy({
+    documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
+    netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: (refs) => [...(refs || [])],
+    renderCurrentModuleGraph: () => { renders += 1; }
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+  const handler = createInputController({ state, elements, services }).createStartupHandlers();
+  assert.throws(() => handler.loadNetlist({ text: "module top; endmodule", name: "design.v" }, { module: "missing" }), /module not found/);
+  assert.equal(renders, 0);
 });
 
 test("session persistence reports only the first failure in a continuous failure streak", async () => {
@@ -369,4 +528,47 @@ test("SVG export is disabled and guarded while Compare is active", () => {
   controller.exportCurrentSvg();
   assert.equal(downloads, 0);
   assert.match(status, /Exit Compare/);
+});
+
+test("Single exports stay disabled until the current workspace mount completes", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.currentModule = { name: "top" };
+  state.graph = { nodes: [], edges: [] };
+  state.scene = { items: [] };
+  let downloads = 0;
+  const statuses = [];
+  const controller = createGoldenController({ state, elements: {}, services: {
+    browserDownload: { text: () => downloads++, json: () => downloads++ },
+    setStatus: (message) => statuses.push(message)
+  } });
+  controller.exportCurrentSvg();
+  controller.saveLayoutGolden();
+  assert.equal(downloads, 0);
+  assert.equal(statuses.filter((message) => message.includes("Wait for the current Single workspace")).length, 2);
+});
+
+test("activating a visible port search result selects its positioned node", () => {
+  const port = { id: "input:a", kind: "input", ref: { name: "a" }, x: 10, y: 20, width: 40, height: 20 };
+  const state = { currentModule: { name: "top" }, graph: { nodes: [port], edges: [] }, fullGraph: { nodes: [port], edges: [] }, transform: { scale: 1 } };
+  let selected;
+  const controller = createSearchNavigationController({ state, elements: { searchResults: {} }, services: {
+    setSelectedNode: (id) => { selected = id; }, setStatus() {}, getSvg: () => null
+  } });
+  controller.activateSearchResult({ moduleName: "top", kind: "port", label: "a", target: { kind: "port", name: "a", direction: "input" } });
+  assert.equal(selected, "input:a");
+});
+
+test("activating an unavailable port search result preserves the current selection", () => {
+  const state = {
+    currentModule: { name: "top" }, graph: { nodes: [], edges: [] },
+    fullGraph: { nodes: [{ id: "input:a", kind: "input", ref: { name: "a" } }], edges: [] }
+  };
+  let selected = "cell:keep";
+  let status = "";
+  const controller = createSearchNavigationController({ state, elements: { searchResults: {} }, services: {
+    setSelectedNode: (id) => { selected = id; }, setStatus: (message) => { status = message; }
+  } });
+  controller.activateSearchResult({ moduleName: "top", kind: "port", label: "a", target: { kind: "port", name: "a", direction: "input" } });
+  assert.equal(selected, "cell:keep");
+  assert.match(status, /unavailable/);
 });

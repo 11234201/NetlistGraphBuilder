@@ -3,6 +3,9 @@ const snapshots = new WeakSet();
 // Snapshot supported session data, including collections whose native mutators
 // are not disabled by Object.freeze. Never expose a collection's backing target.
 export function immutableSnapshot(value, seen = new WeakMap()) {
+  if (typeof value === "function") {
+    throw new TypeError("Session snapshots do not support function values");
+  }
   if (value === null || typeof value !== "object") return value;
   if (snapshots.has(value)) return value;
   if (seen.has(value)) return seen.get(value);
@@ -22,7 +25,7 @@ export function immutableSnapshot(value, seen = new WeakMap()) {
     });
     seen.set(value, proxy);
     if (isMap) for (const [key, item] of value) {
-      if (key !== null && typeof key === "object") {
+      if (key !== null && (typeof key === "object" || typeof key === "function")) {
         throw new TypeError("Session snapshot Map keys must be primitive values");
       }
       target.set(key, immutableSnapshot(item, seen));
@@ -34,6 +37,9 @@ export function immutableSnapshot(value, seen = new WeakMap()) {
   }
   if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
     throw new TypeError("Session snapshots require plain records, arrays, Maps or Sets");
+  }
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new TypeError("Session snapshots do not support Symbol properties");
   }
   const result = Array.isArray(value) ? new Array(value.length) : {};
   seen.set(value, result);

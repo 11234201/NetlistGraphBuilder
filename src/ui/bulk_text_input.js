@@ -38,7 +38,7 @@ export function createBulkTextInput({ input, notice, expandButton, clearButton }
   input.addEventListener("paste", (event) => {
     if (!event.clipboardData?.types.includes("text/plain")) return;
     const pasted = event.clipboardData.getData("text/plain");
-    if (original === null && input.value.length + pasted.length <= BULK_TEXT_THRESHOLD) return;
+    if (expanded || (original === null && input.value.length + pasted.length <= BULK_TEXT_THRESHOLD)) return;
     event.preventDefault();
     const value = original !== null ? pasted
       : input.value.slice(0, input.selectionStart) + pasted + input.value.slice(input.selectionEnd);
@@ -52,6 +52,13 @@ export function createBulkTextInput({ input, notice, expandButton, clearButton }
         input.selectionStart !== 0 || input.selectionEnd !== input.value.length) return;
     event.clipboardData.setData("text/plain", original);
     event.preventDefault();
+  });
+  input.addEventListener("cut", (event) => {
+    if (original === null || !event.clipboardData ||
+        input.selectionStart !== 0 || input.selectionEnd !== input.value.length) return;
+    event.clipboardData.setData("text/plain", original);
+    event.preventDefault();
+    clear();
   });
   input.addEventListener("keydown", (event) => {
     if (original !== null && !event.isComposing && ["Backspace", "Delete"].includes(event.key) &&

@@ -30,7 +30,8 @@ export function loadSessionState(storage) {
 export function saveSessionState(snapshot, storage) {
   try {
     const target = arguments.length > 1 ? storage : globalThis.sessionStorage;
-    target?.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
+    if (!target || typeof target.setItem !== "function") return false;
+    target.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
     return true;
   } catch {
     return false;

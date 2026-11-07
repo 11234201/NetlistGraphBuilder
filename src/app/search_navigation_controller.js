@@ -76,8 +76,12 @@ export function createSearchNavigationController({ state, elements, services }) 
       if (action !== "focus") services.setStatus(`Search: ${result.label} is unavailable in the current graph`);
       return;
     }
-    const node = findSearchTargetNode(target);
-    services.setSelectedNode(node?.id || null);
+    const node = findSearchTargetNode(target, state.graph);
+    if (!node) {
+      services.setStatus(`Search: ${result.kind} ${result.label} is unavailable in the current graph`);
+      return;
+    }
+    services.setSelectedNode(node.id);
     if (node) {
       centerGraphPoint({
         x: node.x + node.width / 2,

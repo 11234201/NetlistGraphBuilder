@@ -11,6 +11,7 @@ import { createSingleWorkspaceIdentity } from "./workspace_identity.js";
 export function createWorkspaceRenderController({ state, elements, services }) {
   function renderCurrentModuleGraph(options = {}) {
     const request = services.renderGeneration.begin();
+    state.singleWorkspaceIdentity = null;
     const requestId = request.id;
     const layoutProvider = services.getCurrentLayoutProvider();
     services.logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
@@ -50,7 +51,6 @@ export function createWorkspaceRenderController({ state, elements, services }) {
 
   function commitCurrentWorkspace(workspace, options = {}) {
     state.compare.singleWorkspaceInvalidated = false;
-    state.singleWorkspaceIdentity = options.workspaceIdentity || null;
     state.fullGraph = workspace.fullGraph;
     state.scene = workspace.scene;
     services.logProcess("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
@@ -66,12 +66,19 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     state.graph = graph;
     services.renderStats();
     services.renderDiagnostics();
+    const renderRequest = services.renderGeneration.current();
     renderGraphMount(elements.mount, graph, { scene }).then((result) => {
       if (result?.cancelled) { options.onCancelled?.(); return; }
+      state.singleWorkspaceIdentity = options.workspaceIdentity || null;
       services.applyTransform();
       services.setStatus(readyMessage || `Ready (${services.getCurrentLayoutProvider().label})`);
+      services.updateCalibrationControls();
       onRendered?.(graph);
     }).catch((error) => {
+      if (!renderRequest.isCurrent() || state.compare.active) {
+        options.onCancelled?.();
+        return;
+      }
       services.logProcess("error", "render", `Render failed: ${error.message}`);
       services.setStatus(`Render failed: ${error.message}`);
       options.onFailed?.(error);
@@ -155,7 +162,7 @@ export function createWorkspaceRenderController({ state, elements, services }) {
 export const workspaceRenderPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "autoGraph", "cellConfig", "compare", "coneDepth", "coneRootNodeId",
-    "currentModule", "design", "document", "faninDepth", "fanoutDepth", "focusedRootNodeIds",
+    "currentModule", "design", "document", "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs",
     "fullGraph", "graph", "graphOverrides", "layoutFallbackFromProviderId", "layoutPolicy",
     "layoutProviderId", "nodePositions", "nodeSizes", "occurrenceContext", "presentationPolicy",
     "scene", "showAliases", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",

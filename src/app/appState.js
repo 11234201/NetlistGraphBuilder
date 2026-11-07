@@ -101,7 +101,7 @@ export function createCompareState() {
 
 export function resetDesignWorkspace(state) {
   state.compare?.layoutAbortController?.abort();
-  if (state.compare) state.compare.layoutAbortController = null;
+  state.compare = createCompareState();
   resetModuleWorkspace(state);
   state.fullGraph = null;
   state.autoGraph = null;
@@ -176,6 +176,12 @@ export function saveCompareWorkspace(state) {
 export function restoreCompareWorkspace(state, leftModuleName, rightModuleName) {
   const saved = state.compareWorkspaces.get(compareWorkspaceKey(leftModuleName, rightModuleName));
   const fresh = saved || createCompareState();
+  state.compare.outputName = fresh.outputName || null;
+  state.compare.wholeRequested = fresh.wholeRequested === true;
+  state.compare.transforms = {
+    left: { ...fresh.transforms.left },
+    right: { ...fresh.transforms.right }
+  };
   state.compare.nodePositions = cloneSideMaps(fresh.nodePositions);
   state.compare.nodeSizes = cloneSideMaps(fresh.nodeSizes);
   state.compare.graphOverrides = {
@@ -238,6 +244,12 @@ function compareWorkspaceKey(left, right) {
 
 function cloneCompareAdjustments(compare) {
   return {
+    outputName: compare.outputName || null,
+    wholeRequested: compare.wholeRequested === true,
+    transforms: {
+      left: { ...compare.transforms.left },
+      right: { ...compare.transforms.right }
+    },
     nodePositions: cloneSideMaps(compare.nodePositions),
     nodeSizes: cloneSideMaps(compare.nodeSizes),
     graphOverrides: {

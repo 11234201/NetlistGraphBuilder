@@ -9,10 +9,18 @@ test("occurrence chooser renders every canonical path and escapes labels", () =>
   ], "child");
 
   assert.match(html, /Choose an occurrence context for child/);
-  assert.match(html, /data-occurrence-path="u0"/);
-  assert.match(html, /data-occurrence-path="u1\/x&amp;y"/);
+  assert.match(html, /data-occurrence-path="\[&quot;u0&quot;\]"/);
+  assert.match(html, /data-occurrence-path="\[&quot;u1&quot;,&quot;x&amp;y&quot;\]"/);
   assert.match(html, /top \/ u1 \/ x&amp;y/);
   assert.doesNotMatch(html, /<script>/);
+});
+
+test("occurrence chooser preserves a slash inside one canonical instance segment", () => {
+  const html = renderOccurrenceChoices([
+    { moduleName: "child", rootModuleName: "top", occurrencePath: ["u/escaped"] },
+    { moduleName: "child", rootModuleName: "top", occurrencePath: ["other"] }
+  ], "child");
+  assert.match(html, /data-occurrence-path="\[&quot;u\/escaped&quot;\]"/);
 });
 
 test("occurrence chooser stays empty when there is no ambiguity", () => {

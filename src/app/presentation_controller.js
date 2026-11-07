@@ -94,7 +94,7 @@ export function createPresentationController({ state, elements, services }) {
         if (result?.cancelled) return;
         services.applyTransform();
         services.updateCalibrationControls();
-      });
+      }).catch((error) => services.setStatus(`Presentation render failed: ${error.message}`));
     }
     services.persistSession();
     services.setStatus(`Gate symbols: ${presentationPolicy.gateSymbolMode}`);
@@ -115,7 +115,7 @@ export function createPresentationController({ state, elements, services }) {
       services.applyCompareHighlights();
       services.applyCompareTransforms();
       services.updateCalibrationControls();
-    });
+    }).catch((error) => services.setStatus(`Compare presentation render failed: ${error.message}`));
   }
 
   return Object.freeze({ handleGraphSimplificationChange, rerenderActiveGraph, commitLayoutSpacing, commitTimingDisplayPolicy, commitGateSymbolMode, refreshComparePresentationScenes });

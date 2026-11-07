@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createViewSessionStore } from "../../src/application/view_session_store.js";
+import { immutableSnapshot } from "../../src/foundation/immutable_snapshot.js";
 
 test("session inputs and returned nested records cannot mutate a committed revision", () => {
   const position = { x: 10, y: 20 };
@@ -36,4 +37,9 @@ test("snapshots preserve sparse array length and reject identity-sensitive Map k
   assert.equal(0 in sessions.require("s").overrides.sparse, false);
   assert.throws(() => createViewSessionStore([{ sessionId: "x", documentId: "d", unitId: "top", domainId: "netlist",
     overrides: { keyed: new Map([[{}, "value"]]) } }]), /Map keys must be primitive/);
+});
+
+test("snapshots reject function values in ordinary fields and collections", () => {
+  assert.throws(() => immutableSnapshot({ callback() {} }), /function values/);
+  assert.throws(() => immutableSnapshot(new Set([() => {}])), /function values/);
 });

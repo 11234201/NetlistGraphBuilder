@@ -406,9 +406,9 @@ export function createInspectorController({ state, elements, services }) {
     services.setStatus(`${node.label}: ${checked ? "show" : "hide"} ${pin} ${metric}`);
   }
 
-  function rerenderPreservingView(selectedNodeId) {
+  function rerenderPreservingView(selectedNodeId, options = {}) {
     const previousTransform = { ...state.transform };
-    services.renderCurrentModuleGraph();
+    services.renderCurrentModuleGraph(options);
     services.setSingleTransform(previousTransform);
     services.setSelectedNode(selectedNodeId);
     services.applyTransform();

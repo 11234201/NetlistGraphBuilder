@@ -36,6 +36,13 @@ test("workspace keys distinguish undefined, holes, null and empty arrays", () =>
   assert.notEqual(createWorkspaceArtifactKey(new Array(1)), createWorkspaceArtifactKey([undefined]));
 });
 
+test("workspace keys preserve root primitive types and reject unsupported identities", () => {
+  assert.notEqual(createWorkspaceArtifactKey(false), createWorkspaceArtifactKey({}));
+  assert.notEqual(createWorkspaceArtifactKey(0), createWorkspaceArtifactKey(null));
+  assert.throws(() => createWorkspaceArtifactKey(new Date()), /plain records/);
+  assert.throws(() => createWorkspaceArtifactKey({ value: 1n }), /bigint/);
+});
+
 test("workspace cache enforces an aggregate weight budget and rejects oversized entries", () => {
   const cache = createWorkspaceArtifactCache({ capacity: 10, maximumWeight: 5 });
   cache.put("a", { value: 1 }, { weight: 3 });

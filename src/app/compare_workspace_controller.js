@@ -65,17 +65,23 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       saveCompareWorkspace(state);
     }
     state.compare.active = true;
-    if (pairChanged) {
-      restoreCompareWorkspace(state, left.name, right.name);
-    }
+    const restoredWorkspace = pairChanged
+      ? restoreCompareWorkspace(state, left.name, right.name)
+      : true;
     state.compare.leftModuleName = left.name;
     state.compare.rightModuleName = right.name;
-    state.compare.outputName = null;
-    state.compare.wholeRequested = false;
+    if (!restoredWorkspace) {
+      state.compare.outputName = null;
+      state.compare.wholeRequested = false;
+    }
     services.clearCompareSelection();
     services.updateFocusSelectedControl();
-    services.setCompareTransform("left", { x: 0, y: 0, scale: 1 }, false);
-    services.setCompareTransform("right", { x: 0, y: 0, scale: 1 }, false);
+    services.setCompareTransform("left", restoredWorkspace
+      ? state.compare.transforms.left
+      : { x: 0, y: 0, scale: 1 }, false);
+    services.setCompareTransform("right", restoredWorkspace
+      ? state.compare.transforms.right
+      : { x: 0, y: 0, scale: 1 }, false);
     elements.comparePanel.hidden = false;
     services.updateModuleHierarchyPicker();
     elements.mount.hidden = true;
@@ -87,7 +93,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     elements.compareLayoutSelect.value = state.compare.layout;
     elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized !== false;
     applyCompareLayout();
-    elements.coneDepthInput.disabled = true;
+    elements.coneDepthInput.disabled = !state.compare.outputName;
     if (!options.deferRender) renderCompareGraphs();
     services.renderStats();
     services.renderSelection(null);
@@ -244,7 +250,8 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     state.compare.graphs = workspace.graphs;
     state.compare.scenes = workspace.scenes;
     state.compare.analysis = workspace.analysis;
-    state.compare.workspaceIdentity = options.workspaceIdentity || null;
+    state.compare.workspaceIdentity = null;
+    const renderRequest = services.renderGeneration?.current?.() || { isCurrent: () => true };
     services.renderDiagnostics();
     services.logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
       leftModule: leftModule.name,
@@ -257,7 +264,11 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left }),
       services.renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right })
     ]).then((results) => {
+      if (!renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
+        options.onCancelled?.(); return;
+      }
       if (results.some((result) => result?.cancelled)) { options.onCancelled?.(); return; }
+      state.compare.workspaceIdentity = options.workspaceIdentity || null;
       services.applyCompareHighlights();
       services.applyCompareTransforms();
       services.logProcess("info", "render", "Compare render completed", {
@@ -267,6 +278,9 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       services.setStatus(`Compare ready (${services.getCurrentLayoutProvider().label})`);
       options.onCommitted?.();
     }).catch((error) => {
+      if (!renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
+        options.onCancelled?.(); return;
+      }
       services.logProcess("error", "render", `Compare render failed: ${error.message}`);
       services.setStatus(`Compare render failed: ${error.message}`);
       options.onFailed?.(error);

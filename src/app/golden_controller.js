@@ -15,7 +15,8 @@ export function createGoldenController({ state, elements, services }) {
       services.setStatus("Exit Compare before exporting the Single SVG");
       return;
     }
-    if (!state.graph || !state.currentModule) {
+    if (!state.graph || !state.currentModule || !state.singleWorkspaceIdentity) {
+      services.setStatus("Wait for the current Single workspace before exporting SVG");
       return;
     }
     const viewSuffix = state.viewMode === "whole"
@@ -77,8 +78,8 @@ export function createGoldenController({ state, elements, services }) {
   function loadLayoutGoldenImpl(imported, label) {
     const module = resolveLayoutGoldenModule(state.design, imported, currentPersistenceIdentity());
 
-    if (state.compare.active) services.exitCompareView();
-    if (state.currentModule?.name !== module.name) services.selectModule(module.name);
+    if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
+    if (state.currentModule?.name !== module.name) services.selectModule(module.name, { deferRender: true });
     applyLayoutGoldenState(state, imported);
     services.setSingleOverrides({
       nodePositions: state.nodePositions,
@@ -94,16 +95,21 @@ export function createGoldenController({ state, elements, services }) {
     services.setSingleTransform({ x: 0, y: 0, scale: 1 });
     services.setSelectedNode(null);
     services.updateViewControls();
-    services.renderCurrentModuleGraph({
-      readyMessage: `Loaded Golden ${label}: ${state.nodePositions.size} node position(s)`
-    });
+    const completion = new Promise((resolve, reject) => services.renderCurrentModuleGraph({
+      readyMessage: `Loaded Golden ${label}: ${state.nodePositions.size} node position(s)`,
+      onRendered: resolve,
+      onFailed: reject,
+      onCancelled: () => reject(createImportCancellationError("Golden render was cancelled"))
+    }));
     services.renderStats();
     services.renderDiagnostics();
     updateCalibrationControls();
+    return completion;
   }
 
   function saveLayoutGolden() {
-    if (!state.graph || !state.currentModule) {
+    if (!state.graph || !state.currentModule || !state.singleWorkspaceIdentity || state.compare.singleWorkspaceInvalidated) {
+      services.setStatus("Wait for the current Single workspace before saving a Golden");
       return;
     }
 
@@ -159,8 +165,9 @@ export function createGoldenController({ state, elements, services }) {
     elements.canvas.classList.toggle("is-calibrating", state.calibrationMode);
     elements.adjustLayoutButton.classList.toggle("is-active", state.calibrationMode);
     elements.adjustLayoutButton.setAttribute("aria-pressed", String(state.calibrationMode));
-    elements.saveGoldenButton.disabled = state.compare.active || !state.graph;
-    elements.exportSvgButton.disabled = state.compare.active || state.compare.singleWorkspaceInvalidated || !state.graph;
+    const singleWorkspaceUnavailable = state.compare.singleWorkspaceInvalidated || !state.singleWorkspaceIdentity;
+    elements.saveGoldenButton.disabled = state.compare.active || !state.graph || singleWorkspaceUnavailable;
+    elements.exportSvgButton.disabled = state.compare.active || !state.graph || singleWorkspaceUnavailable;
     elements.resetLayoutButton.disabled = state.compare.active
       ? !services.hasCompareLayoutOverrides()
       : state.nodePositions.size === 0 && state.nodeSizes.size === 0 && services.countGraphOverrides() === 0;
@@ -187,7 +194,7 @@ export const goldenPorts = Object.freeze({
     "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph",
     "graphOverrides", "layoutPolicy", "moduleWorkspaces", "nodePositions", "nodeSizes",
     "occurrenceContext", "restoringViewHistory", "scene", "searchResults", "selectedNet",
-    "selectedNodeId", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
+    "selectedNodeId", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
     "useFanoutHubs", "viewHistory", "viewMode", "workspaceArtifactCache"
   ],
   elements: [
@@ -203,3 +210,9 @@ export const goldenPorts = Object.freeze({
     "syncLayoutSpacingControls", "updateViewControls"
   ]
 });
+
+function createImportCancellationError(message) {
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error;
+}

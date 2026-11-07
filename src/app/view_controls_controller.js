@@ -24,7 +24,8 @@ export function createViewControlsController({ state, elements, services }) {
       );
       const rootNodeIds = existingRootNodeIds.length > 0
         ? existingRootNodeIds
-        : state.selectedNodeId ? [state.selectedNodeId] : [];
+        : state.selectedNodeId ? [state.selectedNodeId]
+          : state.selectedNet ? [focusedNetRootId(state.selectedNet)] : [];
       if (rootNodeIds.length === 0) {
         services.setStatus("Select a cell before opening Focused view");
         return;
@@ -55,7 +56,9 @@ export function createViewControlsController({ state, elements, services }) {
     const context = services.getFocusedRootContext();
     if (mode === "focused") {
       if (context.roots.length === 0) {
-        const selected = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+        const selected = state.compare.selectedKind === "net" && state.compare.selectedName
+          ? { id: focusedNetRootId(state.compare.selectedName) }
+          : findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
         if (!selected) {
           services.setStatus("Select a compare cell before opening Focused view");
           return;
@@ -74,6 +77,7 @@ export function createViewControlsController({ state, elements, services }) {
         services.setCompareTransform(side, { x: 0, y: 0, scale: 1 }, false);
       }
       state.compare.outputName = null;
+      state.compare.wholeRequested = true;
       updateViewControls();
       services.renderCompareGraphs();
       services.setStatus("Whole compare modules");

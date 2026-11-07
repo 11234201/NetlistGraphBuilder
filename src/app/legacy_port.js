@@ -8,7 +8,7 @@ export function createLegacyPort(getTarget, keys, { writable = false, nestedFiel
       const target = getTarget()[key];
       const fields = nestedFields[key];
       if (!fields || !target || typeof target !== "object") return target;
-      if (!nestedPorts.has(key)) nestedPorts.set(key, createNestedPort(target, fields, writable, key));
+      if (!nestedPorts.has(key)) nestedPorts.set(key, createNestedPort(() => getTarget()[key], fields, writable, key));
       return nestedPorts.get(key);
     } };
     if (writable) descriptor.set = (value) => { getTarget()[key] = value; };
@@ -17,17 +17,29 @@ export function createLegacyPort(getTarget, keys, { writable = false, nestedFiel
   return Object.preventExtensions(port);
 }
 
-function createNestedPort(target, fields, writable, label) {
+function createNestedPort(getTarget, fields, writable, label) {
   const allowed = new Set(fields);
-  return new Proxy(target, {
-    get(object, key, receiver) {
-      if (typeof key === "symbol" || allowed.has(key)) return Reflect.get(object, key, receiver);
+  const rejectMutation = (key) => { throw new Error(`Undeclared nested state mutation ${label}.${String(key)}`); };
+  return new Proxy(Object.create(null), {
+    get(_facade, key) {
+      if (typeof key === "symbol") return undefined;
+      if (allowed.has(key)) return Reflect.get(getTarget(), key);
       throw new Error(`Undeclared nested state dependency ${label}.${String(key)}`);
     },
-    set(object, key, value, receiver) {
-      if (!writable || !allowed.has(key)) throw new Error(`Undeclared nested state mutation ${label}.${String(key)}`);
-      return Reflect.set(object, key, value, receiver);
+    set(_facade, key, value) {
+      if (!writable || !allowed.has(key)) return rejectMutation(key);
+      return Reflect.set(getTarget(), key, value);
     },
     has(_object, key) { return allowed.has(key); }
+    ,ownKeys() { return [...allowed]; }
+    ,getOwnPropertyDescriptor(_facade, key) {
+      if (!allowed.has(key)) return undefined;
+      return { enumerable: true, configurable: true, value: Reflect.get(getTarget(), key), writable };
+    }
+    ,defineProperty(_facade, key, descriptor) {
+      if (!writable || !allowed.has(key) || !("value" in descriptor)) return rejectMutation(key);
+      return Reflect.set(getTarget(), key, descriptor.value);
+    }
+    ,deleteProperty(_facade, key) { return rejectMutation(key); }
   });
 }

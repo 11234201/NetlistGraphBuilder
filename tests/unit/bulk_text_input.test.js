@@ -66,3 +66,18 @@ test("bulk paste into an editable range preserves prefix and suffix; select-all 
   assert.equal(f.buffer.getValue(), "");
   assert.equal(f.input.readOnly, false);
 });
+
+test("select-all cut copies and clears the retained source while expanded editing keeps native paste", () => {
+  const f = fixture();
+  const source = "x".repeat(BULK_TEXT_THRESHOLD + 1);
+  f.buffer.setValue(source);
+  f.input.setSelectionRange(0, f.input.value.length);
+  let copied;
+  f.input.listeners.cut({ clipboardData: { setData: (_type, value) => { copied = value; } }, preventDefault() {} });
+  assert.equal(copied, source);
+  assert.equal(f.buffer.getValue(), "");
+  f.buffer.setValue(source);
+  f.expandButton.listeners.click();
+  assert.equal(f.paste("tail"), false);
+  assert.equal(f.input.value, source);
+});

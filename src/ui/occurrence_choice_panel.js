@@ -6,7 +6,7 @@ export function renderOccurrenceChoices(occurrences = [], moduleName = "") {
   if (choices.length < 2) return "";
   const title = `Choose an occurrence context for ${moduleName || "this module"}`;
   const buttons = choices.map((occurrence) => {
-    const path = occurrence.occurrencePath.join("/");
+    const path = JSON.stringify(occurrence.occurrencePath);
     const root = occurrence.rootModuleName || moduleName;
     const displayPath = occurrence.occurrencePath.join(" / ");
     const label = [root, displayPath].filter(Boolean).join(" / ");

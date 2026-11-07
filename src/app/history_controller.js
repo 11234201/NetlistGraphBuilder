@@ -80,6 +80,9 @@ export function createHistoryController({ state, elements, services }) {
       state.coneDepth = entry.coneDepth;
       state.faninDepth = entry.faninDepth;
       state.fanoutDepth = entry.fanoutDepth;
+      elements.coneDepthInput.value = String(state.coneDepth);
+      elements.faninDepthInput.value = String(state.faninDepth);
+      elements.fanoutDepthInput.value = String(state.fanoutDepth);
       state.selectedNodeId = entry.selectedNodeId || null;
       state.selectedNet = entry.selectedNet || null;
       state.presentationPolicy = entry.presentationPolicy

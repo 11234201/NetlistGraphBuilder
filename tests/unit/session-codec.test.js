@@ -98,3 +98,8 @@ test("session storage access errors are contained even when the global getter th
     else delete globalThis.sessionStorage;
   }
 });
+
+test("session storage reports failure when no writable storage is available", () => {
+  assert.equal(saveSessionState({ domainId: "netlist" }, null), false);
+  assert.equal(saveSessionState({ domainId: "netlist" }, {}), false);
+});

@@ -76,6 +76,63 @@ test("batch file loading never reads multiple complete files concurrently", asyn
   assert.equal(maximum, 1);
 });
 
+test("unknown-extension files use a prefix only for classification and import the complete text", async () => {
+  const prefix = "module top;\n" + "wire a;\n".repeat(9000);
+  const complete = `${prefix}endmodule`;
+  let loaded;
+  const file = {
+    name: "design.unknown", text: async () => complete,
+    slice: () => ({ text: async () => prefix.slice(0, 65536) })
+  };
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text) => { loaded = text; }, setStatus() {}, schedule: (task) => task() });
+  await controller.loadFiles([file]);
+  assert.equal(loaded, complete);
+});
+
+test("batch loading continues to a later valid netlist before applying dependent inputs", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: async (text) => { if (text === "bad") throw new Error("invalid"); loaded.push(text); },
+    setStatus: (message) => statuses.push(message), schedule: (task) => task() });
+  await controller.loadFiles([
+    { name: "bad.v", text: async () => "bad" },
+    { name: "good.v", text: async () => "module good; endmodule" },
+    { name: "good.log", text: async () => "inst <u>" }
+  ]);
+  assert.deepEqual(loaded, ["module good; endmodule", "inst <u>"]);
+  assert.match(statuses[0], /bad\.v: invalid/);
+});
+
+test("batch loading keeps a successful design available after a later netlist fails", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: async (text) => { if (text === "bad") throw new Error("invalid"); loaded.push(text); },
+    setStatus: (message) => statuses.push(message), schedule: (task) => task() });
+  await controller.loadFiles([
+    { name: "good.v", text: async () => "module good; endmodule" },
+    { name: "bad.v", text: async () => "bad" },
+    { name: "good.log", text: async () => "inst <u>" }
+  ]);
+  assert.deepEqual(loaded, ["module good; endmodule", "inst <u>"]);
+  assert.match(statuses[0], /bad\.v: invalid/);
+  assert.equal(statuses.some((message) => message.startsWith("Skipped")), false);
+});
+
+test("batch loading skips timing and Golden when every netlist failed", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: async (text) => { if (text === "bad") throw new Error("invalid"); loaded.push(text); },
+    setStatus: (message) => statuses.push(message), schedule: (task) => task() });
+  await controller.loadFiles([
+    { name: "bad.v", text: async () => "bad" },
+    { name: "timing.log", text: async () => "inst <u>" },
+    { name: "view.json", text: async () => "{}" }
+  ]);
+  assert.deepEqual(loaded, []);
+  assert.equal(statuses.filter((message) => message.startsWith("Skipped")).length, 2);
+});
+
 test("paste dialog validates empty text and waits for the load before closing", async () => {
   const elements = inputElements();
   const statuses = [];
@@ -108,6 +165,21 @@ test("paste dialog stays open and reports asynchronous load failures", async () 
   await elements.textForm.listeners.submit({ preventDefault() {} });
   assert.equal(elements.textDialog.open, true);
   assert.match(statuses.at(-1), /invalid timing/);
+});
+
+test("an obsolete dialog submission cannot close a newly opened dialog", async () => {
+  const elements = inputElements();
+  let finish;
+  createQuickInputController({ elements, windowTarget: eventTarget(),
+    loadText: () => new Promise((resolve) => { finish = resolve; }), setStatus() {}, schedule: (task) => task() });
+  elements.textDialog.open = true;
+  elements.textInput.value = "module old; endmodule";
+  const pending = elements.textForm.listeners.submit({ preventDefault() {} });
+  elements.closeTextButton.listeners.click();
+  elements.pasteNetlistButton.listeners.click();
+  finish();
+  await pending;
+  assert.equal(elements.textDialog.open, true);
 });
 
 test("editable target detection is DOM-constructor independent", () => {

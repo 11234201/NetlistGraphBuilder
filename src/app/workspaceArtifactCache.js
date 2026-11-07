@@ -88,7 +88,7 @@ export function createWorkspaceArtifactCache({ capacity = 24, maximumWeight = 25
 }
 
 export function createWorkspaceArtifactKey(identity) {
-  return stableSerialize(identity || {});
+  return stableSerialize(identity);
 }
 
 function normalizeKey(key) {
@@ -102,6 +102,9 @@ function stableSerialize(value, seen = new WeakSet()) {
     if (Number.isNaN(value)) return "number:NaN";
     if (Object.is(value, -0)) return "number:-0";
     return `number:${value}`;
+  }
+  if (["symbol", "function", "bigint"].includes(typeof value)) {
+    throw new TypeError(`Unsupported workspace artifact identity type: ${typeof value}`);
   }
   if (typeof value !== "object") return `${typeof value}:${JSON.stringify(value)}`;
   if (seen.has(value)) throw new Error("Workspace artifact identity must be acyclic");
@@ -118,6 +121,13 @@ function stableSerialize(value, seen = new WeakSet()) {
     result = `[${Array.from({ length: value.length }, (_, index) =>
       Object.hasOwn(value, index) ? stableSerialize(value[index], seen) : "hole").join(",")}]`;
   } else {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError("Workspace artifact identity requires plain records, arrays, Maps or Sets");
+    }
+    if (Object.getOwnPropertySymbols(value).length > 0) {
+      throw new TypeError("Workspace artifact identity does not support Symbol properties");
+    }
     result = `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key], seen)}`).join(",")}}`;
   }
   seen.delete(value);
@@ -132,7 +142,14 @@ function estimateArtifactWeight(value, seen = new WeakSet()) {
   if (Array.isArray(value)) return 1 + value.reduce((sum, item) => sum + estimateArtifactWeight(item, seen), 0);
   if (value instanceof Map || value instanceof Set) {
     let weight = 1;
-    for (const item of value instanceof Map ? value.values() : value.values()) weight += estimateArtifactWeight(item, seen);
+    if (value instanceof Map) {
+      for (const [key, item] of value) {
+        weight += estimateArtifactWeight(key, seen);
+        weight += estimateArtifactWeight(item, seen);
+      }
+    } else {
+      for (const item of value) weight += estimateArtifactWeight(item, seen);
+    }
     return weight;
   }
   let weight = 1;

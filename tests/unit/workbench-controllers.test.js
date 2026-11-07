@@ -5,6 +5,10 @@ import { createStateCommandsController } from "../../src/app/state_commands_cont
 import { createSingleViewSessionBridge } from "../../src/app/single_view_session_bridge.js";
 import { createAppState } from "../../src/app/appState.js";
 import { validateWorkbenchServiceDependency } from "../../src/app/workbench_controllers.js";
+import { goldenPorts } from "../../src/app/golden_controller.js";
+import { workspaceRenderPorts } from "../../src/app/workspace_render_controller.js";
+import { historyPorts } from "../../src/app/history_controller.js";
+import { createSingleWorkspaceIdentity } from "../../src/app/workspace_identity.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 
 test("legacy ports expose explicit live fields without allowing additional state", () => {
@@ -37,6 +41,43 @@ test("nested state ports expose only explicitly declared aggregate capabilities"
   assert.equal(target.compare.active, true);
   assert.throws(() => port.compare.graphs, /Undeclared nested state dependency/);
   assert.throws(() => { port.compare.graphs = {}; }, /Undeclared nested state mutation/);
+});
+
+test("nested state ports follow replaced targets and block reflective mutation", () => {
+  let target = { compare: { active: false, secret: { value: 1 } } };
+  const port = createLegacyPort(() => target, ["compare"], {
+    writable: true, nestedFields: { compare: ["active"] }
+  });
+  const nested = port.compare;
+  target = { compare: { active: true, secret: { value: 2 } } };
+  assert.equal(nested.active, true);
+  assert.deepEqual(Object.keys(nested), ["active"]);
+  assert.equal(Object.getOwnPropertyDescriptor(nested, "secret"), undefined);
+  assert.throws(() => Object.defineProperty(nested, "secret", { value: null }), /mutation/);
+  assert.throws(() => { delete nested.active; }, /mutation/);
+});
+
+test("nested state ports treat defineProperty as a value assignment", () => {
+  const target = { compare: { active: true } };
+  const port = createLegacyPort(() => target, ["compare"], {
+    writable: true, nestedFields: { compare: ["active"] }
+  });
+  Object.defineProperty(port.compare, "active", { value: false, writable: false });
+  port.compare.active = true;
+  assert.equal(target.compare.active, true);
+  assert.equal(Object.getOwnPropertyDescriptor(target.compare, "active").writable, true);
+});
+
+test("Golden controller declares the committed Single workspace identity capability", () => {
+  assert.ok(goldenPorts.state.includes("singleWorkspaceIdentity"));
+});
+
+test("render and history ports compute the same Focused workspace identity", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.focusedRootRefs = [{ domainId: "netlist", documentId: "d", unitId: "top", kind: "cell", localId: "u" }];
+  const renderState = createLegacyPort(() => state, workspaceRenderPorts.state);
+  const historyState = createLegacyPort(() => state, historyPorts.state);
+  assert.equal(createSingleWorkspaceIdentity(renderState), createSingleWorkspaceIdentity(historyState));
 });
 
 test("workbench dependency validation rejects present-but-invalid services", () => {

@@ -21,14 +21,14 @@ export function createInputController({ state, elements, services }) {
     try {
       const manifest = await fetchStartupManifest(globalThis.location?.search || "");
       if (!manifest) {
-        loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
+        await loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
         return;
       }
       services.logProcess("info", "launcher", "Applying EDA startup manifest");
       await executeStartupManifest(manifest, createStartupHandlers());
     } catch (error) {
       services.logProcess("error", "launcher", `Startup failed: ${error.message}`);
-      if (!state.currentModule) loadDesign(sampleNetlist, "built-in sample");
+      if (!state.currentModule) await loadDesign(sampleNetlist, "built-in sample");
     }
   }
 
@@ -50,32 +50,14 @@ export function createInputController({ state, elements, services }) {
         });
       },
       loadNetlist(input, target) {
-        return new Promise((resolve, reject) => {
-          try {
-            loadDesign(input.text, input.name, {
-              moduleName: target.module,
-              onRendered: resolve,
-              onFailed: reject,
-              onCancelled: () => reject(createStartupCancellationError())
-            });
-            if (target.module && state.currentModule?.name !== target.module && state.currentModule?.displayName !== target.module) {
-              reject(new Error(`Startup module not found: ${target.module}`));
-            }
-          } catch (error) {
-            reject(error);
-          }
-        });
+        return loadDesign(input.text, input.name, { moduleName: target.module });
       },
       loadTiming(input) {
-        loadTimingText(input.text, input.name);
+        return loadTimingText(input.text, input.name);
       },
       ensureDesign() {
         if (state.currentModule) return undefined;
-        return new Promise((resolve, reject) => loadDesign(sampleNetlist, "built-in sample", {
-          onRendered: resolve,
-          onFailed: reject,
-          onCancelled: () => reject(createStartupCancellationError())
-        }));
+        return loadDesign(sampleNetlist, "built-in sample");
       },
       selectModule: services.selectStartupModule,
       focusCell: services.focusStartupCell,
@@ -98,16 +80,13 @@ export function createInputController({ state, elements, services }) {
     const kind = options.kind;
     const label = options.label || options.name || "quick input";
     if (kind === "netlist") {
-      loadDesign(text, label);
-      return kind;
+      return loadDesign(text, label).then(() => kind);
     }
     if (kind === "golden") {
-      services.loadLayoutGolden(getLayoutGoldenState(text), label);
-      return kind;
+      return Promise.resolve(services.loadLayoutGolden(getLayoutGoldenState(text), label)).then(() => kind);
     }
 
-    loadTimingText(text, label);
-    return kind;
+    return Promise.resolve(loadTimingText(text, label)).then(() => kind);
   }
 
   function loadTimingText(text, label) {
@@ -127,16 +106,29 @@ export function createInputController({ state, elements, services }) {
     });
     resetTimingPresentation(state);
     if (state.compare.active) {
-      services.renderCompareGraphs();
-      services.renderStats();
-      services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
-      return;
+      return new Promise((resolve, reject) => services.renderCompareGraphs({
+        onCommitted: () => {
+          services.renderStats();
+          services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
+          resolve(state.compare.graphs);
+        },
+        onFailed: reject,
+        onCancelled: () => reject(createStartupCancellationError("Timing render was cancelled"))
+      }));
     }
     if (state.currentModule) {
-      services.rerenderPreservingView(state.selectedNodeId);
-      services.renderStats();
+      return new Promise((resolve, reject) => services.rerenderPreservingView(state.selectedNodeId, {
+        onRendered: (graph) => {
+          services.renderStats();
+          services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
+          resolve(graph);
+        },
+        onFailed: reject,
+        onCancelled: () => reject(createStartupCancellationError("Timing render was cancelled"))
+      }));
     }
     services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
+    return Promise.resolve(null);
   }
 
   function loadDesign(source, label, restore = null) {
@@ -156,10 +148,15 @@ export function createInputController({ state, elements, services }) {
 
     try {
       const design = documentEnvelope.model;
+      if (restore?.moduleName && !design.modules.some((module) =>
+        module.name === restore.moduleName || module.displayName === restore.moduleName)) {
+        throw new Error(`Startup module not found: ${restore.moduleName}`);
+      }
       services.logProcess("info", "parse", `Parsed ${design.modules.length} module(s)`, {
         label,
         diagnostics: design.diagnostics?.length || 0
       });
+      if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
       if (state.document?.documentId) services.workspaceJobs.cancelDocument(state.document.documentId);
       state.document = services.documents.open(documentEnvelope);
       services.viewSessions.closeByDocument(documentEnvelope.documentId);
@@ -177,7 +174,8 @@ export function createInputController({ state, elements, services }) {
         services.handleSearchInput();
       }
       services.renderModuleOptions();
-      const firstModule = state.design.modules.find((module) => module.name === restore?.moduleName)
+      const firstModule = state.design.modules.find((module) =>
+        module.name === restore?.moduleName || module.displayName === restore?.moduleName)
         || state.design.modules[0];
       const readyMessage = `Loaded ${label}: ${state.design.modules.length} module(s)`;
       services.selectModule(firstModule.name, { historyMode: "restore", deferRender: true });
@@ -202,14 +200,23 @@ export function createInputController({ state, elements, services }) {
         );
       }
       if (restore?.transform) services.setSingleTransform(restore.transform);
-      services.renderCurrentModuleGraph({
+      const completion = new Promise((resolve, reject) => services.renderCurrentModuleGraph({
         readyMessage,
-        onRendered: restore?.onRendered,
-        onFailed: restore?.onFailed,
-        onCancelled: restore?.onCancelled
-      });
+        onRendered: (graph) => {
+          restore?.onRendered?.(graph);
+          resolve(graph);
+        },
+        onFailed: (error) => {
+          restore?.onFailed?.(error);
+          reject(error);
+        },
+        onCancelled: () => {
+          restore?.onCancelled?.();
+          reject(createStartupCancellationError());
+        }
+      }));
       services.renderStats();
-      services.setStatus(readyMessage);
+      return completion;
     } catch (error) {
       services.setStatus(`Load failed: ${error.message}`);
       throw error;
@@ -219,8 +226,8 @@ export function createInputController({ state, elements, services }) {
   return Object.freeze({ initializeApplication, createStartupHandlers, loadQuickInputText, loadTimingText, loadDesign });
 }
 
-function createStartupCancellationError() {
-  const error = new Error("Startup render was cancelled");
+function createStartupCancellationError(message = "Startup render was cancelled") {
+  const error = new Error(message);
   error.name = "AbortError";
   return error;
 }
@@ -241,7 +248,7 @@ export const inputPorts = Object.freeze({
   ],
   services: [
     "clearSearch", "cloneObjectRefs", "documents", "focusStartupCell", "focusStartupCells",
-    "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
+    "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
     "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
     "selectModule", "selectStartupModule", "setSingleTransform", "setStatus", "viewSessions",
     "workspaceJobs"

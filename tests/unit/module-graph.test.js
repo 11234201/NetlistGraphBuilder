@@ -21,13 +21,52 @@ test("module graph parses imports, reexports, dynamic imports and worker URLs wi
     new window.Worker(new URL('./a.js', import.meta.url));
     const WorkerAlias = Worker;
     new WorkerAlias(new URL('./a.js', import.meta.url));
+    let AssignedAlias;
+    AssignedAlias = Worker;
+    new AssignedAlias(new URL('./a.js', import.meta.url));
+    new window['Worker'](new URL('./a.js', import.meta.url));
     new URL('./picture.svg', import.meta.url);
   `;
   const { graph, diagnostics } = buildModuleGraph(new Map([["main.js", source], ["a.js", "export const a = 1;"]]));
   assert.deepEqual(diagnostics, []);
-  assert.equal(graph.get("main.js").length, 13);
+  assert.equal(graph.get("main.js").length, 15);
   assert.ok(graph.get("main.js").every((edge) => edge.target === "a.js" && edge.line > 0));
   assert.deepEqual(findModuleCycles(graph), []);
+});
+
+test("worker constructor aliases respect lexical scope and shadowed globals", () => {
+  const source = `
+    function ordinary(Worker) { new Worker('./not-a-module.js'); }
+    { const W = Worker; new W(new URL('./a.js', import.meta.url)); }
+    { class W {} new W(); }
+  `;
+  const { graph, diagnostics } = buildModuleGraph(new Map([
+    ["main.js", source], ["a.js", "export const a = 1;"]
+  ]));
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(graph.get("main.js").map((edge) => edge.target), ["a.js"]);
+});
+
+test("worker analysis respects hoisting, var scope, branch flow and global-object shadowing", () => {
+  const source = `
+    function localConstructor() {
+      new Worker('./ordinary.js');
+      function Worker() {}
+    }
+    function shadowedWindow(window) {
+      new window.Worker('./ordinary-window.js');
+    }
+    { var BlockAlias = Worker; }
+    new BlockAlias(new URL('./a.js', import.meta.url));
+    let ConditionalAlias = Worker;
+    if (false) ConditionalAlias = class {};
+    new ConditionalAlias(new URL('./a.js', import.meta.url));
+  `;
+  const { graph, diagnostics } = buildModuleGraph(new Map([
+    ["main.js", source], ["a.js", "export const a = 1;"]
+  ]));
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(graph.get("main.js").map((edge) => edge.target), ["a.js", "a.js"]);
 });
 
 test("ordinary resource URLs are not executable dependency edges", () => {
