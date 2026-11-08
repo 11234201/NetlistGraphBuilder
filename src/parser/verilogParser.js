@@ -247,12 +247,13 @@ class StructuralParser {
     const lhs = parseConnectionTokens(lhsTokens);
     const rhs = parseConnectionTokens(rhsTokens);
 
-    if (lhs?.kind === "reference" && rhs?.kind === "reference") {
+    if (lhs?.kind === "reference" && !lhs.literal && rhs?.kind === "reference") {
       addAssign(module, {
         lhs: lhs.name,
         lhsDisplayName: lhs.displayName,
         rhs: rhs.name,
         rhsDisplayName: rhs.displayName,
+        ...(rhs.literal ? { rhsKind: "literal" } : {}),
         span: { line: assignToken.line, column: assignToken.column }
       });
     } else {
@@ -315,6 +316,7 @@ class StructuralParser {
         pinDisplayName: pinToken.displayName,
         net: connection?.kind === "reference" ? connection.name : "",
         netDisplayName: connection?.kind === "reference" ? connection.displayName : "",
+        ...(connection?.literal ? { netKind: "literal" } : {}),
         ...(connection && connection.kind !== "reference" ? { connection } : {})
       });
     }
@@ -454,17 +456,22 @@ function parseConnectionTokens(tokens) {
       return { kind: "concat", items };
     }
   }
+  const literal = !first.escaped && isLiteralToken(first.value);
   const isReference = first.escaped ||
-    /^[A-Za-z_$][A-Za-z0-9_$]*(?:\[-?\d+(?::-?\d+)?\])?$/.test(first.value) ||
-    /^(?:\d+)?'[sS]?[bBdDhHoO][0-9a-fA-FxXzZ?_]+$/.test(first.value) ||
-    /^'[01xXzZ]$/.test(first.value) || /^-?\d+$/.test(first.value);
+    /^[A-Za-z_$][A-Za-z0-9_$]*(?:\[-?\d+(?::-?\d+)?\])?$/.test(first.value) || literal;
   if (first.kind === "identifier" && isReference && (tokens.length === 1 ||
       (tokens.length === 2 && /^\[(-?\d+)(:-?\d+)?\]$/.test(tokens[1].value)))) {
     const suffix = tokens[1]?.value || "";
     return { kind: "reference", name: first.value + suffix,
-      displayName: first.displayName + suffix, escaped: first.escaped };
+      displayName: first.displayName + suffix, escaped: first.escaped,
+      ...(literal ? { literal: true } : {}) };
   }
   return { kind: "unsupported", text: tokens.map((token) => token.raw).join(" ") };
+}
+
+function isLiteralToken(value) {
+  return /^(?:\d+)?'[sS]?[bBdDhHoO][0-9a-fA-FxXzZ?_]+$/.test(value) ||
+    /^'[01xXzZ]$/.test(value) || /^-?\d+$/.test(value);
 }
 
 function isRangeToken(value) {

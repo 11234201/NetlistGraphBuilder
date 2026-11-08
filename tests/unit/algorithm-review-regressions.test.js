@@ -34,7 +34,7 @@ test("graph identities are collision-free and feedback plus all drivers are reta
   assert.ok(graph.diagnostics.some((item) => /multiple drivers/.test(item.message)));
 });
 
-test("vector slices expand to declared bit drivers and constants remain distinct from x/z nets", () => {
+test("vector slices expand and literal metadata distinguishes constants from identifier-like text", () => {
   const module = parseVerilog("module m(input [3:0] a,output x,z,y); BUF u(.A(a[2:1]),.Y(y)); endmodule").modules[0];
   const graph = buildSchematicGraph(module);
   assert.deepEqual(graph.edges.filter((edge) => edge.target === "cell:u").map((edge) => edge.net), ["a[2]", "a[1]"]);
@@ -43,6 +43,12 @@ test("vector slices expand to declared bit drivers and constants remain distinct
 
   const literalGraph = buildSchematicGraph(parseVerilog("module c(output y); BUF u(.A('0),.Y(y)); endmodule").modules[0]);
   assert.ok(literalGraph.nodes.some((node) => node.id === "constant:_0"));
+
+  const escapedGraph = buildSchematicGraph(parseVerilog(String.raw`module e(output y,z);
+    BUF u(.A(8'shff),.Y(y)); BUF v(.A(\123 ),.Y(z)); endmodule`).modules[0]);
+  assert.ok(escapedGraph.nodes.some((node) => node.id === "constant:8_shff"));
+  assert.ok(escapedGraph.nodes.some((node) => node.id === "implicit:123"));
+  assert.ok(!escapedGraph.nodes.some((node) => node.id === "constant:123"));
 });
 
 test("layout ports respect side groups and inout is compatible with source and target roles", () => {

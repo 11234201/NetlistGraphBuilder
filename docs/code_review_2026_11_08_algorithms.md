@@ -7,7 +7,7 @@
 17 项均已修复。新增 `tests/unit/algorithm-review-regressions.test.js` 覆盖所有根因组合，验证结果：
 
 - 完整单元与架构测试：904/904 通过。
-- H08 full-node mapped 严格门禁：47/47 通过，0 violation，最慢 22.218 秒。
+- H08 full-node mapped 严格门禁：47/47 通过，0 violation，最慢 21.780 秒，峰值堆 578 MiB。
 - 大图 benchmark：1024/4096/8192 cell 均 routed、0 violation；layout 中位数 201.8/1540.1/6440.3 ms。
 - 默认 Simple full-node mapped 仍有既有未完成路由与超时，不能用作本批 H08 修复的通过证据；本批未放宽任何 Simple 或 H08 validator/budget。
 
@@ -179,8 +179,8 @@ for (const delta of [0.0005, 0.25, 0.75]) {
 }
 ```
 
-本轮另检查 H08 分组候选、band forecast、physical-anchor adjacency、dummy merge、BK placement 和最终校验代码。grouped self-loop、merged rank columns 的拒绝已经在 `docs/design/elk_h08_package.md` 声明，本报告没有把这些已知范围限制重复计为新增算法缺陷。上述小数坐标复现属于公开 H08 入口证据，尚未证明默认 schematic measurement 或现有 mapped fixtures 会产生相同条件，也未运行完整 mapped 回归。
+本轮另检查 H08 分组候选、band forecast、physical-anchor adjacency、dummy merge、BK placement 和最终校验代码。grouped self-loop、merged rank columns 的拒绝已经在 `docs/design/elk_h08_package.md` 声明，本报告没有把这些已知范围限制重复计为新增算法缺陷。上述小数坐标复现属于公开 H08 入口证据；修复后已通过文首记录的 full-node mapped 严格门禁。
 
-## 后续验证建议
+## 验证结论
 
-优先修复 P1 项（1–5、10–11），分别在 parser、graph、nodeGeometry 和统计所属边界增加回归。算法修复后按仓库要求在远端运行 npm test；影响图/布局时运行 full-node mapped cases，布局修复另运行 determinism/fixture invariants。当前报告不声称这些回归已经修复或完整测试已通过。
+上述 17 项均已在其所属边界加入回归并完成修复。第 8 项额外覆盖 signed based literal 与 escaped numeric identifier，常量身份由 parser/IR 元数据传递，图层不再仅凭名称正则猜测。完整验证结果见文首“修复状态”；默认 Simple full-node mapped 的既有失败仍不计作本批 H08 修复证据。

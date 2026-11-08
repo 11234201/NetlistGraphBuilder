@@ -74,14 +74,18 @@ export function addCell(module, cell) {
   module.cells.push(cell);
   for (const pin of cell.pins) {
     for (const reference of getPinNetReferences(pin)) {
-      ensureNet(module, reference.name, reference.displayName, "implicit");
+      ensureNet(module, reference.name, reference.displayName, reference.literal ? "literal" : "implicit");
     }
   }
 }
 
 export function getPinNetReferences(pin) {
   if (!pin.connection) {
-    return pin.net ? expandReference({ name: pin.net, displayName: pin.netDisplayName || pin.net }) : [];
+    return pin.net ? expandReference({
+      name: pin.net,
+      displayName: pin.netDisplayName || pin.net,
+      ...(pin.netKind === "literal" ? { literal: true } : {})
+    }) : [];
   }
   const references = [];
   const visit = (connection) => {
@@ -109,7 +113,8 @@ function expandReference(reference) {
 export function addAssign(module, assign) {
   module.assigns.push(assign);
   ensureNet(module, assign.lhs, assign.lhsDisplayName || assign.lhs, "implicit");
-  ensureNet(module, assign.rhs, assign.rhsDisplayName || assign.rhs, "implicit");
+  ensureNet(module, assign.rhs, assign.rhsDisplayName || assign.rhs,
+    assign.rhsKind === "literal" ? "literal" : "implicit");
 }
 
 export function getNetDisplayName(module, name) {

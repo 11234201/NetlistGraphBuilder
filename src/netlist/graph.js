@@ -26,6 +26,7 @@ export function buildSchematicGraph(module, options = {}) {
   const nodeById = new Map();
   const drivers = new Map();
   const loads = new Map();
+  const netKindByName = new Map(module.nets.map((net) => [net.name, net.declaredKind]));
   const referencedNets = collectReferencedNets(module);
   const expandedPortsByName = new Map(module.ports.map((port) => [
     port.name,
@@ -184,7 +185,9 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   for (const [net, netLoads] of loads.entries()) {
-    const netDrivers = drivers.get(net) || [createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId)];
+    const netDrivers = drivers.get(net) || [createImplicitDriver(
+      module, graph, addNode, net, overrides, makeNodeId, netKindByName
+    )];
     if (netDrivers.length > 1) {
       graph.diagnostics.push({
         severity: "warning",
@@ -361,8 +364,8 @@ function normalizePinDirection(value) {
   return null;
 }
 
-function createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId = makeId) {
-  const constant = isConstantNet(net);
+function createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId = makeId, netKindByName = null) {
+  const constant = isConstantNet(net, netKindByName);
   const kind = constant ? "constant" : "implicit";
   const node = addNode({
     id: makeNodeId(kind, net),
@@ -388,7 +391,10 @@ function createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId
   };
 }
 
-function isConstantNet(net) {
+function isConstantNet(net, netKindByName) {
+  if (netKindByName?.has(net)) {
+    return netKindByName.get(net) === "literal";
+  }
   return /^(?:\d+)?'[sS]?[bBdDhHoO][0-9a-fA-FxXzZ?_]+$/.test(net) ||
     /^'[01xXzZ]$/.test(net) || /^-?\d+$/.test(net);
 }
