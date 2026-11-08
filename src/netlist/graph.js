@@ -27,6 +27,12 @@ export function buildSchematicGraph(module, options = {}) {
   const drivers = new Map();
   const loads = new Map();
   const referencedNets = collectReferencedNets(module);
+  const expandedPortsByName = new Map(module.ports.map((port) => [
+    port.name,
+    expandPortEndpoints(port, referencedNets)
+  ]));
+  const nodeIdentityGroups = buildNodeIdentityGroups(module, expandedPortsByName, referencedNets);
+  const makeNodeId = (prefix, value) => makeCollisionAwareId(prefix, value, nodeIdentityGroups);
 
   const addNode = (node) => {
     if (!nodeById.has(node.id)) {
@@ -42,12 +48,16 @@ export function buildSchematicGraph(module, options = {}) {
     }
     loads.get(net).push(load);
   };
+  const addDriver = (net, driver) => {
+    if (!drivers.has(net)) drivers.set(net, []);
+    drivers.get(net).push(driver);
+  };
 
   for (const [order, declaredPort] of module.ports.entries()) {
-    for (const port of expandPortEndpoints(declaredPort, referencedNets)) {
+    for (const port of expandedPortsByName.get(declaredPort.name) || []) {
       if (port.direction === "input" || port.direction === "inout") {
         const node = addNode({
-          id: makeId("input", port.name),
+          id: makeNodeId("input", port.name),
           kind: "input",
           label: port.displayName,
           title: "INPUT",
@@ -55,7 +65,7 @@ export function buildSchematicGraph(module, options = {}) {
           ref: port
         });
         applyNodePropertyOverrides(node, overrides);
-        drivers.set(port.name, {
+        addDriver(port.name, {
           nodeId: node.id,
           pin: port.displayName,
           source: "port"
@@ -64,7 +74,7 @@ export function buildSchematicGraph(module, options = {}) {
 
       if (port.direction === "output" || port.direction === "inout") {
         const node = addNode({
-          id: makeId("output", port.name),
+          id: makeNodeId("output", port.name),
           kind: "output",
           label: port.displayName,
           title: "OUTPUT",
@@ -98,7 +108,7 @@ export function buildSchematicGraph(module, options = {}) {
       ))
       : getCellPinDirections(cell, overrides, referencedModule, configuredDefinition);
     const node = addNode({
-      id: makeId("cell", cell.instance),
+      id: makeNodeId("cell", cell.instance),
       kind: "cell",
       gateKind: cellKind.kind,
       inferenceSource: cellKind.source,
@@ -131,7 +141,7 @@ export function buildSchematicGraph(module, options = {}) {
         const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] ||
           inferPinDirection(pin.pin, cell.type);
         if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
-          drivers.set(net, {
+          addDriver(net, {
             nodeId: node.id,
             pin: reference.pin,
             source: "cell"
@@ -150,7 +160,7 @@ export function buildSchematicGraph(module, options = {}) {
 
   for (const assign of module.assigns) {
     const node = addNode({
-      id: makeId("assign", `${assign.lhs}:${assign.rhs}`),
+      id: makeNodeId("assign", `${assign.lhs}:${assign.rhs}`),
       kind: "assign",
       gateKind: "alias",
       inferenceSource: "assign",
@@ -166,7 +176,7 @@ export function buildSchematicGraph(module, options = {}) {
       pin: "I",
       source: "assign"
     });
-    drivers.set(assign.lhs, {
+    addDriver(assign.lhs, {
       nodeId: node.id,
       pin: "Z",
       source: "assign"
@@ -174,20 +184,27 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   for (const [net, netLoads] of loads.entries()) {
-    const driver = drivers.get(net) || createImplicitDriver(module, graph, addNode, net, overrides);
-    for (const load of netLoads) {
-      if (driver.nodeId === load.nodeId) {
-        continue;
-      }
-      graph.edges.push({
-        id: makeId("edge", `${driver.nodeId}:${load.nodeId}:${net}:${graph.edges.length}`),
-        source: driver.nodeId,
-        target: load.nodeId,
-        net,
-        label: getNetDisplayName(module, net),
-        sourcePin: driver.pin,
-        targetPin: load.pin
+    const netDrivers = drivers.get(net) || [createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId)];
+    if (netDrivers.length > 1) {
+      graph.diagnostics.push({
+        severity: "warning",
+        message: `Net ${getNetDisplayName(module, net)} has multiple drivers`,
+        driverCount: netDrivers.length
       });
+    }
+    for (const driver of netDrivers) {
+      for (const load of netLoads) {
+        if (driver.nodeId === load.nodeId && driver.pin === load.pin) continue;
+        graph.edges.push({
+          id: makeId("edge", `${driver.nodeId}:${load.nodeId}:${net}:${graph.edges.length}`),
+          source: driver.nodeId,
+          target: load.nodeId,
+          net,
+          label: getNetDisplayName(module, net),
+          sourcePin: driver.pin,
+          targetPin: load.pin
+        });
+      }
     }
   }
 
@@ -344,11 +361,11 @@ function normalizePinDirection(value) {
   return null;
 }
 
-function createImplicitDriver(module, graph, addNode, net, overrides) {
+function createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId = makeId) {
   const constant = isConstantNet(net);
   const kind = constant ? "constant" : "implicit";
   const node = addNode({
-    id: makeId(kind, net),
+    id: makeNodeId(kind, net),
     kind,
     label: getNetDisplayName(module, net),
     title: constant ? "CONST" : "IMPLICIT",
@@ -372,7 +389,8 @@ function createImplicitDriver(module, graph, addNode, net, overrides) {
 }
 
 function isConstantNet(net) {
-  return /^(\d+)?'[bdho][0-9a-fxz_]+$/i.test(net) || /^[01xz]$/i.test(net);
+  return /^(?:\d+)?'[sS]?[bBdDhHoO][0-9a-fA-FxXzZ?_]+$/.test(net) ||
+    /^'[01xXzZ]$/.test(net) || /^-?\d+$/.test(net);
 }
 
 function uniqueValues(values) {
@@ -382,4 +400,36 @@ function uniqueValues(values) {
 export function makeId(prefix, value) {
   const safe = String(value).replace(/[^A-Za-z0-9_:.~-]+/g, "_");
   return `${prefix}:${safe}`;
+}
+
+function buildNodeIdentityGroups(module, expandedPortsByName, referencedNets) {
+  const valuesByPrefix = new Map([
+    ["input", module.ports.flatMap((port) => (expandedPortsByName.get(port.name) || [])
+      .filter((item) => item.direction === "input" || item.direction === "inout").map((item) => item.name))],
+    ["output", module.ports.flatMap((port) => (expandedPortsByName.get(port.name) || [])
+      .filter((item) => item.direction === "output" || item.direction === "inout").map((item) => item.name))],
+    ["cell", module.cells.map((cell) => cell.instance)],
+    ["assign", module.assigns.map((assign) => `${assign.lhs}:${assign.rhs}`)],
+    ["implicit", [...module.nets.map((net) => net.name), ...referencedNets]],
+    ["constant", [...referencedNets]]
+  ]);
+  const result = new Map();
+  for (const [prefix, values] of valuesByPrefix) {
+    const byLegacyId = new Map();
+    for (const value of values) {
+      const id = makeId(prefix, value);
+      if (!byLegacyId.has(id)) byLegacyId.set(id, new Set());
+      byLegacyId.get(id).add(String(value));
+    }
+    result.set(prefix, byLegacyId);
+  }
+  return result;
+}
+
+function makeCollisionAwareId(prefix, value, groups) {
+  const legacyId = makeId(prefix, value);
+  const identities = groups.get(prefix)?.get(legacyId);
+  if (!identities || identities.size < 2) return legacyId;
+  const raw = String(value), legacyValue = legacyId.slice(prefix.length + 1);
+  return raw === legacyValue ? legacyId : `${legacyId}~${encodeURIComponent(raw)}`;
 }

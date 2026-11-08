@@ -4,6 +4,7 @@ import { PhaseError, freezeRecord } from './protocol.js';
 export const ORTHOGONAL_ROUTING_PROFILE = Object.freeze({ tolerance: 1e-3,
   conflictThresholdFactor: 0.5, criticalThresholdFactor: 0.2,
   conflictPenalty: 1, crossingPenalty: 16, criticalWeight: 1 });
+export const ROUTE_VALIDATION_TOLERANCE = 1e-8;
 
 export function normalizePolicy(input = {}) {
   const defaults = { randomSeed: 1, nodeNodeSpacing: 20, nodeNodeBetweenLayers: 20,

@@ -7,7 +7,9 @@ export function getPinConnectionEndpoints(pin) {
   const pinName = pin.pinDisplayName || pin.pin;
   return references.map((reference, index) => ({
     ...reference,
-    pin: pin.connection?.kind === "concat" ? `${pinName}{${references.length - 1 - index}}` : pinName,
+    pin: pin.connection?.kind === "concat" || references.length > 1
+      ? `${pinName}{${references.length - 1 - index}}`
+      : pinName,
     rawPin: pin.pin,
     connectionIndex: index
   }));

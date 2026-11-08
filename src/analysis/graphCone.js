@@ -115,7 +115,13 @@ export function analyzeFocusedNeighborhood(graph, startNodeId, options = {}) {
     ...(fanoutDepth > 0 ? fanout.nodeIds : seedNodeIds)
   ]);
   const maximumVisibleNodes = normalizeBudget(options.maximumVisibleNodes);
-  const orderedCandidateNodeIds = [...candidateNodeIds].sort((left, right) => String(left).localeCompare(String(right)));
+  const candidateDepth = (nodeId) => Math.min(
+    fanin.depthByNode.get(nodeId) ?? Infinity,
+    fanout.depthByNode.get(nodeId) ?? Infinity
+  );
+  const orderedCandidateNodeIds = [...candidateNodeIds].sort((left, right) =>
+    candidateDepth(left) - candidateDepth(right) || String(left).localeCompare(String(right))
+  );
   const prioritizedNodeIds = [
     ...seedNodeIds.filter((id) => candidateNodeIds.has(id)),
     ...orderedCandidateNodeIds.filter((id) => !seedNodeIds.includes(id))

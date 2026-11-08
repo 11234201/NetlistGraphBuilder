@@ -64,8 +64,8 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
     ];
   }
 
-  const inputPins = [];
-  const outputPins = [];
+  const leftPins = [];
+  const rightPins = [];
   const topPins = [];
   const bottomPins = [];
   for (const descriptor of node.portDescriptors || []) {
@@ -82,15 +82,15 @@ export function buildNodePorts(node, size, cellPinPitch = DEFAULT_CELL_PIN_PITCH
     };
     if (side === "top") topPins.push(port);
     else if (side === "bottom") bottomPins.push(port);
-    else if (direction === "output") outputPins.push(port);
-    else inputPins.push(port);
+    else if (side === "right") rightPins.push(port);
+    else leftPins.push(port);
   }
 
-  placePorts(inputPins, size.height, cellPinPitch);
-  placePorts(outputPins, size.height, cellPinPitch);
+  placePorts(leftPins, size.height, cellPinPitch);
+  placePorts(rightPins, size.height, cellPinPitch);
   placeHorizontalPorts(topPins, size.width, 0);
   placeHorizontalPorts(bottomPins, size.width, size.height);
-  return [...inputPins, ...topPins, ...bottomPins, ...outputPins];
+  return [...leftPins, ...topPins, ...bottomPins, ...rightPins];
 }
 
 export function getConnectionPoint(node, pin, role) {
@@ -108,10 +108,12 @@ export function getConnectionPoint(node, pin, role) {
 
 export function getPort(node, pin, role) {
   const preferredDirection = role === "source" ? "output" : "input";
+  const directionMatches = (candidate) =>
+    candidate.direction === preferredDirection || candidate.direction === "inout";
   return (
-    node.ports?.find((candidate) => candidate.pin === pin && candidate.direction === preferredDirection) ||
-    node.ports?.find((candidate) => candidate.rawPin === pin && candidate.direction === preferredDirection) ||
-    node.ports?.find((candidate) => candidate.direction === preferredDirection) ||
+    node.ports?.find((candidate) => candidate.pin === pin && directionMatches(candidate)) ||
+    node.ports?.find((candidate) => candidate.rawPin === pin && directionMatches(candidate)) ||
+    node.ports?.find((candidate) => directionMatches(candidate)) ||
     node.ports?.[0]
   );
 }

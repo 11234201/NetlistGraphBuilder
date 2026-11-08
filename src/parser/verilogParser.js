@@ -118,7 +118,8 @@ export function tokenize(source) {
     while (
       index < source.length &&
       !/\s/.test(source[index]) &&
-      !PUNCTUATION.has(source[index])
+      !PUNCTUATION.has(source[index]) &&
+      !(source[index] === "/" && (source[index + 1] === "/" || source[index + 1] === "*"))
     ) {
       raw += advance();
     }
@@ -239,17 +240,18 @@ class StructuralParser {
 
   parseAssign(module) {
     const assignToken = this.expectValue("assign");
-    const lhs = this.consumeUntilIdentifier("=");
+    const lhsTokens = this.consumeUntilValue("=");
     this.matchValue("=");
-    const rhs = this.consumeUntilIdentifier(";");
-    this.skipUntilValue(";");
+    const rhsTokens = this.consumeUntilValue(";");
     this.matchValue(";");
+    const lhs = parseConnectionTokens(lhsTokens);
+    const rhs = parseConnectionTokens(rhsTokens);
 
-    if (lhs && rhs) {
+    if (lhs?.kind === "reference" && rhs?.kind === "reference") {
       addAssign(module, {
-        lhs: lhs.value,
+        lhs: lhs.name,
         lhsDisplayName: lhs.displayName,
-        rhs: rhs.value,
+        rhs: rhs.name,
         rhsDisplayName: rhs.displayName,
         span: { line: assignToken.line, column: assignToken.column }
       });
@@ -265,10 +267,21 @@ class StructuralParser {
 
   parseCellInstance(module) {
     const typeToken = this.expectIdentifier("cell type");
+    if (!typeToken) {
+      this.skipStatement();
+      return;
+    }
+    do {
+      this.parseCellInstanceOfType(module, typeToken);
+    } while (this.matchValue(","));
+    this.matchValue(";");
+  }
+
+  parseCellInstanceOfType(module, typeToken) {
     const instanceToken = this.expectIdentifier("instance name");
     const pins = [];
 
-    if (!typeToken || !instanceToken || !this.matchValue("(")) {
+    if (!instanceToken || !this.matchValue("(")) {
       this.skipStatement();
       return;
     }
@@ -306,7 +319,6 @@ class StructuralParser {
       });
     }
 
-    this.matchValue(";");
     addCell(module, {
       type: typeToken.value,
       typeDisplayName: typeToken.displayName,
@@ -342,14 +354,12 @@ class StructuralParser {
     return parseConnectionTokens(tokens);
   }
 
-  consumeUntilIdentifier(stopValue) {
+  consumeUntilValue(stopValue) {
+    const tokens = [];
     while (!this.isEof() && this.peekValue() !== stopValue) {
-      const token = this.consume();
-      if (token.kind === "identifier") {
-        return token;
-      }
+      tokens.push(this.consume());
     }
-    return null;
+    return tokens;
   }
 
   isCellInstanceStart() {

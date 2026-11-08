@@ -14,8 +14,8 @@ export function compactOrthogonalPoints(points) {
     const previous = unique[index - 1];
     const next = unique[index + 1];
     return !(
-      (near(previous.x, point.x) && near(point.x, next.x)) ||
-      (near(previous.y, point.y) && near(point.y, next.y))
+      (previous.x === point.x && point.x === next.x) ||
+      (previous.y === point.y && point.y === next.y)
     );
   });
 }

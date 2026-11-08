@@ -1,6 +1,6 @@
 import { checkCancelled, freezeRecord } from './protocol.js';
 import { validateP4 } from './validate_p4.js';
-import { ORTHOGONAL_ROUTING_PROFILE as profile } from './policy.js';
+import { ORTHOGONAL_ROUTING_PROFILE as profile, ROUTE_VALIDATION_TOLERANCE } from './policy.js';
 import { createRoutingBoundaries } from './routing_segments.js';
 import { buildDependencies } from './routing_dependencies.js';
 import { splitCriticalCycles } from './routing_split.js';
@@ -52,14 +52,14 @@ export function routeEdges(input,{signal,observe=true,physicalAnchors=false}={})
       if(coordinate>segment.start&&coordinate<segment.end||sameBoundary){route.junctionPoints.push({...point});junctions.add(key);}
     };
     for(const segment of split.segments) {
-      if(Math.abs(segment.start-segment.end)<profile.tolerance)continue;
+      if(Math.abs(segment.start-segment.end)<=ROUTE_VALIDATION_TOLERANCE)continue;
       slotCount=Math.max(slotCount,segment.routingSlot+1);
       if(segment.splitPartner&&!segment.splitBy)continue;
       for(const id of segment.edgeIds) {
         const edge=edgesById.get(id),source=ports.get(edge.sourcePortId),target=ports.get(edge.targetPortId);
         const sourceY=nodes.get(source.nodeId).y+source.y+source.anchor.y,targetY=nodes.get(target.nodeId).y+target.y+target.anchor.y;
         const route={bendPoints:[],junctionPoints:[]};routes.set(id,route);
-        if(Math.abs(sourceY-targetY)<=profile.tolerance)continue;
+        if(Math.abs(sourceY-targetY)<=ROUTE_VALIDATION_TOLERANCE)continue;
         let current=segment,currentX=start+current.routingSlot*options.edgeEdgeSpacing;
         const add=(y)=> {const point={x:currentX,y};route.bendPoints.push(point);addJunction(route,current,point);};
         add(sourceY);

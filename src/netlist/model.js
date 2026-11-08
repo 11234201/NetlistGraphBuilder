@@ -81,15 +81,29 @@ export function addCell(module, cell) {
 
 export function getPinNetReferences(pin) {
   if (!pin.connection) {
-    return pin.net ? [{ name: pin.net, displayName: pin.netDisplayName || pin.net }] : [];
+    return pin.net ? expandReference({ name: pin.net, displayName: pin.netDisplayName || pin.net }) : [];
   }
   const references = [];
   const visit = (connection) => {
-    if (connection.kind === "reference") references.push(connection);
+    if (connection.kind === "reference") references.push(...expandReference(connection));
     else if (connection.kind === "concat") connection.items.forEach(visit);
   };
   visit(pin.connection);
   return references;
+}
+
+function expandReference(reference) {
+  const match = String(reference.name).match(/^(.*)\[(-?\d+):(-?\d+)\]$/);
+  if (!match) return [reference];
+  const [, base, msbText, lsbText] = match;
+  const displayBase = String(reference.displayName || reference.name).replace(/\[(-?\d+):(-?\d+)\]$/, "");
+  const msb = Number(msbText), lsb = Number(lsbText), step = msb <= lsb ? 1 : -1;
+  const result = [];
+  for (let bit = msb; ; bit += step) {
+    result.push({ ...reference, name: `${base}[${bit}]`, displayName: `${displayBase}[${bit}]` });
+    if (bit === lsb) break;
+  }
+  return result;
 }
 
 export function addAssign(module, assign) {

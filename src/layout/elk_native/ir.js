@@ -28,9 +28,11 @@ export function createCanonicalGraph(input, policy = {}, { signal } = {}) {
       if (typeof port.id !== 'string' || (port.declaredOrder !== null
         && !Number.isSafeInteger(port.declaredOrder))) throw new PhaseError('p0', 'invalid-port-order', [port.id]);
     }
+    const orderKey = port => constraint === 'FIXED_ORDER'
+      ? (port.declaredOrder ?? coordinate(port))
+      : coordinate(port);
     ports.sort((a, b) => sideOrder[a.side] - sideOrder[b.side]
-      || (constraint === 'FIXED_ORDER' && a.declaredOrder !== null && b.declaredOrder !== null
-        ? a.declaredOrder - b.declaredOrder : coordinate(a) - coordinate(b)) || compareIds(a.id, b.id));
+      || orderKey(a) - orderKey(b) || coordinate(a) - coordinate(b) || compareIds(a.id, b.id));
     ports.forEach((port, order) => { port.order = order; });
     return { id: node.id, kind: node.kind ?? 'normal', displayName: node.displayName ?? node.id,
       width: node.width, height: node.height, portConstraints: constraint,

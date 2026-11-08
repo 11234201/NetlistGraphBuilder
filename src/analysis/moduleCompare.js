@@ -20,7 +20,8 @@ export function alignModulePorts(leftModule, rightModule) {
   return names.map((name) => {
     const leftPort = left.get(name) || null;
     const rightPort = right.get(name) || null;
-    const matched = Boolean(leftPort && rightPort && leftPort.direction === rightPort.direction);
+    const matched = Boolean(leftPort && rightPort &&
+      leftPort.direction === rightPort.direction && rangesMatch(leftPort.range, rightPort.range));
     return {
       name,
       left: leftPort,
@@ -85,23 +86,41 @@ function estimateLogicDepth(graph) {
   for (const edge of graph.edges) {
     incoming.get(edge.target)?.push(edge.source);
   }
-  const memo = new Map();
-  const visiting = new Set();
-  const depth = (id) => {
-    if (memo.has(id)) {
-      return memo.get(id);
+  const memo = new Map(), visiting = new Set();
+  let maximum = 0;
+  for (const root of graph.nodes) {
+    if (memo.has(root.id)) continue;
+    const stack = [{ id: root.id, index: 0, maximumParentDepth: 0, entered: false }];
+    while (stack.length) {
+      const frame = stack.at(-1);
+      if (!frame.entered) {
+        frame.entered = true;
+        visiting.add(frame.id);
+      }
+      const parents = incoming.get(frame.id) || [];
+      if (frame.index < parents.length) {
+        const parentId = parents[frame.index++];
+        if (memo.has(parentId)) {
+          frame.maximumParentDepth = Math.max(frame.maximumParentDepth, memo.get(parentId));
+        } else if (!visiting.has(parentId)) {
+          stack.push({ id: parentId, index: 0, maximumParentDepth: 0, entered: false });
+        }
+        continue;
+      }
+      const value = (nodeById.get(frame.id)?.kind === "cell" ? 1 : 0) + frame.maximumParentDepth;
+      memo.set(frame.id, value);
+      maximum = Math.max(maximum, value);
+      visiting.delete(frame.id);
+      stack.pop();
+      if (stack.length) stack.at(-1).maximumParentDepth = Math.max(stack.at(-1).maximumParentDepth, value);
     }
-    if (visiting.has(id)) {
-      return 0;
-    }
-    visiting.add(id);
-    const node = nodeById.get(id);
-    const value = (node?.kind === "cell" ? 1 : 0) + Math.max(0, ...(incoming.get(id) || []).map(depth));
-    visiting.delete(id);
-    memo.set(id, value);
-    return value;
-  };
-  return Math.max(0, ...graph.nodes.map((node) => depth(node.id)));
+  }
+  return maximum;
+}
+
+function rangesMatch(left, right) {
+  if (!left || !right) return !left && !right;
+  return left.msb === right.msb && left.lsb === right.lsb && left.width === right.width;
 }
 
 function compareAlignedPorts(a, b) {

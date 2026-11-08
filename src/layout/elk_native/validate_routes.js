@@ -2,11 +2,12 @@ import { PhaseError,checkCancelled } from './protocol.js';
 import { SpatialHashIndex,RouteSegmentIndex } from '../spatialIndex.js';
 import { getRouteSegments,nodeBox,orthogonalSegmentIntersectsBox,collinearSegmentsOverlap,
   parallelSegmentsOverlap,MINIMUM_FOREIGN_WIRE_SEPARATION } from '../orthogonalRouting.js';
+import {ROUTE_VALIDATION_TOLERANCE} from './policy.js';
 
 // Shared geometry predicates remain authoritative. Perpendicular crossings are
 // a soft objective; foreign collinear/visibly parallel overlaps are hard errors.
 export function validateRoutes(graph,{signal}={}){
-  const tolerance=1e-8,index=new SpatialHashIndex(),reservations=new RouteSegmentIndex();
+  const tolerance=ROUTE_VALIDATION_TOLERANCE,index=new SpatialHashIndex(),reservations=new RouteSegmentIndex();
   const ports=new Map(graph.nodes.flatMap((node)=>node.ports.map((port)=>[port.id,{node,port}])));
   for(const node of graph.nodes){
     if(![node.x,node.y,node.width,node.height].every(Number.isFinite))throw new PhaseError('p5','non-finite-node',[node.id]);

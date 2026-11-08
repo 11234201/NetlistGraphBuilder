@@ -12,7 +12,8 @@ export function simplifyFanoutWithHubs(graph, options = {}) {
     const source = nodeById.get(edges[0]?.source);
     const groupThreshold = isExternalSource(source) ? inputThreshold : threshold;
     return edges.length >= groupThreshold;
-  });
+  }).map((edges) => [...edges].sort(compareEdges))
+    .sort((left, right) => compareEdges(left[0], right[0]));
   if (hubGroups.length === 0) return graph;
 
   const replacedEdgeIds = new Set(hubGroups.flatMap((edges) => edges.map((edge) => edge.id)));
@@ -55,4 +56,12 @@ function isExternalSource(node) {
 
 function safeId(value) {
   return String(value).replace(/[^A-Za-z0-9_.:-]+/g, "_");
+}
+
+function compareEdges(left, right) {
+  return String(left.source).localeCompare(String(right.source)) ||
+    String(left.net).localeCompare(String(right.net)) ||
+    String(left.target).localeCompare(String(right.target)) ||
+    String(left.targetPin || "").localeCompare(String(right.targetPin || "")) ||
+    String(left.id).localeCompare(String(right.id));
 }
