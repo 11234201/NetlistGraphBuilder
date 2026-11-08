@@ -2,6 +2,15 @@
 
 本项目使用语义化版本号。
 
+## [1.1.3] - 2026-11-08
+
+- 修复 structural Verilog parser 的表达式截断、重复实例、紧邻注释、向量切片和 literal/reference 身份问题；escaped 名称不再被误判为常量。
+- 修复 schematic graph 的节点 ID 碰撞、自反馈边、多驱动网络和 inout/同侧 pin 几何问题。
+- 修复深链逻辑深度、Focused 节点预算、fanout hub 稳定身份和 Compare 端口范围比较。
+- 修复 H08 混合 FIXED_ORDER 的非确定排序、亚像素非正交路径和短折弯丢失问题。
+- 收紧 workbench 生命周期与输入边界，保持 Single/Compare 共用的调度和状态管理约束。
+- 完整测试 904/904 通过；H08 full-node mapped 严格门禁 47/47 通过，0 violation。
+
 ## [1.1.2] - 2026-10-21（同版本覆盖更新）
 
 按用户要求更新现有 v1.1.2 标签、发布说明和附件，不另增版本号；2026-10-15 初始发布记录保留如下。
