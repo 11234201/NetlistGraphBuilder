@@ -3,15 +3,15 @@ name: netlist-schematic
 description: Maintain and extend this repository's structural-Verilog parser, netlist graph, cell/pin inference, schematic layout and routing, SVG rendering, timing annotation, comparison, and large-canvas interactions. Use for code, tests, fixtures, performance work, or reviews that touch `src/parser`, `src/netlist`, `src/infer`, `src/analysis`, `src/layout`, `src/render`, `src/timing`, schematic UI/workspaces, or mapped-netlist regressions.
 ---
 
-# Netlist schematic development
+# Netlist Schematic 开发与维护规范
 
 ## 适用场景
 
-当任务涉及门级网表解析、结构图生成、fanin/fanout cone 分析、module 对比、cell/pin 推断或 SVG schematic 交互时，使用本 skill。
+当任务涉及门级网表解析、结构图提取、扇入/扇出逻辑锥（Fanin/Fanout cone）分析、双模块对比（Module compare）、无 `.lib` 单元/引脚推断、分层布局与正交布线或交互式 SVG 原理图渲染时，启用本 Skill。
 
 ## 必读上下文
 
-开始实现前，先读：
+开始修改代码前，请先阅读：
 
 - `AGENTS.md`
 - `docs/PLAN.md`
@@ -20,122 +20,89 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 - `docs/DESIGN_SPEC.md`
 - `docs/SKILLS_AND_RULES.md`
 
-## 工作原则
+## 核心工作原则
 
-- 优先支持 structural Verilog 子集。
-- 无 `.lib` 是默认工作模式，不应被视为异常。
-- unknown cell 画 blackbox，不中断流程。
-- parser 只解析结构，不做门类型推断。
-- 推断规则必须可测试、可替换。
-- UI 的第一目标是读结构、追 cone、比差异。
-- 先确认改动属于 parser、IR/inference、display transform、layout、render 还是 UI；在拥有该
-  约束的最低层实现并测试，不跨层打补丁。
-- 优先扩展共享边界，使 Single/Compare、Simple/Adjust/ELK 同时获得一致行为。
-- 新领域能力通过 `bootstrap` 静态注册和 `DomainFeature` contributions 接入；application、layout、
-  render 不得按 `domainId` 添加 Netlist/AIG 条件分支。领域目录不得反向 import `src/app/`。
+- **优先支持结构化 Verilog 子集**：专注于综合映射后的门级网表语法。
+- **无 `.lib` 是默认工作模式**：缺乏 Liberty 库属于正常使用场景，不得将其视为运行异常。
+- **未知单元优雅降级**：未识别单元绘制为矩形黑盒（blackbox），绝不中断绘图流程。
+- **解析器严格保持纯结构性**：`parser` 层只解析语法结构，不进行逻辑门类型或引脚方向推断。
+- **推断规则可测试、可替换**：内置规则与用户自定义 `Cell Config` 均须具备清晰的可追溯来源。
+- **体验聚焦核心分析目标**：UI 的首要目标是帮助工程师看清门级结构、追踪逻辑锥与比对模块差异。
+- **在拥有约束的最低层修改**：动工前先确认改动归属于 `parser`、`IR / inference`、`display transform`、`layout`、`render` 还是 `UI`；在拥有该约束的最低边界实现并补充单测，严禁跨层打补丁。
+- **优先扩展共享基础设施**：使 Single / Compare 视图以及 H08 / ELK / Simple / Adjust 布局模式同时获得一致行为。
+- **多领域解耦约束**：新领域能力通过 `bootstrap` 静态注册与 `DomainFeature` 贡献点接入；公共 `application`、`layout` 与 `render` 层严禁按 `domainId` 添加 Netlist / AIG 硬编码条件分支；领域目录严禁反向导入 `src/app/`。
 
-## 实现约束
+## 分层实现约束
 
-### Parser 与图模型
+### 1. Parser 与图模型
 
-- parser 保留 canonical name、display name、packed range、source span 和声明语义，不消除
-  assign alias，不推断 gate/pin。
-- 无 `.lib` 时使用可追踪的 `rule`/`fallback`/`unknown` 来源；unknown cell 必须继续生成
-  blackbox。新增标准单元匹配时同时验证 cell kind 和关键 pin direction。
-- Netlist IR 是源数据。alias、timing、cone 和 fanout hub 是派生显示图变换，不得修改 parser IR
-  或调用者传入的 graph。Group collapse 已退出产品范围；旧字段只作为兼容边界保留，新的图、布局、
-  性能和回归工作不得依赖折叠图。
-- 对公开数组建立缓存索引时，数组被替换或长度变化后必须能够重建，不能改变公开 IR
-  形状来换取性能。
+- `parser` 必须完整保留规范化名称（canonical name）、显示名称（display name）、向量位宽（packed range）、源码行列范围（source span）与声明语义，不消除 `assign` 别名，也不推断逻辑门或引脚方向。
+- 无 `.lib` 时使用可追踪的 `rule` / `fallback` / `unknown` / `user-config` 来源标记；未知单元必须继续生成 `blackbox`。新增标准单元匹配规则时，需同时在测试中验证 `gateKind` 与关键引脚的 `direction`。
+- Netlist IR 是不可变源数据。别名折叠（alias）、时序标注（timing）、逻辑锥裁剪（cone）与高扇出中继（fanout hub）均为纯函数派生显示图变换，严禁原地修改解析器 IR 或调用方传入的图对象。结构分组折叠（Group collapse）已退出产品范围（旧字段仅作为存档兼容边界保留，任何新的图提取、布局、性能优化与回归测试均不得依赖折叠图）。
+- 对公开数组建立缓存索引时，若底层数组被替换或长度发生变化，索引必须能够自动重建，且不得通过改变公开 IR 结构来换取性能。
 
-### Timing
+### 2. Timing 时序解析与标注
 
-- timing parser 只把文本规范化为 timing IR，不读取 graph 或 DOM。输入中的 `rat` 统一存为
-  `rt`，但不得破坏旧 LocResyn 格式兼容性。
-- Global/Local 和 Apply 原文必须保留。Auto snapshot 使用明确、可测试的规则；未知 Apply 值
-  产生诊断并安全回退，不能根据数值优劣自行猜测是否应用 Local。
-- timing scope 到 module/instance 的匹配属于 annotation 层。层级匹配使用最长、无歧义的后缀；
-  module boundary port 与 cell pin 不得混用匹配路径。
-- timing display policy 属于 workspace/session 的全图状态，Single、Compare 和 SVG 必须消费同一
-  snapshot/metrics 选择；Selection 可以展示完整记录，但不能创建冲突的单 cell 全局策略。
+- `timingParser` 仅负责将文本规范化为时序中间表示（timing IR，将输入中的 `rat` 统一存为 `rt`），不得读取图结构或 DOM，且必须保持对旧版 LocResyn 格式的向后兼容。
+- 必须完整保留 `Global` / `Local` 快照标识与 `Apply` 原始声明。`Auto` 快照选择使用明确、可测试的规则；遇到未知的 `Apply` 值时生成诊断并安全回退，绝不根据数值优劣自行猜测是否已应用 Local。
+- 时序作用域（scope）到模块/实例的匹配归属于 `timingAnnotation` 层。层次匹配采用最长无歧义后缀匹配；模块边界端口（boundary port）与单元引脚（cell pin）不得混用匹配路径。
+- 时序显示策略（Snapshot / Metric）属于工作区与会话的全图级状态，Single、Compare 与 SVG 导出必须消费同一套策略；`Selection` 面板可展示选中单元的完整引脚时序表，但不得创建与全局冲突的单节点全局策略。
 
-### Layout 与 routing
+### 3. Layout 与正交布线（Routing）
 
-- 先把问题分类为硬约束或软目标。正交、pin 侧进入、端点保护、节点避障和不同 net 不共线
-  重叠属于硬约束；直线率、折点、长度、交叉和 outer lane 使用属于软目标。
-- 硬约束进入共享 orthogonal contract 和 validator；软目标进入 candidate/score/policy。
-- Simple 与 Adjust 共享 route validation、lane collection、segment index、search limits 和 costs。
-  ELK 输出也必须规范化为相同 positioned graph contract。
-- 所有拓扑排序、lane reservation、label priority 和 reroute order 必须对 node/edge 数组排列不敏感。
-- 候选搜索设置固定上限；用 spatial index 缩小集合，但最终仍用几何谓词判定。禁止恢复全图
-  all-pairs 扫描或按图规模增长的 fallback 尝试。
-- 自动 provider graph 与 adjusted graph 分开保存。人工位置/尺寸是 override；拖动不得重新运行
-  provider，Reset 必须能恢复自动结果。
+- **区分硬约束与软目标**：正交走线、沿引脚声明侧接入、端点本体保护、节点避障以及不同物理线网严禁共线重叠属于**硬约束**（集中在共享正交契约与 `layoutValidator` 中）；直线率、折点数、线长、交叉数及外围通道使用率属于**软目标**（由候选生成器、打分策略与布局策略控制）。
+- `Simple` 与 `Adjust` 共享路径校验、通道收集、线段空间索引、有界搜索上限与打分权重；`H08` 与 `ELK` 的输出也必须规范化为相同的 `PositionedGraph` 契约。
+- 所有拓扑排序、通道预留、标签避障优先级与重布线顺序必须对输入节点/边数组的排列顺序完全不敏感（Permutation invariant）。
+- 候选搜索必须设置固定预算上限；通过空间索引（spatial index）缩小候选集，最终由精确几何谓词裁决。严禁恢复全图两两扫描（all-pairs scan）或随图规模线性增长的重试循环。
+- 自动布局产物（automatic provider graph）与手工微调图（adjusted graph）必须分开保存：人工位置/尺寸仅作为覆盖层（override）叠加，拖拽过程中不得重新运行自动布局引擎，点击 `Reset` 必须能精确恢复自动布局坐标。
 
-### Render 与交互
+### 4. Render 与画布交互
 
-- 领域 presentation 把 positioned graph 转为结构化 Scene；通用 render 只消费 Scene，不解析
-  Verilog、不读取 gate kind/pin 私有字段、不重新布局、不计算 cone。
-- 大图用惰性 render plan 和可取消的分批 DOM 提交，不能预先生成全部批次再假装渐进渲染。
-- pan、zoom、drag 用共享 viewport/pointer/frame helpers。高频事件每帧最多提交一次轻量 DOM
-  更新；gesture 中不做整图 innerHTML、provider layout 或 session persistence。
-- 节点拖动中只移动 preview 节点并弱化相连边；松手后执行一次 override/reroute/full render。
-- 所有来自网表、timing、Golden 或用户编辑的 HTML/SVG 文本都必须经过共享 escape helper。
+- 领域展示层负责将 `PositionedGraph` 转换为结构化场景（`Scene`）；通用渲染器（`render`）仅消费 `Scene`，不解析 Verilog、不读取领域私有推断字段、不重新布局、也不计算逻辑锥。
+- 大图渲染采用惰性渲染计划（lazy render plan）与可取消的分批 DOM 挂载，严禁预先生成全部 DOM 批次字符串再伪装成渐进式渲染。
+- 平移（pan）、缩放（zoom）与节点拖拽（drag）统一使用共享的 `viewport`、`pointerSession` 与 `frameScheduler` 工具。高频指针事件每动画帧最多提交一次轻量级 DOM 变换；手势进行期间严禁执行整图 `innerHTML` 重建、重跑布局引擎或写入会话持久化存储。
+- 节点拖拽期间仅移动预览节点并弱化关联导线；释放鼠标后统一执行一次覆盖提交、局部重布线与完整渲染。
+- 所有来自网表、时序日志、Golden 文件或用户编辑的文本在拼入 HTML / SVG 前，必须经过共享的安全字符转义函数（`src/ui/html.js`）。
 
 ## 验证矩阵
 
-| 改动 | 最低验证 |
+| 修改范围 | 最低验证要求 |
 | --- | --- |
-| parser / model / inference | 对应单元测试；包含真实命名、escaped/vector/hierarchy 边界 |
-| timing parser / annotation | 新旧格式兼容、scope 匹配、Apply/Auto 和 Single/Compare policy 测试 |
-| graph transform / workspace | 不变性测试；验证输入未突变，Single/Compare 行为一致 |
-| layout / routing / labels | focused test + `layout-determinism` + `layout-fixtures` + `npm test` |
-| viewport / pointer / panel | 纯 helper 单测；大图交互改动再做浏览器拖动、缩放、平移实测 |
-| complexity-sensitive path | `npm run benchmark`，并检查没有尺寸相关的候选或扫描爆炸 |
-| synthesized-netlist path | `npm run test:mapped-cases`；必要时设置 `MAPPED_CASE_NO_COLLAPSE=1` |
-| Windows release inputs | `npm run release:windows`，验证离线启动、静态资源和许可证 |
+| `parser` / `model` / `inference` | 对应模块单元测试（覆盖真实命名、转义标识符、向量切片/拼接及层次边界） |
+| `timingParser` / `timingAnnotation` | 新旧时序格式兼容、作用域匹配、`Apply` / `Auto` 及 Single / Compare 策略同步测试 |
+| 图变换 / `workspace` | 不可变性测试（验证输入对象未被原地修改，且 Single 与 Compare 行为一致） |
+| `layout` / `routing` / `labels` | 专项单测 + `layout-determinism` + `layout-fixtures` + `npm test` |
+| `viewport` / `pointer` / `panel` | 纯辅助函数单测；涉及大图交互改动时补充真实浏览器拖拽、缩放与平移验证 |
+| 复杂度敏感路径 | 运行 `npm run benchmark`，确认不存在与图规模挂钩的候选膨胀或全图扫描 |
+| 综合映射网表路径 | 运行 `npm run test:mapped-cases`（全节点回归设置 `MAPPED_CASE_NO_COLLAPSE=1`） |
+| Windows 发布包构建输入 | 运行 `npm run release:windows`，验证离线启动、内嵌静态资源与许可证完整性 |
 
-映射 case 默认固定为 `tests/fixtures/mapped/` 下的 47 个 `_mapped.v` 文件。只有网表和稳定测试
-脚本进入 Git；综合日志、JSON、报告和临时产物留在已忽略的 `dc_runs/`。
+综合映射回归基准固定为 `tests/fixtures/mapped/` 下的 47 个 `*_mapped.v` 文件。仅映射后的 Verilog 网表与稳定测试脚本纳入 Git 版本控制；综合日志、JSON 中间文件、基准报告与临时产物一律留在已忽略的 `dc_runs/` 目录内。
 
-## 输入约定
+## 输入与输出约定
 
-常见输入：
+- **常见输入**：`.v` / `.sv` 结构化网表文本（单模块或多模块）、时序报告日志、可选的 `Cell Config` JSON、Layout Golden JSON（以及未来可选的 Liberty `.lib`）。
+- **常见输出**：Netlist IR、派生分析图模型、带几何坐标的 `PositionedGraph`、结构化 `Scene`、交互式 SVG 原理图及工作区视图会话状态。
 
-- `.v` 或 `.sv` 文本。
-- 单个 module 或多个 module。
-- 可选 cell rule 配置。
-- 未来可选 Liberty `.lib`。
+## 严格禁止事项
 
-## 输出约定
+- 严禁将 Mermaid 或 LLM 生成作为原理图主渲染路径。
+- 严禁在 `parser` 层掺杂 UI 状态或门级推断逻辑。
+- 严禁在 `render` 层直接解析 Verilog 或读取 Netlist 私有字段。
+- 严禁因個別单元未知而中断整个模块的绘图流程。
+- 严禁引入需要联网安装的运行时依赖。
+- 严禁通过硬编码特定实例名、测试文件名或绝对像素坐标来“修补”某个布局用例。
+- 严禁在高频指针/滚轮事件处理器中重复编写视口数学逻辑或同步触发昂贵的布局/全量渲染管线。
+- 严禁通过放宽 `layoutValidator` 规则、调大超时预算或删减 47 个映射网表用例来掩盖回归缺陷。
 
-常见输出：
+## 提交前自检清单
 
-- Netlist IR。
-- 分析图模型。
-- 布局后的 positioned graph。
-- SVG schematic。
-- 交互状态，例如 selected object、highlight cone、search result。
-
-## 禁止事项
-
-- 不把 Mermaid/LLM 作为主要绘图路径。
-- 不在 parser 层写 UI 逻辑。
-- 不在 render 层解析 Verilog。
-- 不因为某个 cell 无法识别就停止绘图。
-- 不在没有必要时引入必须联网安装的依赖。
-- 不用 instance 名称、fixture 文件名或单个绝对坐标修复布局。
-- 不在 pointer/wheel handler 中复制 viewport 数学或运行昂贵流水线。
-- 不通过放宽 validator、性能预算或 mapped-case 数量掩盖回归。
-
-## 验证清单
-
-- escaped identifier 是否保留正确显示。
-- assign alias 是否被合理处理。
-- 每个 output 是否能追到 driver。
-- 多 fanout net 是否能显示或高亮。
-- unknown cell 是否能稳定渲染。
-- SVG 缩放后文字和 gate 是否清楚。
-- node/edge 输入顺序变化后结果是否稳定。
-- 大图候选数量、布局时间、首批渲染和交互响应是否仍有界。
-- mapped case 是否全部完成布线并保持 violation budget。
+- [ ] 转义标识符（escaped identifier）是否完整保留并正确转义显示？
+- [ ] `assign` 别名链是否按策略正确折叠或显式展示，且物理 `BUF` 未被误删？
+- [ ] 从任意输出端口是否能准确回溯至驱动源（driver）？
+- [ ] 高扇出线网与多负载连接是否能正确汇聚、显示并高亮？
+- [ ] 未知单元是否稳定渲染为 `blackbox`？
+- [ ] 大倍率缩放下文字与逻辑门符号是否清晰锐利，平移距离是否与鼠标严格等比？
+- [ ] 打乱输入节点或边数组顺序后，布局与布线输出是否 100% 保持不变？
+- [ ] 大图下的候选数量、布局耗时、首帧渲染与手势帧率是否依然有界？
+- [ ] 47 个综合映射网表用例是否全部完成布线且硬违规数为 0？

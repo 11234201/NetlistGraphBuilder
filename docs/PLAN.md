@@ -1,16 +1,12 @@
-﻿# 长期计划
+# 长期演进计划与路线图
 
-## 产品定位
+## 1. 产品定位
 
-当前维护入口（2026-10-21）：默认 H08，失败按 H08 → ELK → Simple 降级；
-Linux 单文件、CMake 和 EDA/Tcl 专项维护见 [维护计划](plans/linux_launcher_maintenance.md)。
-历史阶段记录不代表已发布版本拥有所有 master 修复；性能工作未因此重新启动。
+- **当前维护基线**：默认启用 `Native Layered H08` 布局引擎，失败时按 `H08 → ELK → Simple` 顺序自动降级；关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 辅助脚本的专项维护，请参阅 [维护计划](plans/linux_launcher_maintenance.md)（历史阶段文档保留当时的验收背景，不代表旧发布版本包含当前主干的全部后续修复）。
+- **核心价值**：**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Netlist Schematic Browser）。它的核心价值并非仅仅将网表转为一张静态图片，而是帮助芯片设计与验证工程师在**缺乏 Liberty（`.lib`）时序库、未安装大型商业 EDA 工具且无法访问公网**的环境中，快速读懂门级拓扑结构。
+- **目标用户与第一优先级**：面向需要排查逻辑综合（Synthesis）、重综合（Resyn）、工艺重映射（Remap）、ECO 修改或局部逻辑锥（Logic Cone）的工程师。产品第一优先级是**“结构看得清、交互顺手、离线可靠”**，而非全面替代重量级商业原理图工具。
 
-Netlist Graph Builder 是一个离线可用的 gate-level netlist schematic browser。它的核心价值不是把网表转成一张静态图，而是帮助工程师在没有 `.lib`、不安装大型 EDA 工具、无法访问公网的情况下，快速理解门级结构。
-
-目标用户是需要检查 synthesis、resyn、remap、ECO 或局部逻辑 cone 的工程师。第一优先级是“结构看得清、交互顺手、离线可靠”，不是完整替代商业 schematic viewer。
-
-## 长期技术路线
+## 2. 长期技术路线
 
 ```text
 Structural Verilog
@@ -18,332 +14,142 @@ Structural Verilog
   -> Netlist IR
   -> cell/pin inference
   -> graph extraction
-  -> ELK-style layered layout
+  -> ELK-style layered layout (H08 / ELK / Simple)
   -> SVG interactive schematic
 ```
 
-长期首选：
+**长期技术选型**：
 
-- 语言：TypeScript / JavaScript。
-- 运行方式：纯前端静态网页优先，后续可封装为 Tauri/Electron。
-- 布局：当前默认 H08 静态分层布局/布线引擎，vendored ELK 与 Simple 依次降级；研究/验收边界单独记录。
-- 渲染：SVG 优先，超大图再考虑 Canvas/WebGL 混合。
-- 依赖策略：能 vend 到 `vendor/`，保证内网离线可用。
+- **开发语言**：原生 JavaScript（ES Modules）与 JSDoc 契约约束；桌面/服务端启动器采用 C#（Windows）与 C++11（Linux）。
+- **运行形态**：纯静态前端资源优先，无打包工具（bundler）或包安装依赖；支持本地 Node.js / Python 预览及 Windows / Linux 单文件离线启动器。
+- **布局引擎**：默认采用项目自研的 `H08` 静态分层布局与正交布线引擎，内置本地化（vendored）`ELK` 与 `Simple` 作为自动降级与备选方案。
+- **图形渲染**：以交互式 SVG 与渐进式分批挂载为核心。
+- **离线依赖策略**：所有必需运行时依赖均内嵌或 vendored 至 `vendor/` 目录，确保在隔离内网环境下 100% 离线可用。
 
-## 不做什么
+## 3. 明确不做的事项（Non-Goals）
 
-- 第一阶段不解析完整 Verilog/SystemVerilog。
-- 第一阶段不依赖 Liberty `.lib`。
-- 第一阶段不追求形式等价验证。
-- 第一阶段不把 Mermaid/LLM 作为主绘图路径。
-- 不为了画完整大 module 而牺牲 cone 浏览体验。
+- 不实现完整的行为级 Verilog / SystemVerilog 编译与综合前端。
+- 不将 Liberty `.lib` 作为必需前置依赖（无 `.lib` 是默认工作模式）。
+- 不提供形式化逻辑等价性证明（Formal Equivalence Checking）。
+- 不将 Mermaid 或大语言模型（LLM）生成作为原理图绘图路径。
+- 不为了强行一次性渲染超大模块的完整图而牺牲局部逻辑锥（Focused Cone）的响应体验。
 
-## 核心能力路线图
+## 4. 核心阶段路线图
 
-每个阶段都必须有独立的细化方案 Markdown。总计划只描述路线和阶段边界，阶段内的任务拆分、完成标准、验证计划写入对应文件：
+每个演进阶段均维护在独立的细化方案文档中。本总计划负责定义全局路线与阶段边界，各阶段内部的任务拆解、验收标准与验证矩阵详见对应文档：
 
-- 阶段 0：`docs/STAGE_0_PLAN.md`
-- 阶段 1：`docs/STAGE_1_PLAN.md`
-- 阶段 2：`docs/STAGE_2_PLAN.md`
-- 阶段 3：`docs/STAGE_3_PLAN.md`
-- 阶段 4：`docs/STAGE_4_PLAN.md`
-- 阶段 5：`docs/STAGE_5_PLAN.md`
-- 阶段 6：`docs/STAGE_6_PLAN.md`
-- 阶段 7：向多领域图形工作台迁移（架构基线与全量审计已完成），见 [阶段 7 计划](STAGE_7_PLAN.md) 和 [目标架构](architecture_evolution.md)。
-- 阶段 8：层次追踪、对象聚焦与大图交互收敛（进行中，尚未完成最终验收），见 [阶段 8 计划](STAGE_8_PLAN.md)。
+- **阶段 0（项目准备）**：`docs/STAGE_0_PLAN.md`
+- **阶段 1（最小可用原型）**：`docs/STAGE_1_PLAN.md`
+- **阶段 2（实用分析能力）**：`docs/STAGE_2_PLAN.md`
+- **阶段 3（双模块对比视图）**：`docs/STAGE_3_PLAN.md`
+- **阶段 4（大图与工程化）**：`docs/STAGE_4_PLAN.md`
+- **阶段 5（可选 Liberty 增强）**：`docs/STAGE_5_PLAN.md`
+- **阶段 6（时序、聚焦浏览与 EDA 集成）**：`docs/STAGE_6_PLAN.md`
+- **阶段 7（多领域图形工作台架构演进）**：已完成架构基线落地与全量审计，详见 [阶段 7 计划](STAGE_7_PLAN.md) 与 [目标架构](architecture_evolution.md)。
+- **阶段 8（层次追踪、对象聚焦与大图交互收敛）**：核心功能已落地并持续收敛中，详见 [阶段 8 计划](STAGE_8_PLAN.md)。
 
-## 需求拆解与完成状态
+## 5. 需求拆解与完成状态
 
-当前里程碑：阶段 7 已完成模块化单体的第一条产品路径：领域契约与注册、Document/ViewSession/commands、共享 pipeline/Scene renderer、UI controller、版本化存档边界，以及内存 AIG 扩展性门禁均已落地。阶段 8 已进入规划，聚焦跨层 Fanin/Fanout、Cell/Net Focused、大图交互性能、可切换的标准门符号、通用 View History、Search 解耦与 Compare 按需加载。阶段 5 的可选 Liberty 增强继续保留为后续计划。
+**当前里程碑进展**：
+- **阶段 7（已完成）**：模块化单体多领域工作台架构已全面落地，涵盖领域契约与静态注册、`DocumentStore` / `ViewSessionStore` / 命令总线、共享视图流水线与 `Scene` 渲染器、职责解耦的 UI 控制器、版本化存档编解码器（codec）以及内存 AIG 扩展性验证门禁。
+- **阶段 8（进行中）**：跨层 Fanin/Fanout 追踪、Cell/Net 统一聚焦根、可切换的标准逻辑门符号、通用事务化视图历史（View History）、搜索与聚焦解耦以及 Compare 大图按需加载均已完成范围内交付；当前重点围绕交互性能基线、最小化缓存失效与代码审查问题闭环。阶段 5 的可选 Liberty `.lib` 增强继续作为后续储备计划，生产级 AIGER 导入与分析另行独立规划。
 
-下一条工程主线是阶段 8：先固化真实浏览器与大图基线，再沿阶段 7 边界实施最小失效、按需 Compare、统一 Cell/Net root 和 occurrence-aware 层次查询；Worker 只在消除重复工作后仍有明确主线程瓶颈时立项。生产级 AIG 输入/转换/分析继续另行规划。
+**状态定义**：
+- `已完成`：仓库中已具备完整可运行实现、自动化测试及文档交付物。
+- `进行中`：当前阶段重点推进或持续收敛的任务。
+- `计划中`：已纳入长期路线图但尚未启动开发。
+- `暂缓`：明确不在当前主线中推进。
 
-状态口径：
-
-- 已完成：仓库中已有可运行实现或文档交付物。
-- 进行中：当前优先处理，允许拆出更细任务。
-- 计划中：已进入路线图，但尚未实现。
-- 暂缓：明确不在当前阶段处理。
-
-| ID | 阶段 | 需求 | 主要交付物 | 状态 | 细化文档 |
+| ID | 阶段 | 需求名称 | 主要交付物 | 状态 | 细化文档 |
 | --- | --- | --- | --- | --- | --- |
-| R0-1 | 阶段 0 | 项目准备 | 仓库、目录、README、计划、架构、设计规范、示例 fixture | 已完成 | `docs/STAGE_0_PLAN.md` |
-| R1-1 | 阶段 1 | Structural Verilog parser 与 Netlist IR | module/port/wire/assign/cell/escaped identifier 解析 | 已完成 | `docs/STAGE_1_PLAN.md` |
-| R1-2 | 阶段 1 | 无 `.lib` cell/pin 推断 | gate kind、pin direction、inference source | 已完成 | `docs/STAGE_1_PLAN.md` |
-| R1-3 | 阶段 1 | Graph extraction 与简单布局 | PI/PO/cell/assign graph、left-to-right layered layout、正交连线 | 已完成 | `docs/STAGE_1_PLAN.md` |
-| R1-4 | 阶段 1 | SVG schematic 与基础交互 | SVG 渲染、module selector、文件导入、缩放、平移、fit | 已完成 | `docs/STAGE_1_PLAN.md` |
-| R2-1 | 阶段 2 | 搜索与对象索引 | net/port/instance/cell type 搜索、定位、高亮 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-2 | 阶段 2 | 对象选择与属性面板增强 | gate/net 详情、pin/net 关系、driver/load 信息 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-3 | 阶段 2 | Fanin/Fanout 分析与 cone view | immediate/transitive/depth-limited traversal、视图切换 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-4 | 阶段 2 | Assign/Alias 规范化 | alias 折叠、显示切换、buf-like assign 处理 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-5 | 阶段 2 | 图中关键元信息 | cell type、instance、output net、fanout count | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-6 | 阶段 2 | 导出 SVG | 当前 module/cone 视图离线 SVG 导出 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-7 | 阶段 2 | 手动布局校准与临时 golden | 节点拖动、保存 layout golden、对比自动布局与 golden 差异 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R2-8 | 阶段 2 | Wire 可读性修正 | 局部优先 routing、pin 附近 net label、adjust snap 对齐 | 已完成 | `docs/STAGE_2_PLAN.md` |
-| R3-1 | 阶段 3 | Module compare view | 左右 module 选择、并排 schematic、同步缩放平移 | 已完成 | `docs/STAGE_3_PLAN.md` |
-| R3-2 | 阶段 3 | 对比高亮与统计 | 同名 port/net/cell、结构差异区域、cell/depth/fanout 统计 | 已完成 | `docs/STAGE_3_PLAN.md` |
-| R4-1 | 阶段 4 | 大图布局与性能 | LayoutProvider、ELK.js fallback/provider、progressive render | 已完成 | `docs/STAGE_4_PLAN.md` |
-| R4-2 | 阶段 4 | 大图可读性与状态保存 | fanout hub、collapse/expand、offscreen 降细节、session state | 已完成 | `docs/STAGE_4_PLAN.md` |
-| R4-3 | 阶段 4 | Balanced/Folded 布局 | 深层 DAG 按逻辑层分带折叠、跨带专用通道、保留默认左到右模式 | 暂缓 | `docs/STAGE_4_PLAN.md` |
-| R5-1 | 阶段 5 | 可选 Liberty 增强 | `.lib` 子集解析、pin direction 覆盖、function 辅助、fallback 诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
-| R6-1 | 阶段 6 | 新 module/instance 边界时序格式 | Global/Local、INPUT/OUTPUT、AT/RT/Slack、Apply 和旧格式兼容 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-2 | 阶段 6 | 全图时序显示策略 | Auto/Global/Local 与 Slack/AT/RT/All 全图设置 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-3 | 阶段 6 | Cell spacing 与拥塞可读性 | 可调 cell 间距、拥塞感知通道和布局质量回归 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-4 | 阶段 6 | 顶部控件收敛 | Import/More 分组、侧栏 Layout/Timing 和窄屏可用性 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-5 | 阶段 6 | 直接粘贴时序 | 显式 Paste timing、通用文本导入和新格式自动识别 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-6 | 阶段 6 | EDA 启动接口 | 统一 CLI、应用控制层、ready 输出和本地安全边界 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-7 | 阶段 6 | Search-first 双向局部视图 | 独立 fanin/fanout depth、Focused neighborhood 和大图按需布局 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-8 | 阶段 6 | Module 前进/后退 | module 导航历史、状态恢复、按钮和快捷键 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-9 | 阶段 6 | 过程日志控件 | 可折叠日志面板、阶段/级别过滤、容量控制、复制和导出 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-10 | 阶段 6 | 定位并放大所选 cell | View 定位控件、稳定阅读尺度、局部图自动揭示和 Compare 一致行为 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R6-11 | 阶段 6 | 可复用 Cell Config | 编辑 gate kind/pin direction、本地持久化、JSON 导入导出和 EDA 加载 | 已完成 | `docs/STAGE_6_PLAN.md` |
-| R7-1 | 阶段 7 | 多领域工作台核心 | DomainFeature/registry、DocumentStore、ViewSession commands、任务与 Compare 契约 | 已完成 | `docs/STAGE_7_PLAN.md` |
-| R7-2 | 阶段 7 | 共享图形与交互边界 | query-to-Scene pipeline、安全/渐进 SVG、Single/Compare controller 与版本化存档 | 已完成 | `docs/STAGE_7_PLAN.md` |
-| R7-3 | 阶段 7 | AIG 扩展性验证 | 内存 AIG 经公共搜索、Focused、布局、选择和导出链路，公共层无领域分支 | 已完成 | `docs/STAGE_7_PLAN.md` |
-| R8-1 | 阶段 8 | 跨层 Fanin/Fanout | occurrence identity、层次连接模板、可穿 hinst 的双向 cone 与边界信息 | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
-| R8-2 | 阶段 8 | Net Focused | Cell/Net 统一 root、driver/load seed、高扇出有界局部图 | 已完成 | `docs/STAGE_8_PLAN.md` |
-| R8-3 | 阶段 8 | 交互性能与最小失效 | artifact cache、JobCoordinator async layout、阶段失效矩阵、局部 reroute/Scene/DOM 更新与性能证据 | 进行中 | `docs/STAGE_8_PLAN.md` |
-| R8-4 | 阶段 8 | 可切换的标准逻辑门符号 | 矩形/标准符号显示策略、AND/OR/XOR/BUF 族 Scene 图元、反相 bubble 与 fallback | 已完成 | `docs/STAGE_8_PLAN.md` |
-| R8-5 | 阶段 8 | 通用 View History | selection/navigation/focus/viewport/override 的事务化 Back/Forward | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
-| R8-6 | 阶段 8 | Search 与 Focused 解耦 | Locate-only 默认语义、显式 Add Focus、Search-first 自动 fallback | 已完成 | `docs/STAGE_8_PLAN.md` |
-| R8-7 | 阶段 8 | Compare 大图按需加载 | 双侧独立 Search-first、无布局统计、单侧 job/cancel 与显式 Whole | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
+| R0-1 | 阶段 0 | 项目基础准备 | 仓库骨架、目录结构、README、路线图、架构、设计规范、示例 fixture | 已完成 | `docs/STAGE_0_PLAN.md` |
+| R1-1 | 阶段 1 | Structural Verilog parser 与 Netlist IR | `module` / `port` / `wire` / `assign` / `cell` / 转义标识符解析 | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-2 | 阶段 1 | 无 `.lib` 单元与引脚推断 | `gate kind`、`pin direction` 与推断来源（inference source）标记 | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-3 | 阶段 1 | 图提取与基础分层布局 | PI/PO/cell/assign 图提取、从左到右分层布局、正交连线 | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R1-4 | 阶段 1 | SVG 原理图渲染与基础交互 | SVG 渲染器、模块选择器、文件导入、缩放、平移与一键适配（Fit） | 已完成 | `docs/STAGE_1_PLAN.md` |
+| R2-1 | 阶段 2 | 全局搜索与对象索引 | `net` / `port` / `instance` / `cell type` 搜索、居中定位与高亮 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-2 | 阶段 2 | 对象选择与属性详情面板 | 单元/线网连接详情、引脚映射、驱动（driver）与负载（load）追踪 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-3 | 阶段 2 | Fanin/Fanout 分析与逻辑锥视图 | 直接/传递/有限深度锥体遍历与视图模式切换 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-4 | 阶段 2 | Assign/Alias 规范化 | `assign` 别名链默认折叠、`Show aliases` 显隐切换、物理 BUF 保留 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-5 | 阶段 2 | 图中关键元信息展示 | 单元类型、实例名、输出线网名及扇出数量（fanout count）展示 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-6 | 阶段 2 | 离线 SVG 导出 | 当前完整模块或局部视图的自包含 SVG 文件导出 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-7 | 阶段 2 | 手工布局校准与 Golden 快照 | 节点拖拽调整、Layout Golden 保存/加载及几何差异比对 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R2-8 | 阶段 2 | 导线可读性与吸附优化 | 局部直连/短折线优先、引脚就近标签排布、网格与引脚水平对齐吸附 | 已完成 | `docs/STAGE_2_PLAN.md` |
+| R3-1 | 阶段 3 | 双模块对比视图（Compare View） | 左右/上下双模块选择、分屏并排原理图、同步缩放与平移 | 已完成 | `docs/STAGE_3_PLAN.md` |
+| R3-2 | 阶段 3 | 结构差异高亮与统计对比 | 同名端口/线网/同类逻辑门对齐高亮、未匹配差异标记及统计差值面板 | 已完成 | `docs/STAGE_3_PLAN.md` |
+| R4-1 | 阶段 4 | 大图布局引擎与渐进渲染 | `LayoutProvider` 抽象、vendored ELK.js 集成、可取消的分批渐进式 SVG 渲染 | 已完成 | `docs/STAGE_4_PLAN.md` |
+| R4-2 | 阶段 4 | 大图可读性简化与会话保存 | 高扇出中继（Fanout Hub）、低缩放隐藏细节（LOD）、`sessionStorage` 状态恢复 | 已完成 | `docs/STAGE_4_PLAN.md` |
+| R4-3 | 阶段 4 | Balanced/Folded 折叠排布 | 超深串行 DAG 分带折叠与跨带独立通道（当前保持默认从左到右排布） | 暂缓 | `docs/STAGE_4_PLAN.md` |
+| R5-1 | 阶段 5 | 可选 Liberty（`.lib`）增强 | `.lib` 必要子集解析、引脚方向精确覆盖、逻辑功能表达式辅助与回退诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
+| R6-1 | 阶段 6 | 新版模块/实例边界时序格式 | Global/Local 快照、INPUT/OUTPUT、AT/RT/Slack、Apply 策略及旧格式兼容 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-2 | 阶段 6 | 全图统一时序显示策略 | `Auto` / `Global` / `Local` 快照与 `Slack` / `AT` / `RT` / `All` 全图徽标策略 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-3 | 阶段 6 | 单元间距调节与拥塞可读性 | 可调 `Cell spacing`、拥塞感知通道扩展与布局质量回归门禁 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-4 | 阶段 6 | 顶部工具栏精简收敛 | `Import` / `More` 下拉菜单分组、左侧栏整合 Layout/Timing 设置及窄屏适配 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-5 | 阶段 6 | 时序文本直接粘贴 | 显式 `Paste timing` 入口、超大文本预览保护与多格式自动识别 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-6 | 阶段 6 | 跨平台 EDA 启动接口 | Node/Python/Windows/Linux 统一 CLI、状态管理、单行 `ready` JSON 协议 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-7 | 阶段 6 | Search-first 与双向聚焦视图 | 大图默认搜索优先、独立 `Fanin` / `Fanout` 深度与多根节点 `Focused` 视图 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-8 | 阶段 6 | 模块浏览历史前进/后退 | 模块切换、局部视图、选中项与视口状态的历史栈恢复及快捷键 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-9 | 阶段 6 | 可折叠过程日志（Process Log） | 按阶段/级别过滤、高频进度合并、一键复制与日志文件导出 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-10 | 阶段 6 | 所选单元一键居中放大 | `Focus selected cell`（快捷键 `F`）、稳定阅读比例缩放与双视图一致行为 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R6-11 | 阶段 6 | 可复用单元语义配置（Cell Config） | 按 `cell type` 编辑门类型与引脚方向、`localStorage` 持久化及 JSON 导入导出 | 已完成 | `docs/STAGE_6_PLAN.md` |
+| R7-1 | 阶段 7 | 多领域工作台核心架构 | `DomainFeature` 注册表、`DocumentStore`、`ViewSession` 命令、任务与对比协调 | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R7-2 | 阶段 7 | 共享图形流水线与存档边界 | `query-to-Scene` 流水线、渐进式 SVG 渲染器、独立 UI 控制器与版本化 codec | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R7-3 | 阶段 7 | AIG 多领域扩展性门禁 | 内存 AIG 完整跑通搜索、聚焦、布局、选中与导出链路，公共层零领域硬编码分支 | 已完成 | `docs/STAGE_7_PLAN.md` |
+| R8-1 | 阶段 8 | 跨层次 Fanin/Fanout 追踪 | `occurrencePath` 实例身份、本层/父层连接分离展示与双击 `hinst` 钻取 | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
+| R8-2 | 阶段 8 | Net Focused（线网聚焦根） | Cell 与 Net 统一作为聚焦根、驱动/负载种子展开与高扇出有界节点预算 | 已完成 | `docs/STAGE_8_PLAN.md` |
+| R8-3 | 阶段 8 | 交互性能与最小化失效 | 有界产物缓存（LRU）、异步布局 Worker 隔离、增量重布线与性能基准验证 | 进行中 | `docs/STAGE_8_PLAN.md` |
+| R8-4 | 阶段 8 | 可切换的标准逻辑门符号 | `Rectangles` 与 `Conventional`（AND/OR/XOR/BUF 族及反相气泡）无损切换 | 已完成 | `docs/STAGE_8_PLAN.md` |
+| R8-5 | 阶段 8 | 通用事务化视图历史（View History） | 覆盖选择、层次导航、聚焦、视口与手工覆盖的统一 `Back` / `Forward` | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
+| R8-6 | 阶段 8 | 搜索定位与聚焦修改解耦 | 已绘制对象默认仅定位（Locate-only）、显式 `+ Focus` 追加与 `Search-first` 自动聚焦 | 已完成 | `docs/STAGE_8_PLAN.md` |
+| R8-7 | 阶段 8 | Compare 大图按需加载 | 双侧独立 `Search-first`、无布局拓扑统计、单侧独立任务取消与显式 `Whole` | 已完成（范围内） | `docs/STAGE_8_PLAN.md` |
+
+---
+
+## 6. 各阶段核心目标与验收标准摘要
 
 ### 阶段 0：项目准备
-
-目标：建立仓库、计划、规范、目录骨架和示例输入。
-
-交付物：
-
-- Git 仓库。
-- 项目目录结构。
-- 长期计划和阶段计划。
-- 架构说明。
-- UI/交互设计规范。
-- skill 和项目规则写入规范。
-- 示例网表 fixture。
-
-完成标准：
-
-- 新成员可以只读 `README.md`、本文件和 `docs/ARCHITECTURE.md` 理解项目方向。
-- 写代码前的阅读要求明确。
-- 目录边界清楚。
+- **目标**：建立代码仓库、工程规范、目录骨架与示例测试网表。
+- **完成标准**：新成员仅阅读 `README.md`、本文件与 `docs/ARCHITECTURE.md` 即可理清项目方向与分层边界。
 
 ### 阶段 1：最小可用原型
-
-目标：输入一个 structural Verilog 文本，解析 module，并生成可缩放 SVG schematic。
-
-短期计划：
-
-- 实现 tokenizer/轻量 parser，支持：
-  - `module ... endmodule`
-  - `input/output/wire`
-  - `assign lhs = rhs`
-  - `CELL inst (.PIN(net), ...);`
-  - escaped identifier，例如 `\a_q[25] `
-- 设计 Netlist IR：
-  - `Module`
-  - `Port`
-  - `Net`
-  - `Cell`
-  - `PinConnection`
-  - `Assign`
-- 实现 cell/pin 启发式推断：
-  - `ND/NAND/CKND -> nand`
-  - `NR/NOR -> nor`
-  - `INV/CKINV -> inv`
-  - `XOR -> xor`
-  - `XNR/XNOR -> xnor`
-  - 未识别 cell 作为 blackbox
-- 实现简单 layered layout fallback。
-- 实现 SVG renderer：
-  - PI/PO 节点
-  - gate 节点
-  - net label
-  - 基础连线
-- 实现基本交互：
-  - 缩放
-  - 平移
-  - fit to view
-  - module selector
-
-完成标准：
-
-- 能加载 `tests/fixtures/two_equivalent_style_modules.v`。
-- 能分别画出两个 module 的结构图。
-- 图可放大缩小，文字不糊。
-- unknown cell 不会导致崩溃。
+- **目标**：解析结构化 Verilog 模块，并在无 `.lib` 环境下生成可缩放平移的交互式 SVG 原理图。
+- **完成标准**：成功加载并绘制 `tests/fixtures/two_equivalent_style_modules.v` 中的模块；支持转义标识符；遇到未知单元安全渲染为黑盒而不崩溃。
 
 ### 阶段 2：实用分析能力
+- **目标**：让工具从“能画图”升级为“能高效读结构、追路径”。
+- **完成标准**：支持全局搜索定位、点击查看驱动/负载详情、有限深度扇入/扇出逻辑锥、`assign` 别名折叠、离线 SVG 导出以及 `Adjust` 手工节点拖拽与 Golden 保存。
 
-目标：让工具从“能画图”变成“能看结构”。
+### 阶段 3：双模块对比视图
+- **目标**：支持重综合（Resyn / Remap）前后两个模块的结构与统计对比。
+- **完成标准**：支持并排展示两个模块（如原模块与 `_Flex` 模块）、同步缩放平移、共有输出端口扇入锥联动对比，以及同名端口/线网/同类逻辑门与未匹配差异高亮。
 
-短期计划：
+### 阶段 4：大图与工程化
+- **目标**：支撑千级单元规模的真实工程网表浏览与状态持久化。
+- **完成标准**：引入 `LayoutProvider` 架构与离线 `ELK.js`、400+ 对象渐进式渲染、高扇出 `Fanout Hub`、低缩放细节隐藏（LOD）及 `sessionStorage` 标签页会话恢复（注：早期尝试的分组折叠 `group collapse` 已于后续版本正式退役，由 `H08` 引擎、`Search-first` 与 `Focused` 取代）。
 
-- 搜索 net、port、instance、cell type。
-- 点击 gate/net 高亮：
-  - immediate fanin
-  - immediate fanout
-  - transitive fanin cone
-  - transitive fanout cone
-- 增加 depth-limited cone view。
-- assign/buf 规范化：
-  - 单纯 wire alias 可折叠。
-  - 用户可切换是否显示 alias。
-- 图中显示关键元信息：
-  - cell type
-  - instance name
-  - output net
-  - fanout count
-- 增加导出 SVG。
-- 增加手动布局校准：
-  - 用户可进入临时调整模式，自由拖动每个 schematic 节点。
-  - 保存当前节点位置作为临时 layout golden。
-  - 对比自动布局与 layout golden 的差异，沉淀为后续布局修改方案。
-- 修正 wire 可读性：
-  - 相近 pin 优先局部直连或短 dogleg，顶部 lane 只作为长跨层 fallback。
-  - net label 默认贴近 cell/port pin，而不是放在长线中段。
-  - 调整模式增加 grid snap 和 pin-y alignment snap，降低手动对齐成本。
-
-完成标准：
-
-- 用户可以从一个 output 快速追到所有 primary input。
-- 用户可以限制只看前后 N 层。
-- 搜索定位后视图自动居中。
-- 用户可以手动调整一张图并保存 golden，用于说明期望布局。
-- 常见局部连线不被强制绕到顶部，net 名称靠近接口且调整时容易吸附成直线。
-
-### 阶段 3：对比视图
-
-目标：支持 resyn/remap 前后两个 module 的结构对比。
-
-短期计划：
-
-- 选择两个 module 进入 compare view。
-- 同名 input/output port 对齐。
-- 并排显示两个 schematic。
-- 支持同步缩放和平移。
-- 高亮：
-  - 同名 port
-  - 同名 net
-  - 同类 cell
-  - 结构差异区域
-- 输出基础统计对比：
-  - cell count
-  - inferred gate type count
-  - logic depth 粗估
-  - max fanout
-
-完成标准：
-
-- 能把 `root...` 和 `root..._Flex` 并排展示。
-- 可以从同一个 output 比较两边 fanin cone。
-- 对比视图不会强依赖 `.lib`。
-
-### 阶段 4：大图和工程化
-
-目标：让工具能处理更接近真实工程的网表片段。
-
-短期计划：
-
-- 引入 ELK.js，并封装 layout provider。
-- 对大图增加：
-  - progressive render
-  - collapse/expand group
-  - fanout hub 简化
-  - offscreen 节点降细节
-- 增加可选 Balanced/Folded layout：
-  - 默认 left-to-right 模式保持不变。
-  - 深层 DAG 可按 4-6 个逻辑层分带折叠，改善细长宽高比。
-  - 跨带 edge 使用独立通道，避免简单压缩列距导致局部 net 乱绕。
-- 增加 session state：
-  - 最近打开的 module
-  - 当前搜索
-  - cone depth
-  - 布局选项
-- 增加项目内测试：
-  - parser fixture tests
-  - inference tests
-  - graph extraction tests
-  - SVG smoke tests
-
-完成标准：
-
-- 千级 cell 的局部 cone 浏览仍然可用。
-- 布局层可以在 fallback 与 ELK.js 间切换。
-- 解析失败能定位到大致文本位置。
-
-### 阶段 5：可选 `.lib` 增强
-
-目标：在用户提供 Liberty 时提高准确性，但不破坏无 `.lib` 工作流。
-
-短期计划：
-
-- 解析 Liberty cell/pin direction 的必要子集。
-- 用 `.lib` pin direction 覆盖启发式规则。
-- 可选读取 cell function，用于更准确 gate symbol。
-- 标记 `.lib` 缺失、cell 缺失、pin 缺失的 fallback 状态。
-
-完成标准：
-
-- 无 `.lib` 时功能照常可用。
-- 有 `.lib` 时 pin 方向和 cell 类型更准确。
-- UI 明确显示当前推断来源。
+### 阶段 5：可选 `.lib` 增强（计划中）
+- **目标**：在用户提供 Liberty 文件时进一步提升引脚方向与门功能识别准确度，同时丝毫不影响默认无 `.lib` 工作流。
 
 ### 阶段 6：时序、聚焦浏览与 EDA 集成
+- **目标**：全面适配 Global/Local 边界时序分析与大型层次化网表调试工作流，并提供跨平台 EDA 命令行启动接口。
+- **完成标准**：支持新旧时序格式导入与全图徽标策略、可持久化 `Cell Config`、大图 `Search-first` 与双向 `Focused` 视图、`Focus selected cell` 一键居中、过程日志面板以及统一的 CLI `ready` JSON 协议。详见 `docs/STAGE_6_PLAN.md`。
 
-目标：让工具适应 Global/Local 边界时序和真实层次调试工作流，大图优先通过搜索和双向局部逻辑浏览，并可由已有 EDA 工具直接启动到指定分析位置。
-
-实施状态：已完成。
-
-- 兼容旧 LocResyn timing 和新的 module/instance 边界表格格式。
-- 增加可复用 Cell Config，为未知 cell type 配置 gate kind 和各 pin direction。
-- 将 cell/port 时序 badge 改为全图 snapshot/metric 设置。
-- 增加显式 Paste timing、Cell spacing 和拥塞感知布局。
-- 精简 topbar，将低频操作归入菜单和侧栏。
-- 增加 Search-first、独立 fanin/fanout depth 和 Focused neighborhood。
-- 增加 Focus selected cell，将选择对象居中并缩放到稳定可读级别。
-- 增加 module 浏览历史、后退、前进和视图状态恢复。
-- 增加可折叠 Process Log，记录导入、解析、时序、布局、渲染和启动过程。
-- 提供统一、离线、本地安全的 EDA 启动接口。
-
-完成标准：
-
-- 新旧时序格式可通过文件和粘贴载入，Global/Local/Apply 语义明确。
-- 未知 cell 的 gate kind 和 pin direction 可编辑、保存、导入导出，并在后续 design 中自动复用。
-- 全图时序显示、双向局部逻辑、module 前进/后退和 Cell spacing 可稳定使用。
-- 所选 cell 可以一键居中放大；目标在局部图外时可自动进入对应 Focused neighborhood。
-- 过程日志可以过滤、复制和导出，且不会因高频进度信息拖慢大图。
-- 千级 cell 场景无需先渲染 Whole 即可搜索并查看局部逻辑。
-- 外部 EDA 工具能打开指定 netlist、module 和 focus cell。
-
-详细任务、接口约定和验证矩阵见 `docs/STAGE_6_PLAN.md`。
+### 阶段 7：多领域图形工作台架构演进
+- **目标**：将单领域 Netlist 应用重构为“模块化单体 + 独立领域模型 + 共享图形工作台”架构。
+- **完成标准**：落地 `contracts/`、`application/`、`domains/netlist/`、`diagram/`、`bootstrap/` 分层边界，通过静态 AST 架构门禁与内存 AIG 全链路扩展性测试。详见 `docs/STAGE_7_PLAN.md`。
 
 ### 阶段 8：层次追踪、对象聚焦与大图交互收敛
+- **目标**：将局部结构浏览扩展至精确的层次实例上下文（occurrence context），并确保搜索、聚焦、双模块对比、视图历史与画布手势在大型网表上均以最小必要计算开销运行。
+- **完成标准**：跨层连接与 Net Focused 准确有界且不污染源 IR；大图默认路径不触发冗余全图布局；轻量手势不重跑布局引擎；标准逻辑门符号切换不改变引脚与布线几何；统一视图历史事务与异步取消隔离全部通过回归验证。详见 `docs/STAGE_8_PLAN.md`。
 
-目标：把局部结构浏览扩展到真实 instance occurrence 上下文，并让 Search、Focused、Compare、
-View History 和画布交互在大型网表上按最小必要范围工作。
+---
 
-计划交付：
+## 7. 开发前必读约定
 
-- Cell/Net 统一 Focused root，以及可穿越 hinst/port 的层次 Fanin/Fanout。
-- Search 默认只定位；仅 Search-first 大图无法使用 Whole 位置时自动加入 Focused roots。
-- 分阶段 artifact 复用、最小失效和 Compare 双侧按需 layout/render。
-- 可在兼容矩形与 AND/NAND、OR/NOR、XOR/XNOR、BUF/INV 标准逻辑门符号间切换的显示策略。
-- 覆盖 selection、层次导航、Focused、Compare、viewport 和 layout override 的通用 Back/Forward。
+在正式编写或修改代码前，请务必先通读：
 
-完成标准：跨层与 Net cone 正确、有界且不修改源 IR；大图默认路径不触发无必要 Whole layout；
-轻量交互不运行 provider；符号模式切换不改变既有端口和 routing geometry；历史事务、分支、兼容和异步恢复
-均通过验证。详细分批、性能基线、风险和验证矩阵见 `docs/STAGE_8_PLAN.md`。
-
-## 每次写代码前必须通读
-
-正式写代码前，至少通读：
-
-1. 本文件。
-2. 当前阶段对应的细化方案，例如 `docs/STAGE_1_PLAN.md`。
-3. `docs/ARCHITECTURE.md`。
-4. 若涉及界面、交互或视觉，通读 `docs/DESIGN_SPEC.md`。
-5. 若涉及流程、工具、提示词或 agent 行为，通读 `docs/SKILLS_AND_RULES.md`。
-
-读完后再进入实现；实现时只做当前阶段范围内的事情。
-
+1. 本文件（`docs/PLAN.md`）
+2. 当前任务所属阶段的细化计划（如 `docs/STAGE_8_PLAN.md`）
+3. 架构设计说明（`docs/ARCHITECTURE.md`）
+4. 若涉及界面、交互或视觉表现，通读 `docs/DESIGN_SPEC.md`
+5. 若涉及工程规范、自动化测试或 Agent 技能，通读 `AGENTS.md` 与 `docs/SKILLS_AND_RULES.md`

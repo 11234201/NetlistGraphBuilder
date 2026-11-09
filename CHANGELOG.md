@@ -1,245 +1,241 @@
 # Changelog
 
-本项目使用语义化版本号。
+本项目遵循语义化版本号（Semantic Versioning）规范。
 
 ## [1.1.3] - 2026-11-08
 
-- 修复 structural Verilog parser 的表达式截断、重复实例、紧邻注释、向量切片和 literal/reference 身份问题；escaped 名称不再被误判为常量。
-- 修复 schematic graph 的节点 ID 碰撞、自反馈边、多驱动网络和 inout/同侧 pin 几何问题。
-- 修复深链逻辑深度、Focused 节点预算、fanout hub 稳定身份和 Compare 端口范围比较。
-- 修复 H08 混合 FIXED_ORDER 的非确定排序、亚像素非正交路径和短折弯丢失问题。
-- 收紧 workbench 生命周期与输入边界，保持 Single/Compare 共用的调度和状态管理约束。
-- 完整测试 904/904 通过；H08 full-node mapped 严格门禁 47/47 通过，0 violation。
+- 修复结构化 Verilog 解析器（parser）中的表达式截断、重复实例、紧邻注释、向量切片以及字面量/引用（literal/reference）身份识别问题；转义标识符（escaped identifier）不再被误判为常量。
+- 修复原理图模型（schematic graph）的节点 ID 碰撞、自反馈边、多驱动线网（multi-driver net）以及 `inout` / 同侧引脚的几何计算问题。
+- 修复深层串行链路的逻辑深度计算、Focused 视图节点预算裁剪、高扇出中继（fanout hub）稳定身份生成以及 Compare 模式的端口位宽范围比较。
+- 修复 `H08` 布局引擎在混合 `FIXED_ORDER` 约束下的非确定性排序、亚像素非正交路径及短折弯丢失问题。
+- 收紧工作台（workbench）异步生命周期与快速输入边界，确保 Single 与 Compare 视图共用一致的任务调度与状态管理约束。
+- 全量单元测试 **904/904** 通过；`H08` 完整节点（full-node）47 个综合映射网表严格门禁 **47/47** 通过，硬违规数为 **0**。
 
 ## [1.1.2] - 2026-10-21（同版本覆盖更新）
 
-按用户要求更新现有 v1.1.2 标签、发布说明和附件，不另增版本号；2026-10-15 初始发布记录保留如下。
+按用户要求更新既有 `v1.1.2` 标签、发布说明与离线发布包附件（不另增版本号；2026-10-15 初始发布记录保留于下节）：
 
-- 修复 H08 将拼接位端口合并为同一 ID 的错误；精确位端口匹配优先于 raw pin 别名。
-- 默认 H08，失败按 H08 → ELK → Simple 降级，取消不降级，自动降级不固化为会话首选项；迁移旧 Simple 会话。
-- Linux 单文件启动器增加状态锁、精确进程/启动时间校验、私有原子状态文件、Unicode JSON 解码和有界 HTTP 连接；修复无效状态被误报为成功关闭。
-- 增加顶层 CMake 入口、资源增删触发重嵌入、可配置安装和可复用 Tcl helper；增加原生 HTTP/进程、Tcl、CMake 集成门禁。
-- 更新当前 README、使用教程和 Linux 集成说明；历史实验和已发布版本记录保持原始口径。
+- 修复 `H08` 将拼接（concat）位端口合并为同一引脚 ID 的问题；精确位端口匹配优先级高于原始引脚名（raw pin）别名。
+- 默认启用 `H08` 引擎，失败时按 `H08 → ELK → Simple` 顺序自动降级；主动取消任务不触发降级，且临时自动降级不会固化为会话首选项；旧版无首选项版本号的 `Simple` 会话一次性迁移回 `H08`。
+- Linux 单文件启动器新增独占状态文件锁、精确可执行文件 inode / 启动时间戳校验、`0600` 权限原子状态文件写入、Unicode JSON 解码与有界 HTTP 连接管理；修复损坏状态文件被误报为成功关闭的问题。
+- 新增顶层 CMake 构建入口、前端资源增删改自动触发重嵌入、可配置安装目录变量及可复用 Tcl 辅助脚本（`ngb.tcl`）；补充原生 HTTP/进程生命周期、Tcl 与 CMake 集成测试门禁。
+- 同步更新 `README.md`、完整使用教程与 Linux 集成文档（历史实验报告与过往版本记录保留原始口径）。
 
 ### 2026-10-15 初始发布
 
-- 合并前检视修正物理线树过滤无效/零长度线段后的原始编号错位，避免遗漏有效线段。
-- 增加独立连通性、边归属和排列测试；旧实现差分仅覆盖其正确的有效输入范围，不复制旧错误。
-- 默认H08和Simple显式回退不变；保留DP020原45秒超时记录，不开展新性能优化。
+- 合并前检视：修正物理线网树在过滤无效/零长度线段后的原始下标错位问题，防止遗漏有效线段。
+- 新增独立连通性、边归属与输入排列不变性测试；与旧实现的差分比对仅覆盖有效输入范围，不复制旧版缺陷。
+- 保持默认 `H08` 与 `Simple` 显式回退策略不变；保留 `DP020` 原 45 秒超时历史记录，不额外开启新的性能优化任务。
 
 ## [1.1.1] - 2026-10-15
 
-- 用户明确授权后，将新会话、无参数Provider和EDA启动默认统一为H08；Single/Compare共享配置。
-- Simple保留为显式选择与失败回退；旧session中的显式provider不强制覆盖。
-- 增加H08开发过程、失败试验、验收证据和限制总结；不改变已验收布局布线算法。
+- 经用户明确授权，将新会话、无参数 Provider 查询及 EDA 命令行启动的默认布局引擎统一设为 `H08`（Single 与 Compare 视图共享同一默认配置）。
+- `Simple` 保留为可显式选择的布局引擎与失败兜底回退；旧版会话中由用户显式保存的引擎首选项不被强制覆盖。
+- 新增 `H08` 开发历程、失败试验、验收证据与已知限制总结文档，不改变已验收的布局与正交布线算法。
 
 ## [1.1.0] - 2026-10-15
 
-- 实验 `native-layered` 整体切换到 H08 静态 ES-module 引擎；Simple 默认不变，ELK 继续离线保留。
-- 提供 clone 后可直接调用的 `src/layout/elk_native/h08.js`，无需 bundler、安装或研究工具动态编译。
-- Single/Compare 共用取消与 override 边界；旧 Native 算法移至测试参考，不随运行时打包。
-- SOP015 独立输入树、EQ1471 及 11 组机制场景获得限定范围的用户视觉接受；不宣称任意布局等价 ELK。
-
+- 实验性 `native-layered` 引擎整体切换至 `H08` 纯静态 ES 模块实现；`ELK` 与 `Simple` 继续作为离线内置引擎保留。
+- 提供克隆仓库后即可直接离线调用的 `src/layout/elk_native/h08.js`，无需打包器、包安装或研究工具动态编译。
+- Single 与 Compare 视图共用异步取消与手动覆盖（override）边界；早期旧版 Native 算法移至测试参考目录归档，不再随生产运行时打包。
+- `SOP015` 独立输入树、`EQ1471` 及 11 组机制场景通过限定范围的用户视觉验收（不宣称任意通用图均与上游 ELK 完全等价）。
 
 ## [1.0.1] - 2026-09-14
 
-Stage 8 层次导航与 Net Focused 稳定性补丁。
+Stage 8 层次化导航与 Net Focused 稳定性修正版本。
 
 ### Fixed
 
-- 修复 Net Focused 设置、深度更新和跨 module 导航可能错误回退 Whole、重复渲染或显示空图的问题。
-- 修复 hierarchy root 空 occurrence path、同 module 不同 occurrence 和 hinst 双击导航身份不稳定的问题。
-- 将详情面板连接明确分为当前 module 与 parent occurrence；顶层 hinst 不再把 child port 错误显示为 Hierarchy。
-- 点击父层 net/cell 后先切换 occurrence context，再清理旧 Focus roots 并以目标对象建立新的 Focused 视图。
+- 修复 Net Focused 根节点设置、深度调整及跨模块导航在特定情况下可能错误回退至 `Whole`、触发重复渲染或显示空图的问题。
+- 修复层次化根节点空 `occurrencePath`、同一模块不同实例路径（occurrence）以及双击 `hinst` 钻取导航时的身份稳定性问题。
+- 将 `Selection` 详情面板中的连接关系明确划分为当前模块内部连接（`Current module`）与父层实例跨边界连接（`Parent occurrence`）；顶层模块下的子模块实例不再将子端口误标为 `Hierarchy`。
+- 点击父层线网或单元时，先切换至目标实例上下文（occurrence context），再清空旧层级的聚焦根并以目标对象建立新的 `Focused` 视图。
 
 ### Changed
 
-- Hierarchy 连接使用独立卡片、范围标签和 Parent 标记，与当前 module Connections 明确区分。
+- `Hierarchy / Parent occurrence` 连接区域采用独立卡片样式、范围标签与 `Parent` 徽标，与本层 `Connections` 清晰区分。
 
 ## [0.7.3] - 2026-09-03
 
-Focused 搜索追加行为修复版本。
+Focused 搜索追加行为修正版本。
 
 ### Fixed
 
-- 修复 Focused 视图中搜索未绘制 cell 后点击结果会替换已有 Focused root 的问题。
-- 现在在已有 Focused roots 的情况下，点击搜索结果会直接追加新 cell，并保留原有 roots。
+- 修复在 `Focused` 视图中搜索未绘制单元并点击结果时，会清空并替换原有聚焦根（Focused roots）的问题。
+- 现在当已存在聚焦根时，点击未绘制的单元搜索结果会直接将其追加为新根节点，同时完整保留原有根节点集合。
 
 ## [0.7.2] - 2026-08-16
 
-跨平台启动协议和 Linux EDA 集成版本。
+跨平台启动协议与 Linux EDA 集成版本。
 
 ### Added
 
-- Node、Python 和 Windows 启动器支持 `--port 0`，并在 ready JSON 中报告操作系统实际分配的端口。
-- Node/Python 支持 `start`、`status`、`stop`、状态文件和 `--replace`，可由脚本管理对应预览进程。
-- 增加 Linux CMake 单文件 `ngb` 启动器，将前端资源和 vendored ELK 嵌入二进制，支持 EDA/Tcl 启动、关闭和父进程退出清理。
-- 增加 [Linux 单文件启动器与 EDA/CMake 集成文档](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+- Node.js、Python 与 Windows 启动器支持 `--port 0`，并在标准输出 `ready` JSON 中报告操作系统实际分配的监听端口。
+- Node.js 与 Python 启动器新增 `start`、`status`、`stop` 子命令、`--state-file` 状态文件与 `--replace` 会话替换支持，便于外部脚本管理预览服务生命周期。
+- 新增基于 CMake 的 Linux 单文件启动器 `ngb`，将前端静态资源与 vendored ELK 编译内嵌至单一二进制，支持 EDA/Tcl 启动、状态查询、安全关闭与父进程退出自动清理。
+- 新增 [Linux 单文件启动器与 EDA/CMake 集成文档](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ### Changed
 
-- Node 启动命令作为跨入口启动协议的参考实现；Python 和 Linux `ngb` 保持独立运行并兼容同一端口、manifest、ready 和状态文件约定。
+- 以 Node.js 启动器作为跨平台启动协议的参考实现；Python 与 Linux `ngb` 保持零外部依赖独立运行，并严格兼容同一套端口、启动清单、`ready` 消息与状态文件约定。
 
 ## [0.7.1] - 2026-08-08
 
-大图 viewport 交互修复版本。
+大图视口缩放与拖拽交互修正版本。
 
 ### Fixed
 
-- 修复超宽或超高图受固定缩放上限影响，无法把目标 cell 放大到可读尺寸的问题。
-- `Focus selected cell` 现在将目标 cell 稳定居中并放大到约 320px。
-- 最大缩放按画布尺寸动态计算，并限制为典型 cell 在屏幕中约两倍布局尺寸。
-- 自动布局增加顶部编辑留白，最上层 cell 和 port 可以继续向上调整。
-- 修复最大缩放下拖动画布只轻微移动的问题，Single 和 Compare 均按 SVG 实际等比例尺度平移。
+- 修复超宽或超高原理图受固定缩放倍率上限限制，导致无法将目标单元放大至清晰可读尺寸的问题。
+- `Focus selected cell` 现在可将目标单元稳定居中并放大至约 `320px` 的阅读尺寸。
+- 最大放大倍率按画布实际宽高动态计算，上限对应典型单元在屏幕中约两倍布局尺寸。
+- 自动布局在画布顶部预留编辑留白，使最顶层的单元和端口在 `Adjust` 模式下仍可继续向上拖动。
+- 修复极限放大倍率下拖拽画布平移距离过小的问题，Single 与 Compare 视图均严格按 SVG 实际等比例尺度平移。
 
 ## [0.7.0] - 2026-08-08
 
-Focused 浏览与布局可读性改进版本。
+Focused 聚焦浏览与布局可读性改进版本。
 
 ### Added
 
-- 增加 `Set selected as Focused`，可将图中选中的 cell 切换为新的 Focused root。
-- 扩大 Wire spacing 至 `4–96 px`、Cell spacing 至 `4–320 px`，让最小值与最大值具有明显差异。
+- 新增 `Set selected as Focused` 操作，支持将画布中当前选中的单元直接设为新的聚焦根节点。
+- 将 `Wire spacing` 调节范围扩展至 `4–96 px`、`Cell spacing` 扩展至 `4–320 px`，使最小紧凑排布与最大宽松排布呈现显著差异。
 
 ### Changed
 
-- 将旧 Fanin/Fanout 视图收敛到 Focused，并让 fanin/fanout depth 独立控制实际局部图深度。
-- Cell spacing 同时作用于 cell、输入端口和输出端口。
-- MUX 的 `S`、`S0/S1`、`SEL/SELECT` 选择端改为左侧输入，减少顶部绕线。
+- 将早期的单向 Fanin / Fanout 视图统一收敛为双向 `Focused` 视图，由 `Fanin depth` 与 `Fanout depth` 独立控制前后向展开层数。
+- `Cell spacing` 同时作用于逻辑单元、主输入端口与主输出端口。
+- 将多路选择器（MUX）的 `S`、`S0` / `S1`、`SEL` / `SELECT` 选择控制端调整为左侧输入，减少顶部跨线绕行。
 
 ## [0.6.0] - 2026-08-07
 
-阶段 6 时序、搜索优先大图分析和 EDA 集成版本。
+阶段 6：边界时序、搜索优先大图工作流与 EDA 集成版本。
 
 ### Added
 
-- 支持 Global/Local module boundary timing 表格、`rat` 别名、Apply 信息和表头驱动的未来扩展列，同时兼容旧 LocResyn 格式。
-- 增加全图 Timing snapshot/metric 策略，统一 Single、Compare、module boundary port 和 SVG 的时序展示。
-- 增加 Focused 双向局部视图、独立 fanin/fanout depth、大图 Search-first 入口和所选 cell 一键定位。
-- 增加 module 前进/后退历史，恢复 module、局部视图、selection 和 viewport。
-- 增加可持久化、可导入导出的 Cell Config，并支持 EDA 启动时载入。
-- 增加可过滤、复制和导出的 Process Log，以及 Node、Python、Windows 共用的 EDA 启动参数和 JSON ready 协议。
-- 增加 679 行完整用户教程，覆盖全部界面功能、输入格式、推荐工作流和故障排查，并随 Windows 发布包提供。
+- 支持 Global/Local 模块边界时序表格、`rat` 别名、`Apply` 策略声明及表头驱动的扩展指标列，同时完整兼容传统 LocResyn 行格式。
+- 新增全图统一的 Timing `Snapshot` / `Metric` 显示策略，在 Single、Compare、模块边界端口与 SVG 导出之间保持一致。
+- 新增双向 `Focused` 局部视图、独立前后向深度控制、大图 `Search-first` 默认入口以及所选单元一键居中放大（`Focus selected cell`）。
+- 新增模块浏览历史前进/后退功能，自动恢复模块、局部视图模式、选中项与视口位置。
+- 新增可浏览器本地持久化、支持 JSON 导入导出的 `Cell Config` 单元语义配置，并支持在 EDA 命令行启动时自动加载。
+- 新增支持按阶段/级别过滤、一键复制与导出的可折叠 `Process Log`（过程日志），以及 Node.js、Python、Windows 共用的 EDA 启动参数与 `ready` JSON 协议。
+- 新增完整用户使用教程（`docs/USER_GUIDE.md`），覆盖全部界面操作、输入格式、推荐工作流与故障排查，并随 Windows 离线发布包分发。
 
 ### Changed
 
-- 搜索移动到顶部工具栏；窄窗口使用顶栏第二行整宽搜索，结果以浮层显示。
-- 顶部操作收敛为 Import、Module/history、Search、Compare、Fit 和 More；Layout/Timing 设置进入侧栏。
-- 新增 Cell spacing，并将 cell 间距与 wire lane spacing 分开控制。
-- Cell Config 编辑器优先显示内置规则已经推断出的 gate kind 和 pin direction，修改一项不再把其他项重置为 BLACKBOX/unknown。
-- 大 module 保存 Cell Config 后保留所选 cell 的 Focused 局部图，避免重新布局整张图。
+- 将全局搜索框移至顶部工具栏（窄屏窗口自动切换为顶栏第二行整宽搜索框，候选结果以浮层展示）。
+- 顶部工具栏精简收敛为 `Import`、`Module` / 历史导航、`Search`、`Compare`、`Fit` 与 `More`；将 `Layout` 与 `Timing` 设置归入左侧面板。
+- 新增 `Cell spacing` 控件，将单元间距与导线通道间距（`Wire spacing`）解耦独立控制。
+- `Cell Config` 编辑器默认预填内置推断规则已识别出的 `gate kind` 与 `pin direction`，修改单项属性时不再将其余引脚重置为 `BLACKBOX` / `unknown`。
+- 在大型模块中保存 `Cell Config` 后自动保持当前 `Focused` 局部视图并仅重排局部图，避免触发全图重布局。
 
 ### Fixed
 
-- 修复 Process Log 打开后无法收起的问题。
-- 修复 Import/More 菜单必须再次点击标题才能关闭的问题；现在点击空白处或按 Escape 即可关闭。
-- 修复无回车或 scope 紧邻 snapshot 的 timing 表头解析，并保留以后新增的 metric 列。
-- 修复大图修改 cell 定义后可能长时间卡死的问题。
+- 修复 `Process Log` 面板展开后无法再次点击收起的问题。
+- 修复 `Import` / `More` 下拉菜单必须再次点击标题按钮才能关闭的问题（现已支持点击页面空白处或按 `Esc` 键关闭）。
+- 修复缺少回车或作用域（scope）紧邻 `[Global]` / `[Local]` 标签时的时序表头解析问题，并完整保留扩展指标列。
+- 修复大型网表在修改单元定义后因全图同步重排导致长时间卡顿的问题。
 
 ## [0.5.0] - 2026-07-20
 
-轻量输入、层次浏览和布局稳定性版本。
+轻量快速输入、层次化钻取与正交布局稳定性版本。
 
 ### Added
 
-- 支持 Paste 文本输入、文件拖放和页面全局粘贴，自动识别 Verilog、layout Golden 与 LocResyn timing。
-- 支持载入 layout Golden，并保存/恢复节点、pin 和 edge route 调整结果。
-- 支持双击子 module 实例跳转到对应 module 定义，并推断层次 module pin 的输入输出方向。
-- 支持多位 port/net 连接及 `[0:0]` 等位选择表达式。
-- Selection 面板的 net、driver/load 和直接 fanin/fanout 可点击跳转并自动居中。
-- Windows 原生轻量启动器和可复现的 ZIP Release 构建流程，无需终端用户安装 Node.js。
+- 支持 `Paste` 文本直接输入、文件拖放与页面全局 `Ctrl+V` 粘贴，自动识别并区分 Verilog 网表、Layout Golden 与 LocResyn 时序日志。
+- 支持加载 Layout Golden JSON，完整保存并恢复节点位置、尺寸、引脚与导线路径手工微调结果。
+- 支持双击画布中的子模块实例直接跳转到对应子模块定义，并自动根据子模块定义确定端口输入/输出方向。
+- 支持多位宽（multi-bit）端口/线网连接及 `[0:0]` 等位选择表达式。
+- `Selection` 详情面板中的关联线网、驱动/负载及直接扇入/扇出项均支持点击跳转并自动居中目标。
+- 新增 Windows 原生 C# 轻量启动器与可复现的离线 ZIP 发布包构建脚本，终端用户无需安装 Node.js。
 
 ### Changed
 
-- 优化 3000+ 行门级网表的解析、布局和渐进渲染性能。
-- 将 Simple Layered 拆分为稳定的 placement、routing、validation、scoring 和 workspace 管线。
-- 单输出 net 优先使用紧凑直连/局部折线，多输出 net 为共享布线保留空间并稳定主干顺序。
-- Adjust 拖动期间复用布局缓存、合并渲染帧并只重布受影响的 edge。
-- 正交路由、wire label、碰撞索引、route metadata 和 Golden route 比较改为共享基础设施。
+- 优化 3000+ 行门级网表的解析、布局与渐进渲染性能。
+- 将 `Simple Layered` 布局拆分为职责清晰的放置（placement）、布线（routing）、几何校验（validation）、打分（scoring）与工作区管线。
+- 单负载线网优先采用紧凑水平直连或局部短折线，多负载线网为共享主干预留通道并保持确定性顺序。
+- `Adjust` 节点拖拽期间直接复用自动布局缓存、按动画帧合并更新，并在释放鼠标后仅对受影响的关联导线执行增量重布线。
+- 将正交布线契约、导线标签排布、空间碰撞索引、路由元数据及 Golden 路径比对收敛为共享基础设施。
 
 ### Fixed
 
-- 修复 MUX select pin、子 module pin 和多位 output 连接遗漏或方向错误的问题。
-- 修复 net 非法绕到全图顶部、穿过 cell、重叠、label 覆盖和点击命中矩形过大的问题。
-- 修复 input 多 fanout/单 fanout 位置不合理及 net 交叉、远距离乱飞问题。
-- 修复空白画布点击后无法缩放、拖动画布取消 net 高亮的问题。
-- 修复布局顺序、wire bridge 和 Adjust route reservation 不稳定导致的旧问题回归。
+- 修复 MUX 选择端引脚、子模块端口及多位宽输出连接遗漏或方向误判的问题。
+- 修复导线非法绕行至全图顶部、穿越单元本体、不同线网共线重叠、标签遮挡以及点击热区矩形过大的问题。
+- 修复多扇出/单扇出主输入端口排布位置不佳及长距离导线交叉绕远的问题。
+- 修复点击空白画布后滚轮无法缩放、拖拽平移画布会意外清除线网高亮的问题。
+- 修复因输入数组顺序、跨线桥计算或 Adjust 通道预留顺序不稳定引发的布局回归问题。
 
 ## [0.4.0] - 2026-07-11
 
-阶段 4 大图和工程化版本。
+阶段 4：大图渲染与工程化版本。
 
 ### Added
 
-- LayoutProvider registry、Simple fallback 和离线 vendored `elkjs@0.11.1` ELK Layered provider。
-- 顶部 provider 切换、异步布局进度和 ELK 失败自动回退。
-- 400+ 可见对象的渐进式 SVG 批量渲染。
-- 高 fanout net hub 简化和 300+ cell 自动 group collapse；支持点击展开与一键重新折叠。
-- 低缩放自动隐藏文字/pin 细节及超宽图自适应缩放。
-- 基于 `sessionStorage` 的网表、module、cone、搜索、provider、选项和视图变换恢复。
-- 1024-cell 大图、hierarchical compare/timing examples 及对应 smoke tests。
+- 新增 `LayoutProvider` 注册表、`Simple` 兜底引擎及本地化集成的 `elkjs@0.11.1`（`ELK Layered`）引擎。
+- 新增布局引擎切换、异步布局进度提示与失败自动回退机制。
+- 新增针对 400+ 可见图元对象的可取消渐进式 SVG 分批渲染器。
+- 新增高扇出线网 `Fanout Hub` 中继简化（早期同步引入的 300+ 单元自动分组折叠已于后续版本退役）。
+- 新增低缩放倍率下自动隐藏细节文字（LOD）与超宽图自适应缩放上限。
+- 新增基于浏览器 `sessionStorage` 的网表、模块、逻辑锥、搜索词、布局引擎、间距选项及视口状态自动恢复。
+- 新增 1024 级缓冲器长链大图、转义层次化对比与时序示例网表及配套冒烟测试。
 
 ### Changed
 
-- Compare graph 构建从 `main.js` 拆入独立 workspace，并与 Single View 共用 provider 和 timing annotation。
-- 大图默认启用 fanout hub 与 group collapse，优先提供可浏览概览。
+- 将 Compare 双模块图构建逻辑从 `main.js` 抽离至独立的 `compareWorkspace.js`，与 Single 视图共用布局引擎与时序标注管线。
 
 ### Fixed
 
-- 修复 1024-cell 深链受固定 `4×` 上限影响无法看到 cell 的问题。
-- 修复 Compare 模式导入 timing 后左右 cell 不显示 timing badge 的问题。
-- 修复 ELK 模式下 Adjust 位置被下一次自动布局覆盖的问题；手动 override 现在保留 ELK 基础坐标并独立重布线。
+- 修复 1024 级长链因受固定 `4×` 缩放上限限制而无法看清单个单元的问题。
+- 修复 Compare 模式下导入时序日志后左右画布单元未显示时序徽标的问题。
+- 修复 `ELK` 模式下 `Adjust` 手工拖拽位置会被下一次自动布局覆盖的问题（手动覆盖现基于缓存的自动布局坐标独立重布线）。
 
 ## [0.3.0] - 2026-07-11
 
-阶段 3 module compare 版本。
+阶段 3：双模块对比（Module Compare）版本。
 
 ### Added
 
-- 双 module Compare View，支持自动推荐 `_Flex`、`_orig`、`_new` 配对及手动选择左右 module。
-- 默认上下、可切换左右的双 schematic 布局，以及同步/独立 pan、zoom 和 Fit Both。
-- 同名且同方向 port 对齐、同名 net 和同类 gate kind 高亮、unmatched 结构差异候选标记。
-- Cell count、gate kind count、logic depth 粗估、max fanout 和两侧差值统计。
-- 两侧共有 output 的同步 fanin cone 对比和 cone 统计。
-- Compare View 的跨侧对象选择、聚焦和 Single View 返回入口。
+- 新增双模块 `Compare View`，支持自动推荐 `_Flex`、`_orig`、`_new` 后缀配对模块及手动指定左右对比模块。
+- 支持上下（`Top / Bottom`）与左右（`Left / Right`）两种分屏布局，支持同步或独立缩放平移及一键双屏适配（`Fit`）。
+- 支持同名同向端口对齐、同名线网与同类逻辑门（gate kind）高亮，以及未匹配（unmatched）结构差异标记。
+- 新增两侧单元数量、门类型分布、估算逻辑深度、最大扇出及差值统计面板。
+- 支持选择两侧共有输出端口进行同步扇入逻辑锥（Output cone）对比。
+- 支持双画布跨侧点击联动高亮及一键返回 `Single` 单图模式。
 
 ### Changed
 
-- README 增加完整 Single/Compare 使用方法及结构差异高亮的预期与算法边界。
-- Compare 默认使用 Top/Bottom 布局；进入后顶部按钮切换为 `Single`，再次点击直接退出。
+- 在 `README.md` 中补充完整的 Single / Compare 操作指南及启发式结构差异高亮的语义边界说明。
 
 ### Fixed
 
-- 修复 escaped hierarchical port（例如 `\u_dp_add_0/out0_33`）因安全节点 ID 与原始名称不同而产生空 output cone 的问题。
-- Escaped port/cell 的对齐、高亮、跨侧选择和聚焦改为基于 graph reference 查找。
+- 修复带转义字符的层次化端口（如 `\u_dp_add_0/out0_33`）因安全节点 ID 与原始名称不同导致输出逻辑锥为空的问题。
+- 将转义端口与单元的跨侧对齐、高亮、选择和聚焦统一改为基于规范化图引用查找。
 
 ## [0.2.0] - 2026-07-11
 
-阶段 2 实用分析能力版本。
+阶段 2：实用结构分析能力版本。
 
 ### Added
 
-- 设计级搜索与对象定位，cell/net 连接详情和 fanin/fanout 分析。
-- Whole、Fanin Cone、Fanout Cone 视图与 depth 控制。
-- Assign/Alias 规范化和 `Show aliases` 开关；alias 默认折叠。
-- LocResyn timing 导入、可配置 badge 和 critical 标记。
-- Adjust 布局校准、节点拖动、尺寸/属性修改、snap 和 golden 导出。
-- 局部优先 wire routing、pin 附近 net label、wire spacing 和 crossing bridge。
-- Cell type、instance、output net 和 fanout 紧凑元信息。
-- 独立 SVG 导出，支持完整 module 和 cone 视图。
-- 可拖动调整宽度的左侧详情栏。
+- 新增全局设计对象搜索与居中定位、单元/线网连接详情面板及扇入/扇出（Fanin / Fanout）追踪。
+- 新增整图与有限深度逻辑锥视图切换。
+- 新增 `assign` 别名链规范化折叠与 `Show aliases` 显隐开关。
+- 新增 LocResyn 时序日志导入、可配置时序徽标（badge）与负裕量 `critical` 高亮。
+- 新增 `Adjust` 手工布局校准模式，支持节点拖拽、尺寸/属性覆盖、网格与引脚对齐吸附及 Layout Golden 导出。
+- 新增局部优先正交布线、引脚就近线网标签排布、导线间距调节与跨线桥（crossing bridge）绘制。
+- 在单元节点内展示紧凑元信息（单元类型、实例名、输出线网名与扇出计数）。
+- 新增自包含离线 SVG 导出与可拖拽调宽的左侧详情栏。
 
 ### Changed
 
-- Unknown cell 使用 libcell 功能前缀显示，不再统一只显示 BlackBox。
-- Timing badge 可见时隐藏 cell 底部紧凑元信息，避免文字重叠。
-- Wire 使用更宽的透明命中区域，改善 net 选择体验。
+- 未识别单元优先提取标准单元库功能前缀进行展示，不再一律仅显示笼统的 `BlackBox`。
+- 当时序徽标可见时自动隐藏单元底部的紧凑元信息，避免文字重叠。
+- 为导线增加更宽的透明点击命中热区（hit area），提升长导线点选体验。
 
 ### Fixed
 
-- 修复 pointer capture 导致 wire、node 和 Adjust 模式点击无响应的问题。
-- 修复长 input 名称重叠、局部 input 过密、多输出布线和异常顶部绕线问题。
+- 修复因指针捕获（pointer capture）未及时释放导致点击导线、节点或进入 `Adjust` 模式无响应的问题。
+- 修复长输入端口名称重叠、局部输入端口过密及多输出线网异常绕行至全图顶部的问题。
 
 ## [0.1.0]
 
-- 阶段 1 原型：structural Verilog parser、cell/pin 推断、graph extraction、简单布局和 SVG schematic。
+- 阶段 1 初始原型：完成结构化 Verilog 解析器、无 `.lib` 单元与引脚方向推断、结构图提取、基础分层布局及交互式 SVG 原理图渲染。

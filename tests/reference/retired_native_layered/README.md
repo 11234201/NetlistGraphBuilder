@@ -1,6 +1,5 @@
-# Retired Native implementation
+# 已退役的早期 Native 分层布局实现
 
-Archived at the H08 registry cutover (2026-10-15). These files preserve historical
-regression evidence only. No production or release module may import them.
-Legacy internal tests retain their historical assertions; accepted H08 behavior
-is tested by `elk_native*`, registry and shared-workspace integration tests.
+本目录下的文件于 H08 布局引擎正式接管注册表时（2026-10-15）归档，**仅用于保留历史回归证据**。任何生产运行时模块或发布产物均严禁导入（import）本目录中的代码（由 `npm run test:architecture` 强制拦截）。
+
+旧版内部测试仅用于固定其历史断言；当前产品已验收的 H08 布局行为由 `tests/unit/elk_native*.test.js`、provider 注册表及共享工作区集成测试完整覆盖。

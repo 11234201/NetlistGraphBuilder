@@ -1,63 +1,60 @@
 # 架构设计
 
-本文记录现行实现与已建立的约束。面向后续功能和 AIG 的目标边界、数据契约与迁移决策见
-[可扩展工作台架构](architecture_evolution.md)，实施顺序与进度见 [阶段 7](STAGE_7_PLAN.md)。
-阶段 7 的模块化单体基线已经落地；以下同时记录现行实现和仍有明确移除条件的兼容层。
+本文记录项目现行架构实现与工程约束。面向多领域与 AIG 扩展的目标边界、数据契约及迁移决策见 [可扩展工作台架构](architecture_evolution.md)，具体实施顺序与验收进度见 [阶段 7](STAGE_7_PLAN.md)。目前阶段 7 的模块化单体基线已经全面落地；下文同时记录现行实现架构与具有明确移除条件的向后兼容边界。
 
 ## 产品范围决策（2026-09-14）
 
-Group collapse/expand 已从产品路线中移除。后续功能、性能优化、mapped 基线和验收不得以折叠图
-为目标，也不再新增折叠交互或专用路由逻辑；大图统一沿 full graph、Search-first 或 Focused
-路径处理。现有 `collapseLargeGroups`、`expandedGroupIds` 字段和历史解析仅作为旧 session/golden
-的兼容边界保留，除非另有明确的删除任务。
+结构分组折叠（Group collapse/expand）已从产品路线中正式移除。后续功能开发、性能优化、映射网表（mapped cases）基线回归与产品验收均不再以折叠图为目标，也不再新增折叠交互或专用折叠路由逻辑；大规模网表统一沿完整图（Whole）、搜索优先（Search-first）或局部聚焦（Focused）路径处理。现有的 `collapseLargeGroups`、`expandedGroupIds` 字段及历史解析逻辑仅作为旧版 Session / Golden 存档的向后兼容边界保留，除非另有明确的移除任务获批。
 
 ## 分层原则
 
-项目采用清晰的数据流分层，避免 UI、parser 和布局逻辑互相耦合。
+项目采用严格的单向数据流分层架构，避免 UI 交互、语法解析与几何布局逻辑相互耦合：
 
 ```text
 parser -> netlist IR -> inference -> graph extraction -> layout -> render -> UI
 ```
 
-每层只依赖左侧稳定数据结构，不直接读取 Verilog 原文，除非它就是 parser 层。
+每一层仅依赖其左侧生成的稳定数据结构；除 `parser` 层外，后续任何层均不得直接读取或解析 Verilog 原文。
 
-公共工作台把这条 Netlist 数据流包在稳定边界内：`contracts/` 定义 ObjectRef、领域和视图契约，
-`application/` 拥有 Document/ViewSession/commands 与任务协调，`domains/netlist/` 负责领域投影，
-`diagram/` 和 `render/` 消费中性显示图与 Scene，`bootstrap/` 组装具体领域。公共 application、layout
-和 render 不得反向读取 Netlist/AIG 私有字段；静态边界测试固定这一依赖方向。
+公共图形工作台将上述 Netlist 数据流封装在清晰的多领域契约边界之内：
+- `contracts/`：定义统一的 `ObjectRef`、领域接口与视图查询契约。
+- `application/`：管理 `Document`、`ViewSession`、命令总线（Command Bus）与异步任务协调（Job Coordinator）。
+- `domains/netlist/`：负责 Netlist 领域语义分析、视图投影及领域专属用例。
+- `diagram/` 与 `render/`：仅消费领域中性的显示图（Diagram）与渲染场景（Scene）。
+- `bootstrap/`：负责静态注册并组装具体领域实现。
 
-## 模块边界
+公共 `application`、`layout` 与 `render` 层严禁反向读取 Netlist 或 AIG 的领域私有字段；这一单向依赖方向由静态架构门禁测试强制守护。
 
-开发门禁使用 `tools/module_graph.mjs` 对 `src/` 全部嵌套目录建立模块依赖图，
-通过离线 Acorn AST 识别 import、重导出、literal dynamic import 和 Worker/模块 URL。
-每条边保留来源文件、行号与类型；所有相对引用必须精确解析到源码模块，无法静态解析的请求报错。
-`npm run test:architecture` 和常规单元测试按各层允许依赖检查全部边，并对完整图执行 DFS 循环检查，
-失败时输出真实引用路径。注释、普通字符串或正则表达式中的伪 import 不构成边。
-解析器仅为开发工具依赖，不进入运行时或离线发布资源；来源、许可证和摘要见
-`tools/vendor/acorn/README.md`。这里的图覆盖全部运行时源码模块，测试/研究工具不属于产品分层图。
+## 模块边界与静态依赖门禁
 
-### `src/parser/`
+开发门禁通过 `tools/module_graph.mjs` 扫描 `src/` 下全部嵌套目录以构建完整的运行时模块依赖图，并借助离线 Acorn AST 精确识别静态 `import`、重导出（re-export）、字面量动态 `import()` 以及 `Worker` / 模块 URL。每条依赖边均记录来源文件、行号与引用类型；所有相对路径引用必须精确解析到真实源码模块，任何无法静态解析的不透明请求都会直接报错。
 
-负责把 structural Verilog 文本解析成原始语法信息。
+`npm run test:architecture` 与常规单元测试会按各层允许的依赖白名单校验全部依赖边，并对完整模块图执行深度优先搜索（DFS）环路检测，一旦发现违规或循环依赖即输出具体的引用路径链（代码注释、普通字符串或正则表达式中的伪 import 不会产生误报）。Acorn 解析器仅作为开发期门禁工具依赖，不进入运行时或离线发布包（其来源、许可证与说明见 `tools/vendor/acorn/README.md`）。
 
-职责：
+---
 
-- 处理注释。
-- 处理 escaped identifier。
-- 解析 module、port、net declaration、assign、cell instance。
-- 保留必要 source span，方便错误定位。
+### 1. `src/parser/`
 
-不负责：
+负责将结构化 Verilog（Structural Verilog）文本解析为原始语法结构信息。
 
-- 推断 gate 类型。
-- 推断 pin 方向。
-- 决定图怎么画。
+**核心职责**：
+- 剥离单行与块注释。
+- 规范化处理转义标识符（escaped identifier）。
+- 解析 `module`、`port`、线网声明（net declaration）、`assign` 连续赋值、单元实例化（cell instance）及位选择/拼接表达式。
+- 保留源码行列范围（source span），便于精确定位语法错误。
 
-### `src/netlist/`
+**职责边界（不负责）**：
+- 不推断逻辑门类型（gate kind）。
+- 不推断引脚方向（pin direction）。
+- 不消除 `assign` 别名，也不决定图形如何排布或绘制。
 
-负责稳定 IR 和图分析基础结构。
+---
 
-建议核心类型：
+### 2. `src/netlist/`
+
+负责维护稳定的 Netlist 中间表示（IR）与基础图提取结构。
+
+**核心数据结构**：
 
 ```text
 Design
@@ -89,249 +86,89 @@ PinConnection
   connection?    # concat {kind, items}; unsupported expressions retain text
 ```
 
-单网连接保留 `net/netDisplayName` 兼容字段；拼接连接以 `connection` 保存有序、可嵌套的
-`concat` / `reference` 结构，引用分别保留 canonical name 与 display name。拼接自身不是 net。
-`getPinNetReferences` 在 IR 边界统一枚举引用，建图、连接模板和详情消费同一结果；不支持的表达式
-保留原文并产生诊断，不截取第一个标识符伪造成连接。
-显示图通过 `getPinConnectionEndpoints` 为拼接成员提供独立的 `A{ordinal}` 端点，避免不同 net
-共用同一引脚坐标；ordinal 表示拼接成员顺序，不冒充源引脚的 bit index。源 IR 不受影响。
+- **引脚连接与拼接表达式**：单线网连接保留 `net` / `netDisplayName` 兼容字段；拼接（concatenation）连接则通过 `connection` 保存有序、可嵌套的 `concat` / `reference` 树结构，每个引用同时保留规范化名称（canonical name）与显示名称（display name）。拼接结构本身不是一个单独的 net。
+- **统一引用枚举**：`getPinNetReferences` 在 IR 边界统一枚举引脚关联的线网引用，图构建、层次连接模板与详情面板均消费同一套结果；遇到不支持的复杂表达式时保留原文并生成诊断信息，绝不截取首个标识符伪造成合法连接。
+- **独立拼接显示端点**：显示图通过 `getPinConnectionEndpoints` 为拼接成员分配独立的 `A{ordinal}` 虚拟引脚端点，避免不同线网共用同一个引脚几何坐标（其中 `ordinal` 表示拼接成员顺序，不冒充源引脚的物理 bit 下标），且绝不修改源 Netlist IR。
 
-### `src/infer/`
+---
 
-负责无 `.lib` 推断。
+### 3. `src/infer/`
 
-职责：
+负责在缺乏 Liberty（`.lib`）库文件时的启发式语义推断。
 
-- cell type -> gate kind。
-- pin name -> input/output/inout。
-- assign alias 处理建议。
-- 标记推断置信度。
+**核心职责**：
+- 根据 `cell type` 推断逻辑门类别（`gate kind`）。
+- 根据 `pin name` 推断引脚方向（`input` / `output` / `inout`）。
+- 提供 `assign` 别名折叠建议。
+- 标记每个推断结果的来源与置信度（`library` / `rule` / `fallback` / `unknown` / `user-config`）。
 
-规则必须可配置，长期放入类似：
+内置推断规则集中维护在 `src/infer/defaultCellRules.js`，用户自定义单元配置由 `src/infer/cellConfig.js` 管理并支持 JSON 导入导出。
 
-```text
-src/infer/defaultCellRules.ts
-```
+---
 
-后续可以加载：
+### 4. `src/layout/`
 
-```text
-config/cell_rules.json
-```
-
-### `src/layout/`
-
-负责把图模型转成布局引擎输入，再把布局结果规范化。
-
-布局 provider 设计：
+负责将显示图模型转换为布局引擎输入，并将布局与正交布线结果规范化为统一的 `PositionedGraph`。
 
 ```text
 LayoutProvider
-  layout(graph, options) -> PositionedGraph
+  layout(graph, options) -> PositionedGraph | Promise<PositionedGraph>
 ```
 
-长期 provider：
+**布局引擎体系**：
+- **`Native Layered H08`（默认主力）**：基于 `src/layout/elk_native/` 的纯静态 ES 模块分层布局与边界超边正交布线引擎。
+- **`ElkLayoutProvider`（内置离线备选）**：封装 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，将内部图转换为 ELK Layered 格式并规范化回 `PositionedGraph`。
+- **`SimpleLayeredLayoutProvider`（轻量兜底）**：封装 `simpleLayered.layoutGraph`，作为同步轻量布局与最终兜底回退引擎。
 
-- `SimpleLayeredLayoutProvider`：内置 fallback，方便测试和离线最小原型。
-- `ElkLayoutProvider`：长期主力。
-
-当前实现：
-
-- `src/layout/layoutProvider.js` 维护 provider registry 和 fallback 选择。
-- `SimpleLayeredLayoutProvider` 封装现有 `simpleLayered.layoutGraph`，应用层不再直接依赖具体布局函数。
-- provider 的 `layout(graph, options)` 允许返回 positioned graph 或 Promise；应用编排层统一检测并提交最新 request，过期的异步结果不会覆盖新状态。
-- `src/app/compareWorkspace.js` 负责组合 compare 的 graph extraction、alias、cone、provider layout 和统计，不持有 DOM 或全局应用状态。
-- `ElkLayoutProvider` 使用 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，把内部 graph 转换为 ELK layered 输入并规范化回 positioned graph。
-- `src/layout/positionedRouting.js` 在 positioned graph 上应用手动位置/尺寸 override，并重建 ports、graph bounds 和带障碍检查的 Manhattan edge；ELK Adjust 拖动期间复用缓存的自动布局结果，不重复运行 ELK。
-- `src/render/progressiveSvgRenderer.js` 只负责将 renderer plan 分批提交 DOM，不参与布局或图分析。
-- SVG wire-bridge detection uses the shared segment spatial index. Render complexity must not switch from
-  indexed to all-pairs behavior at an arbitrary edge-count threshold.
-- Interactive drag previews may disable decorative wire bridges for the frame; gesture completion always
-  restores one full render. Routing geometry, labels and hit areas remain present in previews.
-- `src/analysis/fanoutHub.js` 和 `src/analysis/groupCollapse.js` 是布局前的可逆显示图变换，不修改 Netlist IR。
-- `src/app/sessionState.js` 负责 session snapshot 的序列化边界；用户输入网表仅保存在当前标签页的 `sessionStorage`。
+**当前实现与协作边界**：
+- `src/layout/layoutProvider.js` 维护布局引擎注册表（registry）与降级策略。
+- `layout(graph, options)` 支持同步返回 `PositionedGraph` 或异步返回 `Promise`；应用编排层统一通过修订号（revision）校验并仅提交最新请求，过期的异步结果绝不会覆盖当前最新视图状态。
+- `src/app/compareWorkspace.js` 负责组合双模块对比（Compare）的图提取、别名规范化、逻辑锥裁剪、布局调用与统计计算，不直接持有 DOM 或全局应用状态。
+- `src/layout/positionedRouting.js` 在自动布局生成的 `PositionedGraph` 之上叠加手动节点位置与尺寸覆盖（overrides），并重新计算引脚坐标、图边界与带障碍物避让的正交（Manhattan）导线路径；在 Adjust 模式拖拽期间直接复用缓存的自动布局结果，不会重复运行自动布局引擎。
+- `src/render/progressiveSvgRenderer.js` 仅负责将渲染计划（render plan）按帧分批提交至 DOM，不参与任何几何布局或图拓扑分析。
+- SVG 跨线桥（wire-bridge）检测统一使用共享线段空间索引（spatial index），严禁在任意边数阈值处从空间索引退化为全图两两扫描（all-pairs scan）。
+- 交互拖拽预览帧允许临时省略装饰性跨线桥以提升帧率，但手势结束后的完成态渲染必须完整恢复全部几何路径、跨线桥、文本标签与点击热区。
+- `src/analysis/fanoutHub.js` 与 `src/analysis/groupCollapse.js`（兼容保留）均为布局前的纯函数派生显示图变换，绝不原地修改源 Netlist IR。
+- `src/app/sessionState.js` 负责会话快照的序列化边界；用户导入的网表文本仅保存在当前浏览器标签页的 `sessionStorage` 中。
 
 #### Native Layered H08 产品路径（2026-10-15）
 
-`native-layered` registry 现整体采用 `elk_native_layout_provider.js` 的 H08 profile，内部完整相位
-来自 `src/layout/elk_native/`。验收后用户明确授权默认提升：1.1.1由 `providerDefaults.js` 统一
-新会话/无参数registry/EDA启动默认H08。UI失败依次降级H08 -> ELK -> Simple，Simple失败后停止；
-取消不触发降级。自动降级只改变当前运行的provider，session保存原始选择，避免下次启动固化回退。
-旧session无preference版本且保存Simple时一次性迁回H08（旧格式无法区分自动回退和主动选择）；
-新session保存preference版本，之后显式选择Simple/ELK继续尊重。
-无第二个 Native UI ID，也不混用旧相位。
-离线调用入口为 `elk_native/h08.js`；原 `index.js` baseline 只用于受控相位比较。
-Provider 的 `executionMode: "async"` 声明由 Single/Compare 同时消费，不能按 ELK ID 猜测异步性。
-取消仍通过共享 JobCoordinator/workspace 边界转发，过期结果不得提交。
-浏览器 Native provider 的相位计算使用离线 module Worker；每个请求独占 worker，取消时直接终止，
-成功或失败后也释放 worker。CLI 或带相位观察回调的调用使用进程内执行，并在相位边界按时间预算
-让出事件循环；单个同步相位的强制中断仅由 Worker 路径提供。
+- **默认注册与自动降级**：`native-layered` 注册项采用 `elk_native_layout_provider.js` 的 `H08` 配置（内部完整相位实现位于 `src/layout/elk_native/`）。自 `v1.1.1` 起由 `providerDefaults.js` 将新会话、无参数注册表查询及 EDA 启动的默认引擎统一设为 `H08`。当 UI 布局失败时，按 `H08 -> ELK -> Simple` 顺序依次降级，`Simple` 仍失败则停止重试；用户主动取消任务不会触发降级。自动降级仅改变当前这一次运行的引擎，会话持久化仍保留用户原始首选项，避免将临时回退固化为下次启动的默认设置。对于缺少首选项版本号且保存为 `Simple` 的旧版会话，首次加载时会一次性迁移回 `H08`；新版会话均记录首选项版本号，此后用户主动选择的 `Simple` 或 `ELK` 会被持久尊重。
+- **静态离线入口与异步 Worker 隔离**：离线直接调用入口为 `src/layout/elk_native/h08.js`（`index.js` 基础 profile 仅用于受控相位对比测试）。Provider 通过 `executionMode: "async"` 显式声明异步执行特性，供 Single 与 Compare 工作区统一消费。在浏览器环境中，H08 相位计算运行在独立的离线 ES Module Worker（`native_layout_worker.js`）中：每次请求独占一个 Worker，一旦取消即刻执行 `worker.terminate()` 强制中断并释放资源，任务成功或失败后亦立即销毁 Worker；在 CLI 或带相位观察回调的测试调用中则使用进程内执行，并在相位检查点按时间预算让出事件循环。
+- **旧版代码归档隔离**：原 `src/layout/native_layered/` 下的 22 个早期文件已归档至 `tests/reference/retired_native_layered/`，仅供历史测试追溯，不进入生产依赖或 Windows 发布包，且由架构测试严禁运行时反向导入。H08 的版本化 profile、支持范围与适配契约详见 [静态包说明](design/elk_h08_package.md)。
 
-原 `src/layout/native_layered/` 的22个文件已移至 `tests/reference/retired_native_layered/`，
-仅供历史测试追溯，不进入生产依赖或 Windows 包；架构测试禁止运行时回流。
-H08 的版本化 profile、支持范围和适配契约见 [静态包说明](design/elk_h08_package.md)。
+#### Native Layered 早期规划基线（历史背景留存，2026-09-20）
 
-以下保留早期设计基线作为迁移背景，不代表仍在运行的目录或策略。
+以下保留早期独立分层引擎规划阶段的隔离约束作为架构演进背景（完整历史路线见 [`docs/plans/native_layered_development.md`](plans/native_layered_development.md)，Simple 冻结基线见 [`docs/plans/simple_layout_freeze_baseline.md`](plans/simple_layout_freeze_baseline.md)）：
 
-#### Native Layered 独立 provider（历史规划基线，2026-09-20）
+- `SimpleLayeredLayoutProvider` 的输出、默认策略与内部流水线保持冻结；新分层引擎不得导入 `simpleLayered.js`、`simplePlacementPipeline.js`、`simpleLayering.js`、`simpleRoutingPlan.js`、`simpleOrthogonalRouter.js` 或 `simpleRouteCandidates.js`。
+- 两个引擎仅共享顶层 provider 契约、节点几何测量、正交硬约束、几何校验器（validator）、物理线网规范化、标签排布、空间索引、渲染器及工作区/任务协调边界。
+- 虚拟节点（dummy）、反转边（reversed edge）、对齐块（alignment block）与通道需求等中间结构仅存在于布局引擎内部模型中，绝不泄漏至 Netlist IR 或 UI 节点图。
 
-项目将新增 `native-layered` provider，以项目原生代码实现 ELK layered 所采用的分层布局阶段。它是
-独立实现，不是 Simple placement/routing 的增量策略。完整实施路线和验收矩阵见
-[`docs/plans/native_layered_development.md`](plans/native_layered_development.md)。
-Simple 的实现提交、验收指标和允许修改范围固定在
-[`docs/plans/simple_layout_freeze_baseline.md`](plans/simple_layout_freeze_baseline.md)。
+#### 布局策略与各子模块职责边界（Layout Policy & Modules）
 
-开发期间必须保持以下隔离边界：
-
-- `SimpleLayeredLayoutProvider` 的结果、默认策略和私有流水线冻结。Native Layered 不得 import
-  `simpleLayered.js`、`simplePlacementPipeline.js`、`simpleLayering.js`、`simpleRoutingPlan.js`、
-  `simpleOrthogonalRouter.js` 或 `simpleRouteCandidates.js`。
-- Native Layered 可以复用 provider contract、节点测量、正交硬约束、validator、物理 wire-route
-  规范化、label placement、spatial index、renderer 和 workspace/job 边界；这些模块不得反向依赖
-  Native Layered。
-- Native Layered 的 cycle orientation、proper layering、dummy chain、crossing reduction、Brandes–Köpf
-  block alignment、component packing、channel allocation 和 automatic routing 均位于
-  `src/layout/native_layered/`，不得以 feature flag 插入 Simple 流水线。
-- Native Layered 的 dummy、reversed edge、alignment block、channel demand 等对象只存在于内部 layout
-  model。它们不能进入 Netlist IR，也不能作为 UI graph node 返回。
-- 自动布局输出仍是普通 `PositionedGraph`。手工 override 位于 provider 之后，继续通过共享
-  `positionedRouting` 边界工作。
-
-目标目录边界：
-
-```text
-src/layout/native_layered/
-  graph_model.js             canonical internal graph and stable topology keys
-  cycle_breaking.js          reversible layout orientation
-  layer_assignment.js        rank assignment and span refinement
-  proper_layering.js         dummy chains for adjacent-layer edges
-  crossing_reduction.js      bounded median/barycenter sweeps and transpose
-  block_alignment.js         conflict marking and vertical alignment blocks
-  vertical_compaction.js     four-direction Brandes–Köpf candidates
-  component_packing.js       tree/shared-block/component placement
-  port_ordering.js           stable side and port constraints
-  channel_allocation.js      interval-based inter-layer lane ownership
-  orthogonal_routing.js      provider-private automatic routing
-  physical_net_routing.js    shared trunks and junction ownership
-  layout_metrics.js          phase and quality evidence
-  provider.js                LayoutProvider adapter
-```
-
-Native Layered pipeline 顺序固定为：
-
-```text
-source graph
-  -> canonical layout graph
-  -> cycle breaking
-  -> layer assignment
-  -> proper layering / dummy chains
-  -> crossing reduction
-  -> block alignment and four-direction compaction
-  -> tree/shared-block/component packing
-  -> port ordering and channel allocation
-  -> orthogonal physical-net routing
-  -> shared validation and PositionedGraph normalization
-```
-
-Placement 和 routing 必须联合规划：相邻层间的物理 net demand 在最终坐标确定前分配，容量不足时
-扩大对应层间距；router 不得在一个已压紧的布局中依靠图规模相关的重试寻找缝隙。父节点位置由
-alignment block 和子树跨度决定，后续合法化只能移动完整 block，不能再把 block 内 cell 从画布
-顶部开始逐个压紧。
-
-在 Focused、Whole、mapped-case、性能和浏览器视觉验收全部完成前，Native Layered 只作为 Experimental
-provider 暴露；Simple 保持默认和稳定 fallback。提升为默认属于单独决策，不随实现完成自动发生。
-
-手动布局校准不改变 Netlist IR，也不替代 layout provider。实现时应把用户拖动得到的节点位置作为 layout override/golden 叠加在 positioned graph 上，再让路由和渲染层基于覆盖后的节点位置工作。
-
-wire routing 策略属于 layout 层，不放到 render 层。layout 输出的 edge 可以携带 `routeKind`、`labelPoint` 和后续调试所需的 routing metadata；render 只负责按这些结果绘制 path 与文字。
-
-adjust 模式的 snap 计算属于 UI/layout 边界：UI 负责把 pointer movement 转成候选节点位置，layout helper 负责根据 grid 和相连 pin 关系给出吸附后的坐标。snap 结果仍保存为普通 node position override。
-
-Layout policy:
-
-- `src/layout/layoutPolicy.js` owns the named layout policy used by the demo.
-- Layout spacing and feature values are normalized once at the policy boundary. Algorithms consume the
-  normalized policy and must not add their own conflicting ranges or string/boolean coercion.
-- `src/layout/nodeGeometry.js` owns node measurement, pin placement, connection points, and graph bounds.
-- `src/layout/nodeOverrides.js` is the input boundary for manual node position and size overrides. It
-  normalizes supported collection shapes and owns numeric validation and size limits.
-- `src/layout/nodeAlignment.js` owns topology-driven vertical alignment and branch lanes.
-- `src/layout/nodeLocality.js` owns external-input and fanout-hub locality policies.
-- `src/layout/nodeSpacing.js` owns layer X spacing and node-overlap resolution.
-- `src/layout/nodePlacementShared.js` contains deterministic ordering and free-space helpers used by those
-  placement policies. `nodePlacement.js` remains only as a compatibility export barrel.
-- `src/layout/layoutTopology.js` owns stable edge ordering and net grouping keys. Layering, layout intent
-  and lane planning must produce the same result when graph node/edge arrays are permuted.
-- Placement modules may improve routing, but must not encode wire collision rules.
-- `src/layout/orthogonalRouting.js` is the shared routing contract used by Simple and Adjust routing. It
-  owns port-side entry, endpoint-body protection, segment conflict semantics and route-point normalization.
-- Route-point normalization removes duplicate and collinear pseudo-bends before scoring, labels, hit
-  testing or rendering. Providers must not maintain private polyline simplifiers.
-- `src/layout/routeCandidateValidation.js` applies that contract to candidate paths. Simple and Adjust
-  share its orthogonality, node-clearance and endpoint checks; overlap rejection is an explicit option.
-- `src/layout/routeLaneCandidates.js` owns stable local Y-lane collection from node and reserved-wire
-  boundaries. Simple and Adjust must not maintain separate obstacle-boundary ordering rules.
-- `src/layout/simpleRoutingPlan.js` converts layout intent and level distance into stable channel/lane
-  reservations; it does not inspect pixel geometry or generate route points.
-- `src/layout/simpleLayering.js` owns cycle-safe level assignment and topology ordering.
-  Cycle breaking selects a stable node order and must not depend on parser statement order.
-- `src/layout/simpleOrthogonalRouter.js` owns Simple candidate selection, scoring and segment reservation.
-  It consumes the shared routing contract and returns positioned edges; it does not move nodes.
-- `src/layout/simpleRouteCandidates.js` owns Simple-specific candidate geometry and global fallback lanes.
-  The router chooses and reserves candidates without embedding their coordinate formulas. Global fallback
-  candidates have a fixed budget; their count must not grow unbounded with graph node count.
-- `src/layout/localOrthogonalRouter.js` owns Adjust candidate validation and scored selection. It reuses
-  the shared route costs so a later local, conflict-free path can beat an earlier crossing path. It
-  returns the selected candidate strategy as well as points, accepts immutable route context plus shared
-  indexes, and does not apply node overrides or place labels.
-- `src/layout/localRouteCandidates.js` lazily yields local, obstacle and outer-lane Adjust candidates in
-  policy order. Local candidates include nearby reserved-wire boundaries before outer lanes; the router
-  validates candidates without owning coordinate formulas.
-- `src/layout/layoutValidator.js` audits a completed positioned graph. Tests and golden cases use its stable
-  violation codes instead of repeating one-off geometric assertions.
-- `src/layout/wireLabelPlacement.js` is the only wire-label collision and visibility policy. Simple,
-  Adjust and ELK may choose different segment ordering, but share label sizing and collision checks.
-  Label collision ownership uses an explicit stable edge priority and never raw graph array order.
-- `src/layout/spatialIndex.js` provides the dynamic segment and static node indexes used by routing and
-  label placement. Geometry predicates remain authoritative; the index only narrows candidate sets.
-  Opt-in foreign-net queries may skip groups with the same exact net identity before materializing
-  candidates. Only frozen own-data net keys are grouped; mutable/accessor keys use record-level checks.
-  Ordered query results retain bucket/record order and duplicate insertions. Foreign count predicates
-  must be pure. These queries do not deduplicate geometry or weaken overlap/clearance validation.
-  Simple computes graph node bounds once and queries local X corridors instead of rescanning every node
-  for every difficult edge.
-- `src/layout/routeSegmentIndex.js` attaches edge ownership, segment order and orientation before indexing.
-  Renderer bridges, label collision and reroute invalidation share this metadata boundary.
-- `src/layout/layoutQuality.js` turns soft layout goals into comparable metrics: straight-line ratio,
-  bends, length, detour, crossings, overlaps, outer-lane use and hidden labels. Golden comparisons report
-  metric deltas; repository fixtures cap outer/global fallback routes independently of hard legality.
-- `src/domains/netlist/layout_golden.js` version 3 stores stable node order plus per-edge route geometry,
-  strategy, view state and source identity while preserving v1/v2 import compatibility.
-  Golden diffs report changed edges so one bad net cannot disappear inside aggregate quality metrics.
-- `src/layout/routeScoring.js` owns named route costs and candidate comparison. Candidate generators must
-  not embed crossing/bend/length magic numbers.
-- `src/layout/routeSearchPolicy.js` owns bounded candidate-search limits shared by Simple and Adjust.
-  Candidate generators must not add graph-size-proportional retry loops or private hard limits.
-- `src/layout/simpleLayered.js` is the pipeline orchestrator. It composes layering, placement and routing,
-  but owns none of their algorithms. New geometry invariants must go into `orthogonalRouting.js`, not here.
-- `src/layout/simplePlacementPipeline.js` owns the stable order of placement passes and exposes an optional
-  stage hook for diagnostics. Individual passes remain in their alignment, locality and spacing modules.
-- `src/layout/positionedRouting.js` orchestrates node overrides, reroute invalidation, local routing, bounds
-  and labels. It contains no candidate-generation geometry. Adjust reroutes single-load nets first and
-  uses a stable topology key so reservation order cannot drift with parser edge order. Rerouted edges keep
-  `routeKind: positioned-override` for origin and record the chosen candidate in `routeStrategy`.
-  Unaffected physical net groups and their completed label placements are reused when edge membership is
-  unchanged; missing or incompatible artifacts fall back to the complete route/label build.
-- `src/layout/rerouteInvalidation.js` owns Adjust route invalidation. It indexes existing route segments
-  and queries changed node boxes; batch overrides must not scan every changed-node/edge pair.
-- `schematic-readable-v1` is a readable schematic policy, not a general graph optimizer.
-- The policy separates spacing from feature switches:
-  - spacing: wire lane pitch, cell pin pitch, branch lane origin and pitch.
-  - features: driven-link alignment, branch-aware lanes, localized single-fanout inputs.
-- `simpleLayered` accepts `layoutPolicy` as the preferred API and keeps legacy options for compatibility.
-- Policy passes should be topology-based, not instance-name-based. They may use pin order and node kinds, but must not depend on fixture-specific cell names.
-
-布局流水线保持以下固定阶段：
+- `src/layout/layoutPolicy.js`：拥有命名布局策略（如 `schematic-readable-v1`）并负责在入口边界一次性完成间距与功能开关的数值归一化；下游算法直接消费归一化后的策略，严禁各自编码冲突的默认范围或类型转换。策略将间距参数（`wire lane pitch`、`cell pin pitch`、`branch lane origin/pitch`）与拓扑特征开关（驱动对齐、分支通道、单扇出局部输入）解耦，且仅依赖引脚顺序与节点类别等拓扑特征，绝不按特定测试用例的实例名硬编码。
+- `src/layout/nodeGeometry.js`：负责节点尺寸测量、引脚排布、连接点计算与全图外框边界（bounds）计算。
+- `src/layout/nodeOverrides.js`：作为手工节点位置与尺寸覆盖（overrides）的唯一归一化入口，负责集合形态转换、数值合法性校验与尺寸上下限约束。
+- `src/layout/nodeAlignment.js`：负责拓扑驱动的垂直对齐与分支通道分配。
+- `src/layout/nodeLocality.js`：负责外部输入端口与高扇出中继节点（fanout hub）的局部就近放置策略。
+- `src/layout/nodeSpacing.js`：负责层间水平间距（layer X spacing）计算与同层节点重叠消解。
+- `src/layout/nodePlacementShared.js`：提供上述放置策略共用的确定性排序与空闲区间查找辅助函数（`nodePlacement.js` 仅作为向后兼容导出桶保留）。
+- `src/layout/layoutTopology.js`：定义稳定的边排序键与线网分组键；确保分层、布局意图分析与通道规划对输入节点/边数组的排列顺序完全不敏感（Permutation invariant）。
+- `src/layout/orthogonalRouting.js`：Simple 与 Adjust 共用的正交布线核心契约，统一掌管引脚侧向接入规则、端点本体保护、线段冲突判定语义以及路径点规范化（自动剔除重复点与共线伪折点，禁止各引擎私自维护折线简化器）。
+- `src/layout/routeCandidateValidation.js`：将上述正交契约应用于候选路径校验，Simple 与 Adjust 共享其正交性、节点避障与端点接入检查。
+- `src/layout/routeLaneCandidates.js`：负责从节点外框与已占用导线边界提取稳定的局部水平通道（Y-lane）候选。
+- `src/layout/simpleRoutingPlan.js`：将布局意图与层间跨度转换为稳定的通道预留计划，不直接操作像素坐标。
+- `src/layout/simpleLayering.js`：负责抗环路的层级分配与拓扑排序，破环顺序严格保持确定性且不依赖解析器语句顺序。
+- `src/layout/simpleOrthogonalRouter.js` 与 `src/layout/simpleRouteCandidates.js`：前者负责 Simple 布线的候选评估、打分与线段占用登记；后者负责候选几何坐标生成与有界全局兜底通道（严禁候选数量随图节点规模无界增长）。
+- `src/layout/localOrthogonalRouter.js` 与 `src/layout/localRouteCandidates.js`：负责 Adjust 模式下的增量局部重布线。按策略顺序惰性生成局部直连、障碍物边缘及外围通道候选，并复用共享打分成本选出最优无冲突正交路径。
+- `src/layout/layoutValidator.js`：负责对最终生成的 `PositionedGraph` 执行权威几何审计，输出稳定的违规代码（violation codes）供测试与 Golden 门禁断言。
+- `src/layout/wireLabelPlacement.js`：唯一的导线文本标签避障与可见性裁决模块；基于显式稳定的边优先级（而非数组原始顺序）执行碰撞检测。
+- `src/layout/spatialIndex.js` 与 `src/layout/routeSegmentIndex.js`：提供动态线段空间索引与静态节点空间索引。空间索引仅用于高效缩小候选集，最终合法性仍由精确几何谓词裁决；`routeSegmentIndex.js` 在入库前附加边归属、线段序号与方向元数据，供渲染器跨线桥、标签避障与增量重布线失效分析共用。
+- `src/layout/layoutQuality.js`：将软性可读性目标量化为可对比指标（直线率、折点数、总长、绕行率、交叉数、重叠数、外围通道使用率及隐藏标签数）。
+- `src/domains/netlist/layout_golden.js`：管理 Golden v3 格式（记录稳定节点顺序、逐边路径几何、路由策略、视图状态与源码内容指纹，同时兼容导入 v1/v2）。
+- `src/layout/routeScoring.js` 与 `src/layout/routeSearchPolicy.js`：统一管理具名路由打分权重与有界候选搜索上限，禁止在算法内部散落魔法数字或按图规模倍增的重试循环。
+- `src/layout/simpleLayered.js` 与 `src/layout/simplePlacementPipeline.js`：作为 Simple 流水线的顶层编排器，按固定阶段顺序组合分层、放置与布线模块：
 
 ```text
 graph
@@ -345,199 +182,78 @@ graph
   -> positioned graph
 ```
 
-路由规则分为两类，不能混写：
+- `src/layout/positionedRouting.js` 与 `src/layout/rerouteInvalidation.js`：编排手工节点覆盖、空间索引失效查询、局部重布线与标签更新。Adjust 重布线优先处理单负载线网并采用稳定拓扑键排序；未受节点移动影响的物理线网组及其已完成标签直接复用缓存。
 
-- **硬约束**：正交线、pin 侧进入、端点 cell 不可穿越、非端点 cell 不可穿越、不同 net
-  不可共线重叠。硬约束集中在共享内核和 validator。
-- **软目标**：直线优先、局部折线优先、少折点、少交叉、单负载紧凑、多负载留通道。软目标由
-  candidate generator 和 score 决定。
+**硬约束与软目标的严格分离**：
+- **硬约束（Hard Constraints）**：线段严格正交、沿引脚声明侧接入、严禁穿越端点或非端点单元本体、不同物理线网严禁共线重叠。硬约束集中实现于共享内核与 `layoutValidator.js` 中，所有仓库内置网表与 47 个综合映射用例均以此作为零容忍门禁。
+- **软目标（Soft Objectives）**：直线优先、局部短折线优先、少折弯、少交叉、单负载紧凑、多负载预留通道。软目标由候选生成器与打分器控制，严禁通过实例名或坐标特判来修补单个测试图形（1024 级缓冲器长链同时作为 Adjust 增量重布线的性能门禁）。
 
-增加新 case 时，先判断它改变的是硬约束还是软目标。硬约束必须先增加共享内核单元测试，再让
-Simple 和 Adjust 同时消费；软目标应增加 route score/golden 测试，不允许通过 instance 名称或单个
-坐标特判修复。
+---
 
-Repository Verilog fixtures are also a hard-invariant gate: every module must remain orthogonal, attached
-to the correct pin side, clear of node bodies, and free of different-net collinear overlap.
-The same fixture pass enforces broad soft budgets for straight-route ratio, maximum bends and crossings;
-case-specific golden tests may impose tighter budgets.
-The checked-in 1024-cell chain also gates the interactive Adjust path: cached override, incremental reroute
-and bridge-free SVG preview must complete within the large-example smoke budget.
+### 5. `src/render/`
 
-### `src/render/`
+负责将领域展示层生成的结构化场景（`Scene`）渲染为交互式 SVG。
 
-负责把 positioned graph 变成 SVG。
+**核心职责**：
+- 绘制标准矩形或约定逻辑门符号（gate symbol）、端口节点、导线路径与跨线桥、文本标签、时序徽标以及箭头标记。
+- 管理选中、扇入/扇出、搜索命中与结构差异等可叠加高亮样式类（highlight classes）。
+- 渲染层严格保持无领域耦合：不解析 Verilog 网表，不读取私有推断规则，也不重新计算逻辑锥或布局坐标。
 
-职责：
+---
 
-- gate symbol。
-- port 节点。
-- wire/edge。
-- label。
-- highlight class。
-- marker 和 arrow。
+### 6. `src/timing/`
 
-渲染层不解析网表，不计算 cone。
+负责可选时序报告的文本解析与图节点时序标注，严格划分为两个独立阶段：
 
-### `src/timing/`
+- `src/timing/timingParser.js`：仅负责将传统 LocResyn 行格式或新版 Global/Local 边界表格文本规范化解析为时序中间记录（timing IR，将 `rat` 统一归一为 `rt` 并保留扩展指标列），绝不读取图结构或 DOM。
+- `src/timing/timingAnnotation.js`：负责将时序作用域（scope）与模块/实例路径进行最长无歧义层次后缀匹配、选择默认徽标（badge）并向图节点附加时序注释，绝不解析原始文本。
 
-负责可选时序信息的解析和图注释，保持两个边界：
+---
 
-- `timingParser.js` 只把 LocResyn 文本解析为 timing records，不读取 graph。
-- `timingAnnotation.js` 负责层级 instance 后缀匹配、默认 badge 选择和 graph node 注释，不解析原始文本。
+### 7. `src/ui/`
 
-时序记录保留完整 instance path；图注释采用最长层级后缀匹配，避免同叶子名 cell 误匹配。
+负责浏览器 DOM 交互、手势收敛与面板渲染：
 
-### `src/ui/`
+- `src/ui/viewport.js`：封装纯数学的缩放、平移、屏幕/SVG 坐标换算与矩阵变换计算，事件处理器仅提供 DOM 测量值并提交状态，不重复编写视口数学逻辑。
+- `src/ui/nodeDrag.js`：提供与具体布局引擎无关的节点拖拽位移、边界保护与坐标相等性计算，由 Single 与 Compare 画布共用。
+- `src/ui/pointerSession.js`：统一管理指针捕获（pointer capture）及 `move` / `up` / `cancel` 生命周期清理，供侧栏拖拽调宽、画布平移与节点拖拽共用。
+- `src/ui/frameScheduler.js`：将高频指针移动与滚轮事件合并为每动画帧（`requestAnimationFrame`）最多执行一次轻量更新，并在手势结束时精确刷新最终位置。
+- `src/ui/timingPanel.js`、`src/ui/adjustPanel.js`、`src/ui/cellDefinitionPanel.js`、`src/ui/objectDetailsPanel.js`、`src/ui/processLogPanel.js`、`src/ui/module_hierarchy_panel.js`：分别负责各功能面板的 HTML 渲染与事件绑定；面板自身不持有全局应用状态，状态变更统一通过注入的窄接口回调或命令触发。
+- `src/ui/html.js`：提供全项目共用的 HTML/SVG 安全字符转义与格式化工具。
 
-`src/ui/viewport.js` owns pure zoom, pan, coordinate-conversion and SVG-transform calculations. App event
-handlers provide DOM measurements and commit state, but do not duplicate viewport math.
-`src/ui/nodeDrag.js` owns provider-independent drag delta, boundary and position equality calculations used
-by both Single and Compare canvases.
-`src/ui/pointerSession.js` owns pointer capture plus move/up/cancel lifecycle cleanup shared by sidebar
-resize, canvas pan and Single/Compare node drag interactions.
-`src/ui/frameScheduler.js` coalesces high-frequency pan/drag updates to one latest task per animation frame
-and flushes the final pointer position on gesture completion.
+**UI 层依赖约束**：UI 通过显式 API 调用 `application` 命令、领域特性（`DomainFeature`）与共享流水线，不直接操作解析器 IR 或渲染器内部临时结构。`bootstrap/default_domains.js` 是产品领域的静态注册点。静态依赖门禁仅允许 `ui/` 引用 `app/quickInput.js` 与 `app/processLog.js` 两个无副作用纯工具兼容模块（且这两个模块自身仅依赖 `contracts/` 与 `foundation/`），严禁 UI 反向依赖其他 `app/` 控制器。
 
-负责用户交互。
+---
 
-职责：
+### 8. `src/application/` 与 `src/app/`
 
-- 文件拖入/打开。
-- module 选择。
-- 视图模式切换。
-- 搜索。
-- 高亮。
-- 缩放平移。
-- 导出。
+- **入口收敛与职责归属**：`src/app/main.js` 仅作为浏览器端依赖组装与顶层事件绑定入口（受架构门禁 611 行上限与单职责模块 520 行上限约束，详见 [入口收敛计划](plans/main_entry_modularization.md)）。共享的同步/异步任务调度与过期结果隔离由 `src/application/workspace_execution.js` 统一掌管，Single 与 Compare 工作区通过注入任务与渲染回调共用同一套执行机制；`src/app/workspace_inputs.js` 仅负责将旧版状态投影为不可变请求对象。
+- **文档与视图会话存储（`DocumentStore` & `ViewSessionStore`）**：作为文档、画布会话及其修订号（revision）的唯一权威所有者。Single 与 Compare 桥接器（bridge）仅负责在 `ObjectRef` 与旧版 UI/存档字段之间做兼容投影，并在投影图中完整保留层次路径 `occurrencePath`；同一模块定义在不同实例路径（`hinst`）下的选中项与聚焦根均按精确的 occurrence 身份隔离与恢复。
+- **统一视图命令与流水线（`view_commands.js` & `view_pipeline.js`）**：`view_commands.js` 统一处理模块切换、Focused roots、选中项、视口、布局策略与手工覆盖，并显式返回 `query` / `layout` / `render` / `viewport` / `persist` 副作用标记（纯视口变换或幂等相同值提交不会错误推进计算修订号）。`view_pipeline.js` 固定执行 `query -> project -> measure -> layout -> overrides -> scene` 流水线，Netlist 与测试用内存 AIG 均经由此公共路径完成渲染，公共层不含任何按领域 ID 分支的硬编码。
+- **作业协调与渲染代际隔离（`JobCoordinator` & `renderGeneration.js`）**：`JobCoordinator` 基于文档与会话修订号管理同步/异步工作区计算身份，在结果提交前自动丢弃已过期的成功、失败或进度回调；`src/render/renderGeneration.js` 则作为渐进式 DOM 批次提交的独立单调守卫，当新一次画布渲染启动时立即终止上一轮未完成的 DOM 批次挂载。
+- **单模块与双模块工作区（`moduleWorkspace.js` & `compareWorkspace.js`）**：Single 画布始终仅投影当前打开的模块定义（Focused 扇入/扇出追踪到达模块端口或子模块实例边界即停止，不将相邻层级的实例混入当前层布局图）；跨层次导航通过 `Selection` 面板的 `Hierarchy / Parent occurrence` 或双击子模块实例（`hinst`）触发。Compare 工作区先执行一次共享的全图提取与对比统计准备，再为左右两侧分别以独立任务作用域（`compare-left-workspace` / `compare-right-workspace`）提交布局、覆盖与场景构建，单侧取消或过期绝不会干扰另一侧。
+- **有界工作区产物缓存（`workspaceArtifactCache.js` & `ArtifactStore`）**：采用带容量权重上限的 LRU 缓存复用不可变的全图与自动布局产物；缓存键完整包含文档、源码指纹、会话、模块、查询、布局引擎及布局策略依赖（排除视口与选中状态），上游图或单元配置变更会自动使下游几何缓存失效。
+- **不可变会话快照與事务化视图历史（`viewHistoryTransaction.js`）**：`ViewSession` 中的策略与手工覆盖均为深冻结的不可变快照（含嵌套 `Map` / `Set`），任何状态修改必须经过 store 命令更新。复合视图操作通过 `viewHistoryTransaction` 在最外层操作完成时一次性提交单条历史快照。
+- **启动协议与持久化边界（`startupController.js` & `src/persistence/`）**：`startupController.js` 通过注入的处理器按序执行 `Cell Config`、网表、时序、目标模块与初始聚焦动作，相关的编解码器统一收敛于 `src/persistence/`。Node.js、Python 与 Windows 启动器仅提供本地回环（`127.0.0.1`）静态资源服务、参数校验与 `/__ngb_startup__.json` 清单传输，绝不在服务端复制前端业务算法。
 
-UI 通过明确 API 调用 application command、领域 feature 和共享 pipeline，不直接操作 parser IR
-或 renderer 内部临时结构。`bootstrap/default_domains.js` 是产品领域实现的静态注册点；界面按
-feature 的 capabilities/contributions 决定可用操作，未来 AIG 不需要复制 Netlist 主流程。
-依赖图只允许 `ui/` 继续引用 `app/quickInput.js` 与 `app/processLog.js` 两个既有纯工具兼容模块；
-其他 `app/` 控制器和状态适配器不得成为 UI 依赖，新增共享能力应落到 application、foundation
-或职责明确的 UI 模块。两个兼容模块自身也只能依赖 contracts/foundation，门禁同时约束其依赖闭包，
-避免通过重导出或间接 import 把 app 控制器重新带回 UI。
+---
 
-当前面板边界：
+## Linux 单文件启动器与 EDA 集成边界（2026-10-21）
 
-- `timingPanel.js` 负责时序表格、badge 多选和位置控件的 HTML/DOM 绑定。
-- `adjustPanel.js` 负责节点尺寸、属性和 pin direction 控件的 HTML/DOM 绑定。
-- `html.js` 只提供共享的安全转义和数值/definition list 格式化。
+- `native/` 编译生成独立的 Linux 单文件服务进程 `ngb`，不将 Verilog 解析器、布局引擎或 HTTP 服务静态链接进宿主 EDA 主程序。
+- 顶层 `CMakeLists.txt` 与 `native/CMakeLists.txt` 共享 `ngb` 构建目标；构建期自动扫描并嵌入全部前端静态资源，运行时无需外部 `src/` 目录。
+- 原生进程在监听端口前仅校验输入文件可读性，网表语法与配置语义交由浏览器前端校验；`ready` 消息仅表示本地监听与启动清单就绪。
+- 会话状态管理采用 `<state-file>.lock` 独占文件锁防止并发冲突，结合可执行文件 inode、精确命令行状态路径与进程启动时间戳（`processStartTicks`）严格校验 `stop` / `--replace` 的进程所有权，并通过 `0600` 权限临时文件加原子 `rename` 写入状态。
+- 内置 HTTP 服务对并发连接数、请求头大小与读写超时均设有严格上限；`tools/eda/ngb.tcl` 通过解析 `ready` 消息等待服务就绪并保持管道，将所有异常真实抛回 EDA 宿主。详见 [Linux 指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
-面板模块不持有全局应用状态；状态更新通过回调交给 `src/app/main.js`。
+## 数据模型与错误处理原则
 
-### `src/app/`
+### 数据模型核心不变量
+- **双名称保留**：线网、端口与实例统一使用规范化名称（canonical name）作为内部标识，同时独立保留显示名称（display name）。
+- **层次实例身份隔离**：`ObjectRef` 可携带 `occurrencePath`；同一模块定义在不同层次实例路径下的对象拥有独立的选中状态、聚焦根身份与跨层连接上下文。
+- **职责归属明确**：转义标识符在 `parser` 层完成规范化；`assign` 别名保留在 Netlist IR 中，仅在后续图提取/展示变换阶段按策略折叠；每个单元与引脚的推断来源（`library` / `rule` / `fallback` / `unknown` / `user-config`）全程可追溯。
 
-维护入口的增量规则：`main.js` 负责组装与浏览器绑定；共享同步/异步调度和过期结果提交策略由
-`application/workspace_execution.js` 拥有，Single/Compare 通过注入任务与展示回调共用。
-`app/workspace_inputs.js` 只把旧 state 投影成请求，不持有状态或执行计算。新增能力先确定所有者：
-领域语义进入 domains，应用用例进入 application，DOM 生命周期进入 ui，持久化格式进入 persistence。
-新模块不得反向 import main；新 controller 使用窄接口，不传整个 state。入口行数上限由架构测试
-约束，每次迁移后只能降低；禁止提高上限或压缩排版绕过。入口现已迁出所有具名业务函数；611 行预算与各职责模块 520 行预算共同防止回流。
-完整职责落点、兼容边界和验收见 [入口收敛计划](plans/main_entry_modularization.md)。
-
-- `DocumentStore` 和共享 `ViewSessionStore` 是文档、画布及其 revision 的所有者；Single/Compare
-  bridge 只负责 ObjectRef 与旧 UI/session 字段之间的兼容投影，并在 projected graph 中保留
-  `occurrencePath`；重复 hinst 的 selection/Focused root 回读按 occurrence identity 匹配，旧的无路径
-  ref 仍兼容。Focused root 的 canonical refs 同步保存在 app state、module/View History 与 session
-  codec 中；恢复时先以 canonical occurrence ref 为准，再回落到旧的 node-id mirror，避免重复 hinst
-  在刷新或前进/后退后串线。
-- `view_commands.js` 统一处理 unit、Focused roots、selection、viewport、layout policy 与 overrides，
-  并显式返回 query/layout/render/viewport/persist effects。纯 viewport 或相同值提交不会错误推进
-  computation revision。
-- `view_pipeline.js` 固定 `query -> project -> measure -> layout -> overrides -> scene` 顺序；
-  Netlist 与测试用内存 AIG 都经该路径，公共层不含领域类型分支。
-- `JobCoordinator` owns asynchronous/synchronous workspace computation identity through document and
-  ViewSession revisions; stale success, failure and progress are discarded before the workspace is
-  committed. `render/renderGeneration.js` is the separate monotonic guard for progressive DOM batches:
-  it invalidates a previous mount when a replacement workspace render starts, including small
-  synchronous graphs and Search-first empty views. The old application-wide `workspaceRequest.js`
-  guard has been retired so DOM cancellation no longer doubles as computation cancellation.
-- `focusedSelection.js` owns shared root actions and active-root fallback. Add rejects capacity
-  overflow without evicting an existing root. Single/Compare adapters retain their own state scopes.
-- `src/ui/searchControls.js` owns search result markup and keyboard/click dispatch through injected
-  index/action callbacks. `spacingControls.js` owns spacing input parsing and control synchronization.
-
-- `appState.js` 定义应用初始状态，以及 design/module/timing 三种生命周期 reset。
-- `moduleWorkspace.js` composes graph extraction, timing, aliases, cone/group transforms, provider layout
-  and manual overrides for the single-module view without reading DOM or global application state.
-- Single 画布始终只投影当前 module：Focused Fanin/Fanout 到 module port 或 hinst 边界即停止，
-  不把相邻 occurrence 混入本层 layout graph。详情面板的 `Connections / Current module` 只显示
-  当前 definition 内的 pin、net、driver 和 load；`Hierarchy / Parent occurrence` 仅在对象连接到
-  当前 module 的 input/output boundary 且存在明确 parent occurrence 时，显示向父层继续的 net。
-  hinst 的 child port 属于向实例内部的连接，不标记为 Hierarchy；进入 child occurrence 使用 hinst
-  双击。点击父层 target 后切换 module，并用该对象替换原 Focused roots。这样层次导航仍使用 canonical
-  `ObjectRef`，同时保持每张画布的 module 边界稳定；root occurrence 没有 parent，因此 Hierarchy 为空。
-- Focused query 在 workspace 边界应用稳定的可见节点/frontier 上限。调节深度只更新当前
-  Focused query；不得再次进入 view-mode 切换路径，也不得因 net root 投影失败回退到 Whole。
-- `graphWorkspace.js` 是旧调用方的兼容导出；实现位于
-  `domains/netlist/netlist_graph_projection.js`，避免领域 feature 反向依赖应用层。
-- `layoutWorkspace.js` is the shared provider/override boundary. It preserves both the automatic graph
-  and the adjusted graph so manual edits never become implicit provider behavior.
-- `workspaceArtifactCache.js` is the bounded LRU boundary for immutable full-graph and automatic-layout
-  artifacts. Its identity includes document/source/session/module/query/provider/layout dependencies;
-  viewport and selection are intentionally excluded, and document/session invalidation is explicit.
-  Automatic layouts also depend on the published full-graph object and provider instance identities,
-  including prepared Compare graphs. Compare port ordering creates a cached derived graph rather than
-  mutating the full-graph artifact. Replacing an upstream graph always invalidates downstream geometry.
-- ViewSession policies and overrides are detached immutable snapshots, including nested Map/Set data.
-  Collection reads and iteration remain available; mutation must go through a store update/command so
-  revision checks cannot be bypassed by a retained caller reference.
-- `startupController.js` sequences the versioned localhost startup manifest through injected handlers;
-  decoding belongs to `persistence/startup_codec.js`. Cell Config storage, session and Golden codecs also
-  live behind `persistence/` boundaries. It sequences Cell Config,
-  netlist, timing, module and focus actions through injected handlers. It has no DOM dependency; browser
-  bindings remain in `main.js`.
-- Single and Compare Adjust drags call `applyWorkspaceOverrides` on cached automatic graphs for every
-  provider, including Simple Layered. Pointer movement must not invoke a layout provider; provider
-  execution belongs to workspace rebuilds only.
-- `main.js` 仅组装与绑定；legacy 桥接由独立职责控制器和受限 ports 承接，新状态变化进入 ViewSession
-  commands，Single/Compare 的图形计算共同经过 view pipeline，完成态屏幕、渐进渲染和导出消费同一 Scene。
-- `viewHistoryTransaction` 是 application/UI 之间的轻量事务边界：复合的 Compare pair、view-mode
-  和 nested command/render 调用只在外层操作完成后提交一个快照；历史本身仍只保存可序列化的视图
-  状态，不保存 graph/Scene。
-- `command_bus.js` 在 handler 成功提交后通过可选 `onDispatch` observer 把 command type、session
-  scope 和 effect metadata 交给 View History；main 仍允许在渲染完成后补充一次显式 metadata，避免
-  在异步布局完成前截取不完整 viewport。
-- `JobCoordinator`、`ArtifactStore` 与 `ComparisonCoordinator` 现在位于 Single/Compare 的 workspace
-  提交边界：Simple Layered 通过同步 `runSync()`，ELK Single/Compare 通过异步 job；Compare 仍保留
-  per-side abort/status 与 controller identity 校验。Compare 先执行一次共享的 full-graph/analysis
-  preparation，再为 left/right 分别以 `compare-left-workspace` / `compare-right-workspace` 提交
-  layout、override 与 Scene artifact，单侧取消或过期不会借由另一侧 job 提交旧结果。
-  `workspaceArtifactCache` 负责有界的 full graph/automatic-layout 复用，`ArtifactStore` 保存每个
-  session/kind 的最后完成 artifact，`renderGeneration` 只负责最后的 DOM mount 生命周期。
-
-Node、Python 与 Windows launcher 只负责 localhost 静态服务、参数/文件校验和启动 manifest 传输。
-业务 parser、inference、graph、layout 与 render 逻辑不复制到 server；Node 预校验直接复用项目 parser。
-`/__ngb_startup__.json` 仅在 loopback 服务上暴露显式启动输入，ready stdout 只包含文件名和目标摘要，
-不包含网表、时序或 Cell Config 原文。
-
-## Linux 单文件与 EDA 集成（2026-10-21）
-
-native/ 是 Linux 独立进程，不把 parser/layout 或 HTTP server 链接进 EDA 主程序。
-顶层与 native/ CMake 共享 ngb target；资源清单跟踪新增/删除/修改，运行无需外部前端目录。
-原生启动前只检查文件可读性，语义校验留在浏览器；ready 仅表示 listener/manifest 就绪。
-状态锁保护并发启动；精确可执行文件、路径参数和进程启动时间共同验证 stop/replace 所有权。
-状态以 0600 独占临时文件加 rename 写入；HTTP 连接、请求头和读取时间有界。
-tools/eda/ngb.tcl 通过 ready 协议等待启动，保留 pipeline，错误交给 EDA，不直接 kill PID。
-安装由 NGB_INSTALL 与专用目录变量控制。详见 [Linux 指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
-
-## 数据模型原则
-
-- net 名称使用 canonical form 存储，同时保留 display name。
-- `ObjectRef` 可选携带 `occurrencePath`；同一 module definition 的不同 hinst occurrence 不得共享
-  selection、Focused root 或跨层查询身份。
-- escaped identifier 要在 parser 层规范处理。
-- assign alias 不在 parser 层消除，在 netlist/infer 或 graph extraction 阶段处理。
-- 每个 cell/pin 的推断来源要可追踪：
-  - `library`
-  - `rule`
-  - `fallback`
-  - `unknown`
-
-## 错误处理原则
-
-- parser 错误给出 module 名、行列范围和附近 token。
-- unknown cell 不算错误。
-- unknown pin direction 不算错误，但在 UI 中可提示。
-- 单个 module 解析失败不应阻止其他 module 展示，除非文件整体语法不可恢复。
+### 错误处理与容错原则
+- **精准语法定位**：解析错误需提供所在模块名、源码行列范围及上下文附近词法标记（token）。
+- **未知单元优雅降级**：未知单元类型（unknown cell）渲染为黑盒（blackbox），未知引脚方向在界面中给出诊断提示，均不中断整体绘图流程。
+- **模块级故障隔离**：只要文件整体语法结构可恢复，单个模块内部的解析异常不应阻止同一文件中其他正常模块的浏览。

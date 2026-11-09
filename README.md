@@ -1,82 +1,75 @@
 # Netlist Graph Builder
 
-Linux 单文件启动器、CMake 构建和 EDA/Tcl 集成说明见 [LINUX_SINGLE_FILE_LAUNCHER.md](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE_FILE_LAUNCHER.md](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
 
-Netlist Graph Builder 是一个离线可用的 gate-level structural Verilog schematic browser。在没有 Liberty `.lib` 和大型 EDA 工具的环境中，它可以解析网表、推断常见 cell/pin 语义，并提供可搜索、可追踪、可对比的交互式 SVG 结构图。
+**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。
 
-当前发布：`v1.1.2`（2026-10-21 按用户要求覆盖更新，同版本号重新生成附件并移动标签）。默认 H08，失败依次降级至 ELK、Simple；Simple 失败后停止。自动降级不覆盖首选项；没有 preference 版本的旧 Simple 会话一次性恢复 H08，此后主动选择 Simple/ELK 仍会保留。生产级 AIG 导入尚未提供。
+- **当前版本**：`v1.1.3`（最新离线发布包为 `v1.1.2`，于 2026-10-21 按用户要求同版本号覆盖更新附件并同步标签）。
+- **默认布局引擎**：默认使用 `Native Layered H08`；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `H08`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。生产级 AIG 导入功能尚未开放。
+- **零构建离线调用**：`H08` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [H08 静态包契约](docs/design/elk_h08_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [H08 开发总结](docs/reports/h08_development_summary.md)。
+- **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0，`v1.1.3` 完整单元测试 904/904 通过、47/47 映射网表严格门禁通过。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。旧版 Native 算法仅归档于测试参考目录，不进入离线运行时。
 
-H08 可在 clone 后直接离线 import，无构建或安装步骤，见[静态包契约](docs/design/elk_h08_package.md)。
-开发过程、失败试验、验收和限制见[H08开发总结](docs/reports/h08_development_summary.md)。
-验证记录须区分版本和环境：v1.1.1 在 Linux 曾为 46/47（DP020 超过 45 秒）；2026-10-16 的修复源码在 Linux/Node 24.16.0 为 47/47、硬违规 0。后一次通过不撤销历史超时，也不承诺跨环境性能稳定性。
-视觉接受限于已评审语料，不代表任意图均与 ELK 等价。旧 Native 算法仅保留在测试参考目录，不进入离线运行时。
+完整功能介绍、操作流程、数据格式示例与故障排查请阅读 [完整使用教程](docs/USER_GUIDE.md)（Windows 发布包根目录亦随附 `USER_GUIDE.md`）。
 
-完整功能说明、操作步骤、格式示例和故障排查请阅读：[完整使用教程](docs/USER_GUIDE.md)。Windows 发布包根目录也包含 `USER_GUIDE.md`。
+## 近期核心功能演进
 
-## v0.7.3 新增与调整
-
-| 能力 | 使用位置 | 当前行为 |
+| 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
-| 多 cell Focused | Search、View 区和 Focused root chips | 点击未绘制的 cell 搜索结果会追加为 root，不替换已有 roots；`+ Focus`/`Add selected` 显式追加，`Set selected as Focused` 显式替换 |
-| Module hierarchy | 左侧可折叠 `Module hierarchy` | 展示实例层次并可点击切换 module；关闭时不构建列表，递归或超大层次会有界截断 |
-| 间距直接输入 | Layout 区的 Wire/Cell spacing | 滑块旁可输入数字，提交后吸附到最近的 4 的倍数并限制在合法范围 |
-| 垂直 pin 连线可读性 | Simple 与 Adjust 布线 | top/bottom pin 的最后一段会预留可见转角，避免横向距离过小时折线看不清 |
-| 恢复与导入可靠性 | Session、Layout Golden、拖放和 Paste | Golden v3 使用内容 fingerprint 并恢复 Focused 深度；批量输入按网表、Timing、Golden 顺序等待完成，失败不会伪装成成功 |
-| 大图完成态渲染 | Whole、Focused 和 Compare | 渐进阈值按节点与连线总量计算；完成态恢复 wire bridge、label 和命中区域 |
+| **Cell / Net 多根节点聚焦** | 顶部 Search、左侧 View 区与 Focused root chips | 支持以 Cell 或 Net 作为聚焦根节点（最多保留 32 个）。点击未在当前画布绘制的搜索结果会追加为新 root 而不替换既有 roots；`+ Focus` / `Add selected` 为显式追加，`Set selected as Focused` 为显式替换。 |
+| **跨层次连接与模块树** | 左侧 `Module hierarchy` 与 `Selection` 面板 | 可展开查看模块实例层次并点击切换；未展开时不构建层次树，遇到递归或超大层次时有界截断。`Selection` 将连接明确划分为 `Current module`（本层连接）与 `Parent occurrence`（跨边界父层连接）。 |
+| **可切换逻辑门符号** | 左侧 View 区 `Gate symbols` | 支持在 `Rectangles`（矩形框）与 `Conventional`（标准逻辑门符号，含反相气泡）之间即时切换，不影响节点尺寸、引脚端点或布线几何。 |
+| **统一视图历史（View History）** | 顶部 `←` / `→`、`Ctrl+Z` / `Ctrl+Y`、`Alt+方向键` | 事务化记录并恢复模块切换、视图模式、Focused roots 与深度、选中项、视口缩放平移及手动布局调整。 |
+| **间距精确输入与垂直引脚转角** | 左侧 Layout 区与自动/手动布线 | `Wire spacing` 与 `Cell spacing` 支持滑块调节与数字直接输入（提交后自动吸附至最近的 4 的倍数）。连接顶部/底部引脚（top/bottom pin）的末段连线会预留可见转角，避免近距离折线重叠难辨。 |
+| **恢复校验与大图完成态渲染** | Session、Layout Golden、拖放/粘贴与渐进渲染 | Golden v3 采用内容指纹（fingerprint）校验网表一致性并恢复聚焦深度；批量导入严格按“网表 → 时序 → Golden”顺序执行。大图渐进渲染按可见节点与连线总量触发，渲染完成后完整恢复线桥（wire bridge）、标签与点击热区。 |
 
 ## 主要功能
 
-### 浏览与追踪
+### 浏览与逻辑追踪
 
-- 解析常见 structural Verilog：module、port、wire、assign、cell instance 和 escaped identifier。
-- 在没有 `.lib` 时，根据 cell/pin 命名推断 gate kind 与 pin direction；未知 cell 显示为 blackbox。
-- 搜索 module、port、net、instance 和 cell type，并定位图中对象。
-- 可展开 Module hierarchy 列表查看模块实例层次，点击节点切换当前 module。
-- 查看 cell、port、net 的 pin/net、driver/load、fanin/fanout 和推断来源。
-- Selection 面板中的 net、driver/load、直接 fanin/fanout 可点击跳转，并自动选中、居中目标对象。
-- 切换 Whole 和 Focused；Focused 支持多个 roots 和独立的前后向深度，大 module 默认 Search-first。
-- module 前进/后退恢复视图、选择与 viewport；可将所选 cell 一键居中放大，或设为新的 Focused root。
+- **结构化 Verilog 解析**：支持 `module`、`port`、`wire`、`assign`、单元实例（cell instance）、转义标识符（escaped identifier）、向量切片及拼接表达式（concatenation）。
+- **无 `.lib` 智能推断**：在缺乏 Liberty 库文件时，根据单元与引脚命名自动推断逻辑门类型（gate kind）与引脚方向（pin direction）；未识别单元安全显示为黑盒（blackbox）。
+- **全局搜索与定位**：支持按 module、port、net、instance 及 cell type 搜索并高亮定位目标对象。
+- **层次化浏览**：展开 `Module hierarchy` 树查看实例层次路径，点击节点或双击画布中的子模块实例即可进入对应模块定义。
+- **连接详情与锥体追踪**：在 `Selection` 面板查看单元、端口与线网的驱动（driver）、负载（load）、扇入（fanin）、扇出（fanout）及推断来源；点击面板中的关联项即可连续跳转并自动居中目标。
+- **Whole 与 Focused 视图切换**：`Focused` 支持多根节点与独立的前向/后向追踪深度；大型模块默认采用 `Search-first`（搜索优先）模式按需加载局部图。
+- **一键居中放大**：支持将当前选中单元按稳定阅读比例居中放大（快捷键 `F`），或将其设为新的聚焦根节点。
 
-### 布局与展示
+### 布局、微调与导出
 
-- 使用分层布局和正交 wire 渲染 SVG schematic，支持缩放、平移和 Fit。
-- H08/ELK/Simple 布局 provider 离线切换，Wire/Cell spacing 支持滑块和数字输入。
-- Adjust 模式下调整节点位置、尺寸、显示属性和 pin direction；相连 wire 在操作结束后重新布线。
-- 大图支持渐进渲染、fanout hub 和低缩放降细节；后续性能路径按完整图处理，不再扩展结构分组折叠。
-- 支持保存、校验和载入 layout Golden，并导出带完整样式的离线 SVG。
+- **正交原理图渲染**：采用从左到右的分层布局与正交（Manhattan）布线渲染交互式 SVG，支持滚轮缩放、拖拽平移与一键适配窗口（`Fit`）。
+- **多布局引擎离线切换**：内置 `H08`、`ELK` 与 `Simple` 三种布局引擎，完全离线运行；支持灵活调整导线间距（Wire spacing）与单元间距（Cell spacing）。
+- **Adjust 手工校准模式**：支持拖拽微调节点位置、修改节点尺寸、覆盖实例显示属性及单实例引脚方向；释放鼠标后仅对受影响导线做局部正交重布线，`Reset` 可随时恢复自动布局。
+- **大图渲染优化**：支持渐进式分批渲染、高扇出中继节点（Fanout Hub）及低倍率缩放自动隐藏细节文字；后续性能演进均面向完整图与局部聚焦视图，不再使用结构分组折叠。
+- **Golden 快照与离线 SVG 导出**：支持保存、校验并重载布局 Golden JSON，支持导出带完整内嵌样式的独立 SVG 文件。
 
-### 对比、时序与集成
+### 模块对比、时序标注与工具链集成
 
-- 双 module 上下或左右对比、同步交互、同名 output cone 和启发式差异高亮。
-- Compare 两侧保持独立 Focused roots，并可选择同步匹配 cell 的 add/remove/clear 操作。
-- 导入旧 LocResyn 与新 Global/Local 边界 timing，按全图 snapshot/metric 策略显示 cell/port badge 和 critical 标记。
-- 支持文件选择、拖放、全局粘贴和 Paste 文本框，自动识别 Verilog、layout Golden 与 LocResyn timing 日志。
-- 识别层次化子 module 实例，双击实例可直接跳转到对应 module 定义。
-- 同一浏览器标签页刷新后恢复网表、module、Focused roots/depth、搜索、provider、布局选项和 pan/zoom。
-- 编辑、持久化和导入导出未知 cell type 的 gate/pin 定义；Process Log 可过滤、复制和导出。
-- Node、Python、Windows 和 Linux 单文件启动器可由 EDA 工具指定 netlist、timing、module、focus 与局部深度；Linux 提供可复用 Tcl helper。
+- **双模块对比（Compare View）**：支持上下或左右分屏对比两个模块，提供同步缩放平移、同名输出锥（Output Cone）联动查看及启发式结构差异高亮；左右两侧维护独立的聚焦根节点，并支持同步追加、移除与清空匹配单元。
+- **时序报告导入与标注**：兼容传统 LocResyn 格式与新版 Global/Local 边界时序表格，支持按全图 Snapshot/Metric 策略显示时序徽标（badge）与负裕量关键路径（critical）高亮。
+- **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用粘贴文本框，自动识别并区分 Verilog 网表、Layout Golden 与时序日志。
+- **自定义单元配置（Cell Config）**：支持在界面内编辑、浏览器本地持久化及 JSON 导入/导出未知单元类型的逻辑门种类与引脚方向。
+- **过程日志（Process Log）**：底部可折叠日志面板支持按阶段（Phase）和级别（Level）过滤、一键复制与导出，便于排查解析或匹配问题。
+- **跨平台 EDA 启动接口**：Node.js、Python、Windows 离线版与 Linux 单文件启动器共享统一的命令行协议，支持由外部 EDA 脚本指定初始网表、时序、单元配置、目标模块、聚焦实例与追踪深度；Linux 环境提供可复用的 Tcl 集成脚本（`ngb.tcl`）。
 
-## 运行
+## 运行方式
 
-### Windows 正式版（无需安装 Node.js）
+### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线包为 `NetlistGraphBuilder-v1.1.2-win-x64.zip`，完整解压后双击 `NetlistGraphBuilder.exe`。程序只在本机 `127.0.0.1` 启动服务并打开默认浏览器；使用期间保留启动窗口，按 `Ctrl+C` 可退出。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前最新附件为 `v1.1.2`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
-发布包同时包含 `examples` 示例网表、README、CHANGELOG 和 ELKJS 许可证。不要只复制 exe：它需要同目录下的 `app` 资源目录。若默认端口 4173 被占用，启动器会自动尝试后续空闲端口。
+发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md` 以及 `ELKJS-LICENSE.md`。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
-维护者可通过以下命令重新构建 Windows 发布包；产物和 SHA-256 校验文件位于 `dist/`：
+维护者可通过以下命令在本地重新构建 Windows 发布包（产物与 SHA-256 校验文件输出至 `dist/` 目录）：
 
 ```powershell
 npm run release:windows
 ```
 
-### Linux 单文件与 CMake
+### Linux 单文件启动器与 CMake 构建
 
-Release 新增 `NetlistGraphBuilder-v1.1.2-linux-x64` 单文件 ELF 及 `.sha256`；下载后 `chmod +x` 再执行。
-它在 Linux x86-64/glibc 2.35 环境构建与验证，不承诺 CentOS 7 或任意发行版直接兼容。
-Tcl helper 可从发布附件 `ngb.tcl` 下载，也可从仓库 `tools/eda/ngb.tcl` 获取。
+Release 提供 `NetlistGraphBuilder-v<version>-linux-x64` 单文件 ELF 可执行程序及 `.sha256` 校验文件；下载后执行 `chmod +x` 即可直接运行。该二进制在 Linux x86-64（glibc 2.35）环境下构建与验证，不承诺在 CentOS 7 或任意旧发行版上直接兼容。配套 Tcl 辅助脚本可从发布附件 `ngb.tcl` 下载，或直接取自仓库 `tools/eda/ngb.tcl`。
 
-Linux 构建机需要 CMake 3.16+、C++11 编译器和 POSIX threads；运行机无需 Node/Python 或项目资源目录，但仍依赖目标平台的系统库及浏览器：
+从源码构建 Linux 单文件启动器需要 CMake 3.16+、支持 C++11 的编译器与 POSIX threads；生成的二进制已内嵌全部前端源码与 ELK 资源，运行机器无需安装 Node.js、Python 或携带项目资源目录（仅依赖目标平台基础系统库与浏览器）：
 
 ```bash
 cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNGB_BUILD_TESTS=ON
@@ -85,67 +78,66 @@ ctest --test-dir build/linux --output-on-failure
 ./build/linux/native/ngb start --netlist ./examples/two_equivalent_style_modules.v --port 0 --no-open
 ```
 
-`NGB_BUILD_TESTS=ON` 仅在构建测试时需要 Python 3.6+；Tcl 测试另需 `tclsh`。也可 `cmake -S native` 独立构建，此时二进制位于对应构建目录的 `ngb`。
-EDA 的安装目录、Tcl `Start/Status/Stop`、父进程清理和跨发行版限制见 [Linux 单文件指南](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
+其中 `-DNGB_BUILD_TESTS=ON` 仅在运行构建测试时需要 Python 3.6+（运行 Tcl 集成测试另需 `tclsh`）。也支持以 `cmake -S native -B build/ngb` 方式独立构建，此时可执行文件生成于 `build/ngb/ngb`。关于安装目录定制、Tcl `Start/Status/Stop` 接口、父进程退出自动清理及跨发行版 ABI 说明，详见 [Linux 单文件启动器指南](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
 
-### VS Code 一键启动（源码预览）
+### VS Code 一键启动（源码开发预览）
 
-仓库已包含 VS Code task 和 launch 配置。在本地工作区或 Remote-SSH 工作区中打开仓库后：
+仓库内置了 VS Code 任务与调试启动配置。在本地工作区或 Remote-SSH 远程工作区中打开仓库后：
 
-1. 打开 `Run and Debug`（`Ctrl+Shift+D`）。
+1. 打开 `Run and Debug` 面板（`Ctrl+Shift+D`）。
 2. 选择 `Netlist Graph Builder: Open View`。
-3. 按 `F5`。
+3. 按下 `F5`。
 
-VS Code 会启动远端预览服务，并在编辑器区域的 Integrated Browser 标签页中打开网表视图。服务仅监听远端 `127.0.0.1:4173`；工作区配置会启用 VS Code 的远端浏览器代理并保留 4173 端口转发，不需要开放服务器防火墙端口。
+VS Code 会自动在后台拉起预览服务，并在编辑器右侧的 Integrated Browser 标签页中打开网表工作台。预览服务仅监听 `127.0.0.1:4173`；工作区配置会自动启用 VS Code 远程端口转发代理，无需开放服务器防火墙端口。
 
-源码预览脚本 `tools/start-preview.sh` 按以下顺序选择运行时（不是单文件 `ngb` 的依赖链）：
+源码预览脚本 `tools/start-preview.sh` 会按以下优先级选择运行时（与单文件二进制 `ngb` 无关）：
 
-1. 如果 `node` 可正常执行，使用 `tools/serve.mjs`；
-2. 否则，如果存在 Python 3，使用无第三方依赖的 `tools/serve.py`；
-3. 两者都不可用时，在 VS Code Terminal 中给出明确错误。
+1. 若 `node` 可正常执行，优先运行 `tools/serve.mjs`；
+2. 否则，若存在 `python3`，自动回退至零第三方依赖的 `tools/serve.py`；
+3. 若两者均不可用，则在终端输出明确的诊断提示。
 
-因此 CentOS 7 即使无法运行要求较新 glibc 的 Node.js 官方二进制，也可以通过 Python 3 启动视图。建议先检查：
+因此，即便在无法运行新版 Node.js 官方二进制的旧版 Linux（如 CentOS 7）环境中，只要具备 Python 3 即可正常启动源码预览：
 
 ```bash
 python3 --version
 ```
 
-如果当前 VS Code 版本没有 `editor-browser` 调试类型，可以先运行 `Terminal > Run Task > Netlist Graph Builder: Serve`，再从 `Ports` 面板转发 4173，并执行 `Browser: Open Integrated Browser` 打开 `http://127.0.0.1:4173/`。
+若当前 VS Code 版本不支持 `editor-browser` 调试类型，可依次执行 `Terminal > Run Task > Netlist Graph Builder: Serve`，在 `Ports` 面板确认转发 `4173` 端口，随后通过命令面板调用 `Browser: Open Integrated Browser` 访问 `http://127.0.0.1:4173/`。
 
-> CentOS 7 兼容说明：[当前 VS Code Remote Development 官方基线](https://code.visualstudio.com/docs/remote/linux)要求 glibc 2.28、libstdc++ 3.4.25 和 kernel 4.18，CentOS 7 已不在正式支持范围内。如果 Remote-SSH 本身无法连接，应优先升级到 Rocky Linux、AlmaLinux 或 RHEL 8+；也可以按 [VS Code Remote FAQ](https://code.visualstudio.com/docs/remote/faq) 配置自定义 sysroot。项目提供的 Python 回退只解决预览服务运行时，不会修复 VS Code Server 自身的系统依赖。
+> **CentOS 7 远程连接提示**：[VS Code Remote Development 官方系统基线](https://code.visualstudio.com/docs/remote/linux)要求远程主机具备 glibc 2.28、libstdc++ 3.4.25 与 kernel 4.18，CentOS 7 已不在官方支持范围内。若 Remote-SSH 自身无法建立连接，建议优先升级至 Rocky Linux、AlmaLinux 或 RHEL 8+，或参考 [VS Code Remote FAQ](https://code.visualstudio.com/docs/remote/faq) 配置自定义 sysroot。本项目提供的 Python 回退仅解决预览 Web 服务的运行时依赖，无法替代 VS Code Server 自身的底层系统库。
 
-### 命令行启动
+### 命令行直接启动
 
-常规开发需要 Node.js 18 或更高版本。项目没有外部运行依赖：
+常规源码开发推荐使用 Node.js 18 或更高版本（零外部 npm 依赖）：
 
 ```bash
 npm start
 ```
 
-老版本 Linux 也可以直接使用 Python 3：
+在缺少新版 Node.js 的 Linux 环境中，可直接使用 Python 3 启动：
 
 ```bash
 python3 -u tools/serve.py
 ```
 
-启动器只监听 `127.0.0.1`，默认自动打开浏览器；用 `--no-open` 只启动服务，用 `--port` 或 `PORT` 修改端口。启动成功后 stdout 输出一行 JSON ready 信息，EDA 进程可以据此取得最终 URL 和启动目标。
+所有启动器均仅绑定本地回环地址 `127.0.0.1`，默认自动唤起浏览器；传入 `--no-open` 可仅启动后台服务，传入 `--port`（或设置环境变量 `PORT`）可指定监听端口。服务就绪后会在 `stdout` 输出单行 JSON 格式的 `ready` 消息，供外层脚本或 EDA 进程解析实际 URL 与启动目标。
 
-### EDA 启动接口
+### EDA 命令行与脚本接口
 
-Node、Python、Windows 与 Linux `ngb` 共享主要业务参数。下面的命令会加载指定网表和时序，打开 `top`，并以 `u0` 为中心显示前向 1 层、后向 2 层的局部图：
+Node.js、Python、Windows 离线版与 Linux 单文件 `ngb` 共享一致的业务命令行参数。以下命令示例会加载指定的网表、时序与单元配置，默认打开 `top` 模块，并以实例 `u0` 为中心展示扇入深度 1、扇出深度 2 的局部聚焦图：
 
 ```powershell
 node tools/serve.mjs --netlist "C:\EDA jobs\design one.v" --timing "C:\EDA jobs\timing one.txt" --cell-config "C:\EDA jobs\cells.json" --module top --focus u0 --fanin-depth 1 --fanout-depth 2 --no-open
 ```
 
-Python 用法只需将命令头替换为 `python3 -u tools/serve.py`；Windows 发布包使用 `NetlistGraphBuilder.exe`。可用参数如下：
+使用 Python 时只需将命令前缀替换为 `python3 -u tools/serve.py`；使用 Windows 发布包时替换为 `NetlistGraphBuilder.exe`。常用参数说明如下：
 
-- `--netlist <path>`、`--timing <path>`、`--cell-config <path>`：启动输入；含空格的路径需要按 shell 规则加引号。
-- `--module <name>`、`--focus <instance>`：初始 module 与聚焦 cell。
-- `--fanin-depth <0-99>`、`--fanout-depth <0-99>`：Focused neighborhood 的独立深度，`0` 表示关闭该方向。
-- `--port <0-65535>`：本机端口；传 `0` 让操作系统自动选择空闲端口；`--no-open`（兼容旧名 `--no-browser`）禁止自动打开浏览器。
+- `--netlist <path>`、`--timing <path>`、`--cell-config <path>`：指定启动时自动加载的输入文件路径（含空格路径请加引号）。
+- `--module <name>`、`--focus <instance>`：指定初始打开的模块名称与聚焦单元实例。
+- `--fanin-depth <0-99>`、`--fanout-depth <0-99>`：分别设置 Focused 视图向输入侧（fanin）和输出侧（fanout）扩展的层数，`0` 表示关闭该方向。
+- `--port <0-65535>`：指定本地监听端口，传入 `0` 由操作系统自动分配空闲端口；`--no-open`（兼容旧别名 `--no-browser`）禁止自动打开浏览器。
 
-Node/Python 还支持用于脚本或 EDA 外层封装的会话管理：
+此外，Node.js、Python 与 Linux `ngb` 均支持面向自动化脚本的会话生命周期管理子命令：
 
 ```bash
 node tools/serve.mjs start --netlist ./results/top.v --port 0 \
@@ -154,142 +146,145 @@ node tools/serve.mjs status --state-file ./results/ngb-session.json
 node tools/serve.mjs stop --state-file ./results/ngb-session.json
 ```
 
-Python 只需将命令头替换为 `python3 -u tools/serve.py`。`start` 可以省略以保持旧命令兼容；`stop` 只根据状态文件验证并关闭对应进程，不按端口号搜索或杀进程。
+其中 `start` 子命令可省略以兼容传统直接传参写法；`stop` 严格依据状态文件校验目标进程身份后安全终止服务，绝不按端口号盲目搜索或强杀无关进程。
 
-ready 行不包含网表、时序或 Cell Config 原文，例如：
+服务启动成功后输出的 `ready` JSON 仅包含文件名与目标摘要，绝不泄露网表、时序或配置原文：
 
 ```json
 {"event":"ready","host":"127.0.0.1","port":4173,"url":"http://127.0.0.1:4173/?startup=1","startup":{"netlist":"design one.v","timing":"timing one.txt","cellConfig":"cells.json","module":"top","focus":"u0","faninDepth":1,"fanoutDepth":2}}
 ```
 
-文件不可读、Cell Config schema 非法、module/focus 与 Node 启动时加载的网表不匹配，或参数越界时，启动器在监听端口前输出明确错误并以非零状态退出。可运行 `npm run test:launcher` 验证 Node/Python 端到端协议。
+当输入文件不可读、Cell Config JSON 结构非法、指定的 `module`/`focus` 在网表中不存在（Node 启动预校验）或数值参数越界时，启动器会在绑定端口前输出清晰报错并以非零状态码退出。可执行 `npm run test:launcher` 运行端到端启动协议测试。
 
-没有启动输入时页面加载内置示例。可以打开或拖入 `.v`、`.sv`、`.txt` 网表、`.json` layout Golden 和 `.log` timing 日志；鼠标不在输入框中时，也可以直接按 `Ctrl+V`，程序会自动识别剪贴板中的文件或文本。对于一小段临时网表，从顶部 `Import` 选择 `Paste netlist` 后粘贴文本即可立即画图。
+若启动时未指定任何输入文件，页面将默认加载内置示例网表。用户可随时通过顶部菜单打开、向页面任意位置拖放 `.v` / `.sv` / `.txt` 网表、`.json` Layout Golden 及 `.log` 时序文件；当输入焦点不在文本框内时，也可直接按 `Ctrl+V` 粘贴剪贴板中的文件或文本。若只需临时查看一小段网表代码，点击顶部 `Import > Paste netlist` 粘贴文本即可立即绘图。
 
-## 快速输入与层次浏览
+## 快速上手指南
 
-1. 点击“打开网表”、将文件拖到页面，或在页面上直接粘贴 Verilog 文本，均可快速载入网表。
-2. `Paste` 文本框适合复制一段小型 structural Verilog 后立即查看，不需要先保存成本地文件。
-3. 拖放和全局粘贴会自动区分 Verilog、layout Golden 与 LocResyn timing；同时提供多个文件时，会先载入网表，再应用与之配套的 Golden 和 timing。
-4. 使用 `More > Save Golden` 保存当前 layout Golden；先载入对应网表，再使用 `More > Load Golden` 恢复布局。Golden 必须与目标 module 和网表内容匹配。
-5. 层次化网表中的子 module 实例可通过双击进入其 module 定义；使用 Module 下拉框可随时切换到其他 module。
-6. 展开左侧 `Module hierarchy` 可查看完整实例路径并点击切换 module；关闭列表不会持续构建层次树。
+### 快速输入与层次浏览
 
-## 示例文件
+1. **载入网表**：点击顶部 `Import > Open netlist`、将文件直接拖入页面，或在页面空白处按 `Ctrl+V` 粘贴 Verilog 文本，均可快速加载设计。
+2. **代码片段直绘**：`Import > Paste netlist` 适合直接复制一小段结构化 Verilog 代码并立即成图，无需先保存为本地文件。
+3. **多文件智能识别**：拖放与全局粘贴会自动区分 Verilog 网表、Layout Golden 与时序日志；当同时拖入多个文件时，系统会严格按“先加载网表，再依次应用配套 Timing 与 Golden”的顺序等待执行。
+4. **Golden 布局存取**：通过 `More > Save Golden` 保存当前模块的布局与手动微调结果；下次先载入相同网表，再点击 `More > Load Golden` 即可恢复布局（Golden v3 会自动校验目标模块名与网表内容指纹）。
+5. **层次化跳转**：对于包含子模块实例的层次化网表，双击画布中的子模块实例即可钻取进入其模块定义；也可随时通过顶部 `Module` 下拉框切换模块。
+6. **模块实例树**：展开左侧 `Module hierarchy` 面板可查看完整实例层次路径并点击切换上下文；折叠该面板时不会消耗资源构建层次树。
 
-- `examples/two_equivalent_style_modules.v`：基础 resyn/Flex 双 module compare 示例。
-- `examples/hierarchical_escaped_compare.v`：包含 escaped hierarchical module、port、net 和 Flex 配对的真实结构示例。
-- `examples/hierarchical_escaped_timing.txt`：与 hierarchical compare 示例配套的 LocResyn timing 数据。
-- `examples/large_buffer_chain_1024.v`：Stage 4 千级 cell 大图和 bounded cone smoke 示例。
+### 示例文件说明
 
-大图文件由以下命令确定性生成：
+仓库 `examples/` 目录提供了多组典型测试网表：
+
+- `examples/two_equivalent_style_modules.v`：基础重综合（resyn / Flex）双模块对比示例。
+- `examples/hierarchical_escaped_compare.v`：包含转义层次化标识符（escaped hierarchical identifiers）与 Flex 配对模块的真实结构示例。
+- `examples/hierarchical_escaped_timing.txt`：与 `hierarchical_escaped_compare.v` 配套的 LocResyn 时序日志示例。
+- `examples/large_buffer_chain_1024.v`：1024 级缓冲器长链大图与有界锥体（bounded cone）测试示例，可通过以下命令确定性生成：
 
 ```powershell
 node tools/generate-large-example.mjs
 ```
 
-`large_buffer_chain_1024.v` 是 1024 级严格串行链，Fit Whole 时会呈现为一条很细的全局概览。滚轮放大会根据画布宽度自动提高最大倍率；也可以搜索 `u_buf_512` 等 instance，视图会直接居中并放大到可读的 cell 尺寸。实际分析建议优先从 output 打开 bounded fanin cone。
+> **提示**：`large_buffer_chain_1024.v` 为 1024 级严格串行链路，在 `Whole` 整图适配（Fit）时会呈现为一条细长的全局概览。滚轮缩放会根据画布实际宽度动态提升最大放大倍率；建议直接在顶部搜索框搜索 `u_buf_512` 等实例名称，视图会自动居中并放大至清晰可读的尺寸，或从输出端口开启有限深度的 `Focused` 视图进行分析。
 
-## Single View 使用方法
+### Single View（单模块视图）操作流程
 
-1. 载入 structural Verilog，然后从 Module 下拉框选择 module。
-2. 点击 node 或 wire，在 Selection 面板查看连接关系；点击其中的 net、Connected、Fanin 或 Fanout 项可快速选中并居中对应对象。选中长 net 后可拖动画布追踪到远端，平移不会取消高亮，单击空白处才会清除选择。
-3. 双击子 module 实例可直接跳转到对应 module 定义。
-4. 使用 Whole 查看整图；搜索未绘制 cell 会进入或追加到 Focused，Fanin/Fanout depth 分别控制两侧上下文。搜索结果的 `+ Focus` 和 `Add selected` 追加 root，`Set selected as Focused` 替换全部 roots。
-5. 使用 `Show aliases` 控制 assign alias 是否显示。
-6. 点击 Adjust 后可拖动节点；使用 `More > Save Golden` 保存布局，使用 `More > Load Golden` 恢复与当前网表匹配的布局。
-7. 使用 `More > Export SVG` 导出当前完整 module 或局部 schematic。
+1. 载入结构化 Verilog 网表，从顶部 `Module` 下拉框选择目标模块。
+2. 单击画布中的单元（node）、端口（port）或导线（wire），在左侧 `Selection` 面板查看详细连接；点击面板内的关联 net、`Connected`、`Fanin` 或 `Fanout` 按钮可快速跳转并居中目标对象。选中长导线后可按住画布拖动追踪至远端（平移操作不会清除当前高亮，单击空白区域才会取消选择）。
+3. 双击子模块实例可直接进入对应的子模块定义视图。
+4. 点击 `Whole` 查看完整模块图；对于大型模块，搜索未绘制的单元会自动进入或追加至 `Focused` 局部视图，通过 `Fanin depth` 与 `Fanout depth` 独立控制前后向展开层数。搜索结果右侧的 `+ Focus` 与 View 区的 `Add selected` 用于追加聚焦根节点，`Set selected as Focused` 则用于替换全部根节点。
+5. 切换 `Show aliases` 可控制是否显式展示 `assign` 别名连线；切换 `Gate symbols` 可在矩形框与标准逻辑门符号之间切换。
+6. 开启 `Adjust layout` 后可自由拖拽节点位置或修改尺寸；通过 `More > Save Golden` 保存校准结果，通过 `More > Load Golden` 恢复。
+7. 点击 `More > Export SVG` 可将当前完整模块或局部聚焦原理图导出为独立 SVG 文件。
 
-## Compare View 使用方法
+### Compare View（双模块对比视图）操作流程
 
-1. 加载至少包含两个 module 的网表，在 Single View 中先选中作为左侧基准的 module。
-2. 点击顶部 `Compare` 进入对比模式。系统会优先推荐同名前缀及 `_Flex`、`_orig`、`_new` 后缀的配对 module。
-3. 在 Module Compare 面板选择 Left 和 Right，然后点击 `Apply` 应用新的组合。
-4. 进入后顶部按钮会显示为 `Single`；点击它或面板中的 `Single` 均可退出对比模式，不会执行 Fit。
-5. Layout 默认为 `Top / Bottom`（上下）；可切换为 `Left / Right`（左右）。切换布局后两侧视图会自动 Fit。
-6. `Sync pan / zoom` 默认开启：在任一视图缩放或平移时，另一侧使用相同变换。关闭后可单独操作两侧。
-7. 点击 `Fit` 会同时重置两侧视图。
-8. 点击任一侧的同名 port、net 或 cell，会在两侧高亮对应对象；port/cell 会自动居中聚焦。
-9. `Sync Focus roots` 默认开启；在一侧追加、移除或清空 root 时，会对另一侧的匹配 cell 执行同类操作，无匹配对象时只修改当前侧。
-10. 在 `Output cone` 中选择两侧共有的 output，例如内置示例的 `sco_891`，即可同时显示两侧 fanin cone。Depth 控制 cone 深度，选择 `Whole module` 返回整图。
-11. Design 面板显示两侧 cell count、gate kind count、logic depth 粗估、max fanout、差值和 unmatched 数量。
+1. 载入至少包含两个模块的网表，可先在 Single View 中选中作为左侧基准的模块。
+2. 点击顶部工具栏的 `Compare` 按钮进入对比模式。系统会自动识别并优先推荐同名前缀及带有 `_Flex`、`_orig`、`_new` 等常见后缀的配对模块。
+3. 在左侧 `Module Compare` 面板分别指定 `Left` 与 `Right` 模块，点击 `Apply` 应用对比组合。
+4. 进入对比模式后，顶部原按钮变为 `Single`；点击顶部或左侧面板中的 `Single` 均可返回单图模式（保持各自视口，不强制重置 Fit）。
+5. 分屏布局（`Layout`）默认为 `Top / Bottom`（上下分屏），可切换为 `Left / Right`（左右分屏），切换分屏方向后两侧视图会自动适配窗口。
+6. `Sync pan / zoom` 默认开启：在任意一侧缩放或平移画布时，另一侧会同步应用相同的视口变换；关闭后两侧可独立缩放平移。点击顶部 `Fit` 会同时重置两侧视口。
+7. 单击任一侧的同名端口、线网或匹配单元，两侧画布会同步高亮对应对象，且端口与单元会自动居中聚焦。
+8. `Sync Focus roots` 默认开启：在一侧追加、移除或清空聚焦根节点时，会自动对另一侧的匹配单元执行相同操作；若另一侧无对应单元，则仅更新当前侧。
+9. 在 `Output cone` 下拉框中选择两侧共有的输出端口（例如内置示例中的 `sco_891`），即可同步对比两侧的扇入逻辑锥；调整 `Depth` 控制追踪层数，选择 `Whole module` 返回整图对比。
+10. 左侧 `Design` 统计面板会并列展示两侧的单元总数、门类型分布、估算逻辑深度（logic depth）、最大扇出（max fanout）、数量差值及未匹配（unmatched）对象统计。
 
-## 大图与布局功能
+### 大图渲染与布局策略
 
-1. `Layout` 默认选择 `Native Layered H08`；失败依次尝试 `ELK Layered (Experimental)`、`Simple Layered`，最终失败后停止重试。ELK 已 vendored，运行时不联网；取消任务不触发降级。
-2. `Fanout hubs` 默认开启：fanout 不少于 8 的同源 net 使用共享 hub，减少重复长干线。
-3. 结构分组折叠已退出产品范围；mapped 基线、性能优化和新交互均按完整图、Search-first 或 Focused 设计。旧 session/golden 中的折叠字段仅作兼容读取。
-4. 可见节点与连线总量达到 400 后使用分批 SVG 渲染，状态栏显示 rendering 进度；最终画面仍包含完整 wire bridge、label 和命中区域。
-5. 缩放低于 0.65 时自动隐藏 pin、net、metadata 和 timing 文字，放大后恢复。
-6. 当前网表文本保存在浏览器 `sessionStorage`；刷新同一标签页会恢复网表和工作状态，关闭标签页后由浏览器清理。
-7. ELK 模式支持混合 Adjust：ELK 生成基础布局，手动位置/尺寸覆盖只修改目标节点，相连 edge 自动进行 Manhattan 重布线；Reset 恢复 ELK 自动坐标。
-8. Wire/Cell spacing 可用滑块或数字输入；数字会吸附到最近的 4 的倍数。连接 top/bottom pin 时会保留可辨认的最后转角。
+1. **布局引擎与降级**：`Layout` 默认选用 `Native Layered H08`；若遇到不支持的复杂拓扑导致失败，会依次尝试 `ELK Layered (Experimental)` 与 `Simple Layered`。ELK 引擎已完整本地化（vendored），运行时无需联网；主动取消任务不会触发降级。
+2. **高扇出中继（Fanout hubs）**：默认开启，扇出数不少于 8 的同源线网会自动插入共享 hub 节点，显著减少长距离平行干线。
+3. **全图与聚焦策略**：结构分组折叠（Group-collapse）已退出产品路线；映射网表回归、性能优化与大图交互均围绕完整图、`Search-first` 与 `Focused` 局部图构建（旧存档中的折叠字段仅作向后兼容忽略）。
+4. **渐进式渲染**：当可见节点与连线总数达到 400 时，自动启用可取消的分批 SVG 渲染，底部状态栏实时显示渲染进度；渲染完成后会完整恢复所有跨线桥接弧（wire bridge）、线网标签与点击热区。
+5. **LOD 细节自适应**：当画布缩放倍率低于 `0.65` 时，自动隐藏引脚名、线网标签、单元元信息与时序徽标文字以保证流畅度，放大后自动恢复。
+6. **标签页会话保持**：当前网表与工作台状态自动保存在浏览器 `sessionStorage` 中；刷新同一标签页可无缝恢复网表、模块、聚焦状态与视口位置，关闭标签页后自动释放。
+7. **混合手工微调**：在 `H08`、`ELK` 或 `Simple` 模式下均可开启 `Adjust` 手工拖拽节点；未改动节点保持自动布局坐标，改动节点的关联导线自动执行正交避障重布线，点击 `Reset layout` 即可恢复自动布局结果。
+8. **间距吸附与引脚可读性**：`Wire spacing` 与 `Cell spacing` 支持滑块和数字输入（自动吸附至 4 的倍数）；连接单元上下边缘引脚的导线会自动保留末段可见转角。
 
-## 结构差异高亮
+### 结构差异高亮说明
 
-Compare View 使用启发式结构对比，不进行逻辑等价或形式等价证明。
+Compare View 采用**基于名称、方向与门类型的启发式结构对比**，不等同于形式化逻辑等价性证明（Formal Equivalence Checking）：
 
-- 绿色实线表示两侧可建立基础对应关系：同名且方向一致的 port、同名 net，或两侧都存在的 gate kind。
-- 红色虚线表示当前仅在一侧存在或无法建立上述对应关系的对象：unmatched port/net，以及 gate kind 只在一侧出现的 cell。
-- 点击对象产生的橙色高亮表示当前选择，与绿色/红色的结构分类含义不同。
-- port 对齐以规范化名称和方向为依据；net 对比以名称为依据；cell 目前只比较推断出的 gate kind，不自动匹配内部 instance 或拓扑子图。
-- logic depth 根据图中最长 cell 路径粗估；max fanout 根据单个图节点的最大出边数计算。
-- 因此红色代表“需要关注的结构差异候选”，不代表电路一定不等价；绿色也不代表对象在逻辑或拓扑上完全等价。
+- **绿色实线**：表示两侧对象建立了基础结构对应关系——包括规范化名称相同且方向一致的端口（port）、同名线网（net），或两侧均存在的逻辑门类型（gate kind）。
+- **红色虚线**：表示仅在单侧存在或无法建立上述对应关系的对象——包括未匹配的端口/线网，以及门类型仅在其中一侧出现的单元。
+- **橙色高亮**：表示用户当前点击选中的对象，与绿/红结构分类正交叠加。
+- **对比粒度说明**：端口对齐依据规范化名称与方向；线网对比依据名称；单元对比目前依据推断出的 `gate kind`，不会自动对内部匿名实例名或异构子图做拓扑同构匹配。
+- **统计指标说明**：`logic depth` 根据当前图中最长单元路径做启发式估算；`max fanout` 按单个图节点的最大出边数计算。因此，红色虚线代表“值得关注的潜在结构差异点”，并不代表两侧电路功能不等价；绿色实线也不代表两侧在逻辑或拓扑上完全等价。
 
-## 测试
+## 测试与验证
+
+日常开发可通过以下命令运行验证套件：
 
 ```powershell
 npm test
+npm run test:architecture
 npm run test:docs
 npm run test:launcher
+npm run test:mapped-cases
 ```
 
-Linux 单文件的 CMake/HTTP/Tcl 测试单独通过 `ctest --test-dir build/linux --output-on-failure` 运行，
-不会在浏览器运行时或普通 clone 时安装 Python/Tcl 依赖。
+- `npm test`：运行 904 项单元测试，覆盖语法解析、单元/引脚推断、图模型提取、布局与正交布线、时序标注、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
+- `npm run test:architecture`：基于离线 Acorn AST 校验全仓模块依赖方向、跨层边界与无环约束。
+- `npm run test:docs`：校验核心文档与教程中的所有相对路径链接有效性。
+- `npm run test:launcher`：验证 Node.js 与 Python 启动器的 CLI 参数、状态文件及 HTTP 协议。
+- `npm run test:mapped-cases`：在 47 个真实综合映射网表（`tests/fixtures/mapped/`）上运行布局与几何硬约束回归。
+- Linux 单文件启动器的 CMake、HTTP 生命周期与 Tcl 集成测试通过 `ctest --test-dir build/linux --output-on-failure` 独立运行。
 
-测试覆盖 parser、cell/pin inference、graph extraction、layout/routing、timing annotation、搜索、对象检查、cone、alias、module compare、provider、结构简化、session 和 SVG 渲染。
+## 项目目录结构
 
-## 项目结构
-
-现行边界见 [架构说明](docs/ARCHITECTURE.md)。已实现的多领域工作台设计见
-[可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)。
-后续的层次追踪、Cell/Net Focused、可切换标准门符号、大图交互与 Compare 按需加载见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。
-测试用内存 AIG 已验证扩展边界，但生产级 AIG 输入仍不是正式产品功能。
+现行模块边界详见 [架构设计说明](docs/ARCHITECTURE.md)，多领域工作台演进设计见 [可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计记录见 [阶段 7 计划](docs/STAGE_7_PLAN.md)，跨层追踪、Cell/Net 聚焦、标准门符号与大图交互优化见 [阶段 8 计划](docs/STAGE_8_PLAN.md)（内存 AIG 样例仅用于验证多领域架构边界，生产级 AIG 导入尚未作为正式功能开放）。
 
 ```text
-docs/                 路线图、阶段计划、架构和设计规范
-examples/             示例输入与输出
-src/analysis/         cone、alias、对象连接和 module compare 分析
-src/app/              浏览器入口、工作区组合与兼容投影
-src/application/      Document/ViewSession、commands、jobs 和 Compare 协调
-src/bootstrap/        静态领域注册与产品组装
-src/contracts/        ObjectRef、领域、查询和视图契约
-src/diagram/          中性显示图、共享 view pipeline 与测量契约
-src/domains/netlist/  Netlist feature、领域投影、Timing/Cell Config/Golden 用例
-src/foundation/       无领域含义的 identity、结构值与图/几何基础能力
-src/infer/            无 Liberty 的 cell/pin 推断规则
-native/               Linux 单文件启动器、嵌入资源和 CMake 安装
-src/layout/           H08/ELK/Simple provider、节点几何、routing 和 snap
-src/netlist/          Netlist IR 与 graph extraction
-src/parser/           Structural Verilog tokenizer/parser
-src/persistence/      session/startup/source identity 等版本化 codec
-src/platform/         浏览器下载与存储等副作用适配
-src/render/           SVG 渲染与独立 SVG 导出
-src/search/           设计对象索引与搜索
-src/timing/           LocResyn timing 解析与图标注
-src/ui/               Selection、Timing 和 Adjust 面板
-tests/fixtures/       小型测试网表
-tests/unit/           单元测试
-tools/                本地开发工具与大图示例生成器
-tools/eda/            Tcl 启动、状态查询与安全关闭 helper
+docs/                 项目路线图、阶段计划、架构说明、设计规范与使用教程
+examples/             示例 Verilog 网表与配套时序文件
+native/               Linux C++11 单文件启动器、资源嵌入脚本与 CMake 构建配置
+src/analysis/         逻辑锥（cone）、别名规范化、对象连接查询与模块对比分析
+src/app/              浏览器入口组装、工作区桥接与旧状态兼容投影
+src/application/      Document/ViewSession 状态存储、命令总线、任务协调与对比会话
+src/bootstrap/        静态领域注册与工作台依赖组装
+src/contracts/        ObjectRef、领域接口、查询与视图契约定义
+src/diagram/          领域中性的显示图模型、共享视图流水线与几何测量契约
+src/domains/netlist/  Netlist 领域特性、图投影、时序/单元配置/Golden 业务用例
+src/foundation/       无业务含义的标识符编码、不可变结构值与基础图/几何工具
+src/infer/            无 Liberty 环境下的标准单元类型与引脚方向推断规则
+src/layout/           H08 / ELK / Simple 布局引擎、节点几何、正交布线与网格吸附
+src/netlist/          Netlist IR 数据模型与结构图提取
+src/parser/           结构化 Verilog 词法与语法解析器
+src/persistence/      会话、启动清单与源码指纹等版本化编解码器（codec）
+src/platform/         浏览器文件下载与本地存储等平台副作用适配
+src/render/           SVG 场景渲染器、渐进式分批渲染与独立 SVG 导出
+src/search/           设计对象索引构建与搜索匹配
+src/timing/           LocResyn 与 Global/Local 时序日志解析及图标注
+src/ui/               画布手势、视口变换、搜索栏及 Selection / Timing / Adjust 面板
+tests/fixtures/       单元测试与 47 个综合映射网表回归用例
+tests/unit/           全量单元测试套件
+tools/                本地开发服务、架构门禁、性能基准与大图生成脚本
+tools/eda/            面向 EDA 工具的 Tcl 启动、状态查询与安全关闭辅助脚本
 ```
 
-## 当前限制
+## 当前已知限制
 
-- 只支持 structural Verilog 常用子集，不是完整 Verilog/SystemVerilog 前端。
-- 不解析 Liberty `.lib`，复杂或定制 cell 可能需要手动修正 pin direction。
-- Balanced/Folded 深层 DAG 布局仍是实验性遗留方向；当前大图主要通过 ELK、Search-first 和有限深度 Focused 浏览，不再新增 group collapse 能力。
-- Compare 是名称、gate kind 和图统计驱动的启发式分析，不提供形式等价或逻辑等价证明。
-- 内存 AIG 样例只用于验证架构扩展性；尚未提供生产级 AIGER 导入、AIG 浏览界面或等价分析。
+- **Verilog 语法子集**：仅支持综合后常见的结构化门级 Verilog 子集，并非完整的 Verilog / SystemVerilog 编译前端（不支持行为级 `always`、宏展开或复杂参数化展开）。
+- **无 `.lib` 启发式推断**：不解析 Liberty `.lib` 文件；遇到命名非标的定制单元或复杂宏单元时，可能需要通过 `Cell Config` 或 `Adjust` 面板手动指定引脚方向。
+- **超大图浏览策略**：深层 DAG 的 Balanced/Folded 折叠排布仍属暂缓的实验方向；当前针对大型模块优先通过 `H08` / `ELK`、`Search-first` 与有限深度的 `Focused` 局部视图进行浏览，不再扩展结构分组折叠（group collapse）。
+- **启发式模块对比**：`Compare` 模式基于端口/线网名称、逻辑门类型及图统计特征提供启发式结构对比，不提供形式化等价性证明。
+- **AIG 支持范围**：测试套件中的内存 AIG 仅用于验证多领域工作台架构边界，尚未提供生产级 AIGER 文件导入、AIG 专用界面或逻辑等价分析。
 
-详细路线图见 [docs/PLAN.md](docs/PLAN.md)；大图基线见 [阶段 4](docs/STAGE_4_PLAN.md)，当前工作台架构与审计证据见 [阶段 7](docs/STAGE_7_PLAN.md)，下一阶段产品计划见 [阶段 8](docs/STAGE_8_PLAN.md)。
+长期路线图详见 [docs/PLAN.md](docs/PLAN.md)；大图性能基线见 [阶段 4 计划](docs/STAGE_4_PLAN.md)，工作台架构重构与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)，当前阶段功能规划见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。

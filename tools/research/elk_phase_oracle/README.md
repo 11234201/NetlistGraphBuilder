@@ -1,87 +1,46 @@
-# ELK Java phase oracle harness
+# ELK Java 相位对照测试台（Phase Oracle Harness）
 
-This research-only harness executes the real white-box processor schedule from Eclipse ELK commit
-`28e5173243cab0cf4e2c9816c803bc0d5c47ab24`. It is not production code and is not a substitute for the browser-native
-implementation.
+本目录为**仅供算法研究与回归验证使用的白盒测试台**，用于执行固定上游 Eclipse ELK 提交（`28e5173243cab0cf4e2c9816c803bc0d5c47ab24`）的真实处理器流水线。本目录代码不属于生产运行时，也不替代仓库内的纯静态浏览器原生实现（`src/layout/elk_native/`）。
 
-The checked-in Java file, research-only test manifest and build properties are copied into ELK's existing layered
-test bundle. The build properties compile only `oracle_src/`; the manifest removes its unused dependency on ELK's
-broad algorithm-test helper bundle. The harness registers only Core and Layered metadata providers. Tycho still
-supplies the exact OSGi, EMF, Guava and generated-option classpath.
-`LayeredLayoutProvider.startLayoutTest()` imports the graph, and
-`ElkLayered.runLayoutTestStep()` executes one actual configured processor at a time. The harness serializes the graph
-after every processor and labels P1, P2, long-edge split, P3, dummy merge, P4, P5 and restoration milestones.
+## 1. 工作原理
 
-The remote runner expects:
+本目录中的 Java 测试类、专用测试清单（manifest）与构建属性文件会被拷贝至上游 ELK 的 `layered` 测试 Bundle 中：
+- 构建配置仅编译 `oracle_src/`，并移除了对上游重量级通用算法测试辅助包的冗余依赖。
+- 测试台仅注册 `Core` 与 `Layered` 元数据提供者，由 Maven/Tycho 提供精确的 OSGi、EMF、Guava 与生成选项类路径（classpath）。
+- 通过 `LayeredLayoutProvider.startLayoutTest()` 导入待测图，并调用 `ElkLayered.runLayoutTestStep()` 逐一单步执行实际配置的处理器（processor），在每一步执行后序列化中间图状态，标记 `P1`、`P2`、长边拆分（long-edge split）、`P3`、虚拟节点合并（dummy merge）、`P4`、`P5` 以及逻辑边恢复（restoration）等里程碑快照。
 
-- extracted pinned ELK source at `/home/wzh/open_source/elk-layered-phase-oracle-pinned`;
-- Java 17 at `/home/wzh/open_source/toolchains/jdk17_apt/root/usr/lib/jvm/java-17-openjdk-amd64`;
-- Maven 3.9.9 at `/home/wzh/open_source/toolchains/apache-maven-3.9.9`.
+## 2. 远端运行方式
 
-Copy this directory to `/home/wzh/my_code/elk-layered-phase-oracle/harness`, then run:
+远端运行脚本默认期望以下工具链路径（均可通过环境变量覆盖）：
+
+- 解压后的固定版本 ELK 源码：`/home/wzh/open_source/elk-layered-phase-oracle-pinned`（环境变量 `ELK_UPSTREAM_ROOT`）
+- Java 17：`/home/wzh/open_source/toolchains/jdk17_apt/root/usr/lib/jvm/java-17-openjdk-amd64`（环境变量 `ELK_JDK_ROOT`）
+- Maven 3.9.9：`/home/wzh/open_source/toolchains/apache-maven-3.9.9`（环境变量 `ELK_MAVEN_ROOT`）
+
+将本目录拷贝至远端 `/home/wzh/my_code/elk-layered-phase-oracle/harness`（可通过 `ELK_ORACLE_ROOT` 覆盖）后执行：
 
 ```sh
 bash /home/wzh/my_code/elk-layered-phase-oracle/harness/run_oracle.sh
 ```
 
-Environment variables `ELK_ORACLE_ROOT`, `ELK_UPSTREAM_ROOT`, `ELK_JDK_ROOT` and `ELK_MAVEN_ROOT` override those
-locations. A positional argument overrides the JSON output path. Maven/Tycho dependencies and generated build output
-remain remote; only the normalized small oracle result is copied back to the repository.
+可通过位置参数覆盖输出的 JSON 路径。Maven/Tycho 缓存与编译中间产物保留在远端构建机上，仅将规范化后的小型 oracle 快照 JSON 拷回代码仓库。
 
-The runner reads the durable SOP015 TSV from `tests/fixtures/elk_parity/inputs/` relative to this repository.
-When the harness is copied alone, set `ELK_ORACLE_FOCUSED_INPUT` to that separately copied input file.
-It no longer relies on an untracked `harness/inputs` directory.
+- **默认输入读取**：运行器默认读取仓库 `tests/fixtures/elk_parity/inputs/` 下的持久化 `SOP015` TSV 输入文件；若单独拷贝测试台目录运行，请将环境变量 `ELK_ORACLE_FOCUSED_INPUT` 指向单独拷贝的 TSV 文件。
+- **扩展输入（Harness 1.4.0+）**：支持通过 `ELK_ORACLE_INPUT_DIR` 指定包含 `<case_id>.tsv`（由 `export_focused_inputs.mjs` 导出）的绝对目录。导出器完整保留实际的节点、端口、边数组顺序、测量几何尺寸以及无固定端口的**节点级端点**（用于高扇出 hub 节点，严禁凭空捏造固定端口）。
+- **快照 Schema（1.1.0）与 BK 决策伴随文件（Harness 1.5.0+）**：
+  - 主快照采用 schema `1.1.0`，记录 P2 目标值、P3 扫层候选、BK 数组/候选选择及 P5 依赖、拆分、槽位与层宽决策，并包含直接验证关键依赖环与线段拆分的第二组 JUnit 测试。
+  - `export` 同时针对清单中的 `chain_4`、`diamond` 与 `reconvergent_long_edge` 生成快照，可通过 `validate_oracle.mjs <path>` 校验 schema，通过 `validate_artifacts.mjs` 校验图摘要。
+  - Harness `1.5.0` 额外导出 `<case_id>.bk_decisions.json` 伴随文件（`traceVersion: 1.0.0`），记录阈值函数调用、选中边端点/所属端口下标、块完成顺序、延迟队列出队、移动与反向重试轨迹。
 
-Harness revision 1.4.0 optionally imports additional run-local provider inputs from `ELK_ORACLE_INPUT_DIR`.
-Use an absolute directory containing `<case_id>.tsv` files captured by `export_focused_inputs.mjs`.
-The exporter keeps the historical three-Focused default; explicitly selected mapped IDs capture full graphs.
-Capture preserves actual provider node, port and edge array order, measured geometry, and **node endpoints**
-(for portless hubs); it must not manufacture fixed ports to make a port-only importer succeed.
-Auxiliary IDs cannot collide with the durable oracle IDs. Large auxiliary snapshots remain remote and do not
-automatically expand checked-in manifest phase coverage or waive quality gates.
+## 3. 质量隔离与相位差分诊断脚本（非生产引擎）
 
-The current harness emits schema 1.1.0 snapshots. Research-only source probes record the P2 objective, P3 sweep
-candidates, BK arrays/candidate choice and P5 dependency, split, slot and boundary-width decisions. A second JUnit
-test exercises the actual critical-dependency and segment-split path directly. These are smoke/mechanism proofs,
-not yet full stratified-corpus parity; production implementation remains gated on that review.
+以下 CLI 工具专用于隔离验证单一阶段假设，每次运行均执行前后文件集一致性审计：
 
-The exporter also runs `chain_4`, `diamond` and `reconvergent_long_edge` from explicit manifest graphs. Their snapshots are checked with
-`validate_oracle.mjs <path>`. The serializer derives dummy lineage from incident logical source edges, not ELK's
-numeric dummy designation; `validate_artifacts.mjs` verifies the manifest graph digests.
-
-Quality-isolation diagnostics (not production providers):
-
-- `isolate_p3_quality.mjs <oracle.json> <logical-edge-id> <output-dir>` fixes actual upstream pre-P3 ranks,
-  measured ports and initial order, verifies the retained crossing counter, then compares P3/merge/BK candidates.
-- `probe_portless_aliases.mjs <capture.json> <witness.json> <output-dir>` freezes actual P1/ranks/perturbation key,
-  changes only implicit source-port identity, and reports distinct chain heights/roots. Separate variant digests
-  are retained; this is not a canonical-input equality claim or a P5/final quality result.
-- `probe_display_name_ordering.mjs <output-dir>` changes only display names on the six durable phase inputs.
-  It asserts unchanged non-display P0/P1/P2 data and reports the first P3 order divergence without selecting a seed.
-
-Each CLI saves independent before/after file-set audits. A hypothesis passing an isolated phase does not waive
-product quality, strict validation, mapped-worker gates or the user visual decision.
-
-`compare_native_phases.mjs [oracle.json ...]` compares explicitly supplied phase files; without arguments it retains
-the six durable defaults. A missing or invalid explicit file fails, never silently selecting defaults. This comparator
-reports imported-model P1/P2/P3 differences; use the proper-input isolation tool before attributing them to P3 alone.
-
-Harness 1.5.0 exports a separate `<case_id>.bk_decisions.json` sidecar, traceVersion 1.0.0, with threshold calls,
-selected edge endpoints/owned-port indices, block finishing, deferred queue picks, moves and reverse retries.
-It does not extend schema 1.1.0 phase payloads. Its node indices are interpreted only against the connected
-pre-P4 graph. Verify the complete old snapshots unchanged (apart from harness provenance) before using new events.
-`probe_bk_boundary_threshold.mjs <oracle.json> <output-dir>` mechanically observes the candidate's existing
-compactor without overwriting production source; the observer must match the unobserved result on every field.
-Despite the filename, it does not skip boundary thresholds: upstream also calls threshold in placeBlock's else branch.
-
-`compare_bk_decisions.mjs <before-oracle> <observed-oracle> <sidecar> <candidate-report> <output.json>` verifies original
-snapshot invariance and compares the ordered decisions through connected pre-P4 identities. Empty/partial source
-traces are rejected via exact four-candidate block-finish coverage. Only coordinate fields use the named 1e-7 tolerance.
-`replay_bk_port_ties.mjs <oracle> <sidecar> <output-dir>` is a causal same-owned-port order replay, never a provider:
-it cannot bypass edge eligibility or reorder P3 ports. A replay matching ELK does not authorize copying allocation
-order into production or claiming product/visual acceptance.
-
-`isolate_p3_initialization.mjs <oracle> <output-dir>` freezes upstream ranks and the native perturbation key;
-reports eight predeclared layer/port/geometry combinations plus four normal/dummy port controls, complete
-retained orders and concise same-position port witnesses. All controls are research-only. Matching crossing
-counts do not establish matching layer orders or product acceptance. Before/after file-set audits reject mixed runs.
+- **`compare_native_phases.mjs [oracle.json ...]`**：对比显式传入的相位快照文件（不传参时默认对比 6 个持久化基准用例），定位原生实现与上游快照在 P1 / P2 / P3 中的首个差异点。
+- **`isolate_p3_quality.mjs <oracle.json> <logical-edge-id> <output-dir>`**：冻结上游真实的 P3 前置秩（ranks）、测量端口与初始顺序，校验保留的交叉计数器，并对比 P3 / 合并 / BK 候选结果。
+- **`probe_portless_aliases.mjs <capture.json> <witness.json> <output-dir>`**：冻结 P1、秩与扰动键，仅改变隐式源端口身份，报告不同长边链高度与根节点差异。
+- **`probe_display_name_ordering.mjs <output-dir>`**：在 6 个持久化输入上仅修改显示名称（display name），断言非显示类的 P0 / P1 / P2 数据完全不变，并报告首个 P3 排序分歧。
+- **`probe_bk_boundary_threshold.mjs <oracle.json> <output-dir>`**：在不修改生产源码的前提下机械观察现有 BK 压紧器的行为，并断言观察结果与未观察结果逐字段一致。
+- **`compare_bk_decisions.mjs <before-oracle> <observed-oracle> <sidecar> <candidate-report> <output.json>`**：校验原始快照不变性，并通过连通的 P4 前置身份对比有序决策（仅坐标字段允许 `1e-7` 浮点容差）。
+- **`replay_bk_port_ties.mjs <oracle> <sidecar> <output-dir>`**：用于同节点同属端口顺序的因果回放验证（不可作为生产 Provider 使用）。
+- **`isolate_p3_initialization.mjs <oracle> <output-dir>`**：冻结上游秩与原生扰动键，报告 8 组预声明的层/端口/几何初始化组合与 4 组正常/虚拟端口对照结果。

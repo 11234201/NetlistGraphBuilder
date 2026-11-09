@@ -1,30 +1,27 @@
-# Linux 适配状态与后续门禁
+# Linux 平台适配状态与后续门禁
 
-更新：2026-10-21。构建、安装、CLI/Tcl 接口见 [Linux 单文件指南](LINUX_SINGLE_FILE_LAUNCHER.md)，
-实测与待办见 [维护计划](plans/linux_launcher_maintenance.md)。本文件取代最初“仅在 Windows 跑过 79 tests”的陈旧状态，不修改历史实验数据。
+更新时间：2026-10-21（同步至 `v1.1.3`）。关于从源码编译、CMake 安装、CLI 启动协议与 EDA/Tcl 辅助脚本的完整说明，请参阅 [Linux 单文件指南](LINUX_SINGLE_FILE_LAUNCHER.md)；详细的实测环境与遗留跟进项见 [维护计划](plans/linux_launcher_maintenance.md)。本文档已替代早期“仅在 Windows 环境运行过 79 项测试”的旧状态记录，同时完整保留历史实验结论。
 
-## 已具备
+## 1. 已具备的跨平台能力
 
-- Native ES modules、vendored ELK、Node/Python 源码预览，无需 bundler/npm 安装。
-- Linux C++ 单文件启动器、顶层/独立 CMake 入口、可配置 EDA 安装。
-- 标准库 Python 原生协议测试、Tcl helper 与可选 CTest 门禁。
-- Linux/Node 24.16.0 已有应用单元与 mapped 严格回归记录；单机结果不代替系统矩阵。
+- **纯静态前端与源码预览**：采用浏览器原生 ES 模块与本地化的 vendored ELK，支持通过 Node.js 或零第三方依赖的 Python 3 标准库脚本直接启动源码预览，无需任何打包工具（bundler）或 `npm install` 步骤。
+- **Linux C++11 单文件启动器（`ngb`）**：支持顶层或 `native/` 独立子目录 CMake 构建，将全部前端资源与开源许可证编译内嵌至单个 ELF 可执行文件，并支持可配置的 EDA 工程安装集成。
+- **自动化测试与 Tcl 集成门禁**：内置基于 Python 标准库的原生 HTTP / 生命周期协议测试、Tcl 8.5+ 辅助脚本（`tools/eda/ngb.tcl`）及可选的 `CTest` 集成测试套件。
+- **Linux 环境全量回归验证**：已在 Linux（Node 24.16.0 / glibc 2.35）环境下完成全量应用单元测试与 47 个综合映射网表（mapped cases）的严格门禁回归（注：单机验证通过不替代跨发行版兼容性矩阵）。
 
-## 尚未承诺
+## 2. 尚未承诺的边界与环境要求
 
-| 项目 | 状态与要求 |
+| 维度 | 当前状态与使用要求 |
 | --- | --- |
-| 多发行版 ABI | 需在目标 glibc/libstdc++ 基线构建实测；单文件不是静态链接 |
-| CentOS 7 | best-effort；Node/VS Code Server 自身系统依赖不由本项目修复 |
-| 多架构、musl | 未完成发布验证，不宣称可直接通用 |
-| Linux 浏览器矩阵 | HTTP/CLI 通过不等于 Chromium/Firefox 完整 UI E2E |
-| 持续 CI | 服务器手动测试不等同于已配置跨版本 CI |
-| 公网/局域网服务 | 不在范围内，保持仅监听 127.0.0.1 |
+| **多发行版 ABI 兼容** | 单文件 ELF 并非完全静态链接（static binary），仍依赖宿主系统的 `glibc` / `libstdc++`；面向旧发行版分发时需在不高于目标系统库基线的构建机上编译并实测。 |
+| **CentOS 7 历史环境** | 仅提供源码预览服务的 Python 3 回退（best-effort）；新版 Node.js 官方二进制或 VS Code Remote Server 自身的底层系统库要求不由本项目解决。 |
+| **多 CPU 架构与 musl** | 尚未开展非 x86-64 架构或 musl libc 环境的发布验收，暂不宣称直接通用。 |
+| **Linux 桌面浏览器矩阵** | 原生 CLI 与 HTTP 协议测试通过不等同于在各 Linux 发行版的 Chromium / Firefox 上完成了完整图形界面 E2E 验收。 |
+| **跨版本持续集成（CI）** | 远端服务器与本地工作站的实测记录不等同于已建立自动化多平台 CI 流水线。 |
+| **局域网 / 公网暴露** | 明确不在产品支持范围内；所有启动器始终仅绑定本机回环地址 `127.0.0.1`（早期曾讨论过的 `HOST=0.0.0.0` 方案因违反安全契约已废止，远程访问请统一使用 SSH 或 VS Code 端口转发）。 |
 
-## 后续顺序
+## 3. 后续演进顺序
 
-1. 保持应用测试、Node/Python launcher 协议与 native CTest 可复现。
-2. 按真实 EDA 环境选择最低系统库基线，补 Tcl 版本与工具内集成验证。
-3. 补目标发行版、架构、浏览器及 CI 矩阵，再决定正式支持声明。
-
-原计划建议 HOST=0.0.0.0 与当前 localhost 契约冲突，已删除；远程使用通过端口转发。
+1. 持续保持全量单元测试、Node.js / Python 启动器协议测试与 Linux `native` CTest 门禁的 100% 可复现通过。
+2. 结合目标生产 EDA 服务器环境确定最低系统库基线（glibc / libstdc++），补充目标 Tcl 版本与真实商业 EDA 宿主工具内的集成验收。
+3. 逐步完善目标 Linux 发行版、硬件架构与浏览器渲染矩阵验证后，再行扩展正式支持声明。

@@ -1,51 +1,36 @@
-# Linux 单文件 / CMake / EDA-Tcl 维护
+# Linux 单文件启动器、CMake 与 EDA/Tcl 专项维护记录
 
-日期：2026-10-21。范围：当前文档与 Linux 启动/安装集成，不修改布局算法，不恢复暂停的性能工作。
-版本状态：基于 master 98ed600 开发；用户已授权提交、推送并覆盖最新发布，沿用 v1.1.2 标签和版本号，更新发布说明、Windows附件并增加Linux单文件及Tcl helper。
+- **归档日期**：2026-10-21
+- **维护范围**：聚焦当前文档同步与 Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成加固，不修改布局算法，亦不重启已暂停的通用性能工程。
+- **版本基线**：基于 `master`（`98ed600`）开发；经用户明确授权提交、推送并同版本号更新 `v1.1.2` 发布标签与说明，刷新 Windows 离线包附件并新增 Linux 单文件二进制及 `ngb.tcl` 辅助脚本（后续 `v1.1.3` 已在此基础上进一步完成解析器与工作台修复）。
 
-## 问题与解决方案
+## 1. 识别的问题与加固方案
 
-| 问题 | 处理 |
+| 原始问题 | 加固与修复方案 |
 | --- | --- |
-| README 中 Simple 默认、旧测试数、Linux 尚无启动器等信息过期 | 统一当前入口，历史实验保留原结论；区分 master 与发布包 |
-| 原生 stop 只按命令行子串和状态 basename 认 PID | 校验 executable inode、精确路径参数、processStartTicks；拒绝伪造或复用 PID |
-| 状态文件可并发覆盖、临时文件权限不明确 | 0600 独占临时文件、原子 rename、持久 inode 的独占锁 |
-| 无效状态被残留 errno 误判为缺失 | 无效状态明确非零；仅实际缺失的 stop 为幂等成功 |
-| JSON 只处理少数转义、格式化空白不兼容 | 支持 Unicode/代理对和键值空白，拒绝非法转义/基本类型 |
-| recv 一次假设完整头、连接线程无限增长、accept 退出不可靠 | 完整头有界读取、最多32连接、超时、poll取消循环 |
-| 资源清单重复、删除源文件可能不触发重新嵌入 | CMake生成单一manifest依赖，UTF-8清单支持中文/空格路径 |
-| EDA父工程安装策略不易控制 | 顶层/独立入口、NGB_INSTALL及专用安装目录变量 |
-| Tcl后台exec立即报告成功、stop吞错 | 可复用helper等ready、超时/提前退出报错、保留pipeline并安全stop |
+| `README.md` 中默认引擎仍写为 `Simple`、旧测试数量及“Linux 尚无启动器”等描述过期 | 全面同步当前主干入口与默认配置，同时完整保留历史实验的原始结论；明确区分主干源码与发布包状态。 |
+| 原生 `ngb stop` 仅凭命令行子串与状态文件 basename 识别 PID | 改为联合校验可执行文件 `inode`、精确命令行 `--state-file` 路径参数与进程启动时钟滴答数 `processStartTicks`，彻底杜绝伪造或 PID 复用误杀。 |
+| 状态文件可能被并发覆盖，且临时文件权限未收紧 | 采用权限为 `0600` 的独占临时文件配合原子 `rename` 写入，并引入持久 inode 的 `<state-file>.lock` 独占文件锁。 |
+| 损坏或非法的会话状态文件因残留 `errno` 被误判为文件不存在 | 明确区分文件缺失与格式非法：损坏状态文件一律返回非零退出码，仅当状态文件确实不存在时将 `stop` 视为幂等成功（返回 `0`）。 |
+| 内置 JSON 解析器仅支持极少数转义且不兼容格式化空白 | 完整支持 Unicode 转义（含 UTF-16 代理对）与键值周围空白字符，严格拒绝非法转义序列与错误基本类型。 |
+| HTTP `recv` 假设单次调用即可读完请求头、连接线程无界增长、`accept` 退出不可靠 | 实现有界循环读取完整请求头（上限 16 KiB、总时限 2 秒）、限制最大并发连接数为 32、设置发送超时，并采用 `poll` 可取消监听循环。 |
+| 资源清单重复维护，删除前端源文件时可能不触发 CMake 重新嵌入 | 由 CMake 统一生成单一 manifest 依赖文件，采用 UTF-8 清单完整支持包含中文或空格的源码路径，任何增删改均可靠触发重新嵌入。 |
+| 作为子目录接入大型 EDA CMake 工程时安装规则难以由父工程灵活控制 | 同时提供顶层与 `native/` 独立入口，新增 `NGB_INSTALL` 开关及 `NGB_INSTALL_BINDIR` / `NGB_INSTALL_DATADIR` 专用目录变量。 |
+| Tcl 脚本后台 `exec` 立即返回假成功，且 `stop` 容易静默吞错 | 提供可复用 `tools/eda/ngb.tcl`：等待 `ready` JSON（10 秒超时）、提前退出立即报错、保持非阻塞管道，并通过原生 `stop` 安全关闭及透传异常。 |
 
-## 验证门禁
+## 2. 验证门禁与通过记录
 
-- [x] Linux C++11 Release，GCC 11.4，CMake 4.2，-Wall/-Wextra/-Wpedantic 无警告构建。
-- [x] CTest：help、licenses、native-integration、cmake、tcl，共5/5通过（后续最终复验结果见执行记录）。
-- [x] 无项目资源目录、PATH中无Node/Python的单文件副本正常返回资源与manifest。
-- [x] 原生HTTP、ready/status/stop/replace、无效输入、伪造PID、启动时间、并发锁、Unicode状态与父进程死亡清理。
-- [x] CMake standalone/EDA add_subdirectory、no-op、资源增删改、中文空格路径、安装与禁用安装。
-- [x] Tcl真实解释器 ready/status/stop、异常传播、中文/空格路径、拒绝管道注入。
-- [x] 最终 npm test 815/815；Node/Python launcher协议通过；严格-std=c++11最终CTest 5/5。
-- [x] 当前文档42个、全部项目Markdown（除vendor）114个相对链接均无缺失；8个历史绝对产物链接跳过，外部URL/锚点不在本轮校验范围。Windows启动器编译、离线smoke与许可证检查通过（本地隔离目录）。
+- [x] **零警告编译**：Linux C++11 Release 模式（GCC 11.4、CMake 4.2），开启 `-std=c++11 -Wall -Wextra -Wpedantic` 全程零警告通过。
+- [x] **CTest 全套件通过**：`help`、`licenses`、`native-integration`、`cmake`、`tcl` 共 **5/5** 测试套件全部通过（总耗时约 40.64 秒）。
+- [x] **真单文件独立运行验证**：将生成的 `ngb` 二进制单独拷贝至无项目资源目录的临时路径，并在清空 `PATH` 中 Node/Python 的环境下启动，逐字节核对返回的 `index.html`、`styles.css`、全部 `src/**/*.js` 及 vendored ELK 均完全一致。
+- [x] **原生生命周期与安全门禁**：覆盖 HTTP 服务、`ready` / `status` / `stop` / `--replace`、非法输入拦截、伪造 PID 拒绝、启动时间戳校验、并发锁争用、Unicode 状态路径及 `--parent-death` 父进程退出清理（共 9 项专项测试）。
+- [x] **CMake 构建与安装门禁**：覆盖独立构建、EDA `add_subdirectory` 集成、无变更空构建（no-op）、前端资源增删改自动重嵌入、含中文与空格路径、默认安装及 `NGB_INSTALL=OFF` 禁用安装。
+- [x] **真实 Tcl 解释器门禁**：在 Tcl 8.6.12 下验证 `::ngb::Start` / `::ngb::Status` / `::ngb::Stop`、异常向上透传、含中文/空格路径以及管道重定向字符注入拦截。
+- [x] **全仓回归与文档链接校验**：Node.js / Python 启动器端到端协议测试通过（修复了 Linux 下默认寻找 `python` 可执行文件名的问题，改为优先使用 `python3` 并支持 `NGB_PYTHON` 环境变量覆盖）；全仓 Markdown 相对路径链接校验 **0 缺失**；Windows 离线启动器编译、冒烟测试与许可证核验通过。
 
-执行环境：mfs-remote `/home/wzh/my_code/netlistGraphBuilder-linux-maintenance-20261021`。
-构建、下载依赖（本轮无下载）、临时副本和测试日志留在该目录；本地仅取回小型日志。
-本轮不改 parser/IR/布局/renderer 算法，因此不重复 mapped/benchmark 作为新的算法验收证据。
+## 3. 边界声明（不作过度承诺的范围）
 
-## 仍不宣称完成的范围
-
-- 没有把单机通过写成完整 Linux/浏览器/发行版/架构 CI 矩阵通过。
-- CMake最低3.16、C++11与Tcl8.5是实现目标；本轮实际工具版本单独记录，不能冒充老版本实测。
-- 单文件仍有系统库ABI依赖；CentOS7、musl、真实商业EDA宿主与图形浏览器矩阵待目标环境验收。
-- 安全边界为同用户localhost工具，不是公网或恶意同用户隔离服务；不根据端口任意kill进程。
-- 本轮按用户明确授权更新现有 v1.1.2，覆盖前备份旧附件及标签；不把版本号相同解释为字节相同。
-
-## 执行记录
-
-2026-10-21：Linux x86-64，GCC11.4/CMake4.2/Python3.10.12/Tcl8.6.12/Node24.16.0/glibc2.35。
-实际编译flags包含-std=c++11与-Wall/-Wextra/-Wpedantic，构建无警告；最终CTest总计40.64秒。
-单文件副本以空PATH执行，逐字节核对全部src JS、index/styles及vendored ELK；不依赖项目资源目录。
-新增原生套件包含9个生命周期/安全/HTTP测试；Tcl真实解释器和CMake安装/资源变化另设独立门禁。
-现有launcher E2E最初因Linux硬编码python出现EACCES，修复为python3（NGB_PYTHON可覆盖）后通过。
-Windows验证输出在dc_runs/linux_maintenance_windows_validation，正式dist/v1.1.2包未改动。
-本地日志镜像在dc_runs/linux_maintenance；大型构建、中间文件和测试副本仅留在上述远端目录。
+- 单台 Linux 构建与测试服务器的通过记录不等同于跨发行版、跨 CPU 架构或跨桌面浏览器的自动化 CI 矩阵。
+- `CMake 3.16+`、`C++11` 与 `Tcl 8.5+` 为代码语法与 API 兼容目标；本轮实际验证环境的工具链版本（GCC 11.4 / CMake 4.2 / Python 3.10.12 / Tcl 8.6.12 / Node 24.16.0 / glibc 2.35）如实独立记录，不冒充旧版本工具链实测。
+- 单文件 ELF 仍动态链接宿主系统的基础 C/C++ 库（`glibc` / `libstdc++`）；面向 CentOS 7、musl libc、真实商业 EDA 宿主进程及 Linux 桌面浏览器渲染矩阵的兼容性需在对应目标环境中单独验收。
+- 内置 HTTP 服务的安全边界定位于“本机同用户回环（`127.0.0.1`）分析工具”，并非面向公网或多租户恶意隔离的 Web 服务器；关闭服务严格依赖状态文件与进程身份校验，绝不按端口号盲目杀进程。
