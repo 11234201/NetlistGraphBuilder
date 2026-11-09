@@ -79,7 +79,6 @@ export function createSessionSnapshot(state) {
     },
     presentationPolicy: { ...(state.presentationPolicy || {}) },
     timingDisplayPolicy: {
-      snapshot: state.timingDisplayPolicy?.snapshot || "auto",
       metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]
     }
   };

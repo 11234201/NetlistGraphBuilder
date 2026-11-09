@@ -6,15 +6,12 @@ export const TIMING_BADGE_POSITIONS = Object.freeze([
 ]);
 
 export const TIMING_METRICS = Object.freeze(["at", "rt", "slack", "delay", "slew"]);
-export const TIMING_SNAPSHOTS = Object.freeze(["auto", "global", "local"]);
 export const DEFAULT_TIMING_DISPLAY_POLICY = Object.freeze({
-  snapshot: "auto",
   metrics: Object.freeze(["slack"])
 });
 
 const BADGE_POSITION_SET = new Set(TIMING_BADGE_POSITIONS);
 const TIMING_METRIC_SET = new Set(TIMING_METRICS);
-const TIMING_SNAPSHOT_SET = new Set(TIMING_SNAPSHOTS);
 
 export function annotateGraphTiming(graph, timing, options = {}) {
   if (!timing || !graph || !Array.isArray(graph.nodes)) {
@@ -149,21 +146,9 @@ export function annotateGraphTiming(graph, timing, options = {}) {
 }
 
 export function normalizeTimingDisplayPolicy(policy = DEFAULT_TIMING_DISPLAY_POLICY) {
-  const snapshot = TIMING_SNAPSHOT_SET.has(policy?.snapshot)
-    ? policy.snapshot
-    : DEFAULT_TIMING_DISPLAY_POLICY.snapshot;
   const metrics = [...new Set((Array.isArray(policy?.metrics) ? policy.metrics : [policy?.metrics])
     .filter((metric) => TIMING_METRIC_SET.has(metric)))];
-  return { snapshot, metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics] };
-}
-
-export function resolveTimingSnapshot(scope, requested = "auto") {
-  const policy = TIMING_SNAPSHOT_SET.has(requested) ? requested : "auto";
-  if (policy !== "auto") return policy;
-  const apply = String(scope?.apply ?? "").trim().toLowerCase();
-  if (!apply || ["none", "no", "false", "0", "global"].includes(apply)) return "global";
-  if (["yes", "true", "1", "apply", "applied", "local"].includes(apply)) return "local";
-  return "global";
+  return { metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics] };
 }
 
 export function normalizeBadgeChoices(choices) {

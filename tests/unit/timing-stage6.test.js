@@ -199,8 +199,7 @@ w_gen_14670  0.311245  -0.017425  -0.328670  0.044
   assert.match(svg, /slew 0\.044/);
   assert.match(svg, /timing-badge timing-badge-port/);
   assert.doesNotMatch(svg, />w_gen_14670 [^<]*slew/);
-  assert.deepEqual(normalizeTimingDisplayPolicy({ snapshot: "bad", metrics: ["rt", "slew", "rt", "bad"] }), {
-    snapshot: "auto",
+  assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["rt", "slew", "rt", "bad"] }), {
     metrics: ["rt", "slew"]
   });
 });

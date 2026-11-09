@@ -405,7 +405,6 @@ const elements = {
   cellSpacingInput: document.querySelector("#cellSpacingInput"),
   cellSpacingNumberInput: document.querySelector("#cellSpacingNumberInput"),
   cellSpacingValue: document.querySelector("#cellSpacingValue"),
-  timingSnapshotSelect: document.querySelector("#timingSnapshotSelect"),
   timingMetricSelect: document.querySelector("#timingMetricSelect"),
   editCellDefinitionButton: document.querySelector("#editCellDefinitionButton"),
   cellConfigInput: document.querySelector("#cellConfigInput"),
@@ -483,7 +482,6 @@ const layoutSpacingController = createLayoutSpacingController({
 });
 const timingDisplayController = createTimingDisplayController({
   elements: {
-    snapshotSelect: elements.timingSnapshotSelect,
     metricSelect: elements.timingMetricSelect
   },
   getPolicy: () => state.timingDisplayPolicy,

@@ -25,11 +25,8 @@ export function createPreferencesController({ state, elements, services }) {
       state.expandedGroupIds.clear();
       state.presentationPolicy = normalizeNetlistPresentationPolicy(session.presentationPolicy);
       if (session.layoutPolicy) services.setSingleLayoutPolicy(session.layoutPolicy);
-      const snapshot = ["auto", "global", "local"].includes(session.timingDisplayPolicy?.snapshot)
-        ? session.timingDisplayPolicy.snapshot : "auto";
       const metrics = session.timingDisplayPolicy?.metrics;
       state.timingDisplayPolicy = {
-        snapshot,
         metrics: Array.isArray(metrics) && metrics.length ? metrics : ["slack"]
       };
     }

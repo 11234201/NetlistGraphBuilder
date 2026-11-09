@@ -7,9 +7,9 @@ const select = (value) => {
   return { value, addEventListener: (type, handler) => { listeners[type] = handler; }, fire(type) { listeners[type]({ target: this }); } };
 };
 
-test("timing display controller commits normalized snapshot and metrics", () => {
-  const elements = { snapshotSelect: select("local"), metricSelect: select("all") };
-  let policy = { snapshot: "auto", metrics: ["slack"] };
+test("timing display controller commits normalized metrics", () => {
+  const elements = { metricSelect: select("all") };
+  let policy = { metrics: ["slack"] };
   const committed = [];
   const controller = createTimingDisplayController({
     elements,
@@ -17,15 +17,13 @@ test("timing display controller commits normalized snapshot and metrics", () => 
     onCommit(next) { policy = next; committed.push(next); }
   });
   elements.metricSelect.fire("change");
-  assert.deepEqual(committed[0], { snapshot: "local", metrics: ["at", "rt", "slack"] });
-  controller.sync({ snapshot: "global", metrics: ["at"] });
-  assert.equal(elements.snapshotSelect.value, "global");
+  assert.deepEqual(committed[0], { metrics: ["at", "rt", "slack"] });
+  controller.sync({ metrics: ["at"] });
   assert.equal(elements.metricSelect.value, "at");
 });
 
 test("timing display policy rejects unknown values with stable defaults", () => {
-  assert.deepEqual(normalizeTimingDisplayPolicy({ snapshot: "future", metrics: ["bad"] }), {
-    snapshot: "auto",
+  assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["bad"] }), {
     metrics: ["slack"]
   });
 });
