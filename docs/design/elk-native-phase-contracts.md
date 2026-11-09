@@ -10,7 +10,7 @@ Status: G3 contract freeze complete for ER-04 entry; semantic changes require a 
 ### Versioned H08 profile extension (package 0.3.0)
 
 The base IR and baseline phase oracle retain contract 1.1.0. The explicit `h08` semantic profile is
-versioned separately as 1.0.0 and is exposed through `src/layout/elk_native/h08.js`. This entry requires
+versioned separately as 1.0.0 and is exposed through `src/layout/anchor_layered/h08.js`. This entry requires
 only browser-native relative ES modules. It fixes structural ordering identity, per-edge implicit
 endpoint identity, bounded P3 group candidates/unit sweeps and exact physical-anchor P5 adjacency.
 It does not change baseline default behavior or the Simple application default.

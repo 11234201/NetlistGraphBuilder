@@ -45,7 +45,7 @@
 
 ## 5. [P1] inout 引脚被定位到其他输入/输出引脚
 
-- 位置：`src/layout/nodeGeometry.js:109`；消费者包括 `src/layout/elk_native_layout_provider.js:25` 和 `src/layout/layoutValidator.js`。
+- 位置：`src/layout/nodeGeometry.js:109`；消费者包括 `src/layout/anchor_layout_provider.js:25` 和 `src/layout/layoutValidator.js`。
 - 复现：创建带 A(input)、IO(inout)、Y(output) 的节点并调用 buildNodePorts。随后 `getPort(node,'IO','target')` 返回 A；`getPort(node,'IO','source')` 返回 Y。
 - 原因：精确名称匹配仍要求方向必须等于 input/output，未接受 inout，随后退回其他同方向引脚。
 - 影响：Native adapter 的端点 ID 和其他布局的连接坐标均会指向错误引脚；校验器共用 getConnectionPoint，不能据此发现语义错误。
@@ -125,7 +125,7 @@
 
 ## 15. [P2] Native FIXED_ORDER 的混合排序条件不满足传递性
 
-- 位置：`src/layout/elk_native/ir.js:31`–`:33`。
+- 位置：`src/layout/anchor_layered/ir.js:31`–`:33`。
 - 最小输入：单节点宽 60、高 50，portConstraints=FIXED_ORDER，三个 EAST port 的 x 均为 60：a(y=30,order=0)、b(y=20,未指定 order)、c(y=10,order=1)，edges=[]。
 - 实测：createCanonicalGraph 输入 ports=[a,b,c] 返回顺序 [c,b,a]；仅改为 [b,a,c] 则返回 [b,a,c]，inputDigest 也不同。两份输入均通过 P0 校验。
 - 原因：两端都有 declaredOrder 时按 order 比，否则按坐标比，使 a<b、b<c、c<a 这样的比较环成为可能；sort 无法产生与原始排列无关的结果。
@@ -134,7 +134,7 @@
 
 ## 16. [P2] H08 P5 把非零高度差当作直线，产出最终校验不接受的斜线
 
-- 位置：`src/layout/elk_native/p5_routing.js:55`、`:62`；容差定义在 `policy.js` 的 ORTHOGONAL_ROUTING_PROFILE，最终检查在 `validate_routes.js:9`。
+- 位置：`src/layout/anchor_layered/p5_routing.js:55`、`:62`；容差定义在 `policy.js` 的 ORTHOGONAL_ROUTING_PROFILE，最终检查在 `validate_routes.js:9`。
 - 输入：两个 40×30 节点 a、b。a 的 EAST 输出 ao=(40,15)，b 的 WEST 输入 bi=(0,15)、bj=(0,15.0005)。两条同 physicalNetId=n 的边分别 ao->bi、ao->bj。使用公开 `h08.js` layoutGraph 默认选项。
 - 实测：P5 的 e2 points 只有 `(40,15),(60,15.0005)`，已经是斜线；入口最终抛 `p5: wrong-port-access`，entityIds=[e2]。
 - 原因：P5 在小于 0.001 的高度差下跳过路由折点，最终 validator 却要求 1e-8 内的水平端点访问；它们对同一几何的有效性定义不一致。
@@ -142,7 +142,7 @@
 
 ## 17. [P2] H08 恢复逻辑边时删掉真实短折弯，使正确的 P5 路由失效
 
-- 位置：`src/layout/elk_native/restore_edges.js:16`；被调用的 `src/layout/orthogonalRouting.js:3`、`:9`–`:20`。
+- 位置：`src/layout/anchor_layered/restore_edges.js:16`；被调用的 `src/layout/orthogonalRouting.js:3`、`:9`–`:20`。
 - 输入：沿用第 16 项，但 bj.y=15.25。
 - 实测：onPhase 观察到 P5 e2 为 `(40,15),(50,15),(50,15.25),(60,15.25)`，完全正交；恢复时 compactOrthogonalPoints 采用 EPSILON=0.5 判断共线，两个折点都被移除，最终抛 `p5: wrong-port-access`。把 bj.y 改成 15.75 则完整布局成功。
 - 影响：H08 接受有限小数坐标，却不能稳定处理小于半像素的真实折弯。与第 16 项独立：只修 P5 的 0.001 分支仍然会在 restore 阶段失败。
@@ -153,7 +153,7 @@
 在仓库根目录使用 Node ES module 执行以下代码；无需安装依赖：
 
 ```js
-import { layoutGraph } from './src/layout/elk_native/h08.js';
+import { layoutGraph } from './src/layout/anchor_layered/h08.js';
 for (const delta of [0.0005, 0.25, 0.75]) {
   const input = {
     nodes: [

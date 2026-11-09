@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { parseVerilog } from '../../src/parser/verilogParser.js';
 import { buildModuleWorkspace } from '../../src/app/moduleWorkspace.js';
-import { NativeLayeredLayoutProvider } from '../../src/layout/elk_native_layout_provider.js';
+import { NativeLayeredLayoutProvider } from '../../src/layout/anchor_layout_provider.js';
 import { getConnectionPoint } from '../../src/layout/nodeGeometry.js';
 import { summarizeFocusedFaninTreeBlocks } from '../../src/layout/layered/focusedTreeBlocks.js';
 import { analyzeLayoutQuality } from '../../src/layout/layoutQuality.js';

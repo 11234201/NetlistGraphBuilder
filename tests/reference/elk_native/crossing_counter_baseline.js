@@ -1,4 +1,4 @@
-import { compareIds } from '../../../src/layout/elk_native/protocol.js';
+import { compareIds } from '../../../src/layout/anchor_layered/protocol.js';
 
 class Fenwick {
   constructor(size) { this.tree = new Float64Array(size + 2); this.counts = new Float64Array(size + 1); this.size = 0; }

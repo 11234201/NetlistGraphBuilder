@@ -7,7 +7,7 @@ import {applyWorkspaceOverrides} from '../../src/app/layoutWorkspace.js';
 import {parseVerilog} from '../../src/parser/verilogParser.js';
 import {renderSvgScene} from '../../src/render/svg_scene_renderer.js';
 import {createStandaloneSvg} from '../../src/render/svgExport.js';
-import {NativeLayeredLayoutProvider} from '../../src/layout/elk_native_layout_provider.js';
+import {NativeLayeredLayoutProvider} from '../../src/layout/anchor_layout_provider.js';
 
 const source=`module left(a,y); input a; output y; BUF u0(.A(a),.Z(y)); endmodule
 module right(a,y); input a; output y; INV u1(.I(a),.ZN(y)); endmodule`;

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {properInputFromOracle} from './upstream_proper_input.mjs';
-import {orderLayers} from '../../../src/layout/elk_native/p3_ordering.js';
+import {orderLayers} from '../../../src/layout/anchor_layered/p3_ordering.js';
 import {createQualityBaseline,sha256} from './quality_baseline.mjs';
 
 async function workingModuleUrl({keepExhausted=true,traceStarts=false}={}){
-  const location=new URL('../../../src/layout/elk_native/p3_ordering.js',import.meta.url);
+  const location=new URL('../../../src/layout/anchor_layered/p3_ordering.js',import.meta.url);
   let source=await readFile(location,'utf8');
   const replacements=[['if (!improves) { current = retained; break; }','if (!improves) { break; }'],
     ['    current = copyLayers(retained);','    // Research control: keep the exhausted working order for the next attempt.']];
@@ -26,7 +26,7 @@ export async function compileWorkingOrderProbe(options){
   return (await import(await workingModuleUrl(options))).orderLayers;
 }
 async function workingIndexUrl(){
-  const indexLocation=new URL('../../../src/layout/elk_native/index.js',import.meta.url);
+  const indexLocation=new URL('../../../src/layout/anchor_layered/index.js',import.meta.url);
   let index=await readFile(indexLocation,'utf8');
   const anchor="import { orderLayers } from './p3_ordering.js';";
   assert.equal(index.split(anchor).length,2);
@@ -40,9 +40,9 @@ export async function compileWorkingOrderLayout(){
 }
 export async function compileWorkingOrderProvider(){
   const indexUrl=await workingIndexUrl();
-  const adapterLocation=new URL('../../../src/layout/elk_native_layout_provider.js',import.meta.url);
+  const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
   let adapter=await readFile(adapterLocation,'utf8');
-  const adapterAnchor="from './elk_native/index.js'";
+  const adapterAnchor="from './anchor_layered/index.js'";
   assert.equal(adapter.split(adapterAnchor).length,2);
   adapter=adapter.replace(adapterAnchor,`from '${indexUrl}'`)
     .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);

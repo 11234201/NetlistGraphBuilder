@@ -18,7 +18,7 @@
 
 | 门禁 | 当前证据 | 状态 |
 | --- | --- | --- |
-| 离线静态入口 | `src/layout/elk_native/anchor.js`（含 `h08.js` 兼容），package0.3.0/profile1.0.0；传递依赖无 Node、动态编译和网络依赖 | 已实现/单测通过 |
+| 离线静态入口 | `src/layout/anchor_layered/anchor.js`（含 `h08.js` 兼容），package0.3.0/profile1.0.0；传递依赖无 Node、动态编译和网络依赖 | 已实现/单测通过 |
 | P0/P3/P5 完整相位 | 静态/研究逐相位差分、排列/输入不变性、取消和提示快照；首轮完整 unit795/795 | 通过 |
 | 恒零计分与首成员堆 | P1 100组完整旧实现差分；可变/访问器/修改 scratch 回退；完整实际41079节点P3全字段相同 | 通过 |
 | 实际P3固定同输入对照 | old12055ms/current9291ms，摘要e2d3a6de…；单对诊断，不代表全图或稳定收益 | 已记录 |
@@ -46,7 +46,7 @@
 
 最终交付603文件本地/远端runtimeEqual/fileSetEqual均true。原47正式run前后完全一致；最后两项
 非运行时增加仅为 `export_product_review.mjs` 与对应单测。产品审查源8c24f7d7到产品52a93b92的
-`src/layout/elk_native/*.js`（含子目录）全部相同，UI调度/标签等变化没有替换审查所用算法。
+`src/layout/anchor_layered/*.js`（含子目录）全部相同，UI调度/标签等变化没有替换审查所用算法。
 
 最终已签收页面：`http://127.0.0.1:5194/dc_runs/h08_mapped_product_review/index.html`。
 原始大SVG/图JSON仍在远端；本地只回传916KB压缩完成图，GUI解压显示属于本地能力例外。

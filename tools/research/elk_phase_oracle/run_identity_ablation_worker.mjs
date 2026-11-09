@@ -20,7 +20,7 @@ process.env.MAPPED_CASE_PROVIDER=['c01-unit-anchor',legacyP2?'legacy-p2':'indexe
   legacyP5?'legacy-p5':'indexed-p5','ablation'].join('-');
 console.error(`identity_ablation=${JSON.stringify({legacyP2,legacyP5,legacyTree,timings,captureDirectory,captureBoundary})}`);
 const timingModules=new Set(['p1_orientation','p2_layering','proper_graph','p3_ordering','p4_placement','p5_routing',
-  'validate_routes'].map((name)=>new URL(`../../../src/layout/elk_native/${name}.js`,import.meta.url).href));
+  'validate_routes'].map((name)=>new URL(`../../../src/layout/anchor_layered/${name}.js`,import.meta.url).href));
 timingModules.add(new URL('../../../src/layout/layoutValidator.js',import.meta.url).href);
 for(const file of ['wireLabelPlacement','wireRoutes','nodeGeometry'])
   timingModules.add(new URL(`../../../src/layout/${file}.js`,import.meta.url).href);

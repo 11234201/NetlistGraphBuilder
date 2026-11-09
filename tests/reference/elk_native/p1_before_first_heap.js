@@ -1,6 +1,6 @@
-import { compareIds, freezeRecord, checkCancelled } from '../../../src/layout/elk_native/protocol.js';
-import { validateP0 } from '../../../src/layout/elk_native/validate_p0.js';
-import { validateP1 } from '../../../src/layout/elk_native/validate_p1.js';
+import { compareIds, freezeRecord, checkCancelled } from '../../../src/layout/anchor_layered/protocol.js';
+import { validateP0 } from '../../../src/layout/anchor_layered/validate_p0.js';
+import { validateP1 } from '../../../src/layout/anchor_layered/validate_p1.js';
 
 // Behavioral source: ELK p1cycles/GreedyCycleBreaker at pinned 28e5173.
 // Adaptation: canonical ID ties replace incidental FIFO/RNG ties. Weighted degree

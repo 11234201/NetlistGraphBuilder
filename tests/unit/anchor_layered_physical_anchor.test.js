@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {connectPhysicalAnchors} from '../../src/layout/elk_native/physical_anchor_adjacency.js';
+import {connectPhysicalAnchors} from '../../src/layout/anchor_layered/physical_anchor_adjacency.js';
 import {connectPhysicalAnchors as researchAnchors} from '../../tools/research/elk_phase_oracle/physical_anchor_routing.mjs';
 
 test('research and static physical-anchor policies share one implementation and stable star links', () => {

@@ -1,4 +1,4 @@
-export {structuralOrderingKey} from '../../../src/layout/elk_native/structural_ordering_key.js';
+export {structuralOrderingKey} from '../../../src/layout/anchor_layered/structural_ordering_key.js';
 export function consumeStructuralKey(source){
   const before='randomStream(orderingDigest ?? input.inputDigest, input.options.randomSeed)';
   if(source.split(before).length!==2)throw Error('missing/ambiguous ordering-key consumer');

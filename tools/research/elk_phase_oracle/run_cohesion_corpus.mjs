@@ -8,14 +8,14 @@ if(staticH08)process.argv.splice(staticIndex,1);
 const anchorIndex=process.argv.indexOf('--physical-anchors'),physicalAnchors=anchorIndex>=0;
 if(physicalAnchors)process.argv.splice(anchorIndex,1);
 const config={groupSweep:true,structuralKey:true,implicitPorts:true,layoutUnits:true,physicalAnchors};
-const compiled=staticH08?{layoutModule:new URL('../../../src/layout/elk_native/h08.js',import.meta.url).href}:
+const compiled=staticH08?{layoutModule:new URL('../../../src/layout/anchor_layered/h08.js',import.meta.url).href}:
   await compileCohesionModule([],config);
 const output=resolve(process.argv[2]);await mkdir(output,{recursive:true});
 await writeFile(resolve(output,'research_runtime.json'),JSON.stringify({config,hints:[],
   compiledIndexDigest:compiled.compiledIndexDigest,compiledModuleDigest:compiled.compiledModuleDigest,
   productionRuntimeUnchanged:true,scope:'canonical explicit ports; group hints absent'},null,2));
 const location=new URL('./compare_quality_corpus.mjs',import.meta.url);let source=await readFile(location,'utf8');
-const anchor="import {layoutGraph} from '../../../src/layout/elk_native/index.js';";
+const anchor="import {layoutGraph} from '../../../src/layout/anchor_layered/index.js';";
 assert.equal(source.split(anchor).length,2);
 source=source.replace(anchor,`import {layoutGraph} from '${compiled.layoutModule}';`);
 const main="if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){";

@@ -3,7 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {compareSynthetic,elkInput,renderMechanismGraph} from '../../tools/research/elk_phase_oracle/compare_quality_corpus.mjs';
 import {materializeSyntheticCase} from '../helpers/elk_quality_cases.js';
-import {normalizePolicy} from '../../src/layout/elk_native/policy.js';
+import {normalizePolicy} from '../../src/layout/anchor_layered/policy.js';
 const manifest=JSON.parse(await readFile(new URL('../fixtures/elk_parity/manifest.json',import.meta.url),'utf8'));
 test('quality comparison uses identical fixed port input and shared validation without changing source data',async()=>{
   const entry=manifest.cases.find((entry)=>entry.id==='chain_4'),before=structuredClone(entry);

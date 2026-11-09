@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {createHash} from 'node:crypto';
-import {inputDigest} from '../../../src/layout/elk_native/input_digest.js';
+import {inputDigest} from '../../../src/layout/anchor_layered/input_digest.js';
 import {inputDigest as baseline} from '../../../tests/reference/elk_native/input_digest_baseline.js';
 const results=[];
 for(const bytes of [65536,1048576,8388608]){

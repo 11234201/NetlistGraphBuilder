@@ -231,7 +231,7 @@ EQ1471 保留四分支、两个共享组，fragmentation 与同次 ELK 比较而
 改变 layout/routing 后最低验证：
 
 ```text
-node --test tests/unit/elk_native*.test.js
+node --test tests/unit/anchor_layered*.test.js
 node --test tests/unit/layout-determinism.test.js tests/unit/layout-fixtures.test.js
 npm test
 MAPPED_CASE_PROVIDER=elk-native-candidate MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-hard

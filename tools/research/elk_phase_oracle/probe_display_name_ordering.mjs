@@ -3,11 +3,11 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadPhaseOracles,inputFromSnapshot} from '../../../tests/helpers/elk_phase_inputs.js';
-import {createCanonicalGraph} from '../../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../../src/layout/elk_native/p1_orientation.js';
-import {assignLayers} from '../../../src/layout/elk_native/p2_layering.js';
-import {buildProperGraph} from '../../../src/layout/elk_native/proper_graph.js';
-import {orderLayers} from '../../../src/layout/elk_native/p3_ordering.js';
+import {createCanonicalGraph} from '../../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../../src/layout/anchor_layered/p1_orientation.js';
+import {assignLayers} from '../../../src/layout/anchor_layered/p2_layering.js';
+import {buildProperGraph} from '../../../src/layout/anchor_layered/proper_graph.js';
+import {orderLayers} from '../../../src/layout/anchor_layered/p3_ordering.js';
 import {createQualityBaseline,sha256} from './quality_baseline.mjs';
 
 // Diagnostic only: never chooses a seed or rewrites the production perturbation key.

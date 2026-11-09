@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createCanonicalGraph } from '../../src/layout/elk_native/ir.js';
-import { orientGraph } from '../../src/layout/elk_native/p1_orientation.js';
-import { assignLayers } from '../../src/layout/elk_native/p2_layering.js';
-import { validateP2 } from '../../src/layout/elk_native/validate_p2.js';
+import { createCanonicalGraph } from '../../src/layout/anchor_layered/ir.js';
+import { orientGraph } from '../../src/layout/anchor_layered/p1_orientation.js';
+import { assignLayers } from '../../src/layout/anchor_layered/p2_layering.js';
+import { validateP2 } from '../../src/layout/anchor_layered/validate_p2.js';
 import { exhaustiveRankObjective } from '../reference/elk_native/rank_reference.js';
 import { loadPhaseOracles, inputFromSnapshot } from '../helpers/elk_phase_inputs.js';
 const corpus = await loadPhaseOracles();

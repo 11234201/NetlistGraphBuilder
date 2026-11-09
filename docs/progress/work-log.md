@@ -305,7 +305,7 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
 - Source closure: audited ELK's default greedy P1 cycle breaker, common network-simplex feasible-tree/cut/pivot
   implementation, both barycentric port distributors, BK node-type spacing matrix, and the complete orthogonal P5
   path through long-edge restoration. Recorded exact upstream behavior separately from deterministic adaptations.
-- Plan decision: build a separate `src/layout/elk_native/` P1-P5 pipeline, advance only through phase-local oracles,
+- Plan decision: build a separate `src/layout/anchor_layered/` P1-P5 pipeline, advance only through phase-local oracles,
   cut over once, and delete the entire superseded Native cycle/rank/proper/order/place/pack/router implementation.
   The current router is frozen evidence, not a reusable base. Plan is ready for user review; no production code was
   changed during ELK-R02/R03/P02.

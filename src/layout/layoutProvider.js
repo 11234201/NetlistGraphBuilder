@@ -3,8 +3,9 @@ import { ELK_LAYOUT_PROVIDER_ID, ElkLayoutProvider } from "./elkLayoutProvider.j
 import { DEFAULT_LAYOUT_PROVIDER_ID, FALLBACK_LAYOUT_PROVIDER_ID } from "./providerDefaults.js";
 import {
   NATIVE_LAYERED_LAYOUT_PROVIDER_ID,
+  AnchorLayeredLayoutProvider,
   NativeLayeredLayoutProvider
-} from "./elk_native_layout_provider.js";
+} from "./anchor_layout_provider.js";
 
 export const SIMPLE_LAYOUT_PROVIDER_ID = "simple-layered";
 

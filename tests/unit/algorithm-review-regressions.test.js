@@ -6,8 +6,8 @@ import { buildNodePorts, getPort } from "../../src/layout/nodeGeometry.js";
 import { analyzeFocusedNeighborhood } from "../../src/analysis/graphCone.js";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { alignModulePorts, analyzeGraphStats } from "../../src/analysis/moduleCompare.js";
-import { createCanonicalGraph } from "../../src/layout/elk_native/ir.js";
-import { layoutGraph as layoutAnchor } from "../../src/layout/elk_native/anchor.js";
+import { createCanonicalGraph } from "../../src/layout/anchor_layered/ir.js";
+import { layoutGraph as layoutAnchor } from "../../src/layout/anchor_layered/anchor.js";
 
 test("parser rejects expression assigns instead of converting them to false aliases", () => {
   const module = parseVerilog("module m(input a,b,output y); assign y = a & b; endmodule").modules[0];

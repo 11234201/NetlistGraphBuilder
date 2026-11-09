@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {NativeLayeredLayoutProvider} from '../../../src/layout/elk_native_layout_provider.js';
+import {NativeLayeredLayoutProvider} from '../../../src/layout/anchor_layout_provider.js';
 import {buildFocusedFaninTreeBlocks} from '../../../src/layout/layered/focusedTreeBlocks.js';
 import {sha256} from './quality_baseline.mjs';
 import {consumeStructuralKey} from './structural_ordering_key.mjs';
 const moduleUrl=source=>`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 export async function compileCohesionModule(entries,{groupSweep=false,structuralKey=false,implicitPorts=false,layoutUnits=false,physicalAnchors=false}={}){
-    const location=new URL('../../../src/layout/elk_native/index.js',import.meta.url);
+    const location=new URL('../../../src/layout/anchor_layered/index.js',import.meta.url);
     let index=await readFile(location,'utf8');
-    let baselineP3=new URL('../../../src/layout/elk_native/p3_ordering.js',import.meta.url).href;
+    let baselineP3=new URL('../../../src/layout/anchor_layered/p3_ordering.js',import.meta.url).href;
     if(structuralKey){
       const baseLocation=new URL(baselineP3),source=consumeStructuralKey(await readFile(baseLocation,'utf8'))
         .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,baseLocation).href}'`);
       baselineP3=moduleUrl(source);
-      const p0=moduleUrl(`import {createCanonicalGraph as original} from '${new URL('../../../src/layout/elk_native/ir.js',import.meta.url).href}';
-import {freezeRecord} from '${new URL('../../../src/layout/elk_native/protocol.js',import.meta.url).href}';
+      const p0=moduleUrl(`import {createCanonicalGraph as original} from '${new URL('../../../src/layout/anchor_layered/ir.js',import.meta.url).href}';
+import {freezeRecord} from '${new URL('../../../src/layout/anchor_layered/protocol.js',import.meta.url).href}';
 import {structuralOrderingKey} from '${new URL('./structural_ordering_key.mjs',import.meta.url).href}';
 export function createCanonicalGraph(...args){const canonical=original(...args);return freezeRecord({...canonical,orderingDigest:structuralOrderingKey(canonical)});}`);
       const p0Anchor="import { createCanonicalGraph } from './ir.js';";assert.equal(index.split(p0Anchor).length,2);
@@ -43,7 +43,7 @@ return selectOrderGroupCandidate(result,groups,{extraCandidates});}`);
     let layoutModule=moduleUrl(index);
     if(implicitPorts)layoutModule=moduleUrl(`import {layoutGraph as original} from '${layoutModule}';
 import {splitImplicitEndpoints} from '${new URL('./probe_alias_key.mjs',import.meta.url).href}';
-export {PhaseError} from '${new URL('../../../src/layout/elk_native/protocol.js',import.meta.url).href}';
+export {PhaseError} from '${new URL('../../../src/layout/anchor_layered/protocol.js',import.meta.url).href}';
 export const layoutGraph=(input,options)=>original(splitImplicitEndpoints(input),options);`);
     return {layoutModule,compiledIndexDigest:sha256(index),compiledModuleDigest:sha256(layoutModule)};
 }
@@ -54,9 +54,9 @@ export class CohesionResearchProvider extends NativeLayeredLayoutProvider{
     const entries=this.cohesion?buildFocusedFaninTreeBlocks(graph.nodes,graph.edges).entries:[];
     if(!entries.length&&!this.structuralKey&&!this.implicitPorts&&!this.physicalAnchors)return super.layout(graph,options);
     const {layoutModule,compiledIndexDigest,compiledModuleDigest}=await compileCohesionModule(entries,this);
-    const adapterLocation=new URL('../../../src/layout/elk_native_layout_provider.js',import.meta.url);
+    const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
     let adapter=await readFile(adapterLocation,'utf8');
-    const adapterAnchor="from './elk_native/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
+    const adapterAnchor="from './anchor_layered/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
     adapter=adapter.replace(adapterAnchor,`from '${layoutModule}'`)
       .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);
     const Provider=(await import(moduleUrl(adapter))).NativeLayeredLayoutProvider;

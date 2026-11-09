@@ -7,7 +7,7 @@ import {
   SimpleLayeredLayoutProvider
 } from "../../src/layout/layoutProvider.js";
 import { ELK_LAYOUT_PROVIDER_ID, ElkLayoutProvider } from "../../src/layout/elkLayoutProvider.js";
-import { NATIVE_LAYERED_LAYOUT_PROVIDER_ID, NativeLayeredLayoutProvider } from "../../src/layout/elk_native_layout_provider.js";
+import { NATIVE_LAYERED_LAYOUT_PROVIDER_ID, NativeLayeredLayoutProvider } from "../../src/layout/anchor_layout_provider.js";
 
 const graph = {
   moduleName: "m",

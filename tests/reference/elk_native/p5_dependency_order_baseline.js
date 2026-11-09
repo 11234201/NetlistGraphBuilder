@@ -1,5 +1,5 @@
-import { PhaseError, compareIds, checkCancelled } from '../../../src/layout/elk_native/protocol.js';
-import { ORTHOGONAL_ROUTING_PROFILE as profile } from '../../../src/layout/elk_native/policy.js';
+import { PhaseError, compareIds, checkCancelled } from '../../../src/layout/anchor_layered/protocol.js';
+import { ORTHOGONAL_ROUTING_PROFILE as profile } from '../../../src/layout/anchor_layered/policy.js';
 
 export function lowerBound(values, value, strict = false) {
   let low=0, high=values.length;

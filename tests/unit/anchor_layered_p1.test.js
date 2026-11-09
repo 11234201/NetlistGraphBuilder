@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
-import { createCanonicalGraph } from '../../src/layout/elk_native/ir.js';
-import { orientGraph } from '../../src/layout/elk_native/p1_orientation.js';
-import { validateP1 } from '../../src/layout/elk_native/validate_p1.js';
-import { inputDigest } from '../../src/layout/elk_native/input_digest.js';
+import { createCanonicalGraph } from '../../src/layout/anchor_layered/ir.js';
+import { orientGraph } from '../../src/layout/anchor_layered/p1_orientation.js';
+import { validateP1 } from '../../src/layout/anchor_layered/validate_p1.js';
+import { inputDigest } from '../../src/layout/anchor_layered/input_digest.js';
 import { loadPhaseOracles, inputFromSnapshot } from '../helpers/elk_phase_inputs.js';
 const corpus = await loadPhaseOracles();
 
@@ -91,7 +91,7 @@ test('elk_native boundary rejects duplicate identities and invalid endpoint geom
 });
 
 test('elk_native phase code imports no old Native or vendored algorithm and contains no fixture policy', async () => {
-  const directory = new URL('../../src/layout/elk_native/', import.meta.url);
+  const directory = new URL('../../src/layout/anchor_layered/', import.meta.url);
   for (const file of (await readdir(directory)).filter((name) => name.endsWith('.js'))) {
     const text = await readFile(new URL(file, directory), 'utf8');
     assert.doesNotMatch(text, /from\s+['"][^'"]*(?:native_layered|vendor|elkLayoutProvider)/u, file);

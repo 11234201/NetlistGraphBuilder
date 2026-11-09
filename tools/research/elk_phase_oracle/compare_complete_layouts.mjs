@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { parseVerilog } from '../../../src/parser/verilogParser.js';
 import { buildModuleWorkspace } from '../../../src/app/moduleWorkspace.js';
 import { ElkLayoutProvider } from '../../../src/layout/elkLayoutProvider.js';
-import { NativeLayeredLayoutProvider } from '../../../src/layout/elk_native_layout_provider.js';
+import { NativeLayeredLayoutProvider } from '../../../src/layout/anchor_layout_provider.js';
 import Elk from '../../../vendor/elkjs-0.11.1/lib/elk.bundled.js';
 import { renderSchematicSvg } from '../../../src/domains/netlist/netlist_scene.js';
 import { createStandaloneSvg } from '../../../src/render/svgExport.js';

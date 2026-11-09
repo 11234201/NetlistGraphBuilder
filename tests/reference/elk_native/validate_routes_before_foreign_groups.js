@@ -1,4 +1,4 @@
-import { PhaseError,checkCancelled } from '../../../src/layout/../../src/layout/elk_native/protocol.js';
+import { PhaseError,checkCancelled } from '../../../src/layout/../../src/layout/anchor_layered/protocol.js';
 import { SpatialHashIndex,RouteSegmentIndex } from '../../../src/layout/spatialIndex.js';
 import { getRouteSegments,nodeBox,orthogonalSegmentIntersectsBox,collinearSegmentsOverlap,
   parallelSegmentsOverlap,MINIMUM_FOREIGN_WIRE_SEPARATION } from '../../../src/layout/orthogonalRouting.js';

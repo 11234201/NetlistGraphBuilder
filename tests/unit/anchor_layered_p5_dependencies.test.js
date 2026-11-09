@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { loadPhaseOracles } from '../helpers/elk_phase_inputs.js';
 import { referenceDependencies } from '../reference/elk_native/p5_dependency_reference.js';
-import { buildDependencies } from '../../src/layout/elk_native/routing_dependencies.js';
+import { buildDependencies } from '../../src/layout/anchor_layered/routing_dependencies.js';
 const corpus=await loadPhaseOracles();
 const probe=JSON.parse(await readFile(new URL('../fixtures/elk_parity/oracles/p5_critical_split_001.elk.json',import.meta.url),'utf8'));
 const canonical=(dependencies)=>dependencies.map((edge)=>JSON.stringify(edge)).sort();

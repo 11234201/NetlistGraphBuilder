@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
-import {buildNeighborhood} from '../../src/layout/elk_native/bk_alignment.js';
-import {compactBlocks} from '../../src/layout/elk_native/bk_compaction.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
+import {buildNeighborhood} from '../../src/layout/anchor_layered/bk_alignment.js';
+import {compactBlocks} from '../../src/layout/anchor_layered/bk_compaction.js';
 
 // Four fixed single-node blocks isolate first-edge threshold consumption from
 // median alignment. c's high WEST port is first clockwise, despite its later

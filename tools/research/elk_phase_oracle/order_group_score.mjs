@@ -1,1 +1,1 @@
-export {scoreOrderGroups} from '../../../src/layout/elk_native/order_group_score.js';
+export {scoreOrderGroups} from '../../../src/layout/anchor_layered/order_group_score.js';

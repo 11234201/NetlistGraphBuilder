@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
-import {crossingContext,countCrossings} from '../../../src/layout/elk_native/crossing_counter.js';
+import {crossingContext,countCrossings} from '../../../src/layout/anchor_layered/crossing_counter.js';
 import {crossingContext as oldContext,countCrossings as oldCount} from '../../../tests/reference/elk_native/crossing_counter_baseline.js';
 const results=[];
 for(const sharedPorts of [false,true]){

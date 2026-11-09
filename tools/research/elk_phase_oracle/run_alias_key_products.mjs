@@ -4,7 +4,7 @@ const mode=process.argv[2];assert.ok(['natural','frozen'].includes(mode),'usage:
 process.argv.splice(2,1);
 const location=new URL('./compare_complete_layouts.mjs',import.meta.url);
 let source=await readFile(location,'utf8');
-const anchor="import { NativeLayeredLayoutProvider } from '../../../src/layout/elk_native_layout_provider.js';";
+const anchor="import { NativeLayeredLayoutProvider } from '../../../src/layout/anchor_layout_provider.js';";
 assert.equal(source.split(anchor).length,2);
 source=source.replace(anchor,`import {compileAliasKeyProvider} from '${new URL('./probe_alias_key.mjs',import.meta.url).href}';
 const NativeLayeredLayoutProvider=await compileAliasKeyProvider(${mode==='frozen'});`);

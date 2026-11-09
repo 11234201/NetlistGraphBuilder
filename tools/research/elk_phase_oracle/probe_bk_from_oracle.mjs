@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {normalizePolicy} from '../../../src/layout/elk_native/policy.js';
-import {buildNeighborhood,alignBlocks} from '../../../src/layout/elk_native/bk_alignment.js';
-import {compactBlocks} from '../../../src/layout/elk_native/bk_compaction.js';
+import {normalizePolicy} from '../../../src/layout/anchor_layered/policy.js';
+import {buildNeighborhood,alignBlocks} from '../../../src/layout/anchor_layered/bk_alignment.js';
+import {compactBlocks} from '../../../src/layout/anchor_layered/bk_compaction.js';
 
 // Isolate BK core on the upstream graph immediately before P4, not on our
 // independently ranked/ordered graph. This research DTO cannot enter the public

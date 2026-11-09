@@ -1,4 +1,4 @@
-import { compareIds } from '../../../src/layout/elk_native/protocol.js';
+import { compareIds } from '../../../src/layout/anchor_layered/protocol.js';
 
 const boundaryGroupCache=new WeakMap();
 const staticEdge=(edge)=>Object.isFrozen(edge)&&['id','sourcePortId','targetPortId']

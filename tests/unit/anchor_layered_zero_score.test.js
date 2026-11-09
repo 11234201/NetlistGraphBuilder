@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {crossingContext,countCrossings} from '../../src/layout/elk_native/crossing_counter.js';
+import {crossingContext,countCrossings} from '../../src/layout/anchor_layered/crossing_counter.js';
 import {countCrossings as reference} from '../reference/elk_native/crossing_counter_before_zero_score.js';
-import {freezeRecord} from '../../src/layout/elk_native/protocol.js';
+import {freezeRecord} from '../../src/layout/anchor_layered/protocol.js';
 
 function fixture(){
   return freezeRecord({nodes:['a','b','c','d'].map((id,index)=>({id,layer:index<2?0:1,

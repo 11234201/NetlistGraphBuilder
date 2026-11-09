@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import {createCanonicalGraph} from '../../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../../src/layout/elk_native/p1_orientation.js';
-import {buildProperGraph} from '../../../src/layout/elk_native/proper_graph.js';
-import {validateProperGraph} from '../../../src/layout/elk_native/validate_proper.js';
-import {freezeRecord} from '../../../src/layout/elk_native/protocol.js';
+import {createCanonicalGraph} from '../../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../../src/layout/anchor_layered/p1_orientation.js';
+import {buildProperGraph} from '../../../src/layout/anchor_layered/proper_graph.js';
+import {validateProperGraph} from '../../../src/layout/anchor_layered/validate_proper.js';
+import {freezeRecord} from '../../../src/layout/anchor_layered/protocol.js';
 import {inputFromSnapshot} from '../../../tests/helpers/elk_phase_inputs.js';
 
 const nodesOf=(snapshot)=>snapshot.components.flatMap((component)=>component.nodes);

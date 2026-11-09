@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {properInputFromOracle,graphInOracleOrder} from './upstream_proper_input.mjs';
-import {mergeHyperedgeDummies} from '../../../src/layout/elk_native/hyperedge_merge.js';
+import {mergeHyperedgeDummies} from '../../../src/layout/anchor_layered/hyperedge_merge.js';
 import {createQualityBaseline,sha256} from './quality_baseline.mjs';
 
 const sorted=values=>values.toSorted((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));

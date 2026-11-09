@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createHash} from 'node:crypto';
-import {inputDigest} from '../../src/layout/elk_native/input_digest.js';
+import {inputDigest} from '../../src/layout/anchor_layered/input_digest.js';
 import {inputDigest as baseline} from '../reference/elk_native/input_digest_baseline.js';
 
 test('scalar SHA256 rounds preserve old digest and independent UTF8/block-boundary vectors',()=>{

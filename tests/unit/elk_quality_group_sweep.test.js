@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {cohereBandIds,compileGroupSweep} from '../../tools/research/elk_phase_oracle/group_sweep.mjs';
 import {loadPhaseOracles,inputFromSnapshot} from '../helpers/elk_phase_inputs.js';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../src/layout/elk_native/p1_orientation.js';
-import {assignLayers} from '../../src/layout/elk_native/p2_layering.js';
-import {buildProperGraph} from '../../src/layout/elk_native/proper_graph.js';
-import {countCrossings} from '../../src/layout/elk_native/crossing_counter.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../src/layout/anchor_layered/p1_orientation.js';
+import {assignLayers} from '../../src/layout/anchor_layered/p2_layering.js';
+import {buildProperGraph} from '../../src/layout/anchor_layered/proper_graph.js';
+import {countCrossings} from '../../src/layout/anchor_layered/crossing_counter.js';
 test('group sweep averages degree-weighted barycenters and preserves non-member slots/internal order',()=>{
   const ids=['a','c','n','b','d'],membership=new Map([['a','one'],['b','one'],['c','two'],['d','two']]);
   const bands=[{nodeIds:['a','c','b','d'],membership}],states=new Map([

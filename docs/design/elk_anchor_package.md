@@ -6,7 +6,7 @@
 ## 最小调用示例
 
 ```js
-import {layoutGraph} from './src/layout/elk_native/anchor.js';
+import {layoutGraph} from './src/layout/anchor_layered/anchor.js';
 
 const abortController = new AbortController();
 const result = await layoutGraph({
@@ -17,7 +17,7 @@ const result = await layoutGraph({
   edges: [{id:'ab', physicalNetId:'signal', sourcePortId:'a:o', targetPortId:'b:i'}]
 }, {signal: abortController.signal});
 ```
-（历史调用方亦可直接导入 `./src/layout/elk_native/h08.js`。）
+（历史调用方亦可直接导入 `./src/layout/anchor_layered/h08.js`。）
 
 ## 职责边界与集成契约
 

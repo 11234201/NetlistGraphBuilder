@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadPhaseOracles} from '../helpers/elk_phase_inputs.js';
 import {properInputFromOracle,graphInOracleOrder} from '../../tools/research/elk_phase_oracle/upstream_proper_input.mjs';
-import {countCrossings} from '../../src/layout/elk_native/crossing_counter.js';
-import {orderLayers} from '../../src/layout/elk_native/p3_ordering.js';
-import {mergeHyperedgeDummies} from '../../src/layout/elk_native/hyperedge_merge.js';
-import {preparePortGeometry} from '../../src/layout/elk_native/port_geometry.js';
-import {placeNodes} from '../../src/layout/elk_native/p4_placement.js';
+import {countCrossings} from '../../src/layout/anchor_layered/crossing_counter.js';
+import {orderLayers} from '../../src/layout/anchor_layered/p3_ordering.js';
+import {mergeHyperedgeDummies} from '../../src/layout/anchor_layered/hyperedge_merge.js';
+import {preparePortGeometry} from '../../src/layout/anchor_layered/port_geometry.js';
+import {placeNodes} from '../../src/layout/anchor_layered/p4_placement.js';
 
 test('P3 isolation imports exact upstream proper input/ranks/ports/order with complete semantic lineage',async()=>{
   for(const oracle of await loadPhaseOracles()){

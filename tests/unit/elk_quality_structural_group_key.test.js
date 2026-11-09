@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
 import {structuralOrderingKey} from '../../tools/research/elk_phase_oracle/structural_ordering_key.mjs';
-import {structuralOrderingKey as staticOrderingKey} from '../../src/layout/elk_native/structural_ordering_key.js';
+import {structuralOrderingKey as staticOrderingKey} from '../../src/layout/anchor_layered/structural_ordering_key.js';
 import {CohesionResearchProvider} from '../../tools/research/elk_phase_oracle/probe_cohesion_provider.mjs';
 test('factorial structural key keeps the unique D04 definition, excludes names and preserves source provenance',()=>{
   assert.equal(structuralOrderingKey,staticOrderingKey);

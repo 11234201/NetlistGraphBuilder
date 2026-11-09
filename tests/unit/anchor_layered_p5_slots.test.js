@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { loadPhaseOracles } from '../helpers/elk_phase_inputs.js';
-import { feedbackDependencies,removeRegularCycles } from '../../src/layout/elk_native/routing_cycles.js';
-import { splitCriticalCycles } from '../../src/layout/elk_native/routing_split.js';
-import { assignRoutingSlots } from '../../src/layout/elk_native/routing_slots.js';
+import { feedbackDependencies,removeRegularCycles } from '../../src/layout/anchor_layered/routing_cycles.js';
+import { splitCriticalCycles } from '../../src/layout/anchor_layered/routing_split.js';
+import { assignRoutingSlots } from '../../src/layout/anchor_layered/routing_slots.js';
 const corpus=await loadPhaseOracles();
 const probe=JSON.parse(await readFile(new URL('../fixtures/elk_parity/oracles/p5_critical_split_001.elk.json',import.meta.url),'utf8'));
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {properInputFromOracle} from './upstream_proper_input.mjs';
-import {freezeRecord} from '../../../src/layout/elk_native/protocol.js';
-import {validateProperGraph} from '../../../src/layout/elk_native/validate_proper.js';
+import {freezeRecord} from '../../../src/layout/anchor_layered/protocol.js';
+import {validateProperGraph} from '../../../src/layout/anchor_layered/validate_proper.js';
 
 // Research-only fixed factorial controls. Never imports source array order into runtime.
 export function initializationVariants(oracle,{portScope='all'}={}){

@@ -1,4 +1,4 @@
-import { PhaseError, compareIds, checkCancelled } from '../../../src/layout/elk_native/protocol.js';
+import { PhaseError, compareIds, checkCancelled } from '../../../src/layout/anchor_layered/protocol.js';
 
 export const SUBTREE_PEEL_NODE_THRESHOLD = 40;
 const NEGATIVE_CUT_TOLERANCE = -1e-10;

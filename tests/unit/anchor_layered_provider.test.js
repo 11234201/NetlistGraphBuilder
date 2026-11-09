@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {NativeLayeredLayoutProvider} from '../../src/layout/elk_native_layout_provider.js';
+import {NativeLayeredLayoutProvider} from '../../src/layout/anchor_layout_provider.js';
 import {getConnectionPoint} from '../../src/layout/nodeGeometry.js';
 import {parseVerilog} from '../../src/parser/verilogParser.js';
 import {buildSchematicGraph} from '../../src/netlist/graph.js';

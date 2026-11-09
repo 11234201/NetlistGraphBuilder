@@ -18,7 +18,7 @@
 
 ## 耐久最小反例
 
-`tests/unit/elk_native_bk_threshold.test.js` 的四个固定单节点 block 隔离 threshold 消费：
+`tests/unit/anchor_layered_bk_threshold.test.js` 的四个固定单节点 block 隔离 threshold 消费：
 c 的 high WEST port 是第一个 clockwise port，但其 edge ID 排在后面。正确 bound 为
 `50 + 15 - 20 = 45`；错误全局 edge order 给出 spacing floor 30。
 测试同时验证 input immutability 与 node/edge/port 数组排列稳定性，不依赖大型产品 fixture。
@@ -46,7 +46,7 @@ sha256:404874badfee3691412d407fc71ea1d4be297664814b6e6d8fc6f9887041633c
 命令记录：
 
 ```sh
-node --test tests/unit/elk_native_bk_threshold.test.js tests/unit/elk_native_p4.test.js tests/unit/elk_quality_bk_probe.test.js tests/unit/layout-determinism.test.js tests/unit/layout-fixtures.test.js
+node --test tests/unit/anchor_layered_bk_threshold.test.js tests/unit/anchor_layered_p4.test.js tests/unit/elk_quality_bk_probe.test.js tests/unit/layout-determinism.test.js tests/unit/layout-fixtures.test.js
 node tools/research/elk_phase_oracle/probe_bk_from_oracle.mjs dc_runs/q03_upstream_dp002_attempt02/mapped_large_dp002.json dc_runs/q04_bk_port_order/dp002_bk_isolated.json
 npm test
 MAPPED_CASE_PROVIDER=elk-native-candidate MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-hard

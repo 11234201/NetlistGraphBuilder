@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createCanonicalGraph} from '../../../src/layout/elk_native/ir.js';
-import {buildProperGraph} from '../../../src/layout/elk_native/proper_graph.js';
-import {orderLayers} from '../../../src/layout/elk_native/p3_ordering.js';
-import {mergeHyperedgeDummies} from '../../../src/layout/elk_native/hyperedge_merge.js';
-import {preparePortGeometry} from '../../../src/layout/elk_native/port_geometry.js';
-import {placeNodes} from '../../../src/layout/elk_native/p4_placement.js';
+import {createCanonicalGraph} from '../../../src/layout/anchor_layered/ir.js';
+import {buildProperGraph} from '../../../src/layout/anchor_layered/proper_graph.js';
+import {orderLayers} from '../../../src/layout/anchor_layered/p3_ordering.js';
+import {mergeHyperedgeDummies} from '../../../src/layout/anchor_layered/hyperedge_merge.js';
+import {preparePortGeometry} from '../../../src/layout/anchor_layered/port_geometry.js';
+import {placeNodes} from '../../../src/layout/anchor_layered/p4_placement.js';
 import {createQualityBaseline} from './quality_baseline.mjs';
 
 export function observedProperWithAliasMode(capture,witness,mode){

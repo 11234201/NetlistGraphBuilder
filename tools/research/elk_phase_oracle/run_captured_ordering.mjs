@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {deserialize} from 'node:v8';
 import {performance} from 'node:perf_hooks';
-import {orderLayers} from '../../../src/layout/elk_native/p3_ordering.js';
-import {freezeRecord} from '../../../src/layout/elk_native/protocol.js';
-import {inputDigest} from '../../../src/layout/elk_native/input_digest.js';
+import {orderLayers} from '../../../src/layout/anchor_layered/p3_ordering.js';
+import {freezeRecord} from '../../../src/layout/anchor_layered/protocol.js';
+import {inputDigest} from '../../../src/layout/anchor_layered/input_digest.js';
 
 const input=deserialize(await readFile(process.argv[2]));assert.equal(input.phase,'orderLayers');
 if(process.argv.includes('--inspect')){

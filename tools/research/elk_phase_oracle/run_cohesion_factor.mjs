@@ -11,9 +11,9 @@ const modes=['baseline','groups','key','ports','key+ports','groups+key','groups+
 assert.ok(modes.includes(mode),'invalid predeclared factorial mode');process.argv.splice(2,1);
 const groups=mode==='all'||mode.includes('groups'),key=mode==='all'||mode.includes('key'),ports=mode==='all'||mode.includes('ports');
 const location=new URL('./compare_complete_layouts.mjs',import.meta.url);let source=await readFile(location,'utf8');
-const anchor="import { NativeLayeredLayoutProvider } from '../../../src/layout/elk_native_layout_provider.js';";
+const anchor="import { NativeLayeredLayoutProvider } from '../../../src/layout/anchor_layout_provider.js';";
 assert.equal(source.split(anchor).length,2);
-source=source.replace(anchor,staticH08?`import {NativeLayeredLayoutProvider as StaticProvider} from '${new URL('../../../src/layout/elk_native_layout_provider.js',import.meta.url).href}';
+source=source.replace(anchor,staticH08?`import {NativeLayeredLayoutProvider as StaticProvider} from '${new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url).href}';
 class NativeLayeredLayoutProvider extends StaticProvider{constructor(){super({profile:'h08'});}}`:`import {CohesionResearchProvider} from '${new URL('./probe_cohesion_provider.mjs',import.meta.url).href}';
 class NativeLayeredLayoutProvider extends CohesionResearchProvider{constructor(){super(${JSON.stringify({cohesion:groups,groupSweep:groups,structuralKey:key,implicitPorts:ports,layoutUnits,physicalAnchors})});}}`)
   .replace(/from '(\.[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);

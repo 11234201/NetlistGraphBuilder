@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../src/layout/elk_native/p1_orientation.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../src/layout/anchor_layered/p1_orientation.js';
 import {orientGraph as reference} from '../reference/elk_native/p1_before_first_heap.js';
 
 test('P1 ordinal heaps preserve every first-member decision and feedback edge',()=>{

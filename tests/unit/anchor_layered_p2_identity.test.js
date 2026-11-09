@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { optimizeRanks } from '../../src/layout/elk_native/network_simplex.js';
+import { optimizeRanks } from '../../src/layout/anchor_layered/network_simplex.js';
 import { optimizeRanks as baseline } from '../reference/elk_native/p2_simplex_identity_baseline.js';
 import { optimizeRanks as internedBaseline } from '../reference/elk_native/p2_simplex_interned_baseline.js';
 import { optimizeRanks as cachedBaseline } from '../reference/elk_native/p2_simplex_cached_baseline.js';

@@ -31,7 +31,7 @@ const layoutStarted = performance.now();
 console.error("stage=layout");
 // Research-only candidate selection does not register a second UI provider.
 const provider = providerId === "elk-native-candidate"
-  ? new (await import("../src/layout/elk_native_layout_provider.js")).NativeLayeredLayoutProvider()
+  ? new (await import("../src/layout/anchor_layout_provider.js")).NativeLayeredLayoutProvider()
   : getLayoutProvider(providerId);
 const laidOut = await provider.layout(graph, {
   strictRouting: hardInvariants

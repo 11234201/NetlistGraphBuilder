@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { parseVerilog } from '../../../src/parser/verilogParser.js';
 import { buildSchematicGraph } from '../../../src/netlist/graph.js';
 import { applyWorkspaceGraphTransforms } from '../../../src/app/graphWorkspace.js';
-import { NativeLayeredLayoutProvider } from '../../../src/layout/elk_native_layout_provider.js';
+import { NativeLayeredLayoutProvider } from '../../../src/layout/anchor_layout_provider.js';
 import { nodeBox,orthogonalSegmentIntersectsBox } from '../../../src/layout/orthogonalRouting.js';
 
 const design=parseVerilog(await readFile(process.argv[2],'utf8'));

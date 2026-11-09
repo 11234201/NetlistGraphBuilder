@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-import * as sweep from '../../src/layout/elk_native/group_sweep.js';
-import * as candidates from '../../src/layout/elk_native/order_group_candidates.js';
-import {forecastOrderGroupBands} from '../../src/layout/elk_native/order_group_bands.js';
-import {scoreOrderGroups} from '../../src/layout/elk_native/order_group_score.js';
-import {splitImplicitEndpoints} from '../../src/layout/elk_native/implicit_endpoints.js';
+import * as sweep from '../../src/layout/anchor_layered/group_sweep.js';
+import * as candidates from '../../src/layout/anchor_layered/order_group_candidates.js';
+import {forecastOrderGroupBands} from '../../src/layout/anchor_layered/order_group_bands.js';
+import {scoreOrderGroups} from '../../src/layout/anchor_layered/order_group_score.js';
+import {splitImplicitEndpoints} from '../../src/layout/anchor_layered/implicit_endpoints.js';
 import * as researchSweep from '../../tools/research/elk_phase_oracle/group_sweep.mjs';
 import * as researchCandidates from '../../tools/research/elk_phase_oracle/order_group_candidates.mjs';
 import {forecastOrderGroupBands as researchBands} from '../../tools/research/elk_phase_oracle/order_group_bands.mjs';
@@ -45,6 +45,6 @@ test('static group mechanism dependency closure uses only offline relative JavaS
     }
   };
   for (const name of ['group_sweep', 'order_group_candidates', 'implicit_endpoints', 'h08'])
-    await inspect(new URL(`../../src/layout/elk_native/${name}.js`, import.meta.url));
+    await inspect(new URL(`../../src/layout/anchor_layered/${name}.js`, import.meta.url));
   assert.ok(seen.size > 10);
 });

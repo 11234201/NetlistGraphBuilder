@@ -3,7 +3,7 @@ import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {parseVerilog} from '../../../src/parser/verilogParser.js';
 import {buildModuleWorkspace} from '../../../src/app/moduleWorkspace.js';
-import {NativeLayeredLayoutProvider} from '../../../src/layout/elk_native_layout_provider.js';
+import {NativeLayeredLayoutProvider} from '../../../src/layout/anchor_layout_provider.js';
 import {buildFocusedFaninTreeBlocks,summarizeFocusedFaninTreeBlocks} from '../../../src/layout/layered/focusedTreeBlocks.js';
 import {scoreOrderGroups} from './order_group_score.mjs';
 import {forecastOrderGroupBands} from './order_group_bands.mjs';

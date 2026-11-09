@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../src/layout/elk_native/p1_orientation.js';
-import {assignLayers} from '../../src/layout/elk_native/p2_layering.js';
-import {buildProperGraph} from '../../src/layout/elk_native/proper_graph.js';
-import {crossingContext,countCrossings} from '../../src/layout/elk_native/crossing_counter.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../src/layout/anchor_layered/p1_orientation.js';
+import {assignLayers} from '../../src/layout/anchor_layered/p2_layering.js';
+import {buildProperGraph} from '../../src/layout/anchor_layered/proper_graph.js';
+import {crossingContext,countCrossings} from '../../src/layout/anchor_layered/crossing_counter.js';
 import {crossingContext as oldContext,countCrossings as oldCount} from '../reference/elk_native/crossing_counter_baseline.js';
 import {loadPhaseOracles,inputFromSnapshot} from '../helpers/elk_phase_inputs.js';
 const corpus=await loadPhaseOracles();

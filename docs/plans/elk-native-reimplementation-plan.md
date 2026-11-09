@@ -16,7 +16,7 @@ not coordinate identity. The effort is a clean internal replacement, not a seque
 - No phase may consume information that ELK only produces in a later phase.
 - Every phase has an immutable input/output contract and a phase-local oracle before provider integration.
 - Old and new P1-P5 implementations do not call each other. The new pipeline lives under
-  `src/layout/elk_native/` until one atomic provider cutover.
+  `src/layout/anchor_layered/` until one atomic provider cutover.
 - Simple Layered remains the product default. Native remains Experimental until the final visual gate.
 - Performance optimization remains paused; asymptotic guards and bounded iteration contracts are still required.
 - A green hard validator is necessary but cannot satisfy a visual gate.

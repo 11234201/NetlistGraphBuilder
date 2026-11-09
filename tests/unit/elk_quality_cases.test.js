@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {canonicalFromSpec,materializeSyntheticCase} from '../helpers/elk_quality_cases.js';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
 import {inventoryCases} from '../../tools/research/elk_phase_oracle/quality_baseline.mjs';
 const manifest=JSON.parse(await readFile(new URL('../fixtures/elk_parity/manifest.json',import.meta.url),'utf8'));
 

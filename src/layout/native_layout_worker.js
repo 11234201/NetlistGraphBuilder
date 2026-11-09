@@ -1,4 +1,4 @@
-import { layoutGraph } from "./elk_native/index.js";
+import { layoutGraph } from "./anchor_layered/index.js";
 
 self.onmessage = async ({ data }) => {
   try {

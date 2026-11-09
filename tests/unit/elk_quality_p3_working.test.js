@@ -3,7 +3,7 @@ import test from 'node:test';
 import {loadPhaseOracles} from '../helpers/elk_phase_inputs.js';
 import {properInputFromOracle} from '../../tools/research/elk_phase_oracle/upstream_proper_input.mjs';
 import {compileWorkingOrderProbe,compileWorkingOrderProvider} from '../../tools/research/elk_phase_oracle/probe_p3_working_order.mjs';
-import {orderLayers} from '../../src/layout/elk_native/p3_ordering.js';
+import {orderLayers} from '../../src/layout/anchor_layered/p3_ordering.js';
 test('working-order research observer proves attempt continuity without changing baseline',async()=>{
   const oracle=(await loadPhaseOracles()).find(entry=>entry.fixture.caseId==='sop015_5426_focused_3_3');
   const input=properInputFromOracle(oracle),before=structuredClone(input);

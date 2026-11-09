@@ -3,7 +3,7 @@ import test from 'node:test';
 import {validateLayoutGraph,finalizeLayoutGraph} from '../../src/layout/layoutValidator.js';
 import {validateLayoutGraph as baseline,finalizeLayoutGraph as finalizeBaseline}
   from '../reference/elk_native/layout_validator_before_foreign_groups.js';
-import {validateRoutes} from '../../src/layout/elk_native/validate_routes.js';
+import {validateRoutes} from '../../src/layout/anchor_layered/validate_routes.js';
 import {validateRoutes as routesBaseline} from '../reference/elk_native/validate_routes_before_foreign_groups.js';
 
 test('foreign-net candidate narrowing preserves complete ordered layout diagnostics and input',()=>{

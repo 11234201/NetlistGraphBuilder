@@ -1,4 +1,4 @@
-import { PhaseError } from './elk_native/index.js';
+import { PhaseError } from './anchor_layered/index.js';
 import { executeNativeLayout } from './native_layout_execution.js';
 import { buildNodePorts,getPort,getConnectionPoint,measureNode,computeBoundsWithRoutes,computeSafeLayoutExtent } from './nodeGeometry.js';
 import { getNetGroupKey } from './layoutTopology.js';
@@ -7,13 +7,14 @@ import { placeWireLabels } from './wireLabelPlacement.js';
 import { finalizeLayoutGraph } from './layoutValidator.js';
 import {buildFocusedFaninTreeBlocks} from './layered/focusedTreeBlocks.js';
 
-export const NATIVE_LAYERED_LAYOUT_PROVIDER_ID='native-layered';
+export const ANCHOR_LAYERED_LAYOUT_PROVIDER_ID='native-layered';
+export const NATIVE_LAYERED_LAYOUT_PROVIDER_ID=ANCHOR_LAYERED_LAYOUT_PROVIDER_ID;
 
 const isAnchorProfile = (profile) => profile === 'anchor' || profile === 'anchor-layered' || profile === 'h08';
 
 // Shared product adapter; the registry explicitly selects the accepted AnchorLayered (H08) profile.
 // Measurement and public DTO conversion only; no coordinate or route repair pass.
-export class NativeLayeredLayoutProvider{
+export class AnchorLayeredLayoutProvider{
   constructor({profile='anchor'}={}){
     const isAnchor = isAnchorProfile(profile);
     this.id=NATIVE_LAYERED_LAYOUT_PROVIDER_ID;
@@ -77,3 +78,5 @@ export class NativeLayeredLayoutProvider{
         ...(result.phaseData.profile?{profile:result.phaseData.profile}:{})}});
   }
 }
+
+export const NativeLayeredLayoutProvider = AnchorLayeredLayoutProvider;

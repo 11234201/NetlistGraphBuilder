@@ -19,7 +19,7 @@
 无需 `npm install` 或任何构建步骤即可直接导入使用：
 
 ```js
-import { layoutGraph } from './src/layout/elk_native/anchor.js';
+import { layoutGraph } from './src/layout/anchor_layered/anchor.js';
 const controller = new AbortController();
 const positioned = await layoutGraph({
   nodes: [{ id: 'a', width: 60, height: 40, ports: [] }],
@@ -33,7 +33,7 @@ const positioned = await layoutGraph({
   - 输入对象在入口处立即生成快照，绝不原地修改调用方传入的数据。
   - 仅返回完整且通过几何硬约束校验的结果；若某相位失败，会携带相位诊断信息直接 `reject`，绝不返回残缺几何或私自调用其他路由器。
   - `index.js` 基础 profile 仅保留用于受控相位对比测试，不作为第二个 UI 布局引擎暴露。
-  - 亦保留 `src/layout/elk_native/h08.js` 兼容入口供历史模块调用。
+  - 亦保留 `src/layout/anchor_layered/h08.js` 兼容入口供历史模块调用。
   - 关于 AnchorLayered `orderGroups` 排序组输入、容量上限与 profile 元数据，请参阅 `docs/design/elk_anchor_package.md`。
 
 ## 算法参考与项目适配说明
@@ -49,7 +49,7 @@ const positioned = await layoutGraph({
 运行本包全部单元测试：
 
 ```bash
-node --test tests/unit/elk_native*.test.js
+node --test tests/unit/anchor_layered*.test.js
 ```
 
 使用 `tools/research/elk_phase_oracle/compare_native_phases.mjs` 可针对已保存的上游相位快照定位首个决策分歧点（原始相位观察回调仅用于测试，绝不向生产环境发布未完成的几何数据）。

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutGraph,CONTRACT_VERSION } from '../../src/layout/elk_native/index.js';
+import { layoutGraph,CONTRACT_VERSION } from '../../src/layout/anchor_layered/index.js';
 import { loadPhaseOracles,inputFromSnapshot } from '../helpers/elk_phase_inputs.js';
-import { validateRoutes } from '../../src/layout/elk_native/validate_routes.js';
+import { validateRoutes } from '../../src/layout/anchor_layered/validate_routes.js';
 const corpus=await loadPhaseOracles();
 
 test('elk_native clone-importable package publishes only immutable validated complete geometry',async()=>{

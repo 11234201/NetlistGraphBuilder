@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {measureLayerAlignment} from '../../src/layout/elk_native/layer_alignment.js';
-import {preparePortGeometry} from '../../src/layout/elk_native/port_geometry.js';
+import {measureLayerAlignment} from '../../src/layout/anchor_layered/layer_alignment.js';
+import {preparePortGeometry} from '../../src/layout/anchor_layered/port_geometry.js';
 import {forecastOrderGroupBands} from '../../tools/research/elk_phase_oracle/order_group_bands.mjs';
 
 const fixture = () => ({selfLoops: [], options: {nodeNodeBetweenLayers: 40},

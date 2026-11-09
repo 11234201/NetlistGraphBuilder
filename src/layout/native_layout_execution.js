@@ -1,5 +1,5 @@
-import { layoutGraph } from "./elk_native/index.js";
-import { checkCancelled } from "./elk_native/protocol.js";
+import { layoutGraph } from "./anchor_layered/index.js";
+import { checkCancelled } from "./anchor_layered/protocol.js";
 
 // Browser jobs own a dedicated worker so abort can interrupt a synchronous
 // phase. CLI/research callers retain phase hooks and an in-process fallback.

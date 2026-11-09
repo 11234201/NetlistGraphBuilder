@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {buildOrderGroupCandidates,selectOrderGroupCandidate} from '../../tools/research/elk_phase_oracle/order_group_candidates.mjs';
-import {createCanonicalGraph} from '../../src/layout/elk_native/ir.js';
-import {orientGraph} from '../../src/layout/elk_native/p1_orientation.js';
-import {assignLayers} from '../../src/layout/elk_native/p2_layering.js';
-import {buildProperGraph} from '../../src/layout/elk_native/proper_graph.js';
-import {countCrossings} from '../../src/layout/elk_native/crossing_counter.js';
-import {freezeRecord} from '../../src/layout/elk_native/protocol.js';
+import {createCanonicalGraph} from '../../src/layout/anchor_layered/ir.js';
+import {orientGraph} from '../../src/layout/anchor_layered/p1_orientation.js';
+import {assignLayers} from '../../src/layout/anchor_layered/p2_layering.js';
+import {buildProperGraph} from '../../src/layout/anchor_layered/proper_graph.js';
+import {countCrossings} from '../../src/layout/anchor_layered/crossing_counter.js';
+import {freezeRecord} from '../../src/layout/anchor_layered/protocol.js';
 const entries=['a','b','c','d'].map(nodeId=>({nodeId,membershipKey:nodeId<'c'?'one':'two'}));
 test('fixed group candidates preserve non-member slots/ports, identity and group internal order',()=>{
   const graph={nodes:['a','b','c','d','n'].map(id=>({id,ports:[],layer:0})),layers:[{index:0,nodeIds:['a','c','n','b','d']}]};

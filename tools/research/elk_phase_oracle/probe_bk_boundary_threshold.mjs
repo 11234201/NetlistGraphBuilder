@@ -8,13 +8,13 @@ import {createQualityBaseline,sha256} from './quality_baseline.mjs';
 // Research-only mechanical observer. Production source is never overwritten,
 // and this derived module cannot enter the UI pipeline.
 export async function compileBoundaryProbe({events=[],orderIncident}={}){
-  let source=await readFile(new URL('../../../src/layout/elk_native/bk_compaction.js',import.meta.url),'utf8');
+  let source=await readFile(new URL('../../../src/layout/anchor_layered/bk_compaction.js',import.meta.url),'utf8');
   const replace=(before,after)=>{
     assert.equal(source.split(before).length,2,`ambiguous/missing compactor probe anchor: ${before}`);
     source=source.replace(before,after);
   };
   replace("import { verticalSpacing } from './bk_alignment.js';",
-    `import { verticalSpacing } from ${JSON.stringify(new URL('../../../src/layout/elk_native/bk_alignment.js',import.meta.url).href)};`);
+    `import { verticalSpacing } from ${JSON.stringify(new URL('../../../src/layout/anchor_layered/bk_alignment.js',import.meta.url).href)};`);
   replace('export function compactBlocks(context, layout) {','export function compactBlocks(context, layout, observeDecision, orderIncident) {');
   replace('for (const edge of context.incident.get(free)) {',
     'for (const edge of orderIncident ? orderIncident(free, isRoot, context.incident.get(free), context, layout) : context.incident.get(free)) {');

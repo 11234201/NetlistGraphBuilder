@@ -4,11 +4,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {properInputFromOracle,graphInOracleOrder} from './upstream_proper_input.mjs';
 import {createQualityBaseline,sha256} from './quality_baseline.mjs';
-import {countCrossings} from '../../../src/layout/elk_native/crossing_counter.js';
-import {orderLayers} from '../../../src/layout/elk_native/p3_ordering.js';
-import {mergeHyperedgeDummies} from '../../../src/layout/elk_native/hyperedge_merge.js';
-import {preparePortGeometry} from '../../../src/layout/elk_native/port_geometry.js';
-import {placeNodes} from '../../../src/layout/elk_native/p4_placement.js';
+import {countCrossings} from '../../../src/layout/anchor_layered/crossing_counter.js';
+import {orderLayers} from '../../../src/layout/anchor_layered/p3_ordering.js';
+import {mergeHyperedgeDummies} from '../../../src/layout/anchor_layered/hyperedge_merge.js';
+import {preparePortGeometry} from '../../../src/layout/anchor_layered/port_geometry.js';
+import {placeNodes} from '../../../src/layout/anchor_layered/p4_placement.js';
 
 const [oracleFile,edgeId,output]=process.argv.slice(2);
 if(!output)throw new Error('usage: isolate_p3_quality.mjs <oracle.json> <logical-edge-id> <output-dir>');

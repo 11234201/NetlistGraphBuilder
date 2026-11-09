@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const url=source=>`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 export async function randomModuleUrl({sourceRng=false,graphModel=false}={}){
-  const location=new URL('../../../src/layout/elk_native/p3_ordering.js',import.meta.url);
+  const location=new URL('../../../src/layout/anchor_layered/p3_ordering.js',import.meta.url);
   let source=await readFile(location,'utf8');
   const replace=(before,after)=>{assert.equal(source.split(before).length,2,'missing/ambiguous P3 anchor');source=source.replace(before,after);};
   source=`import {createSourceRandom} from '${new URL('./source_random.mjs',import.meta.url).href}';\n`+source;
@@ -25,14 +25,14 @@ export async function randomModuleUrl({sourceRng=false,graphModel=false}={}){
 }
 export async function compileRandomProbe(options){return (await import(await randomModuleUrl(options))).orderLayers;}
 export async function compileRandomProvider(options){
-  const location=new URL('../../../src/layout/elk_native/index.js',import.meta.url);
+  const location=new URL('../../../src/layout/anchor_layered/index.js',import.meta.url);
   let index=await readFile(location,'utf8');
   const anchor="import { orderLayers } from './p3_ordering.js';";assert.equal(index.split(anchor).length,2);
   index=index.replace(anchor,`import { orderLayers } from '${await randomModuleUrl(options)}';`)
     .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);
-  const adapterLocation=new URL('../../../src/layout/elk_native_layout_provider.js',import.meta.url);
+  const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
   let adapter=await readFile(adapterLocation,'utf8');
-  const adapterAnchor="from './elk_native/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
+  const adapterAnchor="from './anchor_layered/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
   adapter=adapter.replace(adapterAnchor,`from '${url(index)}'`)
     .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);
   return (await import(url(adapter))).NativeLayeredLayoutProvider;

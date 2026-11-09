@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { createCanonicalGraph } from '../../src/layout/elk_native/ir.js';
-import { orientGraph } from '../../src/layout/elk_native/p1_orientation.js';
-import { assignLayers } from '../../src/layout/elk_native/p2_layering.js';
-import { buildProperGraph } from '../../src/layout/elk_native/proper_graph.js';
+import { createCanonicalGraph } from '../../src/layout/anchor_layered/ir.js';
+import { orientGraph } from '../../src/layout/anchor_layered/p1_orientation.js';
+import { assignLayers } from '../../src/layout/anchor_layered/p2_layering.js';
+import { buildProperGraph } from '../../src/layout/anchor_layered/proper_graph.js';
 
 export const oracleCaseIds = ['oracle_smoke_001', 'chain_4', 'diamond', 'reconvergent_long_edge',
   'multi_port_fanout_hyperedge', 'sop015_5426_focused_3_3'];

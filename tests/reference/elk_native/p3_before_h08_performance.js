@@ -1,9 +1,9 @@
-import { compareIds, freezeRecord, checkCancelled, PhaseError } from '../../../src/layout/elk_native/protocol.js';
-import { validateProperGraph } from '../../../src/layout/elk_native/validate_proper.js';
+import { compareIds, freezeRecord, checkCancelled, PhaseError } from '../../../src/layout/anchor_layered/protocol.js';
+import { validateProperGraph } from '../../../src/layout/anchor_layered/validate_proper.js';
 import { crossingContext, countCrossings } from './crossing_counter_before_zero_score.js';
-import { calculatePortRanks } from '../../../src/layout/elk_native/port_ranks.js';
-import { resolveOrderConstraints } from '../../../src/layout/elk_native/order_constraints.js';
-import {cohereBandIds,cohereLayoutUnits} from '../../../src/layout/elk_native/group_sweep.js';
+import { calculatePortRanks } from '../../../src/layout/anchor_layered/port_ranks.js';
+import { resolveOrderConstraints } from '../../../src/layout/anchor_layered/order_constraints.js';
+import {cohereBandIds,cohereLayoutUnits} from '../../../src/layout/anchor_layered/group_sweep.js';
 
 // Source-visible 0.07 perturbation, named here rather than mixed into arbitrary costs.
 const BARYCENTER_PERTURBATION = 0.07;

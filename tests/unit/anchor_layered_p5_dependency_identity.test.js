@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildDependencies } from '../../src/layout/elk_native/routing_dependencies.js';
+import { buildDependencies } from '../../src/layout/anchor_layered/routing_dependencies.js';
 import { buildDependencies as baseline } from '../reference/elk_native/p5_dependency_order_baseline.js';
 
 test('compact candidate identities preserve exact legacy order, counts and focus behavior',()=>{

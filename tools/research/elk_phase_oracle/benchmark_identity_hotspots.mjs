@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
-import {buildDependencies} from '../../../src/layout/elk_native/routing_dependencies.js';
+import {buildDependencies} from '../../../src/layout/anchor_layered/routing_dependencies.js';
 import {buildDependencies as oldDependencies} from '../../../tests/reference/elk_native/p5_dependency_order_baseline.js';
-import {optimizeRanks} from '../../../src/layout/elk_native/network_simplex.js';
+import {optimizeRanks} from '../../../src/layout/anchor_layered/network_simplex.js';
 import {optimizeRanks as oldRanks} from '../../../tests/reference/elk_native/p2_simplex_identity_baseline.js';
 import {optimizeRanks as internedRanks} from '../../../tests/reference/elk_native/p2_simplex_interned_baseline.js';
 import {optimizeRanks as cachedRanks} from '../../../tests/reference/elk_native/p2_simplex_cached_baseline.js';
