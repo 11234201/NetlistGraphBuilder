@@ -43,7 +43,7 @@ export function createAppState(layoutPolicy) {
     graphOverrides: createEmptyGraphOverrides(),
     cellConfig: { kind: "netlist-cell-config", version: 1, cells: {} },
     timing: null,
-    timingDisplayPolicy: { metrics: ["slack"] },
+    timingDisplayPolicy: { metrics: ["slack"], threshold: 0.0 },
     timingBadgeChoices: {},
     timingBadgePositions: {},
     calibrationMode: false,

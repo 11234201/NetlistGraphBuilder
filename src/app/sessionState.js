@@ -79,7 +79,10 @@ export function createSessionSnapshot(state) {
     },
     presentationPolicy: { ...(state.presentationPolicy || {}) },
     timingDisplayPolicy: {
-      metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])]
+      metrics: [...(state.timingDisplayPolicy?.metrics || ["slack"])],
+      threshold: Number.isFinite(Number(state.timingDisplayPolicy?.threshold))
+        ? Number(state.timingDisplayPolicy.threshold)
+        : 0.0
     }
   };
 }

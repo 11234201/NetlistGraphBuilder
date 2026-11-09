@@ -7,7 +7,8 @@ export const TIMING_BADGE_POSITIONS = Object.freeze([
 
 export const TIMING_METRICS = Object.freeze(["at", "rt", "slack", "delay", "slew"]);
 export const DEFAULT_TIMING_DISPLAY_POLICY = Object.freeze({
-  metrics: Object.freeze(["slack"])
+  metrics: Object.freeze(["slack"]),
+  threshold: 0.0
 });
 
 const BADGE_POSITION_SET = new Set(TIMING_BADGE_POSITIONS);
@@ -149,14 +150,19 @@ export function normalizeTimingDisplayPolicy(policy = DEFAULT_TIMING_DISPLAY_POL
   const rawMetrics = Array.isArray(policy?.metrics)
     ? policy.metrics
     : (policy?.metrics ? [policy.metrics] : []);
+  const rawThreshold = policy?.threshold !== undefined ? Number(policy.threshold) : DEFAULT_TIMING_DISPLAY_POLICY.threshold;
+  const threshold = Number.isFinite(rawThreshold) ? rawThreshold : 0.0;
   if (Array.isArray(policy?.metrics) && policy.metrics.length === 0) {
-    return { metrics: Object.freeze([]) };
+    return { metrics: Object.freeze([]), threshold };
   }
   if (rawMetrics.includes("none")) {
-    return { metrics: Object.freeze([]) };
+    return { metrics: Object.freeze([]), threshold };
   }
   const metrics = [...new Set(rawMetrics.filter((metric) => TIMING_METRIC_SET.has(metric)))];
-  return { metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics] };
+  return {
+    metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics],
+    threshold
+  };
 }
 
 export function normalizeBadgeChoices(choices) {
@@ -640,8 +646,21 @@ function annotateTimingBadges(timing, choices, position, node, policy) {
   const badges = requestedChoices
     .map((choice) => resolveBadgeChoice(timing, choice))
     .filter(Boolean);
+  const threshold = Number.isFinite(policy?.threshold) ? policy.threshold : 0.0;
+  const worstSlack = Number.isFinite(timing.worstSlack) ? timing.worstSlack : timing.slack;
+  const isCritical = Number.isFinite(worstSlack) && worstSlack < threshold;
+  const pins = timing.pins ? { ...timing.pins } : {};
+  for (const [pinName, pinData] of Object.entries(pins)) {
+    pins[pinName] = {
+      ...pinData,
+      isCritical: Number.isFinite(pinData.slack) && pinData.slack < threshold
+    };
+  }
   return {
     ...timing,
+    pins,
+    slackThreshold: threshold,
+    isCritical,
     badges,
     badge: badges[0] || null,
     badgePosition: BADGE_POSITION_SET.has(position) ? position : "bottom-right"

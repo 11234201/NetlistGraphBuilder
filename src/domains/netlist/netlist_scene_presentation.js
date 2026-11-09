@@ -70,7 +70,11 @@ function createPortPrimitive(node, portKind) {
     }, [svgText(badgeLines[0])]));
   }
   const portSlack = Number.isFinite(node.timing?.worstSlack) ? node.timing.worstSlack : node.timing?.slack;
-  const timingClass = node.timing ? (Number.isFinite(portSlack) && portSlack < 0 ? " timing-critical" : " timing-annotated") : "";
+  const threshold = Number.isFinite(node.timing?.slackThreshold) ? node.timing.slackThreshold : 0.0;
+  const isCritical = typeof node.timing?.isCritical === "boolean"
+    ? node.timing.isCritical
+    : (Number.isFinite(portSlack) && portSlack < threshold);
+  const timingClass = node.timing ? (isCritical ? " timing-critical" : " timing-annotated") : "";
   return svgElement("g", nodeAttributes(node, `node ${portKind}${timingClass}`), children);
 }
 
@@ -176,7 +180,11 @@ function createPortPrimitives(node, x, y, width, conventional = false) {
     const labelY = port.side === "top" ? py + 13 : port.side === "bottom" ? py - 7 : py + 3;
     const anchor = vertical ? "middle" : isOutput ? "end" : "start";
     const timing = node.timing?.pins?.[port.pin];
-    const timingClass = timing ? (Number.isFinite(timing.slack) && timing.slack < 0 ? " pin-critical" : " pin-timing") : "";
+    const threshold = Number.isFinite(node.timing?.slackThreshold) ? node.timing.slackThreshold : 0.0;
+    const isCritical = typeof timing?.isCritical === "boolean"
+      ? timing.isCritical
+      : (timing && Number.isFinite(timing.slack) && timing.slack < threshold);
+    const timingClass = timing ? (isCritical ? " pin-critical" : " pin-timing") : "";
     const markerChildren = timing ? [title(formatPinTimingTooltip(port.pin, timing))] : [];
     const marker = isOutput && node.outputBubble === true
       ? svgElement("circle", { class: `pin-bubble${timingClass}`, cx: round(x + width + 5), cy: py, r: 5 }, markerChildren)
@@ -226,7 +234,11 @@ function getTimingBadgeLines(node) {
 
 function getTimingClass(node) {
   if (!node.timing) return "";
-  return Number.isFinite(node.timing.worstSlack) && node.timing.worstSlack < 0 ? " timing-critical" : " timing-annotated";
+  const threshold = Number.isFinite(node.timing.slackThreshold) ? node.timing.slackThreshold : 0.0;
+  const isCritical = typeof node.timing.isCritical === "boolean"
+    ? node.timing.isCritical
+    : (Number.isFinite(node.timing.worstSlack) && node.timing.worstSlack < threshold);
+  return isCritical ? " timing-critical" : " timing-annotated";
 }
 
 function formatPinTimingTooltip(pinName, timing) {

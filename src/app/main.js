@@ -406,6 +406,7 @@ const elements = {
   cellSpacingNumberInput: document.querySelector("#cellSpacingNumberInput"),
   cellSpacingValue: document.querySelector("#cellSpacingValue"),
   timingMetricSelect: document.querySelector("#timingMetricSelect"),
+  timingSlackThresholdInput: document.querySelector("#timingSlackThresholdInput"),
   editCellDefinitionButton: document.querySelector("#editCellDefinitionButton"),
   cellConfigInput: document.querySelector("#cellConfigInput"),
   exportCellConfigButton: document.querySelector("#exportCellConfigButton"),
@@ -482,7 +483,8 @@ const layoutSpacingController = createLayoutSpacingController({
 });
 const timingDisplayController = createTimingDisplayController({
   elements: {
-    metricSelect: elements.timingMetricSelect
+    metricSelect: elements.timingMetricSelect,
+    thresholdInput: elements.timingSlackThresholdInput
   },
   getPolicy: () => state.timingDisplayPolicy,
   onCommit: commitTimingDisplayPolicy

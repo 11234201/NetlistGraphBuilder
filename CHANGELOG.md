@@ -2,6 +2,26 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.2.0] - 2026-11-09
+
+- **标准 STA 时序格式支持与解析器重构**：
+  - 彻底废弃旧版临时的 `LocResyn timing` 与 `Global/Local` 边界表格解析；全面切换为工业界标准的 **NGB Timing Format v1.0**（Tabular 列式文本与结构化 JSON 双模输入）。
+  - 支持 `@module`、`@stage`（`pre_map` / `post_map` / `post_layout`）、`@unit`（时间单位）及 `@scenario` 指令；支持 `#` 与 `//` 行内注释过滤及 EDA 转义标识符消歧。
+  - 简单模式仅需 4 列（`point at rt slack`，缺失 slack 时自动依 `rt - at` 推导）；详细模式支持 `delay`、`slew`、`edge`、`kind` 多维指标。
+- **Net 时序驱动源溯源与别名归一化**：
+  - 时序挂载引擎自动沿 `assign` 别名链向上追溯至物理 Source 根端（顶层输入端口或单元输出引脚），彻底解决综合优化后内部 Net 别名折叠导致时序丢失的问题。
+- **时序显示策略与 Metric 控制**：
+  - 侧边栏 Metric 选项重构为：`Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None`。
+  - 新增 `Threshold`（最差 Slack 判定阈值，默认 `0.0`）：仅裕量严格小于该阈值（`slack < threshold`）的对象标记为违例关键路径（`timing-critical` / `pin-critical` 红框高亮），支持过滤轻微违例或提前筛选余量不足路径。
+  - 新增 `None` 模式：支持一键隐藏全图所有时序文字徽标，使原理图回归纯净的连线拓扑形态，同时保留引脚悬停 Tooltip 与 Inspector 详细时序查验能力。
+  - 端口（Port）图元文本排版优化为上下双行垂直居中（Label 上半区，Badge 下半区），自动省略端口名前缀冗余，彻底避免文字挤占与溢出。
+  - 彻底清理已废弃的 `snapshot`（`auto` / `global` / `local`）DOM、状态机与会话代码。
+- **默认内置验证时序与启动联动**：
+  - 新增内置标准样例时序数据（`src/app/sampleTiming.js`），默认启动或重置样例时自动载入；
+  - 默认模块（Golden 基准）包含负 Slack 违例关键路径展示（红脉冲高亮与 `-0.040ns` 徽标），Flex 优化模块展示优化达标时序（`+0.015ns`），为单模块及 Compare 视图提供开箱即用的验证环境。
+- **全量测试与验证**：
+  - 单元测试扩展至 **913/913** 全部通过；架构检查通过（236 模块，0 违规，0 环路）。
+
 ## [1.1.3] - 2026-11-08
 
 - 修复结构化 Verilog 解析器（parser）中的表达式截断、重复实例、紧邻注释、向量切片以及字面量/引用（literal/reference）身份识别问题；转义标识符（escaped identifier）不再被误判为常量。

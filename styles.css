@@ -859,12 +859,19 @@ body.is-dragging-files .drop-overlay {
 }
 
 .panel-field select,
-.timing-policy-panel select {
+.timing-policy-panel select,
+.timing-policy-panel input {
   min-width: 0;
   height: 30px;
   border: 1px solid var(--line);
   background: var(--panel-strong);
   color: var(--text);
+}
+
+.timing-policy-panel input {
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
 }
 
 .range-control {

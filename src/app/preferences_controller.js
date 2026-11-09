@@ -26,8 +26,10 @@ export function createPreferencesController({ state, elements, services }) {
       state.presentationPolicy = normalizeNetlistPresentationPolicy(session.presentationPolicy);
       if (session.layoutPolicy) services.setSingleLayoutPolicy(session.layoutPolicy);
       const metrics = session.timingDisplayPolicy?.metrics;
+      const rawThreshold = session.timingDisplayPolicy?.threshold;
       state.timingDisplayPolicy = {
-        metrics: Array.isArray(metrics) && metrics.length ? metrics : ["slack"]
+        metrics: Array.isArray(metrics) && metrics.length ? metrics : ["slack"],
+        threshold: Number.isFinite(Number(rawThreshold)) ? Number(rawThreshold) : 0.0
       };
     }
     elements.coneDepthInput.value = String(state.coneDepth);

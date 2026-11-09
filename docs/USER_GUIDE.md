@@ -3,13 +3,14 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成。
 
 - **默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- **版本说明**：当前代码版本为 `v1.1.3`；最新离线发布附件 `v1.1.2` 已于 2026-10-21 同版本号覆盖更新（包含后续修复与更新后的标签），若此前下载过旧文件请重新下载并核对 SHA-256 校验值。
+- **版本说明**：当前代码版本为 `v1.2.0`；最新离线发布附件 `v1.1.2` 已于 2026-10-21 同版本号覆盖更新（包含后续修复与更新后的标签），若此前下载过旧文件请重新下载并核对 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
+| **标准 STA 时序与 Metric 过滤** | 左侧 Timing 面板与 Selection 面板 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 assign 链回溯；侧边栏提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 及一键清爽纯净的 `None` 模式；支持自定义 Slack 判定阈值（Threshold，默认 0.0）；内置验证时序默认联动呈现负 Slack 违例关键路径。 |
 | **Cell / Net 聚焦视图** | 顶部 Search、左侧 View 区 | 支持将 Cell 或 Net 设为聚焦根节点（root）；点击未在当前画布绘制的搜索结果默认追加为 root，点击 `+ Focus` / `Add selected` 显式追加，点击 `Set selected as Focused` 显式替换全部 roots。 |
 | **Focused roots 管理** | 左侧 View 区 root chips | 点击 chip 可激活并居中对应 root，点击 `×` 或 `Remove selected` 移除单个 root，点击 `Clear` 清空全部 roots（最多同时保留 32 个 roots）。 |
 | **分层连接展示** | 左侧 Selection 面板 | `Connections / Current module` 仅展示当前模块定义内的连接；`Hierarchy / Parent occurrence` 独立展示穿过当前模块端口边界延伸至父层实例的连接。 |
@@ -450,15 +451,25 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 ### 11.3 全图时序显示策略（Timing Display Policy）
 
-左侧 `Timing` 面板提供全图级别的 `Metric` 指标选择（可选 `Slack`、`AT`、`RT`、`Delay`、`Slew`、`All`）。全图时序策略在 Single 视图、Compare 视图及 SVG 导出之间保持严格同步。匹配到时序记录的单元与端口会在节点旁展示时序徽标（badge）；存在负 Slack（违例）的关键节点和引脚会自动附加醒目的 `critical` 告警样式。
+左侧 `Timing` 面板提供全图级别的 `Metric` 指标选择与 `Threshold` 阈值配置：
+- **Metric 指标过滤**：可选 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None`。
+  - `Worst Slack`：默认模式，展示输出引脚最差 Slack 与输入引脚到达时间（AT）；
+  - `AT` / `RT` / `Delay` / `Slew`：整图仅展示单一指定物理维度，避免海量文字密集遮挡；
+  - `All`：展示所有基础时序维度；
+  - `None`：**一键隐藏全图所有时序徽标**，使原理图立即回归纯净的拓扑结构与连线形态，同时完全保留引脚悬停 Tooltip 与 Inspector 详细时序查验能力。
+- **Slack 违例阈值（Threshold）**：默认为 `0.0`。
+  - 只有 Slack **严格小于**该阈值（`slack < threshold`）的单元外框、端口与引脚才会被判定为关键路径违例并渲染醒目的红色（`timing-critical` / `pin-critical`）；
+  - 若将阈值设为正数（例如 `0.05`），可用于提前筛选 Establish/Setup 余量不足的边缘路径；
+  - 若将阈值设为负数（例如 `-0.10`），可用于仅过滤并高亮严重超标的极端违例，忽略轻微违例；
+  - 阈值对 Single 视图、Focused 视图、Compare 视图及 SVG 导出均实时保持全局同步生效。
 
 ### 11.4 单个对象的 Timing 详情与徽标定制
 
-选中带有时序数据的单元后，左侧 `Selection` 面板会列出该单元所有引脚的 `AT`、`RT`、`Slack` 以及最差引脚（worst pin）与最差裕量（worst slack）。用户可在面板中针对该单元微调徽标展示：
-
-- 单独勾选或取消勾选某个引脚/指标是否显示为画布 badge。
-- 调整 badge 挂载在节点外框的方位（左上、右上、左下、右下）。
-- 点击 `Default badges` 一键恢复默认徽标显示策略。
+- **端口（Port）图元时序排版**：输入/输出端口图元采用上下双行垂直居中排版（上行显示端口名称，下行显示时序徽标并自动省略冗余前缀），确保窄端口外框内文字清晰无挤压溢出。
+- **单元详情查验**：选中带有时序数据的单元后，左侧 `Selection` 面板会列出该单元所有引脚的 `AT`、`RT`、`Slack`、最差引脚（worst pin）、最差裕量（worst slack）以及当前是否达标违例。用户可在面板中针对该单元微调徽标展示：
+  - 单独勾选或取消勾选某个引脚/指标是否显示为画布 badge；
+  - 调整 badge 挂载在节点外框的方位（左上、右上、左下、右下）；
+  - 点击 `Default badges` 一键恢复默认徽标显示策略。
 
 ---
 

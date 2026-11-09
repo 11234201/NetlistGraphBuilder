@@ -62,7 +62,8 @@ export function createPresentationController({ state, elements, services }) {
     const metric = policy.metrics.length === 0
       ? "none"
       : (policy.metrics.length >= 3 ? "all" : (policy.metrics[0] === "slack" ? "worst slack" : policy.metrics[0]));
-    services.setStatus(`Timing: ${metric}`);
+    const thresholdText = Number.isFinite(policy.threshold) ? ` (threshold ${policy.threshold})` : "";
+    services.setStatus(`Timing: ${metric}${thresholdText}`);
   }
 
   function commitGateSymbolMode(mode) {

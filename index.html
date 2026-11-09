@@ -101,6 +101,7 @@
             <summary>Timing</summary>
             <div class="panel-section-body">
               <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Worst Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option><option value="none">None</option></select></label>
+              <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Only mark slacks below this threshold as critical"></label>
             </div>
           </details>
           <section class="panel-section cell-config-panel">

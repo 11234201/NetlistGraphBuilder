@@ -220,13 +220,16 @@ w_gen_14670  0.311245  -0.017425  -0.328670  0.044
   assert.doesNotMatch(hiddenSvg, /timing-badge/);
 
   assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["rt", "slew", "rt", "bad"] }), {
-    metrics: ["rt", "slew"]
+    metrics: ["rt", "slew"],
+    threshold: 0
   });
   assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: [] }), {
-    metrics: []
+    metrics: [],
+    threshold: 0
   });
   assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["none"] }), {
-    metrics: []
+    metrics: [],
+    threshold: 0
   });
 });
 
@@ -292,4 +295,22 @@ test("default startup opens built-in sample module with timing initialized and v
   const flexSvg = renderSchematicSvg(flexGraph);
   assert.match(flexSvg, /timing-badge/);
   assert.doesNotMatch(flexSvg, /timing-critical/);
+
+  // 6. Worst slack threshold test:
+  // When threshold = 0.02, flex module (slack ~ +0.015 < 0.02) gets marked as timing-critical
+  const flexGraphThreshold = layoutGraph(buildWorkspaceGraph(flexModule, {
+    timing: state.timing,
+    timingDisplayPolicy: { metrics: ["slack"], threshold: 0.02 }
+  }));
+  const flexSvgThreshold = renderSchematicSvg(flexGraphThreshold);
+  assert.match(flexSvgThreshold, /timing-critical/);
+
+  // When threshold = -0.05, baseline module (slack ~ -0.040 >= -0.05) is NOT marked as timing-critical
+  const baselineModule = state.design.modules.find((mod) => mod.name === "root_is_l_resyn3_u_gen_1395_7_159174_5");
+  const baselineGraphRelaxed = layoutGraph(buildWorkspaceGraph(baselineModule, {
+    timing: state.timing,
+    timingDisplayPolicy: { metrics: ["slack"], threshold: -0.05 }
+  }));
+  const baselineSvgRelaxed = renderSchematicSvg(baselineGraphRelaxed);
+  assert.doesNotMatch(baselineSvgRelaxed, /timing-critical/);
 });
