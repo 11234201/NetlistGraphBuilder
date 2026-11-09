@@ -3,6 +3,7 @@ import { getCompareNodeName, findCompareNode } from "./compareWorkspace.js";
 import {
   getTimingBadgeChoices,
   renderTimingPanel,
+  renderNetTimingPanel,
   bindTimingPanel,
   isTimingBadgePosition,
   updateTimingBadgeChoices
@@ -135,10 +136,14 @@ export function createInspectorController({ state, elements, services }) {
     return Boolean(findCompareNode(state.compare.graphs?.[side], kind, name));
   }
 
+  function getTimingKey(node) {
+    return services.getNodeInstance(node) || node?.ref?.name || node?.label || null;
+  }
+
   function renderCompareSelection(side, node) {
     elements.details.className = "details-block";
-    const instance = services.getNodeInstance(node);
-    const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], instance);
+    const timingKey = getTimingKey(node);
+    const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], timingKey);
     elements.details.innerHTML = `${statsRows([["Compare side", side]])}${renderObjectDetails(
       inspectGraphNode(state.compare.fullGraphs[side] || state.compare.graphs[side], node)
     )}${renderTimingPanel(node, choices)}${renderAdjustPanel(node, state.calibrationMode)}`;
@@ -147,20 +152,21 @@ export function createInspectorController({ state, elements, services }) {
 
   function bindCompareSelectionControls(side, node) {
     const instance = services.getNodeInstance(node);
+    const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
       onPositionChange: (position) => {
-        if (!instance || !isTimingBadgePosition(position)) return;
-        state.compare.timingBadgePositions[side][instance] = position;
+        if (!timingKey || !isTimingBadgePosition(position)) return;
+        state.compare.timingBadgePositions[side][timingKey] = position;
         services.renderCompareGraphs();
       },
       onBadgeToggle: (pin, metric, checked) => {
-        if (!instance) return;
-        const current = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], instance);
-        state.compare.timingBadgeChoices[side][instance] = updateTimingBadgeChoices(current, pin, metric, checked);
+        if (!timingKey) return;
+        const current = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], timingKey);
+        state.compare.timingBadgeChoices[side][timingKey] = updateTimingBadgeChoices(current, pin, metric, checked);
         services.renderCompareGraphs();
       },
       onReset: () => {
-        if (instance) delete state.compare.timingBadgeChoices[side][instance];
+        if (timingKey) delete state.compare.timingBadgeChoices[side][timingKey];
         services.renderCompareGraphs();
       }
     });
@@ -249,8 +255,8 @@ export function createInspectorController({ state, elements, services }) {
     services.updateCellDefinitionControls(node);
 
     elements.details.className = "details-block";
-    const instance = services.getNodeInstance(node);
-    const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
+    const timingKey = getTimingKey(node);
+    const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, timingKey);
     elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node, {
       hierarchyContext: currentHierarchyInspectionContext()
     }))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
@@ -260,9 +266,11 @@ export function createInspectorController({ state, elements, services }) {
   function renderNetSelection(netName) {
     services.updateCellDefinitionControls(null);
     elements.details.className = "details-block";
-    elements.details.innerHTML = renderObjectDetails(inspectGraphNet(state.fullGraph || state.graph, netName, {
+    const activeGraph = state.fullGraph || state.graph;
+    const netTiming = activeGraph?.netTiming?.[netName] || null;
+    elements.details.innerHTML = `${renderObjectDetails(inspectGraphNet(activeGraph, netName, {
       hierarchyContext: currentHierarchyInspectionContext()
-    }));
+    }))}${renderNetTimingPanel(netTiming)}`;
   }
 
   function currentHierarchyInspectionContext() {
@@ -299,16 +307,17 @@ export function createInspectorController({ state, elements, services }) {
 
   function bindSelectionControls(node) {
     const instance = services.getNodeInstance(node);
+    const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
       onPositionChange: (position) => updateTimingBadgePosition(node, position),
       onBadgeToggle: (pin, metric, checked) =>
         updateTimingBadgeChoice(node, pin, metric, checked),
       onReset: () => {
-        if (instance) {
-          delete state.timingBadgeChoices[instance];
+        if (timingKey) {
+          delete state.timingBadgeChoices[timingKey];
         }
         rerenderPreservingView(node.id);
-        services.setStatus(`${node.label}: timing badges reset to input AT plus output AT and slack`);
+        services.setStatus(`${node.label}: timing badges reset to default`);
       }
     });
 
@@ -337,11 +346,11 @@ export function createInspectorController({ state, elements, services }) {
   }
 
   function updateTimingBadgePosition(node, position) {
-    const instance = services.getNodeInstance(node);
-    if (!instance || !isTimingBadgePosition(position)) {
+    const timingKey = getTimingKey(node);
+    if (!timingKey || !isTimingBadgePosition(position)) {
       return;
     }
-    state.timingBadgePositions[instance] = position;
+    state.timingBadgePositions[timingKey] = position;
     rerenderPreservingView(node.id);
     services.setStatus(`${node.label}: timing badges ${position}`);
   }
@@ -396,12 +405,12 @@ export function createInspectorController({ state, elements, services }) {
   }
 
   function updateTimingBadgeChoice(node, pin, metric, checked) {
-    const instance = services.getNodeInstance(node);
-    if (!instance) {
+    const timingKey = getTimingKey(node);
+    if (!timingKey) {
       return;
     }
-    const choices = getTimingBadgeChoices(node, state.timingBadgeChoices, instance);
-    state.timingBadgeChoices[instance] = updateTimingBadgeChoices(choices, pin, metric, checked);
+    const choices = getTimingBadgeChoices(node, state.timingBadgeChoices, timingKey);
+    state.timingBadgeChoices[timingKey] = updateTimingBadgeChoices(choices, pin, metric, checked);
     rerenderPreservingView(node.id);
     services.setStatus(`${node.label}: ${checked ? "show" : "hide"} ${pin} ${metric}`);
   }

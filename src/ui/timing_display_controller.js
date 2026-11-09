@@ -1,5 +1,6 @@
 const SNAPSHOTS = new Set(["auto", "global", "local"]);
-const METRICS = new Set(["at", "rt", "slack"]);
+const ALL_BASIC_METRICS = Object.freeze(["at", "rt", "slack"]);
+const METRICS = new Set(["at", "rt", "slack", "delay", "slew"]);
 
 export function createTimingDisplayController({ elements, getPolicy, onCommit }) {
   if (typeof getPolicy !== "function" || typeof onCommit !== "function") {
@@ -8,8 +9,8 @@ export function createTimingDisplayController({ elements, getPolicy, onCommit })
   function read() {
     const current = normalizeTimingDisplayPolicy(getPolicy());
     return normalizeTimingDisplayPolicy({
-      snapshot: elements.snapshotSelect.value || current.snapshot,
-      metrics: elements.metricSelect.value === "all" ? [...METRICS] : [elements.metricSelect.value]
+      snapshot: elements.snapshotSelect?.value || current.snapshot,
+      metrics: elements.metricSelect.value === "all" ? [...ALL_BASIC_METRICS] : [elements.metricSelect.value]
     });
   }
   function commit() {
@@ -20,10 +21,12 @@ export function createTimingDisplayController({ elements, getPolicy, onCommit })
   }
   function sync(value = getPolicy()) {
     const policy = normalizeTimingDisplayPolicy(value);
-    elements.snapshotSelect.value = policy.snapshot;
-    elements.metricSelect.value = policy.metrics.length === METRICS.size ? "all" : policy.metrics[0];
+    if (elements.snapshotSelect) {
+      elements.snapshotSelect.value = policy.snapshot;
+    }
+    elements.metricSelect.value = policy.metrics.length >= ALL_BASIC_METRICS.length ? "all" : policy.metrics[0];
   }
-  elements.snapshotSelect.addEventListener("change", commit);
+  elements.snapshotSelect?.addEventListener("change", commit);
   elements.metricSelect.addEventListener("change", commit);
   return Object.freeze({ read, commit, sync });
 }

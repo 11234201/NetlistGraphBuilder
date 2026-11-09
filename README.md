@@ -45,7 +45,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 ### 模块对比、时序标注与工具链集成
 
 - **双模块对比（Compare View）**：支持上下或左右分屏对比两个模块，提供同步缩放平移、同名输出锥（Output Cone）联动查看及启发式结构差异高亮；左右两侧维护独立的聚焦根节点，并支持同步追加、移除与清空匹配单元。
-- **时序报告导入与标注**：兼容传统 LocResyn 格式与新版 Global/Local 边界时序表格，支持按全图 Snapshot/Metric 策略显示时序徽标（badge）与负裕量关键路径（critical）高亮。
+- **时序报告导入与标注**：支持符合 EDA 工具习惯的标准列式时序文本（空格/Tab/CSV）与 JSON 双模格式（默认极简 `point at rt slack`，可选详细模式 `delay`、`slew`、`edge`、`kind`），完整覆盖映射前（Pre-map）、映射后（Post-map）与布局后（Post-layout）阶段，支持全图 Metric 策略与负裕量关键路径（critical）高亮。
 - **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用粘贴文本框，自动识别并区分 Verilog 网表、Layout Golden 与时序日志。
 - **自定义单元配置（Cell Config）**：支持在界面内编辑、浏览器本地持久化及 JSON 导入/导出未知单元类型的逻辑门种类与引脚方向。
 - **过程日志（Process Log）**：底部可折叠日志面板支持按阶段（Phase）和级别（Level）过滤、一键复制与导出，便于排查解析或匹配问题。
@@ -175,7 +175,7 @@ node tools/serve.mjs stop --state-file ./results/ngb-session.json
 
 - `examples/two_equivalent_style_modules.v`：基础重综合（resyn / Flex）双模块对比示例。
 - `examples/hierarchical_escaped_compare.v`：包含转义层次化标识符（escaped hierarchical identifiers）与 Flex 配对模块的真实结构示例。
-- `examples/hierarchical_escaped_timing.txt`：与 `hierarchical_escaped_compare.v` 配套的 LocResyn 时序日志示例。
+- `examples/hierarchical_escaped_timing.txt`：与 `hierarchical_escaped_compare.v` 配套的标准多模块时序报告示例。
 - `examples/large_buffer_chain_1024.v`：1024 级缓冲器长链大图与有界锥体（bounded cone）测试示例，可通过以下命令确定性生成：
 
 ```powershell
@@ -271,7 +271,7 @@ src/persistence/      会话、启动清单与源码指纹等版本化编解码�
 src/platform/         浏览器文件下载与本地存储等平台副作用适配
 src/render/           SVG 场景渲染器、渐进式分批渲染与独立 SVG 导出
 src/search/           设计对象索引构建与搜索匹配
-src/timing/           LocResyn 与 Global/Local 时序日志解析及图标注
+src/timing/           标准 Tabular/CSV/JSON 时序解析及图实体消歧标注
 src/ui/               画布手势、视口变换、搜索栏及 Selection / Timing / Adjust 面板
 tests/fixtures/       单元测试与 47 个综合映射网表回归用例
 tests/unit/           全量单元测试套件

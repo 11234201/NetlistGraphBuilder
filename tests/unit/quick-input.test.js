@@ -9,14 +9,23 @@ import {
 test("quick input recognizes files and pasted content", () => {
   const netlist = "module top(input a, output y); assign y = a; endmodule";
   const golden = JSON.stringify({ kind: "netlist-layout-golden" });
-  const timing = "inst <top/u0> pin <A>, at 1.0, rt 0.1, slack -0.2";
+  const timing = "@module top\npoint at rt slack\nu0/A 1.0 0.1 -0.2";
+  const timingJson = JSON.stringify({
+    version: "1.0",
+    stage: "post_map",
+    points: { "u0/A": [1.0, 0.1, -0.2] }
+  });
 
   assert.equal(detectQuickInputKind("ignored", { name: "design.v" }), "netlist");
   assert.equal(detectQuickInputKind("ignored", { name: "layout.json" }), "golden");
   assert.equal(detectQuickInputKind("ignored", { name: "timing.log" }), "timing");
+  assert.equal(detectQuickInputKind("ignored", { name: "timing.csv" }), "timing");
   assert.equal(detectQuickInputKind(netlist), "netlist");
   assert.equal(detectQuickInputKind(golden), "golden");
   assert.equal(detectQuickInputKind(timing), "timing");
+  assert.equal(detectQuickInputKind("u0/A 0.45 0.10 -0.35"), "timing");
+  assert.equal(detectQuickInputKind(timingJson), "timing");
+  assert.equal(detectQuickInputKind(timingJson, { name: "report.json" }), "timing");
   assert.equal(detectQuickInputKind(timing, { preferredKind: "netlist" }), "netlist");
   assert.throws(() => detectQuickInputKind("plain notes"), /not recognized/);
 });

@@ -43,10 +43,9 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 
 ### 2. Timing 时序解析与标注
 
-- `timingParser` 仅负责将文本规范化为时序中间表示（timing IR，将输入中的 `rat` 统一存为 `rt`），不得读取图结构或 DOM，且必须保持对旧版 LocResyn 格式的向后兼容。
-- 必须完整保留 `Global` / `Local` 快照标识与 `Apply` 原始声明。`Auto` 快照选择使用明确、可测试的规则；遇到未知的 `Apply` 值时生成诊断并安全回退，绝不根据数值优劣自行猜测是否已应用 Local。
-- 时序作用域（scope）到模块/实例的匹配归属于 `timingAnnotation` 层。层次匹配采用最长无歧义后缀匹配；模块边界端口（boundary port）与单元引脚（cell pin）不得混用匹配路径。
-- 时序显示策略（Snapshot / Metric）属于工作区与会话的全图级状态，Single、Compare 与 SVG 导出必须消费同一套策略；`Selection` 面板可展示选中单元的完整引脚时序表，但不得创建与全局冲突的单节点全局策略。
+- `timingParser` 仅负责将标准列式文本（Tabular/CSV）或 JSON 时序数据规范化为无环纯对象时序中间表示（`TimingDataset` IR，详细定义见 [`docs/design/timing_format_spec.md`](../../design/timing_format_spec.md)），不得读取图结构或 DOM；旧版 `LocResyn` 与 `Global/Local` 边界表格格式已正式废弃。
+- 时序作用域（`@module`）到模块/实例/端口/线网的消歧归属于 `timingAnnotation` 层：必须在校验图实体存在性的前提下区分 Cell Pin（最长无歧义层次后缀匹配）与含 `/` 的转义 Port/Net；当 `point` 命中 `net` 时，其时序语义严格代表该 Net 的 **Source 驱动端**，并须沿 `assign` 别名链向上游穿透挂载至真实物理驱动端。
+- 时序显示策略（Metric）属于工作区与会话的全图级状态，Single、Compare 与 SVG 导出必须消费同一套策略；节点几何测量（`measureNode`）与通用渲染器（`svgRenderer.js`）必须对时序保持零耦合，以确保切换时序指标或勾选徽标时不会触发自动布局重算。
 
 ### 3. Layout 与正交布线（Routing）
 

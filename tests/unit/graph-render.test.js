@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
@@ -1029,11 +1029,11 @@ test("node property overrides update graph metadata", () => {
   assert.equal(node.gateKind, "blackbox");
 });
 
-test("LocResyn timing logs attach pin timing to matching cells", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo/u0>
-input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
-at 0.423782, rt 0.090101, slack -0.333681
+test("standard timing logs attach pin timing to matching cells", () => {
+  const timing = parseTimingLog(`@module demo
+point at rt slack
+u0/A1 0.453205 0.100524 -0.352681
+u0/ZN 0.423782 0.090101 -0.333681
 `);
   const graph = {
     nodes: [
@@ -1049,43 +1049,53 @@ at 0.423782, rt 0.090101, slack -0.333681
   const annotated = annotateGraphTiming(graph, timing);
 
   assert.equal(timing.instanceCount, 1);
-  assert.equal(timing.instances.u0.worstPin, "A1");
-  assert.equal(timing.instances.u0.pins.ZN.slack, -0.333681);
+  assert.equal(annotated.nodes[0].timing.worstPin, "A1");
+  assert.equal(annotated.nodes[0].timing.pins.ZN.slack, -0.333681);
   assert.equal(annotated.nodes[0].timing.worstSlack, -0.352681);
   assert.equal(annotated.nodes[0].timing.badge.label, "A1 slack -0.353");
 });
 
-test("LocResyn timing parser accepts angle-bracket pin names", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo/u0>
-input timing message: pin<A1>, at 0.453205, rt 0.100524, slack -0.352681 pin <ZN>,
-at 0.423782, rt 0.090101, slack -0.333681
+test("timing parser accepts headerless 4-column rows and CSV rows", () => {
+  const timing = parseTimingLog(`
+u0/A1, 0.453205, 0.100524, -0.352681
+u0/ZN, 0.423782, 0.090101, -0.333681
 `);
+  const graph = {
+    nodes: [{ id: "cell:u0", kind: "cell", label: "u0", ref: { instance: "u0" } }],
+    edges: []
+  };
+  const annotated = annotateGraphTiming(graph, timing);
 
-  assert.deepEqual(Object.keys(timing.instances.u0.pins), ["A1", "ZN"]);
-  assert.equal(timing.instances.u0.pins.A1.at, 0.453205);
-  assert.equal(timing.instances.u0.worstPin, "A1");
+  assert.deepEqual(Object.keys(annotated.nodes[0].timing.pins), ["A1", "ZN"]);
+  assert.equal(annotated.nodes[0].timing.pins.A1.at, 0.453205);
+  assert.equal(annotated.nodes[0].timing.worstPin, "A1");
 });
 
-test("timing parser recognizes bare inst blocks in arbitrary order", () => {
-  const timing = parseTimingLog(`noise before the marker
-inst <top/u1>
-pin ZN, at 0.200, rt 0.100, slack -0.020
-unrelated text
-INST<top/u0>
-pin B, at 0.400, rt 0.300, slack -0.040
-pin A, at 0.300, rt 0.200, slack -0.030`);
+test("timing parser recognizes multiple instances in arbitrary order", () => {
+  const timing = parseTimingLog(`# comment line
+point at rt slack
+top/u1/ZN 0.200 0.100 -0.020
+top/u0/B  0.400 0.300 -0.040
+top/u0/A  0.300 0.200 -0.030`);
+  const graph = {
+    nodes: [
+      { id: "cell:u0", kind: "cell", label: "u0", ref: { instance: "u0" } },
+      { id: "cell:u1", kind: "cell", label: "u1", ref: { instance: "u1" } }
+    ],
+    edges: []
+  };
+  const annotated = annotateGraphTiming(graph, timing);
 
   assert.equal(timing.instanceCount, 2);
-  assert.equal(timing.instances.u1.pins.ZN.slack, -0.02);
-  assert.deepEqual(Object.keys(timing.instances.u0.pins), ["B", "A"]);
-  assert.equal(timing.instances.u0.worstPin, "B");
+  assert.equal(annotated.nodes[1].timing.pins.ZN.slack, -0.02);
+  assert.deepEqual(Object.keys(annotated.nodes[0].timing.pins), ["B", "A"]);
+  assert.equal(annotated.nodes[0].timing.worstPin, "B");
 });
 
-test("LocResyn timing uses the longest hierarchical instance suffix", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0>
-input timing message: pin Z, at 0.818539, rt 0.813487, slack -0.005052
+test("timing annotation uses the longest hierarchical instance suffix", () => {
+  const timing = parseTimingLog(`
+point at rt slack
+LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0/Z 0.818539 0.813487 -0.005052
 `);
   const graph = {
     nodes: [
@@ -1106,26 +1116,27 @@ input timing message: pin Z, at 0.818539, rt 0.813487, slack -0.005052
   };
   const annotated = annotateGraphTiming(graph, timing);
 
-  assert.equal(timing.records[0].fullPath, "LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0");
+  assert.equal(
+    annotated.nodes[1].timing.fullPath,
+    "LoResynHinst_of_module_demo_gen_212/u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1234_0"
+  );
   assert.equal(annotated.nodes[0].timing, undefined);
   assert.equal(annotated.nodes[1].timing.pins.Z.slack, -0.005052);
 });
 
-test("LocResyn timing scopes duplicate Flex instance names to the current module", () => {
+test("timing annotation scopes duplicate Flex instance names to the current module", () => {
   const firstModule = "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1208_0_1_83091_2_Flex";
   const secondModule = "root_is_u_dp_add_0/GNUWA_DYNAMIC_ADDER_gen_1134_0_13_78272_7_Flex";
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<${firstModule}_ConeInst/l_resyn1_u_gen_1>
-input timing message: pin Z, at 0.179111, rt 0.170000, slack -0.009111
-[D][LocResyn] inst
-<${firstModule}_ConeInst/l_resyn1_u_gen_0>
-input timing message: pin ZN, at 0.062084, rt 0.050000, slack -0.012084
-[D][LocResyn] inst
-<${secondModule}_ConeInst/l_resyn1_u_gen_1>
-input timing message: pin Z, at 0.185934, rt 0.180000, slack -0.005934
-[D][LocResyn] inst
-<${secondModule}_ConeInst/l_resyn1_u_gen_0>
-input timing message: pin ZN, at 0.027266, rt 0.020000, slack -0.007266
+  const timing = parseTimingLog(`
+@module ${firstModule}
+point at rt slack
+${firstModule}_ConeInst/l_resyn1_u_gen_1/Z  0.179111 0.170000 -0.009111
+${firstModule}_ConeInst/l_resyn1_u_gen_0/ZN 0.062084 0.050000 -0.012084
+
+@module ${secondModule}
+point at rt slack
+${secondModule}_ConeInst/l_resyn1_u_gen_1/Z  0.185934 0.180000 -0.005934
+${secondModule}_ConeInst/l_resyn1_u_gen_0/ZN 0.027266 0.020000 -0.007266
 `);
   const makeGraph = (moduleName) => ({
     moduleName,
@@ -1141,17 +1152,17 @@ input timing message: pin ZN, at 0.027266, rt 0.020000, slack -0.007266
   const first = annotateGraphTiming(makeGraph(firstModule), timing);
   const second = annotateGraphTiming(makeGraph(secondModule), timing);
 
-  assert.equal(first.nodes[0].timing.fullPath, `${firstModule}_ConeInst/l_resyn1_u_gen_0`);
-  assert.equal(first.nodes[1].timing.fullPath, `${firstModule}_ConeInst/l_resyn1_u_gen_1`);
-  assert.equal(second.nodes[0].timing.fullPath, `${secondModule}_ConeInst/l_resyn1_u_gen_0`);
-  assert.equal(second.nodes[1].timing.fullPath, `${secondModule}_ConeInst/l_resyn1_u_gen_1`);
+  assert.equal(first.nodes[0].timing.pins.ZN.slack, -0.012084);
+  assert.equal(first.nodes[1].timing.pins.Z.slack, -0.009111);
+  assert.equal(second.nodes[0].timing.pins.ZN.slack, -0.007266);
+  assert.equal(second.nodes[1].timing.pins.Z.slack, -0.005934);
 });
 
 test("timing badge choices select the cell corner metric", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo/u0>
-input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
-at 0.423782, rt 0.090101, slack -0.333681
+  const timing = parseTimingLog(`
+point at rt slack
+u0/A1 0.453205 0.100524 -0.352681
+u0/ZN 0.423782 0.090101 -0.333681
 `);
   const graph = {
     moduleDisplayName: "timing",
@@ -1186,11 +1197,11 @@ at 0.423782, rt 0.090101, slack -0.333681
 });
 
 test("timing badges default to all input AT plus output AT and slack", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo/u0>
-input timing message: pin A1, at 0.453205, rt 0.100524, slack -0.352681 pin ZN,
-at 0.423782, rt 0.090101, slack -0.333681 pin A2,
-at 0.401234, rt 0.110101, slack -0.291133
+  const timing = parseTimingLog(`
+point at rt slack
+u0/A1 0.453205 0.100524 -0.352681
+u0/ZN 0.423782 0.090101 -0.333681
+u0/A2 0.401234 0.110101 -0.291133
 `);
   const graph = {
     moduleDisplayName: "timing",
@@ -1258,9 +1269,9 @@ at 0.401234, rt 0.110101, slack -0.291133
 });
 
 test("timing badge position supports every cell corner", () => {
-  const timing = parseTimingLog(`[D][LocResyn] inst
-<LoResynHinst_of_module_demo/u0>
-input timing message: pin ZN, at 0.423782, rt 0.090101, slack -0.333681
+  const timing = parseTimingLog(`
+point at rt slack
+u0/ZN 0.423782 0.090101 -0.333681
 `);
   const graph = {
     moduleDisplayName: "timing",

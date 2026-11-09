@@ -91,7 +91,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const timing = textKind === "timing";
     elements.textTitle.textContent = timing ? "Paste timing" : "Paste Verilog";
     elements.textDescription.textContent = timing
-      ? "粘贴 Global/Local 表格或 LocResyn timing，解析成功后应用到当前设计。"
+      ? "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。"
       : "粘贴 structural Verilog，解析成功后立即画图。";
     if (!elements.textDialog.open) elements.textDialog.showModal();
     schedule(() => elements.textInput.focus());

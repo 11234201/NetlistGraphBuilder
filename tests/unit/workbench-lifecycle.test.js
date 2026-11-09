@@ -459,7 +459,7 @@ test("timing quick input resolves only after the refreshed workspace is mounted"
   const controller = createInputController({ state, elements: {}, services });
   let settled = false;
   const pending = controller.loadQuickInputText(
-    "inst <top/u0> pin <A>, at 1.0, rat 0.1, slack -0.2",
+    "@module top\npoint at rt slack\nu0/A 1.0 0.1 -0.2",
     { kind: "timing", label: "timing.log" }
   ).then((kind) => { settled = true; return kind; });
   await Promise.resolve();

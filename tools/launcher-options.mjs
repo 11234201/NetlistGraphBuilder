@@ -100,7 +100,9 @@ export async function createStartupManifest(options, readText = (path) => readFi
       if (kind === "netlist") design = parseDesignSource(text);
       if (kind === "timing") {
         const timing = parseTimingLog(text);
-        if ((timing.scopeCount || timing.instanceCount || 0) === 0) throw new Error("no timing records recognized");
+        if ((timing.recordCount || timing.scopeCount || timing.instanceCount || 0) === 0) {
+          throw new Error("no timing records recognized");
+        }
       }
     } catch (error) {
       throw new LauncherArgumentError(`Invalid --${toKebab(kind)} file ${path}: ${error.message}`);
@@ -138,7 +140,7 @@ export function createReadyRecord(port, manifest) {
 export function getLauncherHelp(command = "node tools/serve.mjs") {
   return `Usage: ${command} [start|stop|status] [options]\n\n` +
     "  --netlist <path>       structural Verilog to load\n" +
-    "  --timing <path>        Global/Local or LocResyn timing text\n" +
+    "  --timing <path>        standard timing report (Tabular/CSV/JSON)\n" +
     "  --cell-config <path>   versioned Cell Config JSON\n" +
     "  --module <name>        module selected after loading\n" +
     "  --focus <instance>     cell instance to open as a focused neighborhood\n" +

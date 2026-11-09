@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
@@ -19,8 +19,8 @@
           <div class="toolbar-menu-popover">
             <label class="menu-action" title="打开 structural Verilog 网表"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist</label>
             <button id="pasteNetlistButton" class="menu-action" type="button" title="粘贴一段 structural Verilog 网表">Paste netlist</button>
-            <label class="menu-action" title="导入 Global/Local 或 LocResyn 时序信息"><input id="timingInput" type="file" accept=".log,.txt">Open timing</label>
-            <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴 Global/Local 或 LocResyn 时序文本">Paste timing</button>
+            <label class="menu-action" title="导入标准时序文件（Tabular / CSV / JSON）"><input id="timingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing</label>
+            <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴标准时序文本（Tabular / CSV / JSON）">Paste timing</button>
           </div>
         </details>
         <details id="moduleHierarchyMenu" class="toolbar-menu module-hierarchy-menu">
@@ -100,8 +100,8 @@
           <details class="panel-section collapsible-panel timing-policy-panel" open>
             <summary>Timing</summary>
             <div class="panel-section-body">
-              <label><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
-              <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="all">All</option></select></label>
+              <label hidden><span>Snapshot</span><select id="timingSnapshotSelect" title="Choose the timing snapshot for every matched cell and port"><option value="auto">Auto</option><option value="global">Global</option><option value="local">Local</option></select></label>
+              <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option></select></label>
             </div>
           </details>
           <section class="panel-section cell-config-panel">

@@ -154,7 +154,7 @@ namespace NetlistGraphBuilderLauncher
         {
             Console.WriteLine("Usage: NetlistGraphBuilder.exe [options]");
             Console.WriteLine("  --netlist <path>       structural Verilog to load");
-            Console.WriteLine("  --timing <path>        Global/Local or LocResyn timing text");
+            Console.WriteLine("  --timing <path>        standard timing report (Tabular/CSV/JSON)");
             Console.WriteLine("  --cell-config <path>   versioned Cell Config JSON");
             Console.WriteLine("  --module <name>        module selected after loading");
             Console.WriteLine("  --focus <instance>     cell instance to focus");

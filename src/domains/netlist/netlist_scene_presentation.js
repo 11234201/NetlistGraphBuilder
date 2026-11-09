@@ -32,7 +32,11 @@ function createPortPrimitive(node, portKind) {
     ? `${x},${y} ${x + width - 14},${y} ${x + width},${y + height / 2} ${x + width - 14},${y + height} ${x},${y + height}`
     : `${x + 14},${y} ${x + width},${y} ${x + width},${y + height} ${x + 14},${y + height} ${x},${y + height / 2}`;
   const timingMetrics = node.timing?.metrics || (node.timing ? {
-    at: node.timing.at, rt: node.timing.rt, slack: node.timing.slack
+    at: node.timing.at,
+    rt: node.timing.rt,
+    slack: node.timing.slack,
+    delay: node.timing.delay,
+    slew: node.timing.slew
   } : null);
   const children = [];
   if (node.boundaryDirection) {
@@ -42,7 +46,8 @@ function createPortPrimitive(node, portKind) {
     const values = Object.entries(timingMetrics)
       .filter(([, value]) => Number.isFinite(value))
       .map(([name, value]) => `${name} ${formatTimingValue(value)}`).join(", ");
-    children.push(title(`${node.label}: ${values}`));
+    const edgeSuffix = node.timing?.edge ? ` (${node.timing.edge === "r" ? "rise" : "fall"})` : "";
+    if (values) children.push(title(`${node.label}: ${values}${edgeSuffix}`));
   }
   children.push(
     svgElement("polygon", { class: "node-shape", points }),
@@ -50,7 +55,10 @@ function createPortPrimitive(node, portKind) {
       class: "node-label", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
     }, [svgText(getLeafDisplayName(node.label))])
   );
-  const timingClass = node.timing ? (node.timing.slack < 0 ? " timing-critical" : " timing-annotated") : "";
+  const timingBadge = createTimingBadge(node, x, y, width, height);
+  if (timingBadge) children.push(timingBadge);
+  const portSlack = Number.isFinite(node.timing?.worstSlack) ? node.timing.worstSlack : node.timing?.slack;
+  const timingClass = node.timing ? (Number.isFinite(portSlack) && portSlack < 0 ? " timing-critical" : " timing-annotated") : "";
   return svgElement("g", nodeAttributes(node, `node ${portKind}${timingClass}`), children);
 }
 
@@ -156,8 +164,8 @@ function createPortPrimitives(node, x, y, width, conventional = false) {
     const labelY = port.side === "top" ? py + 13 : port.side === "bottom" ? py - 7 : py + 3;
     const anchor = vertical ? "middle" : isOutput ? "end" : "start";
     const timing = node.timing?.pins?.[port.pin];
-    const timingClass = timing ? (timing.slack < 0 ? " pin-critical" : " pin-timing") : "";
-    const markerChildren = timing ? [title(`${port.pin}: at ${formatTimingValue(timing.at)}, rt ${formatTimingValue(timing.rt)}, slack ${formatTimingValue(timing.slack)}`)] : [];
+    const timingClass = timing ? (Number.isFinite(timing.slack) && timing.slack < 0 ? " pin-critical" : " pin-timing") : "";
+    const markerChildren = timing ? [title(formatPinTimingTooltip(port.pin, timing))] : [];
     const marker = isOutput && node.outputBubble === true
       ? svgElement("circle", { class: `pin-bubble${timingClass}`, cx: round(x + width + 5), cy: py, r: 5 }, markerChildren)
       : svgElement("circle", { class: `pin-dot${timingClass}`, cx: px, cy: py, r: 2.4 }, markerChildren);
@@ -205,7 +213,19 @@ function getTimingBadgeLines(node) {
 
 function getTimingClass(node) {
   if (!node.timing) return "";
-  return node.timing.worstSlack < 0 ? " timing-critical" : " timing-annotated";
+  return Number.isFinite(node.timing.worstSlack) && node.timing.worstSlack < 0 ? " timing-critical" : " timing-annotated";
+}
+
+function formatPinTimingTooltip(pinName, timing) {
+  const parts = [
+    `at ${formatTimingValue(timing.at)}`,
+    `rt ${formatTimingValue(timing.rt)}`,
+    `slack ${formatTimingValue(timing.slack)}`
+  ];
+  if (Number.isFinite(timing.delay)) parts.push(`delay ${formatTimingValue(timing.delay)}`);
+  if (Number.isFinite(timing.slew)) parts.push(`slew ${formatTimingValue(timing.slew)}`);
+  const edgeSuffix = timing.edge ? ` (${timing.edge === "r" ? "rise" : "fall"})` : "";
+  return `${pinName}: ${parts.join(", ")}${edgeSuffix}`;
 }
 
 function nodeAttributes(node, className) {

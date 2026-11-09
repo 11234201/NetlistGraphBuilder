@@ -205,8 +205,8 @@ graph
 
 负责可选时序报告的文本解析与图节点时序标注，严格划分为两个独立阶段：
 
-- `src/timing/timingParser.js`：仅负责将传统 LocResyn 行格式或新版 Global/Local 边界表格文本规范化解析为时序中间记录（timing IR，将 `rat` 统一归一为 `rt` 并保留扩展指标列），绝不读取图结构或 DOM。
-- `src/timing/timingAnnotation.js`：负责将时序作用域（scope）与模块/实例路径进行最长无歧义层次后缀匹配、选择默认徽标（badge）并向图节点附加时序注释，绝不解析原始文本。
+- `src/timing/timingParser.js`：仅负责将标准列式时序文本（空格/Tab/CSV）或 JSON 时序对象规范化解析为无环纯对象时序中间记录（`TimingDataset` IR，支持多 `@module` 作用域及 `slack = rt - at` 自动推导），绝不读取图结构或 DOM。
+- `src/timing/timingAnnotation.js`：负责结合当前模块图实体对 `point` 执行 Cell Pin（最长层次后缀匹配）、Port（支持含 `/` 转义名）及 Net（沿 `assign` 链回溯至 Source 驱动端）的三步校验消歧，计算最差裕量并生成节点徽标（badge）。
 
 ---
 

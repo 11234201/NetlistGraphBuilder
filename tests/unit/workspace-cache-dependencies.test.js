@@ -49,7 +49,7 @@ test("graph overrides, cell definitions and timing invalidate warmed geometry an
   for (const changes of [
     { graphOverrides: { nodeProperties: { "cell:u": { label: "renamed buffer" } } } },
     { cellConfig: { kind: "netlist-cell-config", version: 1, cells: { BUF: { gateKind: "INV", pins: { A: "input", Y: "output" } } } } },
-    { timing: parseTimingLog("Module: top\nApply: None\ndirection at rat slack object\n[Global]\nOUTPUT 1 2 1 top/y") }
+    { timing: parseTimingLog("@module top\npoint at rt slack\ny 1 2 1") }
   ]) {
     const { options, calls } = setup();
     const first = buildModuleWorkspace(options);

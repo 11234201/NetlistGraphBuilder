@@ -54,7 +54,7 @@
 
 - 快速检查综合（Synthesis）、重综合（Resyn）或 ECO 后网表的单元、线网、端口与层次结构。
 - 从关键单元、线网或输出端口出发，向前（Fanin）、向后（Fanout）追踪指定层数的逻辑锥（Logic Cone）。
-- 可视化查看 Global/Local 边界时序或 LocResyn 时序日志中的 Arrival Time、Required Time 与 Slack。
+- 可视化查看标准列式时序报告（Tabular / CSV）或 JSON 时序文件中的 Arrival Time (`at`)、Required Time (`rt`)、Slack 及可选详细指标（`delay`、`slew`、`edge`）。
 - 并排对比两个结构相近模块（如优化前后的模块）的拓扑与统计差异。
 - 为缺乏内置规则的定制标准单元补充可复用的引脚与门类型定义（Cell Config）。
 - 从外部 EDA 脚本一键拉起指定网表、目标模块与聚焦实例。
@@ -400,55 +400,57 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 ## 11. Timing 导入与显示
 
-### 11.1 传统 LocResyn 行格式支持
+系统采用统一的 **NGB Timing Format v1.0**（完整规范见 [`docs/design/timing_format_spec.md`](design/timing_format_spec.md)），支持 **列式文本（空格 / Tab / CSV）** 与 **结构化 JSON** 双模输入，覆盖映射前（`pre_map`）、映射后（`post_map`）与布局后（`post_layout`）全阶段。
 
-支持直接导入形如以下格式的传统 LocResyn 时序日志（输入中的 `rat` 会自动规范化为内部 `rt` 字段）：
+### 11.1 标准列式文本格式（Tabular / CSV）
 
-```text
-inst <top/u0> pin <A>, at 1.0, rat 0.1, slack -0.2
-```
-
-### 11.2 Global / Local 边界时序表格支持
-
-支持包含 `Module`、`Apply` 策略声明及 `[Global]` / `[Local]` 快照分段的边界时序表格格式：
+默认**简单模式**仅需 4 列（`point at rt slack`），支持 `@module`、`@stage`、`@unit` 指令头以及 `-` / `NA` / `null` 缺省值占位（若省略 `slack` 且提供了 `at` 与 `rt`，系统自动按 `slack = rt - at` 推导）：
 
 ```text
-Module: top
-Apply: None
-direction at rat slack object
-[Global]
-INPUT 0.10 0.20 -0.10 top/a
-OUTPUT 0.40 0.30 -0.10 top/y
-[Local]
-INPUT 0.08 0.18 -0.10 top/a
-OUTPUT 0.35 0.29 -0.06 top/y
+@module top
+@stage post_map
+@unit ns
+
+point        at      rt      slack
+in_a[0]      0.120   0.100   -0.020
+out_sum[0]   0.850   0.800   -0.050
+u0/A1        0.728   0.717   -0.011
+u0/ZN        0.825   0.814   -0.011
 ```
 
-同时也兼容将作用范围（scope）直接紧邻写在 `[Global]` / `[Local]` 标签后的紧凑表头格式：
+**详细模式（Detailed Mode）**：在表头中按需追加 `delay`（或 `incr`）、`slew`（或 `trans`）、`edge`（`r`/`f`）、`kind`（`port`/`pin`/`net`）列：
 
 ```text
-direction at rat slack [Global]ConeKernel_co_l_resyn2_u_gen_13823_000018_gen_14909
--------------------------------------------------------------------
-0.311245 -0.017425 -0.328670 ModuleFull/ConeKernel_co_l_resyn2_u_gen_13823_000018_gen_14909/w_gen_14670
+@module top
+@stage post_layout
+@unit ns
+point        at      rt      slack    delay   slew    edge   kind
+u0/A1        0.728   0.717   -0.011   0.098   0.065   f      pin
+u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 ```
 
-**扩展列自适应**：表格解析完全由表头列名驱动。若未来在 `slack` 之后新增 `slew`、`load` 等自定义指标列，多出的数值会自动保存在扩展 `metrics` 字典中，并在对象详情面板与渲染徽标中正常展示：
+> **Net 时序归属约定**：当 `point` 指向内部线网（`net`）时，其 `at`、`rt`、`slack` 严格表达该线网 **Source（驱动源根端）** 的时序，并会自动沿 `assign` 别名链回溯挂载至驱动端口或驱动单元的输出引脚；选中该导线时可在详情面板直接查看其 Source 时序。
 
-```text
-direction at rat slack slew [Global]top
-0.31 -0.01 -0.32 0.044 top/a
+### 11.2 结构化 JSON 格式支持
+
+面向 EDA 工具程序化导出，支持紧凑数组 `[at, rt, slack]`、详细对象以及多模块 `"modules"` 字典：
+
+```json
+{
+  "version": "1.0",
+  "module": "top",
+  "stage": "post_layout",
+  "unit": "ns",
+  "points": {
+    "in_a[0]": [0.120, 0.100, -0.020],
+    "u0/A1": { "at": 0.728, "rt": 0.717, "slack": -0.011, "delay": 0.098, "slew": 0.065, "edge": "f" }
+  }
+}
 ```
-
-> **格式提示**：请确保表头与数据行之间保留正常的换行符；表头下方的横线分隔行（`---`）可有可无。
 
 ### 11.3 全图时序显示策略（Timing Display Policy）
 
-左侧 `Timing` 面板提供两项全图级别的显示控制：
-
-- **`Snapshot`（快照选择）**：可选 `Auto`、`Global`、`Local`。其中 `Auto` 会严格依据日志中的可用快照与 `Apply` 声明自动选择；若遇到未知的 `Apply` 值，系统会保留原文、记录诊断并安全回退，绝不会根据数值优劣自行猜测是否已应用 Local。
-- **`Metric`（指标选择）**：可选 `Slack`、`AT`、`RT`、`All`。
-
-全图时序策略在 Single 视图、Compare 视图及 SVG 导出之间保持严格同步。匹配到时序记录的单元与端口会在节点旁展示时序徽标（badge）；存在负 Slack（违例）的关键节点会自动附加醒目的 `critical` 告警样式。
+左侧 `Timing` 面板提供全图级别的 `Metric` 指标选择（可选 `Slack`、`AT`、`RT`、`Delay`、`Slew`、`All`）。全图时序策略在 Single 视图、Compare 视图及 SVG 导出之间保持严格同步。匹配到时序记录的单元与端口会在节点旁展示时序徽标（badge）；存在负 Slack（违例）的关键节点和引脚会自动附加醒目的 `critical` 告警样式。
 
 ### 11.4 单个对象的 Timing 详情与徽标定制
 
