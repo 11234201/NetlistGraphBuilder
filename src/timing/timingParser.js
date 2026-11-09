@@ -74,7 +74,7 @@ function parseTimingTabular(source) {
   let directiveSeen = false;
 
   for (const [lineIndex, rawLine] of source.split(/\r?\n/).entries()) {
-    const line = rawLine.trim();
+    const line = stripInlineComment(rawLine.trim());
     if (!line || line.startsWith("#") || line.startsWith("//")) continue;
     if (/^[-=]{3,}$/.test(line)) continue;
 
@@ -483,6 +483,30 @@ function unquoteToken(value) {
     return trimmed.slice(1, -1).trim();
   }
   return trimmed;
+}
+
+function stripInlineComment(line) {
+  let inQuotes = false;
+  let quoteChar = "";
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if ((char === '"' || char === "'") && line[index - 1] !== "\\") {
+      if (!inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+      } else if (char === quoteChar) {
+        inQuotes = false;
+      }
+    } else if (!inQuotes) {
+      if (char === "#") {
+        return line.slice(0, index).trim();
+      }
+      if (char === "/" && line[index + 1] === "/") {
+        return line.slice(0, index).trim();
+      }
+    }
+  }
+  return line;
 }
 
 function cleanPointIdentifier(value) {

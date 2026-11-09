@@ -49,14 +49,26 @@ function createPortPrimitive(node, portKind) {
     const edgeSuffix = node.timing?.edge ? ` (${node.timing.edge === "r" ? "rise" : "fall"})` : "";
     if (values) children.push(title(`${node.label}: ${values}${edgeSuffix}`));
   }
+  const badgeLines = getTimingBadgeLines(node);
+  const hasBadge = badgeLines.length > 0;
+  const labelY = hasBadge ? round(y + height / 2 - 2) : round(y + height / 2 + 4);
+  const badgeY = round(y + height / 2 + 8);
+  const textX = round(isInput ? x + (width - 7) / 2 : x + (width + 7) / 2);
+
   children.push(
     svgElement("polygon", { class: "node-shape", points }),
     svgElement("text", {
-      class: "node-label", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
+      class: "node-label", x: textX, y: labelY, "text-anchor": "middle"
     }, [svgText(getLeafDisplayName(node.label))])
   );
-  const timingBadge = createTimingBadge(node, x, y, width, height);
-  if (timingBadge) children.push(timingBadge);
+  if (hasBadge) {
+    children.push(svgElement("text", {
+      class: "timing-badge timing-badge-port",
+      x: textX,
+      y: badgeY,
+      "text-anchor": "middle"
+    }, [svgText(badgeLines[0])]));
+  }
   const portSlack = Number.isFinite(node.timing?.worstSlack) ? node.timing.worstSlack : node.timing?.slack;
   const timingClass = node.timing ? (Number.isFinite(portSlack) && portSlack < 0 ? " timing-critical" : " timing-annotated") : "";
   return svgElement("g", nodeAttributes(node, `node ${portKind}${timingClass}`), children);
@@ -199,12 +211,13 @@ function createTimingBadge(node, x, y, width, height) {
 
 function getTimingBadgeLines(node) {
   if (Array.isArray(node.timing?.badges)) {
+    const isPort = node.kind === "input" || node.kind === "focus-input" || node.kind === "output" || node.kind === "focus-output";
     const byPin = new Map();
     for (const badge of node.timing.badges) {
       if (!byPin.has(badge.pin)) byPin.set(badge.pin, []);
       byPin.get(badge.pin).push(`${badge.metric} ${formatTimingValue(badge.value)}`);
     }
-    return [...byPin].map(([pin, values]) => `${pin} ${values.join(" ")}`);
+    return [...byPin].map(([pin, values]) => (isPort || pin === node.label ? values.join(" ") : `${pin} ${values.join(" ")}`));
   }
   if (node.timing?.badge) return [node.timing.badge.label];
   if (Number.isFinite(node.timing?.worstSlack)) return [formatTimingValue(node.timing.worstSlack)];

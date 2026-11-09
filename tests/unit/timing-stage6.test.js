@@ -154,6 +154,20 @@ n_alias   0.420  0.390  -0.030 0.044
   assert.match(netPanelHtml, /0\.044/);
 });
 
+test("tabular timing parser strips inline comments and trailing notes", () => {
+  const source = `
+@module top # inline directive comment
+point        at     rt     slack // C++ style inline
+in_a[0]      0.120  0.100  -0.020 # critical setup
+in_a[1]      0.150  0.200  0.050 // normal
+`;
+  const timing = parseTimingLog(source);
+  assert.equal(timing.module, "top");
+  assert.equal(timing.recordCount, 2);
+  assert.equal(timing.records[0].slack, -0.02);
+  assert.equal(timing.records[1].slack, 0.05);
+});
+
 test("port timing renders visible badges and tooltip in SVG and normalizes display policy", () => {
   const timing = parseTimingLog(`
 @module top
@@ -177,7 +191,8 @@ w_gen_14670  0.311245  -0.017425  -0.328670  0.044
   }, timing);
   const svg = renderSchematicSvg(annotated);
   assert.match(svg, /slew 0\.044/);
-  assert.match(svg, /timing-badge/);
+  assert.match(svg, /timing-badge timing-badge-port/);
+  assert.doesNotMatch(svg, />w_gen_14670 [^<]*slew/);
   assert.deepEqual(normalizeTimingDisplayPolicy({ snapshot: "bad", metrics: ["rt", "slew", "rt", "bad"] }), {
     snapshot: "auto",
     metrics: ["rt", "slew"]
