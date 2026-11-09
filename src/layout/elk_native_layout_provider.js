@@ -9,10 +9,19 @@ import {buildFocusedFaninTreeBlocks} from './layered/focusedTreeBlocks.js';
 
 export const NATIVE_LAYERED_LAYOUT_PROVIDER_ID='native-layered';
 
-// Shared product adapter; the registry explicitly selects the accepted H08 profile.
+const isAnchorProfile = (profile) => profile === 'anchor' || profile === 'anchor-layered' || profile === 'h08';
+
+// Shared product adapter; the registry explicitly selects the accepted AnchorLayered (H08) profile.
 // Measurement and public DTO conversion only; no coordinate or route repair pass.
 export class NativeLayeredLayoutProvider{
-  constructor({profile='baseline'}={}){this.id=NATIVE_LAYERED_LAYOUT_PROVIDER_ID;this.label=profile==='h08'?'Native Layered H08':'Native Layered (Experimental)';this.experimental=profile!=='h08';this.executionMode='async';this.profile=profile;}
+  constructor({profile='anchor'}={}){
+    const isAnchor = isAnchorProfile(profile);
+    this.id=NATIVE_LAYERED_LAYOUT_PROVIDER_ID;
+    this.label=isAnchor?'Native Layered AnchorLayered':'Native Layered (Experimental)';
+    this.experimental=!isAnchor;
+    this.executionMode='async';
+    this.profile=profile;
+  }
   async layout(graph,options={}){
     const spacing=options.layoutPolicy?.spacing??{},cellSpacing=spacing.cellSpacing??8;
     const measured=graph.nodes.map((node)=>{
@@ -40,7 +49,7 @@ export class NativeLayeredLayoutProvider{
         minimumLength:edge.minimumLength??1};
     })};
     const result=await executeNativeLayout(input,{profile:this.profile,
-      orderGroups:this.profile==='h08'?buildFocusedFaninTreeBlocks(graph.nodes,graph.edges).entries:[],
+      orderGroups:isAnchorProfile(this.profile)?buildFocusedFaninTreeBlocks(graph.nodes,graph.edges).entries:[],
       policy:{nodeNodeSpacing:40+cellSpacing,nodeNodeBetweenLayers:72+cellSpacing,
       ...(options.nativeLayered?.policy??{})},signal:options.signal,onPhase:options.nativeLayered?.onPhase,
       yieldControl:options.nativeLayered?.yieldControl});

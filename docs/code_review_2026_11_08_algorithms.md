@@ -179,7 +179,7 @@ for (const delta of [0.0005, 0.25, 0.75]) {
 }
 ```
 
-本轮另检查 H08 分组候选、band forecast、physical-anchor adjacency、dummy merge、BK placement 和最终校验代码。grouped self-loop、merged rank columns 的拒绝已经在 `docs/design/elk_h08_package.md` 声明，本报告没有把这些已知范围限制重复计为新增算法缺陷。上述小数坐标复现属于公开 H08 入口证据；修复后已通过文首记录的 full-node mapped 严格门禁。
+本轮另检查 AnchorLayered（H08）分组候选、band forecast、physical-anchor adjacency、dummy merge、BK placement 和最终校验代码。grouped self-loop、merged rank columns 的拒绝已经在 `docs/design/elk_anchor_package.md` 声明，本报告没有把这些已知范围限制重复计为新增算法缺陷。上述小数坐标复现属于公开 AnchorLayered 入口证据；修复后已通过文首记录的 full-node mapped 严格门禁。
 
 ## 验证结论
 

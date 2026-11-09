@@ -40,7 +40,7 @@ test("layout provider registry falls back to simple layered", () => {
   assert.equal(getLayoutProvider().id, NATIVE_LAYERED_LAYOUT_PROVIDER_ID);
   const native = getLayoutProvider(NATIVE_LAYERED_LAYOUT_PROVIDER_ID);
   assert.ok(native instanceof NativeLayeredLayoutProvider);
-  assert.equal(native.profile, "h08");
+  assert.equal(native.profile, "anchor");
   assert.equal(native.experimental, false);
 });
 

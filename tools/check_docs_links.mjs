@@ -6,8 +6,8 @@ const root=fileURLToPath(new URL('..',import.meta.url));
 const defaults=['README.md','CHANGELOG.md','native/README.md','tools/eda/README.md',
   'docs/USER_GUIDE.md','docs/PLAN.md','docs/ARCHITECTURE.md','docs/DESIGN_SPEC.md',
   'docs/LINUX_SINGLE_FILE_LAUNCHER.md','docs/LINUX_ADAPTATION_PLAN.md',
-  'docs/plans/linux_launcher_maintenance.md','docs/design/elk_h08_package.md',
-  'docs/reports/h08_development_summary.md','src/layout/elk_native/README.md'];
+  'docs/plans/linux_launcher_maintenance.md','docs/design/elk_anchor_package.md',
+  'docs/reports/anchor_development_summary.md','src/layout/elk_native/README.md'];
 let checked=0,artifacts=0,failed=0;
 for(const name of process.argv.length>2?process.argv.slice(2):defaults){
   const file=resolve(root,name);

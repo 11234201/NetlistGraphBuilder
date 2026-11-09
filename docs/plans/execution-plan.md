@@ -11,13 +11,13 @@ experimental Native registry; Simple stays default.22 legacy files are test-only
 from src/release. Actual Single/Compare, isolated overrides/Reset, SVG and H08 session restore passed.
 Windows1.1.0 locally built/tested, not externally published. Final product runtime52a93b92 passed original
 47/45000ms/no-collapse/hard0 (max41897ms, sampled heap1137MiB),807 core/integration tests.
-Mapped small/medium/large final visual review remains explicit; use h08_acceptance_checklist.md.
+Mapped small/medium/large final visual review remains explicit; use anchor_acceptance_checklist.md.
 Older checkpoints below are historical rather than current cutover blockers.
 
 Latest H08 checkpoint: fixed static package/phase integration complete. Runtime8c24f7d7 passed frozen
 original47/45000ms/no-collapse/hard0;802 core/integration tests,804 after non-runtime review-tool tests.
 Six product and11 drawable mechanism geometry/SVG identical. Earlier timeouts retained. Await the
-requested user visual decision before UI/Windows cutover; use h08_acceptance_checklist.md next.
+requested user visual decision before UI/Windows cutover; use anchor_acceptance_checklist.md next.
 
 ## H08 acceptance continuation
 

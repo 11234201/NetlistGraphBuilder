@@ -22,7 +22,7 @@ local exception. Windows/Node24.12.0 full810/810, original47/45000ms/no-collapse
 max19401ms/heap sample1403MiB,604-file freeze equal; runtime d448cbee. Simple benchmark1K/4K/8K hard0.
 Windows1.1.2 compile/launcher smoke passed. Retain Linux1.1.1 DP020 failure, no stability claim or perf restart.
 Excluded local settings, .workbuddy, scratch debug scripts, dc_runs and dist from the commit.
-Detailed review: docs/reports/h08_merge_review.md. Merge only local master; no implicit origin push.
+Detailed review: docs/reports/anchor_merge_review.md. Merge only local master; no implicit origin push.
 
 ## 2026-10-15 — Explicitly authorized H08 default promotion and development summary
 
@@ -31,7 +31,7 @@ summary. Added shared providerDefaults for app/registry/EDA, retained Simple fai
 session preferences; H08 product label no longer Experimental. Algorithms unchanged.809 full units pass;
 browser fresh/EDA/Compare H08 defaults and explicitSimple refresh compatibility passed. Windows1.1.1
 compile/smoke/211src hashes/license passed, old1.1.0 untouched. Formal47 regression finishing independently.
-Summary: docs/reports/h08_development_summary.md (research, failures, architecture, acceptance, limits).
+Summary: docs/reports/anchor_development_summary.md (research, failures, architecture, acceptance, limits).
 
 Final default-promotion regression:46/47, hard0/0 on completed cases; DP02045110ms timeout at original
 45000ms, stage=layout. Runtime1e60ad934082b90828784fa7f13b2b7c1f95282bb237c072e855560e43d4d29b;
@@ -67,7 +67,7 @@ Simple remains default; no general performance/memory guarantee, commit, push or
   918971bytes; no external publication or commit. Existing older packages untouched.
 - Final mapped-strata visual review remains pending; preparing faithful compressed completeSVG and
   topology-chosen canonical windows. Mechanism approval is not approval for every mapped layout.
-  Current detail: docs/experiments/elk_h08_product_cutover_20261015.md.
+  Current detail: docs/experiments/elk_anchor_product_cutover_20261015.md.
 
 Final append: benchmark Simple1024/4096/8192 routed/hard0, layout232.2/1603.9/6642.4ms. Added only
 non-runtime product-review exporter+test; full808/808, same runtime, local/remote603 files exactly equal.
@@ -100,7 +100,7 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
   geometry/SVG. Do not replace the UI registry, remove old Native, bump application version or release
   before visual admission. Current app remains1.0.1/Simple default; Windows compiler available, old
   dist artifacts untouched. No staging/commit/publication. All heavy diagnostics remain remote.
-- Primary next entry: docs/plans/h08_acceptance_checklist.md; full evidence in the static extraction
+- Primary next entry: docs/plans/anchor_acceptance_checklist.md; full evidence in the static extraction
   experiment. Broader performance work remains paused; DP020 gate work stops after this pass.
 - Final same-runtime Simple benchmark1024/4096/8192 routed hard0, layout222.8/1605.2/6848.5ms;
   not candidate performance evidence. Local/remote final599 files exactly equal after restoring the
@@ -137,7 +137,7 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
 - Final frozen runtime e889fb38e6e0926e9e88bfc010f23fd91cbd1052ed10cbc28c250c8e98eebfd8:
   original47/47, failed0, violations0/0, unchanged45000ms/no-collapse/hard, maxLayout37469ms/heap800MiB.
   All before/after files match. First extraction independently47/47, max37666ms/heap455MiB; both runs retained.
-- Evidence: docs/experiments/elk_h08_static_extraction_20261015.md. Still pending versioned static
+- Evidence: docs/experiments/elk_anchor_static_extraction_20261015.md. Still pending versioned static
   P0/P3 policy and complete H08 entry, then UI/workspace and offline Windows release. No staging/commit,
   provider promotion, old-engine removal or broader performance work in this milestone.
 

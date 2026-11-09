@@ -14,7 +14,7 @@ Q01～Q08及原47-case超时收口的本轮退出证据已齐备，签收记录�
 H08 session恢复及Windows离线包均已验证。最终产品runtime52a93b92原47/45000ms/no-collapse/hard
 47/47、硬0，max41897ms、最大逐case堆采样1137MiB；807核心/集成单元通过。
 三个预先声明mapped分层样本仍需最终视觉审查；不把机制签收扩成所有产品图签收。
-详细最终证据以 [H08清单](h08_acceptance_checklist.md) 和[切换记录](../experiments/elk_h08_product_cutover_20261015.md)
+详细最终证据以 [AnchorLayered清单](anchor_acceptance_checklist.md) 和[切换记录](../experiments/elk_anchor_product_cutover_20261015.md)
 为准，以下旧状态表保留实验历史、不得当作当前下一入口。
 
 当前收口状态：Q05工程冻结通过；Q06已有11机制/两个指定Focused签收，三个mapped分层样本待
@@ -26,7 +26,7 @@ H08 session恢复及Windows离线包均已验证。最终产品runtime52a93b92�
 原47/45s/no-collapse/hard47/47、硬0，802核心/集成单元通过；增加评审工具单测后804/804，运行时代码
 不变。六产品及11个可绘制机制场景完整几何/SVG保持H08；另1条报告是专用非视觉探针。
 首次静态46/47与全部控制超时保留，不能宣称性能稳定。新的11组视觉评审等待用户决定，UI/离线包
-未切换。后续以 [H08验收清单](h08_acceptance_checklist.md) 为入口，不重复做已完成的模块提取。
+未切换。后续以 [AnchorLayered验收清单](anchor_acceptance_checklist.md) 为入口，不重复做已完成的模块提取。
 
 2026-10-15 后续增量：隐式端口及 P3 分组机制已迁为唯一静态实现，研究入口改为 re-export。
 最新 runtime62934449：单元792/792、合成12/12、六产品完整几何/SVG 与 H08 一致，
@@ -37,7 +37,7 @@ UI/产品集成、离线发布仍未完成；见同一份静态提取记录第�
 测量。最新冻结 runtime e889fb38：789/789 单元、12 合成硬门禁、六产品完整几何/SVG 保持 H08，
 原 47-case/45s/no-collapse/hard 全通过，最大 layout 37469ms、heap 800MiB。
 静态完整策略/入口、UI 与离线发布仍未完成，不能称为整体达到 ELK 水平。
-见 [静态提取记录](../experiments/elk_h08_static_extraction_20261015.md)。
+见 [静态提取记录](../experiments/elk_anchor_static_extraction_20261015.md)。
 
 2026-10-13增量（优先于下文历史状态）：四超时及必要性能验证已按后续继续请求恢复，其他性能项目仍暂停。最新runtime ea0bb197完整47/47、原45s/no-collapse/hard0；unit785/785、六产品完整几何/SVG与H08相同，用户签收指定SOP015/5404与EQ1471视觉。前轮同运行时sop004超时保留，不宣称性能已稳定。T01原全图门禁取得最新通过证据，下一步H08版本化静态P0/P3/P5及共享测量正式化；研究编译器不能当离线运行时，UI/产品集成/发布仍未完成。详细快照和全部失败见[超时实验记录](../experiments/elk_timeout_profile_20261013.md)。
 

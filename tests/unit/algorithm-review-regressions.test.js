@@ -7,7 +7,7 @@ import { analyzeFocusedNeighborhood } from "../../src/analysis/graphCone.js";
 import { simplifyFanoutWithHubs } from "../../src/analysis/fanoutHub.js";
 import { alignModulePorts, analyzeGraphStats } from "../../src/analysis/moduleCompare.js";
 import { createCanonicalGraph } from "../../src/layout/elk_native/ir.js";
-import { layoutGraph as layoutH08 } from "../../src/layout/elk_native/h08.js";
+import { layoutGraph as layoutAnchor } from "../../src/layout/elk_native/anchor.js";
 
 test("parser rejects expression assigns instead of converting them to false aliases", () => {
   const module = parseVerilog("module m(input a,b,output y); assign y = a & b; endmodule").modules[0];
@@ -111,9 +111,9 @@ test("FIXED_ORDER canonicalization is a total order for mixed declared orders", 
   assert.deepEqual(canonical(ports), canonical([ports[1], ports[0], ports[2]]));
 });
 
-test("H08 preserves subpixel orthogonal bends through P5 and logical-edge restoration", async () => {
+test("AnchorLayered preserves subpixel orthogonal bends through P5 and logical-edge restoration", async () => {
   for (const delta of [0.0005, 0.25]) {
-    const result = await layoutH08({
+    const result = await layoutAnchor({
       nodes: [
         { id: "a", width: 40, height: 30, ports: [{ id: "ao", side: "EAST", x: 40, y: 15 }] },
         { id: "b", width: 40, height: 30, ports: [

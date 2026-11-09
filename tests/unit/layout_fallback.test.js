@@ -7,7 +7,7 @@ import {DEFAULT_LAYOUT_POLICY} from '../../src/layout/layoutPolicy.js';
 import {createSessionSnapshot,getSessionLayoutProviderId} from '../../src/app/sessionState.js';
 import {createWorkspaceRenderController} from '../../src/app/workspace_render_controller.js';
 
-test('H08 is default; old Simple snapshots migrate once, new explicit choices survive',()=>{
+test('AnchorLayered is default; old Simple snapshots migrate once, new explicit choices survive',()=>{
   assert.equal(getSessionLayoutProviderId(null),DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(getSessionLayoutProviderId({layoutProviderId:'simple-layered'}),DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(getSessionLayoutProviderId({layoutProviderId:'invalid'}),DEFAULT_LAYOUT_PROVIDER_ID);
@@ -20,7 +20,7 @@ test('H08 is default; old Simple snapshots migrate once, new explicit choices su
 });
 
 for(const compare of [false,true]){
-  test(`shared failure handler degrades H08 -> ELK -> Simple once, compare=${compare}`,async()=>{
+  test(`shared failure handler degrades AnchorLayered -> ELK -> Simple once, compare=${compare}`,async()=>{
     const state=createAppState(DEFAULT_LAYOUT_POLICY);
     state.compare.active=compare;
     state.currentModule={name:'top',displayName:'top'};

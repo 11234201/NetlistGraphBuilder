@@ -22,7 +22,7 @@ export class SimpleLayeredLayoutProvider {
 const providers = new Map([
   [SIMPLE_LAYOUT_PROVIDER_ID, new SimpleLayeredLayoutProvider()],
   [ELK_LAYOUT_PROVIDER_ID, new ElkLayoutProvider()],
-  [NATIVE_LAYERED_LAYOUT_PROVIDER_ID, new NativeLayeredLayoutProvider({ profile: "h08" })]
+  [NATIVE_LAYERED_LAYOUT_PROVIDER_ID, new NativeLayeredLayoutProvider({ profile: "anchor" })]
 ]);
 
 export function getLayoutProvider(providerId = DEFAULT_LAYOUT_PROVIDER_ID) {

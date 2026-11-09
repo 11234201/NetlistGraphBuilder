@@ -1,9 +1,9 @@
-# H08 分层布局与正交布线引擎开发总结
+# AnchorLayered（物理锚点分层布局）开发总结
 
-- **归档日期**：2026-10-15（当时于 `dev` 分支完成验收并合入 `master`），下文完整保留当时的验收证据与历史失败记录。
+- **归档日期**：2026-10-15（当时于 `dev` 分支完成验收并合入 `master`，原研发代号 H08），下文完整保留当时的验收证据与历史失败记录。
 - **后续关键演进**：
-  - 提交 `98ed600`：修复拼接（concat）位端口身份合并问题、落地 `H08 → ELK → Simple` 自动降级及会话首选项保护（当时 815 项单元测试通过，Linux / Node 24.16.0 下 47 个综合映射网表严格回归 **47/47** 通过、硬违规 **0/0**）。
-  - 合并前检视（`v1.1.2`）：修复物理线网树过滤无效/零长度线段后的原始下标错位问题并补充独立反例测试（见 [合并前检视记录](h08_merge_review.md)）。
+  - 提交 `98ed600`：修复拼接（concat）位端口身份合并问题、落地 `AnchorLayered → ELK → Simple` 自动降级及会话首选项保护（当时 815 项单元测试通过，Linux / Node 24.16.0 下 47 个综合映射网表严格回归 **47/47** 通过、硬违规 **0/0**）。
+  - 合并前检视（`v1.1.2`）：修复物理线网树过滤无效/零长度线段后的原始下标错位问题并补充独立反例测试（见 [合并前检视记录](anchor_merge_review.md)）。
   - `v1.1.3`（2026-11-08）：修复混合 `FIXED_ORDER` 确定性排序与亚像素正交折弯，全量单元测试提升至 **904/904** 通过，47 个映射网表严格门禁 **47/47** 通过。
   - 关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 的专项维护，请参阅 [专项计划](../plans/linux_launcher_maintenance.md)。
 
@@ -125,11 +125,11 @@
 
 ## 7. 延伸阅读与原始档案链接
 
-- [最终验收清单](../plans/h08_acceptance_checklist.md)：完整门禁项、用户评审决定与冻结哈希记录。
-- [产品切换记录](../experiments/elk_h08_product_cutover_20261015.md)：工作台集成缺陷排查、修复与发布包核验。
-- [静态包契约与调用说明](../design/elk_h08_package.md)：输入契约、版本号、取消机制与限制说明。
+- [最终验收清单](../plans/anchor_acceptance_checklist.md)：完整门禁项、用户评审决定与冻结哈希记录。
+- [产品切换记录](../experiments/elk_anchor_product_cutover_20261015.md)：工作台集成缺陷排查、修复与发布包核验。
+- [静态包契约与调用说明](../design/elk_anchor_package.md)：输入契约、版本号、取消机制与限制说明。
 - [ELK 源码审计报告](../research/elk-layered-source-audit-2026-09-24.md)：重构前的差距分析与固定参考基线。
 - [P3 分支连续性试验](../experiments/elk_quality_group_continuity_20261013.md)：预登记因素组合、失败候选与拒绝原因。
 - [H08 物理锚点共享研究](../experiments/elk_quality_physical_anchor_20261013.md)：P5 物理干线共享适配与因果取证。
-- [静态模块提取记录](../experiments/elk_h08_static_extraction_20261015.md)：单一静态实现收敛与逐批几何/SVG 一致性核验。
+- [静态模块提取记录](../experiments/elk_anchor_static_extraction_20261015.md)：单一静态实现收敛与逐批几何/SVG 一致性核验。
 - [全图超时收口记录](../experiments/elk_timeout_profile_20261013.md)：热点采样归因与保持语义不变的定点优化。

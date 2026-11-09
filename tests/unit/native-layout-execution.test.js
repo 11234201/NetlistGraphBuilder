@@ -10,7 +10,7 @@ function workerStub() {
 test("native worker cancellation terminates computation without accepting a late result", async () => {
   const worker = workerStub();
   const controller = new AbortController();
-  const pending = executeNativeLayout({ nodes: [], edges: [] }, { signal: controller.signal, profile: "h08" }, () => worker);
+  const pending = executeNativeLayout({ nodes: [], edges: [] }, { signal: controller.signal, profile: "anchor" }, () => worker);
   assert.equal(worker.request.options.signal, undefined);
   controller.abort();
   await assert.rejects(pending, { name: "AbortError" });
@@ -45,7 +45,7 @@ test("in-process native execution yields to timer cancellation by default", asyn
   } finally { clearTimeout(timer); }
 });
 
-test("offline worker entry returns the same H08 geometry across the structured-clone boundary", async () => {
+test("offline worker entry returns the same AnchorLayered geometry across the structured-clone boundary", async () => {
   const workerUrl = new URL("../../src/layout/native_layout_worker.js", import.meta.url).href;
   const factory = () => {
     const bridge = new NodeWorker(new URL(`data:text/javascript,${encodeURIComponent(`
@@ -66,8 +66,8 @@ test("offline worker entry returns the same H08 geometry across the structured-c
     { id: "a", width: 20, height: 20, ports: [{ id: "out", side: "EAST", x: 20, y: 10, width: 0, height: 0 }] },
     { id: "b", width: 20, height: 20, ports: [{ id: "in", side: "WEST", x: 0, y: 10, width: 0, height: 0 }] }
   ], edges: [{ id: "e", sourcePortId: "out", targetPortId: "in", physicalNetId: "n" }] };
-  const expected = await executeNativeLayout(input, { profile: "h08" }, null);
-  assert.deepEqual(await executeNativeLayout(input, { profile: "h08" }, factory), expected);
-  await assert.rejects(executeNativeLayout({ nodes: [], edges: input.edges }, { profile: "h08" }, factory),
+  const expected = await executeNativeLayout(input, { profile: "anchor" }, null);
+  assert.deepEqual(await executeNativeLayout(input, { profile: "anchor" }, factory), expected);
+  await assert.rejects(executeNativeLayout({ nodes: [], edges: input.edges }, { profile: "anchor" }, factory),
     (error) => error.name === "ElkNativePhaseError" && !!error.diagnostic);
 });

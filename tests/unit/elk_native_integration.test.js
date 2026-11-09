@@ -12,15 +12,15 @@ import {NativeLayeredLayoutProvider} from '../../src/layout/elk_native_layout_pr
 const source=`module left(a,y); input a; output y; BUF u0(.A(a),.Z(y)); endmodule
 module right(a,y); input a; output y; INV u1(.I(a),.ZN(y)); endmodule`;
 
-test('registered H08 is default and shares Single/Compare workspace boundaries',async()=>{
+test('registered AnchorLayered is default and shares Single/Compare workspace boundaries',async()=>{
   const provider=getLayoutProvider('native-layered');
-  assert.equal(provider.profile,'h08');assert.equal(getLayoutProvider().id,'native-layered');
+  assert.equal(provider.profile,'anchor');assert.equal(getLayoutProvider().id,'native-layered');
   const [left,right]=parseVerilog(source).modules,before=structuredClone(left);
   const single=await buildModuleWorkspace({module:left,layoutProvider:provider,useFanoutHubs:false});
-  assert.equal(single.graph.layoutMetrics.profile.id,'h08');assert.equal(single.graph.validationMetrics.total,0);
+  assert.equal(single.graph.layoutMetrics.profile.id,'anchor');assert.equal(single.graph.validationMetrics.total,0);
   const compared=await buildCompareWorkspace({leftModule:left,rightModule:right,layoutProvider:provider});
   for(const side of ['left','right']){
-    assert.equal(compared.graphs[side].layoutMetrics.profile.id,'h08');
+    assert.equal(compared.graphs[side].layoutMetrics.profile.id,'anchor');
     assert.equal(compared.graphs[side].validationMetrics.total,0);
     const svg=createStandaloneSvg(renderSvgScene(compared.scenes[side]));
     assert.match(svg,/<svg/);assert.match(svg,/xmlns=/);
@@ -32,8 +32,8 @@ test('registered H08 is default and shares Single/Compare workspace boundaries',
   assert.deepEqual(single.autoGraph,snapshot);assert.deepEqual(left,before);
 });
 
-test('H08 Search-first avoids layout and asynchronous workspace cancellation publishes no partial graph',async()=>{
-  const module=parseVerilog(source).modules[0],provider=new NativeLayeredLayoutProvider({profile:'h08'});
+test('AnchorLayered Search-first avoids layout and asynchronous workspace cancellation publishes no partial graph',async()=>{
+  const module=parseVerilog(source).modules[0],provider=new NativeLayeredLayoutProvider({profile:'anchor'});
   let calls=0;const counted={id:provider.id,layout(...args){calls++;return provider.layout(...args);}};
   const search=await buildModuleWorkspace({module,layoutProvider:counted,viewMode:'search-first'});
   assert.equal(calls,0);assert.equal(search.graph.nodes.length,0);

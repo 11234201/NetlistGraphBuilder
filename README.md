@@ -5,8 +5,8 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。
 
 - **当前版本**：`v1.1.3`（最新离线发布包为 `v1.1.2`，于 2026-10-21 按用户要求同版本号覆盖更新附件并同步标签）。
-- **默认布局引擎**：默认使用 `Native Layered H08`；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `H08`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。生产级 AIG 导入功能尚未开放。
-- **零构建离线调用**：`H08` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [H08 静态包契约](docs/design/elk_h08_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [H08 开发总结](docs/reports/h08_development_summary.md)。
+- **默认布局引擎**：默认使用 `Native Layered AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。生产级 AIG 导入功能尚未开放。
+- **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
 - **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0，`v1.1.3` 完整单元测试 904/904 通过、47/47 映射网表严格门禁通过。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。旧版 Native 算法仅归档于测试参考目录，不进入离线运行时。
 
 完整功能介绍、操作流程、数据格式示例与故障排查请阅读 [完整使用教程](docs/USER_GUIDE.md)（Windows 发布包根目录亦随附 `USER_GUIDE.md`）。
@@ -37,7 +37,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 ### 布局、微调与导出
 
 - **正交原理图渲染**：采用从左到右的分层布局与正交（Manhattan）布线渲染交互式 SVG，支持滚轮缩放、拖拽平移与一键适配窗口（`Fit`）。
-- **多布局引擎离线切换**：内置 `H08`、`ELK` 与 `Simple` 三种布局引擎，完全离线运行；支持灵活调整导线间距（Wire spacing）与单元间距（Cell spacing）。
+- **多布局引擎离线切换**：内置 `AnchorLayered`、`ELK` 与 `Simple` 三种布局引擎，完全离线运行；支持灵活调整导线间距（Wire spacing）与单元间距（Cell spacing）。
 - **Adjust 手工校准模式**：支持拖拽微调节点位置、修改节点尺寸、覆盖实例显示属性及单实例引脚方向；释放鼠标后仅对受影响导线做局部正交重布线，`Reset` 可随时恢复自动布局。
 - **大图渲染优化**：支持渐进式分批渲染、高扇出中继节点（Fanout Hub）及低倍率缩放自动隐藏细节文字；后续性能演进均面向完整图与局部聚焦视图，不再使用结构分组折叠。
 - **Golden 快照与离线 SVG 导出**：支持保存、校验并重载布局 Golden JSON，支持导出带完整内嵌样式的独立 SVG 文件。
@@ -209,13 +209,13 @@ node tools/generate-large-example.mjs
 
 ### 大图渲染与布局策略
 
-1. **布局引擎与降级**：`Layout` 默认选用 `Native Layered H08`；若遇到不支持的复杂拓扑导致失败，会依次尝试 `ELK Layered (Experimental)` 与 `Simple Layered`。ELK 引擎已完整本地化（vendored），运行时无需联网；主动取消任务不会触发降级。
+1. **布局引擎与降级**：`Layout` 默认选用 `Native Layered AnchorLayered`；若遇到不支持的复杂拓扑导致失败，会依次尝试 `ELK Layered (Experimental)` 与 `Simple Layered`。ELK 引擎已完整本地化（vendored），运行时无需联网；主动取消任务不会触发降级。
 2. **高扇出中继（Fanout hubs）**：默认开启，扇出数不少于 8 的同源线网会自动插入共享 hub 节点，显著减少长距离平行干线。
 3. **全图与聚焦策略**：结构分组折叠（Group-collapse）已退出产品路线；映射网表回归、性能优化与大图交互均围绕完整图、`Search-first` 与 `Focused` 局部图构建（旧存档中的折叠字段仅作向后兼容忽略）。
 4. **渐进式渲染**：当可见节点与连线总数达到 400 时，自动启用可取消的分批 SVG 渲染，底部状态栏实时显示渲染进度；渲染完成后会完整恢复所有跨线桥接弧（wire bridge）、线网标签与点击热区。
 5. **LOD 细节自适应**：当画布缩放倍率低于 `0.65` 时，自动隐藏引脚名、线网标签、单元元信息与时序徽标文字以保证流畅度，放大后自动恢复。
 6. **标签页会话保持**：当前网表与工作台状态自动保存在浏览器 `sessionStorage` 中；刷新同一标签页可无缝恢复网表、模块、聚焦状态与视口位置，关闭标签页后自动释放。
-7. **混合手工微调**：在 `H08`、`ELK` 或 `Simple` 模式下均可开启 `Adjust` 手工拖拽节点；未改动节点保持自动布局坐标，改动节点的关联导线自动执行正交避障重布线，点击 `Reset layout` 即可恢复自动布局结果。
+7. **混合手工微调**：在 `AnchorLayered`、`ELK` 或 `Simple` 模式下均可开启 `Adjust` 手工拖拽节点；未改动节点保持自动布局坐标，改动节点的关联导线自动执行正交避障重布线，点击 `Reset layout` 即可恢复自动布局结果。
 8. **间距吸附与引脚可读性**：`Wire spacing` 与 `Cell spacing` 支持滑块和数字输入（自动吸附至 4 的倍数）；连接单元上下边缘引脚的导线会自动保留末段可见转角。
 
 ### 结构差异高亮说明
@@ -264,7 +264,7 @@ src/diagram/          领域中性的显示图模型、共享视图流水线与�
 src/domains/netlist/  Netlist 领域特性、图投影、时序/单元配置/Golden 业务用例
 src/foundation/       无业务含义的标识符编码、不可变结构值与基础图/几何工具
 src/infer/            无 Liberty 环境下的标准单元类型与引脚方向推断规则
-src/layout/           H08 / ELK / Simple 布局引擎、节点几何、正交布线与网格吸附
+src/layout/           AnchorLayered / ELK / Simple 布局引擎、节点几何、正交布线与网格吸附
 src/netlist/          Netlist IR 数据模型与结构图提取
 src/parser/           结构化 Verilog 词法与语法解析器
 src/persistence/      会话、启动清单与源码指纹等版本化编解码器（codec）
@@ -283,7 +283,7 @@ tools/eda/            面向 EDA 工具的 Tcl 启动、状态查询与安全关
 
 - **Verilog 语法子集**：仅支持综合后常见的结构化门级 Verilog 子集，并非完整的 Verilog / SystemVerilog 编译前端（不支持行为级 `always`、宏展开或复杂参数化展开）。
 - **无 `.lib` 启发式推断**：不解析 Liberty `.lib` 文件；遇到命名非标的定制单元或复杂宏单元时，可能需要通过 `Cell Config` 或 `Adjust` 面板手动指定引脚方向。
-- **超大图浏览策略**：深层 DAG 的 Balanced/Folded 折叠排布仍属暂缓的实验方向；当前针对大型模块优先通过 `H08` / `ELK`、`Search-first` 与有限深度的 `Focused` 局部视图进行浏览，不再扩展结构分组折叠（group collapse）。
+- **超大图浏览策略**：深层 DAG 的 Balanced/Folded 折叠排布仍属暂缓的实验方向；当前针对大型模块优先通过 `AnchorLayered` / `ELK`、`Search-first` 与有限深度的 `Focused` 局部视图进行浏览，不再扩展结构分组折叠（group collapse）。
 - **启发式模块对比**：`Compare` 模式基于端口/线网名称、逻辑门类型及图统计特征提供启发式结构对比，不提供形式化等价性证明。
 - **AIG 支持范围**：测试套件中的内存 AIG 仅用于验证多领域工作台架构边界，尚未提供生产级 AIGER 文件导入、AIG 专用界面或逻辑等价分析。
 

@@ -2,7 +2,7 @@
 
 ## 1. 产品定位
 
-- **当前维护基线**：默认启用 `Native Layered H08` 布局引擎，失败时按 `H08 → ELK → Simple` 顺序自动降级；关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 辅助脚本的专项维护，请参阅 [维护计划](plans/linux_launcher_maintenance.md)（历史阶段文档保留当时的验收背景，不代表旧发布版本包含当前主干的全部后续修复）。
+- **当前维护基线**：默认启用 `Native Layered AnchorLayered` 布局引擎，失败时按 `AnchorLayered → ELK → Simple` 顺序自动降级；关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 辅助脚本的专项维护，请参阅 [维护计划](plans/linux_launcher_maintenance.md)（历史阶段文档保留当时的验收背景，不代表旧发布版本包含当前主干的全部后续修复）。
 - **核心价值**：**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Netlist Schematic Browser）。它的核心价值并非仅仅将网表转为一张静态图片，而是帮助芯片设计与验证工程师在**缺乏 Liberty（`.lib`）时序库、未安装大型商业 EDA 工具且无法访问公网**的环境中，快速读懂门级拓扑结构。
 - **目标用户与第一优先级**：面向需要排查逻辑综合（Synthesis）、重综合（Resyn）、工艺重映射（Remap）、ECO 修改或局部逻辑锥（Logic Cone）的工程师。产品第一优先级是**“结构看得清、交互顺手、离线可靠”**，而非全面替代重量级商业原理图工具。
 
@@ -14,7 +14,7 @@ Structural Verilog
   -> Netlist IR
   -> cell/pin inference
   -> graph extraction
-  -> ELK-style layered layout (H08 / ELK / Simple)
+  -> ELK-style layered layout (AnchorLayered / ELK / Simple)
   -> SVG interactive schematic
 ```
 
@@ -22,7 +22,7 @@ Structural Verilog
 
 - **开发语言**：原生 JavaScript（ES Modules）与 JSDoc 契约约束；桌面/服务端启动器采用 C#（Windows）与 C++11（Linux）。
 - **运行形态**：纯静态前端资源优先，无打包工具（bundler）或包安装依赖；支持本地 Node.js / Python 预览及 Windows / Linux 单文件离线启动器。
-- **布局引擎**：默认采用项目自研的 `H08` 静态分层布局与正交布线引擎，内置本地化（vendored）`ELK` 与 `Simple` 作为自动降级与备选方案。
+- **布局引擎**：默认采用项目自研的 `AnchorLayered` 物理锚点分层布局与正交布线引擎（原称 H08），内置本地化（vendored）`ELK` 与 `Simple` 作为自动降级与备选方案。
 - **图形渲染**：以交互式 SVG 与渐进式分批挂载为核心。
 - **离线依赖策略**：所有必需运行时依赖均内嵌或 vendored 至 `vendor/` 目录，确保在隔离内网环境下 100% 离线可用。
 
@@ -125,7 +125,7 @@ Structural Verilog
 
 ### 阶段 4：大图与工程化
 - **目标**：支撑千级单元规模的真实工程网表浏览与状态持久化。
-- **完成标准**：引入 `LayoutProvider` 架构与离线 `ELK.js`、400+ 对象渐进式渲染、高扇出 `Fanout Hub`、低缩放细节隐藏（LOD）及 `sessionStorage` 标签页会话恢复（注：早期尝试的分组折叠 `group collapse` 已于后续版本正式退役，由 `H08` 引擎、`Search-first` 与 `Focused` 取代）。
+- **完成标准**：引入 `LayoutProvider` 架构与离线 `ELK.js`、400+ 对象渐进式渲染、高扇出 `Fanout Hub`、低缩放细节隐藏（LOD）及 `sessionStorage` 标签页会话恢复（注：早期尝试的分组折叠 `group collapse` 已于后续版本正式退役，由 `AnchorLayered` 引擎、`Search-first` 与 `Focused` 取代）。
 
 ### 阶段 5：可选 `.lib` 增强（计划中）
 - **目标**：在用户提供 Liberty 文件时进一步提升引脚方向与门功能识别准确度，同时丝毫不影响默认无 `.lib` 工作流。

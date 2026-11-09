@@ -8,10 +8,10 @@ import {DEFAULT_LAYOUT_POLICY} from '../../src/layout/layoutPolicy.js';
 import {createInspectorController} from '../../src/app/inspector_controller.js';
 import {createInputController} from '../../src/app/input_controller.js';
 
-test('product H08 has one registry identity and no retired or research runtime imports',async()=>{
+test('product AnchorLayered has one registry identity and no retired or research runtime imports',async()=>{
   assert.equal(getLayoutProvider().id,'native-layered');
   assert.equal(listLayoutProviders().filter(p=>p.id==='native-layered').length,1);
-  assert.equal(getLayoutProvider('native-layered').profile,'h08');
+  assert.equal(getLayoutProvider('native-layered').profile,'anchor');
   assert.equal(getLayoutProvider('native-layered').executionMode,'async');
   assert.equal(getLayoutProvider('elk-layered').executionMode,'async');
   assert.equal(getLayoutProvider().executionMode,'async');
@@ -52,7 +52,7 @@ test('session initialization can render pending stats before an async provider p
   assert.match(elements.stats.innerHTML,/>1</);
 });
 
-test('app, registry and EDA startup share H08 default while explicit legacy choice and Simple fallback remain',async()=>{
+test('app, registry and EDA startup share AnchorLayered default while explicit legacy choice and Simple fallback remain',async()=>{
   assert.equal(createAppState(DEFAULT_LAYOUT_POLICY).layoutProviderId,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(getLayoutProvider().id,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(getLayoutProvider('unknown-provider').id,FALLBACK_LAYOUT_PROVIDER_ID);

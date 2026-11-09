@@ -29,7 +29,7 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 - **推断规则可测试、可替换**：内置规则与用户自定义 `Cell Config` 均须具备清晰的可追溯来源。
 - **体验聚焦核心分析目标**：UI 的首要目标是帮助工程师看清门级结构、追踪逻辑锥与比对模块差异。
 - **在拥有约束的最低层修改**：动工前先确认改动归属于 `parser`、`IR / inference`、`display transform`、`layout`、`render` 还是 `UI`；在拥有该约束的最低边界实现并补充单测，严禁跨层打补丁。
-- **优先扩展共享基础设施**：使 Single / Compare 视图以及 H08 / ELK / Simple / Adjust 布局模式同时获得一致行为。
+- **优先扩展共享基础设施**：使 Single / Compare 视图以及 AnchorLayered / ELK / Simple / Adjust 布局模式同时获得一致行为。
 - **多领域解耦约束**：新领域能力通过 `bootstrap` 静态注册与 `DomainFeature` 贡献点接入；公共 `application`、`layout` 与 `render` 层严禁按 `domainId` 添加 Netlist / AIG 硬编码条件分支；领域目录严禁反向导入 `src/app/`。
 
 ## 分层实现约束
@@ -51,7 +51,7 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 ### 3. Layout 与正交布线（Routing）
 
 - **区分硬约束与软目标**：正交走线、沿引脚声明侧接入、端点本体保护、节点避障以及不同物理线网严禁共线重叠属于**硬约束**（集中在共享正交契约与 `layoutValidator` 中）；直线率、折点数、线长、交叉数及外围通道使用率属于**软目标**（由候选生成器、打分策略与布局策略控制）。
-- `Simple` 与 `Adjust` 共享路径校验、通道收集、线段空间索引、有界搜索上限与打分权重；`H08` 与 `ELK` 的输出也必须规范化为相同的 `PositionedGraph` 契约。
+- `Simple` 与 `Adjust` 共享路径校验、通道收集、线段空间索引、有界搜索上限与打分权重；`AnchorLayered` 与 `ELK` 的输出也必须规范化为相同的 `PositionedGraph` 契约。
 - 所有拓扑排序、通道预留、标签避障优先级与重布线顺序必须对输入节点/边数组的排列顺序完全不敏感（Permutation invariant）。
 - 候选搜索必须设置固定预算上限；通过空间索引（spatial index）缩小候选集，最终由精确几何谓词裁决。严禁恢复全图两两扫描（all-pairs scan）或随图规模线性增长的重试循环。
 - 自动布局产物（automatic provider graph）与手工微调图（adjusted graph）必须分开保存：人工位置/尺寸仅作为覆盖层（override）叠加，拖拽过程中不得重新运行自动布局引擎，点击 `Reset` 必须能精确恢复自动布局坐标。

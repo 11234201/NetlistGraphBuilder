@@ -116,7 +116,7 @@ LayoutProvider
 ```
 
 **布局引擎体系**：
-- **`Native Layered H08`（默认主力）**：基于 `src/layout/elk_native/` 的纯静态 ES 模块分层布局与边界超边正交布线引擎。
+- **`Native Layered AnchorLayered`（默认主力）**：基于 `src/layout/elk_native/` 的纯静态 ES 模块分层布局与边界超边正交布线引擎。基于物理锚点分层布局（AnchorLayered，原称 H08），实现逻辑端点独立与物理锚点共享。
 - **`ElkLayoutProvider`（内置离线备选）**：封装 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，将内部图转换为 ELK Layered 格式并规范化回 `PositionedGraph`。
 - **`SimpleLayeredLayoutProvider`（轻量兜底）**：封装 `simpleLayered.layoutGraph`，作为同步轻量布局与最终兜底回退引擎。
 
@@ -131,11 +131,11 @@ LayoutProvider
 - `src/analysis/fanoutHub.js` 与 `src/analysis/groupCollapse.js`（兼容保留）均为布局前的纯函数派生显示图变换，绝不原地修改源 Netlist IR。
 - `src/app/sessionState.js` 负责会话快照的序列化边界；用户导入的网表文本仅保存在当前浏览器标签页的 `sessionStorage` 中。
 
-#### Native Layered H08 产品路径（2026-10-15）
+#### Native Layered AnchorLayered 产品路径（2026-10-15）
 
-- **默认注册与自动降级**：`native-layered` 注册项采用 `elk_native_layout_provider.js` 的 `H08` 配置（内部完整相位实现位于 `src/layout/elk_native/`）。自 `v1.1.1` 起由 `providerDefaults.js` 将新会话、无参数注册表查询及 EDA 启动的默认引擎统一设为 `H08`。当 UI 布局失败时，按 `H08 -> ELK -> Simple` 顺序依次降级，`Simple` 仍失败则停止重试；用户主动取消任务不会触发降级。自动降级仅改变当前这一次运行的引擎，会话持久化仍保留用户原始首选项，避免将临时回退固化为下次启动的默认设置。对于缺少首选项版本号且保存为 `Simple` 的旧版会话，首次加载时会一次性迁移回 `H08`；新版会话均记录首选项版本号，此后用户主动选择的 `Simple` 或 `ELK` 会被持久尊重。
-- **静态离线入口与异步 Worker 隔离**：离线直接调用入口为 `src/layout/elk_native/h08.js`（`index.js` 基础 profile 仅用于受控相位对比测试）。Provider 通过 `executionMode: "async"` 显式声明异步执行特性，供 Single 与 Compare 工作区统一消费。在浏览器环境中，H08 相位计算运行在独立的离线 ES Module Worker（`native_layout_worker.js`）中：每次请求独占一个 Worker，一旦取消即刻执行 `worker.terminate()` 强制中断并释放资源，任务成功或失败后亦立即销毁 Worker；在 CLI 或带相位观察回调的测试调用中则使用进程内执行，并在相位检查点按时间预算让出事件循环。
-- **旧版代码归档隔离**：原 `src/layout/native_layered/` 下的 22 个早期文件已归档至 `tests/reference/retired_native_layered/`，仅供历史测试追溯，不进入生产依赖或 Windows 发布包，且由架构测试严禁运行时反向导入。H08 的版本化 profile、支持范围与适配契约详见 [静态包说明](design/elk_h08_package.md)。
+- **默认注册与自动降级**：`native-layered` 注册项采用 `elk_native_layout_provider.js` 的 `AnchorLayered` 配置（内部完整相位实现位于 `src/layout/elk_native/`，提供 `anchor.js` 及 `h08.js` 兼容入口）。自 `v1.1.1` 起由 `providerDefaults.js` 将新会话、无参数注册表查询及 EDA 启动的默认引擎统一设为 `AnchorLayered`。当 UI 布局失败时，按 `AnchorLayered -> ELK -> Simple` 顺序依次降级，`Simple` 仍失败则停止重试；用户主动取消任务不会触发降级。自动降级仅改变当前这一次运行的引擎，会话持久化仍保留用户原始首选项，避免将临时回退固化为下次启动的默认设置。对于缺少首选项版本号且保存为 `Simple` 的旧版会话，首次加载时会一次性迁移回 `AnchorLayered`；新版会话均记录首选项版本号，此后用户主动选择的 `Simple` 或 `ELK` 会被持久尊重。
+- **静态离线入口与异步 Worker 隔离**：离线直接调用入口为 `src/layout/elk_native/anchor.js`（兼容入口 `h08.js`；`index.js` 基础 profile 仅用于受控相位对比测试）。Provider 通过 `executionMode: "async"` 显式声明异步执行特性，供 Single 与 Compare 工作区统一消费。在浏览器环境中，AnchorLayered 相位计算运行在独立的离线 ES Module Worker（`native_layout_worker.js`）中：每次请求独占一个 Worker，一旦取消即刻执行 `worker.terminate()` 强制中断并释放资源，任务成功或失败后亦立即销毁 Worker；在 CLI 或带相位观察回调的测试调用中则使用进程内执行，并在相位检查点按时间预算让出事件循环。
+- **旧版代码归档隔离**：原 `src/layout/native_layered/` 下的 22 个早期文件已归档至 `tests/reference/retired_native_layered/`，仅供历史测试追溯，不进入生产依赖或 Windows 发布包，且由架构测试严禁运行时反向导入。AnchorLayered 的版本化 profile、支持范围与适配契约详见 [静态包说明](design/elk_anchor_package.md)。
 
 #### Native Layered 早期规划基线（历史背景留存，2026-09-20）
 

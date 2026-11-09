@@ -1,12 +1,12 @@
-# H08 静态入口与产品验收清单
+# AnchorLayered 静态入口与产品验收清单
 
 本清单保留 1.1.0 验收时的工程验证、用户视觉决定和产品切换记录，当时 Simple 默认不变。
-当前 master 已默认 H08，失败顺序 H08 → ELK → Simple；98ed600 包含拼接位端口及偏好修复，
+当前 master 已默认 AnchorLayered，失败顺序 AnchorLayered → ELK → Simple；98ed600 包含拼接位端口及偏好修复，
 815 单测通过，修复源码 Linux 原47严格回归47/47，不撤销下述历史超时。
 
 后续独立产品决定：验收完成后，用户明确要求默认使用新方法；1.1.1已统一新会话、registry与EDA
-默认H08，Simple保留为失败回退，旧session显式选择继续尊重。下文“Simple默认不变”均为1.1.0
-验收时的历史口径，不代表1.1.1；默认提升的新增验证见 `docs/reports/h08_development_summary.md`。
+默认AnchorLayered，Simple保留为失败回退，旧session显式选择继续尊重。下文“Simple默认不变”均为1.1.0
+验收时的历史口径，不代表1.1.1；默认提升的新增验证见 `docs/reports/anchor_development_summary.md`。
 1.1.1新增验证：809/809单元、实际默认/EDA/Compare/显式Simple恢复、Windows构建通过；
 但最新原47严格回归46/47，DP02045110ms超时，完成项硬0/0。因此1.1.1全图门禁未通过，
 不以1.1.0历史47/47替代。runtime1e60ad93，604文件运行前后和本地/远端一致，核心算法JS未变。
@@ -18,7 +18,7 @@
 
 | 门禁 | 当前证据 | 状态 |
 | --- | --- | --- |
-| 离线静态入口 | `src/layout/elk_native/h08.js`，package0.3.0/profile1.0.0；传递依赖无 Node、动态编译和网络依赖 | 已实现/单测通过 |
+| 离线静态入口 | `src/layout/elk_native/anchor.js`（含 `h08.js` 兼容），package0.3.0/profile1.0.0；传递依赖无 Node、动态编译和网络依赖 | 已实现/单测通过 |
 | P0/P3/P5 完整相位 | 静态/研究逐相位差分、排列/输入不变性、取消和提示快照；首轮完整 unit795/795 | 通过 |
 | 恒零计分与首成员堆 | P1 100组完整旧实现差分；可变/访问器/修改 scratch 回退；完整实际41079节点P3全字段相同 | 通过 |
 | 实际P3固定同输入对照 | old12055ms/current9291ms，摘要e2d3a6de…；单对诊断，不代表全图或稳定收益 | 已记录 |
@@ -41,7 +41,7 @@
 仅必要的11组小型SVG回传至本地 `dc_runs/h08_static_corpus_review`，不进入Git。
 
 静态准入时本地/远端599文件逐字节一致；产品切换更新包README、应用版本及UI调度，需使用新的
-交付快照，不沿用8c24f7d7作为产品runtime哈希。包使用方式以 `docs/design/elk_h08_package.md` 为准。
+交付快照，不沿用8c24f7d7作为产品runtime哈希。包使用方式以 `docs/design/elk_anchor_package.md` 为准。
 既有Windows旧版本未覆盖；本轮生成的初版1.1.0在补齐session修复后重新构建。
 
 最终交付603文件本地/远端runtimeEqual/fileSetEqual均true。原47正式run前后完全一致；最后两项

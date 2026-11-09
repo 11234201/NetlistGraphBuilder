@@ -46,11 +46,11 @@ test('elk_native provider returns an empty shell and rejects cancellation/missin
     (error)=>error.diagnostic.invariant==='missing-endpoint-node');
 });
 
-test('H08 routes each concat terminal independently on both input and output pins',async()=>{
+test('AnchorLayered routes each concat terminal independently on both input and output pins',async()=>{
   const design=parseVerilog(`module concat_ports(input a, b, output x, y);
     UNKNOWN u (.A({a,b}), .Z({x,y})); endmodule`);
   const input=buildSchematicGraph(design.modules[0]),before=structuredClone(input);
-  const provider=new NativeLayeredLayoutProvider({profile:'h08'});
+  const provider=new NativeLayeredLayoutProvider({profile:'anchor'});
   const result=await provider.layout(input);
   assert.equal(result.layoutStatus,'routed');
   assert.equal(result.validationMetrics.total,0);
