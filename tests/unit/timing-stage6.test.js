@@ -199,8 +199,34 @@ w_gen_14670  0.311245  -0.017425  -0.328670  0.044
   assert.match(svg, /slew 0\.044/);
   assert.match(svg, /timing-badge timing-badge-port/);
   assert.doesNotMatch(svg, />w_gen_14670 [^<]*slew/);
+
+  // When policy is none (empty), all timing badges are suppressed
+  const hiddenAnnotated = annotateGraphTiming({
+    moduleName: "top",
+    nodes: [{
+      id: "input:w",
+      kind: "input",
+      label: "w_gen_14670",
+      ref: { name: "w_gen_14670" },
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 30
+    }],
+    edges: [],
+    bounds: { x: 0, y: 0, width: 100, height: 50 }
+  }, timing, { displayPolicy: { metrics: [] } });
+  const hiddenSvg = renderSchematicSvg(hiddenAnnotated);
+  assert.doesNotMatch(hiddenSvg, /timing-badge/);
+
   assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["rt", "slew", "rt", "bad"] }), {
     metrics: ["rt", "slew"]
+  });
+  assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: [] }), {
+    metrics: []
+  });
+  assert.deepEqual(normalizeTimingDisplayPolicy({ metrics: ["none"] }), {
+    metrics: []
   });
 });
 

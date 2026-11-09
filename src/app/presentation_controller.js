@@ -59,7 +59,9 @@ export function createPresentationController({ state, elements, services }) {
     state.timingDisplayPolicy = policy;
     services.persistSession();
     if (state.timing && state.currentModule) rerenderActiveGraph();
-    const metric = policy.metrics.length >= 3 ? "all" : policy.metrics[0];
+    const metric = policy.metrics.length === 0
+      ? "none"
+      : (policy.metrics.length >= 3 ? "all" : (policy.metrics[0] === "slack" ? "worst slack" : policy.metrics[0]));
     services.setStatus(`Timing: ${metric}`);
   }
 

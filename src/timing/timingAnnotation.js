@@ -146,8 +146,16 @@ export function annotateGraphTiming(graph, timing, options = {}) {
 }
 
 export function normalizeTimingDisplayPolicy(policy = DEFAULT_TIMING_DISPLAY_POLICY) {
-  const metrics = [...new Set((Array.isArray(policy?.metrics) ? policy.metrics : [policy?.metrics])
-    .filter((metric) => TIMING_METRIC_SET.has(metric)))];
+  const rawMetrics = Array.isArray(policy?.metrics)
+    ? policy.metrics
+    : (policy?.metrics ? [policy.metrics] : []);
+  if (Array.isArray(policy?.metrics) && policy.metrics.length === 0) {
+    return { metrics: Object.freeze([]) };
+  }
+  if (rawMetrics.includes("none")) {
+    return { metrics: Object.freeze([]) };
+  }
+  const metrics = [...new Set(rawMetrics.filter((metric) => TIMING_METRIC_SET.has(metric)))];
   return { metrics: metrics.length ? metrics : [...DEFAULT_TIMING_DISPLAY_POLICY.metrics] };
 }
 
@@ -641,7 +649,10 @@ function annotateTimingBadges(timing, choices, position, node, policy) {
 }
 
 function getDefaultBadgeChoices(timing, node, policy) {
-  const policyMetrics = policy?.metrics || DEFAULT_TIMING_DISPLAY_POLICY.metrics;
+  const policyMetrics = policy?.metrics !== undefined ? policy.metrics : DEFAULT_TIMING_DISPLAY_POLICY.metrics;
+  if (!policyMetrics || policyMetrics.length === 0) {
+    return [];
+  }
   const isCustomPolicy =
     policyMetrics.length !== 1 || policyMetrics[0] !== "slack";
 
