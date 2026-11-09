@@ -2,13 +2,24 @@ const snapshots = new WeakSet();
 
 // Snapshot supported session data, including collections whose native mutators
 // are not disabled by Object.freeze. Never expose a collection's backing target.
-export function immutableSnapshot(value, seen = new WeakMap()) {
+export function immutableSnapshot(value, options = {}, seen = new WeakMap()) {
+  let opts = options;
+  let seenMap = seen;
+  if (options instanceof WeakMap) {
+    seenMap = options;
+    opts = {};
+  }
+  const allowFunctions = Boolean(opts?.allowFunctions);
   if (typeof value === "function") {
-    throw new TypeError("Session snapshots do not support function values");
+    if (!allowFunctions) {
+      throw new TypeError("Session snapshots do not support function values");
+    }
+    Object.freeze(value);
+    return value;
   }
   if (value === null || typeof value !== "object") return value;
   if (snapshots.has(value)) return value;
-  if (seen.has(value)) return seen.get(value);
+  if (seenMap.has(value)) return seenMap.get(value);
   if (value instanceof Map || value instanceof Set) {
     const isMap = value instanceof Map;
     const target = isMap ? new Map() : new Set();
@@ -23,14 +34,14 @@ export function immutableSnapshot(value, seen = new WeakMap()) {
         return typeof member === "function" && key !== "constructor" ? member.bind(collection) : member;
       }
     });
-    seen.set(value, proxy);
+    seenMap.set(value, proxy);
     if (isMap) for (const [key, item] of value) {
       if (key !== null && (typeof key === "object" || typeof key === "function")) {
         throw new TypeError("Session snapshot Map keys must be primitive values");
       }
-      target.set(key, immutableSnapshot(item, seen));
+      target.set(key, immutableSnapshot(item, opts, seenMap));
     }
-    else for (const item of value) target.add(immutableSnapshot(item, seen));
+    else for (const item of value) target.add(immutableSnapshot(item, opts, seenMap));
     Object.freeze(proxy);
     snapshots.add(proxy);
     return proxy;
@@ -42,9 +53,9 @@ export function immutableSnapshot(value, seen = new WeakMap()) {
     throw new TypeError("Session snapshots do not support Symbol properties");
   }
   const result = Array.isArray(value) ? new Array(value.length) : {};
-  seen.set(value, result);
+  seenMap.set(value, result);
   for (const key of Object.keys(value)) Object.defineProperty(result, key, {
-    value: immutableSnapshot(value[key], seen), enumerable: true, configurable: true, writable: true
+    value: immutableSnapshot(value[key], opts, seenMap), enumerable: true, configurable: true, writable: true
   });
   Object.freeze(result);
   snapshots.add(result);

@@ -179,3 +179,22 @@ test("runSync consumes a rejected Promise returned by an invalid sync runner", a
     process.off("unhandledRejection", listener);
   }
 });
+
+test("ArtifactStore accepts and snapshots presentation artifacts containing lazy reader functions", () => {
+  const artifacts = createArtifactStore();
+  const reader = (start, end) => [{ id: `edge-${start}-${end}` }];
+  const artifact = artifacts.put({
+    kind: "single-workspace",
+    context: { sessionId: "view:1", documentId: "doc:1" },
+    value: {
+      graph: { nodes: [{ id: "n1", x: 10 }] },
+      scene: { readEdges: reader }
+    }
+  });
+
+  assert.equal(artifact.kind, "single-workspace");
+  assert.equal(typeof artifact.value.scene.readEdges, "function");
+  assert.deepEqual(artifact.value.scene.readEdges(0, 1), [{ id: "edge-0-1" }]);
+  assert.equal(Object.isFrozen(artifact.value.graph.nodes[0]), true);
+  assert.throws(() => { artifact.value.graph.nodes[0].x = 999; }, TypeError);
+});

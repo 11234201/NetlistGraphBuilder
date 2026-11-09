@@ -10,7 +10,11 @@ export function createArtifactStore() {
   return Object.freeze({
     put(record) {
       if (!record?.context?.sessionId || !record.kind) throw new Error("Artifact record requires context and kind");
-      const frozen = Object.freeze({ ...record, context: Object.freeze({ ...record.context }), value: immutableSnapshot(record.value) });
+      const frozen = Object.freeze({
+        ...record,
+        context: Object.freeze({ ...record.context }),
+        value: immutableSnapshot(record.value, { allowFunctions: true })
+      });
       records.set(artifactKey(record.context.sessionId, record.kind), frozen);
       return frozen;
     },

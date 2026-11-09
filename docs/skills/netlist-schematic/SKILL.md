@@ -64,6 +64,16 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 - 节点拖拽期间仅移动预览节点并弱化关联导线；释放鼠标后统一执行一次覆盖提交、局部重布线与完整渲染。
 - 所有来自网表、时序日志、Golden 文件或用户编辑的文本在拼入 HTML / SVG 前，必须经过共享的安全字符转义函数（`src/ui/html.js`）。
 
+### 5. 工作台状态、计算产物与快照隔离（核心教训）
+
+- **严格区分 Session 状态与 Artifact 计算产物**：
+  - `ViewSession`（如选区、视口、局部覆盖 `overrides`、`layoutPolicy`）属于可序列化纯状态数据，必须通过严格的 `immutableSnapshot` 进行不可变保护，严禁包含任何函数/闭包或非原始 Map 键。
+  - `ArtifactStore`（如 `single-workspace`、`compare-*-workspace`）保存的是领域计算产物，产物中包含的 `Scene` 场景图依据大图渐进式渲染规范天然携带惰性读取闭包（`readEdges`、`readNodes`）。对产物执行快照保护时必须启用 `{ allowFunctions: true }` 安全冻结函数引用，严禁将针对纯数据的 Session 检查直接施加于计算产物上。
+- **严禁未经全链路验证的“泛化式理论防御”**：
+  - 静态审查或缺陷修复时，若发现基础工具（如快照、深度克隆、输入校验器）拦截了某类值（如 Function / Symbol / Map Key），必须在完整数据流（从解析、布局到渲染展示）中排查是否存在合法的下游消费者，绝不能仅凭局部理论推导下达“整个网表路径绝不允许出现”的断言。
+- **防止过度打桩（Mock）遮蔽真实集成故障**：
+  - 核心工作区编排链路（`buildModuleWorkspace` ➔ `JobCoordinator` ➔ `ArtifactStore` ➔ `workspaceExecution`）必须保留至少一条真实数据流的端到端集成测试，严禁在所有层级全部使用纯字符串或无操作 Stub 代替真实产物，避免出现各层单测全绿但浏览器端首帧启动直接崩溃的盲区。
+
 ## 验证矩阵
 
 | 修改范围 | 最低验证要求 |
@@ -71,6 +81,7 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 | `parser` / `model` / `inference` | 对应模块单元测试（覆盖真实命名、转义标识符、向量切片/拼接及层次边界） |
 | `timingParser` / `timingAnnotation` | 新旧时序格式兼容、作用域匹配、`Apply` / `Auto` 及 Single / Compare 策略同步测试 |
 | 图变换 / `workspace` | 不可变性测试（验证输入对象未被原地修改，且 Single 与 Compare 行为一致） |
+| `artifactStore` / `jobCoordinator` / `viewSession` | 状态与产物隔离单测（验证 Session 拒绝函数、Artifact 允许并冻结 Scene 函数，且不可变写入抛错）；真实模块从布局到产物提交的端到端单测 |
 | `layout` / `routing` / `labels` | 专项单测 + `layout-determinism` + `layout-fixtures` + `npm test` |
 | `viewport` / `pointer` / `panel` | 纯辅助函数单测；涉及大图交互改动时补充真实浏览器拖拽、缩放与平移验证 |
 | 复杂度敏感路径 | 运行 `npm run benchmark`，确认不存在与图规模挂钩的候选膨胀或全图扫描 |
@@ -93,6 +104,8 @@ description: Maintain and extend this repository's structural-Verilog parser, ne
 - 严禁引入需要联网安装的运行时依赖。
 - 严禁通过硬编码特定实例名、测试文件名或绝对像素坐标来“修补”某个布局用例。
 - 严禁在高频指针/滚轮事件处理器中重复编写视口数学逻辑或同步触发昂贵的布局/全量渲染管线。
+- 严禁将针对纯数据会话的严格快照检查无差别套用于包含惰性 Scene 读者函数的计算产物（Artifact）。
+- 严禁在跨模块核心调度链路测试中对所有层级同时使用纯字符串/伪对象打桩而省略真实产物集成。
 - 严禁通过放宽 `layoutValidator` 规则、调大超时预算或删减 47 个映射网表用例来掩盖回归缺陷。
 
 ## 提交前自检清单

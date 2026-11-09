@@ -39,7 +39,16 @@ test("snapshots preserve sparse array length and reject identity-sensitive Map k
     overrides: { keyed: new Map([[{}, "value"]]) } }]), /Map keys must be primitive/);
 });
 
-test("snapshots reject function values in ordinary fields and collections", () => {
+test("snapshots reject function values in ordinary fields and collections by default", () => {
   assert.throws(() => immutableSnapshot({ callback() {} }), /function values/);
   assert.throws(() => immutableSnapshot(new Set([() => {}])), /function values/);
+});
+
+test("snapshots allow and freeze function values when allowFunctions is enabled", () => {
+  const fn = (x) => x * 2;
+  const snapshot = immutableSnapshot({ reader: fn, nested: { count: 3 } }, { allowFunctions: true });
+  assert.equal(typeof snapshot.reader, "function");
+  assert.equal(snapshot.reader(5), 10);
+  assert.equal(Object.isFrozen(snapshot.reader), true);
+  assert.throws(() => { snapshot.nested.count = 4; }, TypeError);
 });
