@@ -1,5 +1,6 @@
 import { fetchStartupManifest, executeStartupManifest } from "./startupController.js";
 import { sampleNetlist } from "./sampleNetlist.js";
+import { sampleTiming } from "./sampleTiming.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { parseCellConfig } from "../infer/cellConfig.js";
 import { getLayoutGoldenState } from "../domains/netlist/layout_golden.js";
@@ -168,6 +169,16 @@ export function createInputController({ state, elements, services }) {
       state.currentModule = null;
       state.searchIndex = services.netlistFeature.buildSearchIndex(documentEnvelope);
       services.clearSearch();
+      if (restore?.timing) {
+        state.timing = restore.timing;
+      } else if (label === "built-in sample" && !restore?.timingDisabled) {
+        try {
+          const imported = importTimingSource(sampleTiming, { name: "built-in sample timing" });
+          state.timing = imported.timing;
+        } catch {
+          state.timing = null;
+        }
+      }
       if (restore?.searchQuery) {
         state.searchQuery = restore.searchQuery;
         elements.searchInput.value = restore.searchQuery;
@@ -177,7 +188,9 @@ export function createInputController({ state, elements, services }) {
       const firstModule = state.design.modules.find((module) =>
         module.name === restore?.moduleName || module.displayName === restore?.moduleName)
         || state.design.modules[0];
-      const readyMessage = `Loaded ${label}: ${state.design.modules.length} module(s)`;
+      const readyMessage = state.timing
+        ? `Loaded ${label}: ${state.design.modules.length} module(s), timing: ${state.timing.instanceCount} instance(s)`
+        : `Loaded ${label}: ${state.design.modules.length} module(s)`;
       services.selectModule(firstModule.name, { historyMode: "restore", deferRender: true });
       const restoredFocusedRoots = normalizeFocusedRootNodeIds(
         restore?.focusedRootNodeIds,

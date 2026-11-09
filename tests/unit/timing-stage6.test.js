@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createAppState } from "../../src/app/appState.js";
+import { createInputController } from "../../src/app/input_controller.js";
 import { detectQuickInputKind } from "../../src/app/quickInput.js";
+import { sampleTiming } from "../../src/app/sampleTiming.js";
+import { createDocumentStore } from "../../src/application/document_store.js";
 import { buildWorkspaceGraph } from "../../src/domains/netlist/netlist_graph_projection.js";
 import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
+import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { layoutGraph } from "../../src/layout/simpleLayered.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
 import {
   annotateGraphTiming,
@@ -197,4 +203,68 @@ w_gen_14670  0.311245  -0.017425  -0.328670  0.044
     snapshot: "auto",
     metrics: ["rt", "slew"]
   });
+});
+
+test("default startup opens built-in sample module with timing initialized and verified", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const elements = {
+    searchInput: {},
+    layoutProviderSelect: {},
+    coneDepthInput: {},
+    faninDepthInput: {},
+    fanoutDepthInput: {}
+  };
+  let renderedGraph = null;
+  let readyMessageReported = null;
+  const noOp = () => {};
+  const services = new Proxy({
+    documents: createDocumentStore(),
+    viewSessions: { closeByDocument: noOp },
+    workspaceJobs: { cancelDocument: noOp },
+    netlistFeature: { buildSearchIndex: () => [] },
+    cloneObjectRefs: (refs) => [...(refs || [])],
+    selectModule(name) {
+      state.currentModule = state.design.modules.find((mod) => mod.name === name);
+    },
+    renderCurrentModuleGraph(options = {}) {
+      readyMessageReported = options.readyMessage;
+      renderedGraph = layoutGraph(buildWorkspaceGraph(state.currentModule, { timing: state.timing }));
+      options.onRendered?.(renderedGraph);
+    }
+  }, { get: (target, key) => key in target ? target[key] : noOp });
+
+  const controller = createInputController({ state, elements, services });
+  await controller.initializeApplication(null);
+
+  // 1. Verifies default startup selects the baseline module
+  assert.equal(state.currentModule?.name, "root_is_l_resyn3_u_gen_1395_7_159174_5");
+  assert.ok(state.timing, "timing should be loaded by default for built-in sample");
+  assert.equal(state.timing.format, "tabular");
+  assert.equal(state.timing.stage, "post_map");
+  assert.equal(state.timing.unit, "ns");
+  assert.ok(state.timing.recordCount >= 60, "timing report should contain full point records");
+
+  // 2. Both modules have timing scopes
+  assert.ok(state.timing.scopes["root_is_l_resyn3_u_gen_1395_7_159174_5"]);
+  assert.ok(state.timing.scopes["root_is_l_resyn3_u_gen_1395_7_159174_5_Flex"]);
+
+  // 3. Status message reports timing instance count
+  assert.match(readyMessageReported, /timing: \d+ instance\(s\)/);
+
+  // 4. Default rendered graph for baseline module has critical path annotations
+  assert.ok(renderedGraph, "graph should be rendered");
+  const criticalNodes = renderedGraph.nodes.filter((node) => node.timing?.worstSlack < 0 || node.timing?.slack < 0);
+  assert.ok(criticalNodes.length > 0, "baseline module should have critical timing violations");
+  const svg = renderSchematicSvg(renderedGraph);
+  assert.match(svg, /timing-badge/);
+  assert.match(svg, /timing-critical/);
+
+  // 5. Flex module (resynthesized) meets timing (slack > 0)
+  const flexModule = state.design.modules.find((mod) => mod.name === "root_is_l_resyn3_u_gen_1395_7_159174_5_Flex");
+  const flexGraph = layoutGraph(buildWorkspaceGraph(flexModule, { timing: state.timing }));
+  const flexCritical = flexGraph.nodes.filter((node) => node.timing?.worstSlack < 0 || node.timing?.slack < 0);
+  assert.equal(flexCritical.length, 0, "flex module should have 0 timing violations");
+  const flexSvg = renderSchematicSvg(flexGraph);
+  assert.match(flexSvg, /timing-badge/);
+  assert.doesNotMatch(flexSvg, /timing-critical/);
 });
