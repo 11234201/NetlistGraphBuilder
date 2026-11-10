@@ -23,6 +23,21 @@
             <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴标准时序文本（Tabular / CSV / JSON）">Paste timing</button>
           </div>
         </details>
+        <details id="libertyMenu" class="toolbar-menu liberty-menu">
+          <summary id="libertyMenuSummary" title="Manage the optional Liberty (.lib) cell library" aria-controls="libertyPanel">Liberty</summary>
+          <section id="libertyPanel" class="toolbar-menu-popover liberty-popover" aria-labelledby="libertyPanelTitle">
+            <h2 id="libertyPanelTitle">Liberty library</h2>
+            <p class="help-text">Load cell and pin definitions for the current design.</p>
+            <div class="liberty-actions">
+              <label class="file-button compact-button liberty-load-button"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
+              <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel import</button>
+              <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
+            </div>
+            <p id="libertySummary" role="status">No library loaded.</p>
+            <pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
+            <p class="help-text">Select one process corner. Reload after refreshing the page.</p>
+          </section>
+        </details>
         <details id="moduleHierarchyMenu" class="toolbar-menu module-hierarchy-menu">
           <summary id="moduleHierarchySummary" title="Browse module hierarchy">
             <span class="module-hierarchy-summary-prefix">Module:</span>
@@ -104,17 +119,6 @@
               <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Only mark slacks below this threshold as critical"></label>
             </div>
           </details>
-          <section class="panel-section">
-            <h2>Liberty library</h2>
-            <div class="button-row">
-              <label class="file-button compact-button"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
-              <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel</button>
-              <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
-            </div>
-            <p id="libertySummary" role="status">No library loaded.</p>
-            <p class="help-text">Optional cell and pin definitions. Select one process corner. Reload after refreshing the page.</p>
-            <pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
-          </section>
           <section class="panel-section cell-config-panel">
             <h2>Cell Config</h2>
             <button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the selected primitive cell type" disabled>Edit selected type</button>
@@ -217,7 +221,7 @@
     <div id="dropOverlay" class="drop-overlay" aria-hidden="true">
       <div>
         <strong>Drop to load</strong>
-        <span>Verilog · Golden JSON · Timing log</span>
+        <span>Liberty .lib · Verilog · Golden JSON · Timing log</span>
       </div>
     </div>
 

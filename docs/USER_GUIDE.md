@@ -3,7 +3,7 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成。
 
 - **默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- **版本说明**：当前代码版本为 `v1.2.0`；最新离线发布附件 `v1.1.2` 已于 2026-10-21 同版本号覆盖更新（包含后续修复与更新后的标签），若此前下载过旧文件请重新下载并核对 SHA-256 校验值。
+- **版本说明**：当前版本为 `v1.3.0`，新增可选 Liberty（`.lib`）库导入与顶部库管理面板。下载对应版本的离线附件后，请核对随附的 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
@@ -156,11 +156,11 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 ### 3.5 Liberty 库
 
-左侧 `Liberty library` 的 `Load .lib` 可加载标准单元库，也可以将 `.lib` 拖入页面，或在非输入框位置直接粘贴 `library(...) { ... }` 文本。可以先加载库再加载网表；批量拖放按 Liberty、网表、时序、Golden 的顺序处理。
+顶部工具栏的 `Liberty` 入口展开独立库管理面板，`Load .lib` 可加载标准单元库，面板中显示库摘要与告警，不占用左侧栏。再次点击入口、按 Escape 或点击面板外部可收起；收起不会卸载库或取消导入，取消扫描请使用 `Cancel import`。也可以将 `.lib` 拖入页面，或在非输入框位置直接粘贴 `library(...) { ... }` 文本。可以先加载库再加载网表；批量拖放按 Liberty、网表、时序、Golden 的顺序处理。
 
 一次拖放或文件粘贴只接受一份 Liberty 文件；含多份库文件的批次会整体拒绝，不会按文件顺序选择工艺角。请选定一份库后再加载，或将库分别作为独立的替换操作导入。
 
-每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
+每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel import` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
 
 Selection 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。
 

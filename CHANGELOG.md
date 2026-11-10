@@ -2,6 +2,14 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.3.0] - 2026-11-10
+
+- **可选 Liberty 标准单元库支持**：离线解析文本 `.lib` 的 cell、pin、bus、方向、时钟属性及布尔 function，为单元类型和连线方向提供库依据；保留实例覆盖和 Cell Config 的优先级，无库时继续使用命名推断。
+- **顶部库管理入口**：`Liberty` 菜单提供 Load .lib、Cancel import、Unload、库摘要与告警，替代左侧常驻面板。支持键盘操作、Escape 和点击外部收起；Single/Compare 共用当前库，Selection 显示库来源与原始 function。
+- **可靠的导入生命周期**：加载失败保留原库，替换与卸载刷新工作区；取消或卸载后不再提交过期文件读取。同批多库整体拒绝，混合文件按 Liberty、网表、时序、Golden 顺序加载；Timing JSON 按完整顶层对象识别。
+- **验收与布局约束**：测试和 benchmark 默认跟随产品 AnchorLayered；Simple 永久冻结，本版不包含 Simple 算法修改。969 项单元测试通过，AnchorLayered 完整节点严格回归 47/47、零硬违规，保留 45 秒限制；两套公开库重新综合的 94 组库/网表配对验证记录见 `docs/research/liberty_synthesis_validation.md`。
+- **支持边界**：库只保留在当前页面内存，刷新需重载；不提供 STA 计算、`.db` / `.lib.gz`、`include_file`、bundle 位映射、bus 成员区间简写或启动器 `--liberty` 参数。顺序、三态、多输出及复杂 function 保守展示。
+
 ## [1.2.0] - 2026-11-09
 
 - **标准 STA 时序格式支持与解析器重构**：
