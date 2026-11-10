@@ -18,7 +18,7 @@ test("quick input recognizes files and pasted content", () => {
   });
 
   assert.equal(detectQuickInputKind("ignored", { name: "design.v" }), "netlist");
-  assert.equal(detectQuickInputKind("ignored", { name: "layout.json" }), "golden");
+  assert.equal(detectQuickInputKind(golden, { name: "layout.json" }), "golden");
   assert.equal(detectQuickInputKind("ignored", { name: "timing.log" }), "timing");
   assert.equal(detectQuickInputKind("ignored", { name: "timing.csv" }), "timing");
   assert.equal(detectQuickInputKind(netlist), "netlist");
@@ -29,6 +29,31 @@ test("quick input recognizes files and pasted content", () => {
   assert.equal(detectQuickInputKind(timingJson, { name: "report.json" }), "timing");
   assert.equal(detectQuickInputKind(timing, { preferredKind: "netlist" }), "netlist");
   assert.throws(() => detectQuickInputKind("plain notes"), /not recognized/);
+});
+
+test("JSON classification uses root fields and decoded keys instead of nested names", () => {
+  for (const points of [
+    { "netlist-layout-golden": [1, 2, 1] },
+    { "netlist-cell-config": [1, 2, 1] }
+  ]) {
+    assert.equal(detectQuickInputKind(JSON.stringify({ points })), "timing");
+    assert.equal(detectQuickInputKind(JSON.stringify({ modules: { top: { points } } })), "timing");
+  }
+  assert.equal(detectQuickInputKind('{"po\\u0069nts":{"u/Y":[1,2,1]}}'), "timing");
+  for (const value of [
+    { metadata: { points: { "u/Y": [1, 2, 1] } } },
+    { metadata: { modules: {} } },
+    { points: [], modules: null },
+    { kind: "netlist-layout-golden", points: {} },
+    { kind: "netlist-cell-config", modules: {} }
+  ]) assert.equal(detectQuickInputKind(JSON.stringify(value)), "golden");
+});
+
+test("automatic JSON classification requires complete valid content", () => {
+  assert.throws(() => detectQuickInputKind("", { name: "timing.json" }));
+  assert.throws(() => detectQuickInputKind('{"points": {}} trailing', { name: "timing.json" }));
+  assert.throws(() => detectQuickInputKind('{"points": {}'));
+  assert.equal(detectQuickInputKind("", { name: "timing.json", preferredKind: "timing" }), "timing");
 });
 
 test("multi-file quick input orders netlist before timing and Golden", () => {

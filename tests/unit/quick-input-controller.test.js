@@ -81,6 +81,70 @@ test("file input ignores an older read that finishes after the latest selection"
   assert.deepEqual(loaded, ["module new; endmodule"]);
 });
 
+test("mixed dropped files classify timing JSON before sorting dependencies", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text, options) => loaded.push([options.kind, text]), setStatus: (message) => statuses.push(message) });
+  const timing = JSON.stringify({ points: { "u/Y": [1, 2, 1] } });
+  await controller.loadFiles([
+    { name: "view.json", text: async () => '{"kind":"netlist-layout-golden"}' },
+    { name: "timing.JSON", text: async () => timing },
+    { name: "design.v", text: async () => "module top; endmodule" },
+    { name: "cells.lib", text: async () => "library(cells){}" }
+  ]);
+  assert.deepEqual(loaded.map(([kind]) => kind), ["liberty", "netlist", "timing", "golden"]);
+  assert.equal(loaded[2][1], timing);
+  assert.deepEqual(statuses, []);
+});
+
+test("JSON file classification reads past the sniffing prefix for known and unknown extensions", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text, options) => loaded.push([options.kind, text]), setStatus: (message) => statuses.push(message) });
+  const timing = JSON.stringify({ metadata: "x".repeat(70000), modules: { top: { points: { "u/Y": [1, 2, 1] } } } });
+  for (const [name, source] of [["timing.json", timing], ["timing.data", timing], ["whitespace.json", " ".repeat(70000) + timing]]) {
+    // Blob.slice/text exercise the same prefix/full-text boundary as browser Files.
+    const file = new Blob([source]);
+    file.name = name;
+    await controller.loadFiles([file]);
+    assert.deepEqual(loaded.at(-1), ["timing", source]);
+  }
+  assert.equal(loaded.length, 3);
+  assert.deepEqual(statuses, []);
+});
+
+test("invalid JSON is reported during classification without preventing a valid design load", async () => {
+  const loaded = [], statuses = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text, options) => loaded.push(options.kind), setStatus: (message) => statuses.push(message) });
+  await controller.loadFiles([
+    { name: "broken.json", text: async () => '{"points": {}' },
+    { name: "design.v", text: async () => "module top; endmodule" }
+  ]);
+  assert.deepEqual(loaded, ["netlist"]);
+  assert.match(statuses[0], /Load failed broken\.json:/);
+});
+
+test("a newer batch cancels a pending complete JSON classification read", async () => {
+  const loaded = [], statuses = [];
+  let releaseRead;
+  let startedRead;
+  const readStarted = new Promise((resolve) => { startedRead = resolve; });
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text, options) => loaded.push(options.label), setStatus: (message) => statuses.push(message) });
+  const oldLoad = controller.loadFiles([{
+    name: "old.json",
+    slice: () => ({ text: async () => '{"points":' }),
+    text: () => { startedRead(); return new Promise((resolve) => { releaseRead = resolve; }); }
+  }]);
+  await readStarted;
+  await controller.loadFiles([{ name: "new.v", text: async () => "module newer; endmodule" }]);
+  releaseRead('{"points":{}}');
+  await oldLoad;
+  assert.deepEqual(loaded, ["new.v"]);
+  assert.deepEqual(statuses, []);
+});
+
 test("batch file loading never reads multiple complete files concurrently", async () => {
   let active = 0;
   let maximum = 0;

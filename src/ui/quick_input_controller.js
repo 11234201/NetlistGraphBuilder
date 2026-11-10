@@ -49,10 +49,18 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         try {
           kind = detectQuickInputKind("", { name: file.name });
         } catch {
-          // Ambiguous extensions only need a prefix for classification. Real File
-          // objects expose slice(); small test doubles fall back to one full read.
+          // Sniff unknown formats cheaply, but classify JSON from the complete
+          // object: root fields may occur after the prefix or use escaped keys.
           classificationText = file.slice ? await file.slice(0, 65536).text() : await file.text();
+          if (requestId !== latestFileRequest) return;
+          if (file.slice && (/\.json$/i.test(file.name) || classificationText.trimStart().startsWith("{"))) {
+            classificationText = await file.text();
+            if (requestId !== latestFileRequest) return;
+          }
           kind = detectQuickInputKind(classificationText, { name: file.name });
+          // Re-read real Files at import time instead of retaining every JSON
+          // source in a batch. Test doubles without slice() reuse their only read.
+          if (file.slice) classificationText = null;
         }
       } catch (error) {
         if (requestId !== latestFileRequest) return;

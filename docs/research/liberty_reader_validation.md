@@ -106,3 +106,15 @@ node tools/test_liberty_cases.mjs /home/wzh/open_source/ngb_liberty_corpus_20261
 - 本机专属 .NET Framework 构建在 ignored `dc_runs/liberty_review_round2/release` 完成，使用 `npm run release:windows -- -SkipTests`，单测已在远端执行。编译、启动/HTTP 冒烟、包内 248 个 src 文件与用户指南一致性、ELK 许可证哈希检查通过。ZIP SHA-256：`e47455f8e91af58f4e4f572561f0395aa6409608ff45337c10c36cc510563349`。
 - 上轮 Chrome 进程仍处于内核 D 状态，未发现可用的替代浏览器运行时；本轮没有重新启动浏览器，新增批量导入与竞态由真实导入服务和控制器集成测试验证。保留上一轮浏览器退出清理限制，不增加浏览器全绿记录。
 - 修复仍保留在工作区，未提交/推送；未改动原有用户文件。`git diff --check` 通过。
+
+## 提交后复查：混合文件的 JSON 分类（2026-11-10）
+
+前两轮修复已提交为 `3be3615ee6705b2486de051ab5d3345ba7beaf46`（`fix(liberty): harden parsing and import lifecycle boundaries`），未推送。本轮继续修复与库一起导入配套文件时遇到的既有问题；以下改动尚未提交。
+
+- 批量入口原先仅凭 `.json` 扩展名就认定 Golden，导致 Timing JSON 无法自动导入。现在先根据完整 JSON 内容分类，再按 Liberty、网表、时序、Golden 的依赖顺序加载。
+- 自动识别原先全文搜索 `points` / `modules` 和格式名称，可能被嵌套字段、合法时序点名称误导，也无法识别 JSON 转义键。现在解析 JSON，只根据顶层对象字段与明确的格式标记判断；具体数据合法性仍由各格式的导入边界校验。
+- JSON 字段可以出现在 64 KiB 嗅探前缀之后，因此对 `.json` 文件和以对象开头的未知扩展名文件读取完整内容。读取保持串行，真实 File 的完整分类文本不进入批次缓存；载入阶段再次读取。每次异步读取后核对请求代次，已取消的读取不继续解析或载入。
+- 新增 6 项单测，覆盖混合批次顺序、顶层字段与转义键、完整 JSON 要求、长元数据和空白前缀、损坏文件及分类期间的替换请求。修复前 5 项失败，另 1 项取消回归原本通过；修复后专项 **43/43**、全量 **950/950**，全量耗时 25.67 秒。
+- 远端快照：`/home/wzh/my_code/netlistGraphBuilder/input_review_20261110`。日志在 `dc_runs/review/before.log`、`focused.log`、`unit.log`、`architecture.log`；架构检查 247 模块、585 依赖，未解析/跨层/环均为 0；247 个 JS 源文件与本地 SHA-256 完全一致。
+- 本轮只改共享输入分类和 UI 文件读取，未修改 parser、inference、graph、layout 或 renderer，因此未重复综合配对、mapped 和布局基准。上一轮 94/94 综合配对及默认 mapped 的 24 项既有失败记录保留；浏览器退出清理限制仍未解决，本轮未新增浏览器全绿记录。
+- Windows 平台专属发布检查在本地 ignored `dc_runs/input_review/release` 隔离副本运行 `npm run release:windows -- -SkipTests`；C# 编译及启动/HTTP 冒烟通过。初次校验发现 archive 快照中 7 个 `.gitkeep` 的换行与工作区不同，同步这些占位文件后重新构建。最终 ZIP 内全部 255 个 src 文件（含隐藏占位文件）、用户指南及 ELK 许可证共 257 个文件的哈希与工作区一致；ZIP SHA-256：`9592e803131f8d88a93c13317cf24c10750c580be1dee41d9a268ad7c4396532`。

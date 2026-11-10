@@ -17,12 +17,7 @@ export function detectQuickInputKind(text, options = {}) {
   if (extension === ".lib") return "liberty";
   if (NETLIST_EXTENSIONS.has(extension)) return "netlist";
   if (TIMING_EXTENSIONS.has(extension)) return "timing";
-  if (extension === ".json") {
-    if (source && isTimingJsonSource(source)) return "timing";
-    return "golden";
-  }
-
-  if (source.startsWith("{")) {
+  if (extension === ".json" || source.startsWith("{")) {
     return isTimingJsonSource(source) ? "timing" : "golden";
   }
   if (hasLibertyHeader(source)) return "liberty";
@@ -56,8 +51,11 @@ function hasLibertyHeader(source) {
 }
 
 function isTimingJsonSource(source) {
-  if (/"netlist-layout-golden"|"netlist-cell-config"/.test(source)) return false;
-  return /"(?:points|modules)"\s*:\s*\{/.test(source);
+  // A filename or a truncated prefix cannot distinguish Timing JSON from Golden.
+  const value = JSON.parse(source);
+  const isRecord = (item) => item !== null && typeof item === "object" && !Array.isArray(item);
+  if (!isRecord(value) || value.kind === "netlist-layout-golden" || value.kind === "netlist-cell-config") return false;
+  return ["points", "modules"].some((key) => Object.hasOwn(value, key) && isRecord(value[key]));
 }
 
 export function getQuickInputPriority(kind) {
