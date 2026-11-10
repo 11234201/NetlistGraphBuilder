@@ -57,6 +57,17 @@ test("Liberty rejects duplicate cells and attributes, enforces limits and yields
   assert.throws(() => read('library(x){cell(__proto__){pin(constructor){direction:input;}}cell(__proto__){}}'), /Ambiguous cell/);
 });
 
+test("Liberty validates parentheses in retained and skipped simple attributes", async () => {
+  for (const body of ["nom_voltage: (1;", "nom_voltage: 1);", "unknown: (1;", "unknown = 1);"])
+    assert.throws(() => parseLiberty(`library(x){${body}}`), /Incomplete statement|Unexpected '\)'/);
+  assert.throws(() => parseLiberty(`library(x){unknown: ${"(".repeat(257)}1${")".repeat(257)};}`), /maxDepth/);
+  assert.equal(read('library(x){cell(B){pin(A){direction:input;}pin(Z){direction:output;function:(A);}}}').cells.B.logic.kind, "buf");
+  const service = createLibertyLibraryService({ execute: runCooperativeTask });
+  const original = await service.importText(source);
+  await assert.rejects(service.importText('library(bad){unknown:(1;}'), /Incomplete statement/);
+  assert.equal(service.read(), original);
+});
+
 test("Liberty bus types resolve regardless of declaration order and preserve bit direction", () => {
   const result = read(`library(x) {cell(B){bus(A){bus_type:t; direction:input;} pin(Z){direction:output;}}
     type(t){base_type:array; data_type:bit; bit_width:2; bit_from:1; bit_to:0; downto:true;}}`);
@@ -64,6 +75,32 @@ test("Liberty bus types resolve regardless of declaration order and preserve bit
   assert.equal(result.cells.B.pins.A.direction, "input");
   assert.equal(result.cells.B.pins["A[0]"].direction, "input");
   assert.throws(() => read('library(x){cell(B){bus(A){bus_type:missing;}}}'), /bus range/);
+});
+
+test("Liberty bus names remain literal when expanding naming style placeholders", () => {
+  for (const name of ["A$&", "A$$", "A$'", "A$`", "A%d", "A%s"]) {
+    const library = read(`library(x){type(t){bit_from:1;bit_to:0;}cell(C){bus(${JSON.stringify(name)}){bus_type:t;direction:output;}}}`);
+    assert.deepEqual(library.cells.C.buses[0].members, [`${name}[1]`, `${name}[0]`]);
+    const module = parseVerilog(`module top(output z); C u(.\\${name}[0] (z)); endmodule`).modules[0];
+    const graph = buildSchematicGraph(module, { cellLibrary: library });
+    assert.equal(graph.diagnostics.some((entry) => entry.code === "library-missing-pin"), false);
+    const cell = graph.nodes.find((node) => node.id === "cell:u");
+    assert.equal(Object.values(cell.pinDirections)[0].source, "library");
+    assert.equal(Object.values(cell.pinDirections)[0].direction, "output");
+  }
+});
+
+test("Liberty rejects nameless signal, power and bus-member pin groups without replacing a valid library", async () => {
+  const service = createLibertyLibraryService({ execute: runCooperativeTask });
+  const original = await service.importText(source);
+  const bodies = [
+    "pin(){direction:input;}", "pg_pin(){pg_type:primary_power;}",
+    "bus(A){bus_type:t;direction:input;pin(){direction:output;}}"
+  ];
+  for (const body of bodies) {
+    await assert.rejects(service.importText(`library(bad){type(t){bit_from:0;bit_to:0;}cell(C){${body}}}`), /pin.*requires at least one name/i);
+    assert.equal(service.read(), original);
+  }
 });
 
 test("Liberty expression semantics cover precedence, implicit AND, postfix inversion and mux", () => {
@@ -91,6 +128,19 @@ test("Library directions are shared by graph and hierarchy, explicit overrides k
   const overridden = buildSchematicGraph(module, { cellLibrary: library, overrides: { cellPinDirections: { u: { X: "output" } } } });
   assert.equal(overridden.nodes.find((node) => node.ref?.instance === "u").pinDirections.X.source, "override");
   assert.equal(module.cells[0].pins[0].direction, undefined);
+});
+
+test("An empty Cell Config cannot shadow Liberty cells through prototype properties", () => {
+  for (const name of ["constructor", "toString", "__proto__"]) {
+    const library = read(`library(x){cell(${name}){pin(A){direction:input;}pin(Z){direction:output;function:A;}}}`);
+    const module = parseVerilog(`module top(input a,output z); ${name} u(.A(a),.Z(z)); endmodule`).modules[0];
+    const options = { cellLibrary: library, cellConfig: { cells: {} } };
+    const graph = buildSchematicGraph(module, options);
+    const cell = graph.nodes.find((node) => node.id === "cell:u");
+    assert.equal(cell.gateKind, "buf");
+    assert.equal(cell.inferenceSource, "library");
+    assert.equal(createModuleConnectivityTemplate(module, new Map(), options).cells[0].semantics.source, "library");
+  }
 });
 
 test("Library import atomically preserves old data on failure, cancels stale tasks and unloads", async () => {

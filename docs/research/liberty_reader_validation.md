@@ -65,3 +65,44 @@ node tools/test_liberty_cases.mjs /home/wzh/open_source/ngb_liberty_corpus_20261
 文档链接检查：9 份相关文档共 45 个相对链接全部存在；外链和锚点不在此检查范围。`git diff --check` 通过。未 stage、commit 或 push；既有用户文件保持原状。
 
 后续已按用户要求重新下载两库、综合 47 份原 RTL，完成 94 组库/新网表闭环校验。独立连接、接口/真值、负对照和实际浏览器输入结果，以及首轮超时与重跑记录见[重新综合配对验证报告](liberty_synthesis_validation.md)；不改写本页原有布局基线结论。
+
+## 2026-11-10 提交后审查与修复
+
+审查基线为 `d8caaf9`（`codex/liberty-reader`）。修复与测试在独立远端目录 `/home/wzh/my_code/netlistGraphBuilder/liberty_review_fixes_20261110` 完成，原始证据位于该目录的 `dc_runs/review/`。本轮不改动布局算法、mapped fixtures 或原有超时/违规预算。
+
+| 缺陷 | 修复边界与回归证据 |
+| --- | --- |
+| 前导块注释导致 Liberty 自动识别正则指数回溯 | `quickInput.js` 改为单向扫描空白/注释；独立子进程的 10000 个块注释反例在基线达到 5 秒上限，修复后正常识别 Verilog；同时覆盖关键字与左括号间的注释 |
+| Unload 后，尚未完成的文件读取重新装载库 | QuickInput 接收 Cancel/Unload 动作，使自己的请求代次和 AbortSignal 失效；真实 library service 与两层 controller 覆盖文件选择、拖放、未知扩展名前缀读取，以及操作后再次导入 |
+| 简单属性的括号未检查平衡 | parser 对保留和跳过的 `:` / `=` 属性统一检查括号及深度；缺右括号、多右括号、超深嵌套均拒绝，导入失败保留原库；合法带括号 function 正常解释 |
+| 空 Cell Config 的原型属性遮蔽同名库单元 | `cellConfig.js` 查询仅接受自有键，写入将名称作为普通数据属性；覆盖 `constructor` / `toString` / `__proto__` 单元及 pin 的导入导出、删除、普通图与层次语义 |
+
+验证过程与结果：
+
+- 第一批新增测试在提交基线上 **9 项失败**，修复后专项 **37/37**、完整单测 **935/935**。继续审查发现配置原型键问题，两个新反例均先失败；最终完整单测 **937/937**，41.90 秒。日志 `baseline_regressions.log`、`prototype_before.log`、`prototype_after.log`、`unit_final.log`。
+- 架构检查：247 模块、585 依赖，未解析/跨层/环均为 0；最终 247 个 JS 文件与本地 SHA-256 一致。库与网表配对复验 **94/94**，106324 cell、422000 pin；独立接口 **56/56**、264 行真值一致。此次复用此前已固定哈希的综合产物，没有重复综合。
+- 浏览器新增实际 `File.text()` 延迟后 Unload 的用例，复验再次导入、失败保留、Compare、混合拖放和取消。正常 Chrome 与禁用 GPU 的诊断运行均执行完所有断言，pageerror 为 0；截图确认最终 `fresh.lib` 和 NAND 图正确。**两次均未正常退出清理阶段**：首次 Chrome 留在内核 D 状态，已终止本次测试 runner/预览进程并向该 Chrome 发送终止信号；诊断副本设置 90 秒外层上限，仍未正常结束。保留 `browser.log`、`browser_software.log`，不能将完整浏览器命令记为全绿。
+- `npm run benchmark` 完成，1024/4096/8192 cell 均 routed、违规 0；layout 中位数 6627.8/39593.3/96444.5ms，明显慢于前次记录，不作为性能改善证据或归因于此次修复。Liberty 4/16/64 MiB 分别 111.68/402.59/1996.07ms，保留模型 949/950/952 字节，64 MiB 仍低于原 15 秒预算。
+- Windows 构建使用本机专属 .NET Framework 编译器，在 ignored `dc_runs/liberty_review_fixes/release` 运行 `npm run release:windows -- -SkipTests`；单测在远端完成。编译、启动/HTTP 冒烟通过，包内全部 248 个 src 文件与当前源码一致，ELK 许可证存在。最终 ZIP SHA-256 为 `8c04b33976bf2f40d928471e4742d47cf575ef2e66500744c42d69f414598744`。
+- `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完成 47 例，23 通过、24 失败，失败集合与原始基线一致；`eq_004`、`sop_006` 从违规失败变为超时，不能声称逐项状态完全相同。当前违规 1315/120；由于超时项不计入违规统计，不能将汇总下降解读为质量改善。随后逐对象比较 47 文件/47 模块的完整无库图，差异为 0；日志 `mapped.log`、`mapped_comparison.json`、`graph_baseline.json`。默认 mapped 门禁仍未通过。
+- 本轮修复尚未提交或推送；此前功能提交 `d8caaf9` 保留。原有用户改动保持原样，生成物均未加入版本控制；`git diff --check` 通过。
+
+## 2026-11-10 后续审查：接口名称与批量导入
+
+在前述修复基础上继续审查，远端隔离目录为 `/home/wzh/my_code/netlistGraphBuilder/liberty_review_round2_20261110`，证据位于其 `dc_runs/review/`。新增四项修复：
+
+| 问题 | 修复及覆盖 |
+| --- | --- |
+| bus 名称中的 `$&`、`$$`、`$'`、反引号替换序列或 `%d`/`%s` 被字符串替换机制改写 | 一次扫描格式中的占位符，回调返回字面名称；六种名称均通过 Library IR 与转义 Verilog pin 的实际图绑定检查 |
+| 空 `pin()`、`pg_pin()` 和 bus 成员 `pin()` 被静默忽略 | 在 Library IR 边界拒绝缺失名称，保留 source span 错误位置；失败导入不替换原库 |
+| 同批多份 Liberty 文件依赖文件顺序，后者静默覆盖前者 | 在任何文件加载前拒绝含多份库的整个批次；覆盖两种工艺角的顺序交换、与网表混合、未知扩展名检测和拒绝后单独加载；使用指南明确该约定 |
+| 旧导入取消或旧视图刷新完成后，覆盖新批次的错误提示 | Liberty controller 的异步状态更新同时核对自身代次与外部 AbortSignal；真实 service/controller 的确定性测试覆盖旧解析晚取消和旧刷新晚完成 |
+
+- 四个初始反例在修复前失败，修复后专项 38/38；进一步发现两个状态竞态，先复现失败再修复，生命周期测试 11/11。共新增 **7 项单测**，最终 **944/944**，36.55 秒。日志 `before.log`、`focused.log`、`stale_before.log`、`stale_after.log`、`unit_final.log`。
+- 最终架构检查 247 模块、585 依赖，未解析/跨层/环为 0；247 个 JS 文件 SHA-256 与本地完全一致。未新增运行时依赖、修改 main 入口或调整原有资源预算。
+- 复用固定哈希的综合产物：配对 **94/94**，106324 cell、422000 pin；独立接口 **56/56**，264 行真值一致。日志 `paired.log`、`truth.log`，报告 `paired.json`、`truth.json`。
+- Liberty 4/16/64 MiB 基准分别 104.18/337.14/1313.70ms，保留模型 949/950/952 字节；64 MiB 仍满足原 15 秒预算。这些是单次运行证据，不据此宣称通用加速。
+- 完整节点 mapped **47 例全部执行，23 通过、24 失败**，失败集合与原始基线和上轮一致。相对原始基线，`dp_019`、`eq_004`、`sop_012` 从违规失败变为超时；相对上轮，`dp_019`、`sop_012` 转为超时，`sop_006` 从超时变为违规失败。当前违规 944/120；超时项不计入违规汇总，不能将下降解读成质量改善。47 文件/47 模块的完整无库图与原始基线逐对象比较，差异为 0。报告 `mapped_comparison.json`、`graph_baseline.json`；默认 mapped 门禁仍未通过。
+- 本机专属 .NET Framework 构建在 ignored `dc_runs/liberty_review_round2/release` 完成，使用 `npm run release:windows -- -SkipTests`，单测已在远端执行。编译、启动/HTTP 冒烟、包内 248 个 src 文件与用户指南一致性、ELK 许可证哈希检查通过。ZIP SHA-256：`e47455f8e91af58f4e4f572561f0395aa6409608ff45337c10c36cc510563349`。
+- 上轮 Chrome 进程仍处于内核 D 状态，未发现可用的替代浏览器运行时；本轮没有重新启动浏览器，新增批量导入与竞态由真实导入服务和控制器集成测试验证。保留上一轮浏览器退出清理限制，不增加浏览器全绿记录。
+- 修复仍保留在工作区，未提交/推送；未改动原有用户文件。`git diff --check` 通过。

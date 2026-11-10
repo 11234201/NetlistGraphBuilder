@@ -24,7 +24,7 @@ export function parseCellConfig(value) {
   for (const rawType of Object.keys(input.cells).sort()) {
     const type = canonicalCellType(rawType);
     if (!type) throw new Error("Cell Config cell type must not be empty");
-    if (cells[type]) throw new Error(`Duplicate canonical cell type: ${type}`);
+    if (Object.hasOwn(cells, type)) throw new Error(`Duplicate canonical cell type: ${type}`);
     const definition = input.cells[rawType];
     assertPlainObject(definition, `Cell Config ${rawType}`);
     rejectUnknownKeys(definition, CELL_KEYS, `Cell Config ${rawType}`);
@@ -37,9 +37,12 @@ export function parseCellConfig(value) {
       const direction = definition.pins[rawPin];
       if (!DIRECTION_SET.has(direction)) throw new Error(`Unsupported pin direction for ${rawType}.${rawPin}: ${direction}`);
       if (Object.hasOwn(pins, pin)) throw new Error(`Duplicate canonical pin for ${rawType}: ${pin}`);
-      pins[pin] = direction;
+      Object.defineProperty(pins, pin, { value: direction, enumerable: true, configurable: true, writable: true });
     }
-    cells[type] = { displayName: String(definition.displayName || rawType), gateKind, pins };
+    Object.defineProperty(cells, type, {
+      value: { displayName: String(definition.displayName || rawType), gateKind, pins },
+      enumerable: true, configurable: true, writable: true
+    });
   }
   return { kind: CELL_CONFIG_KIND, version: CELL_CONFIG_VERSION, cells };
 }
@@ -49,7 +52,8 @@ export function serializeCellConfig(bundle, spacing = 2) {
 }
 
 export function resolveCellConfigDefinition(bundle, cellType) {
-  return bundle?.cells?.[canonicalCellType(cellType)] || null;
+  const cells = bundle?.cells, type = canonicalCellType(cellType);
+  return cells && Object.hasOwn(cells, type) ? cells[type] : null;
 }
 
 export function setCellConfigDefinition(bundle, cellType, definition) {

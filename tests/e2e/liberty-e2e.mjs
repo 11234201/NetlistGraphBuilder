@@ -71,6 +71,37 @@ try {
   assert.ok(buttonCancelMs < 500);
   assert.match(await page.locator("#libertySummary").innerText(), /drop.lib/);
   assert.match(await page.locator("#statusBar").innerText(), /cancelled/);
+  // Hold the actual File read before it reaches the library controller, then unload.
+  await page.evaluate(() => {
+    const originalText = File.prototype.text;
+    const file = new File(["library(stale){}"], "stale.lib");
+    let release;
+    const pending = new Promise((resolve) => { release = resolve; });
+    File.prototype.text = function () {
+      if (this.name !== "stale.lib") return originalText.call(this);
+      File.prototype.text = originalText;
+      window.finishLibertyRead = release;
+      return pending;
+    };
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    const input = document.querySelector("#libertyInput");
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => typeof window.finishLibertyRead === "function");
+  await page.locator("#clearLibertyButton").evaluate((button) => button.click());
+  await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Liberty unloaded"));
+  await page.evaluate(async () => {
+    window.finishLibertyRead("library(stale){}");
+    delete window.finishLibertyRead;
+    // Let the read's await continuation and cooperative parser checkpoints drain.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+  assert.match(await page.locator("#libertySummary").innerText(), /No library/);
+  assert.match(await page.locator("#statusBar").innerText(), /Liberty unloaded/);
+  await page.locator("#libertyInput").setInputFiles(file("fresh.lib", liberty));
+  await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded Liberty fresh.lib"));
   await mkdir(new URL("../../dc_runs/liberty/", import.meta.url), { recursive: true });
   await page.locator("#libertySummary").scrollIntoViewIfNeeded();
   await page.screenshot({ path: fileURLToPath(new URL("../../dc_runs/liberty/browser.png", import.meta.url)) });

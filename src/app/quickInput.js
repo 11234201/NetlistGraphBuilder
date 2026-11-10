@@ -25,12 +25,34 @@ export function detectQuickInputKind(text, options = {}) {
   if (source.startsWith("{")) {
     return isTimingJsonSource(source) ? "timing" : "golden";
   }
-  if (/^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*\n)*library\s*\(/.test(source)) return "liberty";
+  if (hasLibertyHeader(source)) return "liberty";
   if (TIMING_DIRECTIVE_PATTERN.test(source)) return "timing";
   if (/(?:^|[\s;])module\s+(?:\\\S+|[A-Za-z_$][\w$]*)/im.test(source)) return "netlist";
   if (TIMING_HEADER_PATTERN.test(source)) return "timing";
   if (TIMING_ROW_PATTERN.test(source)) return "timing";
   throw new Error("input is not recognized as Verilog, Liberty, Golden JSON, or timing text");
+}
+
+function skipCommentTrivia(source, start) {
+  let offset = start;
+  while (offset < source.length) {
+    if (/\s/.test(source[offset])) { offset += 1; continue; }
+    if (source.startsWith("/*", offset)) {
+      const end = source.indexOf("*/", offset + 2);
+      if (end < 0) return source.length;
+      offset = end + 2;
+    } else if (source.startsWith("//", offset)) {
+      const end = source.indexOf("\n", offset + 2);
+      if (end < 0) return source.length;
+      offset = end + 1;
+    } else break;
+  }
+  return offset;
+}
+
+function hasLibertyHeader(source) {
+  const start = skipCommentTrivia(source, 0);
+  return source.startsWith("library", start) && source[skipCommentTrivia(source, start + 7)] === "(";
 }
 
 function isTimingJsonSource(source) {

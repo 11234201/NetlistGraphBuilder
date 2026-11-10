@@ -158,6 +158,8 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 左侧 `Liberty library` 的 `Load .lib` 可加载标准单元库，也可以将 `.lib` 拖入页面，或在非输入框位置直接粘贴 `library(...) { ... }` 文本。可以先加载库再加载网表；批量拖放按 Liberty、网表、时序、Golden 的顺序处理。
 
+一次拖放或文件粘贴只接受一份 Liberty 文件；含多份库文件的批次会整体拒绝，不会按文件顺序选择工艺角。请选定一份库后再加载，或将库分别作为独立的替换操作导入。
+
 每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
 
 Selection 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。

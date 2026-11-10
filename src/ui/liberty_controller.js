@@ -12,21 +12,22 @@ export function createLibertyController({ elements, read, importText, clear, can
   }
   async function load(text, options = {}) {
     const request = ++generation;
+    const isCurrent = () => request === generation && !options.signal?.aborted;
     render(true);
     try {
       const library = await importText(text, { ...options, name: options.label || options.name || "library.lib" });
-      if (request !== generation) return;
+      if (!isCurrent()) return;
       render();
       logProcess?.("info", "import", `Loaded Liberty ${library.sourceName}`, { cells: library.cellCount, diagnostics: library.diagnostics.length });
       try { await refresh(); }
       catch (error) {
-        if (request === generation) setStatus(`Liberty ${library.sourceName} loaded; view refresh ${error.name === "AbortError" ? "cancelled" : "failed: " + error.message}`);
+        if (isCurrent()) setStatus(`Liberty ${library.sourceName} loaded; view refresh ${error.name === "AbortError" ? "cancelled" : "failed: " + error.message}`);
         return "liberty";
       }
-      if (request === generation) setStatus(`Loaded Liberty ${library.sourceName}: ${library.cellCount} cells`);
+      if (isCurrent()) setStatus(`Loaded Liberty ${library.sourceName}: ${library.cellCount} cells`);
       return "liberty";
     } catch (error) {
-      if (request === generation) setStatus(error.name === "AbortError" ? "Liberty import cancelled" : `Liberty import failed: ${error.message}`);
+      if (isCurrent()) setStatus(error.name === "AbortError" ? "Liberty import cancelled" : `Liberty import failed: ${error.message}`);
       throw error;
     } finally { if (request === generation) render(); }
   }

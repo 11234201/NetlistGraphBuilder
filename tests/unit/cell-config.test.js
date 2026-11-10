@@ -6,6 +6,7 @@ import {
   mergeCellConfigs,
   parseCellConfig,
   removeCellConfigDefinition,
+  resolveCellConfigDefinition,
   serializeCellConfig,
   setCellConfigDefinition
 } from "../../src/infer/cellConfig.js";
@@ -31,6 +32,21 @@ test("Cell Config validates, canonicalizes and exports deterministically", () =>
   assert.throws(() => parseCellConfig({ ...configSource, extra: true }), /unknown field/);
   assert.throws(() => parseCellConfig({ ...configSource, cells: { X: { gateKind: "CODE", pins: {} } } }), /gate kind/);
   assert.throws(() => parseCellConfig({ ...configSource, cells: { X: { gateKind: "BUF", pins: { A: "sideways" } } } }), /pin direction/);
+});
+
+test("Cell Config treats prototype property names as ordinary cell and pin identifiers", () => {
+  for (const name of ["constructor", "toString", "__proto__"]) {
+    assert.equal(resolveCellConfigDefinition(createEmptyCellConfig(), name), null);
+    const definition = { gateKind: "BUF", pins: { [name]: "input", Z: "output" } };
+    const config = setCellConfigDefinition(createEmptyCellConfig(), name, definition);
+    const restored = parseCellConfig(serializeCellConfig(config));
+    assert.equal(Object.getPrototypeOf(restored.cells), Object.prototype);
+    assert.equal(Object.getPrototypeOf(restored.cells[name].pins), Object.prototype);
+    assert.ok(Object.hasOwn(restored.cells, name));
+    assert.equal(restored.cells[name].pins[name], "input");
+    assert.equal(resolveCellConfigDefinition(restored, name).gateKind, "BUF");
+    assert.deepEqual(Object.keys(removeCellConfigDefinition(restored, name).cells), []);
+  }
 });
 
 test("user Cell Config drives unknown cell kind and pins without replacing submodules", () => {

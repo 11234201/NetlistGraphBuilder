@@ -107,6 +107,8 @@ export function createQuickInputElements(elements, body) {
   return {
     netlistInput: elements.fileInput,
     libertyInput: elements.libertyInput,
+    cancelLibertyButton: elements.cancelLibertyButton,
+    clearLibertyButton: elements.clearLibertyButton,
     timingInput: elements.timingInput,
     goldenInput: elements.goldenInput,
     pasteNetlistButton: elements.pasteNetlistButton,

@@ -7,10 +7,15 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   let textKind = "netlist";
   let latestFileRequest = 0;
   let importController = null;
-  const beginRequest = () => {
+  const cancelPendingLoad = () => {
     importController?.abort();
+    importController = null;
+    latestFileRequest += 1;
+  };
+  const beginRequest = () => {
+    cancelPendingLoad();
     importController = new AbortController();
-    return ++latestFileRequest;
+    return latestFileRequest;
   };
   const libraryOptions = (kind) => kind === "liberty" ? { signal: importController?.signal } : {};
   const checkFileSize = (file, kind) => {
@@ -55,6 +60,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         continue;
       }
       entries.push({ file, classificationText, kind, name: file.name, order });
+    }
+    if (requestId !== latestFileRequest) return;
+    if (entries.filter((entry) => entry.kind === "liberty").length > 1) {
+      setStatus("Load failed: choose one Liberty file per batch");
+      return;
     }
     entries.sort((a, b) => getQuickInputPriority(a.kind) - getQuickInputPriority(b.kind) || a.order - b.order);
     let designLoaded = !entries.some((entry) => entry.kind === "netlist");
@@ -112,6 +122,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   };
 
   elements.libertyInput?.addEventListener("change", (event) => loadInputFile(event, "liberty"));
+  // These actions also invalidate reads that have not reached the library service.
+  elements.cancelLibertyButton?.addEventListener("click", cancelPendingLoad);
+  elements.clearLibertyButton?.addEventListener("click", cancelPendingLoad);
   elements.netlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist"));
   elements.timingInput?.addEventListener("change", (event) => loadInputFile(event, "timing"));
   elements.goldenInput?.addEventListener("change", (event) => loadInputFile(event, "golden"));

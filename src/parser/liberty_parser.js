@@ -92,6 +92,9 @@ export function* parseLibertySteps(text, { name = "library.lib" } = {}) {
         if (retain) statement.args.push(statement.argument.join(" "));
         statement.argument = [];
       } else if (retain && !statement.closed) statement.argument.push(token.value);
+    } else {
+      if (token.kind === "(") statement.depth += 1;
+      if (token.kind === ")" && --statement.depth < 0) lexer.fail("Unexpected ')'", token.start);
     }
     if (retain && (statement.mode !== "(" || !["(", ")", ","].includes(token.kind))) statement.values.push(token.value);
     if (statement.depth > LIBERTY_LIMITS.maxDepth) lexer.fail("maxDepth exceeded", token.start);

@@ -42,6 +42,8 @@ export function* buildLibertyModelSteps(parsed) {
         };
       };
       for (const child of group.groups) {
+        if (["pin", "pg_pin"].includes(child.type) && child.args.length === 0)
+          fail(`${child.type} requires at least one name`, child);
         if (child.type === "pin") for (const pinName of child.args) addPin(pinName, child.attributes, child);
         if (child.type === "pg_pin") for (const pinName of child.args) {
           if (!pinName || own(powerPins, pinName) || own(pins, pinName)) fail(`Duplicate or empty pg_pin ${pinName}`, child);
@@ -60,13 +62,16 @@ export function* buildLibertyModelSteps(parsed) {
         const naming = library.attributes.bus_naming_style || "%s[%d]";
         if (!/^%s[^%]*%d[^%]*$/.test(naming)) fail(`Unsupported bus_naming_style ${naming}`, child);
         const members = new Map();
-        for (const member of child.groups) for (const memberName of member.args) {
-          if (members.has(memberName)) fail(`Duplicate bus member ${memberName}`, member);
-          members.set(memberName, member);
+        for (const member of child.groups) {
+          if (member.args.length === 0) fail("Bus member pin requires at least one name", member);
+          for (const memberName of member.args) {
+            if (members.has(memberName)) fail(`Duplicate bus member ${memberName}`, member);
+            members.set(memberName, member);
+          }
         }
         const memberNames = [];
         for (let bit = from; ; bit += from <= to ? 1 : -1) {
-          const bitName = naming.replace("%s", busName).replace("%d", String(bit));
+          const bitName = naming.replace(/%[sd]/g, (placeholder) => placeholder === "%s" ? busName : String(bit));
           memberNames.push(bitName);
           const member = members.get(bitName);
           addPin(bitName, member?.attributes || {}, member || child, child.attributes);
