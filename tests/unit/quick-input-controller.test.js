@@ -13,7 +13,7 @@ function eventTarget() {
 function inputElements() {
   const makeTarget = () => ({ ...eventTarget(), value: "", focus() {}, setSelectionRange() {} });
   return {
-    netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(),
+    netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
     pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(),
     closeTextButton: makeTarget(), cancelTextButton: makeTarget(),
     textForm: { ...makeTarget(), requestSubmit() {} },
@@ -23,6 +23,27 @@ function inputElements() {
     body: { classList: { add() {}, remove() {} } }
   };
 }
+
+test("Liberty files load before designs, oversize files are rejected before reading, paste shares import", async () => {
+  const loaded = [], statuses = [], windowTarget = eventTarget();
+  const elements = inputElements();
+  const controller = createQuickInputController({ elements, windowTarget,
+    loadText: (text, options) => loaded.push({ text, ...options }), setStatus: (value) => statuses.push(value) });
+  await controller.loadFiles([
+    { name: "design.v", text: async () => "module top; endmodule" },
+    { name: "demo.lib", text: async () => "library(demo){}" }
+  ]);
+  assert.deepEqual(loaded.map((item) => item.kind), ["liberty", "netlist"]);
+  assert.ok(loaded[0].signal instanceof AbortSignal);
+  await controller.loadFiles([{ name: "huge.lib", size: 65 * 1024 * 1024, text: () => { throw new Error("should not read"); } }]);
+  assert.match(statuses.at(-1), /maxBytes/);
+  let prevented = false;
+  await windowTarget.listeners.paste({ clipboardData: { getData: () => "/* comment */library(pasted){}" },
+    preventDefault: () => { prevented = true; } });
+  assert.ok(prevented);
+  assert.equal(loaded.at(-1).kind, "liberty");
+  assert.equal(loaded.at(-1).label, "pasted Liberty");
+});
 
 test("quick input controller orders dropped design, timing and Golden inputs", async () => {
   const loaded = [];

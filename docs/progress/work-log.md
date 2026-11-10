@@ -1138,3 +1138,100 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
 
 - 新P3策略已在原预算下实际关闭当前EQ连续性反例，开始research-only验证是否允许D01/D04正确语义一起准入。预登记2³完整因子：groups、结构key、隐式port，8组；key定义严格沿用此前唯一D04定义（canonical nodes去displayName、edges/selfLoops/nets/options），不搜索替代hash/seed。生产契约暂不改。
 - 每组固定SOP/EQ/whole dp002；groups仅explicit Focused拓扑hints，whole无hint保持基础排序，不把Focused通过当whole改善。solo key/ports应恢复既有失败证据；组合仅比较效果，不绕过EQ13/硬校验/线长与视觉代价。先研究key与部件输入不变性测试，再8组完整P5。全部大产物远端。
+
+# 2026-11-10 LIB-R01 / LIB-R02 — 执行前与工作区准备
+
+- 用户要求新建 lib 库读取开发分支并先调研；按仓库语境解释为标准单元 Liberty `.lib`。本轮仅做调研和阶段路线，不实施解析器或 STA。
+- 使用 `project-lifecycle` 与项目 `netlist-schematic` 约束；沿用现有目录和阶段 5 文档，不重构仓库。
+- 起点：`master`，HEAD `a8a1a0e`。既有改动：`.vscode/settings.json`、`AGENTS.md`；既有未跟踪内容：`.workbuddy/`、`docs/code_review_2026_11_07_followup.md`、`tools/debug_flex.mjs`、`tools/debug_sop015.mjs`。全部保留，不纳入本轮变更。
+- 已创建并切换 `codex/liberty-reader`；普通沙箱写 `.git` 受限后，经授权范围内的执行升级完成。未提交、未推送。
+- 调研计划：核查 Yosys / OpenSTA 与独立解析库的上游代码、版本和许可证；核查 Synopsys / Cadence 的公开功能边界；筛选公开标准单元测试库；结合当前推断与配置代码给出分阶段路线。
+- 执行边界：只进行网页、源码与文档轻量检查；本轮不下载大型库、不安装依赖、不运行重型构建或基准。实现阶段的测试与大文件实验放在 `mfs-remote`。
+
+# 2026-11-10 LIB-R02 / LIB-R03 / LIB-R04 — 调研收尾
+
+- 已分别落盘开源实现/测试库调研与格式/工业实践调研，并扩展阶段 5 计划。核查 Yosys、OpenSTA、OpenTimer 的相关源码，liberty-db、Python/Rust 独立库的清单/接口/许可；记录固定提交或发布版本。商业工具只依据 Synopsys/Cadence 官方公开资料和厂商培训，未审计非公开实现。
+- 选型建议：原生 JS 结构 reader 选择性保留接口，独立 Library IR；外部解析器用于开发期差分；Rust/WASM 是实测后备选。上游“完整覆盖/高性能”声明未当作本项目验证结果。
+- 现有接入风险：普通图与层次连接分别调用推断，层次模板仅按 document 缓存；需要共享语义入口和 library revision。保留真实模块身份与人工覆盖优先级，不把 Liberty 导入为 user-config。
+- 公开语料筛选 Nangate45、SKY130 HD、IHP SG13G2；记录版本、实际路径、许可入口与获取形态。SKY130 为 `.lib.json`，需生成文本 `.lib` 后才可用于 reader 验收；本轮没有下载完整 PDK 或导入第三方 fixture。
+- 验证：本地轻量 `npm run test:docs -- docs/research/liberty_open_source_and_fixtures.md docs/research/liberty_format_and_industry.md docs/STAGE_5_PLAN.md` 通过，相对链接 checked=15、missing=0；外部链接/锚点不属于该检查器范围。`git diff --check` 通过。
+- 范围说明：仅文档与 Git 分支变化，未运行 `npm test`、mapped cases 或 benchmark，也未声称运行时代码有新能力。没有重型本地计算；没有 stage、commit 或 push。既有未提交改动原样保留。
+- 下一步：开发从 L0 冻结语义/诊断契约和远端无库基线开始，再以 L1 最小 reader 与差分语料验证假设。本轮调研完成，L0–L5 实现均未开始。
+
+# 2026-11-10 LIB-I0 — 实施启动
+
+- 用户已要求详细计划并据此编码测试；执行细节写入 `docs/plans/liberty_reader_implementation.md`，覆盖 reader、共享语义、导入 UI、公开库与产品回归。
+- 已确认 SSH 和 Node v24.16.0；既有远端同名目录含旧研究文件而非 Git 仓库，创建隔离子目录 `liberty_reader_20261110`，不覆盖旧内容。
+- 先传输 HEAD 基线并运行测试，随后同步本轮文件；新功能状态通过窄查询/命令注入，不扩大 legacy state。运行时无新增外部依赖。
+
+# 2026-11-10 LIB-I0–I4 — 基线与首轮实现
+
+- HEAD 远端原始基线 913/913 单测通过，架构 236 模块/566 依赖、零违规。实现选择性 lexer/parser、冻结 Library IR、有界布尔分类、共享字段优先级与缓存身份；通过独立库服务和 UI 接入。
+- 首轮核心 7/7 通过，完整回归 917/920：旧调用签名断言、测试桩未声明新只读服务、main 行数 533 超过新门限 530。保留门限，将快速导入元素映射也移到 UI 元素绑定边界；更新真实调用断言与测试桩。第二轮 920/920 通过。
+- 浏览器实测选择文件、来源详情、损坏库保留、Compare 替换/卸载、混合文件拖放成功；16 MiB 输入扫描取消耗时 31.5ms，无 pageerror。后续增加缓存/优先级/恶意输入回归与更强流程断言。
+- Nangate 首次下载在 45s 超时且文件不完整，未使用残片；重下载成功。原系统 liberty-parser 0.0.16 因缺 mpmath 无法导入，改用隔离 venv 固定安装 0.0.29，不改全局 Python 环境。所有依赖、完整语料、日志留在远端。
+- 下一步 I5：真实 Nangate/IHP 两角字段差分、4/16/64 MiB 性能、mapped full-node、常规 benchmark、离线发布资源；I6 补齐文档与最终 diff。
+
+# 2026-11-10 LIB-I5 — 真实库与产品验证
+
+- 独立 liberty-parser 0.0.29 对照 Nangate45 typical、IHP typical/fast 共 303 cell、1111 pin 的名称、direction/function 字段，发现 internal 方向反例后修复，共同支持字段零差异；完整源、SHA、版本见验证报告。
+- 4/16/64 MiB 被跳过 timing 表耗时 89.55/298.51/1174.96ms，IR 949/950/952 字节，64 MiB 未超过预设 15s。常规 1024/4096/8192 基准均 routed、硬违规 0。
+- 最终候选隔离在远端 `liberty_reader_20261110/final`，926/926 单测通过；架构 247 模块/585 依赖、零违规。真实浏览器最终截图复验按钮取消 20.3ms、扫描取消 39.2ms，导入/Compare/卸载/失败保留/拖放成功，无页面错误。47 份 mapped 无库图与 HEAD 逐对象完全一致。
+- 默认 Simple full-node mapped 存在失败（含超时）；启动原始 HEAD 的相同 47/45s/不折叠配置对照，已有失败复现，完整对照仍在执行。没有改变用例数、超时、路由预算或布局实现来绕过失败。
+- Windows 构建使用本机 .NET Framework 专属能力，在本轮新建 dc_runs/liberty_release_check 内运行 release:windows -SkipTests；编译、启动/HTTP 冒烟、打包、Liberty 资源及原 ELK 许可证通过。已有 dist 发布物保留。
+
+# 2026-11-10 LIB-I5 / LIB-I6 — 收尾
+
+- 两组默认 Simple mapped 全量结束：当前与原始 HEAD 均 47 例、24 例失败、1688/120 违规，逐例 PASS/FAIL/TIMEOUT 完全一致；最大 layout 43395/44180ms、最大 heap 986/689MiB，保留原始数据，不宣称稳定性能改善。最终代码 47 份无库 full graph 逐对象差异 0，未扩大为既有布局问题修复。
+- 最终候选 926/926 单测；额外资源上限、UTF-8 计数、诊断上限、XOR 优先级反例补测 12/12 通过；架构 247 模块/585 边、零越层/环/未解析依赖；浏览器实际 Cancel 20.3ms、扫描取消 39.2ms，无 pageerror。已检查新增面板和 NAND 画布截图。
+- 使用说明、README、架构/交互契约、阶段 5、详细执行计划与验证报告同步；相对链接 45/45，通过 diff 空白检查。Liberty reader 首版按计划完成；默认 mapped 保留已确认的基线失败，启动器/gzip/完整 STA 仍不在首版范围。
+- Windows 隔离验证包所有运行时源码与本地一致、ELK 许可证一致；最终 ZIP SHA-256 `1de365ed83d8cc2359427c8a64a9a3d179400fe035915c6624ef1822a503b792`。输出仅在 ignored dc_runs，不覆盖原有 dist、不发布。
+- 分支 codex/liberty-reader；无暂存、提交或推送。任务开始前的 .vscode/settings.json、AGENTS.md、WorkBuddy、审查文档和两份调试脚本保留。本轮小型临时传输包已清理，远端语料/依赖/日志和对照快照保留以便复查。
+
+# 2026-11-10 LIB-S01 — 重新综合验证启动
+
+- 用户要求用对应库重新综合并测试成对输入。已检查工作区，保留本轮已有 Liberty 开发改动及用户原有未提交内容。
+- 找到原 47 份 RTL（合计 110500 字节）及历史 Yosys 脚本，旧库路径 /home/wzh/software/OpenTimer/example/sizer/NangateOpenCellLibrary_typical.lib；checked-in 网表头标明 Yosys 0.53。默认 PATH 没有 yosys，但远端软件目录和 ORFS 安装内存在二进制，正在核对版本。
+- 登记 LIB-S01–S04：固定两套库/版本与 RTL，先代表例，再全部 94 次 fresh mapping；用 Yosys JSON 作独立方向/连接 oracle，Python 布尔语义校验门分类，再做实际浏览器导入。原 47 fixtures 不覆盖，日志/大文件远端保留。
+
+# 2026-11-10 LIB-S01 / LIB-S02 — 库身份与 pilot
+
+- 使用与历史一致的 Yosys 0.53（53c22ab7c0ced80861c7536c5dae682c30fb5834）。重新从固定提交下载 Nangate45 与 IHP typical，SHA 分别为 8d540a4d…db4e9b1、7677a891…8986b396，与上一轮公开语料一致；历史 OpenTimer Nangate 文件 SHA 为 2efd0b32…e55895，与本次文件不同，因此不把旧网表直接当成本次配对结果。
+- 新远端隔离目录 /home/wzh/my_code/netlistGraphBuilder/liberty_synthesis_20261110；第三方库 /home/wzh/open_source/ngb_liberty_synthesis_20261110。47 份原 RTL 已同步；合成使用 2 个并行进程、每例 180s 预算，输出目录必须新建，禁止缓存复用。
+- 两库各 dp_001/eq_001/sop_001 共 6 次 pilot 综合 check -assert 全通过。初版核验失败于实例名：Yosys write_verilog 默认将内部名称简写，JSON 保留原名。官方本机 help 明确 -norename 可保留名称，修正导出流程重新生成；这是测试数据对齐问题，尚无 reader 缺陷结论。
+- 核验进程读取 Nangate 时出现异常耗时，30s 诊断超时仅到 Reading library；增加分阶段短时诊断，保留最初日志。解决 pilot 对齐和耗时后再启动全量，不跳过失败。
+
+# 2026-11-10 LIB-S02 / LIB-S03 — pilot 配对通过
+
+- `write_verilog -norename` 重跑的 6 例均通过综合及 reader 配对校验，290 cell、1077 pin 的类型/方向/逐位连接匹配 Yosys JSON，图无诊断，推断来源均为 library；未修改运行时代码。
+- 独立扫描诊断解析 Nangate + 建模约 2.4s；原核验最终也完成。远端此时负载约 79/96 CPU、可用内存约 227GiB；耗时波动原因未定，不据此修改产品预算或宣称性能通过。Yosys 二进制约 557MB，脚本校验 SHA 改为流式读取以避免整文件内存分配。
+- 进入两库 × 47 RTL 的新目录 full 全量综合，仍使用 2 并发、每例 180s；新增 manifest 完成标记与预期数量检查，防止依赖验证误读未结束的运行。实际浏览器代表例正在执行。
+
+# 2026-11-10 LIB-S03 / LIB-S04 — 验证工具负对照与页面诊断
+
+- 首轮和同限制浏览器重跑都在初始 goto/load 45s 超时，尚未导入 Liberty；重跑的 HTML 停留 Ready，5s 失败截图未取得。增加网络请求/页面错误现场收集，等全量综合结束后串行复核，不扩大 timeout、不改变产品。
+- 增加三个独立负对照：给真实新网表错配另一库，修改 oracle 中一个输入方向，修改一个连接 bit；要求结构核验器逐项拒绝并退出失败，以检查正常样例全通过不是宽松断言造成。负对照只写新建的 dc_runs 子目录，保留原始输入及哈希。
+- 负对照 3/3 按预期拒绝，分别命中 library-missing-cell、Non-input edge target、different Yosys net bits，外层控制测试通过；记录在 pilot_named/controls。首次全量超时 Nangate dp_018（181.083s），日志已完成 ABC，停在后续 Liberty frontend。先继续完整批次，结束后按相同 180s 单独重跑超时例，保留初轮全部失败，不计未完成产物。
+
+# 2026-11-10 LIB-S02 — 综合产物生成预算修订
+
+- 后续 dp_019 也在 ABC 后的 Liberty frontend 达到 180s，dp_020 达到 180s 时仍在 synth/techmap；这些运行没有形成完整配对产物。普通 eq_001/002 分别耗时 57.826/52.536s，与 pilot 有明显差异，具体系统原因未定。
+- 修订“同 180s 单独重跑”安排：首轮仍完整执行并保留 180s 成败；仅对失败项在新目录采用串行 600s 上限，目的是取得可检查产物，不用于证明原 180s 综合预算通过。RTL、库、Yosys、优化命令保持相同；原有产品 mapped 45s/布局门禁与 reader 性能预算不改。
+- 新增严格的 manifest 合并工具，核对综合器/库/RTL SHA、原始 94 项集合、各次运行完成状态；每例保留 attempts 与来源 manifest SHA，禁止失败重跑覆盖已成功产物。最终报告区分首轮结果与补充功能验证。
+
+# 2026-11-10 LIB-S04 — 增加有标记的浏览器诊断模式
+
+- 本次 npm test 的源码/registry 扫描单项记录 141232ms，初始页面两次仍在模块加载时达到 45s；当前源码与上一轮已验证快照相同，具体慢点仍未定。默认浏览器 45s 检查保留为失败，不能称为通过。
+- 为取得用户要求的实际输入功能证据，另加显式 `NGB_LIBERTY_BROWSER_TIMEOUT_MS=600000` 诊断模式，结果标记 diagnostic、记录页面就绪时间。默认仍为 45000ms，产品 runtime、原 mapped 与 parser 门禁不改；诊断成功仅说明在该预算下的导入/显示语义成立，不消除原 45s 失败。
+- 诊断模式已进入真实 Nangate 导入并绘制 dp_001 的 125 个 cell；选中详情断言失败。审查事件入口确认测试发出 click，而产品 Single/Compare 均监听 pointerdown，未触发选中。修正测试事件并增加 is-selected、Compare side 和推断来源断言，同时等待异步画布节点数；原失败保留，运行时代码不改。
+- pointerdown 版 Nangate 三例全部通过后，发现原测试试图用单个 tc 模块进入 Compare，违反既有“两份不同模块”要求；该测试不能作为 Compare 证据。修正为复制真实 SOP 映射模块，只改第二份 module 声明为 tc_peer，保留所有 cell/pin/连线；派生输入写在测试输出目录。先停止已知无法完成的单模块等待，再重跑修正后的流程。
+
+# 2026-11-10 LIB-S02–S04 — 全量结果收口
+
+- 首轮 94 次：90 通过，4 超时，均为 Nangate dp_018/019/020、eq_011。串行 600s 功能复核分别 2.556/3.368/7.778/2.056s 全通过；不将这次较大配置预算冒充首轮 180s 全绿。合并 manifest 保留每次 attempts、来源 SHA，94 例输入身份匹配。
+- 最终全量结构校验 94/94：106324 个 cell 实例、422000 个 pin 检查，逐位连接与 Yosys JSON 一致，库推断来源与方向全部一致，图诊断零。Python 独立 oracle 覆盖 Nangate 29、IHP 27 种实际用到的 cell；56 种接口零差异，34 种可识别组合单元的 264 行真值表一致，2 种顺序单元分类通过。
+- 修正测试输入后，浏览器以默认 45000ms（diagnostic=false）通过全部 6 个新网表导入、两库的 Compare 左右侧选择/库来源检查，pageerror 0；两次页面就绪 1724/1719ms。已查看两张最终 Compare 截图；日志 browser_corrected.log，报告 full/browser_corrected/browser_report.json。先前超时、错误事件、无效单模块输入与主动终止记录保留。
+- 本轮首次 npm test 为 925/926，唯一失败是隔离副本遗漏两份既有 docs/design 契约文件；补齐原文件后完整重跑 926/926、38.29s。最终运行时 247 文件 SHA 与本地全部一致；本轮未修改 src、布局、parser 性能预算或原有 mapped fixtures。
+- 可复跑综合、严格 manifest 合并、Yosys 逐 pin/bit 核验、独立真值 oracle、负对照、浏览器测试工具均已保留。最终报告正在补全来源与复现入口，未 stage/commit/push。
+- 最终报告 `docs/research/liberty_synthesis_validation.md` 完成，阶段计划和原验证报告已添加入口，LIB-S01–S04 全部收口。相关文档 16 个相对链接无缺失，diff 空白检查通过；小型报告/截图已取回 ignored dc_runs。原始大文件、所有失败/补跑产物仍在服务器。
+- 分支仍为 codex/liberty-reader，无暂存、提交或推送；任务开始前的用户改动及原 47 份 checked-in mapped fixtures 保留。未新增运行时依赖，未改动原有布局门禁。

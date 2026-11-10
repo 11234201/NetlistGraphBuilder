@@ -15,7 +15,7 @@
           <span class="brand-title">Netlist Graph Builder</span>
         </div>
         <details class="toolbar-menu import-menu">
-          <summary title="Import netlist or timing data">Import</summary>
+          <summary title="Import netlist, Liberty or timing data">Import</summary>
           <div class="toolbar-menu-popover">
             <label class="menu-action" title="打开 structural Verilog 网表"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist</label>
             <button id="pasteNetlistButton" class="menu-action" type="button" title="粘贴一段 structural Verilog 网表">Paste netlist</button>
@@ -104,6 +104,17 @@
               <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Only mark slacks below this threshold as critical"></label>
             </div>
           </details>
+          <section class="panel-section">
+            <h2>Liberty library</h2>
+            <div class="button-row">
+              <label class="file-button compact-button"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
+              <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel</button>
+              <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
+            </div>
+            <p id="libertySummary" role="status">No library loaded.</p>
+            <p class="help-text">Optional cell and pin definitions. Select one process corner. Reload after refreshing the page.</p>
+            <pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
+          </section>
           <section class="panel-section cell-config-panel">
             <h2>Cell Config</h2>
             <button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the selected primitive cell type" disabled>Edit selected type</button>

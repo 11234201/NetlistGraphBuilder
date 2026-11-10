@@ -1,4 +1,4 @@
-const INPUT_KINDS = new Set(["netlist", "golden", "timing"]);
+const INPUT_KINDS = new Set(["netlist", "golden", "timing", "liberty"]);
 const NETLIST_EXTENSIONS = new Set([".v", ".sv"]);
 const TIMING_EXTENSIONS = new Set([".log", ".rpt", ".timing", ".sta", ".csv", ".tsv"]);
 
@@ -14,6 +14,7 @@ export function detectQuickInputKind(text, options = {}) {
 
   const source = String(text || "").trim();
   const extension = getExtension(options.name);
+  if (extension === ".lib") return "liberty";
   if (NETLIST_EXTENSIONS.has(extension)) return "netlist";
   if (TIMING_EXTENSIONS.has(extension)) return "timing";
   if (extension === ".json") {
@@ -24,11 +25,12 @@ export function detectQuickInputKind(text, options = {}) {
   if (source.startsWith("{")) {
     return isTimingJsonSource(source) ? "timing" : "golden";
   }
+  if (/^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*\n)*library\s*\(/.test(source)) return "liberty";
   if (TIMING_DIRECTIVE_PATTERN.test(source)) return "timing";
   if (/(?:^|[\s;])module\s+(?:\\\S+|[A-Za-z_$][\w$]*)/im.test(source)) return "netlist";
   if (TIMING_HEADER_PATTERN.test(source)) return "timing";
   if (TIMING_ROW_PATTERN.test(source)) return "timing";
-  throw new Error("input is not recognized as Verilog, Golden JSON, or timing text");
+  throw new Error("input is not recognized as Verilog, Liberty, Golden JSON, or timing text");
 }
 
 function isTimingJsonSource(source) {
@@ -37,6 +39,7 @@ function isTimingJsonSource(source) {
 }
 
 export function getQuickInputPriority(kind) {
+  if (kind === "liberty") return -1;
   if (kind === "netlist") return 0;
   if (kind === "timing") return 1;
   if (kind === "golden") return 2;

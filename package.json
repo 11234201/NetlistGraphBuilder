@@ -21,6 +21,9 @@
     "analyze:layer-spans": "node tools/inspect_layer_spans.mjs",
     "analyze:long-edges": "node tools/inspect_long_edges.mjs",
     "analyze:unroutable": "node tools/inspect_unroutable.mjs",
-    "release:windows": "powershell -ExecutionPolicy Bypass -File tools/build-windows-release.ps1"
+    "release:windows": "powershell -ExecutionPolicy Bypass -File tools/build-windows-release.ps1",
+    "test:liberty": "node --test tests/unit/liberty.test.js",
+    "test:liberty-browser": "node tests/e2e/liberty-e2e.mjs",
+    "benchmark:liberty": "node --expose-gc tools/benchmark_liberty.mjs"
   }
 }

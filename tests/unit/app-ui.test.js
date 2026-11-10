@@ -200,7 +200,7 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
 test("app forwards both Focused depths into the module workspace", async () => {
   const source = await readWorkbenchSource();
   const workspaceCall = await readFile(new URL("../../src/app/workspace_inputs.js", import.meta.url), "utf8");
-  assert.match(source, /createSingleWorkspaceInput\(state, layoutProvider\)/);
+  assert.match(source, /createSingleWorkspaceInput\(state, layoutProvider, services\.readCellLibrary\?\.\(\)\)/);
 
   assert.match(workspaceCall, /faninDepth: state\.faninDepth/);
   assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);

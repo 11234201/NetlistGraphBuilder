@@ -19,7 +19,7 @@
 | **Compare roots 同步** | 左侧 Module Compare | `Sync Focus roots` 控制对一侧聚焦根节点的追加、移除和清空操作是否自动同步至另一侧匹配的单元。 |
 | **模块层次树导航** | 左侧 `Module hierarchy` | 按实例层次展开并点击切换模块（顶部显示 `module @ instance/path` 面包屑）；面板折叠时惰性不构建，遇到递归或超大层次时有界截断（最多 2000 节点、深度 64）。 |
 | **间距数字输入与引脚转角** | 左侧 Layout 区与布线器 | `Wire spacing` 与 `Cell spacing` 除滑块外支持直接输入数字（提交后自动吸附至最近的 4 的倍数）；连接单元顶部/底部引脚的末段连线预留可见转角，近距离走线依然清晰可辨。 |
-| **高可靠恢复与批量导入** | Golden、Session、快速输入 | Golden v3 校验网表内容指纹（fingerprint）并恢复聚焦深度；多文件拖放/粘贴严格按“网表 → 时序 → Golden”依赖顺序串行完成。 |
+| **高可靠恢复与批量导入** | Golden、Session、快速输入 | Golden v3 校验网表内容指纹（fingerprint）并恢复聚焦深度；多文件拖放/粘贴严格按“Liberty（如有）→ 网表 → 时序 → Golden”依赖顺序串行完成。 |
 
 ## 目录
 
@@ -151,6 +151,20 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 - 转义标识符（Escaped identifiers，如 `\u_top/reg[0] `）与层次化名称
 
 > **提示**：行为级 `always` 块、复杂算术/逻辑运算符表达式、宏定义展开（`` `define ``）及完整的参数化 `generate` 展开不属于结构化网表阅读器的目标范围。建议输入已经过综合器映射的标准门级网表。
+
+---
+
+### 3.5 Liberty 库
+
+左侧 `Liberty library` 的 `Load .lib` 可加载标准单元库，也可以将 `.lib` 拖入页面，或在非输入框位置直接粘贴 `library(...) { ... }` 文本。可以先加载库再加载网表；批量拖放按 Liberty、网表、时序、Golden 的顺序处理。
+
+每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
+
+Selection 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。
+
+首版支持标量接口、`pg_pin`、`ff`/`latch` 标记、三态标记，以及带显式 `type` 位范围的同方向 bus。常见 AND/NAND/OR/NOR/XOR/XNOR/BUF/INV/MUX 使用有界布尔识别；复杂逻辑、常量、多输出、latch 和三态保持保守展示。库面板列出前 20 条解析/语义告警，完整告警保留在库模型中。
+
+文本上限 64 MiB（UTF-8），单 token 上限 1 MiB 字符；超限错误包含限制名和可用的行列位置。`include_file`、`.lib.gz`、二进制 `.db`、bundle 位映射和 bus 成员区间简写暂不支持。Liberty 导入不会计算延时、Slack 或替代 STA；启动器尚无 `--liberty` 参数。
 
 ---
 

@@ -119,6 +119,7 @@ test("obsolete Single success and failure callbacks cannot affect an active Comp
   let cancellations = 0;
   const services = new Proxy({
     renderGeneration: generation,
+    readCellLibrary: () => null,
     getCurrentLayoutProvider: () => ({ id: "simple", label: "Simple", executionMode: "async" }),
     workspaceExecution: { execute: (request) => { executionRequest = request; } },
     singleViewSession: { beginComputation: () => ({ sessionId: "single:primary" }) },

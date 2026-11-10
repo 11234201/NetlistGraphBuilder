@@ -94,7 +94,7 @@ PinConnection
 
 ### 3. `src/infer/`
 
-负责在缺乏 Liberty（`.lib`）库文件时的启发式语义推断。
+负责可选 Liberty 模型与无库启发式语义推断。
 
 **核心职责**：
 - 根据 `cell type` 推断逻辑门类别（`gate kind`）。
@@ -257,3 +257,15 @@ graph
 - **精准语法定位**：解析错误需提供所在模块名、源码行列范围及上下文附近词法标记（token）。
 - **未知单元优雅降级**：未知单元类型（unknown cell）渲染为黑盒（blackbox），未知引脚方向在界面中给出诊断提示，均不中断整体绘图流程。
 - **模块级故障隔离**：只要文件整体语法结构可恢复，单个模块内部的解析异常不应阻止同一文件中其他正常模块的浏览。
+
+## 可选 Liberty 附件契约（2026-11-10）
+
+`parser/liberty_lexer.js` 与 `liberty_parser.js` 是结构 reader：保留接口组、必要属性与 source span，扫描但不保存 timing/power 数组。`infer/liberty_model.js` 生成冻结 Library IR；`liberty_function.js` 做固定预算的布尔分类。库不嵌入 Verilog IR，不转写用户 Cell Config。
+
+`infer/cell_semantics.js` 是普通图与层次模板的共享字段解析入口。真实 module 定义保持身份和已声明方向；leaf 方向顺序为 override → user-config → library → rule/fallback，显式 unknown 保留。缺失接口和冲突产出诊断；`internal` 与 `pg_pin` 不参与外部数据连线。顺序/三态与未知 function 保守显示，原始 function 保留。
+
+`domains/netlist/liberty_import.js` 独立拥有页面生命周期内的不可变附件。prepare 完整成功后原子提交，generation 和 AbortSignal 拒绝过期结果；解析失败保留快照。通用 `application/cooperative_task.js` 只驱动 iterator，UI 通过窄命令/查询导入、取消、卸载。main 只组合依赖，元素绑定归 `ui/workbench_elements.js`；入口行数门限从 611 降为 530。
+
+`cellLibrary` 显式传入 workspace/feature 查询。full graph、布局衍生缓存与工作区 identity 使用不可变库引用身份；层次模板缓存同时核对库、配置、覆盖引用。替换/卸载取消旧工作区任务并通过现有 Single/Compare 生命周期重建。库没有 Session/Golden/localStorage 序列化或启动器协议扩展。
+
+具体支持子集、资源限制与验证入口见 [实施计划](plans/liberty_reader_implementation.md) 和 [验证报告](research/liberty_reader_validation.md)。

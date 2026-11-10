@@ -1,5 +1,7 @@
-import { inferCellKind, inferPinDirection } from "../../infer/defaultCellRules.js";
+import { inferCellKind } from "../../infer/defaultCellRules.js";
 import { getPinNetReferences } from "../../netlist/model.js";
+
+import { resolveCellSemantics } from "../../infer/cell_semantics.js";
 
 export const DEFAULT_HIERARCHY_CONE_LIMITS = Object.freeze({
   faninDepth: 3,
@@ -13,18 +15,18 @@ export const DEFAULT_HIERARCHY_CONE_LIMITS = Object.freeze({
  * parser objects out of the query result; a query only exposes canonical names
  * and occurrence paths.
  */
-export function buildModuleConnectivityTemplates(design) {
+export function buildModuleConnectivityTemplates(design, options = {}) {
   const modules = [...(design?.modules || [])];
   const moduleByName = new Map(modules.map((module) => [module.name, module]));
   const templates = new Map();
 
   for (const module of modules.toSorted(compareNamed)) {
-    templates.set(module.name, createModuleConnectivityTemplate(module, moduleByName));
+    templates.set(module.name, createModuleConnectivityTemplate(module, moduleByName, options));
   }
   return templates;
 }
 
-export function createModuleConnectivityTemplate(module, moduleByName = new Map()) {
+export function createModuleConnectivityTemplate(module, moduleByName = new Map(), options = {}) {
   const ports = [...(module?.ports || [])].toSorted(compareNamed).map((port) => ({
     name: port.name,
     displayName: port.displayName || port.name,
@@ -34,12 +36,13 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
   const portByName = new Map(ports.map((port) => [port.name, port]));
   const cells = [...(module?.cells || [])].toSorted(compareNamed).map((cell) => {
     const childModule = moduleByName.get(cell.type) || null;
+    const semantics = resolveCellSemantics(cell, { ...options, moduleDefinition: childModule,
+      overrides: options.graphOverrides?.cellPinDirections?.[cell.instance] || {} });
     const pins = [...(cell.pins || [])].flatMap((pin) => {
       const pinName = pin.pin;
+      if (["power", "internal"].includes(semantics.pinDirections[pin.pinDisplayName || pinName]?.role)) return [];
       const childPort = childModule ? childModule.ports?.find((port) => port.name === pinName) : null;
-      const direction = childPort
-        ? normalizeDirection(childPort.direction)
-        : normalizeDirection(inferPinDirection(pinName, cell.type)?.direction);
+      const direction = normalizeDirection(semantics.pinDirections[pin.pinDisplayName || pinName]?.direction);
       const references = getPinNetReferences(pin);
       return (references.length ? references : [{ name: "", displayName: "" }]).map((reference) => ({
         name: pinName,
@@ -55,6 +58,7 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
       displayName: cell.instanceDisplayName || cell.instance,
       type: cell.type,
       childModuleName: childModule?.name || null,
+      semantics: Object.freeze({ ...semantics.kind }),
       pins
     };
   });
@@ -155,7 +159,7 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
  * deliberately independent from parser array order.
  */
 export function analyzeHierarchicalCone(design, root, options = {}) {
-  const templates = options.templates || buildModuleConnectivityTemplates(design);
+  const templates = options.templates || buildModuleConnectivityTemplates(design, options);
   const limits = normalizeLimits(options);
   const rootModuleName = root?.rootModuleName || root?.moduleName;
   const rootPath = normalizeOccurrencePath(root?.occurrencePath);
@@ -201,7 +205,7 @@ export function analyzeHierarchicalCones(design, roots, options = {}) {
     DEFAULT_HIERARCHY_CONE_LIMITS.maximumVisibleNodes,
     1
   );
-  const templates = options.templates || buildModuleConnectivityTemplates(design);
+  const templates = options.templates || buildModuleConnectivityTemplates(design, options);
   const results = normalizedRoots.map((root) => analyzeHierarchicalCone(design, root, {
     ...options,
     templates,
@@ -221,6 +225,7 @@ export function projectHierarchicalCone(result, options = {}) {
     localId: node.localId,
     direction: node.direction || null,
     type: node.type || null,
+    semantics: node.semantics || null,
     occurrencePath: [...(node.occurrencePath || [])],
     ref: {
       documentId,
@@ -280,7 +285,7 @@ export function projectHierarchicalRenderGraph(result, options = {}) {
       return { ...node, id, kind, title: kind.toUpperCase(), ref: { ...node.ref, kind } };
     }
     if (node.kind === "cell") {
-      const inferred = inferCellKind(node.type || node.label);
+      const inferred = node.semantics || inferCellKind(node.type || node.label);
       return {
         ...node,
         id,
@@ -572,6 +577,7 @@ function addNode(result, context, kind, localId, terminalId = null, extra = {}) 
     moduleName: context.moduleName,
     occurrencePath: Object.freeze([...context.occurrencePath]),
     localId,
+    ...(kind === "cell" ? { semantics: context.template.cellByInstance.get(localId)?.semantics } : {}),
     ...(terminalId && kind !== "cell" ? { terminalId } : {}),
     ...(extra.direction ? { direction: extra.direction } : {}),
     ...(extra.pin ? { pin: extra.pin } : {}),

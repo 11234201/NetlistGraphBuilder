@@ -1,3 +1,4 @@
+import { LIBERTY_LIMITS } from "../contracts/liberty.js";
 import { detectQuickInputKind, getQuickInputPriority } from "../app/quickInput.js";
 import { createBulkTextInput } from "./bulk_text_input.js";
 
@@ -5,6 +6,16 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   let dragDepth = 0;
   let textKind = "netlist";
   let latestFileRequest = 0;
+  let importController = null;
+  const beginRequest = () => {
+    importController?.abort();
+    importController = new AbortController();
+    return ++latestFileRequest;
+  };
+  const libraryOptions = (kind) => kind === "liberty" ? { signal: importController?.signal } : {};
+  const checkFileSize = (file, kind) => {
+    if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
+  };
   let dialogSession = 0;
   const textBuffer = createBulkTextInput({
     input: elements.textInput,
@@ -23,7 +34,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     elements.dropOverlay?.setAttribute("aria-hidden", "false");
   };
   const loadFiles = async (files) => {
-    const requestId = ++latestFileRequest;
+    const requestId = beginRequest();
     const entries = [];
     for (const [order, file] of [...files].entries()) {
       if (requestId !== latestFileRequest) return;
@@ -49,16 +60,18 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     let designLoaded = !entries.some((entry) => entry.kind === "netlist");
     for (const entry of entries) {
       if (requestId !== latestFileRequest) return;
-      if (entry.kind !== "netlist" && !designLoaded) {
+      if (entry.kind !== "netlist" && entry.kind !== "liberty" && !designLoaded) {
         setStatus(`Skipped ${entry.name}: no netlist in this batch loaded successfully`);
         continue;
       }
       try {
+        checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
         if (requestId !== latestFileRequest) return;
-        await loadText(text, { kind: entry.kind, label: entry.name });
+        await loadText(text, { kind: entry.kind, label: entry.name, ...libraryOptions(entry.kind) });
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
+        if (error.name === "AbortError") return;
         if (requestId !== latestFileRequest) return;
         setStatus(`Load failed ${entry.name}: ${error.message}`);
       }
@@ -68,14 +81,15 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
-    const requestId = ++latestFileRequest;
+    const requestId = beginRequest();
     try {
+      checkFileSize(file, preferredKind);
       const text = await file.text();
       if (requestId !== latestFileRequest) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
-      await loadText(text, { kind, label: file.name });
+      await loadText(text, { kind, label: file.name, ...libraryOptions(kind) });
     } catch (error) {
-      if (requestId === latestFileRequest) setStatus(`Load failed ${file.name}: ${error.message}`);
+      if (requestId === latestFileRequest && error.name !== "AbortError") setStatus(`Load failed ${file.name}: ${error.message}`);
     } finally {
       input.value = "";
     }
@@ -85,7 +99,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     if (elements.textDialog?.open) elements.textDialog.close();
   };
   const openDialog = (kind) => {
-    latestFileRequest += 1;
+    beginRequest();
     dialogSession += 1;
     textKind = kind === "timing" ? "timing" : "netlist";
     const timing = textKind === "timing";
@@ -97,6 +111,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     schedule(() => elements.textInput.focus());
   };
 
+  elements.libertyInput?.addEventListener("change", (event) => loadInputFile(event, "liberty"));
   elements.netlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist"));
   elements.timingInput?.addEventListener("change", (event) => loadInputFile(event, "timing"));
   elements.goldenInput?.addEventListener("change", (event) => loadInputFile(event, "golden"));
@@ -118,7 +133,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       elements.textInput.focus();
       return;
     }
-    const requestId = ++latestFileRequest;
+    const requestId = beginRequest();
     const submittedDialogSession = dialogSession;
     try {
       await loadText(source, { kind: textKind, label: textKind === "timing" ? "pasted timing" : "pasted Verilog" });
@@ -169,10 +184,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     let kind;
     try { kind = detectQuickInputKind(text); } catch { return; }
     event.preventDefault();
-    const requestId = ++latestFileRequest;
-    const label = kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
-    try { await loadText(text, { kind, label }); }
-    catch (error) { if (requestId === latestFileRequest) setStatus(`Paste failed: ${error.message}`); }
+    const requestId = beginRequest();
+    const label = kind === "liberty" ? "pasted Liberty" : kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
+    try { await loadText(text, { kind, label, ...libraryOptions(kind) }); }
+    catch (error) { if (requestId === latestFileRequest && error.name !== "AbortError") setStatus(`Paste failed: ${error.message}`); }
   });
 
   return Object.freeze({ openDialog, closeDialog, clearDrag, loadFiles });

@@ -1,6 +1,6 @@
-import { createWorkspaceArtifactKey } from "./workspaceArtifactCache.js";
+import { createWorkspaceArtifactKey, workspaceArtifactReference } from "./workspaceArtifactCache.js";
 
-export function createSingleWorkspaceIdentity(state) {
+export function createSingleWorkspaceIdentity(state, cellLibrary = null) {
   return createWorkspaceArtifactKey({
     document: [state.document?.documentId || null, state.document?.sourceRevision || 0],
     module: state.currentModule?.name || null,
@@ -15,11 +15,12 @@ export function createSingleWorkspaceIdentity(state) {
     useFanoutHubs: state.useFanoutHubs,
     layout: [state.layoutProviderId, state.layoutPolicy],
     timing: [state.timing, state.timingDisplayPolicy, state.timingBadgeChoices, state.timingBadgePositions],
+    cellLibrary: workspaceArtifactReference(cellLibrary),
     cellConfig: state.cellConfig
   });
 }
 
-export function createCompareWorkspaceIdentity(state) {
+export function createCompareWorkspaceIdentity(state, cellLibrary = null) {
   return createWorkspaceArtifactKey({
     document: [state.document?.documentId || null, state.document?.sourceRevision || 0],
     modules: [state.compare.leftModuleName, state.compare.rightModuleName],
@@ -33,6 +34,7 @@ export function createCompareWorkspaceIdentity(state) {
     useFanoutHubs: state.useFanoutHubs,
     layout: [state.layoutProviderId, state.layoutPolicy],
     timing: [state.timing, state.timingDisplayPolicy, state.compare.timingBadgeChoices, state.compare.timingBadgePositions],
+    cellLibrary: workspaceArtifactReference(cellLibrary),
     cellConfig: state.cellConfig
   });
 }

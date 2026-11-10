@@ -28,6 +28,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 ### 浏览与逻辑追踪
 
 - **结构化 Verilog 解析**：支持 `module`、`port`、`wire`、`assign`、单元实例（cell instance）、转义标识符（escaped identifier）、向量切片及拼接表达式（concatenation）。
+- **可选 Liberty 库读取**：侧边栏 `Liberty library` 支持加载、替换、取消和卸载文本 `.lib`，使用库声明改善引脚方向及常见门识别；Single/Compare 共用，保留用户配置优先级。使用说明见 [Liberty 导入](docs/USER_GUIDE.md#35-liberty-库)。
 - **无 `.lib` 智能推断**：在缺乏 Liberty 库文件时，根据单元与引脚命名自动推断逻辑门类型（gate kind）与引脚方向（pin direction）；未识别单元安全显示为黑盒（blackbox）。
 - **全局搜索与定位**：支持按 module、port、net、instance 及 cell type 搜索并高亮定位目标对象。
 - **层次化浏览**：展开 `Module hierarchy` 树查看实例层次路径，点击节点或双击画布中的子模块实例即可进入对应模块定义。
@@ -264,7 +265,7 @@ src/contracts/        ObjectRef、领域接口、查询与视图契约定义
 src/diagram/          领域中性的显示图模型、共享视图流水线与几何测量契约
 src/domains/netlist/  Netlist 领域特性、图投影、时序/单元配置/Golden 业务用例
 src/foundation/       无业务含义的标识符编码、不可变结构值与基础图/几何工具
-src/infer/            无 Liberty 环境下的标准单元类型与引脚方向推断规则
+src/infer/            Liberty 语义模型、共享字段优先级与无库推断规则
 src/layout/           AnchorLayered / ELK / Simple 布局引擎、节点几何、正交布线与网格吸附
 src/netlist/          Netlist IR 数据模型与结构图提取
 src/parser/           结构化 Verilog 词法与语法解析器
@@ -283,7 +284,7 @@ tools/eda/            面向 EDA 工具的 Tcl 启动、状态查询与安全关
 ## 当前已知限制
 
 - **Verilog 语法子集**：仅支持综合后常见的结构化门级 Verilog 子集，并非完整的 Verilog / SystemVerilog 编译前端（不支持行为级 `always`、宏展开或复杂参数化展开）。
-- **无 `.lib` 启发式推断**：不解析 Liberty `.lib` 文件；遇到命名非标的定制单元或复杂宏单元时，可能需要通过 `Cell Config` 或 `Adjust` 面板手动指定引脚方向。
+- **Liberty 支持边界**：可读取文本 `.lib` 的接口与有限布尔语义，不执行 STA 或解析 `.db` / `.lib.gz`。未知扩展、复杂 bus/bundle 与复杂 function 不承诺完整解释；缺库时仍可通过命名规则、`Cell Config` 或 `Adjust` 指定方向。
 - **超大图浏览策略**：深层 DAG 的 Balanced/Folded 折叠排布仍属暂缓的实验方向；当前针对大型模块优先通过 `AnchorLayered` / `ELK`、`Search-first` 与有限深度的 `Focused` 局部视图进行浏览，不再扩展结构分组折叠（group collapse）。
 - **启发式模块对比**：`Compare` 模式基于端口/线网名称、逻辑门类型及图统计特征提供启发式结构对比，不提供形式化等价性证明。
 - **AIG 支持范围**：测试套件中的内存 AIG 仅用于验证多领域工作台架构边界，尚未提供生产级 AIGER 文件导入、AIG 专用界面或逻辑等价分析。

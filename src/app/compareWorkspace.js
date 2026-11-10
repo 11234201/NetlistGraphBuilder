@@ -15,6 +15,7 @@ export function prepareCompareWorkspace(options = {}) {
     timingBadgePositions = {},
     graphOverrides = { left: null, right: null },
     cellConfig = null,
+    cellLibrary = null,
     focusedRootNodeIds = { left: [], right: [] },
     activeFocusedRootNodeId = { left: null, right: null },
     moduleLibrary = [],
@@ -33,6 +34,7 @@ export function prepareCompareWorkspace(options = {}) {
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
       graphOverrides: graphOverrides.left,
       cellConfig,
+      cellLibrary,
       moduleLibrary,
       artifactCache,
       artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: "compare:left", unitId: leftModule?.name }
@@ -44,6 +46,7 @@ export function prepareCompareWorkspace(options = {}) {
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
       graphOverrides: graphOverrides.right,
       cellConfig,
+      cellLibrary,
       moduleLibrary,
       artifactCache,
       artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: "compare:right", unitId: rightModule?.name }

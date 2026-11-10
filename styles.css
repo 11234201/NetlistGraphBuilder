@@ -1659,3 +1659,6 @@ body.is-dragging-files .drop-overlay {
   color: var(--muted);
   font-size: 12px;
 }
+
+.liberty-diagnostics { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 10rem; overflow: auto; font-size: 11px; }
+#libertySummary { overflow-wrap: anywhere; font-size: 12px; }

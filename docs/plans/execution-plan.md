@@ -184,3 +184,40 @@ Native candidate/channel router is not an implementation base for this continuat
 | ELK-T05-VALIDATE | dp020尾段完整输入诊断 | T04只剩dp020，先核对adapter边界 | 最终校验捕获未取得；扩展计时定位physical build约9s、final校验约0.6s，纠正归因；完整11398edges物理线输入采样，Set主热点79.3%归物理树回溯，控制/783unit通过 | 独立phase成功冒充whole-worker通过、observer改变行为、capturing重负载混作基线 | completed（诊断转向物理树，不是47通过） | 2026-10-13 |
 | ELK-T06-TRACE | 物理树回溯表示优化 | T05实际调用链证据，Dijkstra原逻辑保持 | 实际127269段全字段等价，unit785/785，六产品完整几何/SVG相同；ea0bb197正式46/47，dp02042159ms通过但sop004超时，正常benchmark硬0；前轮失败保留 | 改tie/parent/归属序，忽略gap/forest/cycle，缩图微测冒充全图 | in_progress（新超时待复核，不准入UI） | 2026-10-13 |
 | ELK-T07-CONTROL | sop004新超时受控复核 | T06原47唯一超时变为sop004 | 精确URL旧tree消融控制/785unit；旧16309ms/新16722ms非telemetry一致；同ea0bb197原47冻结复验47/47，hard0、最大40236ms，前轮超时仍保留 | 将一对时钟归因于环境、只跑失败例、挑最优轮准入 | completed（最新完整门禁通过，不是稳定性能或交付总验收） | 2026-10-13 |
+
+## 2026-11-10 Liberty 读取功能调研
+
+本轮范围：创建开发分支，调研公开实现、工业工具公开行为和可用开源库；不进入运行时代码实现，不复用历史布局研究的未完成状态。
+
+| ID | 计划 | 证据与验收 | 状态 |
+| --- | --- | --- | --- |
+| LIB-R01 | 检查工作区并创建 `codex/liberty-reader` | 基于 `a8a1a0e` 创建分支；保留所有既有未提交改动 | completed |
+| LIB-R02 | 阅读现有推断/配置/领域边界，核查开源代码、许可证及公开工业文档 | 已形成 `docs/research/liberty_open_source_and_fixtures.md` 与 `docs/research/liberty_format_and_industry.md`；源码/元数据核查与未实测边界分开记录 | completed（调研，不是运行验证） |
+| LIB-R03 | 收敛阶段 5 实施路线 | 已更新 `docs/STAGE_5_PLAN.md`：L0–L5、优先级/成本、库冲突、人工覆盖优先级、共享语义入口、失败回退与远端验收 | completed（路线，尚未实施） |
+| LIB-R04 | 文档收尾与工作区核验 | 三份文档相对链接 15/15 存在；`git diff --check` 通过；分支正确，未提交/推送，用户文件保留 | completed |
+
+## 2026-11-10 Liberty 首版编码与验证
+
+用户在调研完成后授权详细计划并执行编码测试，范围见 [实施计划](liberty_reader_implementation.md)。
+
+| ID | 计划 | 当前证据 | 状态 |
+| --- | --- | --- | --- |
+| LIB-I0 | 远端隔离基线 | HEAD 913/913；架构零违规 | completed |
+| LIB-I1–I4 | reader、模型、共享推断、UI | 最终 926/926 单测；架构零违规；导入/取消/替换/卸载/Compare 浏览器通过 | completed |
+| LIB-I5 | 真实库与产品回归 | Nangate/IHP 两角 303 cell、1111 pin 字段差分零；64 MiB 1.175s；47 无库图与 HEAD 相同；默认 mapped 两组均 24 例既有失败 | completed（验证完成，默认 mapped 非全绿） |
+| LIB-I6 | 文档与交付 | 使用/架构/阶段状态与验证报告同步；Windows 包通过；45 文档链接与 diff 检查通过；未提交 | completed |
+
+## 2026-11-10 Liberty 与重新综合网表闭环验证
+
+用户要求重新取得对应库并综合，以生成的网表和同份库验证读取正确性。沿用 linux-ssh-workspace 和 project-lifecycle；不改变现有 47 份 fixtures 或上一轮原始记录。
+
+| ID | 目标与输入 | 动作 / 验收条件 | 状态 |
+| --- | --- | --- | --- |
+| LIB-S01 | 固定 RTL、库与综合器 | 原 47 份 top.v；核对旧 Nangate 来源与新固定 SHA 的 Nangate/IHP；远端隔离工作区，记录源/库哈希和 Yosys 版本 | completed |
+| LIB-S02 | 重新综合成对输入 | 两库各 47 例；首轮 90/94、4 超时；同输入单独复核 4/4（2–8s）；94 份完整配对产物，严格哈希合并并保留所有 attempts | completed |
+| LIB-S03 | 独立语义与连接验证 | 全量 94/94、106324 cell、422000 pin 与 Yosys JSON 匹配；56 cell 类型接口零差异，264 真值行一致；错库/方向/连接负对照 3/3 拒绝 | completed |
+| LIB-S04 | 产品输入验证与收尾 | 默认 45s 浏览器 6/6 导入、2/2 库 Compare、页面错误 0；926/926 单测；247 runtime 文件与本地相同；可复跑工具与最终报告保存，失败历史保留 | completed |
+
+大型网表、综合日志、JSON、库及截图留在远端 dc_runs；本地只保留稳定测试脚本、计划与报告。先用代表用例验证流程再全量 94 例；本轮核验 lib/网表语义，不把 STA 或完整形式等价证明混作读取器验收。
+
+收尾证据：[重新综合配对验证报告](../research/liberty_synthesis_validation.md)。本地另保存小型 JSON 摘要和两张 QA 截图到 ignored dc_runs；本轮没有运行时代码修改。

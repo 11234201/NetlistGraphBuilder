@@ -1,8 +1,8 @@
-﻿import { inferCellKind, inferPinDirection } from "../infer/defaultCellRules.js";
+import { LIBERTY_LIMITS } from "../contracts/liberty.js";
+import { inferPinDirection } from "../infer/defaultCellRules.js";
+import { resolveCellSemantics } from "../infer/cell_semantics.js";
 import { getNetDisplayName, getPortDisplayName, getPinNetReferences } from "./model.js";
-import { ensureFallbackCellPinDirections } from "../infer/defaultCellRules.js";
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
-import { resolveCellConfigDefinition, toInternalGateKind } from "../infer/cellConfig.js";
 import { getPinConnectionEndpoints } from "./pin_connections.js";
 
 export function buildSchematicGraph(module, options = {}) {
@@ -94,25 +94,19 @@ export function buildSchematicGraph(module, options = {}) {
 
   for (const cell of module.cells) {
     const referencedModule = moduleByName.get(cell.type);
-    const configuredDefinition = referencedModule ? null : resolveCellConfigDefinition(cellConfig, cell.type);
-    const cellKind = referencedModule
-      ? { kind: "module", source: "module-definition" }
-      : configuredDefinition
-        ? { kind: toInternalGateKind(configuredDefinition.gateKind), source: "user-config" }
-        : inferCellKind(cell.type);
-    const pinDirections = cellKind.source === "unknown"
-      ? ensureFallbackCellPinDirections(getCellPinDirections(
-        cell,
-        overrides,
-        referencedModule,
-        configuredDefinition
-      ))
-      : getCellPinDirections(cell, overrides, referencedModule, configuredDefinition);
+    const { kind: cellKind, pinDirections, libraryCell, diagnostics } = resolveCellSemantics(cell, {
+      moduleDefinition: referencedModule, cellConfig, cellLibrary: options.cellLibrary,
+      overrides: overrides.cellPinDirections[cell.instance] || {}
+    });
+    graph.diagnostics.push(...diagnostics.slice(0, Math.max(0, LIBERTY_LIMITS.maxDiagnostics - graph.diagnostics.length)));
     const node = addNode({
       id: makeNodeId("cell", cell.instance),
       kind: "cell",
       gateKind: cellKind.kind,
       inferenceSource: cellKind.source,
+      ...(libraryCell ? { libraryInfo: { name: libraryCell.libraryName, sourceName: libraryCell.sourceName,
+        logicStatus: libraryCell.logic.status, functions: Object.fromEntries(Object.values(libraryCell.pins)
+          .filter((pin) => pin.function !== null).map((pin) => [pin.name, pin.function])) } } : {}),
       label: cell.instanceDisplayName || cell.instance,
       title: getCellTitle(cell, cellKind),
       subtitle: cell.typeDisplayName || cell.type,
@@ -141,6 +135,7 @@ export function buildSchematicGraph(module, options = {}) {
         const net = reference.name;
         const pinDirection = pinDirections[pin.pinDisplayName || pin.pin] ||
           inferPinDirection(pin.pin, cell.type);
+        if (["power", "internal"].includes(pinDirection.role)) continue;
         if (pinDirection.direction === "output" || pinDirection.direction === "inout") {
           addDriver(net, {
             nodeId: node.id,
@@ -279,46 +274,10 @@ function annotateGraphMetadata(graph, module) {
   }
 }
 
-function getCellPinDirections(cell, overrides, referencedModule = null, configuredDefinition = null) {
-  const directions = {};
-  const cellOverrides = overrides.cellPinDirections[cell.instance] || {};
-  const modulePorts = new Map((referencedModule?.ports || []).map((port) => [port.name, port]));
-  for (const pin of cell.pins) {
-    const displayName = pin.pinDisplayName || pin.pin;
-    const overrideDirection = normalizePinDirection(cellOverrides[pin.pin] ?? cellOverrides[displayName]);
-    const modulePort = modulePorts.get(pin.pin);
-    const configuredDirection = configuredDefinition?.pins?.[pin.pin] ?? configuredDefinition?.pins?.[displayName];
-    if (modulePort && isKnownPortDirection(modulePort.direction)) {
-      directions[displayName] = {
-        direction: modulePort.direction,
-        source: "module-definition",
-        moduleName: referencedModule.name
-      };
-    } else if (overrideDirection) {
-      directions[displayName] = {
-        direction: overrideDirection,
-        source: "override"
-      };
-    } else if (configuredDirection) {
-      directions[displayName] = {
-        direction: configuredDirection,
-        source: "user-config"
-      };
-    } else {
-      directions[displayName] = inferPinDirection(pin.pin, cell.type);
-    }
-  }
-  return directions;
-}
-
 function normalizeModuleLibrary(value) {
   if (value instanceof Map) return value;
   const modules = Array.isArray(value) ? value : value?.modules || [];
   return new Map(modules.map((item) => [item.name, item]));
-}
-
-function isKnownPortDirection(value) {
-  return value === "input" || value === "output" || value === "inout";
 }
 
 function getCellTitle(cell, cellKind) {
@@ -355,13 +314,6 @@ function normalizeGraphOverrides(overrides) {
     nodeProperties: overrides?.nodeProperties || {},
     cellPinDirections: overrides?.cellPinDirections || {}
   };
-}
-
-function normalizePinDirection(value) {
-  if (value === "input" || value === "output") {
-    return value;
-  }
-  return null;
 }
 
 function createImplicitDriver(module, graph, addNode, net, overrides, makeNodeId = makeId, netKindByName = null) {

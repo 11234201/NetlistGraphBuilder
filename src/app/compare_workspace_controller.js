@@ -169,6 +169,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       timingBadgePositions: state.compare.timingBadgePositions,
       graphOverrides: state.compare.graphOverrides,
       cellConfig: state.cellConfig,
+      cellLibrary: services.readCellLibrary?.(),
       nodePositions: state.compare.nodePositions,
       nodeSizes: state.compare.nodeSizes,
       useFanoutHubs: state.useFanoutHubs,
@@ -187,7 +188,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         updateCompareSideStatus(side, side === "left" ? leftModule : rightModule, status);
       }
     };
-    const workspaceIdentity = createCompareWorkspaceIdentity(state);
+    const workspaceIdentity = createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
     const renderOptions = { ...options, layoutController, workspaceIdentity };
     try {
       // Full graphs and comparison inputs are a light, shared preparation step;
@@ -330,6 +331,7 @@ export const compareWorkspacePorts = Object.freeze({
     "syncCompareFocusInput"
   ],
   services: [
+    "readCellLibrary",
     "applyCompareHighlights", "applyCompareTransforms", "applyTransform", "clearCompareSelection",
     "compareViewSessions", "getCurrentLayoutProvider", "handleLayoutFailure", "logProcess",
     "recordViewHistory", "renderCurrentModuleGraph", "renderDiagnostics", "renderGeneration",

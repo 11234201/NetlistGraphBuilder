@@ -15,7 +15,9 @@ export function inspectGraphNode(graph, node, options = {}) {
       ["Label", node.label],
       ["Gate", node.gateKind || node.title || "-"],
       ["Cell type", node.subtitle || "-"],
-      ["Inference", node.inferenceSource || "-"]
+      ["Inference", node.inferenceSource || "-"],
+      ...(node.libraryInfo ? [["Library", node.libraryInfo.name], ["Library file", node.libraryInfo.sourceName],
+        ["Library logic", node.libraryInfo.logicStatus], ...Object.entries(node.libraryInfo.functions).map(([pin, expression]) => [`Function ${pin}`, expression])] : [])
     ],
     connections,
     hierarchyConnections: inspectParentHierarchyConnections(connections, hierarchyContext),

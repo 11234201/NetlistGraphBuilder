@@ -138,7 +138,7 @@ export function createHistoryController({ state, elements, services }) {
   }
 
   function createSingleWorkspaceHistoryIdentity() {
-    return createSingleWorkspaceIdentity(state);
+    return createSingleWorkspaceIdentity(state, services.readCellLibrary?.());
   }
 
   function restoreCompareViewHistoryEntry(entry, endRestore, isCurrentRestore = () => true) {
@@ -257,7 +257,7 @@ export function createHistoryController({ state, elements, services }) {
   }
 
   function createCompareWorkspaceHistoryIdentity() {
-    return createCompareWorkspaceIdentity(state);
+    return createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
   }
 
   function cloneGraphOverridesForHistory(value = {}) {
@@ -380,6 +380,7 @@ export const historyPorts = Object.freeze({
     "syncCompareFocusInput"
   ],
   services: [
+    "readCellLibrary",
     "applyCompareHighlights", "applyCompareLayout", "applyCompareSelection", "applyCompareTransforms",
     "applyTransform", "exitCompareView", "getCompareModule", "renderCompareGraphs",
     "renderCompareOutputOptions", "renderCurrentModuleGraph", "renderDiagnostics", "renderGraphMount",

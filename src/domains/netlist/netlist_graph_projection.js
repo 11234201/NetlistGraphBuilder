@@ -11,6 +11,7 @@ export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
     overrides: options.graphOverrides,
     moduleLibrary: options.moduleLibrary || [],
+    cellLibrary: options.cellLibrary,
     cellConfig: options.cellConfig
   });
   const annotatedGraph = annotateGraphTiming(graph, options.timing, {

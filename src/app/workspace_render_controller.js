@@ -18,8 +18,8 @@ export function createWorkspaceRenderController({ state, elements, services }) {
       viewMode: state.viewMode,
       provider: layoutProvider.id
     });
-    const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider);
-    const workspaceIdentity = createSingleWorkspaceIdentity(state);
+    const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider, services.readCellLibrary?.());
+    const workspaceIdentity = createSingleWorkspaceIdentity(state, services.readCellLibrary?.());
     const isCurrentSingleRequest = () => request.isCurrent() && !state.compare.active;
     services.workspaceExecution.execute({
       provider: layoutProvider,
@@ -172,6 +172,7 @@ export const workspaceRenderPorts = Object.freeze({
     "layoutProviderSelect", "mount"
   ],
   services: [
+    "readCellLibrary",
     "applyTransform", "getCurrentLayoutProvider", "logProcess", "persistSession", "renderCompareGraphs",
     "renderDiagnostics", "renderGeneration", "renderStats", "setSingleTransform", "setStatus",
     "singleViewSession", "updateCalibrationControls", "updateViewControls", "workspaceExecution"

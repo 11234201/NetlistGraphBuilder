@@ -72,7 +72,7 @@ export const netlistFeature = defineDomainFeature({
     assertNetlistDocument(document);
     return analyzeHierarchicalCone(document.model, root, {
       ...options,
-      templates: options.templates || getConnectivityTemplates(document)
+      templates: options.templates || getConnectivityTemplates(document, options)
     });
   },
 
@@ -90,6 +90,7 @@ export const netlistFeature = defineDomainFeature({
       moduleLibrary: document.model.modules,
       graphOverrides: options.graphOverrides,
       cellConfig: options.cellConfig,
+      cellLibrary: options.cellLibrary,
       timing: options.timing,
       timingDisplayPolicy: options.timingDisplayPolicy,
       timingBadgeChoices: options.timingBadgeChoices,
@@ -169,10 +170,12 @@ function assertNetlistDocument(document) {
   }
 }
 
-function getConnectivityTemplates(document) {
+function getConnectivityTemplates(document, options = {}) {
   const cached = connectivityTemplateCache.get(document);
-  if (cached) return cached;
-  const templates = buildModuleConnectivityTemplates(document.model);
-  connectivityTemplateCache.set(document, templates);
+  if (cached && cached.cellLibrary === options.cellLibrary && cached.cellConfig === options.cellConfig &&
+      cached.graphOverrides === options.graphOverrides) return cached.templates;
+  const templates = buildModuleConnectivityTemplates(document.model, options);
+  connectivityTemplateCache.set(document, { templates, cellLibrary: options.cellLibrary,
+    cellConfig: options.cellConfig, graphOverrides: options.graphOverrides });
   return templates;
 }

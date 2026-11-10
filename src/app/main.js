@@ -1,3 +1,8 @@
+import { createWorkbenchElements, createQuickInputElements } from "../ui/workbench_elements.js";
+import { createLibertyController } from "../ui/liberty_controller.js";
+import { createLibertyLibraryService } from "../domains/netlist/liberty_import.js";
+import { runCooperativeTask } from "../application/cooperative_task.js";
+import { createLibraryWorkspaceRefresh } from "./library_workspace_refresh.js";
 import { createWorkbenchControllers } from "./workbench_controllers.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { createRenderGeneration } from "../render/renderGeneration.js";
@@ -227,6 +232,7 @@ const {
   get applyCompareTransforms() { return applyCompareTransforms; },
   get applyTransform() { return applyTransform; },
   get browserDownload() { return browserDownload; },
+  readCellLibrary: () => libertyService.read(),
   get cellConfigUseCases() { return cellConfigUseCases; },
   get centerGraphPoint() { return centerGraphPoint; },
   get clamp() { return clamp; },
@@ -343,108 +349,13 @@ const compareViewSessions = createCompareViewSessionBridge({
 });
 state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
+const libertyService = createLibertyLibraryService({ execute: runCooperativeTask });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 const viewHistoryTransactions = createViewHistoryTransaction({
   commit: (metadata) => recordViewHistory(metadata)
 });
 
-const elements = {
-  fileInput: document.querySelector("#fileInput"),
-  pasteNetlistButton: document.querySelector("#pasteNetlistButton"),
-  pasteTimingButton: document.querySelector("#pasteTimingButton"),
-  netlistTextDialog: document.querySelector("#netlistTextDialog"),
-  netlistTextForm: document.querySelector("#netlistTextForm"),
-  netlistTextInput: document.querySelector("#netlistTextInput"),
-  netlistTextTitle: document.querySelector("#netlistTextTitle"),
-  netlistTextDescription: document.querySelector("#netlistTextDescription"),
-  closeNetlistTextButton: document.querySelector("#closeNetlistTextButton"),
-  cancelNetlistTextButton: document.querySelector("#cancelNetlistTextButton"),
-  dropOverlay: document.querySelector("#dropOverlay"),
-  timingInput: document.querySelector("#timingInput"),
-  goldenInput: document.querySelector("#goldenInput"),
-  moduleHierarchyMenu: document.querySelector("#moduleHierarchyMenu"),
-  moduleHierarchySummary: document.querySelector("#moduleHierarchySummary"),
-  moduleHierarchyCurrent: document.querySelector("#moduleHierarchyCurrent"),
-  moduleHierarchyFilter: document.querySelector("#moduleHierarchyFilter"),
-  moduleBackButton: document.querySelector("#moduleBackButton"),
-  moduleForwardButton: document.querySelector("#moduleForwardButton"),
-  layoutProviderSelect: document.querySelector("#layoutProviderSelect"),
-  compareButton: document.querySelector("#compareButton"),
-  comparePanel: document.querySelector("#comparePanel"),
-  leftModuleSelect: document.querySelector("#leftModuleSelect"),
-  rightModuleSelect: document.querySelector("#rightModuleSelect"),
-  applyCompareButton: document.querySelector("#applyCompareButton"),
-  exitCompareButton: document.querySelector("#exitCompareButton"),
-  syncCompareInput: document.querySelector("#syncCompareInput"),
-  compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
-  compareOutputSelect: document.querySelector("#compareOutputSelect"),
-  moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),
-  moduleOccurrenceChoices: document.querySelector("#moduleOccurrenceChoices"),
-  syncCompareFocusInput: document.querySelector("#syncCompareFocusInput"),
-  searchInput: document.querySelector("#searchInput"),
-  searchClearButton: document.querySelector("#searchClearButton"),
-  searchResults: document.querySelector("#searchResults"),
-  wholeViewButton: document.querySelector("#wholeViewButton"),
-  focusedViewButton: document.querySelector("#focusedViewButton"),
-  coneDepthInput: document.querySelector("#coneDepthInput"),
-  faninDepthInput: document.querySelector("#faninDepthInput"),
-  fanoutDepthInput: document.querySelector("#fanoutDepthInput"),
-  showAliasesInput: document.querySelector("#showAliasesInput"),
-  fanoutHubsInput: document.querySelector("#fanoutHubsInput"),
-  gateSymbolModeSelect: document.querySelector("#gateSymbolModeSelect"),
-  setFocusedRootButton: document.querySelector("#setFocusedRootButton"),
-  focusedRootCount: document.querySelector("#focusedRootCount"),
-  focusedRootsList: document.querySelector("#focusedRootsList"),
-  addFocusedRootButton: document.querySelector("#addFocusedRootButton"),
-  removeFocusedRootButton: document.querySelector("#removeFocusedRootButton"),
-  clearFocusedRootsButton: document.querySelector("#clearFocusedRootsButton"),
-  focusSelectedButton: document.querySelector("#focusSelectedButton"),
-  wireSpacingInput: document.querySelector("#wireSpacingInput"),
-  wireSpacingNumberInput: document.querySelector("#wireSpacingNumberInput"),
-  wireSpacingValue: document.querySelector("#wireSpacingValue"),
-  cellSpacingInput: document.querySelector("#cellSpacingInput"),
-  cellSpacingNumberInput: document.querySelector("#cellSpacingNumberInput"),
-  cellSpacingValue: document.querySelector("#cellSpacingValue"),
-  timingMetricSelect: document.querySelector("#timingMetricSelect"),
-  timingSlackThresholdInput: document.querySelector("#timingSlackThresholdInput"),
-  editCellDefinitionButton: document.querySelector("#editCellDefinitionButton"),
-  cellConfigInput: document.querySelector("#cellConfigInput"),
-  exportCellConfigButton: document.querySelector("#exportCellConfigButton"),
-  resetCellConfigButton: document.querySelector("#resetCellConfigButton"),
-  cellDefinitionDialog: document.querySelector("#cellDefinitionDialog"),
-  cellDefinitionForm: document.querySelector("#cellDefinitionForm"),
-  cellDefinitionBody: document.querySelector("#cellDefinitionBody"),
-  closeCellDefinitionButton: document.querySelector("#closeCellDefinitionButton"),
-  cancelCellDefinitionButton: document.querySelector("#cancelCellDefinitionButton"),
-  deleteCellDefinitionButton: document.querySelector("#deleteCellDefinitionButton"),
-  fitButton: document.querySelector("#fitButton"),
-  exportSvgButton: document.querySelector("#exportSvgButton"),
-  adjustLayoutButton: document.querySelector("#adjustLayoutButton"),
-  saveGoldenButton: document.querySelector("#saveGoldenButton"),
-  resetLayoutButton: document.querySelector("#resetLayoutButton"),
-  workspace: document.querySelector(".workspace"),
-  sidebarResizeHandle: document.querySelector("#sidebarResizeHandle"),
-  canvas: document.querySelector("#canvas"),
-  mount: document.querySelector("#schematicMount"),
-  compareMount: document.querySelector("#compareMount"),
-  leftMount: document.querySelector("#leftSchematicMount"),
-  rightMount: document.querySelector("#rightSchematicMount"),
-  stats: document.querySelector("#designStats"),
-  details: document.querySelector("#selectionDetails"),
-  diagnostics: document.querySelector("#diagnosticsList"),
-  status: document.querySelector("#statusBar"),
-  processLogDrawer: document.querySelector("#processLogDrawer"),
-  toggleProcessLogButton: document.querySelector("#toggleProcessLogButton"),
-  processLogCount: document.querySelector("#processLogCount"),
-  processLogControls: document.querySelector("#processLogControls"),
-  processLogLevelFilter: document.querySelector("#processLogLevelFilter"),
-  processLogPhaseFilter: document.querySelector("#processLogPhaseFilter"),
-  processLogAutoScroll: document.querySelector("#processLogAutoScroll"),
-  copyProcessLogButton: document.querySelector("#copyProcessLogButton"),
-  exportProcessLogButton: document.querySelector("#exportProcessLogButton"),
-  clearProcessLogButton: document.querySelector("#clearProcessLogButton"),
-  processLogList: document.querySelector("#processLogList")
-};
+const elements = createWorkbenchElements(document);
 const processLogController = createProcessLogController({
   elements: {
     toggleButton: elements.toggleProcessLogButton,
@@ -496,25 +407,21 @@ const wheelGestureController = createWheelGestureController({
 });
 const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
+const refreshLibraryWorkspace = createLibraryWorkspaceRefresh({
+  readContext: () => ({ compareActive: state.compare.active, hasModule: Boolean(state.currentModule), selectedNodeId: state.selectedNodeId }),
+  cancelJobs: () => workspaceJobs.cancelDocument(state.document?.documentId),
+  renderSingle: rerenderPreservingView, renderCompare: renderCompareGraphs
+});
+const libertyController = createLibertyController({
+  elements: { summary: elements.libertySummary, diagnostics: elements.libertyDiagnostics,
+    cancelButton: elements.cancelLibertyButton, clearButton: elements.clearLibertyButton },
+  read: libertyService.read, importText: libertyService.importText, clear: libertyService.clear,
+  cancel: libertyService.cancel, refresh: refreshLibraryWorkspace, setStatus, logProcess
+});
 createQuickInputController({
-  elements: {
-    netlistInput: elements.fileInput,
-    timingInput: elements.timingInput,
-    goldenInput: elements.goldenInput,
-    pasteNetlistButton: elements.pasteNetlistButton,
-    pasteTimingButton: elements.pasteTimingButton,
-    textDialog: elements.netlistTextDialog,
-    textForm: elements.netlistTextForm,
-    textInput: elements.netlistTextInput,
-    textTitle: elements.netlistTextTitle,
-    textDescription: elements.netlistTextDescription,
-    closeTextButton: elements.closeNetlistTextButton,
-    cancelTextButton: elements.cancelNetlistTextButton,
-    dropOverlay: elements.dropOverlay,
-    body: document.body
-  },
+  elements: createQuickInputElements(elements, document.body),
   windowTarget: window,
-  loadText: loadQuickInputText,
+  loadText: (text, options) => options.kind === "liberty" ? libertyController.load(text, options) : loadQuickInputText(text, options),
   setStatus
 });
 elements.moduleBackButton.addEventListener("click", () => navigateViewHistory(-1));
