@@ -38,7 +38,7 @@ export function* buildLibertyModelSteps(parsed) {
           name: pinName, displayName: pinName, direction: DIRECTIONS.has(direction) ? direction : "unknown",
           function: attributes.function ?? inherited?.function ?? null,
           threeState: attributes.three_state ?? inherited?.three_state ?? null,
-          clock: attributes.clock === "true", span: pinGroup.span
+          clock: (attributes.clock ?? inherited?.clock) === "true", span: pinGroup.span
         };
       };
       for (const child of group.groups) {
@@ -82,7 +82,10 @@ export function* buildLibertyModelSteps(parsed) {
         if (members.size) fail(`Unsupported bus member or range ${[...members.keys()].join(", ")}`, child);
         const directions = new Set(memberNames.map((key) => pins[key].direction));
         if (directions.size !== 1) fail(`Mixed-direction bus ${name}.${busName} requires explicit bit mapping`, child);
-        addPin(busName, { direction: [...directions][0] }, child);
+        // A whole-bus connection can expose one role only. Do not label mixed
+        // clock/data members as an all-clock interface.
+        addPin(busName, { direction: [...directions][0],
+          clock: memberNames.every((key) => pins[key].clock) ? "true" : "false" }, child);
         buses.push({ name: busName, from, to, members: memberNames });
       }
       const sequentialGroups = group.groups.filter((item) => ["ff", "latch", "ff_bank", "latch_bank"].includes(item.type));
@@ -90,7 +93,11 @@ export function* buildLibertyModelSteps(parsed) {
       const outputs = Object.values(pins).filter((pin) => pin.direction === "output");
       const inputs = Object.values(pins).filter((pin) => pin.direction === "input").map((pin) => pin.name);
       let logic = { kind: "blackbox", status: "interface-only" };
-      if (Object.values(pins).some((pin) => pin.threeState !== null || pin.direction === "inout")) {
+      if (group.groups.some((item) => item.type === "bundle")) {
+        // Omitted bundle members may add outputs or state. Partial interfaces
+        // are insufficient to prove a primitive gate or sequential symbol.
+        logic = { kind: "blackbox", status: "unsupported-bundle" };
+      } else if (Object.values(pins).some((pin) => pin.threeState !== null || pin.direction === "inout")) {
         logic = { kind: "blackbox", status: "three-state-or-inout" };
       } else if (sequential.length) {
         const simpleFf = sequential.length === 1 && sequential[0].type === "ff" &&

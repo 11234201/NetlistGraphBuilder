@@ -118,3 +118,22 @@ node tools/test_liberty_cases.mjs /home/wzh/open_source/ngb_liberty_corpus_20261
 - 远端快照：`/home/wzh/my_code/netlistGraphBuilder/input_review_20261110`。日志在 `dc_runs/review/before.log`、`focused.log`、`unit.log`、`architecture.log`；架构检查 247 模块、585 依赖，未解析/跨层/环均为 0；247 个 JS 源文件与本地 SHA-256 完全一致。
 - 本轮只改共享输入分类和 UI 文件读取，未修改 parser、inference、graph、layout 或 renderer，因此未重复综合配对、mapped 和布局基准。上一轮 94/94 综合配对及默认 mapped 的 24 项既有失败记录保留；浏览器退出清理限制仍未解决，本轮未新增浏览器全绿记录。
 - Windows 平台专属发布检查在本地 ignored `dc_runs/input_review/release` 隔离副本运行 `npm run release:windows -- -SkipTests`；C# 编译及启动/HTTP 冒烟通过。初次校验发现 archive 快照中 7 个 `.gitkeep` 的换行与工作区不同，同步这些占位文件后重新构建。最终 ZIP 内全部 255 个 src 文件（含隐藏占位文件）、用户指南及 ELK 许可证共 257 个文件的哈希与工作区一致；ZIP SHA-256：`9592e803131f8d88a93c13317cf24c10750c580be1dee41d9a268ad7c4396532`。
+
+## 语义复查：总线时钟与不完整接口（2026-11-10）
+
+上一轮 JSON 分类修复已提交为 `4184842`（`fix(input): classify JSON batches from complete root objects`），未推送。本轮只修改 Library IR 建模及对应测试，修复仍在工作区。
+
+| 问题 | 修复与覆盖 |
+| --- | --- |
+| bus 的 `clock: true` 没有传给成员或聚合引脚 | 成员优先使用自身属性，否则继承 bus；显式 `false` 覆盖 bus 的 `true`。仅当全部成员都是 clock 时，聚合引脚才标为 clock；混合成员仍保留逐位属性。覆盖整总线、转义 bit 连接、真实图的角色及层次连接方向 |
+| 含未支持 bundle 的单元仍根据部分接口识别成 INV/DFF | 有 bundle 的单元保持 `blackbox / unsupported-bundle`，保留已有诊断和已知标量接口方向；覆盖组合和顺序单元，以及普通图与层次模板的一致性 |
+
+总线 clock 字段参考 [liberty-db 的 Bus/Pin 共用字段声明](https://docs.rs/liberty-db/latest/src/liberty_db/pin/mod.rs.html)；同时检查远端已有 `/home/wzh/open_source/OpenSTA/liberty/LibertyReader.cc` 的 clock 属性读取与 `Liberty.cc` 的 `LibertyPort::setIsClock()`，后者将标记传给成员。这里是属性处理的代码核对，不代表验证了完整商用库兼容性。bundle 位映射仍未实现。
+
+- 两个新增反例在提交基线上均失败。修复后专项 **29/29**，全量 **952/952**，24.23 秒；架构检查 247 模块、585 依赖，未解析/跨层/环均为 0。
+- 远端目录：`/home/wzh/my_code/netlistGraphBuilder/liberty_semantics_review_20261110`，原始日志与报告保存在其 `dc_runs/review/`。247 个 JS 源文件与本地 SHA-256 完全一致。
+- 固定哈希的真实综合配对 **94/94**，106324 cell、422000 pin；独立接口 **56/56**，264 行真值一致。没有重新综合或更换输入。47 文件/47 模块的完整无库图与原始基线逐对象比较，差异为 0。
+- Liberty 4/16/64 MiB 基准分别 92.83/309.10/1184.59ms，保留模型 949/950/952 字节，64 MiB 满足原 15 秒预算；记录单次运行，不作通用加速结论。未修改图、布局或路由算法。
+- `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完整执行 47 例，**23 通过、24 失败**，失败集合与原始基线及上一轮一致。相对原始基线，仅 `eq_004` 从违规失败变为超时；相对上一轮，`dp_019`、`sop_012` 从超时变为违规失败。当前违规 1462/120，超时项不计入违规汇总，不能据此宣称质量改善。使用原默认 Simple、45 秒超时和全部用例；mapped 门禁仍未通过。详见 `mapped.log`、`mapped_comparison.json`。
+- Windows 发布在本地隔离目录 `dc_runs/liberty_semantics_review/release` 使用本机 .NET Framework 运行 `npm run release:windows -- -SkipTests`；C# 编译、启动/HTTP 冒烟及 ZIP 内 255 个 src 文件、用户指南、ELK 许可证共 257 文件哈希检查通过。最终 ZIP SHA-256：`9920612b7d6dfe49ac4619fa5b07df168532b7e571c2049e218056a5e465aab1`。
+- 浏览器内核 D 状态的既有限制未解决，本轮未启动新的浏览器进程；不新增浏览器全绿记录。原有用户文件未改动，所有生成物保留在 ignored `dc_runs/`。

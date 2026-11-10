@@ -90,6 +90,62 @@ test("Liberty bus names remain literal when expanding naming style placeholders"
   }
 });
 
+test("Liberty bus clock defaults reach bit pins, explicit members override them, and aggregate clocks stay conservative", () => {
+  const library = read(`library(x){
+    type(t){bit_from:1;bit_to:0;}
+    cell(C){
+      bus(CK){bus_type:t;direction:input;clock:true;}
+      bus(MIX){bus_type:t;direction:input;clock:true;pin(MIX[1]){clock:false;}}
+      bus(DATA){bus_type:t;direction:input;clock:false;pin(DATA[0]){clock:true;}}
+    }
+  }`);
+  const expected = { CK: true, "CK[1]": true, "CK[0]": true,
+    MIX: false, "MIX[1]": false, "MIX[0]": true,
+    DATA: false, "DATA[1]": false, "DATA[0]": true };
+  for (const [pin, clock] of Object.entries(expected)) assert.equal(library.cells.C.pins[pin].clock, clock, pin);
+  const module = parseVerilog(`module top(input [1:0] c,m,d);
+    C whole(.CK(c),.MIX(m),.DATA(d));
+    C bits(.\\CK[1] (c[1]),.\\CK[0] (c[0]),.\\MIX[1] (m[1]),.\\MIX[0] (m[0]),.\\DATA[1] (d[1]),.\\DATA[0] (d[0]));
+    endmodule`).modules[0];
+  const graph = buildSchematicGraph(module, { cellLibrary: library });
+  const template = createModuleConnectivityTemplate(module, new Map(), { cellLibrary: library });
+  assert.deepEqual(graph.diagnostics, []);
+  for (const node of graph.nodes.filter((item) => item.kind === "cell")) {
+    for (const pin of node.ref.pins) {
+      const info = node.pinDirections[pin.pinDisplayName || pin.pin];
+      assert.equal(info.source, "library");
+      assert.equal(info.direction, "input");
+      assert.equal(info.role, expected[pin.pin] ? "clock" : undefined, pin.pin);
+    }
+    const hierarchical = template.cells.find((cell) => cell.instance === node.ref.instance);
+    for (const pin of hierarchical.pins) assert.equal(pin.direction, node.pinDirections[pin.displayName].direction);
+  }
+});
+
+test("uninterpreted bundle interfaces cannot produce a primitive symbol from a partial cell", () => {
+  for (const sequential of [false, true]) {
+    const library = read(`library(x){cell(C){
+      pin(A){direction:input;}
+      pin(Z){direction:output;function:${sequential ? "IQ" : "!A"};}
+      ${sequential ? "ff(IQ,IQN){clocked_on:A;next_state:A;}" : ""}
+      bundle(EXTRA){members(Y);direction:output;pin(Y){function:A;}}
+    }}`);
+    assert.equal(library.cells.C.logic.kind, "blackbox");
+    assert.equal(library.cells.C.logic.status, "unsupported-bundle");
+    assert.ok(library.diagnostics.some((item) => item.code === "unsupported-bundle"));
+    const module = parseVerilog('module top(input a,output z,y); C u(.A(a),.Z(z),.Y(y)); endmodule').modules[0];
+    const graph = buildSchematicGraph(module, { cellLibrary: library });
+    const cell = graph.nodes.find((node) => node.id === "cell:u");
+    assert.equal(cell.gateKind, "blackbox");
+    assert.equal(cell.outputBubble, false);
+    assert.equal(cell.pinDirections.Z.direction, "output");
+    assert.equal(cell.pinDirections.Z.source, "library");
+    assert.ok(graph.diagnostics.some((item) => item.code === "library-missing-pin" && item.pin === "Y"));
+    const template = createModuleConnectivityTemplate(module, new Map(), { cellLibrary: library });
+    assert.equal(template.cells[0].semantics.kind, "blackbox");
+  }
+});
+
 test("Liberty rejects nameless signal, power and bus-member pin groups without replacing a valid library", async () => {
   const service = createLibertyLibraryService({ execute: runCooperativeTask });
   const original = await service.importText(source);
