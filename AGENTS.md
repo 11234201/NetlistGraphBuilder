@@ -62,6 +62,9 @@ also read `docs/skills/netlist-schematic/SKILL.md` and the documents it routes t
 ## Verification and fixture policy
 
 - Run `npm test` for normal changes. Add a focused unit test at the boundary that owns the behavior.
+- Runtime module dependencies are parsed recursively by `npm run test:architecture` and the unit suite.
+  Imports, reexports, literal dynamic imports and module-relative/rooted Worker entries must resolve
+  inside `src/`; opaque requests, cross-layer violations and dependency cycles fail with concrete paths.
 - For layout/routing changes, run determinism and fixture invariant tests as well as the focused test.
 - For parser, inference, graph, layout, or renderer changes that can affect synthesized designs, run
   `npm run test:mapped-cases`. Use `MAPPED_CASE_NO_COLLAPSE=1` for full-node regressions.
@@ -73,6 +76,17 @@ also read `docs/skills/netlist-schematic/SKILL.md` and the documents it routes t
   `npm run release:windows` and preserve the vendored ELK license in the artifact.
 
 ## Change hygiene
+
+- Keep `src/app/main.js` as the browser composition boundary. New use cases and computation scheduling
+  belong in `application/`, domain behavior in `domains/`, DOM controllers in `ui/`, and legacy state
+  projections in small purpose-named `app/` adapters. Inject narrow callbacks instead of importing main
+  or passing the complete global state into new controllers.
+- Do not add new business algorithms or direct job scheduling to main. Its architecture-test line budget
+  is a shrinking migration ceiling: extract a complete responsibility before adding entry wiring, lower
+  the ceiling after extraction, and do not raise it or compress code to satisfy the check.
+- Legacy controllers declare their state/elements/service capabilities alongside their implementation.
+  Keep temporary state in its owning controller and mirror writes behind state_commands/bridges;
+  new features must use commands or narrow queries rather than expanding the legacy port surface.
 
 - Inspect `git status` before editing and before staging. Existing unrelated changes are user-owned.
 - Stage explicit paths. Do not include plans, generated outputs, `dc_runs/`, or release artifacts unless
