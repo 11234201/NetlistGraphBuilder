@@ -3,6 +3,9 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { createWorkspaceArtifactCache } from "../src/app/workspaceArtifactCache.js";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
+
+const provider = getLayoutProvider(process.env.BENCHMARK_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID);
 
 const sizes = String(process.env.BENCHMARK_INTERACTION_SIZES || "1024,4096")
   .split(",")
@@ -16,7 +19,7 @@ for (const cells of sizes) {
   const common = {
     module,
     moduleLibrary: design.modules,
-    layoutProvider: getLayoutProvider("simple-layered"),
+    layoutProvider: provider,
     useFanoutHubs: false,
     collapseLargeGroups: false,
     artifactCache: cache,
@@ -28,15 +31,15 @@ for (const cells of sizes) {
       unitId: module.name
     }
   };
-  const base = measure(() => buildModuleWorkspace(common));
-  const baseWarm = measure(() => buildModuleWorkspace(common));
+  const base = await measure(() => buildModuleWorkspace(common));
+  const baseWarm = await measure(() => buildModuleWorkspace(common));
   const middle = `cell:u_${Math.floor(cells / 2)}`;
   const moved = {
     ...common,
     nodePositions: new Map([[middle, { x: 36, y: 48 }]])
   };
-  const move = measure(() => buildModuleWorkspace(moved));
-  const moveWarm = measure(() => buildModuleWorkspace(moved));
+  const move = await measure(() => buildModuleWorkspace(moved));
+  const moveWarm = await measure(() => buildModuleWorkspace(moved));
   const focused = {
     ...common,
     viewMode: "focused",
@@ -45,9 +48,10 @@ for (const cells of sizes) {
     faninDepth: 3,
     fanoutDepth: 3
   };
-  const focus = measure(() => buildModuleWorkspace(focused));
-  const focusWarm = measure(() => buildModuleWorkspace(focused));
+  const focus = await measure(() => buildModuleWorkspace(focused));
+  const focusWarm = await measure(() => buildModuleWorkspace(focused));
   console.log(JSON.stringify({
+    providerId: provider.id,
     cells,
     baseMs: round(base.ms),
     baseWarmMs: round(baseWarm.ms),
@@ -59,10 +63,9 @@ for (const cells of sizes) {
   }));
 }
 
-function measure(action) {
+async function measure(action) {
   const startedAt = performance.now();
-  const value = action();
-  if (value && typeof value.then === "function") throw new Error("Interaction benchmark requires synchronous layout");
+  const value = await action();
   return { value, ms: performance.now() - startedAt };
 }
 

@@ -2,6 +2,13 @@
 
 Date: 2026-09-20. Status: frozen. Branch: `dev`.
 
+Current decision (2026-11-10): the user has frozen Simple indefinitely. The active
+[repository rule](../../AGENTS.md#simple-freeze-2026-11-10) supersedes the historical exceptions below:
+no Simple bug fix, optimization, refactor or behavior change is authorized without an explicit user
+unfreeze. Shared changes must preserve Simple behavior; a failing comparison is not authorization to
+resume Simple work. Historical measurements and commands below remain evidence, not the product's
+default release gate.
+
 ## Purpose
 
 This document closes the current Simple layout improvement line and establishes the immutable comparison

@@ -6,13 +6,16 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { createWorkspaceArtifactCache } from "../src/app/workspaceArtifactCache.js";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
 import { collectRerouteEdgeIds } from "../src/layout/rerouteInvalidation.js";
 import { getNetGroupKey } from "../src/layout/layoutTopology.js";
 
 const caseRoot = path.resolve(process.env.MAPPED_CASE_ROOT || "tests/fixtures/mapped");
 const expectedCases = numberFromEnvironment("EXPECTED_MAPPED_CASES", 47);
 const timeoutMs = numberFromEnvironment("MAPPED_BENCHMARK_TIMEOUT_MS", 60_000);
-const providerId = process.env.MAPPED_BENCHMARK_PROVIDER || "simple-layered";
+const provider = getLayoutProvider(process.env.MAPPED_BENCHMARK_PROVIDER ||
+  process.env.BENCHMARK_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID);
+const providerId = provider.id;
 
 if (process.argv[2] === "--worker") {
   const result = await runCase(process.argv[3]);
@@ -45,6 +48,7 @@ async function runBatch() {
   const successful = results.filter((result) => !result.error);
   console.log(JSON.stringify({
     provider: providerId,
+    providerId,
     timeoutMs,
     cases: results.length,
     successful: successful.length,
@@ -68,7 +72,6 @@ async function runCase(netlist) {
   const design = parseVerilog(source);
   const module = design.modules.find((item) => item.name === "tc") ?? design.modules[0];
   if (!module) throw new Error("No Verilog module found");
-  const provider = getLayoutProvider(providerId);
   const cache = createWorkspaceArtifactCache({ capacity: 16 });
   const caseName = path.basename(netlist, "_mapped.v");
   const common = {
@@ -86,8 +89,7 @@ async function runCase(netlist) {
       unitId: module.name
     }
   };
-  const base = measure(() => buildModuleWorkspace(common));
-  if (isPromise(base.value)) throw new Error("Mapped benchmark requires synchronous layout");
+  const base = await measure(() => buildModuleWorkspace(common));
   const root = base.value.fullGraph?.nodes?.find((node) => node.kind === "cell");
   if (!root) throw new Error("Mapped module has no cell root");
   const movedOptions = {
@@ -103,8 +105,8 @@ async function runCase(netlist) {
   const affectedNetGroupKeys = new Set(base.value.autoGraph.edges
     .filter((edge) => initialRerouteEdgeIds.has(edge.id))
     .map((edge) => getNetGroupKey(edge)));
-  const moved = measure(() => buildModuleWorkspace(movedOptions));
-  const movedWarm = measure(() => buildModuleWorkspace(movedOptions));
+  const moved = await measure(() => buildModuleWorkspace(movedOptions));
+  const movedWarm = await measure(() => buildModuleWorkspace(movedOptions));
   const focusedOptions = {
     ...common,
     viewMode: "focused",
@@ -113,10 +115,11 @@ async function runCase(netlist) {
     faninDepth: 3,
     fanoutDepth: 3
   };
-  const focused = measure(() => buildModuleWorkspace(focusedOptions));
-  const focusedWarm = measure(() => buildModuleWorkspace(focusedOptions));
+  const focused = await measure(() => buildModuleWorkspace(focusedOptions));
+  const focusedWarm = await measure(() => buildModuleWorkspace(focusedOptions));
   return {
     caseName,
+    providerId,
     cells: module.cells.length,
     baseMs: round(base.ms),
     moveMs: round(moved.ms),
@@ -175,9 +178,9 @@ async function findMappedNetlists(root) {
   return found;
 }
 
-function measure(action) {
+async function measure(action) {
   const startedAt = performance.now();
-  const value = action();
+  const value = await action();
   return { value, ms: performance.now() - startedAt };
 }
 
@@ -202,8 +205,4 @@ async function isDirectory(target) {
   } catch {
     return false;
   }
-}
-
-function isPromise(value) {
-  return Boolean(value && typeof value.then === "function");
 }

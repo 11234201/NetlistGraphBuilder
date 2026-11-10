@@ -120,6 +120,8 @@ LayoutProvider
 - **`ElkLayoutProvider`（内置离线备选）**：封装 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，将内部图转换为 ELK Layered 格式并规范化回 `PositionedGraph`。
 - **`SimpleLayeredLayoutProvider`（轻量兜底）**：封装 `simpleLayered.layoutGraph`，作为同步轻量布局与最终兜底回退引擎。
 
+**当前冻结决策（2026-11-10）**：按用户要求，Simple 实现、策略与输出永久冻结；只有用户明确解除相应范围的冻结后才可修改。只读对照与既有失败记录保留，失败不自动授权修复。共享基础设施的变更不得改变 Simple 行为。当前规则以 [`AGENTS.md`](../AGENTS.md#simple-freeze-2026-11-10) 为准，优先于历史冻结文档中的修复例外。产品 mapped 门禁与正式 benchmark 默认读取 `providerDefaults.js` 的 `DEFAULT_LAYOUT_PROVIDER_ID`，显式 Simple 对照单独记录。
+
 **当前实现与协作边界**：
 - `src/layout/layoutProvider.js` 维护布局引擎注册表（registry）与降级策略。
 - `layout(graph, options)` 支持同步返回 `PositionedGraph` 或异步返回 `Promise`；应用编排层统一通过修订号（revision）校验并仅提交最新请求，过期的异步结果绝不会覆盖当前最新视图状态。

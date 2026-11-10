@@ -242,11 +242,12 @@ npm run test:launcher
 npm run test:mapped-cases
 ```
 
-- `npm test`：运行 904 项单元测试，覆盖语法解析、单元/引脚推断、图模型提取、布局与正交布线、时序标注、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
+- `npm test`：运行完整单元测试，覆盖语法解析、单元/引脚推断、图模型提取、布局与正交布线、时序标注、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
 - `npm run test:architecture`：基于离线 Acorn AST 校验全仓模块依赖方向、跨层边界与无环约束。
 - `npm run test:docs`：校验核心文档与教程中的所有相对路径链接有效性。
 - `npm run test:launcher`：验证 Node.js 与 Python 启动器的 CLI 参数、状态文件及 HTTP 协议。
-- `npm run test:mapped-cases`：在 47 个真实综合映射网表（`tests/fixtures/mapped/`）上运行布局与几何硬约束回归。
+- `npm run test:mapped-cases`：在 47 个真实综合映射网表（`tests/fixtures/mapped/`）上回归，默认跟随产品引擎（当前为 AnchorLayered / `native-layered`），可通过 `MAPPED_CASE_PROVIDER` 显式选择对照引擎。发布验收设置 `MAPPED_CASE_NO_COLLAPSE=1` 并执行 `npm run test:mapped-hard`，保留 45 秒与零硬违规门禁。
+- 正式 `benchmark` 入口也默认跟随产品引擎，并等待异步布局完成后计时；`BENCHMARK_PROVIDER` 可显式覆盖，mapped benchmark 优先采用其专用 `MAPPED_BENCHMARK_PROVIDER`。Simple 已永久冻结，只读比较结果不授权修改其实现，详见 [当前冻结约束](AGENTS.md#simple-freeze-2026-11-10)。
 - Linux 单文件启动器的 CMake、HTTP 生命周期与 Tcl 集成测试通过 `ctest --test-dir build/linux --output-on-failure` 独立运行。
 
 ## 项目目录结构

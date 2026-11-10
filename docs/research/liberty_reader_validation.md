@@ -2,6 +2,8 @@
 
 日期：2026-11-10；分支 `codex/liberty-reader`，起点 `a8a1a0e`。验证已结束；通过、既有失败与未支持范围分别记录。
 
+验收口径更正（2026-11-10）：下文早期 `23/47` 等 mapped 失败记录使用的是脚本硬编码默认的 **Simple**，不是产品默认的 **AnchorLayered / `native-layered`**。发布标签和合并后的 Liberty 版本已按产品默认引擎分别复验 **47/47、硬违规 0**；详见本文末尾的发布口径复核。历史 Simple 失败记录保留，不能用它们判定产品默认引擎发布回归。
+
 ## 环境与范围
 
 计算环境为 mfs-remote，Linux 6.2.0-32-generic、Intel Xeon Gold 6248R 3.00GHz（96 逻辑 CPU）、Node v24.16.0。工作目录 `/home/wzh/my_code/netlistGraphBuilder/liberty_reader_20261110`；完整库位于 `/home/wzh/open_source/ngb_liberty_corpus_20261110`；日志位于工作目录 `dc_runs/liberty/`。浏览器为服务器既有 Chrome 146 / Playwright。
@@ -137,3 +139,31 @@ node tools/test_liberty_cases.mjs /home/wzh/open_source/ngb_liberty_corpus_20261
 - `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 完整执行 47 例，**23 通过、24 失败**，失败集合与原始基线及上一轮一致。相对原始基线，仅 `eq_004` 从违规失败变为超时；相对上一轮，`dp_019`、`sop_012` 从超时变为违规失败。当前违规 1462/120，超时项不计入违规汇总，不能据此宣称质量改善。使用原默认 Simple、45 秒超时和全部用例；mapped 门禁仍未通过。详见 `mapped.log`、`mapped_comparison.json`。
 - Windows 发布在本地隔离目录 `dc_runs/liberty_semantics_review/release` 使用本机 .NET Framework 运行 `npm run release:windows -- -SkipTests`；C# 编译、启动/HTTP 冒烟及 ZIP 内 255 个 src 文件、用户指南、ELK 许可证共 257 文件哈希检查通过。最终 ZIP SHA-256：`9920612b7d6dfe49ac4619fa5b07df168532b7e571c2049e218056a5e465aab1`。
 - 浏览器内核 D 状态的既有限制未解决，本轮未启动新的浏览器进程；不新增浏览器全绿记录。原有用户文件未改动，所有生成物保留在 ignored `dc_runs/`。
+
+## 发布口径复核、工具默认值与 Simple 冻结（2026-11-10）
+
+Liberty 语义修复提交为 `869b013`，功能分支已快进合并到本地 `master`；浏览器测试清理修复提交为 `46acb18`，均未推送。用户指出上次发布曾完整通过后，重新检查了发布标签、默认配置及原始日志：
+
+- `v1.2.0` 为 `a8a1a0e`。该标签与当前产品均由 `src/layout/providerDefaults.js` 选择 `native-layered`（AnchorLayered，原 H08）。早期发布原始日志 `dc_runs/h08_product_acceptance/merge_review_local_47.log` 明确记录 `provider=native-layered`、`hardInvariants=true`、`noCollapse=true`、47/47 和硬违规 0。
+- `tools/test-mapped-cases.mjs` 与独立 worker 却将未指定的 provider 写死为 `simple-layered`，四个正式 benchmark 入口也默认或强制 Simple。前面的排查遗漏了这一区别，把 Simple 的失败当作本次发布验收的阻塞项，是验收口径和工作范围判断错误。
+- 现在两个 mapped 入口与四个正式 benchmark 统一读取产品默认常量，保留显式 provider 覆盖并输出所选 provider；benchmark 串行等待异步布局完成后再计时和进行暖缓存测量。没有调整 47 个用例、45 秒限制或几何规则。新增真实 CLI 回归共 10 项，覆盖默认异步引擎、显式 Simple 和 mapped 专用 override 优先级。
+
+远端对照目录为 `/home/wzh/my_code/netlistGraphBuilder/release_provider_audit_20261110`，两个隔离快照均不包含未提交的 Simple 实验：
+
+| 快照与命令 | 结果 |
+| --- | --- |
+| `release/`：精确 `v1.2.0` 标签；`MAPPED_CASE_PROVIDER=native-layered MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-hard` | 47/47，硬违规 0/0，最大 layout 38180ms，最大逐例 heap 658MiB |
+| `merged/`：Liberty 合并版本加工具默认值修正；移除 `MAPPED_CASE_PROVIDER`，执行 `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-hard` | 自动选择 `native-layered`；47/47，硬违规 0/0，最大 layout 40911ms，最大逐例 heap 559MiB |
+| 最终单元测试与架构检查 | 969/969；247 模块、585 依赖，未解析、跨层与循环均为 0 |
+| 默认 `npm run benchmark`（`native-layered`，每规模 3 次） | 1024/4096/8192 cell 均 routed、硬违规 0；layout 中位数 341.8/1539.8/4704.2ms |
+| 文档与运行时代码核对 | 文档链接检查通过；247 个 JS 文件 SHA-256 与本地一致；当前 `src/layout/` 与 `v1.2.0` 无差异 |
+
+日志位于各快照 `dc_runs/review/` 下的 `mapped_product.log`，最终快照另有 `unit_final.log`、`architecture_final.log`、`docs_final.log`、`source_verification_final.json`。这些结果是同环境复验，不是跨机器性能恒定的承诺。
+
+浏览器清理改为独立且有界地等待浏览器与 HTTP 服务器退出；只有全部清理成功才输出成功报告，同时保留主体与清理异常。Linux 两套 Chromium 在 `browser.close` 时均进入内核 D 状态，因此按平台例外使用 Windows 已安装 Chrome 做最小完整流程：库导入、失败保留、Compare、Unload、含超过 64KiB Timing JSON 的混合拖放及取消均通过，page error 为 0，进程自然退出，`cleanup=passed`。最终日志为 `dc_runs/merge_cleanup/windows_browser_final.log`；Linux 宿主退出问题仍保留为环境限制，不通过强制退出伪装成功。
+
+按用户明确要求，Simple 永久冻结，后续只有用户明确解冻才可修改。此前清理实验曾使 Simple 从 23/47 改善到 34/47，但并未通过全门禁；这组实验没有提交或合并。14 个相关工作文件已封存到 ignored `dc_runs/merge_cleanup/simple_unmerged_frozen.tar`，逐文件哈希保存在 `simple_frozen_manifest.json`，随后从主线恢复原实现并移除本轮新增文件。该归档不是待合并交付，不能自动恢复开发；当前冻结条款位于 `AGENTS.md`，并覆盖旧冻结文档的修复例外。
+
+最终运行时与此前已构建并通过启动/HTTP 烟测的 Windows 包一致，复核包内全部 255 个 src 文件及 index、样式、ELK 脚本、用户指南和许可证共 260 个文件，哈希无差异。该运行时对照包位于 `dc_runs/liberty_semantics_review/release/dist/NetlistGraphBuilder-v1.2.0-win-x64.zip`，SHA-256 为 `9920612b7d6dfe49ac4619fa5b07df168532b7e571c2049e218056a5e465aab1`。`dc_runs/merge_cleanup/release/` 内含未合并 Simple 实验的中间包已删除，不能作为最终交付。用户原有改动保持独立，生成物不纳入提交。
+
+README 的测试说明更新后，在 Windows 平台隔离目录 `dc_runs/merge_cleanup/release_final` 再次执行 `npm run release:windows -- -SkipTests`（完整单测在远端运行）。编译、启动/HTTP 烟测通过，最终 ZIP 内 255 个 src 文件和上述资源、README 共 261 个文件与工作区哈希一致，ELK 许可证完整。最终包 SHA-256：`4a073221e725fb7d5dfc1d8cdde8c24303181612eb8273197f240f206c90a3b1`。

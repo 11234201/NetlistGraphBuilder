@@ -3,6 +3,9 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 import { buildModuleWorkspace } from "../src/app/moduleWorkspace.js";
 import { createWorkspaceArtifactCache } from "../src/app/workspaceArtifactCache.js";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
+
+const provider = getLayoutProvider(process.env.BENCHMARK_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID);
 
 const sizes = String(process.env.BENCHMARK_WORKSPACE_SIZES || "1024,4096")
   .split(",")
@@ -16,7 +19,7 @@ for (const cells of sizes) {
   const options = {
     module,
     moduleLibrary: design.modules,
-    layoutProvider: getLayoutProvider("simple-layered"),
+    layoutProvider: provider,
     useFanoutHubs: false,
     collapseLargeGroups: false,
     artifactCache: cache,
@@ -28,10 +31,11 @@ for (const cells of sizes) {
       unitId: module.name
     }
   };
-  const cold = measure(() => buildModuleWorkspace(options));
-  const warm = measure(() => buildModuleWorkspace(options));
+  const cold = await measure(() => buildModuleWorkspace(options));
+  const warm = await measure(() => buildModuleWorkspace(options));
   const speedup = warm.ms > 0 ? cold.ms / warm.ms : Infinity;
   console.log(JSON.stringify({
+    providerId: provider.id,
     cells,
     coldMs: round(cold.ms),
     warmMs: round(warm.ms),
@@ -40,10 +44,9 @@ for (const cells of sizes) {
   }));
 }
 
-function measure(action) {
+async function measure(action) {
   const startedAt = performance.now();
-  const value = action();
-  if (value && typeof value.then === "function") throw new Error("Workspace cache benchmark requires synchronous layout");
+  const value = await action();
   return { value, ms: performance.now() - startedAt };
 }
 

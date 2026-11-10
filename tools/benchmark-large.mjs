@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
 import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 import {
@@ -9,16 +10,17 @@ import {
 
 const sizes = parseSizes(process.env.BENCHMARK_SIZES);
 const runs = clampInteger(process.env.BENCHMARK_RUNS, 3, 1, 20);
-const providerId = process.env.BENCHMARK_PROVIDER || "simple-layered";
-const provider = getLayoutProvider(providerId);
+const provider = getLayoutProvider(process.env.BENCHMARK_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID);
+const providerId = provider.id;
 
 // Warm up module loading and the main JIT paths before collecting measurements.
-runOnce(createBufferChain(32));
+await runOnce(createBufferChain(Math.min(32, ...sizes)));
 
 const results = [];
 for (const cells of sizes) {
   const source = createBufferChain(cells);
-  const samples = Array.from({ length: runs }, () => runOnce(source));
+  const samples = [];
+  for (let run = 0; run < runs; run += 1) samples.push(await runOnce(source));
   results.push(summarize(cells, source.length, samples));
 }
 
@@ -30,13 +32,10 @@ console.log(JSON.stringify({
   phases: results.map(({ cells, phaseMetrics }) => ({ cells, phaseMetrics }))
 }));
 
-function runOnce(source) {
+async function runOnce(source) {
   const parse = measure(() => parseVerilog(source));
   const graph = measure(() => buildSchematicGraph(parse.value.modules[0]));
-  const layout = measure(() => provider.layout(graph.value));
-  if (layout.value && typeof layout.value.then === "function") {
-    throw new Error(`Benchmark provider ${providerId} must be synchronous`);
-  }
+  const layout = await measureAsync(() => provider.layout(graph.value));
   const svg = measure(() => renderSchematicSvg(layout.value));
   const progressivePlan = measure(() => createProgressiveSchematicRenderPlan(layout.value));
   const progressiveFirstBatch = measure(() => renderFirstBatch(progressivePlan.value, 120));
@@ -101,6 +100,12 @@ function createBufferChain(cellCount) {
 function measure(action) {
   const startedAt = performance.now();
   const value = action();
+  return { value, ms: performance.now() - startedAt };
+}
+
+async function measureAsync(action) {
+  const startedAt = performance.now();
+  const value = await action();
   return { value, ms: performance.now() - startedAt };
 }
 

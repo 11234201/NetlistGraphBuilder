@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { applyWorkspaceGraphTransforms } from "../src/app/graphWorkspace.js";
 import { getLayoutProvider } from "../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
 import { validateLayoutGraph } from "../src/layout/layoutValidator.js";
 import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
@@ -9,7 +10,7 @@ import { parseVerilog } from "../src/parser/verilogParser.js";
 const input = process.argv[2];
 const noCollapse = process.argv.includes("--no-collapse");
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
-const providerId = process.env.MAPPED_CASE_PROVIDER || "simple-layered";
+const providerId = process.env.MAPPED_CASE_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID;
 if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v> [--no-collapse] [--hard]");
 
 const source = await readFile(input, "utf8");

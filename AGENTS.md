@@ -27,6 +27,22 @@ also read `docs/skills/netlist-schematic/SKILL.md` and the documents it routes t
   removal task is approved. New runtime, performance, and mapped-case work must use the full graph,
   Search-first, or Focused views instead.
 
+## Simple freeze (2026-11-10)
+
+- Simple is frozen indefinitely. Do not change its algorithms, candidates, routing limits, defaults,
+  policies or output, including bug fixes, optimizations and refactors, unless the user explicitly
+  unfreezes the relevant scope. Renaming, extracting or moving code does not bypass this rule.
+- This covers the six `simple*.js` pipeline modules identified in
+  `docs/plans/simple_layout_freeze_baseline.md` and all Simple-only placement, carrier and helper code.
+- Shared infrastructure may evolve for other providers only when Simple geometry, route status,
+  diagnostics and policy remain unchanged for the same input and options. Isolate behavior-changing
+  work to the active provider; do not refresh Simple expectations to hide a change.
+- Read-only Simple diagnosis is allowed. A Simple failure does not authorize repair or optimization.
+  Preserve existing failure evidence separately from product acceptance.
+- Product mapped tests and benchmarks must default to `DEFAULT_LAYOUT_PROVIDER_ID` from
+  `src/layout/providerDefaults.js`, report the selected provider, and preserve explicit provider
+  overrides. A Simple comparison is not the product's default release gate.
+
 ## Layout and performance invariants
 
 - Layout and routing results must not depend on parser statement order or raw node/edge array order.

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../src/layout/providerDefaults.js";
 
 const defaultRoot = path.resolve(
   "tests/fixtures/mapped"
@@ -11,7 +12,7 @@ const timeoutMs = numberFromEnvironment("MAPPED_CASE_TIMEOUT_MS", 45_000);
 const maximumCaseViolations = numberFromEnvironment("MAX_CASE_VIOLATIONS", 32);
 const maximumTotalViolations = numberFromEnvironment("MAX_TOTAL_VIOLATIONS", 120);
 const noCollapse = process.env.MAPPED_CASE_NO_COLLAPSE === "1";
-const providerId = process.env.MAPPED_CASE_PROVIDER || "simple-layered";
+const providerId = process.env.MAPPED_CASE_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID;
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
 const caseViolationBudget = hardInvariants ? 0 : maximumCaseViolations;
 const totalViolationBudget = hardInvariants ? 0 : maximumTotalViolations;
@@ -32,6 +33,7 @@ if (netlists.length !== expectedCases) {
 }
 
 const results = [];
+console.log(`mapped configuration: provider=${providerId}, cases=${netlists.length}, timeoutMs=${timeoutMs}, hardInvariants=${hardInvariants}, noCollapse=${noCollapse}`);
 for (const [index, netlist] of netlists.entries()) {
   const caseName = path.basename(netlist, "_mapped.v");
   process.stdout.write(`[${index + 1}/${netlists.length}] ${caseName} `);
@@ -108,7 +110,8 @@ function runWorker(netlist, timeout) {
       ...(noCollapse ? ["--no-collapse"] : []),
       ...(hardInvariants ? ["--hard"] : [])];
     const child = spawn(process.execPath, workerArguments, {
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, MAPPED_CASE_PROVIDER: providerId }
     });
     let stdout = "";
     let stderr = "";
