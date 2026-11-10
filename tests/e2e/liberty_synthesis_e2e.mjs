@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inspect } from "node:util";
+import { runBrowserTest, withBrowserTestTimeout } from "./browser_test_session.mjs";
 
 const [manifestPath, outputPath] = process.argv.slice(2);
 if (!outputPath) throw new Error("Usage: node tests/e2e/liberty_synthesis_e2e.mjs manifest.json output-directory");
@@ -13,27 +14,13 @@ const diagnostic = actionTimeoutMs !== 45000;
 if (diagnostic) console.error(`Diagnostic browser budget ${actionTimeoutMs}ms; this does not pass the default 45s check`);
 const output = resolve(outputPath);
 await mkdir(output, { recursive: true });
+await rm(join(output, "browser_report.json"), { force: true });
 const { chromium } = await import(process.env.NGB_PLAYWRIGHT_MODULE || "playwright");
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const server = spawn(process.execPath, ["tools/serve.mjs", "--no-browser", "--port", "0"], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
-server.stderr.on("data", (chunk) => process.stderr.write(chunk));
-let browser;
 let activePage;
 const requests = new Set(), failures = [], pageErrors = [];
+const report = await runBrowserTest(async ({ browser, url }) => {
 try {
-  const url = await new Promise((resolve, reject) => {
-    let output = "";
-    const timer = setTimeout(() => reject(new Error("Server startup timeout")), 30000);
-    server.stdout.on("data", (chunk) => {
-      output += chunk;
-      for (const line of output.split("\n")) {
-        try { const ready = JSON.parse(line); if (ready.event === "ready") { clearTimeout(timer); resolve(ready.url); } } catch {}
-      }
-    });
-    server.on("error", (error) => { clearTimeout(timer); reject(error); });
-    server.on("exit", (code) => { clearTimeout(timer); reject(new Error(`Server exited ${code}`)); });
-  });
-  browser = await chromium.launch({ headless: true, executablePath: process.env.NGB_CHROME, args: ["--no-sandbox"] });
   const results = [], errors = pageErrors;
   const navigation = [];
   for (const library of manifest.libraries) {
@@ -103,19 +90,24 @@ try {
     }
     await page.locator("#libertySummary").scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(output, `${library.name}_compare.png`) });
-    await page.close();
+    await withBrowserTestTimeout(() => page.close(), actionTimeoutMs, "Mapped page shutdown");
     activePage = null;
   }
   assert.deepEqual(errors, []);
-  const report = { cases: results.length, errors, compareLibraries: manifest.libraries.length, actionTimeoutMs, diagnostic, navigation, results };
-  await writeFile(join(output, "browser_report.json"), JSON.stringify(report, null, 2) + "\n");
-  console.log(JSON.stringify(report));
+  return { cases: results.length, errors, compareLibraries: manifest.libraries.length, actionTimeoutMs, diagnostic, navigation, results };
 } catch (error) {
   await writeFile(join(output, "failure.txt"), error.stack + "\n");
   await writeFile(join(output, "failure_requests.json"), JSON.stringify({ pending: [...requests], failures, pageErrors }, null, 2) + "\n");
   if (activePage) {
     await activePage.screenshot({ path: join(output, "failure.png"), timeout: 5000 }).catch(() => {});
-    await writeFile(join(output, "failure.html"), await activePage.content().catch(() => ""));
+    await writeFile(join(output, "failure.html"), await withBrowserTestTimeout(() => activePage.content(), 5000, "Failure page snapshot").catch(() => ""));
   }
   throw error;
-} finally { await browser?.close(); server.kill(); }
+}
+}, { root, chromium, executablePath: process.env.NGB_CHROME }).catch(async (error) => {
+  await writeFile(join(output, "failure.txt"), inspect(error, { depth: 6 }) + "\n");
+  throw error;
+});
+const completed = { ...report, cleanup: "passed" };
+await writeFile(join(output, "browser_report.json"), JSON.stringify(completed, null, 2) + "\n");
+console.log(JSON.stringify(completed));

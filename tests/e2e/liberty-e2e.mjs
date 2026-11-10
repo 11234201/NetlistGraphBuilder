@@ -1,20 +1,10 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { mkdir } from "node:fs/promises";
+import { runBrowserTest } from "./browser_test_session.mjs";
 const { chromium } = await import(process.env.NGB_PLAYWRIGHT_MODULE || "playwright");
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const server = spawn(process.execPath, ["tools/serve.mjs", "--no-browser", "--port", "0"], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
-let browser;
-try {
-  const url = await new Promise((resolve, reject) => {
-    let output = "";
-    server.stdout.on("data", (chunk) => { output += chunk; for (const line of output.split("\n")) {
-      try { const ready = JSON.parse(line); if (ready.event === "ready") resolve(ready.url); } catch {}
-    } });
-    server.on("error", reject); server.on("exit", (code) => reject(new Error(`server exited ${code}`)));
-  });
-  browser = await chromium.launch({ headless: true, executablePath: process.env.NGB_CHROME, args: ["--no-sandbox"] });
+const report = await runBrowserTest(async ({ browser, url }) => {
   const page = await browser.newPage(); const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(url);
@@ -42,15 +32,21 @@ try {
   assert.match(await page.locator("#libertySummary").innerText(), /No library/);
   await page.locator("#exitCompareButton").evaluate((button) => button.click());
   await page.locator("#schematicMount svg").waitFor();
-  // Same shared drop path as files, with library sorted before its design.
+  // The complete JSON extends beyond the sniffing prefix and must be applied
+  // after the design even though the user dropped it first.
   await page.evaluate(({ source, liberty }) => {
     const transfer = new DataTransfer();
+    const timing = JSON.stringify({ metadata: { padding: "x".repeat(70000), note: "netlist-layout-golden" },
+      module: "top", points: { "u/RESULT": [0.75, 0.5, -0.25] } });
+    transfer.items.add(new File([timing], "drop_timing.json", { type: "application/json" }));
     transfer.items.add(new File([source], "drop.v", { type: "text/plain" }));
     transfer.items.add(new File([liberty], "drop.lib", { type: "text/plain" }));
     window.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer, bubbles: true, cancelable: true }));
   }, { source, liberty });
-  await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded drop.v"));
+  await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded timing drop_timing.json"));
   assert.match(await page.locator("#libertySummary").innerText(), /drop.lib/);
+  await page.locator('#schematicMount [data-node-id="cell:u"]').first().click({ force: true });
+  assert.match(await page.locator("#selectionDetails").innerText(), /-0\.25/);
   // Exercise the actual Cancel button while a File import is being scanned.
   const buttonCancelMs = await page.evaluate(async () => {
     const transfer = new DataTransfer();
@@ -119,5 +115,6 @@ try {
   });
   assert.ok(cancelMs < 500, `Cancellation took ${cancelMs}ms`);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ workflow: "liberty-import-details-failure-compare-unload-drop-cancel", buttonCancelMs, cancelMs, errors }));
-} finally { await browser?.close(); server.kill(); }
+  return { workflow: "liberty-import-details-failure-compare-unload-drop-timing-json-cancel", buttonCancelMs, cancelMs, errors };
+}, { root, chromium, executablePath: process.env.NGB_CHROME });
+console.log(JSON.stringify({ ...report, cleanup: "passed" }));
