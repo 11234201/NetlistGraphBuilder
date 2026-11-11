@@ -17,13 +17,32 @@ namespace NetlistGraphBuilderLauncher
         private static volatile bool running = true;
         private static TcpListener listener;
         private static string startupManifestJson = "{\"version\":1,\"inputs\":{},\"target\":{}}";
+        [ThreadStatic] private static string requestMethod;
+        [ThreadStatic] private static string requestTarget;
 
         private static int Main(string[] args)
+        {
+            TerminalLog.Initialize();
+            AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs evt) {
+                TerminalLog.Error("process.uncaught", "Unhandled launcher exception", evt.ExceptionObject as Exception);
+            };
+            int code = 1;
+            try { code = Run(args); }
+            catch (Exception error) { TerminalLog.Error("process.uncaught", "Unhandled launcher exception", error); }
+            finally {
+                if (listener != null) listener.Stop();
+                TerminalLog.Write(code == 0 ? "info" : "error", "process.exit", "Launcher exiting",
+                    new Dictionary<string, object> { { "exitCode", code } });
+            }
+            return code;
+        }
+
+        private static int Run(string[] args)
         {
             Console.OutputEncoding = Encoding.UTF8;
             if (!File.Exists(Path.Combine(AppRoot, "index.html")))
             {
-                Console.Error.WriteLine("Release package is incomplete: app\\index.html was not found.");
+                TerminalLog.Error("startup.failed", "Release package is incomplete: app\\index.html was not found.");
                 return 2;
             }
 
@@ -55,7 +74,7 @@ namespace NetlistGraphBuilderLauncher
                     int parsedPort;
                     if (!int.TryParse(args[index], out parsedPort) || parsedPort < 0 || parsedPort > 65535)
                     {
-                        Console.Error.WriteLine("Invalid --port value.");
+                        TerminalLog.Error("arguments.invalid", "Invalid --port value.");
                         return 2;
                     }
                     port = parsedPort;
@@ -67,7 +86,7 @@ namespace NetlistGraphBuilderLauncher
                     int depth;
                     if (!int.TryParse(args[index], out depth) || depth < 0 || depth > 99)
                     {
-                        Console.Error.WriteLine("Invalid " + argument + " value; expected 0 to 99.");
+                        TerminalLog.Error("arguments.invalid", "Invalid " + argument + " value; expected 0 to 99.");
                         return 2;
                     }
                     if (argument == "--fanin-depth") faninDepth = depth; else fanoutDepth = depth;
@@ -85,7 +104,7 @@ namespace NetlistGraphBuilderLauncher
                 }
                 else
                 {
-                    Console.Error.WriteLine("Unknown option: " + argument);
+                    TerminalLog.Error("arguments.invalid", "Unknown option: " + argument);
                     return 2;
                 }
             }
@@ -98,7 +117,7 @@ namespace NetlistGraphBuilderLauncher
             }
             catch (Exception error)
             {
-                Console.Error.WriteLine(error.Message);
+                TerminalLog.Error("startup.failed", error.Message, error);
                 return 2;
             }
 
@@ -110,11 +129,13 @@ namespace NetlistGraphBuilderLauncher
             string url = "http://127.0.0.1:" + port + "/" + (hasStartup ? "?startup=1" : "");
             Console.Title = "Netlist Graph Builder";
             Console.WriteLine(CreateReadyJson(port, url, manifest));
-            Console.WriteLine("Keep this window open. Press Ctrl+C to stop.");
+            TerminalLog.Write("info", "server.ready", "Keep this window open. Press Ctrl+C to stop.",
+                new Dictionary<string, object> { { "port", port } });
             Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs eventArgs)
             {
                 eventArgs.Cancel = true;
                 running = false;
+                TerminalLog.Write("info", "server.stopping", "Stopping preview server", new Dictionary<string, object> { { "reason", "Ctrl+C" } });
                 listener.Stop();
             };
 
@@ -143,7 +164,7 @@ namespace NetlistGraphBuilderLauncher
         {
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
-                Console.Error.WriteLine(argument + " requires a value.");
+                TerminalLog.Error("arguments.invalid", argument + " requires a value.");
                 return false;
             }
             index++;
@@ -289,17 +310,17 @@ namespace NetlistGraphBuilderLauncher
                         : candidate;
                     return candidateListener;
                 }
-                catch (SocketException)
+                catch (SocketException error)
                 {
                     if (explicitPort)
                     {
-                        Console.Error.WriteLine("Port " + candidate + " is already in use.");
+                        TerminalLog.Error("server.failed", "Port " + candidate + " is already in use.", error);
                     }
                 }
             }
 
             selectedPort = requestedPort;
-            Console.Error.WriteLine("Could not find an available local port.");
+            TerminalLog.Error("server.failed", "Could not find an available local port.");
             return null;
         }
 
@@ -311,13 +332,14 @@ namespace NetlistGraphBuilderLauncher
             }
             catch (Exception error)
             {
-                Console.Error.WriteLine("Could not open the default browser: " + error.Message);
-                Console.Error.WriteLine("Open this address manually: " + url);
+                TerminalLog.Error("browser.open_failed", "Could not open the default browser; open " + url + " manually", error);
             }
         }
 
         private static void HandleClient(TcpClient client)
         {
+            requestMethod = "";
+            requestTarget = "/";
             using (client)
             {
                 try
@@ -336,6 +358,8 @@ namespace NetlistGraphBuilderLauncher
                     } while (!String.IsNullOrEmpty(header));
 
                     string[] requestParts = requestLine.Split(' ');
+                    requestMethod = requestParts[0];
+                    if (requestParts.Length > 1) requestTarget = requestParts[1];
                     if (requestParts.Length < 2 || (requestParts[0] != "GET" && requestParts[0] != "HEAD"))
                     {
                         WriteTextResponse(stream, 405, "Method Not Allowed", "Method not allowed", false);
@@ -360,6 +384,10 @@ namespace NetlistGraphBuilderLauncher
                         AppRoot,
                         relativePath.Replace('/', Path.DirectorySeparatorChar)));
                     string rootPrefix = AppRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    if (TerminalLog.Contains(filePath)) {
+                        WriteTextResponse(stream, 403, "Forbidden", "Forbidden", requestParts[0] == "HEAD");
+                        return;
+                    }
                     if (!filePath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
                     {
                         WriteTextResponse(stream, 404, "Not Found", "Not found", requestParts[0] == "HEAD");
@@ -375,22 +403,23 @@ namespace NetlistGraphBuilderLauncher
                         content,
                         requestParts[0] == "HEAD");
                 }
-                catch (IOException)
+                catch (IOException error)
                 {
-                    // The browser may close a speculative connection before reading the response.
+                    if (error.InnerException is SocketException) TerminalLog.Write("warning", "http.disconnected", "Client disconnected");
+                    else ReportRequestFailure(client, error);
                 }
                 catch (Exception error)
                 {
-                    try
-                    {
-                        WriteTextResponse(client.GetStream(), 500, "Internal Server Error", error.Message, false);
-                    }
-                    catch
-                    {
-                        // Ignore a secondary failure while closing the request.
-                    }
+                    ReportRequestFailure(client, error);
                 }
             }
+        }
+
+        private static void ReportRequestFailure(TcpClient client, Exception error)
+        {
+            TerminalLog.Error("http.failed", "Request handling failed", error);
+            try { WriteTextResponse(client.GetStream(), 500, "Internal Server Error", "Internal server error", false); }
+            catch (Exception secondary) { TerminalLog.Write("warning", "http.disconnected", "Could not send error response: " + secondary.Message); }
         }
 
         private static bool TryResolveRequestPath(string rawTarget, out string relativePath)
@@ -444,6 +473,7 @@ namespace NetlistGraphBuilderLauncher
             byte[] content,
             bool headOnly)
         {
+            TerminalLog.Request(requestMethod, requestTarget, status);
             string headers = "HTTP/1.1 " + status + " " + reason + "\r\n" +
                 "Content-Type: " + contentType + "\r\n" +
                 "Content-Length: " + content.Length + "\r\n" +

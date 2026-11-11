@@ -38,6 +38,7 @@ add_executable(ngb
     launcher/main.cpp
     launcher/embedded_assets.hpp
     launcher/ProcessGuard.h
+    launcher/TerminalLog.h
     "${NGB_ASSET_CPP}"
 )
 

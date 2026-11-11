@@ -3,6 +3,8 @@
 from __future__ import print_function
 
 import argparse
+import datetime
+import email.utils
 import json
 import os
 import signal
@@ -11,6 +13,9 @@ import time
 import uuid
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from terminal_log import TerminalLog
+
+LOG = TerminalLog("python")
 
 if os.name == "nt":
     import ctypes
@@ -45,6 +50,69 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             return
         SimpleHTTPRequestHandler.do_GET(self)
 
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if LOG.contains(path):
+            self.send_error(403, "Forbidden")
+            return None
+        if os.path.isdir(path):
+            return SimpleHTTPRequestHandler.send_head(self)
+        try:
+            output = open(path, "rb")
+        except OSError as error:
+            if error.errno in (2, 20):
+                self.send_error(404, "Not found")
+            else:
+                LOG.write("error", "http.read_failed", "Could not read requested file", error=error)
+                self.send_error(500, "Internal server error")
+            return None
+        try:
+            info = os.fstat(output.fileno())
+            # Preserve SimpleHTTPRequestHandler's conditional GET/HEAD semantics.
+            if "If-Modified-Since" in self.headers and "If-None-Match" not in self.headers:
+                try:
+                    modified_since = email.utils.parsedate_to_datetime(self.headers["If-Modified-Since"])
+                    if modified_since.tzinfo is None:
+                        modified_since = modified_since.replace(tzinfo=datetime.timezone.utc)
+                    modified = datetime.datetime.fromtimestamp(info.st_mtime, datetime.timezone.utc).replace(microsecond=0)
+                    if modified_since.tzinfo == datetime.timezone.utc and modified <= modified_since:
+                        self.send_response(304)
+                        self.end_headers()
+                        output.close()
+                        return None
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            self.send_response(200)
+            self.send_header("Content-type", self.guess_type(path))
+            self.send_header("Content-Length", str(info.st_size))
+            self.send_header("Last-Modified", self.date_time_string(info.st_mtime))
+            self.end_headers()
+            return output
+        except Exception:
+            output.close()
+            raise
+
+    def log_request(self, code="-", size="-"):
+        LOG.request(getattr(self, "command", ""), getattr(self, "path", "/"), int(code) if str(code).isdigit() else 0)
+
+    def log_message(self, format, *args):
+        # Request lines may contain query secrets; log only the sanitized path and status.
+        pass
+
+    def handle(self):
+        try:
+            SimpleHTTPRequestHandler.handle(self)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError) as error:
+            LOG.write("warning", "http.disconnected", "Client disconnected", error=error)
+        except Exception as error:
+            LOG.write("error", "http.failed", "Request handling failed", error=error)
+
+
+class LauncherArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        LOG.write("error", "arguments.invalid", message)
+        raise SystemExit(2)
+
 
 def bounded_integer(minimum, maximum):
     def parse(value):
@@ -63,7 +131,7 @@ def parse_args(argv):
     command = "start"
     if arguments and arguments[0] in ("start", "stop", "status"):
         command = arguments.pop(0)
-    parser = argparse.ArgumentParser(description="Launch Netlist Graph Builder on localhost")
+    parser = LauncherArgumentParser(description="Launch Netlist Graph Builder on localhost")
     parser.add_argument("--netlist")
     parser.add_argument("--timing")
     parser.add_argument("--cell-config", dest="cell_config")
@@ -270,7 +338,7 @@ def main(argv=None):
         args = parse_args(sys.argv[1:] if argv is None else argv)
         if args.command in ("stop", "status"):
             if not args.state_file:
-                print("--state-file is required for {}".format(args.command), file=sys.stderr)
+                LOG.write("error", "arguments.invalid", "--state-file is required for {}".format(args.command))
                 return 2
             if args.command == "status":
                 return print_status(args.state_file)
@@ -289,15 +357,15 @@ def main(argv=None):
                 remove_state(args.state_file)
         manifest = create_manifest(args)
     except ValueError as error:
-        print(str(error), file=sys.stderr)
+        LOG.write("error", "startup.failed", str(error), error=error)
         return 2
     os.chdir(ROOT)
     PreviewHandler.startup_json = json.dumps(manifest, ensure_ascii=False, separators=(",", ":"))
-    print("Starting Netlist Graph Builder preview server...", flush=True)
+    LOG.write("info", "server.starting", "Starting Netlist Graph Builder preview server")
     try:
         server = HTTPServer((HOST, args.port), PreviewHandler)
     except OSError as error:
-        print("Failed to start preview server: {}".format(error), file=sys.stderr)
+        LOG.write("error", "server.failed", "Failed to start preview server", error=error)
         return 1
     has_startup = bool(manifest["inputs"] or manifest["target"])
     actual_port = server.server_address[1]
@@ -320,17 +388,32 @@ def main(argv=None):
         try:
             write_state(state)
         except (IOError, OSError) as error:
-            print("Could not write state file: {}".format(error), file=sys.stderr)
+            LOG.write("error", "session.write_failed", "Could not write state file", error=error)
             server.server_close()
             return 1
     print(json.dumps(ready, ensure_ascii=False, separators=(",", ":")), flush=True)
+    LOG.write("info", "server.ready", "Preview server ready", port=actual_port)
     if not args.no_open:
-        webbrowser.open(url)
+        try:
+            # Browser helpers must not inherit the machine-protocol stdout pipe.
+            saved_stdout = os.dup(sys.stdout.fileno())
+            try:
+                with open(os.devnull, "wb") as quiet:
+                    os.dup2(quiet.fileno(), sys.stdout.fileno())
+                    if not webbrowser.open(url):
+                        LOG.write("error", "browser.open_failed", "Default browser could not be opened", url=url)
+            finally:
+                os.dup2(saved_stdout, sys.stdout.fileno())
+                os.close(saved_stdout)
+        except Exception as error:
+            LOG.write("error", "browser.open_failed", "Default browser could not be opened", error=error, url=url)
     global RUNNING
     parent_pid = os.getppid()
+    stop_reason = ["shutdown"]
     def request_stop(signum, frame):
         global RUNNING
         RUNNING = False
+        stop_reason[0] = signal.Signals(signum).name
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
     server.timeout = 0.5
@@ -339,17 +422,20 @@ def main(argv=None):
             server.handle_request()
             if args.parent_death and (os.getppid() != parent_pid or not process_exists(parent_pid)):
                 RUNNING = False
+                stop_reason[0] = "parent-exited"
     except KeyboardInterrupt:
         RUNNING = False
     finally:
+        LOG.write("info", "server.stopping", "Stopping preview server", reason=stop_reason[0])
         server.server_close()
         if state:
             try:
                 current = read_state(state["stateFile"])
                 if current.get("pid") == state["pid"] and current.get("owner") == state["owner"]:
                     remove_state(state["stateFile"])
-            except (IOError, OSError, ValueError):
-                pass
+            except (IOError, OSError, ValueError) as error:
+                if getattr(error, "errno", None) != 2:
+                    LOG.write("error", "session.cleanup_failed", "Could not remove state file", error=error)
     return 0
 
 
@@ -358,4 +444,13 @@ def inputs_name(manifest, kind):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    code = 1
+    try:
+        code = main()
+    except SystemExit as error:
+        code = error.code if isinstance(error.code, int) else 1
+    except Exception as error:
+        LOG.write("error", "process.uncaught", "Unhandled launcher exception", error=error)
+    finally:
+        LOG.write("error" if code else "info", "process.exit", "Launcher exiting", exitCode=code)
+    raise SystemExit(code)

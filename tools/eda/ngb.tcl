@@ -54,10 +54,10 @@ proc ::ngb::Start {binary stateFile args} {
     if {$status ne "ready"} {
         # Stop only through the launcher's verified state protocol, never kill
         # a PID returned by Tcl's pipeline implementation.
-        if {![catch {exec $binary status --state-file $stateFile} state] &&
+        if {![catch {exec $binary status --state-file $stateFile 2>@ stderr} state] &&
             [regexp {"pid":([0-9]+)} $state -> ownerPid] &&
             [lsearch -exact $pipelinePids $ownerPid] >= 0} {
-            catch {exec $binary stop --state-file $stateFile}
+            catch {exec $binary stop --state-file $stateFile 2>@ stderr}
         }
         catch {close $channel}
         error $message
@@ -67,7 +67,9 @@ proc ::ngb::Start {binary stateFile args} {
 }
 
 proc ::ngb::Status {binary stateFile} {
-    return [exec [file normalize $binary] status --state-file [file normalize $stateFile]]
+    # Tcl treats captured stderr as an exec error even for exit status 0.
+    # Forward diagnostics separately; nonzero child exit status still propagates.
+    return [exec [file normalize $binary] status --state-file [file normalize $stateFile] 2>@ stderr]
 }
 
 proc ::ngb::Stop {binary stateFile} {
@@ -75,7 +77,7 @@ proc ::ngb::Stop {binary stateFile} {
     set stateFile [file normalize $stateFile]
     # Errors are intentionally propagated. EDA must not report success when
     # ownership verification or shutdown fails.
-    exec [file normalize $binary] stop --state-file $stateFile
+    exec [file normalize $binary] stop --state-file $stateFile 2>@ stderr
     if {[dict exists $channels $stateFile]} {
         set channel [dict get $channels $stateFile]
         dict unset channels $stateFile

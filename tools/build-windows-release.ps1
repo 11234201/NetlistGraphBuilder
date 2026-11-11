@@ -89,7 +89,7 @@ if (-not $csc) {
 
 $exePath = Join-Path $packageRoot "NetlistGraphBuilder.exe"
 & $csc /nologo /optimize+ /target:exe /platform:anycpu /reference:System.Web.Extensions.dll "/out:$exePath" `
-  (Join-Path $repoRoot "tools\windows-launcher\Program.cs") $assemblyInfoPath
+  (Join-Path $repoRoot "tools\windows-launcher\Program.cs") (Join-Path $repoRoot "tools\windows-launcher\TerminalLog.cs") $assemblyInfoPath
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $exePath)) {
   throw "Failed to compile NetlistGraphBuilder.exe"
 }

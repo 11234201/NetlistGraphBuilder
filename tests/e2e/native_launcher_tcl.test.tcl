@@ -16,6 +16,11 @@ set code [catch {
     if {[file exists $state]} {error "state retained after stop"}
     if {![catch {::ngb::Start $binary $state --netlist [file join $root absent.v]}]} {error "unreadable input accepted"}
     if {![catch {::ngb::Start $binary $state --module {|}}]} {error "pipeline injection accepted"}
+    set invalid [open $state w]
+    puts $invalid {{"invalid":true}}
+    close $invalid
+    if {![catch {::ngb::Status $binary $state}]} {error "invalid status was accepted"}
+    if {![catch {::ngb::Stop $binary $state}]} {error "failed stop was accepted"}
 } message]
 catch {::ngb::Stop $binary $state}
 # Exact test-created directory, never a user-supplied target.

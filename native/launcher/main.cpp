@@ -1,5 +1,6 @@
 #include "embedded_assets.hpp"
 #include "ProcessGuard.h"
+#include "TerminalLog.h"
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -23,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/prctl.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 
@@ -30,6 +32,8 @@ namespace {
 
 const char* kStartupEndpoint = "/__ngb_startup__.json";
 volatile std::sig_atomic_t g_stopRequested = 0;
+thread_local std::string requestMethod;
+thread_local std::string requestPath;
 
 struct InputFile {
     std::string name;
@@ -65,8 +69,8 @@ struct ServerContext {
     std::atomic<int> m_activeClients{0};
 };
 
-void signalHandler(int) {
-    g_stopRequested = 1;
+void signalHandler(int signalNumber) {
+    g_stopRequested = signalNumber;
 }
 
 void installSignalHandlers() {
@@ -78,7 +82,7 @@ void installSignalHandlers() {
     sigaction(SIGINT, &action, 0);
     sigaction(SIGTERM, &action, 0);
     signal(SIGPIPE, SIG_IGN);
-    signal(SIGCHLD, SIG_IGN);
+    signal(SIGCHLD, SIG_DFL);
 }
 
 void enableParentDeathCleanup() {
@@ -434,6 +438,12 @@ bool waitForProcessExit(int pid, int timeoutMs) {
     return !processExists(pid);
 }
 
+bool RemoveStateFile(const std::string& path) {
+    if (unlink(path.c_str()) == 0 || errno == ENOENT) return true;
+    ngb::TerminalLog::Instance().Error("session.cleanup_failed", std::strerror(errno), errno);
+    return false;
+}
+
 int stopState(const std::string& statePath, bool force, bool quiet) {
     StateRecord state;
     std::string error;
@@ -444,8 +454,7 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
         return 2;
     }
     if (!processExists(state.pid)) {
-        unlink(statePath.c_str());
-        return 0;
+        return RemoveStateFile(statePath) ? 0 : 6;
     }
     if (!processBelongsToState(state)) {
         if (!quiet) {
@@ -469,7 +478,7 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
     }
     StateRecord current;
     if (readStateFile(statePath, &current, 0) && current.owner == state.owner && current.pid == state.pid) {
-        unlink(statePath.c_str());
+        if (!RemoveStateFile(statePath)) return 6;
     }
     return 0;
 }
@@ -562,6 +571,9 @@ bool sendAll(int descriptor, const char* data, std::size_t size) {
         const ssize_t written = send(descriptor, data + offset, size - offset, 0);
         if (written < 0) {
             if (errno == EINTR) continue;
+            const int errorCode = errno;
+            ngb::TerminalLog::Instance().Write(errorCode == EPIPE || errorCode == ECONNRESET ? "warning" : "error",
+                "http.write_failed", std::strerror(errorCode), "{\"code\":" + std::to_string(errorCode) + "}");
             return false;
         }
         if (written == 0) return false;
@@ -572,6 +584,7 @@ bool sendAll(int descriptor, const char* data, std::size_t size) {
 
 void sendResponse(int descriptor, int status, const std::string& type,
                   const std::string& body, bool headOnly, bool noStore) {
+    ngb::TerminalLog::Instance().Request(requestMethod, requestPath, status);
     const char* phrase = status == 200 ? "OK" : status == 403 ? "Forbidden" :
         status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Bad Request";
     std::ostringstream headers;
@@ -586,6 +599,7 @@ void sendResponse(int descriptor, int status, const std::string& type,
 }
 
 void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context) {
+    requestMethod.clear(); requestPath.clear();
     char buffer[16384];
     timeval timeout = {2, 0};
     setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
@@ -611,6 +625,8 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context)
     std::string target;
     std::string version;
     request >> method >> target >> version;
+    requestMethod = method;
+    requestPath = target.substr(0, target.find_first_of("?#"));
     const bool headOnly = method == "HEAD";
     if ((method != "GET" && method != "HEAD") || version.find("HTTP/") != 0) {
         sendResponse(descriptor, method == "GET" || method == "HEAD" ? 400 : 405,
@@ -652,13 +668,34 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context)
     close(descriptor);
 }
 
-void openBrowser(const std::string& url) {
+pid_t openBrowser(const std::string& url) {
+    int resultPipe[2];
+    if (pipe2(resultPipe, O_CLOEXEC) != 0) {
+        ngb::TerminalLog::Instance().Error("browser.open_failed", std::strerror(errno), errno); return -1;
+    }
     const pid_t child = fork();
     if (child == 0) {
+        close(resultPipe[0]);
+        const int quiet = open("/dev/null", O_WRONLY);
+        if (quiet >= 0) { dup2(quiet, STDOUT_FILENO); dup2(quiet, STDERR_FILENO); close(quiet); }
         execlp("xdg-open", "xdg-open", url.c_str(), static_cast<char*>(0));
+        const int failure = errno;
+        const ssize_t ignored = write(resultPipe[1], &failure, sizeof(failure)); (void)ignored;
         _exit(127);
     }
-    if (child < 0) std::cerr << "Could not open browser: " << std::strerror(errno) << std::endl;
+    const int forkError = errno;
+    close(resultPipe[1]);
+    int failure = 0;
+    ssize_t count;
+    do { count = read(resultPipe[0], &failure, sizeof(failure)); } while (count < 0 && errno == EINTR);
+    close(resultPipe[0]);
+    if (child < 0) ngb::TerminalLog::Instance().Error("browser.open_failed", std::strerror(forkError), forkError);
+    else if (count > 0) {
+        ngb::TerminalLog::Instance().Error("browser.open_failed", std::strerror(failure), failure);
+        int status; while (waitpid(child, &status, 0) < 0 && errno == EINTR) { }
+        return -1;
+    }
+    return child;
 }
 
 void printUsage(const char* command) {
@@ -799,7 +836,7 @@ int runStart(const StartOptions& options) {
                       << options.stateFile << std::endl;
             return 3;
         }
-        unlink(options.stateFile.c_str());
+        if (!RemoveStateFile(options.stateFile)) return 1;
     }
     int actualPort = 0;
     const int listener = createListener(options.port, &actualPort, &error);
@@ -823,7 +860,7 @@ int runStart(const StartOptions& options) {
 
     installSignalHandlers();
     if (options.watchParent) enableParentDeathCleanup();
-    std::cerr << "Starting Netlist Graph Builder preview server..." << std::endl;
+    ngb::TerminalLog::Instance().Write("info", "server.starting", "Starting Netlist Graph Builder preview server");
     std::cout << "{\"event\":\"ready\",\"host\":\"127.0.0.1\",\"port\":"
               << actualPort << ",\"url\":\"" << jsonEscape(state.url)
               << "\",\"startup\":{"
@@ -835,16 +872,29 @@ int runStart(const StartOptions& options) {
               << ",\"faninDepth\":" << (options.faninDepth < 0 ? "null" : std::to_string(options.faninDepth))
               << ",\"fanoutDepth\":" << (options.fanoutDepth < 0 ? "null" : std::to_string(options.fanoutDepth))
               << "}}" << std::endl;
-    if (!state.stateFile.empty()) std::cerr << "State file: " << state.stateFile << std::endl;
+    ngb::TerminalLog::Instance().Write("info", "server.ready", "Preview server ready", "{\"port\":" + std::to_string(actualPort) + "}");
 
-    if (options.openBrowser) openBrowser(state.url);
+    pid_t browserPid = options.openBrowser ? openBrowser(state.url) : -1;
     const std::shared_ptr<ServerContext> context(new ServerContext);
     context->startupJson = startupJson;
     while (!g_stopRequested) {
+        if (browserPid > 0) {
+            int status = 0;
+            const pid_t exited = waitpid(browserPid, &status, WNOHANG);
+            if (exited == browserPid) {
+                if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+                    ngb::TerminalLog::Instance().Error("browser.open_failed", "Browser opener exited unsuccessfully", WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+                browserPid = -1;
+            }
+        }
         pollfd ready = {listener, POLLIN, 0};
         const int readyCount = poll(&ready, 1, 250);
         if (readyCount <= 0) {
-            if (readyCount < 0 && errno != EINTR) break;
+            if (readyCount < 0 && errno != EINTR) {
+                ngb::TerminalLog::Instance().Error("server.poll_failed", std::strerror(errno), errno);
+                g_stopRequested = -1;
+                break;
+            }
             continue;
         }
         sockaddr_in clientAddress;
@@ -855,32 +905,44 @@ int runStart(const StartOptions& options) {
             if (g_stopRequested) break;
             std::cerr << "Accept failed: " << std::strerror(errno) << std::endl;
             close(listener);
-            if (!state.stateFile.empty()) unlink(state.stateFile.c_str());
+            if (!state.stateFile.empty()) RemoveStateFile(state.stateFile);
             return 1;
         }
         if (context->m_activeClients.fetch_add(1) >= 32) {
             context->m_activeClients.fetch_sub(1);
+            ngb::TerminalLog::Instance().Write("warning", "http.capacity", "Connection limit reached");
             close(client);
             continue;
         }
         try {
             std::thread([client, context]() {
-                handleClient(client, context);
+                try { handleClient(client, context); }
+                catch (const std::exception& error) {
+                    ngb::TerminalLog::Instance().Error("http.failed", error.what()); close(client);
+                } catch (...) {
+                    ngb::TerminalLog::Instance().Error("http.failed", "Unknown request exception"); close(client);
+                }
                 context->m_activeClients.fetch_sub(1);
             }).detach();
-        } catch (...) {
+        } catch (const std::exception& error) {
+            ngb::TerminalLog::Instance().Error("http.worker_failed", error.what());
             context->m_activeClients.fetch_sub(1);
             close(client);
         }
     }
+    ngb::TerminalLog::Instance().Write("info", "server.stopping", "Stopping preview server",
+        "{\"signal\":" + std::to_string(g_stopRequested) + "}");
     close(listener);
     if (!state.stateFile.empty()) {
         StateRecord current;
-        if (readStateFile(state.stateFile, &current, 0) && current.pid == state.pid && current.owner == state.owner) {
-            unlink(state.stateFile.c_str());
+        if (readStateFile(state.stateFile, &current, &error)) {
+            if (current.pid == state.pid && current.owner == state.owner && unlink(state.stateFile.c_str()) != 0 && errno != ENOENT)
+                ngb::TerminalLog::Instance().Error("session.cleanup_failed", std::strerror(errno), errno);
+        } else if (access(state.stateFile.c_str(), F_OK) == 0 || errno != ENOENT) {
+            ngb::TerminalLog::Instance().Error("session.cleanup_failed", error);
         }
     }
-    return 0;
+    return g_stopRequested < 0 ? 1 : 0;
 }
 
 int runStatus(const std::string& statePath) {
@@ -952,5 +1014,15 @@ int runCommand(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    return runCommand(argc, argv);
+    signal(SIGPIPE, SIG_IGN);
+    ngb::TerminalLog& log = ngb::TerminalLog::Instance();
+    ngb::TerminalErrorBuffer errors;
+    std::streambuf* previous = std::cerr.rdbuf(&errors);
+    int code = 1;
+    try { code = runCommand(argc, argv); }
+    catch (const std::exception& error) { log.Error("process.uncaught", error.what()); }
+    catch (...) { log.Error("process.uncaught", "Unknown launcher exception"); }
+    log.Write(code ? "error" : "info", "process.exit", "Launcher exiting", "{\"exitCode\":" + std::to_string(code) + "}");
+    std::cerr.rdbuf(previous);
+    return code;
 }

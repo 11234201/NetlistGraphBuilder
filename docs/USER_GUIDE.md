@@ -671,6 +671,28 @@ Compare 左右两侧画布各自独立维护其 `Focused roots` 集合、激活�
 
 会话或 Cell Config 读取失败会记录为 `Persistence` 错误，并继续使用默认状态；自动保存失败会保留底层异常，连续失败只报告一次，恢复后记录 `Session saving recovered`。Cell Config 的保存、删除、重置与导入写入失败均归入 `Persistence`；已保存但刷新失败归入 `Render`。SVG、Golden 和 Cell Config 的生成或下载触发失败归入 `Export`，包含操作及文件名。关闭页面时的保存错误只能在页面仍存活时进入内存日志，不会形成跨会话日志文件。
 
+### 终端与启动器日志
+
+Bash 预览入口、Node/Python 服务、Linux 单文件启动器和 Windows 离线启动器会自动保存终端侧日志。这与页面内的 Process Log 分开：浏览器日志仍需从页面导出，启动器日志用于排查启动、文件读取、HTTP 请求、状态文件清理和退出问题。
+
+- Linux 默认目录：`${XDG_STATE_HOME:-$HOME/.local/state}/netlist_graph_builder/logs`。
+- Windows 默认目录：`%LOCALAPPDATA%\netlist_graph_builder\logs`。
+- 设置环境变量 `NGB_LOG_DIR` 可指定目录；`log.ready` 诊断会给出当前文件位置。
+- 每次启动使用独立的 `<运行时>-<时间>-<PID>.run.jsonl` 和 `.error.jsonl`。前者包含全部级别，后者仅包含 Error；普通 4xx 请求归为 Warning。
+- 每个运行时日志文件默认在约 2 MiB 时滚动，保留一个 `.1` 备份；`NGB_LOG_MAX_BYTES` 可设置 1024～67108864 字节的阈值。单条诊断不拆行，文件可超出阈值至多一条有界记录。历史启动的文件不自动删除，可在停止对应进程后按需归档或清理。Bash 只记录交接前的少量事件，后续由接管进程的日志记录。
+
+JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，并按事件附带状态码、操作、异常类型、错误码或调用栈。查询参数和请求正文不进入请求日志，启动输入原文也不附带到日志中。原生 C++ 错误记录系统错误码或异常消息，不承诺提供调用栈。正常请求主要写文件，启动/退出和失败诊断也写入 `stderr`；文件日志不可写时只报告一次故障，随后退回 `stderr`，不会伪装成启动失败。
+
+启动成功时，`stdout` 保留原有单行 `ready` JSON；`status`、帮助和许可证命令的标准输出格式不变。Bash 使用 `exec` 交接，不引入 `tee` 管道或改变进程号、退出码及信号语义。正常退出会尽力记录退出原因/状态；强制结束进程或断电无法保证最后一条日志。
+
+例如，在 Bash 中指定日志位置后启动：
+
+```bash
+NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --no-open
+```
+
+开发验证可运行 `npm run test:launcher`，以及 `python3 tests/e2e/terminal_logging_e2e.py --native build/native/ngb`；Windows 包使用 `python tests/e2e/terminal_logging_e2e.py --windows <exe路径>` 验证。
+
 ---
 
 ## 16. 快捷键一览

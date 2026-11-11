@@ -83,6 +83,8 @@ mkdir -p ./results
 {"event":"ready","host":"127.0.0.1","port":43821,"url":"http://127.0.0.1:43821/?startup=1","startup":{"netlist":"top_mapped.v","timing":"top_timing.log","cellConfig":"cells.json","module":"top","focus":"u0","faninDepth":1,"fanoutDepth":2}}
 ```
 
+终端诊断同时保存到 `${XDG_STATE_HOME:-$HOME/.local/state}/netlist_graph_builder/logs`，可通过 `NGB_LOG_DIR` 指定目录。每个进程独立保存运行与错误 JSONL，默认单文件约 2 MiB 滚动并保留一个备份；旧进程日志保留供用户归档。日志目录不可写时回退 `stderr`，`ready` 协议不变。完整字段、限额、Windows 路径与验证命令见 [用户指南](USER_GUIDE.md)。
+
 - **边界与进程模型**：`--port` 合法范围为 `0–65535`，`--fanin-depth` / `--fanout-depth` 合法范围为 `0–99`。遇到未知参数、文件不可读、端口绑定失败或状态文件写入失败时，程序会立即以非零状态码退出。注意：原生 `ngb` 不会自动创建 `--state-file` 的父目录，调用方需预先执行 `mkdir -p`（若通过 `ngb.tcl` 调用，Tcl 辅助脚本会自动创建父目录）。由于 `ngb start` 是常驻前台服务进程，外部脚本应将其置于后台运行或保持异步管道，切勿使用同步阻塞的 `exec` 等待其退出。
 
 ---
