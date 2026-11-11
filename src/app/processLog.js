@@ -1,11 +1,12 @@
+import { LOG_DETAIL_LIMITS, sanitizeLogDetails } from "../foundation/log_details.js";
+
 export const PROCESS_LOG_LEVELS = Object.freeze(["debug", "info", "warning", "error"]);
 export const PROCESS_LOG_PHASES = Object.freeze([
-  "import", "parse", "timing", "graph", "layout", "render", "navigation", "export", "launcher"
+  "import", "parse", "timing", "graph", "layout", "render", "navigation", "export", "launcher", "persistence", "runtime"
 ]);
 
 const LEVEL_SET = new Set(PROCESS_LOG_LEVELS);
 const PHASE_SET = new Set(PROCESS_LOG_PHASES);
-const SENSITIVE_KEY = /(?:token|secret|password|source|netlist|timingText|rawText)/i;
 
 export function createProcessLog(options = {}) {
   const capacity = normalizeCapacity(options.capacity);
@@ -18,7 +19,7 @@ export function createProcessLog(options = {}) {
       const entry = normalizeEntry(input, ++sequence, clock());
       entries.push(entry);
       if (entries.length > capacity) entries = entries.slice(entries.length - capacity);
-      return { ...entry };
+      return { ...entry, ...(entry.details === undefined ? {} : { details: cloneDetails(entry.details) }) };
     },
     progress(input) {
       const key = String(input?.key || "progress");
@@ -27,7 +28,7 @@ export function createProcessLog(options = {}) {
       if (last?.progressKey === key && last.phase === phase) {
         const updated = normalizeEntry({ ...input, phase, progressKey: key }, last.sequence, clock());
         entries[entries.length - 1] = updated;
-        return { ...updated };
+        return { ...updated, ...(updated.details === undefined ? {} : { details: cloneDetails(updated.details) }) };
       }
       return this.append({ ...input, phase, progressKey: key });
     },
@@ -36,6 +37,9 @@ export function createProcessLog(options = {}) {
     },
     entries(filters = {}) {
       return filterProcessLogEntries(entries, filters);
+    },
+    hasEntry(sequence) {
+      return entries.some((entry) => entry.sequence === sequence);
     },
     toJsonLines(filters = {}) {
       return this.entries(filters).map((entry) => JSON.stringify(entry)).join("\n");
@@ -60,21 +64,14 @@ function normalizeEntry(input, sequence, date) {
     timestamp: date instanceof Date ? date.toISOString() : new Date(date).toISOString(),
     level: normalizeLevel(input?.level),
     phase: normalizePhase(input?.phase),
-    message: String(input?.message || ""),
-    ...(input?.details === undefined ? {} : { details: sanitizeDetails(input.details) }),
+    message: String(input?.message || "").slice(0, LOG_DETAIL_LIMITS.text),
+    ...(input?.details === undefined ? {} : { details: sanitizeLogDetails(input.details) }),
     ...(input?.progressKey ? { progressKey: String(input.progressKey) } : {})
   };
 }
 
-function sanitizeDetails(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return String(value);
-  return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !SENSITIVE_KEY.test(key))
-    .map(([key, item]) => [key, typeof item === "object" ? JSON.stringify(item) : item]));
-}
-
 function cloneDetails(value) {
-  return value && typeof value === "object" ? { ...value } : value;
+  return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : value;
 }
 
 function normalizeLevel(value) {

@@ -26,8 +26,8 @@ test("native workers release resources on success, phase errors and transport fa
       worker.onmessage({ data: { result: { nodes: [] } } });
       assert.deepEqual(await pending, { nodes: [] });
     } else if (outcome === "phase") {
-      worker.onmessage({ data: { error: { name: "ElkNativePhaseError", message: "invalid", diagnostic: { phase: "p0" } } } });
-      await assert.rejects(pending, (error) => error.diagnostic.phase === "p0");
+      worker.onmessage({ data: { error: { name: "ElkNativePhaseError", message: "invalid", stack: "worker-stack", diagnostic: { phase: "p0" } } } });
+      await assert.rejects(pending, (error) => error.diagnostic.phase === "p0" && error.stack === "worker-stack");
     } else {
       worker.onerror({ message: "load failed" });
       await assert.rejects(pending, /load failed/);
@@ -69,5 +69,5 @@ test("offline worker entry returns the same AnchorLayered geometry across the st
   const expected = await executeNativeLayout(input, { profile: "anchor" }, null);
   assert.deepEqual(await executeNativeLayout(input, { profile: "anchor" }, factory), expected);
   await assert.rejects(executeNativeLayout({ nodes: [], edges: input.edges }, { profile: "anchor" }, factory),
-    (error) => error.name === "ElkNativePhaseError" && !!error.diagnostic);
+    (error) => error.name === "ElkNativePhaseError" && !!error.diagnostic && /anchor_layered\//.test(error.stack));
 });

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import { createProcessLog, filterProcessLogEntries } from "../../src/app/processLog.js";
+import { LOG_DETAIL_LIMITS } from "../../src/foundation/log_details.js";
 
 test("process log keeps a fixed-capacity ordered buffer", () => {
   let tick = 0;
@@ -57,4 +59,56 @@ test("clearing the process log removes entries without reusing sequence numbers"
   const entry = log.append({ phase: "import", message: "second" });
   assert.equal(log.size, 1);
   assert.equal(entry.sequence, 2);
+});
+
+test("persistence and runtime remain distinct filterable phases", () => {
+  const log = createProcessLog();
+  for (const phase of ["persistence", "runtime", "graph"]) log.append({ level: "error", phase, message: phase });
+  assert.deepEqual(log.entries({ phase: "persistence" }).map((entry) => entry.message), ["persistence"]);
+  assert.deepEqual(log.entries({ phase: "runtime" }).map((entry) => entry.message), ["runtime"]);
+});
+
+test("error snapshots preserve stack, cause and provider diagnostics without retaining inputs", () => {
+  const log = createProcessLog();
+  const error = new Error("routing failed", { cause: new Error("invalid port") });
+  error.code = "P5_FAILED";
+  error.diagnostic = { phase: "p5", entityIds: ["cell:a"], detail: { invariant: "orthogonal", token: "secret-value" } };
+  const entry = log.append({ level: "error", phase: "layout", details: { error, moduleName: "top", requestId: 7 } });
+  assert.equal(entry.details.error.stack, error.stack);
+  assert.equal(entry.details.error.cause.message, "invalid port");
+  assert.equal(entry.details.error.code, "P5_FAILED");
+  assert.deepEqual(entry.details.error.diagnostic.entityIds, ["cell:a"]);
+  assert.doesNotMatch(log.toJsonLines(), /secret-value/);
+  error.diagnostic.entityIds.push("later");
+  entry.details.error.diagnostic.entityIds.push("caller");
+  log.entries()[0].details.error.diagnostic.entityIds.push("reader");
+  assert.deepEqual(log.entries()[0].details.error.diagnostic.entityIds, ["cell:a"]);
+});
+
+test("diagnostics are recursively redacted, bounded and safe for cyclic or hostile values", () => {
+  const log = createProcessLog();
+  const details = { big: 123n, nested: { rawText: "raw-secret", configText: "config-secret", password: "password-secret" } };
+  details.self = details;
+  Object.defineProperty(details, "unreadable", { enumerable: true, get() { throw new Error("getter"); } });
+  details.array = [{ accessToken: "array-secret", keep: true }];
+  details.huge = Array.from({ length: 10000 }, () => "x".repeat(10000));
+  details.toJSON = () => { throw new Error("toJSON must not run"); };
+  log.append({ phase: "runtime", details });
+  const exported = log.toJsonLines();
+  const saved = JSON.parse(exported).details;
+  assert.equal(saved.self, "[Circular]");
+  assert.equal(saved.big, "123");
+  assert.equal(saved.unreadable, "[Unreadable]");
+  assert.deepEqual(saved.array, [{ keep: true }]);
+  assert.doesNotMatch(exported, /raw-secret|config-secret|password-secret|array-secret/);
+  assert.match(exported, /Truncated/);
+  assert.ok(exported.length < LOG_DETAIL_LIMITS.characters + 4096);
+  assert.doesNotThrow(() => log.append({ details: new Proxy({}, { ownKeys() { throw new Error("proxy"); } }) }));
+});
+
+test("cross-realm Error objects retain their non-enumerable diagnostics", () => {
+  const error = runInNewContext("new Error('iframe failure')");
+  const log = createProcessLog();
+  log.append({ level: "error", phase: "runtime", details: { error } });
+  assert.equal(log.entries()[0].details.error.stack, error.stack);
 });

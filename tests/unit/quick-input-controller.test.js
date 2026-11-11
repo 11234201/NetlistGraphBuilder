@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createQuickInputController, isEditableInputTarget } from "../../src/ui/quick_input_controller.js";
+import { createProcessLog } from "../../src/app/processLog.js";
 
 function eventTarget() {
   const listeners = {};
@@ -23,6 +24,35 @@ function inputElements() {
     body: { classList: { add() {}, remove() {} } }
   };
 }
+
+test("file read, detection, batch and paste failures log context and preserve cancellation/stale guards", async () => {
+  const elements = inputElements(), windowTarget = eventTarget(), log = createProcessLog();
+  const failure = new Error("read or import failed");
+  const controller = createQuickInputController({ elements, windowTarget, setStatus() {},
+    loadText: async () => { throw failure; }, schedule: (task) => task(),
+    logProcess: (level, phase, message, details) => log.append({ level, phase, message, details }) });
+  const file = { name: "broken.v", text: async () => { throw failure; } };
+  await elements.netlistInput.listeners.change({ target: { files: [file] } });
+  assert.equal(log.entries().at(-1).details.fileName, "broken.v");
+  assert.equal(log.entries().at(-1).details.error.stack, failure.stack);
+  await controller.loadFiles([{ name: "unknown.bin", text: async () => "unrecognized" }]);
+  assert.equal(log.entries().at(-1).details.operation, "classify-file");
+  await controller.loadFiles([{ name: "batch.v", text: async () => "module top; endmodule" }]);
+  assert.equal(log.entries().at(-1).details.operation, "import-batch");
+  await windowTarget.listeners.paste({ clipboardData: { getData: () => "module top; endmodule" }, preventDefault() {} });
+  assert.equal(log.entries().at(-1).details.operation, "paste-text");
+  const count = log.size;
+  const cancellation = Object.assign(new Error("cancelled"), { name: "AbortError" });
+  await elements.netlistInput.listeners.change({ target: { files: [{ name: "cancel.v", text: async () => { throw cancellation; } }] } });
+  assert.equal(log.size, count);
+  let rejectOld;
+  const old = elements.netlistInput.listeners.change({ target: { files: [{ name: "old.v", text: () => new Promise((_, reject) => { rejectOld = reject; }) }] } });
+  await elements.netlistInput.listeners.change({ target: { files: [file] } });
+  const currentCount = log.size;
+  rejectOld(failure);
+  await old;
+  assert.equal(log.size, currentCount);
+});
 
 test("Liberty files load before designs, oversize files are rejected before reading, paste shares import", async () => {
   const loaded = [], statuses = [], windowTarget = eventTarget();

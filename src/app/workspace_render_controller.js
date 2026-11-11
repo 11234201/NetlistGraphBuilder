@@ -43,7 +43,7 @@ export function createWorkspaceRenderController({ state, elements, services }) {
         }
       },
       onError: (error) => {
-        if (isCurrentSingleRequest()) handleLayoutFailure(error, options);
+        if (isCurrentSingleRequest()) handleLayoutFailure(error, { ...options, requestId });
         else options.onCancelled?.();
       }
     });
@@ -79,7 +79,9 @@ export function createWorkspaceRenderController({ state, elements, services }) {
         options.onCancelled?.();
         return;
       }
-      services.logProcess("error", "render", `Render failed: ${error.message}`);
+      services.logProcess("error", "render", `Render failed: ${error.message}`, {
+        error, view: "single", moduleName: state.currentModule?.name, requestId: renderRequest.id
+      });
       services.setStatus(`Render failed: ${error.message}`);
       options.onFailed?.(error);
     });
@@ -136,14 +138,17 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     if (error?.name === "AbortError") { options.onCancelled?.(); return; }
     const failedProvider = getLayoutProvider(state.layoutProviderId);
     const nextProviderId = getNextLayoutProviderId(state.layoutProviderId);
+    const details = { error, provider: failedProvider.id, fallbackProvider: nextProviderId,
+      view: state.compare.active ? "compare" : "single", moduleName: state.currentModule?.name,
+      requestId: options.requestId };
     if (!nextProviderId) {
-      services.logProcess("error", "layout", `${failedProvider.label} failed; no fallback remains: ${error.message}`);
+      services.logProcess("error", "layout", `${failedProvider.label} failed; no fallback remains: ${error.message}`, details);
       services.setStatus(`Layout failed: ${error.message}`);
       options.onFailed?.(error);
       return;
     }
     const nextProvider = getLayoutProvider(nextProviderId);
-    services.logProcess("error", "layout", `${failedProvider.label} failed; falling back to ${nextProvider.label}: ${error.message}`);
+    services.logProcess("error", "layout", `${failedProvider.label} failed; falling back to ${nextProvider.label}: ${error.message}`, details);
     state.layoutFallbackFromProviderId ||= state.layoutProviderId;
     state.layoutProviderId = nextProviderId;
     elements.layoutProviderSelect.value = state.layoutProviderId;

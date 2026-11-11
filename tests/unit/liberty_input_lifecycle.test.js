@@ -5,6 +5,7 @@ import { createLibertyController } from "../../src/ui/liberty_controller.js";
 import { createQuickInputElements } from "../../src/ui/workbench_elements.js";
 import { createLibertyLibraryService } from "../../src/domains/netlist/liberty_import.js";
 import { runCooperativeTask } from "../../src/application/cooperative_task.js";
+import { createProcessLog } from "../../src/app/processLog.js";
 
 function target() {
   const listeners = new Map();
@@ -28,14 +29,16 @@ async function setup({ execute = runCooperativeTask, refresh = async () => {} } 
     netlistTextInput: target(), netlistTextForm: target(), netlistTextDialog: { open: false }
   };
   const statuses = [], summary = {}, loadedDesigns = [];
+  const log = createProcessLog();
+  const logProcess = (level, phase, message, details) => log.append({ level, phase, message, details });
   const library = createLibertyController({ elements: {
     summary, diagnostics: {}, cancelButton: elements.cancelLibertyButton, clearButton: elements.clearLibertyButton
   }, read: service.read, importText: service.importText, clear: service.clear, cancel: service.cancel,
-  refresh, setStatus: (status) => statuses.push(status) });
+  refresh, setStatus: (status) => statuses.push(status), logProcess });
   const quick = createQuickInputController({ elements: createQuickInputElements(elements, {}), windowTarget: target(),
     loadText: (text, options) => options.kind === "liberty" ? library.load(text, options) : loadedDesigns.push(text),
-    setStatus: (status) => statuses.push(status) });
-  return { service, elements, quick, statuses, summary, loadedDesigns };
+    setStatus: (status) => statuses.push(status), logProcess });
+  return { service, elements, quick, statuses, summary, loadedDesigns, log };
 }
 
 function deferred() {
@@ -51,7 +54,7 @@ const ambiguousLibraries = () => ["fast", "slow"].map((name) => ({
 test("an older import cancellation cannot overwrite the latest batch rejection", async () => {
   const entered = deferred(), release = deferred();
   let pause = false;
-  const { service, quick, statuses } = await setup({ execute: (steps, options) => runCooperativeTask(steps, {
+  const { service, quick, statuses, log } = await setup({ execute: (steps, options) => runCooperativeTask(steps, {
     ...options, yieldControl: async () => { if (pause) { entered.resolve(); await release.promise; } }
   }) });
   const original = service.read();
@@ -65,6 +68,7 @@ test("an older import cancellation cannot overwrite the latest batch rejection",
   await pending;
   assert.equal(service.read(), original);
   assert.equal(statuses.at(-1), rejected);
+  assert.equal(log.entries({ level: "error" }).length, 1, "cancelled imports do not add stale errors");
 });
 
 test("an older refresh completion cannot overwrite the latest batch rejection", async () => {
@@ -158,3 +162,23 @@ for (const input of ["file", "drop", "prefix"]) {
     });
   }
 }
+
+test("Liberty import, refresh and unload failures retain error details without replacing the library on parse failure", async () => {
+  const failure = new Error("refresh failed");
+  failure.diagnostic = { phase: "render", invariant: "prepared-scene" };
+  const { service, elements, quick, log } = await setup({ refresh: async () => { throw failure; } });
+  const original = service.read();
+  await quick.loadFiles([{ name: "invalid.lib", text: async () => "not a library" }]);
+  assert.equal(service.read(), original);
+  const importError = log.entries({ phase: "import", level: "error" }).find((entry) => entry.message.startsWith("Liberty import failed"));
+  assert.ok(importError.details.error.stack);
+  assert.equal(importError.details.fileName, "invalid.lib");
+  await quick.loadFiles([{ name: "new.lib", text: async () => "library(new){}" }]);
+  assert.equal(service.read().sourceName, "new.lib");
+  const refreshError = log.entries({ phase: "render", level: "error" }).at(-1);
+  assert.equal(refreshError.details.error.stack, failure.stack);
+  assert.equal(refreshError.details.error.diagnostic.invariant, "prepared-scene");
+  await elements.clearLibertyButton.emit("click");
+  assert.equal(service.read(), null);
+  assert.match(log.entries({ phase: "render", level: "error" }).at(-1).message, /unload refresh failed/);
+});

@@ -28,7 +28,7 @@ export function createInputController({ state, elements, services }) {
       services.logProcess("info", "launcher", "Applying EDA startup manifest");
       await executeStartupManifest(manifest, createStartupHandlers());
     } catch (error) {
-      services.logProcess("error", "launcher", `Startup failed: ${error.message}`);
+      services.logProcess("error", "launcher", `Startup failed: ${error.message}`, { error });
       if (!state.currentModule) await loadDesign(sampleNetlist, "built-in sample");
     }
   }
@@ -96,7 +96,7 @@ export function createInputController({ state, elements, services }) {
     try {
       imported = importTimingSource(text, { name: label });
     } catch (error) {
-      services.logProcess("error", "timing", `Timing parse failed: ${error.message}`, { label });
+      services.logProcess("error", "timing", `Timing parse failed: ${error.message}`, { label, error });
       throw error;
     }
     state.timing = imported.timing;
@@ -142,7 +142,7 @@ export function createInputController({ state, elements, services }) {
         sourceRevision: (state.document?.sourceRevision || 0) + 1
       });
     } catch (error) {
-      services.logProcess("error", "parse", `Design parse failed: ${error.message}`, { label });
+      services.logProcess("error", "parse", `Design parse failed: ${error.message}`, { label, error });
       services.setStatus(`Parse failed: ${error.message}`);
       throw error;
     }
@@ -175,7 +175,8 @@ export function createInputController({ state, elements, services }) {
         try {
           const imported = importTimingSource(sampleTiming, { name: "built-in sample timing" });
           state.timing = imported.timing;
-        } catch {
+        } catch (error) {
+          services.logProcess("warning", "timing", "Built-in sample timing could not be loaded", { error });
           state.timing = null;
         }
       }
@@ -236,6 +237,7 @@ export function createInputController({ state, elements, services }) {
       services.renderStats();
       return completion;
     } catch (error) {
+      services.logProcess("error", "import", `Load failed: ${error.message}`, { label, error });
       services.setStatus(`Load failed: ${error.message}`);
       throw error;
     }

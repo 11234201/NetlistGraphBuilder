@@ -1,11 +1,14 @@
 import { createProcessLog } from "../app/processLog.js";
 import { renderProcessLogEntries } from "./processLogPanel.js";
+import { installRuntimeErrorHandlers } from "./runtime_error_controller.js";
+import { errorMessage } from "../foundation/log_details.js";
 
-export function createProcessLogController({ elements, setStatus, copyText, downloadText, capacity = 500 }) {
+export function createProcessLogController({ elements, setStatus, copyText, downloadText, windowTarget, capacity = 500 }) {
   if (typeof setStatus !== "function" || typeof copyText !== "function" || typeof downloadText !== "function") {
     throw new Error("Process Log controller requires status, copy and download ports");
   }
   const log = createProcessLog({ capacity });
+  let reportedErrors = new WeakMap();
   const filters = () => ({ level: elements.levelFilter.value, phase: elements.phaseFilter.value });
   const matchingCount = () => log.entries(filters()).length;
 
@@ -29,7 +32,9 @@ export function createProcessLogController({ elements, setStatus, copyText, down
       await copyText(log.toJsonLines(filters()));
       setStatus(`Copied ${matchingCount()} log entry(s)`);
     } catch (error) {
-      setStatus(`Copy log failed: ${error.message}`);
+      const message = `Copy log failed: ${errorMessage(error)}`;
+      append("error", "export", message, { error, operation: "copy-log" });
+      setStatus(message);
     }
   }
 
@@ -39,12 +44,15 @@ export function createProcessLogController({ elements, setStatus, copyText, down
       downloadText(`${text}${text ? "\n" : ""}`, "netlist-process-log.jsonl", "application/x-ndjson");
       setStatus(`Exported ${matchingCount()} log entry(s)`);
     } catch (error) {
-      setStatus(`Export log failed: ${error.message}`);
+      const message = `Export log failed: ${errorMessage(error)}`;
+      append("error", "export", message, { error, operation: "export-log" });
+      setStatus(message);
     }
   }
 
   function clear() {
     log.clear();
+    reportedErrors = new WeakMap();
     render();
     setStatus("Process Log cleared");
   }
@@ -56,13 +64,28 @@ export function createProcessLogController({ elements, setStatus, copyText, down
   elements.exportButton.addEventListener("click", exportEntries);
   elements.clearButton.addEventListener("click", clear);
 
+  function append(level, phase, message, details, options = {}) {
+    const entry = options.progressKey
+      ? log.progress({ level, phase, message, details, key: options.progressKey })
+      : log.append({ level, phase, message, details });
+    if (level === "error") {
+      if (details?.error && (typeof details.error === "object" || typeof details.error === "function")) reportedErrors.set(details.error, entry.sequence);
+      toggle(true);
+    }
+    render();
+  }
+  const dispose = installRuntimeErrorHandlers({
+    target: windowTarget,
+    wasReported: (error) => log.hasEntry(reportedErrors.get(error)),
+    report: (message, details) => {
+      append("error", "runtime", message, details);
+      setStatus(message);
+    }
+  });
+
   return Object.freeze({
-    append(level, phase, message, details, options = {}) {
-      if (options.progressKey) log.progress({ level, phase, message, details, key: options.progressKey });
-      else log.append({ level, phase, message, details });
-      if (level === "error") toggle(true);
-      render();
-    },
+    append,
+    dispose,
     render,
     toggle,
     copy,

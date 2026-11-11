@@ -5,6 +5,6 @@ self.onmessage = async ({ data }) => {
     const result = await layoutGraph(data.input, data.options);
     self.postMessage({ result });
   } catch (error) {
-    self.postMessage({ error: { name: error.name, message: error.message, diagnostic: error.diagnostic } });
+    self.postMessage({ error: { name: error.name, message: error.message, stack: error.stack, diagnostic: error.diagnostic } });
   }
 };

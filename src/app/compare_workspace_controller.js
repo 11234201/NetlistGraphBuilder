@@ -282,7 +282,9 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       if (!renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
         options.onCancelled?.(); return;
       }
-      services.logProcess("error", "render", `Compare render failed: ${error.message}`);
+      services.logProcess("error", "render", `Compare render failed: ${error.message}`, {
+        error, view: "compare", leftModule: state.compare.leftModuleName, rightModule: state.compare.rightModuleName
+      });
       services.setStatus(`Compare render failed: ${error.message}`);
       options.onFailed?.(error);
     });

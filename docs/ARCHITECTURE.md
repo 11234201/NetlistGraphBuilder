@@ -283,6 +283,14 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 - **未知单元优雅降级**：未知单元类型（unknown cell）渲染为黑盒（blackbox），未知引脚方向在界面中给出诊断提示，均不中断整体绘图流程。
 - **模块级故障隔离**：只要文件整体语法结构可恢复，单个模块内部的解析异常不应阻止同一文件中其他正常模块的浏览。
 
+### 过程日志与错误诊断
+
+`app/processLog.js` 保存有容量上限的页面内存日志，`foundation/log_details.js` 负责可序列化、递归脱敏且有深度/节点/文本预算的诊断快照。错误边界以 `details.error` 传入原异常，并只附带必要操作上下文；日志不修改异常或源数据，不保存完整输入。`persistence` 与 `runtime` 是独立阶段。
+
+`ui/process_log_controller.js` 管理过滤、复制、JSONL 导出和错误展开，并通过注入的 window target 安装 `runtime_error_controller.js`。全局监听观察 error（含捕获阶段资源错误）和 unhandledrejection，不阻止浏览器默认报告；仍在缓冲区内的同一异常对象避免被全局监听重复记录（淘汰或清空后可再次记录），主动取消不作为错误。监听可释放，日志接收端故障有重入保护。日志初始化之前的脚本故障仍由浏览器报告。Native Worker 只补传错误调用栈，不改变布局结果或降级策略。
+
+日志元素映射归 `ui/workbench_elements.js`；main 的迁移行数上限进一步降为 520。
+
 ## 可选 Liberty 附件契约（2026-11-10）
 
 `parser/liberty_lexer.js` 与 `liberty_parser.js` 是结构 reader：保留接口组、必要属性与 source span，扫描但不保存 timing/power 数组。`infer/liberty_model.js` 生成冻结 Library IR；`liberty_function.js` 做固定预算的布尔分类。库不嵌入 Verilog IR，不转写用户 Cell Config。

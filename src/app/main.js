@@ -1,4 +1,4 @@
-import { createWorkbenchElements, createQuickInputElements } from "../ui/workbench_elements.js";
+import { createWorkbenchElements, createQuickInputElements, createProcessLogElements } from "../ui/workbench_elements.js";
 import { createLibertyController } from "../ui/liberty_controller.js";
 import { createLibertyLibraryService } from "../domains/netlist/liberty_import.js";
 import { runCooperativeTask } from "../application/cooperative_task.js";
@@ -357,18 +357,8 @@ const viewHistoryTransactions = createViewHistoryTransaction({
 
 const elements = createWorkbenchElements(document);
 const processLogController = createProcessLogController({
-  elements: {
-    toggleButton: elements.toggleProcessLogButton,
-    count: elements.processLogCount,
-    controls: elements.processLogControls,
-    levelFilter: elements.processLogLevelFilter,
-    phaseFilter: elements.processLogPhaseFilter,
-    autoScroll: elements.processLogAutoScroll,
-    copyButton: elements.copyProcessLogButton,
-    exportButton: elements.exportProcessLogButton,
-    clearButton: elements.clearProcessLogButton,
-    list: elements.processLogList
-  },
+  elements: createProcessLogElements(elements),
+  windowTarget: window,
   setStatus,
   copyText: (text) => navigator.clipboard.writeText(text),
   downloadText: (text, fileName, type) => browserDownload.text(text, fileName, type)
@@ -422,7 +412,8 @@ createQuickInputController({
   elements: createQuickInputElements(elements, document.body),
   windowTarget: window,
   loadText: (text, options) => options.kind === "liberty" ? libertyController.load(text, options) : loadQuickInputText(text, options),
-  setStatus
+  setStatus,
+  logProcess
 });
 elements.moduleBackButton.addEventListener("click", () => navigateViewHistory(-1));
 elements.moduleForwardButton.addEventListener("click", () => navigateViewHistory(1));

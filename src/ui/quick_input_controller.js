@@ -1,8 +1,14 @@
 import { LIBERTY_LIMITS } from "../contracts/liberty.js";
 import { detectQuickInputKind, getQuickInputPriority } from "../app/quickInput.js";
 import { createBulkTextInput } from "./bulk_text_input.js";
+import { errorMessage } from "../foundation/log_details.js";
 
-export function createQuickInputController({ elements, windowTarget, loadText, setStatus, schedule = defaultSchedule }) {
+export function createQuickInputController({ elements, windowTarget, loadText, setStatus, logProcess, schedule = defaultSchedule }) {
+  const reportFailure = (error, message, context = {}) => {
+    if (error?.name === "AbortError") return;
+    logProcess?.("error", "import", message, { error, ...context });
+    setStatus(message);
+  };
   let dragDepth = 0;
   let textKind = "netlist";
   let latestFileRequest = 0;
@@ -64,14 +70,14 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         }
       } catch (error) {
         if (requestId !== latestFileRequest) return;
-        setStatus(`Load failed ${file.name}: ${error.message}`);
+        reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, operation: "classify-file" });
         continue;
       }
       entries.push({ file, classificationText, kind, name: file.name, order });
     }
     if (requestId !== latestFileRequest) return;
     if (entries.filter((entry) => entry.kind === "liberty").length > 1) {
-      setStatus("Load failed: choose one Liberty file per batch");
+      reportFailure(undefined, "Load failed: choose one Liberty file per batch", { operation: "import-batch" });
       return;
     }
     entries.sort((a, b) => getQuickInputPriority(a.kind) - getQuickInputPriority(b.kind) || a.order - b.order);
@@ -89,9 +95,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         await loadText(text, { kind: entry.kind, label: entry.name, ...libraryOptions(entry.kind) });
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
-        if (error.name === "AbortError") return;
+        if (error?.name === "AbortError") return;
         if (requestId !== latestFileRequest) return;
-        setStatus(`Load failed ${entry.name}: ${error.message}`);
+        reportFailure(error, `Load failed ${entry.name}: ${errorMessage(error)}`, { fileName: entry.name, kind: entry.kind, operation: "import-batch" });
       }
     }
   };
@@ -107,7 +113,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
       await loadText(text, { kind, label: file.name, ...libraryOptions(kind) });
     } catch (error) {
-      if (requestId === latestFileRequest && error.name !== "AbortError") setStatus(`Load failed ${file.name}: ${error.message}`);
+      if (requestId === latestFileRequest) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, kind: preferredKind, operation: "import-file" });
     } finally {
       input.value = "";
     }
@@ -150,7 +156,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     event.preventDefault();
     const source = textBuffer.getValue().trim();
     if (!source) {
-      setStatus(`Paste failed: ${textKind} text is empty`);
+      reportFailure(undefined, `Paste failed: ${textKind} text is empty`, { kind: textKind, operation: "paste-text" });
       elements.textInput.focus();
       return;
     }
@@ -161,7 +167,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       if (requestId === latestFileRequest && submittedDialogSession === dialogSession) closeDialog();
     } catch (error) {
       if (requestId === latestFileRequest && submittedDialogSession === dialogSession) {
-        setStatus(`Paste failed: ${error.message}`);
+        reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind: textKind, operation: "paste-text" });
         elements.textInput.focus();
       }
     }
@@ -189,7 +195,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     event.preventDefault();
     const files = [...(event.dataTransfer?.files || [])];
     clearDrag();
-    if (files.length > 0) loadFiles(files).catch((error) => setStatus(`Drop failed: ${error.message}`));
+    if (files.length > 0) loadFiles(files).catch((error) => reportFailure(error, `Drop failed: ${errorMessage(error)}`, { operation: "drop-files" }));
   });
   windowTarget?.addEventListener("dragend", clearDrag);
   windowTarget?.addEventListener("paste", async (event) => {
@@ -197,7 +203,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const files = [...(event.clipboardData?.files || [])];
     if (files.length > 0) {
       event.preventDefault();
-      loadFiles(files).catch((error) => setStatus(`Paste failed: ${error.message}`));
+      loadFiles(files).catch((error) => reportFailure(error, `Paste failed: ${errorMessage(error)}`, { operation: "paste-files" }));
       return;
     }
     const text = event.clipboardData?.getData("text/plain") || "";
@@ -208,7 +214,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const requestId = beginRequest();
     const label = kind === "liberty" ? "pasted Liberty" : kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
     try { await loadText(text, { kind, label, ...libraryOptions(kind) }); }
-    catch (error) { if (requestId === latestFileRequest && error.name !== "AbortError") setStatus(`Paste failed: ${error.message}`); }
+    catch (error) {
+      if (requestId === latestFileRequest) reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind, operation: "paste-text" });
+    }
   });
 
   return Object.freeze({ openDialog, closeDialog, clearDrag, loadFiles });

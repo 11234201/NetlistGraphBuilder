@@ -46,6 +46,7 @@ export function createCellConfigController({ state, elements, services }) {
       closeCellDefinitionDialog();
       rebuildAfterCellConfigChange(`${cellType}: Cell Config saved`);
     } catch (error) {
+      services.logProcess("error", "persistence", `Cell Config save failed: ${error.message}`, { error, cellType: activeCellDefinition?.cellType });
       services.setStatus(`Cell Config save failed: ${error.message}`);
     }
   }
@@ -67,6 +68,7 @@ export function createCellConfigController({ state, elements, services }) {
       state.cellConfig = services.cellConfigUseCases.commitImport(prepared);
       rebuildAfterCellConfigChange(`Imported Cell Config ${file.name}: ${Object.keys(prepared.incoming.cells).length} definition(s)`);
     } catch (error) {
+      services.logProcess("error", "import", `Cell Config import failed ${file.name}: ${error.message}`, { error, fileName: file.name });
       services.setStatus(`Cell Config import failed ${file.name}: ${error.message}`);
     } finally {
       event.target.value = "";
@@ -142,6 +144,6 @@ export const cellConfigPorts = Object.freeze({
   services: [
     "SEARCH_FIRST_NODE_THRESHOLD", "applyTransform", "browserDownload", "cellConfigUseCases",
     "renderCompareGraphs", "renderCurrentModuleGraph", "replaceSingleFocusedRoots", "setSelectedNode",
-    "setSingleTransform", "setSingleViewMode", "setStatus", "singleViewSession"
+    "setSingleTransform", "setSingleViewMode", "setStatus", "logProcess", "singleViewSession"
   ]
 });

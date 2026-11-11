@@ -34,6 +34,7 @@ export function executeNativeLayout(input, options = {}, workerFactory = default
         if (data.error) {
           const error = new Error(data.error.message);
           error.name = data.error.name;
+          if (typeof data.error.stack === "string") error.stack = data.error.stack;
           if (data.error.diagnostic) error.diagnostic = data.error.diagnostic;
           finish(error);
         } else finish(null, data.result);

@@ -38,7 +38,13 @@ for(const compare of [false,true]){
     controller.handleLayoutFailure({name:'AbortError',message:'cancelled'});
     assert.equal(calls.length,0);
     for(const expected of ['elk-layered','simple-layered']){
-      controller.handleLayoutFailure(new Error('test failure'));
+      const failure = new Error('test failure');
+      failure.diagnostic = { phase: 'p5', invariant: 'orthogonal', entityIds: ['cell:u'] };
+      controller.handleLayoutFailure(failure, { requestId: 17 });
+      const details = logs.filter(([level]) => level === 'error').at(-1)[3];
+      assert.equal(details.error, failure);
+      assert.equal(details.requestId, 17);
+      assert.equal(details.view, compare ? 'compare' : 'single');
       assert.equal(state.layoutProviderId,expected);
       assert.equal(elements.layoutProviderSelect.value,expected);
       assert.equal(state.layoutFallbackFromProviderId,DEFAULT_LAYOUT_PROVIDER_ID);

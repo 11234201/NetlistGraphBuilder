@@ -124,3 +124,18 @@ export function createQuickInputElements(elements, body) {
     body
   };
 }
+
+export function createProcessLogElements(elements) {
+  return {
+    toggleButton: elements.toggleProcessLogButton,
+    count: elements.processLogCount,
+    controls: elements.processLogControls,
+    levelFilter: elements.processLogLevelFilter,
+    phaseFilter: elements.processLogPhaseFilter,
+    autoScroll: elements.processLogAutoScroll,
+    copyButton: elements.copyProcessLogButton,
+    exportButton: elements.exportProcessLogButton,
+    clearButton: elements.clearProcessLogButton,
+    list: elements.processLogList
+  };
+}

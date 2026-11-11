@@ -12,6 +12,7 @@ import { setFocusedRootNodeIds, createEmptyGraphOverrides } from "./appState.js"
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { saveSessionState, createSessionSnapshot } from "./sessionState.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "./workspace_identity.js";
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -21,6 +22,14 @@ export function createHistoryController({ state, elements, services }) {
   let nextRestoreId = 1;
   let activeRestoreId = 0;
   let sessionSaveFailureReported = false;
+  function reportHistoryRenderFailure(error, view, isCurrent, endRestore) {
+    try {
+      if (isCurrent() && readErrorField(error, "name") !== "AbortError") {
+        const message = `${view === "compare" ? "Compare history" : "History"} render failed: ${errorMessage(error)}`;
+        services.logProcess("error", "navigation", message, { error, view });
+      }
+    } finally { endRestore(); }
+  }
   function handleModuleHistoryShortcut(event) {
     if (!event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -115,7 +124,7 @@ export function createHistoryController({ state, elements, services }) {
         services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
           if (result?.cancelled) { endRestore(); return; }
           finishRestore();
-        }).catch(endRestore);
+        }).catch((error) => reportHistoryRenderFailure(error, "single", () => activeRestoreId === restoreId, endRestore));
         return;
       }
       services.renderCurrentModuleGraph({
@@ -247,7 +256,7 @@ export function createHistoryController({ state, elements, services }) {
         services.renderStats();
         services.renderDiagnostics();
         finishRestore();
-      }).catch(endRestore);
+      }).catch((error) => reportHistoryRenderFailure(error, "compare", isCurrentRestore, endRestore));
       return;
     }
     services.renderCompareGraphs({
@@ -292,7 +301,9 @@ export function createHistoryController({ state, elements, services }) {
       if (saved) { sessionSaveFailureReported = false; return; }
       if (sessionSaveFailureReported) return;
       sessionSaveFailureReported = true;
-      services.logProcess("error", "persistence", "Session could not be saved; browser storage may be unavailable or full");
+      services.logProcess("error", "persistence", "Session could not be saved; browser storage may be unavailable or full", {
+        operation: "save-session", moduleName: state.currentModule?.name
+      });
       services.setStatus("Session save failed; changes may not survive a refresh");
     }, 150);
   }

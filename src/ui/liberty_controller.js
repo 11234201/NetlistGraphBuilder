@@ -1,5 +1,11 @@
+import { errorMessage } from "../foundation/log_details.js";
+
 export function createLibertyController({ elements, read, importText, clear, cancel, refresh, setStatus, logProcess }) {
   let generation = 0;
+  function reportFailure(error, phase, message, fileName) {
+    if (error?.name !== "AbortError") logProcess?.("error", phase, message, { error, fileName, operation: "liberty" });
+    setStatus(message);
+  }
   function render(busy = false) {
     const library = read();
     elements.cancelButton.disabled = !busy;
@@ -21,13 +27,13 @@ export function createLibertyController({ elements, read, importText, clear, can
       logProcess?.("info", "import", `Loaded Liberty ${library.sourceName}`, { cells: library.cellCount, diagnostics: library.diagnostics.length });
       try { await refresh(); }
       catch (error) {
-        if (isCurrent()) setStatus(`Liberty ${library.sourceName} loaded; view refresh ${error.name === "AbortError" ? "cancelled" : "failed: " + error.message}`);
+        if (isCurrent()) reportFailure(error, "render", `Liberty ${library.sourceName} loaded; view refresh ${error?.name === "AbortError" ? "cancelled" : "failed: " + errorMessage(error)}`, library.sourceName);
         return "liberty";
       }
       if (isCurrent()) setStatus(`Loaded Liberty ${library.sourceName}: ${library.cellCount} cells`);
       return "liberty";
     } catch (error) {
-      if (isCurrent()) setStatus(error.name === "AbortError" ? "Liberty import cancelled" : `Liberty import failed: ${error.message}`);
+      if (isCurrent()) reportFailure(error, "import", error?.name === "AbortError" ? "Liberty import cancelled" : `Liberty import failed: ${errorMessage(error)}`, options.label || options.name || "library.lib");
       throw error;
     } finally { if (request === generation) render(); }
   }
@@ -38,7 +44,9 @@ export function createLibertyController({ elements, read, importText, clear, can
     const request = ++generation;
     clear(); render();
     try { await refresh(); if (request === generation) setStatus("Liberty unloaded; naming rules restored"); }
-    catch (error) { if (request === generation) setStatus(error.message); }
+    catch (error) {
+      if (request === generation) reportFailure(error, "render", `Liberty unload refresh failed: ${errorMessage(error)}`);
+    }
   });
   render();
   return Object.freeze({ load });

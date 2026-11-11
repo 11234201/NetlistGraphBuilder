@@ -1,10 +1,17 @@
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createPresentationController({ state, elements, services }) {
+  function reportRenderFailure(error, view) {
+    if (readErrorField(error, "name") === "AbortError") return;
+    const message = `${view === "compare" ? "Compare presentation" : "Presentation"} render failed: ${errorMessage(error)}`;
+    services.logProcess("error", "render", message, { error, view, operation: "presentation-refresh" });
+    services.setStatus(message);
+  }
   function handleGraphSimplificationChange() {
     state.useFanoutHubs = elements.fanoutHubsInput.checked;
     rerenderActiveGraph();
@@ -93,11 +100,14 @@ export function createPresentationController({ state, elements, services }) {
       refreshComparePresentationScenes();
     } else if (state.graph) {
       state.scene = createNetlistScene(state.graph, { presentationPolicy });
+      const scene = state.scene;
       services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
         if (result?.cancelled) return;
         services.applyTransform();
         services.updateCalibrationControls();
-      }).catch((error) => services.setStatus(`Presentation render failed: ${error.message}`));
+      }).catch((error) => {
+        if (!state.compare.active && state.scene === scene) reportRenderFailure(error, "single");
+      });
     }
     services.persistSession();
     services.setStatus(`Gate symbols: ${presentationPolicy.gateSymbolMode}`);
@@ -105,11 +115,13 @@ export function createPresentationController({ state, elements, services }) {
 
   function refreshComparePresentationScenes() {
     const renders = [];
+    const scenes = new Map();
     for (const side of ["left", "right"]) {
       const graph = state.compare.graphs[side];
       if (!graph) continue;
       const scene = createNetlistScene(graph, { presentationPolicy: state.presentationPolicy });
       state.compare.scenes[side] = scene;
+      scenes.set(side, scene);
       const mount = side === "left" ? elements.leftMount : elements.rightMount;
       renders.push(services.renderGraphMount(mount, graph, { scene }));
     }
@@ -118,7 +130,11 @@ export function createPresentationController({ state, elements, services }) {
       services.applyCompareHighlights();
       services.applyCompareTransforms();
       services.updateCalibrationControls();
-    }).catch((error) => services.setStatus(`Compare presentation render failed: ${error.message}`));
+    }).catch((error) => {
+      if (state.compare.active && [...scenes].every(([side, scene]) => state.compare.scenes[side] === scene)) {
+        reportRenderFailure(error, "compare");
+      }
+    });
   }
 
   return Object.freeze({ handleGraphSimplificationChange, rerenderActiveGraph, commitLayoutSpacing, commitTimingDisplayPolicy, commitGateSymbolMode, refreshComparePresentationScenes });
@@ -136,6 +152,6 @@ export const presentationPorts = Object.freeze({
     "applyCompareHighlights", "applyCompareTransforms", "applyTransform", "compareViewSessions",
     "persistSession", "renderCompareGraphs", "renderCurrentModuleGraph", "renderDiagnostics",
     "renderGraphMount", "renderStats", "setSelectedNode", "setSingleLayoutPolicy", "setSingleTransform",
-    "setStatus", "singleViewSession", "syncLayoutSpacingControls", "updateCalibrationControls"
+    "setStatus", "logProcess", "singleViewSession", "syncLayoutSpacingControls", "updateCalibrationControls"
   ]
 });
