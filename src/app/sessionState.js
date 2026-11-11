@@ -1,5 +1,5 @@
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
-import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/session_codec.js";
+export { SESSION_STATE_KEY, LEGACY_SESSION_STATE_KEY, loadSessionState, saveSessionState } from "../persistence/session_storage.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { isObjectRef } from "../contracts/object_ref.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
@@ -13,30 +13,6 @@ export function getSessionLayoutProviderId(session) {
   }
   return ["native-layered", "elk-layered", "simple-layered"].includes(providerId)
     ? providerId : DEFAULT_LAYOUT_PROVIDER_ID;
-}
-
-export const SESSION_STATE_KEY = "netlistGraphBuilder.session.v2";
-export const LEGACY_SESSION_STATE_KEY = "netlistGraphBuilder.session.v1";
-
-export function loadSessionState(storage) {
-  try {
-    const target = arguments.length > 0 ? storage : globalThis.sessionStorage;
-    const encoded = target?.getItem(SESSION_STATE_KEY) || target?.getItem(LEGACY_SESSION_STATE_KEY);
-    return encoded ? decodeSessionSnapshot(encoded) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveSessionState(snapshot, storage) {
-  try {
-    const target = arguments.length > 1 ? storage : globalThis.sessionStorage;
-    if (!target || typeof target.setItem !== "function") return false;
-    target.setItem(SESSION_STATE_KEY, encodeSessionSnapshot(snapshot));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function createSessionSnapshot(state) {

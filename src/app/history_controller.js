@@ -10,7 +10,8 @@ import {
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { setFocusedRootNodeIds, createEmptyGraphOverrides } from "./appState.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
-import { saveSessionState, createSessionSnapshot } from "./sessionState.js";
+import { createSessionSnapshot } from "./sessionState.js";
+import { saveSessionStateResult } from "../persistence/session_storage.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
@@ -297,12 +298,20 @@ export function createHistoryController({ state, elements, services }) {
     recordViewHistory(metadata);
     clearTimeout(sessionSaveTimer);
     sessionSaveTimer = setTimeout(() => {
-      const saved = saveSessionState(createSessionSnapshot(state));
-      if (saved) { sessionSaveFailureReported = false; return; }
+      let result;
+      try { result = saveSessionStateResult(createSessionSnapshot(state)); }
+      catch (error) { result = { ok: false, error }; }
+      if (result.ok) {
+        if (sessionSaveFailureReported) services.logProcess("info", "persistence", "Session saving recovered", {
+          operation: "save-session", moduleName: state.currentModule?.name
+        });
+        sessionSaveFailureReported = false;
+        return;
+      }
       if (sessionSaveFailureReported) return;
       sessionSaveFailureReported = true;
-      services.logProcess("error", "persistence", "Session could not be saved; browser storage may be unavailable or full", {
-        operation: "save-session", moduleName: state.currentModule?.name
+      services.logProcess("error", "persistence", `Session could not be saved: ${errorMessage(result.error)}`, {
+        error: result.error, operation: "save-session", moduleName: state.currentModule?.name
       });
       services.setStatus("Session save failed; changes may not survive a refresh");
     }, 150);

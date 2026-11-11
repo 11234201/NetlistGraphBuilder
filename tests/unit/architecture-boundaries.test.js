@@ -9,7 +9,7 @@ const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 test("browser entry cannot regain workspace scheduling or grow past its migration budget", () => {
   const source = readFileSync(join(projectRoot, "src/app/main.js"), "utf8");
-  assert.ok(source.split(/\r?\n/).length <= 520, "Extract a complete responsibility before adding entry code; do not raise the budget");
+  assert.ok(source.split(/\r?\n/).length <= 515, "Extract a complete responsibility before adding entry code; do not raise the budget");
   assert.doesNotMatch(source, /^(?:async )?function\s+/m, "Entry must only compose controllers and bind browser events");
   for (const file of sourceFiles(join(projectRoot, "src/app"))) {
     if (!file.endsWith("_controller.js")) continue;

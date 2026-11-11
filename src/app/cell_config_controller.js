@@ -6,6 +6,7 @@ import {
 } from "../ui/cellDefinitionPanel.js";
 import { serializeCellConfig } from "../infer/cellConfig.js";
 import { resolveCellConfigRefreshView } from "./graphWorkspace.js";
+import { errorMessage } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -39,24 +40,17 @@ export function createCellConfigController({ state, elements, services }) {
   function saveActiveCellDefinition(event) {
     event.preventDefault();
     if (!activeCellDefinition) return;
-    try {
-      const definition = readCellDefinitionEditor(elements.cellDefinitionForm, activeCellDefinition);
-      state.cellConfig = services.cellConfigUseCases.set(state.cellConfig, activeCellDefinition.cellType, definition);
-      const cellType = activeCellDefinition.cellType;
-      closeCellDefinitionDialog();
-      rebuildAfterCellConfigChange(`${cellType}: Cell Config saved`);
-    } catch (error) {
-      services.logProcess("error", "persistence", `Cell Config save failed: ${error.message}`, { error, cellType: activeCellDefinition?.cellType });
-      services.setStatus(`Cell Config save failed: ${error.message}`);
-    }
+    const cellType = activeCellDefinition.cellType;
+    commitConfigChange("save-cell-config", () => services.cellConfigUseCases.set(state.cellConfig, cellType,
+      readCellDefinitionEditor(elements.cellDefinitionForm, activeCellDefinition)),
+      `${cellType}: Cell Config saved`, { cellType }, true);
   }
 
   function deleteActiveCellDefinition() {
     if (!activeCellDefinition) return;
     const cellType = activeCellDefinition.cellType;
-    state.cellConfig = services.cellConfigUseCases.remove(state.cellConfig, cellType);
-    closeCellDefinitionDialog();
-    rebuildAfterCellConfigChange(`${cellType}: saved Cell Config deleted`);
+    commitConfigChange("delete-cell-config", () => services.cellConfigUseCases.remove(state.cellConfig, cellType),
+      `${cellType}: saved Cell Config deleted`, { cellType }, true);
   }
 
   async function handleCellConfigImport(event) {
@@ -65,27 +59,55 @@ export function createCellConfigController({ state, elements, services }) {
     try {
       const prepared = services.cellConfigUseCases.prepareImport(state.cellConfig, await file.text());
       if (prepared.conflicts.length && !window.confirm(`Replace ${prepared.conflicts.length} existing Cell Config definition(s): ${prepared.conflicts.join(", ")}?`)) return;
-      state.cellConfig = services.cellConfigUseCases.commitImport(prepared);
-      rebuildAfterCellConfigChange(`Imported Cell Config ${file.name}: ${Object.keys(prepared.incoming.cells).length} definition(s)`);
+      commitConfigChange("import-cell-config", () => services.cellConfigUseCases.commitImport(prepared),
+        `Imported Cell Config ${file.name}: ${Object.keys(prepared.incoming.cells).length} definition(s)`, { fileName: file.name });
     } catch (error) {
-      services.logProcess("error", "import", `Cell Config import failed ${file.name}: ${error.message}`, { error, fileName: file.name });
-      services.setStatus(`Cell Config import failed ${file.name}: ${error.message}`);
+      reportFailure(error, "import", `Cell Config import failed ${file.name}`, { operation: "prepare-cell-config-import", fileName: file.name });
     } finally {
       event.target.value = "";
     }
   }
 
   function exportCellConfig() {
-    services.browserDownload.text(`${serializeCellConfig(state.cellConfig)}\n`, "netlist-cell-config.json", "application/json");
-    services.setStatus(`Exported ${Object.keys(state.cellConfig.cells).length} Cell Config definition(s)`);
+    const fileName = "netlist-cell-config.json";
+    try {
+      services.browserDownload.text(`${serializeCellConfig(state.cellConfig)}\n`, fileName, "application/json");
+      const message = `Exported ${Object.keys(state.cellConfig.cells).length} Cell Config definition(s)`;
+      services.logProcess("info", "export", message, { operation: "export-cell-config", fileName });
+      services.setStatus(message);
+    } catch (error) {
+      reportFailure(error, "export", "Cell Config export failed", { operation: "export-cell-config", fileName });
+    }
   }
 
   function resetAllCellConfig() {
     const count = Object.keys(state.cellConfig.cells).length;
     if (count === 0) return;
     if (!window.confirm(`Remove all ${count} saved Cell Config definition(s)?`)) return;
-    state.cellConfig = services.cellConfigUseCases.reset();
-    rebuildAfterCellConfigChange("All saved Cell Config definitions reset");
+    commitConfigChange("reset-cell-config", () => services.cellConfigUseCases.reset(),
+      "All saved Cell Config definitions reset", { definitionCount: count });
+  }
+
+  function reportFailure(error, phase, label, details) {
+    const message = `${label}: ${errorMessage(error)}`;
+    services.logProcess("error", phase, message, { error, ...details });
+    services.setStatus(message);
+  }
+
+  function commitConfigChange(operation, commit, message, details, closeEditor = false) {
+    try {
+      state.cellConfig = commit();
+    } catch (error) {
+      reportFailure(error, "persistence", "Cell Config change could not be saved", { operation, ...details });
+      return;
+    }
+    services.logProcess("info", "persistence", message, { operation, ...details });
+    try {
+      if (closeEditor) closeCellDefinitionDialog();
+      rebuildAfterCellConfigChange(message);
+    } catch (error) {
+      reportFailure(error, "render", "Cell Config saved, but workspace refresh failed", { operation, ...details });
+    }
   }
 
   function rebuildAfterCellConfigChange(message) {

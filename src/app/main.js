@@ -16,10 +16,11 @@ import { createModuleHierarchyController } from "../ui/module_hierarchy_controll
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
 import { createBrowserDownload } from "../platform/browser_download.js";
-import { loadStoredCellConfig, saveStoredCellConfig } from "../persistence/cell_config_storage.js";
+import { saveStoredCellConfig } from "../persistence/cell_config_storage.js";
 import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cases.js";
 import { createAppState } from "./appState.js";
-import { createSessionSnapshot, loadSessionState, saveSessionState } from "./sessionState.js";
+import { createSessionSnapshot } from "./sessionState.js";
+import { restoreWorkbenchStorage } from "./workbench_storage.js";
 import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
 import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
@@ -347,7 +348,6 @@ const compareViewSessions = createCompareViewSessionBridge({
   sessions: viewSessions,
   onDispatch: noteViewCommandDispatch
 });
-state.cellConfig = loadStoredCellConfig();
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
 const libertyService = createLibertyLibraryService({ execute: runCooperativeTask });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
@@ -497,11 +497,13 @@ elements.canvas.addEventListener("dblclick", handleCanvasDoubleClick);
 window.addEventListener("keydown", handleModuleHistoryShortcut);
 window.addEventListener("keydown", handleViewHistoryShortcut);
 window.addEventListener("keydown", handleFocusSelectedShortcut);
-window.addEventListener("beforeunload", () => {
-  if (state.currentSource) saveSessionState(createSessionSnapshot(state));
-});
 
-const restoredSession = loadSessionState();
+const restoredSession = restoreWorkbenchStorage({
+  windowTarget: window,
+  logProcess,
+  setCellConfig: (bundle) => { state.cellConfig = bundle; },
+  getSessionSnapshot: () => state.currentSource ? createSessionSnapshot(state) : null
+});
 applySessionPreferences(restoredSession);
 renderLayoutProviderOptions();
 initializeApplication(restoredSession);

@@ -289,7 +289,9 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 `ui/process_log_controller.js` 管理过滤、复制、JSONL 导出和错误展开，并通过注入的 window target 安装 `runtime_error_controller.js`。全局监听观察 error（含捕获阶段资源错误）和 unhandledrejection，不阻止浏览器默认报告；仍在缓冲区内的同一异常对象避免被全局监听重复记录（淘汰或清空后可再次记录），主动取消不作为错误。监听可释放，日志接收端故障有重入保护。日志初始化之前的脚本故障仍由浏览器报告。Native Worker 只补传错误调用栈，不改变布局结果或降级策略。
 
-日志元素映射归 `ui/workbench_elements.js`；main 的迁移行数上限进一步降为 520。
+存储边界提供保留原始异常的结果接口，同时保留旧调用方的值/布尔返回接口。`app/workbench_storage.js` 通过窄回调管理启动读取与离开页面前保存，在日志初始化之后报告恢复失败；历史控制器对连续自动保存失败只报告一次，恢复后记录一次成功。Cell Config 的持久化提交与后续刷新分开报告，导出失败归入 `export`，日志仅携带操作上下文而不附带完整快照。
+
+日志元素映射归 `ui/workbench_elements.js`；main 的迁移行数上限进一步降为 515。
 
 ## 可选 Liberty 附件契约（2026-11-10）
 

@@ -6,6 +6,7 @@ import { resolveLayoutGoldenModule, applyLayoutGoldenState } from "./layoutGolde
 import { compareLayoutGraphs, createLayoutGolden } from "../domains/netlist/layout_golden.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { findCompareNode } from "./compareWorkspace.js";
+import { errorMessage } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -23,7 +24,12 @@ export function createGoldenController({ state, elements, services }) {
       ? "whole"
       : `${state.viewMode}-depth-${state.coneDepth}`;
     const fileName = `${sanitizeDownloadFileName(state.currentModule.name)}-${viewSuffix}.svg`;
-    services.browserDownload.text(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
+    try {
+      services.browserDownload.text(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
+    } catch (error) {
+      reportExportFailure(error, "export-svg", fileName);
+      return;
+    }
     services.logProcess("info", "export", `Exported SVG: ${fileName}`, {
       nodeCount: state.graph.nodes.length,
       edgeCount: state.graph.edges.length
@@ -113,6 +119,15 @@ export function createGoldenController({ state, elements, services }) {
       return;
     }
 
+    const fileName = `layout-golden-${sanitizeDownloadFileName(state.currentModule.name)}.json`;
+    try {
+      exportLayoutGolden(fileName);
+    } catch (error) {
+      reportExportFailure(error, "export-golden", fileName);
+    }
+  }
+
+  function exportLayoutGolden(fileName) {
     const diff = compareLayoutGraphs(state.autoGraph, state.graph);
     const golden = createLayoutGolden(state.graph, {
       identity: currentPersistenceIdentity(),
@@ -140,13 +155,21 @@ export function createGoldenController({ state, elements, services }) {
         ...golden,
         diff
       },
-      `layout-golden-${sanitizeDownloadFileName(state.currentModule.name)}.json`
+      fileName
     );
     services.logProcess("info", "export", `Exported layout Golden for ${state.currentModule.displayName}`, {
       movedNodeCount: diff.movedNodeCount,
       maxMove: diff.maxMove
     });
     services.setStatus(`Saved layout golden: ${diff.movedNodeCount} moved node(s), max move ${diff.maxMove}px`);
+  }
+
+  function reportExportFailure(error, operation, fileName) {
+    const message = `${operation === "export-svg" ? "SVG" : "Layout Golden"} export failed: ${errorMessage(error)}`;
+    services.logProcess("error", "export", message, {
+      error, operation, fileName, moduleName: state.currentModule?.name, view: state.viewMode
+    });
+    services.setStatus(message);
   }
 
   function currentPersistenceIdentity() {

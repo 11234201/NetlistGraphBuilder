@@ -484,10 +484,12 @@ test("startup rejects an explicit missing module before scheduling layout", () =
   assert.equal(renders, 0);
 });
 
-test("session persistence reports only the first failure in a continuous failure streak", async () => {
+test("session persistence retains diagnostics, coalesces a failure streak, and reports recovery", async () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  const failure = new Error("quota", { cause: new Error("storage full") });
+  let failing = true;
   Object.defineProperty(globalThis, "sessionStorage", {
-    configurable: true, get: () => ({ setItem() { throw new Error("quota"); } })
+    configurable: true, get: () => ({ setItem() { if (failing) throw failure; } })
   });
   try {
     const state = createAppState(DEFAULT_LAYOUT_POLICY);
@@ -499,7 +501,7 @@ test("session persistence reports only the first failure in a continuous failure
     const services = new Proxy({
       viewHistoryTransactions: { capture: () => false },
       setStatus: (message) => statuses.push(message),
-      logProcess: (_level, _phase, message) => logs.push(message)
+      logProcess: (level, phase, message, details) => logs.push({ level, phase, message, details })
     }, { get: (target, key) => key in target ? target[key] : noOp });
     const controller = createHistoryController({
       state, elements: { moduleBackButton: {}, moduleForwardButton: {} }, services
@@ -509,7 +511,24 @@ test("session persistence reports only the first failure in a continuous failure
     controller.persistSession();
     await new Promise((resolve) => setTimeout(resolve, 180));
     assert.equal(statuses.filter((message) => message.includes("Session save failed")).length, 1);
-    assert.equal(logs.filter((message) => message.includes("Session could not be saved")).length, 1);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].phase, "persistence");
+    assert.equal(logs[0].details.operation, "save-session");
+    assert.equal(logs[0].details.moduleName, "top");
+    assert.strictEqual(logs[0].details.error, failure);
+    failing = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      controller.persistSession();
+      await new Promise((resolve) => setTimeout(resolve, 180));
+    }
+    assert.equal(logs.length, 2, "one recovery log, not a log for every successful autosave");
+    assert.equal(logs[1].level, "info");
+    assert.match(logs[1].message, /recovered/);
+    failing = true;
+    controller.persistSession();
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    assert.equal(logs.length, 3, "a later failure starts a new streak");
+    assert.equal(logs[2].level, "error");
   } finally {
     if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
     else delete globalThis.sessionStorage;

@@ -669,6 +669,8 @@ Compare 左右两侧画布各自独立维护其 `Focused roots` 集合、激活�
 
 当遇到解析报错、布局降级或启动异常时，可展开 `Process Log` 筛选 `Error` / `Warning` 或对应 `Phase`，查看 details 并导出后排查。
 
+会话或 Cell Config 读取失败会记录为 `Persistence` 错误，并继续使用默认状态；自动保存失败会保留底层异常，连续失败只报告一次，恢复后记录 `Session saving recovered`。Cell Config 的保存、删除、重置与导入写入失败均归入 `Persistence`；已保存但刷新失败归入 `Render`。SVG、Golden 和 Cell Config 的生成或下载触发失败归入 `Export`，包含操作及文件名。关闭页面时的保存错误只能在页面仍存活时进入内存日志，不会形成跨会话日志文件。
+
 ---
 
 ## 16. 快捷键一览
