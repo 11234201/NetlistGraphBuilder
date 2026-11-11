@@ -294,6 +294,16 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ---
 
+### 6.5 指定 net 不布线
+
+点击导线，或在单元 `Connections` 中点击 net 名称，在 `Selection → Net routing` 取消勾选
+`Route net / 布线`，即可跳过 clk、reset 或任意所选 net 的布线。默认所有 net 均布线；
+net 之间的 assign 别名同步生效，赋为相同常量的独立 net 可分别设置；单元、引脚、连接详情与 Focused 追踪保持完整。
+
+取消布线后仍可通过 Search 或 Connections 打开该 net，重新勾选恢复。Compare 左右侧独立设置。
+设置支持 Back/Forward、模块切换和 Golden 保存/加载；刷新页面时恢复 Single 当前模块的设置。
+SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线。
+
 ## 7. Whole 和 Focused 视图
 
 ### 7.1 Whole（整图视图）

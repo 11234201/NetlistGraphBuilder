@@ -22,6 +22,7 @@ export function buildModuleWorkspace(options) {
     timingBadgeChoices = {},
     timingBadgePositions = {},
     showAliases = false,
+    preserveLegacyProjection = false,
     viewMode = "whole",
     coneRootNodeId = null,
     focusedRootNodeIds = null,
@@ -76,6 +77,7 @@ export function buildModuleWorkspace(options) {
     fullGraph: workspaceArtifactReference(fullGraph),
     providerInstance: workspaceArtifactReference(layoutProvider),
     moduleName: module?.name || null,
+    preserveLegacyProjection,
     viewMode,
     coneRootNodeId,
     focusedRootNodeIds,
@@ -87,6 +89,7 @@ export function buildModuleWorkspace(options) {
     maximumVisibleNodes,
     maximumFrontier,
     useFanoutHubs,
+    unroutedNets: graphOverrides?.unroutedNets,
     collapseLargeGroups,
     expandedGroupIds: [...expandedGroupIds],
     layoutProvider: layoutProvider?.id || null,
@@ -131,10 +134,14 @@ export function buildModuleWorkspace(options) {
         faninDepth,
         fanoutDepth,
         maximumVisibleNodes,
-        maximumFrontier
+        maximumFrontier,
+        // Simple's source projection is frozen along with its geometry.
+        preserveLegacyProjection: preserveLegacyProjection || layoutProvider?.id === "simple-layered"
       })
     }),
     project: (result) => applyWorkspaceGraphTransforms(result.graph, {
+      fullGraph,
+      unroutedNets: graphOverrides?.unroutedNets,
       useFanoutHubs,
       collapseLargeGroups,
       expandedGroupIds

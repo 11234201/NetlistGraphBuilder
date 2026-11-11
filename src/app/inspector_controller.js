@@ -12,10 +12,11 @@ import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
 import { inspectGraphNode, inspectGraphNet } from "../analysis/graphInspector.js";
 import { renderAdjustPanel, bindAdjustPanel } from "../ui/adjustPanel.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
+import { renderNetRoutingPanel, bindNetRoutingPanel } from "../ui/net_routing_panel.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createInspectorController({ state, elements, services }) {
+export function createInspectorController({ state, elements, services, netRouting }) {
   function renderStats() {
     if (state.compare.active && state.compare.analysis) {
       const { left, right, delta, unmatchedPorts, unmatchedNets } = state.compare.analysis;
@@ -112,6 +113,11 @@ export function createInspectorController({ state, elements, services }) {
       }
     }
     if (focus) focusCompareSelection(kind, name);
+    if (kind === "net") {
+      renderNetSelection(name, selectedSide);
+      services.recordViewHistory();
+      return;
+    }
     if (kind !== "net" && selectedSide) {
       const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
       if (node) {
@@ -132,7 +138,7 @@ export function createInspectorController({ state, elements, services }) {
   }
 
   function compareObjectExists(side, kind, name) {
-    if (kind === "net") return Boolean(state.compare.graphs?.[side]?.edges?.some((edge) => edge.net === name));
+    if (kind === "net") return Boolean((state.compare.fullGraphs?.[side] || state.compare.graphs?.[side])?.edges?.some((edge) => edge.net === name));
     return Boolean(findCompareNode(state.compare.graphs?.[side], kind, name));
   }
 
@@ -263,14 +269,20 @@ export function createInspectorController({ state, elements, services }) {
     bindSelectionControls(node);
   }
 
-  function renderNetSelection(netName) {
+  function renderNetSelection(netName, side = null) {
     services.updateCellDefinitionControls(null);
     elements.details.className = "details-block";
-    const activeGraph = state.fullGraph || state.graph;
+    const activeGraph = side
+      ? state.compare.fullGraphs[side] || state.compare.graphs[side]
+      : state.fullGraph || state.graph;
     const netTiming = activeGraph?.netTiming?.[netName] || null;
-    elements.details.innerHTML = `${renderObjectDetails(inspectGraphNet(activeGraph, netName, {
-      hierarchyContext: currentHierarchyInspectionContext()
+    elements.details.innerHTML = `${side ? statsRows([["Compare side", side]]) : ""}${netRouting && netName ? renderNetRoutingPanel(netRouting.isEnabled(netName, side)) : ""}${renderObjectDetails(inspectGraphNet(activeGraph, netName, {
+      hierarchyContext: side ? null : currentHierarchyInspectionContext()
     }))}${renderNetTimingPanel(netTiming)}`;
+    if (netRouting && netName) bindNetRoutingPanel(elements.details, (enabled) => {
+      netRouting.setEnabled(netName, enabled, side);
+      renderNetSelection(netName, side);
+    });
   }
 
   function currentHierarchyInspectionContext() {

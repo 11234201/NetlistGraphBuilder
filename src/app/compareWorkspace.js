@@ -110,6 +110,7 @@ export function buildCompareSideWorkspace(options = {}) {
     const result = buildModuleWorkspace({
       module,
       preparedFullGraph: fullGraph,
+      graphOverrides: options.graphOverrides?.[side],
       layoutProvider,
       layoutPolicy,
       presentationPolicy,

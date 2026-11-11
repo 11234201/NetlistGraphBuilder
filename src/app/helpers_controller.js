@@ -14,7 +14,8 @@ export function createHelpersController({ state, elements, services }) {
   function countGraphOverrides() {
     return (
       Object.keys(state.graphOverrides.nodeProperties).length +
-      Object.keys(state.graphOverrides.cellPinDirections).length
+      Object.keys(state.graphOverrides.cellPinDirections).length +
+      (state.graphOverrides.unroutedNets?.length || 0)
     );
   }
 
@@ -23,7 +24,8 @@ export function createHelpersController({ state, elements, services }) {
       state.compare.nodePositions[side].size > 0 ||
       state.compare.nodeSizes[side].size > 0 ||
       Object.keys(state.compare.graphOverrides[side].nodeProperties).length > 0 ||
-      Object.keys(state.compare.graphOverrides[side].cellPinDirections).length > 0
+      Object.keys(state.compare.graphOverrides[side].cellPinDirections).length > 0 ||
+      (state.compare.graphOverrides[side].unroutedNets?.length || 0) > 0
     );
   }
 

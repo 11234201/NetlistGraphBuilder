@@ -1,4 +1,5 @@
 import { createCommandBus } from "../application/command_bus.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createObjectRef, objectRefKey } from "../contracts/object_ref.js";
@@ -112,6 +113,7 @@ function applyOverridesSnapshot(state, snapshot) {
 
 function cloneGraphOverrides(value) {
   return {
+    ...cloneNetRoutingOverrides(value),
     nodeProperties: Object.fromEntries(Object.entries(value?.nodeProperties || {}).map(([id, properties]) => [id, { ...properties }])),
     cellPinDirections: Object.fromEntries(Object.entries(value?.cellPinDirections || {}).map(([id, pins]) => [id, { ...pins }]))
   };

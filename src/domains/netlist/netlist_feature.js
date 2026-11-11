@@ -104,9 +104,14 @@ export const netlistFeature = defineDomainFeature({
       rootNodeId: normalizedQuery.rootNodeId,
       faninDepth: normalizedQuery.faninDepth,
       fanoutDepth: normalizedQuery.fanoutDepth,
-      maxDepth: normalizedQuery.maxDepth
+      maxDepth: normalizedQuery.maxDepth,
+      preserveLegacyProjection: options.preserveLegacyProjection === true
     });
-    const transformedGraph = applyWorkspaceGraphTransforms(visibleGraph, options.transforms);
+    const transformedGraph = applyWorkspaceGraphTransforms(visibleGraph, {
+      ...options.transforms,
+      fullGraph,
+      unroutedNets: options.graphOverrides?.unroutedNets
+    });
     return {
       fullGraph,
       visibleGraph: transformedGraph,

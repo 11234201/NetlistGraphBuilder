@@ -28,6 +28,7 @@ test("eq012 terminal DFF outputs stay on local direct rows at spacing 88", async
   const design = parseVerilog(source);
   const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
   const graph = applyWorkspaceGraphTransforms(selectWorkspaceGraphView(buildSchematicGraph(module), {
+    preserveLegacyProjection: true, // Frozen Simple input; keep the original geometry assertions.
     viewMode: "focused",
     rootNodeIds: ["cell:_1471_", "cell:_1746_"],
     faninDepth: 3,
@@ -71,6 +72,7 @@ test("eq012 focused dual-root routing stays locally valid across spacing", async
   const design = parseVerilog(source);
   const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
   const focused = selectWorkspaceGraphView(buildSchematicGraph(module), {
+    preserveLegacyProjection: true,
     viewMode: "focused",
     rootNodeIds: ["cell:_2021_", "cell:_2406_"],
     faninDepth: 3,
@@ -157,6 +159,7 @@ test("eq012 clock fanout reserves each physical trunk geometry once", async () =
   const design = parseVerilog(source);
   const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
   const focused = selectWorkspaceGraphView(buildSchematicGraph(module), {
+    preserveLegacyProjection: true,
     viewMode: "focused",
     rootNodeIds: ["cell:_2021_", "cell:_2406_"],
     faninDepth: 3,
@@ -203,6 +206,7 @@ async function buildEq012FocusedGraph(options) {
   const design = parseVerilog(source);
   const module = design.modules.find((item) => item.name === "tc") || design.modules[0];
   const focused = selectWorkspaceGraphView(buildSchematicGraph(module), {
+    preserveLegacyProjection: true,
     viewMode: "focused",
     ...options
   });

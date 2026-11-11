@@ -23,16 +23,32 @@ import { createStatusController, statusPorts } from "./status_controller.js";
 import { createPreferencesController, preferencesPorts } from "./preferences_controller.js";
 import { createHelpersController, helpersPorts } from "./helpers_controller.js";
 import { createLegacyPort } from "./legacy_port.js";
+import { createNetRoutingBridge } from "./net_routing_bridge.js";
 
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
 export function createWorkbenchControllers({ state, getElements, services }) {
+  const actions = Object.create(null);
+  const netRouting = createNetRoutingBridge({
+    readContext: (side) => ({
+      fullGraph: side ? state.compare.fullGraphs[side] : state.fullGraph,
+      graphOverrides: side ? state.compare.graphOverrides[side] : state.graphOverrides
+    }),
+    updateOverrides: (side, update) => side
+      ? actions.updateCompareOverrides(side, update) : actions.updateSingleOverrides(update),
+    rebuild: (side) => side ? actions.renderCompareGraphs() : actions.renderCurrentModuleGraph({
+      onRendered: () => state.selectedNet
+        ? actions.setSelectedNet(state.selectedNet, false)
+        : actions.setSelectedNode(state.selectedNodeId, false)
+    })
+  });
   const wire = (owner, factory, ports) => factory({
     state: createLegacyPort(() => state, ports.state, {
       writable: true,
       nestedFields: { compare: COMPARE_FIELDS_BY_CONTROLLER[owner] || [] }
     }),
     elements: createLegacyPort(getElements, ports.elements),
-    services: createLegacyPort(() => services, ports.services)
+    services: createLegacyPort(() => services, ports.services),
+    ...(owner === "inspector" ? { netRouting } : {})
   });
   const controllers = [
     ["input", createInputController, inputPorts], ["sidebar", createSidebarController, sidebarPorts],
@@ -59,7 +75,6 @@ export function createWorkbenchControllers({ state, getElements, services }) {
       for (const key of ports.services) validateWorkbenchServiceDependency(services, key, owner);
     }
   });
-  const actions = Object.create(null);
   const owners = new Map();
   for (const [owner, factory, ports] of controllers) {
     for (const [name, action] of Object.entries(wire(owner, factory, ports))) {

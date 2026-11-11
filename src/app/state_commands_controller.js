@@ -1,4 +1,5 @@
 import { formatViewportTransform } from "../ui/viewport.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { setFocusedRootNodeIds, createEmptyGraphOverrides } from "./appState.js";
@@ -104,6 +105,7 @@ export function createStateCommandsController({ state, elements, services }) {
       nodePositions: new Map(state.nodePositions),
       nodeSizes: new Map(state.nodeSizes),
       graphOverrides: {
+        ...cloneNetRoutingOverrides(state.graphOverrides),
         nodeProperties: Object.fromEntries(Object.entries(state.graphOverrides.nodeProperties).map(([id, value]) => [id, { ...value }])),
         cellPinDirections: Object.fromEntries(Object.entries(state.graphOverrides.cellPinDirections).map(([id, value]) => [id, { ...value }]))
       }
@@ -127,6 +129,7 @@ export function createStateCommandsController({ state, elements, services }) {
       nodePositions: new Map(state.compare.nodePositions[side]),
       nodeSizes: new Map(state.compare.nodeSizes[side]),
       graphOverrides: {
+        ...cloneNetRoutingOverrides(state.compare.graphOverrides[side]),
         nodeProperties: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].nodeProperties).map(([id, value]) => [id, { ...value }])),
         cellPinDirections: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].cellPinDirections).map(([id, value]) => [id, { ...value }]))
       }

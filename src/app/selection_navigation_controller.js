@@ -154,7 +154,7 @@ export function createSelectionNavigationController({ state, elements, services 
       onRendered: (graph) => {
         if (target.kind === "net") {
           const edge = graph.edges.find((item) => item.net === target.name);
-          setSelectedNet(edge ? target.name : null, false);
+          setSelectedNet(edge || graph.unroutedNets?.includes(target.name) ? target.name : null, false);
           if (edge) services.centerGraphPoint(services.getEdgeCenter(edge));
         } else {
           const positioned = graph.nodes.find((item) => item.id === target.id);
@@ -170,10 +170,10 @@ export function createSelectionNavigationController({ state, elements, services 
   function focusSingleSelectionTarget(target) {
     if (target.kind === "net") {
       const edge = state.graph?.edges.find((item) => item.net === target.name);
-      if (!edge) return false;
+      if (!edge && !state.graph?.unroutedNets?.includes(target.name)) return false;
       setSelectedNet(target.name);
       services.centerGraphPoint(services.getEdgeCenter(edge));
-      services.setStatus(`Connected net: ${edge.label || target.name}`);
+      services.setStatus(`Connected net: ${edge?.label || target.name}`);
       return true;
     }
 
@@ -197,7 +197,7 @@ export function createSelectionNavigationController({ state, elements, services 
     const side = state.compare.selectedSide || "left";
     const graph = state.compare.graphs[side];
     if (target.kind === "net") {
-      if (!graph?.edges.some((edge) => edge.net === target.name)) {
+      if (!graph?.edges.some((edge) => edge.net === target.name) && !graph?.unroutedNets?.includes(target.name)) {
         services.setStatus("Connected net is outside the current compare cone");
         return;
       }

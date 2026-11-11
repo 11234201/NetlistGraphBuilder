@@ -269,9 +269,9 @@ test("hierarchy connection navigation compares occurrence identity, not only mod
 
 test("net selection receives the same occurrence context as cell selection", async () => {
   const source = await readWorkbenchSource();
-  const handler = source.match(/function renderNetSelection\(netName\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  const handler = source.match(/function renderNetSelection\(netName, side = null\) \{([\s\S]*?)\n\}/)?.[1] || "";
 
-  assert.match(handler, /inspectGraphNet\([\s\S]*hierarchyContext: currentHierarchyInspectionContext\(\)/);
+  assert.match(handler, /inspectGraphNet\([\s\S]*hierarchyContext: side \? null : currentHierarchyInspectionContext\(\)/);
 });
 
 test("module navigation distinguishes an explicit root occurrence from a missing context", async () => {
@@ -303,14 +303,16 @@ test("search reveals a target outside the current canvas through Focused instead
   assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
 });
 
-test("hidden net search hits never become dangling selections", async () => {
+test("hidden net search requires Focused unless routing was explicitly disabled", async () => {
   const source = await readWorkbenchSource();
   const activate = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
   const handler = activate.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n    \}\n\n    const fullNode/)?.[1] || "";
 
   assert.match(handler, /resolveSearchTargetAction\(target, state\.graph, state\.fullGraph\)/);
   assert.match(handler, /could not be focused/);
-  assert.doesNotMatch(handler, /setSelectedNet\(target\.name\);/);
+  const explicitlyUnrouted = handler.match(/if \(state\.graph\?\.unroutedNets\?\.includes\(target\.name\)\) \{[\s\S]*?return;\n      \}/)?.[0] || "";
+  assert.match(explicitlyUnrouted, /setSelectedNet\(target\.name\);/);
+  assert.doesNotMatch(handler.replace(explicitlyUnrouted, ""), /setSelectedNet\(target\.name\);/);
 });
 
 test("search history captures the final selection and viewport together", async () => {

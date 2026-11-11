@@ -5,7 +5,7 @@
  * logic hidden by the current Focused depth and are never fed back into cone
  * analysis.
  */
-export function projectFocusedBoundaries(graph) {
+export function projectFocusedBoundaries(graph, options = {}) {
   if (!graph || graph.view?.mode !== "focused" || graph.focusBoundaryProjected) {
     return graph;
   }
@@ -29,6 +29,21 @@ export function projectFocusedBoundaries(graph) {
     const groupKey = `${direction}\u0000${netGroupKey}`;
     if (!groups.has(groupKey)) groups.set(groupKey, []);
     groups.get(groupKey).push(edge);
+  }
+
+  // A visible input boundary represents the physical driver of its net. Its
+  // other loads can be outside the query too, so neither endpoint of those
+  // branches appears in cutEdges. Retain those continuations with one full
+  // graph scan, without expanding the visible cell neighborhood.
+  if (faninEnabled && fanoutEnabled && options.fullGraph) {
+    for (const edge of options.fullGraph.edges || []) {
+      if (includedNodeIds.has(edge.source) || includedNodeIds.has(edge.target)) continue;
+      const netGroupKey = `${String(edge.source ?? "")}\u0000${String(edge.net ?? edge.label ?? edge.id ?? "")}`;
+      if (!groups.has(`in\u0000${netGroupKey}`)) continue;
+      const groupKey = `out\u0000${netGroupKey}`;
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey).push(edge);
+    }
   }
 
   if (groups.size === 0) {
@@ -67,9 +82,14 @@ export function projectFocusedBoundaries(graph) {
     const sortedEdges = groupedEdges.toSorted((left, right) =>
       String(left.id || "").localeCompare(String(right.id || "")));
     if (direction === "out") {
+      const externalSource = !includedNodeIds.has(first.source);
       const derived = {
         ...first,
         id: `${first.id}:focus-out`,
+        ...(externalSource ? {
+          source: `focus-boundary:in:${safeId(netGroupKey)}`,
+          sourcePin: first.label || net
+        } : {}),
         target: id,
         targetPin: node.label,
         showLabel: true,

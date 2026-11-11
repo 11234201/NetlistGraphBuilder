@@ -1,4 +1,5 @@
 import { analyzeLayoutQuality, compareLayoutQuality } from "../../layout/layoutQuality.js";
+import { cloneNetRoutingOverrides } from "./net_routing.js";
 import { normalizeLayoutPolicy } from "../../layout/layoutPolicy.js";
 import { normalizeFocusedRootIds as normalizePolicyRoots } from "../../foundation/view_policy.js";
 import { isObjectRef } from "../../contracts/object_ref.js";
@@ -116,6 +117,7 @@ export function getLayoutGoldenState(value) {
       ? normalizeLayoutPolicy(layoutOptions.layoutPolicy)
       : null,
     graphOverrides: {
+      ...cloneNetRoutingOverrides(graphOverrides),
       nodeProperties: cloneJsonRecord(graphOverrides.nodeProperties),
       cellPinDirections: cloneJsonRecord(graphOverrides.cellPinDirections)
     },

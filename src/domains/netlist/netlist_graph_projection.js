@@ -1,4 +1,4 @@
-import { normalizeGraphAliases } from "../../analysis/aliasNormalizer.js";
+import { normalizeGraphAliases, createGraphAliasIndex, expandGraphAliases } from "../../analysis/aliasNormalizer.js";
 import { simplifyFanoutWithHubs } from "../../analysis/fanoutHub.js";
 import { createFocusedNeighborhoodGraph } from "../../analysis/graphCone.js";
 import { collapseLargeGraph } from "../../analysis/groupCollapse.js";
@@ -6,6 +6,7 @@ import { projectFocusedBoundaries } from "../../analysis/focusBoundary.js";
 import { normalizeFocusedRootIds, normalizeViewMode } from "../../foundation/view_policy.js";
 import { buildSchematicGraph } from "../../netlist/graph.js";
 import { annotateGraphTiming } from "../../timing/timingAnnotation.js";
+import { omitUnroutedNets } from "./net_routing.js";
 
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
@@ -45,15 +46,20 @@ export function selectWorkspaceGraphView(fullGraph, options = {}) {
     const roots = Array.isArray(requestedRootIds) ? requestedRootIds : requestedRootIds ? [requestedRootIds] : [];
     const encodedNetRoots = roots.filter((id) => typeof id === "string" && id.startsWith("net:"));
     const rootNodeIds = roots.filter((id) => !(typeof id === "string" && id.startsWith("net:")));
+    const requestedNetRoots = options.rootNetIds || encodedNetRoots.map((id) => id.slice(4));
+    const netRoots = Array.isArray(requestedNetRoots) ? requestedNetRoots : [requestedNetRoots];
+    const rootNetIds = !options.preserveLegacyProjection && netRoots.length
+      ? [...expandGraphAliases(netRoots, createGraphAliasIndex(fullGraph))]
+      : requestedNetRoots;
     return projectFocusedBoundaries(createFocusedNeighborhoodGraph(fullGraph, rootNodeIds, {
       rootNodeIds,
-      rootNetIds: options.rootNetIds || encodedNetRoots.map((id) => id.slice(4)),
+      rootNetIds,
       activeRootNodeId: options.activeRootNodeId,
       faninDepth: options.faninDepth,
       fanoutDepth: options.fanoutDepth,
       maximumVisibleNodes: options.maximumVisibleNodes,
       maximumFrontier: options.maximumFrontier
-    }));
+    }), { fullGraph: options.preserveLegacyProjection ? null : fullGraph });
   }
   return fullGraph;
 }
@@ -77,7 +83,7 @@ export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId
 }
 
 export function applyWorkspaceGraphTransforms(graph, options = {}) {
-  let result = graph;
+  let result = omitUnroutedNets(graph, options.unroutedNets, options.fullGraph || graph);
   if (options.useFanoutHubs !== false) result = simplifyFanoutWithHubs(result);
   if (options.collapseLargeGroups === true) result = collapseLargeGraph(result, { expandedGroupIds: options.expandedGroupIds || new Set() });
   return result;

@@ -21,6 +21,12 @@ export function createSearchNavigationController({ state, elements, services }) 
       return;
     }
     if (target.kind === "net") {
+      // Projection metadata contains only nets hidden inside this view.
+      if (state.graph?.unroutedNets?.includes(target.name)) {
+        services.setSelectedNet(target.name);
+        services.setStatus(`Search: net ${result.label} is not routed; enable Route net in Selection to restore`);
+        return;
+      }
       const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
       const edge = state.graph?.edges.find((item) => item.net === target.name);
       if (action === "locate" && edge) {
@@ -144,9 +150,9 @@ export function createSearchNavigationController({ state, elements, services }) 
         if (node) {
           services.setSelectedNode(node.id, false);
           centerGraphPoint({ x: node.x + node.width / 2, y: node.y + node.height / 2 }, node.width);
-        } else if (edge) {
+        } else if (edge || graph.unroutedNets?.includes(result.target.name)) {
           services.setSelectedNet(result.target.name, false);
-          centerGraphPoint(getEdgeCenter(edge));
+          if (edge) centerGraphPoint(getEdgeCenter(edge));
         }
         services.recordViewHistory();
         services.setStatus(`Added ${result.label} to ${state.focusedRootNodeIds.length} Focused roots`);

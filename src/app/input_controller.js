@@ -212,6 +212,11 @@ export function createInputController({ state, elements, services }) {
           restore.activeFocusedRootNodeId
         );
       }
+      if (restore?.unroutedNets) services.setSingleOverrides({
+        nodePositions: state.nodePositions,
+        nodeSizes: state.nodeSizes,
+        graphOverrides: { ...state.graphOverrides, unroutedNets: restore.unroutedNets }
+      });
       if (restore?.transform) services.setSingleTransform(restore.transform);
       const completion = new Promise((resolve, reject) => services.renderCurrentModuleGraph({
         readyMessage,
@@ -263,7 +268,7 @@ export const inputPorts = Object.freeze({
     "clearSearch", "cloneObjectRefs", "documents", "focusStartupCell", "focusStartupCells",
     "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
     "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
-    "selectModule", "selectStartupModule", "setSingleTransform", "setStatus", "viewSessions",
+    "selectModule", "selectStartupModule", "setSingleOverrides", "setSingleTransform", "setStatus", "viewSessions",
     "workspaceJobs"
   ]
 });

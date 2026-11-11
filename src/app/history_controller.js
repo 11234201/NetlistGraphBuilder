@@ -1,4 +1,5 @@
 import { isEditableInputTarget } from "../ui/quick_input_controller.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import {
   replaceCurrentViewHistory,
   createViewHistoryEntry,
@@ -99,7 +100,7 @@ export function createHistoryController({ state, elements, services }) {
       const finishRestore = () => {
         if (activeRestoreId !== restoreId) return;
         const nextGraph = state.graph || graph;
-        if (entry.selectedNet && nextGraph?.edges.some((edge) => edge.net === entry.selectedNet)) services.setSelectedNet(entry.selectedNet);
+        if (entry.selectedNet && (nextGraph?.edges.some((edge) => edge.net === entry.selectedNet) || nextGraph?.unroutedNets?.includes(entry.selectedNet))) services.setSelectedNet(entry.selectedNet);
         else if (entry.selectedNodeId && nextGraph?.nodes.some((node) => node.id === entry.selectedNodeId)) services.setSelectedNode(entry.selectedNodeId);
         else services.setSelectedNode(null);
         services.applyTransform();
@@ -262,6 +263,7 @@ export function createHistoryController({ state, elements, services }) {
 
   function cloneGraphOverridesForHistory(value = {}) {
     return {
+      ...cloneNetRoutingOverrides(value),
       nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
       cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
     };

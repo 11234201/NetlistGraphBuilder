@@ -1,4 +1,5 @@
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
@@ -286,6 +287,7 @@ function cloneSideMaps(value) {
 
 function cloneGraphOverrides(value = createEmptyGraphOverrides()) {
   return {
+    ...cloneNetRoutingOverrides(value),
     nodeProperties: cloneRecord(value.nodeProperties),
     cellPinDirections: cloneRecord(value.cellPinDirections)
   };

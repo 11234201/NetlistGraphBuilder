@@ -3,6 +3,7 @@ import { decodeSessionSnapshot, encodeSessionSnapshot } from "../persistence/ses
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { isObjectRef } from "../contracts/object_ref.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 
 export function getSessionLayoutProviderId(session) {
   const providerId = session?.layoutProviderId;
@@ -66,6 +67,7 @@ export function createSessionSnapshot(state) {
     fanoutDepth: state.fanoutDepth,
     searchQuery: state.searchQuery,
     showAliases: state.showAliases,
+    ...cloneNetRoutingOverrides(state.graphOverrides),
     layoutProviderId: state.layoutFallbackFromProviderId || state.layoutProviderId,
     layoutProviderPreferenceVersion: 1,
     transform: { ...state.transform },

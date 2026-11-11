@@ -42,6 +42,40 @@ export function normalizeGraphAliases(graph, options = {}) {
   };
 }
 
+// Alias names are signal identities; equal literal values are not aliases.
+// Structural constant nodes also distinguish literal-looking escaped names.
+export function createGraphAliasIndex(graph) {
+  const constants = new Set((graph?.nodes || [])
+    .filter((node) => node.kind === "constant").map((node) => node.ref?.name));
+  const neighbors = new Map();
+  const link = (lhs, rhs) => {
+    if (typeof lhs !== "string" || typeof rhs !== "string") return;
+    if (constants.has(lhs) || constants.has(rhs)) return;
+    if (!neighbors.has(lhs)) neighbors.set(lhs, []);
+    if (!neighbors.has(rhs)) neighbors.set(rhs, []);
+    neighbors.get(lhs).push(rhs);
+    neighbors.get(rhs).push(lhs);
+  };
+  for (const alias of graph?.aliases || []) link(alias.lhs, alias.rhs);
+  for (const node of graph?.nodes || []) {
+    if (node.kind === "assign") link(node.ref?.lhs, node.ref?.rhs);
+  }
+  return neighbors;
+}
+
+export function expandGraphAliases(names, neighbors) {
+  const resolved = new Set(names);
+  const queue = [...resolved];
+  for (let index = 0; index < queue.length; index += 1) {
+    for (const name of neighbors.get(queue[index]) || []) {
+      if (resolved.has(name)) continue;
+      resolved.add(name);
+      queue.push(name);
+    }
+  }
+  return resolved;
+}
+
 function hasResolvableSource(nodeId, assignNodes, incomingByTarget) {
   const visited = new Set();
   let current = nodeId;

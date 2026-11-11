@@ -250,6 +250,26 @@ graph
 
 ## 数据模型与错误处理原则
 
+### Net 布线排除覆盖
+
+`graphOverrides.unroutedNets` 保存当前视图不布线的 canonical net 名称。Netlist 领域的
+`net_routing.js` 在 Focused 查询之后、fanout hub 与布局之前生成派生图，沿 assign 别名组解析排除集，
+常量赋值不连接独立的 net 别名组；显示 assign 时仅移除被排除赋值自己的输入支路。
+保留真实单元和引脚，仅去掉对应连线及孤立的 Focused 边界。派生图的 `unroutedNets` 仅包含当前
+查询内被隐藏连线所属的别名组，视图外目标仍走搜索的 Focused reveal。完整图仍用于分析、搜索和详情，
+自动布局与 Adjust 只消费派生图。Single/Compare 共用该投影，Compare 每侧独立；覆盖经现有命令、
+ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的排除列表同时写入 session 快照。
+空列表沿用原行为，不修改任何 provider 算法、路由规则或 Simple 基线。
+
+### Focused 别名与外部 fanout
+
+活动 provider 的 Focused 查询沿共享 assign 别名索引解析 net 根，保留会话中的原始 canonical 名称。
+边界投影对完整图做一次索引查找扫描：若外部驱动已有输入边界，且同一物理 net 仍有范围外负载，
+增加从该输入边界到输出边界的延续连线，不扩大真实 cell 的可见范围。关闭 fanout 方向或该 net 的
+布线时仍遵循相应显示设置。Single/Compare 共用此路径；Simple 通过 `preserveLegacyProjection`
+保留冻结前的别名根与边界投影，不改变其输入几何、诊断或路由策略。归档 provider 的诊断调用也可
+显式使用该选项保留历史输入；该选项纳入自动布局缓存标识。
+
 ### 数据模型核心不变量
 - **双名称保留**：线网、端口与实例统一使用规范化名称（canonical name）作为内部标识，同时独立保留显示名称（display name）。
 - **层次实例身份隔离**：`ObjectRef` 可携带 `occurrencePath`；同一模块定义在不同层次实例路径下的对象拥有独立的选中状态、聚焦根身份与跨层连接上下文。

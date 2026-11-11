@@ -172,12 +172,18 @@ export function createGoldenController({ state, elements, services }) {
       ? !services.hasCompareLayoutOverrides()
       : state.nodePositions.size === 0 && state.nodeSizes.size === 0 && services.countGraphOverrides() === 0;
     if (state.compare.active && state.compare.selectedSide && state.compare.selectedName) {
+      if (state.compare.selectedKind === "net") {
+        services.renderNetSelection(state.compare.selectedName, state.compare.selectedSide);
+        return;
+      }
       const node = findCompareNode(
         state.compare.graphs[state.compare.selectedSide],
         state.compare.selectedKind,
         state.compare.selectedName
       );
       if (node) services.renderCompareSelection(state.compare.selectedSide, node);
+    } else if (!state.compare.active && state.selectedNet) {
+      services.renderNetSelection(state.selectedNet);
     } else {
       services.renderSelection(state.graph?.nodes.find((item) => item.id === state.selectedNodeId) || null);
     }
@@ -204,7 +210,7 @@ export const goldenPorts = Object.freeze({
   services: [
     "applyTransform", "browserDownload", "countGraphOverrides", "exitCompareView",
     "hasCompareLayoutOverrides", "logProcess", "renderCompareGraphs", "renderCompareSelection",
-    "renderCurrentModuleGraph", "renderDiagnostics", "renderSelection", "renderStats",
+    "renderCurrentModuleGraph", "renderDiagnostics", "renderNetSelection", "renderSelection", "renderStats",
     "runViewHistoryTransaction", "selectModule", "setCompareOverrides", "setSelectedNode",
     "setSingleLayoutPolicy", "setSingleOverrides", "setSingleTransform", "setStatus",
     "syncLayoutSpacingControls", "updateViewControls"

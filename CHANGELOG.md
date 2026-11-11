@@ -2,6 +2,12 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.3.1] - 2026-11-11
+
+- 支持在 Selection 中为 clk、reset 或任意 net 关闭/恢复布线，Single 与 Compare 每侧独立；保留完整连接分析，并支持历史、模块切换、Golden、当前 Single 会话恢复及 SVG 导出。
+- 修复相同常量赋值误关联独立 net、隐藏 net 的搜索与 `+ Focus` 选中状态，以及恢复布线后丢失高亮的问题。
+- 修复折叠 assign 别名作为 Focused 根时出现空图，以及驱动在视图外、多负载分布在视图内外时遗漏 fanout 边界的问题；Single/Compare 共用投影，Simple 保留冻结的原有行为。
+
 ## [1.3.0] - 2026-11-10
 
 - **可选 Liberty 标准单元库支持**：离线解析文本 `.lib` 的 cell、pin、bus、方向、时钟属性及布尔 function，为单元类型和连线方向提供库依据；保留实例覆盖和 Cell Config 的优先级，无库时继续使用命名推断。

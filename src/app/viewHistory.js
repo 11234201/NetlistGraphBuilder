@@ -1,4 +1,5 @@
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
+import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 export const DEFAULT_VIEW_HISTORY_LIMIT = 128;
@@ -219,6 +220,7 @@ function cloneOverrides(value = {}) {
 
 function cloneGraphOverrides(value = {}) {
   return {
+    ...cloneNetRoutingOverrides(value),
     nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
     cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
   };

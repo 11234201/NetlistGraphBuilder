@@ -78,6 +78,7 @@ async function BuildFocusedGraph(focus, sourceModule = module) {
   return (await buildModuleWorkspace({
     module: sourceModule,
     viewMode: "focused",
+    preserveLegacyProjection: true, // Archived provider evidence retains its original source projection.
     ...focus,
     useFanoutHubs: true,
     collapseLargeGroups: false,

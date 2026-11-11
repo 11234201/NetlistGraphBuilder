@@ -77,6 +77,7 @@ async function loadFocusedGraph() {
     const module = design.modules.find((candidate) => candidate.name === "tc");
     const fullGraph = buildWorkspaceGraph(module);
     return selectWorkspaceGraphView(fullGraph, {
+      preserveLegacyProjection: true, // Frozen Simple input; keep the original geometry assertions.
       viewMode: "focused",
       rootNodeIds: ["cell:_4558_"],
       faninDepth: 3,
