@@ -172,7 +172,8 @@ test("multiple Focused roots preserve hidden fanout from a shared external drive
 test("fanout continuations respect depth, budgets, visible loads and routing exclusions", () => {
   const full = buildWorkspaceGraph(sharedFanoutModule);
   const outputForN = (graph) => graph.nodes.find((node) => node.kind === "focus-output" && node.ref.name === "n");
-  assert.equal(outputForN(selectWorkspaceGraphView(full, { ...sharedFanoutOptions, fanoutDepth: 0 })), undefined);
+  assert.deepEqual(outputForN(selectWorkspaceGraphView(full, { ...sharedFanoutOptions, fanoutDepth: 0 })).hiddenEndpointIds,
+    ["cell:outside"]);
   assert.equal(outputForN(selectWorkspaceGraphView(full, { ...sharedFanoutOptions, rootNodeIds: ["cell:a", "cell:b", "cell:outside"], faninDepth: 0 })), undefined);
   const visibleDriver = selectWorkspaceGraphView(full, { ...sharedFanoutOptions, faninDepth: 2 });
   assert.ok(visibleDriver.nodes.some((node) => node.id === "cell:driver"));

@@ -144,20 +144,54 @@ await runBrowserTest(async ({ browser, url }) => {
   const fanoutSource = `module fanout(input d, output y,z,w); wire n,n1,n2;
     BUFX1 driver(.A(d),.Y(n)); BUFX1 a(.A(n),.Y(n1)); BUFX1 b(.A(n),.Y(n2));
     BUFX1 outside(.A(n),.Y(w)); BUFX1 ra(.A(n1),.Y(y)); BUFX1 rb(.A(n2),.Y(z)); endmodule`;
-  await page.locator("#fileInput").setInputFiles({ name: "fanout.v", mimeType: "text/plain", buffer: Buffer.from(fanoutSource) });
-  await ready("Loaded fanout.v");
-  await page.locator('#schematicMount [data-node-id="cell:ra"]').first().dispatchEvent("pointerdown", { button: 0 });
-  await click("#setFocusedRootButton");
-  await page.locator("#faninDepthInput").fill("1");
-  await page.locator("#fanoutDepthInput").fill("1");
-  await page.locator("#fanoutDepthInput").dispatchEvent("change");
-  await page.locator('#schematicMount [data-node-id="cell:driver"]').waitFor({ state: "detached" });
-  await page.locator("#searchInput").fill("rb");
-  await page.locator('.search-result[title="rb"] [data-search-add-index]').evaluate((button) => button.click());
-  await page.locator('#schematicMount [data-node-id="cell:b"]').first().waitFor();
-  const boundaryId = `focus-boundary:out:${[..."cell:driver\u0000n"].map((char) => char.codePointAt(0).toString(16)).join(".")}`;
-  await page.locator(`#schematicMount [data-node-id="${boundaryId}"]`).first().waitFor();
-  assert.equal(await page.locator('#schematicMount [data-node-id="cell:outside"]').count(), 0);
+  const checkExternalFanout = async (source, name) => {
+    await page.locator("#fileInput").setInputFiles({ name, mimeType: "text/plain", buffer: Buffer.from(source) });
+    await ready(`Loaded ${name}`);
+    await page.locator('#schematicMount [data-node-id="cell:ra"]').first().dispatchEvent("pointerdown", { button: 0 });
+    await click("#setFocusedRootButton");
+    await page.locator("#faninDepthInput").fill("1");
+    await page.locator("#fanoutDepthInput").fill("1");
+    await page.locator("#fanoutDepthInput").dispatchEvent("change");
+    await page.locator('#schematicMount [data-node-id="cell:driver"]').waitFor({ state: "detached" });
+    await page.locator("#searchInput").fill("rb");
+    await page.locator('.search-result[title="rb"] [data-search-add-index]').evaluate((button) => button.click());
+    await page.locator('#schematicMount [data-node-id="cell:b"]').first().waitFor();
+    const boundaryId = `focus-boundary:out:${[..."cell:driver\u0000n"].map((char) => char.codePointAt(0).toString(16)).join(".")}`;
+    await page.locator(`#schematicMount [data-node-id="${boundaryId}"]`).first().waitFor();
+    assert.equal(await page.locator('#schematicMount [data-node-id="cell:outside"]').count(), 0);
+  };
+  await checkExternalFanout(fanoutSource, "fanout.v");
+  await checkExternalFanout(fanoutSource.replace("wire n,n1,n2;", "wire n,n1,n2,alias_n; assign alias_n=n;")
+    .replace("outside(.A(n)", "outside(.A(alias_n)"), "alias_fanout.v");
+
+  const zeroDepthSource = `module exact(input d,output y,z);wire n,a,b;
+    BUFX1 driver(.A(d),.Y(n)); BUFX1 inside_a(.A(n),.Y(a)); BUFX1 inside_b(.A(n),.Y(b));
+    AND2X1 root(.A(a),.B(b),.Y(y)); BUFX1 outside(.A(n),.Y(z)); endmodule`;
+  for (const [name, source] of [["zero_depth.v", zeroDepthSource], ["zero_depth_alias.v",
+    zeroDepthSource.replace("wire n,a,b;", "wire n,a,b,alias_n; assign alias_n=n;")
+      .replace("outside(.A(n)", "outside(.A(alias_n)")]]) {
+    await page.locator("#fileInput").setInputFiles({ name, mimeType: "text/plain", buffer: Buffer.from(source) });
+    await ready(`Loaded ${name}`);
+    await page.locator('#schematicMount [data-node-id="cell:root"]').first().dispatchEvent("pointerdown", { button: 0 });
+    await click("#setFocusedRootButton");
+    await page.locator("#faninDepthInput").fill("2");
+    await page.locator("#fanoutDepthInput").fill("0");
+    await page.locator("#fanoutDepthInput").dispatchEvent("change");
+    await page.locator('#schematicMount [data-node-id="cell:outside"]').waitFor({ state: "detached" });
+    const boundaryId = `focus-boundary:out:${[..."cell:driver\u0000n"].map((char) => char.codePointAt(0).toString(16)).join(".")}`;
+    const output = page.locator(`#schematicMount [data-node-id="${boundaryId}"]`).first();
+    await output.waitFor();
+    assert.equal(await page.locator("#fanoutDepthInput").inputValue(), "0");
+    assert.ok(await page.locator('#schematicMount [data-node-id="cell:inside_a"]').count());
+    assert.ok(await page.locator('#schematicMount [data-node-id="cell:inside_b"]').count());
+    await net("#schematicMount", "n").first().dispatchEvent("pointerdown", { button: 0 });
+    await toggle(false);
+    await output.waitFor({ state: "detached" });
+    await ready();
+    await toggle(true);
+    await output.waitFor();
+    await ready();
+  }
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ workflow: "net-routing-single-compare-restore-export-session-constants-focused-search-alias-fanout", errors }));
 }, {

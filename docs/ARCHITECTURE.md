@@ -265,8 +265,11 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 活动 provider 的 Focused 查询沿共享 assign 别名索引解析 net 根，保留会话中的原始 canonical 名称。
 边界投影对完整图做一次索引查找扫描：若外部驱动已有输入边界，且同一物理 net 仍有范围外负载，
-增加从该输入边界到输出边界的延续连线，不扩大真实 cell 的可见范围。关闭 fanout 方向或该 net 的
-布线时仍遵循相应显示设置。Single/Compare 共用此路径；Simple 通过 `preserveLegacyProjection`
+增加从该输入边界到输出边界的延续连线，不扩大真实 cell 的可见范围。Fanout 深度为 0 时仍为已有
+可见分支（含输入边界）的 net 保留输出延续标记，仅停止真实 cell 扩展；关闭 net 布线则一并移除标记。
+折叠 assign 后的别名按相同驱动归组；外部负载优先归属同名输入边界，
+否则归属稳定排序的可见别名边界，每条隐藏支路只记录一次，延续连线沿用该输入的 net 身份。
+常量值不连接独立别名组。Single/Compare 共用此路径；Simple 通过 `preserveLegacyProjection`
 保留冻结前的别名根与边界投影，不改变其输入几何、诊断或路由策略。归档 provider 的诊断调用也可
 显式使用该选项保留历史输入；该选项纳入自动布局缓存标识。
 

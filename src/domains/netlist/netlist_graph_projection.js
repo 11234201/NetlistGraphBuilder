@@ -59,7 +59,10 @@ export function selectWorkspaceGraphView(fullGraph, options = {}) {
       fanoutDepth: options.fanoutDepth,
       maximumVisibleNodes: options.maximumVisibleNodes,
       maximumFrontier: options.maximumFrontier
-    }), { fullGraph: options.preserveLegacyProjection ? null : fullGraph });
+    }), {
+      fullGraph: options.preserveLegacyProjection ? null : fullGraph,
+      retainFanoutContinuations: !options.preserveLegacyProjection
+    });
   }
   return fullGraph;
 }
