@@ -1,6 +1,6 @@
 # Linux 单文件启动器、CMake 构建与 EDA/Tcl 集成指南
 
-本文档对应当前主干代码与 2026-10-21 同版本覆盖更新后的 `v1.1.2` 发布包（若此前下载过旧版 `v1.1.2` 附件，请重新下载并核对 SHA-256 校验值）。详细的实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
+本文档对应当前主干代码与 `v1.3.2` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
 
 ## 1. 各运行入口与职责对比
 

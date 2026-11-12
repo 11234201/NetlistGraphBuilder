@@ -2,6 +2,13 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.3.2] - 2026-11-12
+
+- 补齐浏览器操作失败日志、全局异常与未处理 Promise 拒绝捕获，保留有界的异常原因链、调用栈和诊断详情；修复 persistence 分类，补充存储失败/恢复、Cell Config 与导出诊断。
+- 为 Bash、Node、Python、Linux 原生及 Windows 启动器保存独立运行/错误 JSONL 日志，默认约 2 MiB 轮转；日志不可写时回退 stderr，保留单行 ready JSON、退出码及 Tcl 调用协议。
+- 启动时自动清理已退出进程超过 14 天的整组终端日志与备份。`NGB_LOG_RETENTION_DAYS` 可调整保留天数，设为 `0` 关闭；保护活跃进程、近期日志和无关文件，记录清理结果及失败详情。
+- 修复 Focused fanout 深度为零时遗漏视图外驱动边界的问题；保留 Simple 冻结行为。
+
 ## [1.3.1] - 2026-11-11
 
 - 支持在 Selection 中为 clk、reset 或任意 net 关闭/恢复布线，Single 与 Compare 每侧独立；保留完整连接分析，并支持历史、模块切换、Golden、当前 Single 会话恢复及 SVG 导出。

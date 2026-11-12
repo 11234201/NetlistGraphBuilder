@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。
 
-- **当前版本**：`v1.3.1`，支持按 net 关闭/恢复布线，并修复 Focused 别名、外部 fanout 边界及选中状态问题；可选 Liberty（`.lib`）库管理仍位于顶部 `Liberty` 菜单。
+- **当前版本**：`v1.3.2`，补齐浏览器与终端运行/错误日志、异常诊断和旧日志自动清理；支持按 net 关闭/恢复布线，并修复 Focused 别名、外部 fanout 边界及选中状态问题。可选 Liberty（`.lib`）库管理仍位于顶部 `Liberty` 菜单。
 - **默认布局引擎**：默认使用 `Native Layered AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。生产级 AIG 导入功能尚未开放。
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
 - **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0，`v1.2.0` 完整单元测试 913/913 通过、47/47 映射网表严格门禁通过。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。旧版 Native 算法仅归档于测试参考目录，不进入离线运行时。
@@ -58,7 +58,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.3.1`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.3.2`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md` 以及 `ELKJS-LICENSE.md`。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
