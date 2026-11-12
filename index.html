@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,181 +10,133 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark">NGB</span>
-          <span class="brand-title">Netlist Graph Builder</span>
-        </div>
-        <details class="toolbar-menu import-menu">
-          <summary title="Import netlist, Liberty or timing data">Import</summary>
+        <div class="brand" title="Netlist Graph Builder"><span class="brand-mark">NGB</span><span class="brand-title">Netlist Graph Builder</span></div>
+        <details id="fileMenu" class="toolbar-menu import-menu">
+          <summary>File</summary>
           <div class="toolbar-menu-popover">
-            <label class="menu-action" title="打开 structural Verilog 网表"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist</label>
-            <button id="pasteNetlistButton" class="menu-action" type="button" title="粘贴一段 structural Verilog 网表">Paste netlist</button>
-            <label class="menu-action" title="导入标准时序文件（Tabular / CSV / JSON）"><input id="timingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing</label>
-            <button id="pasteTimingButton" class="menu-action" type="button" title="直接粘贴标准时序文本（Tabular / CSV / JSON）">Paste timing</button>
+            <span class="menu-heading">Import</span>
+            <label class="menu-action" tabindex="0"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist…</label>
+            <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
+            <label class="menu-action" tabindex="0"><input id="timingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing…</label>
+            <button id="pasteTimingButton" class="menu-action" type="button">Paste timing…</button>
+            <span class="menu-heading">Export & snapshots</span>
+            <button id="exportSvgButton" class="menu-action" type="button" title="Export the current Single view">Export SVG</button>
+            <button id="saveGoldenButton" class="menu-action" type="button" title="Save the current Single view and overrides">Save Golden</button>
+            <label class="menu-action" tabindex="0" title="Restore a matching Single workspace; exits Compare"><input id="goldenInput" type="file" accept=".json,application/json">Load Golden…</label>
+            <p class="menu-note">Golden restores a layout snapshot. SVG and snapshot export require Single view.</p>
           </div>
         </details>
         <details id="libertyMenu" class="toolbar-menu liberty-menu">
-          <summary id="libertyMenuSummary" title="Manage the optional Liberty (.lib) cell library" aria-controls="libertyPanel">Liberty</summary>
+          <summary id="libertyMenuSummary" aria-controls="libertyPanel" title="Manage the optional cell library">Liberty</summary>
           <section id="libertyPanel" class="toolbar-menu-popover liberty-popover" aria-labelledby="libertyPanelTitle">
             <h2 id="libertyPanelTitle">Liberty library</h2>
-            <p class="help-text">Load cell and pin definitions for the current design.</p>
+            <p class="help-text">Optional cell and pin definitions. Browsing also works without a library.</p>
             <div class="liberty-actions">
-              <label class="file-button compact-button liberty-load-button"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
+              <label class="file-button compact-button liberty-load-button" tabindex="0"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
               <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel import</button>
               <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
             </div>
-            <p id="libertySummary" role="status">No library loaded.</p>
-            <pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
-            <p class="help-text">Select one process corner. Reload after refreshing the page.</p>
+            <p id="libertySummary" role="status">No library loaded.</p><pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
+            <p class="help-text">Select one process corner. Reload the library after refreshing the page.</p>
           </section>
         </details>
-        <details id="moduleHierarchyMenu" class="toolbar-menu module-hierarchy-menu">
-          <summary id="moduleHierarchySummary" title="Browse module hierarchy">
-            <span class="module-hierarchy-summary-prefix">Module:</span>
-            <span id="moduleHierarchyCurrent" class="module-hierarchy-current">No module</span>
-          </summary>
-          <div class="toolbar-menu-popover module-hierarchy-popover">
-            <label class="module-hierarchy-filter-label" for="moduleHierarchyFilter">Find module or instance</label>
-            <input id="moduleHierarchyFilter" class="module-hierarchy-filter" type="search" placeholder="Module or instance…" autocomplete="off" aria-controls="moduleHierarchyTree">
-            <div id="moduleHierarchyTree" class="module-hierarchy-body" aria-live="polite">No modules</div>
-            <div id="moduleOccurrenceChoices" class="module-occurrence-choices-host" aria-live="polite"></div>
-          </div>
+        <details id="cellConfigMenu" class="toolbar-menu cell-config-menu">
+          <summary>Cell Config</summary>
+          <section class="toolbar-menu-popover settings-popover">
+            <h2>Cell type definitions</h2><p class="help-text">Saved rules apply to every instance of the same cell type. Instance overrides live in Inspector → Adjust.</p>
+            <label class="menu-action" tabindex="0"><input id="cellConfigInput" type="file" accept=".json,application/json">Import definitions…</label>
+            <button id="exportCellConfigButton" class="menu-action" type="button">Export definitions</button>
+            <button id="resetCellConfigButton" class="menu-action danger-action" type="button">Reset all definitions</button>
+          </section>
         </details>
-        <button id="moduleBackButton" class="icon-button compact-button" type="button" title="后退一个视图操作 (Ctrl+Z / Alt+Left)" disabled>&larr;</button>
-        <button id="moduleForwardButton" class="icon-button compact-button" type="button" title="前进一个视图操作 (Ctrl+Shift+Z / Alt+Right)" disabled>&rarr;</button>
         <div class="topbar-search">
           <label class="topbar-search-label" for="searchInput">Search</label>
-          <div class="search-box">
-            <input id="searchInput" type="search" placeholder="Find cell, net, port…" autocomplete="off" aria-controls="searchResults" aria-autocomplete="list">
-            <button id="searchClearButton" class="search-clear" type="button" title="清除搜索" aria-label="清除搜索" hidden>&times;</button>
-          </div>
+          <div class="search-box"><input id="searchInput" type="search" placeholder="Find cell, net, port…" autocomplete="off" aria-controls="searchResults" aria-autocomplete="list"><kbd class="search-shortcut">/</kbd><button id="searchClearButton" class="search-clear" type="button" title="Clear search" aria-label="Clear search" hidden>×</button></div>
           <div id="searchResults" class="search-results" role="listbox" hidden></div>
         </div>
-        <button id="compareButton" class="icon-button" type="button" title="进入双 module 对比视图">Compare</button>
-        <button id="fitButton" class="icon-button" type="button" title="适配视图">Fit</button>
-        <details class="toolbar-menu more-menu">
-          <summary title="Export and layout file actions">More</summary>
-          <div class="toolbar-menu-popover toolbar-menu-popover-right">
-            <button id="exportSvgButton" class="menu-action" type="button" title="导出当前 schematic SVG">Export SVG</button>
-            <button id="saveGoldenButton" class="menu-action" type="button" title="导出当前布局 Golden">Save Golden</button>
-            <label class="menu-action" title="载入当前网表对应的布局 Golden"><input id="goldenInput" type="file" accept=".json,application/json">Load Golden</label>
-            <button id="resetLayoutButton" class="menu-action" type="button" title="清除手动布局调整">Reset layout</button>
+        <span id="sourceBadge" class="source-badge" title="Current source">Sample</span>
+        <button id="compareButton" class="icon-button mode-button" type="button" title="Compare two modules">Compare</button>
+        <button id="helpButton" class="square-button" type="button" aria-label="Help and shortcuts" title="Help and shortcuts">?</button>
+      </header>
+      <section class="contextbar" aria-label="View tools">
+        <button id="toggleNavigatorButton" class="mini-button panel-toggle" type="button" aria-controls="navigatorPanel" aria-expanded="false"><svg class="panel-toggle-icon" viewBox="0 0 18 16" aria-hidden="true"><rect x="1" y="1" width="16" height="14" rx="2"/><path d="M6 1v14"/><path class="panel-icon-region" d="M2 2h3v12H2z"/></svg>Navigator</button>
+        <div class="history-controls"><button id="moduleBackButton" class="square-button" type="button" title="Back through view history (Ctrl+Z / Alt+Left)" aria-label="Back through view history" disabled>←</button><button id="moduleForwardButton" class="square-button" type="button" title="Forward through view history (Ctrl+Shift+Z / Alt+Right)" aria-label="Forward through view history" disabled>→</button></div>
+        <div class="workspace-heading"><span id="workspaceTitle">No module</span><span id="workspaceMode" class="mode-indicator">Whole</span></div>
+        <div class="view-mode-control" role="group" aria-label="Schematic view mode"><button id="wholeViewButton" type="button">Whole</button><button id="focusedViewButton" type="button">Focused</button></div>
+        <button id="fitButton" class="mini-button" type="button" title="Fit the view; fits both views in Compare">Fit view</button>
+        <details id="viewMenu" class="toolbar-menu compact-menu">
+          <summary>View</summary><div class="toolbar-menu-popover settings-popover">
+            <h2>Display</h2><label class="alias-toggle"><input id="showAliasesInput" type="checkbox">Show aliases</label><label class="alias-toggle"><input id="fanoutHubsInput" type="checkbox" checked>Fanout hubs</label>
+            <label class="panel-field"><span>Gate symbols</span><select id="gateSymbolModeSelect"><option value="rectangle">Rectangles</option><option value="conventional">Conventional</option></select></label>
+            <p class="help-text">Aliases and hubs change the displayed graph. Symbols preserve node geometry.</p>
           </div>
         </details>
-      </header>
-
-      <section class="workspace">
-        <aside class="side-panel">
-          <section class="panel-section view-panel">
-            <h2>View</h2>
-            <div class="view-mode-control" role="group" aria-label="Schematic view mode">
-              <button id="wholeViewButton" type="button">Whole</button>
-              <button id="focusedViewButton" type="button">Focused</button>
-            </div>
-            <div class="focused-depth-fields">
-              <label for="faninDepthInput"><span>Fanin depth</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
-              <label for="fanoutDepthInput"><span>Fanout depth</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3"></label>
-            </div>
-            <label class="alias-toggle" for="showAliasesInput">
-              <input id="showAliasesInput" type="checkbox">
-              <span>Show aliases</span>
-            </label>
-            <label class="alias-toggle" for="fanoutHubsInput"><input id="fanoutHubsInput" type="checkbox" checked><span>Fanout hubs</span></label>
-            <label class="panel-field gate-symbol-field"><span>Gate symbols</span><select id="gateSymbolModeSelect" title="Choose rectangle or conventional logic-gate symbols"><option value="rectangle">Rectangles</option><option value="conventional">Conventional</option></select></label>
-            <button id="setFocusedRootButton" class="mini-button" type="button" title="Rebuild Focused view around the selected cell" disabled>Set selected as Focused</button>
-            <div class="focused-roots-panel" aria-label="Focused roots">
-              <div class="focused-roots-heading"><span>Focused roots</span><output id="focusedRootCount">0</output></div>
-              <div id="focusedRootsList" class="focused-roots-list" aria-live="polite">No roots</div>
-              <div class="focused-roots-actions">
-                <button id="addFocusedRootButton" class="mini-button" type="button" title="Add the selected cell to Focused roots" disabled>Add selected</button>
-                <button id="removeFocusedRootButton" class="mini-button" type="button" title="Remove the selected cell from Focused roots" disabled>Remove selected</button>
-                <button id="clearFocusedRootsButton" class="mini-button" type="button" title="Clear all Focused roots" disabled>Clear</button>
-              </div>
-            </div>
-            <button id="focusSelectedButton" class="mini-button" type="button" title="Center and zoom the selected cell or net (F)" disabled>Focus selected object</button>
-          </section>
-          <details class="panel-section collapsible-panel layout-settings-panel" open>
-            <summary>Layout</summary>
-            <div class="panel-section-body">
-              <label class="panel-field layout-provider-field"><span>Provider</span><select id="layoutProviderSelect" title="Choose the shared layout provider"></select></label>
-              <label class="panel-field wire-spacing-field" title="调整平行 net 走线间距"><span>Wire spacing</span><span class="range-control"><input id="wireSpacingInput" type="range" min="4" max="96" step="4" value="24"><input id="wireSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="96" step="4" value="24" inputmode="numeric" aria-label="Wire spacing value"><output id="wireSpacingValue">24</output></span></label>
-              <label class="panel-field cell-spacing-field" title="调整 cell 间距和拥塞通道留白"><span>Cell spacing</span><span class="range-control"><input id="cellSpacingInput" type="range" min="4" max="320" step="4" value="8"><input id="cellSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="320" step="4" value="8" inputmode="numeric" aria-label="Cell spacing value"><output id="cellSpacingValue">8</output></span></label>
-              <button id="adjustLayoutButton" class="mini-button" type="button" title="切换布局校准模式">Adjust layout</button>
-            </div>
-          </details>
-          <details class="panel-section collapsible-panel timing-policy-panel" open>
-            <summary>Timing</summary>
-            <div class="panel-section-body">
-              <label><span>Metric</span><select id="timingMetricSelect" title="Choose timing metrics shown across the graph"><option value="slack">Worst Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option><option value="none">None</option></select></label>
-              <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Only mark slacks below this threshold as critical"></label>
-            </div>
-          </details>
-          <section class="panel-section cell-config-panel">
-            <h2>Cell Config</h2>
-            <button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the selected primitive cell type" disabled>Edit selected type</button>
-            <div class="cell-config-actions">
-              <label class="file-button compact-button" title="Import a versioned Cell Config JSON"><input id="cellConfigInput" type="file" accept=".json,application/json">Import</label>
-              <button id="exportCellConfigButton" class="mini-button" type="button" title="Export Cell Config JSON">Export</button>
-              <button id="resetCellConfigButton" class="mini-button" type="button" title="Remove all saved Cell Config definitions">Reset all</button>
-            </div>
-          </section>
-          <section id="comparePanel" class="panel-section compare-panel" hidden>
-            <h2>Module Compare</h2>
-            <label><span>Left</span><select id="leftModuleSelect"></select></label>
-            <label><span>Right</span><select id="rightModuleSelect"></select></label>
-            <div class="compare-actions">
-              <button id="applyCompareButton" class="mini-button" type="button">Apply</button>
-              <button id="exitCompareButton" class="mini-button" type="button">Single</button>
-            </div>
-            <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked><span>Sync pan / zoom</span></label>
-            <label class="alias-toggle"><input id="syncCompareFocusInput" type="checkbox" checked><span>Sync Focus roots</span></label>
-            <label><span>Layout</span><select id="compareLayoutSelect"><option value="vertical">Top / Bottom</option><option value="horizontal">Left / Right</option></select></label>
-            <label><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label>
-            <label class="cone-depth-field" for="coneDepthInput"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
-          </section>
-          <section class="panel-section">
-            <h2>Design</h2>
-            <dl id="designStats" class="stats-list"></dl>
-          </section>
-          <section class="panel-section">
-            <h2>Selection</h2>
-            <div id="selectionDetails" class="details-empty">未选择对象</div>
-          </section>
-          <section class="panel-section">
-            <h2>Diagnostics</h2>
-            <ul id="diagnosticsList" class="diagnostics-list"></ul>
-          </section>
-        </aside>
-
-        <div id="sidebarResizeHandle" class="sidebar-resize-handle" role="separator" aria-label="调整侧栏宽度" aria-orientation="vertical" aria-valuemin="240" aria-valuemax="640" aria-valuenow="300" tabindex="0"></div>
-
-        <section id="canvas" class="canvas" aria-label="schematic canvas">
-          <div id="schematicMount" class="schematic-mount"></div>
-          <div id="compareMount" class="compare-mount" hidden>
-            <section class="compare-side" data-compare-side="left"><header>Left</header><div id="leftSchematicMount" class="schematic-mount"></div></section>
-            <section class="compare-side" data-compare-side="right"><header>Right</header><div id="rightSchematicMount" class="schematic-mount"></div></section>
+        <details id="layoutMenu" class="toolbar-menu compact-menu">
+          <summary>Layout</summary><div class="toolbar-menu-popover settings-popover">
+            <h2>Layout settings</h2><label class="panel-field layout-provider-field"><span>Provider</span><select id="layoutProviderSelect"></select></label>
+            <label class="panel-field"><span>Wire spacing</span><span class="range-control"><input id="wireSpacingInput" type="range" min="4" max="96" step="4" value="24"><input id="wireSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="96" step="4" value="24" aria-label="Wire spacing value"><output id="wireSpacingValue" class="sr-only">24</output></span></label>
+            <label class="panel-field"><span>Cell spacing</span><span class="range-control"><input id="cellSpacingInput" type="range" min="4" max="320" step="4" value="8"><input id="cellSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="320" step="4" value="8" aria-label="Cell spacing value"><output id="cellSpacingValue" class="sr-only">8</output></span></label>
+            <button id="resetLayoutButton" class="mini-button danger-action" type="button">Reset view overrides</button><p class="help-text">Resets positions, sizes, instance properties, pin directions and unrouted nets. Applies to both sides in Compare.</p>
           </div>
-        </section>
+        </details>
+        <details id="timingMenu" class="toolbar-menu compact-menu">
+          <summary>Timing</summary><div class="toolbar-menu-popover settings-popover timing-policy-panel">
+            <h2>Timing across the graph</h2><label><span>Metric</span><select id="timingMetricSelect"><option value="slack">Worst Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option><option value="none">None</option></select></label>
+            <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Slack below this threshold is critical"></label><p class="help-text">Applies to Single, both Compare views and SVG export. Per-object badges are in Inspector → Timing.</p>
+          </div>
+        </details>
+        <button id="adjustLayoutButton" class="mini-button" type="button" aria-pressed="false" title="Drag nodes to create instance overrides">Adjust</button>
+        <button id="selectionSummaryButton" class="selection-summary-button" type="button" title="Open the selected object in Inspector">No selection</button>
+        <button id="toggleInspectorButton" class="mini-button panel-toggle" type="button" aria-controls="inspectorPanel" aria-expanded="true"><svg class="panel-toggle-icon" viewBox="0 0 18 16" aria-hidden="true"><rect x="1" y="1" width="16" height="14" rx="2"/><path d="M12 1v14"/><path class="panel-icon-region" d="M13 2h3v12h-3z"/></svg>Inspector</button>
       </section>
-
-      <section id="processLogDrawer" class="process-log-drawer" aria-label="Process Log">
-        <header>
-          <button id="toggleProcessLogButton" class="mini-button" type="button" aria-expanded="false">Process Log <span id="processLogCount">0</span></button>
-          <div id="processLogControls" class="process-log-controls" hidden>
-            <label>Level <select id="processLogLevelFilter"><option value="">All</option><option value="debug">Debug</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select></label>
-            <label>Phase <select id="processLogPhaseFilter"><option value="">All</option><option value="import">Import</option><option value="parse">Parse</option><option value="timing">Timing</option><option value="graph">Graph</option><option value="layout">Layout</option><option value="render">Render</option><option value="navigation">Navigation</option><option value="export">Export</option><option value="launcher">Launcher</option><option value="persistence">Persistence</option><option value="runtime">Runtime</option></select></label>
-            <label><input id="processLogAutoScroll" type="checkbox" checked> Auto-scroll</label>
-            <button id="copyProcessLogButton" class="mini-button" type="button">Copy</button>
-            <button id="exportProcessLogButton" class="mini-button" type="button">Export</button>
-            <button id="clearProcessLogButton" class="mini-button" type="button">Clear</button>
+      <section id="comparePanel" class="compare-panel compare-config" aria-label="Compare configuration" hidden>
+        <label><span class="side-badge">A</span><select id="leftModuleSelect" aria-label="Module A"></select></label><label><span class="side-badge">B</span><select id="rightModuleSelect" aria-label="Module B"></select></label>
+        <button id="applyCompareButton" class="mini-button primary-action" type="button">Apply</button><span id="compareDraftStatus" class="help-text" role="status"></span>
+        <label class="compare-orientation"><span>Split</span><select id="compareLayoutSelect"><option value="vertical">Top / Bottom</option><option value="horizontal">Left / Right</option></select></label>
+        <details id="compareOptionsMenu" class="toolbar-menu compact-menu"><summary>Sync & cone</summary><div class="toolbar-menu-popover settings-popover">
+          <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked>Sync pan / zoom</label><label class="alias-toggle"><input id="syncCompareFocusInput" type="checkbox" checked>Sync Focus roots</label>
+          <label class="panel-field"><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label><label class="panel-field"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
+          <p class="help-text">Whole clears roots on both sides. Focused acts on the active side, with shared depths. Differences are structural hints, not equivalence proof.</p>
+          <button id="exitCompareButton" class="mini-button" type="button">Return to Single</button>
+        </div></details><span id="compareSyncSummary" class="context-note">Pan/zoom + roots synced</span>
+      </section>
+      <section class="workspace">
+        <aside id="navigatorPanel" class="side-panel navigation-panel" aria-label="Navigator">
+          <header class="panel-title"><h2>Navigator</h2><button class="panel-collapse-button" data-close-panel="navigator" type="button" title="Hide Navigator to expand the canvas" aria-label="Hide Navigator"><span aria-hidden="true">‹</span> Hide</button></header>
+          <div class="panel-tabs" role="tablist" aria-label="Navigator pages"><button type="button" role="tab" data-nav-tab="hierarchy" aria-selected="true">Hierarchy</button><button type="button" role="tab" data-nav-tab="design" aria-selected="false">Design</button></div>
+          <div data-nav-panel="hierarchy">
+            <details id="moduleHierarchyMenu" class="navigation-hierarchy" open><summary id="moduleHierarchySummary" title="Browse module hierarchy"><span id="moduleHierarchyCurrent">No module</span></summary>
+              <div class="hierarchy-content"><label class="module-hierarchy-filter-label" for="moduleHierarchyFilter">Find module or instance</label><input id="moduleHierarchyFilter" class="module-hierarchy-filter" type="search" placeholder="Module or instance…" autocomplete="off" aria-controls="moduleHierarchyTree"><div id="moduleHierarchyTree" class="module-hierarchy-body" aria-live="polite">No modules</div><div id="moduleOccurrenceChoices" class="module-occurrence-choices-host" aria-live="polite"></div></div>
+            </details><p id="compareNavigationNote" class="help-text" hidden>Choose A and B above the canvas. Return to Single to browse the hierarchy.</p>
           </div>
-        </header>
+          <section data-nav-panel="design" class="panel-section" hidden><h2>Design summary</h2><dl id="designStats" class="stats-list"></dl></section>
+        </aside>
+        <div id="navigatorResizeHandle" class="panel-resize-handle" role="separator" aria-label="Resize navigator" aria-orientation="vertical" tabindex="0"></div>
+        <section class="canvas-workspace">
+          <div id="focusedToolbar" class="focused-toolbar" aria-label="Focused neighborhood" hidden>
+            <details id="focusedRootsMenu" class="toolbar-menu compact-menu"><summary>Roots <output id="focusedRootCount">0</output></summary><div class="toolbar-menu-popover roots-popover"><label for="focusedRootsFilter" class="help-text">Find a root</label><input id="focusedRootsFilter" type="search" placeholder="Filter roots…"><div id="focusedRootsList" class="focused-roots-list" aria-live="polite">No roots</div><div class="focused-roots-actions"><button id="removeFocusedRootButton" class="mini-button" type="button" disabled>Remove selected</button><button id="clearFocusedRootsButton" class="mini-button" type="button" disabled>Clear roots</button></div></div></details>
+            <span id="focusedRootPreview" class="focused-root-preview">No roots</span>
+            <div class="focused-depth-fields"><label><span>Fanin</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanin depth"></label><label><span>Fanout</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanout depth"></label></div><span id="focusedDepthScope" class="context-note"></span>
+          </div>
+          <section id="canvas" class="canvas" aria-label="schematic canvas"><div id="schematicMount" class="schematic-mount"></div><div id="compareMount" class="compare-mount" hidden><section class="compare-side" data-compare-side="left"><header>A · Top</header><div id="leftSchematicMount" class="schematic-mount"></div></section><section class="compare-side" data-compare-side="right"><header>B · Bottom</header><div id="rightSchematicMount" class="schematic-mount"></div></section></div></section>
+        </section>
+        <div id="inspectorResizeHandle" class="panel-resize-handle" role="separator" aria-label="Resize inspector" aria-orientation="vertical" tabindex="0"></div>
+        <aside id="inspectorPanel" class="inspector-panel" aria-label="Inspector">
+          <header class="panel-title"><h2>Inspector <span id="inspectorScope" class="context-note"></span></h2><button class="panel-collapse-button" data-close-panel="inspector" type="button" title="Hide Inspector to expand the canvas" aria-label="Hide Inspector">Hide <span aria-hidden="true">›</span></button></header>
+          <div class="inspector-actions"><button id="focusSelectedButton" class="mini-button" type="button" title="Center the selection; a hidden cell opens its neighborhood (F)" disabled>Zoom to selection</button><button id="addFocusedRootButton" class="mini-button" type="button" title="Append the selected cell or net to Focused" disabled>Add to Focused</button><button id="setFocusedRootButton" class="mini-button" type="button" title="Replace all Focused roots with the selection" disabled>Replace roots</button></div>
+          <div id="selectionDetails" class="details-empty">Select a cell, net or port to inspect its connections.</div>
+          <footer class="inspector-footer"><button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the saved rule for every instance of this cell type" disabled>Edit cell type…</button><span class="help-text">Type-level definitions</span></footer>
+        </aside>
+      </section>
+      <section id="diagnosticsDrawer" class="diagnostics-drawer" aria-label="Diagnostics" hidden><header class="panel-title"><h2>Diagnostics</h2><button id="closeDiagnosticsButton" class="square-button" type="button" aria-label="Close diagnostics">×</button></header><ul id="diagnosticsList" class="diagnostics-list"></ul></section>
+      <section id="processLogDrawer" class="process-log-drawer" aria-label="Process Log">
+        <div id="processLogControls" class="process-log-controls" hidden><strong>Process Log</strong><label>Level <select id="processLogLevelFilter"><option value="">All</option><option value="debug">Debug</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select></label><label>Phase <select id="processLogPhaseFilter"><option value="">All</option><option value="import">Import</option><option value="parse">Parse</option><option value="timing">Timing</option><option value="graph">Graph</option><option value="layout">Layout</option><option value="render">Render</option><option value="navigation">Navigation</option><option value="export">Export</option><option value="launcher">Launcher</option><option value="persistence">Persistence</option><option value="runtime">Runtime</option></select></label><label><input id="processLogAutoScroll" type="checkbox" checked>Auto-scroll</label><button id="copyProcessLogButton" class="mini-button" type="button">Copy</button><button id="exportProcessLogButton" class="mini-button" type="button">Export</button><button id="clearProcessLogButton" class="mini-button" type="button">Clear</button><button id="closeProcessLogButton" class="square-button" type="button" aria-label="Close process log">×</button></div>
         <ol id="processLogList" class="process-log-list" hidden></ol>
       </section>
-
-      <footer id="statusBar" class="status-bar">Ready</footer>
+      <footer class="status-bar"><span id="statusBar" role="status">Ready</span><span id="providerStatus" class="context-note"></span><button id="toggleDiagnosticsButton" type="button" aria-controls="diagnosticsDrawer" aria-expanded="false">Diagnostics <span id="diagnosticsCount">0</span></button><button id="toggleProcessLogButton" type="button" aria-controls="processLogDrawer" aria-expanded="false">Log <span id="processLogCount">0</span></button></footer>
     </main>
-
+    <p id="narrowWindowNotice" hidden>Widen this window for the full workbench.</p>
+    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste structural Verilog from File. Drag files onto the workbench, or paste outside a text field. Liberty and timing are optional.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Export SVG and Save Golden require Single. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
     <dialog id="netlistTextDialog" class="text-input-dialog" aria-labelledby="netlistTextTitle">
       <form id="netlistTextForm" class="text-input-form">
         <header>

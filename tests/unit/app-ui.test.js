@@ -158,6 +158,8 @@ test("adjust panel escapes editable property values", () => {
 test("lightweight inputs expose paste and Golden load controls", async () => {
   const html = await readFile(new URL("../../index.html", import.meta.url), "utf8");
   const topbar = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)?.[1] || "";
+  const navigator = html.match(/<aside id="navigatorPanel"[^>]*>([\s\S]*?)<\/aside>/)?.[1] || "";
+  const contextbar = html.match(/<section class="contextbar"[^>]*>([\s\S]*?)<section id="comparePanel"/)?.[1] || "";
 
   assert.match(html, /id="pasteNetlistButton"/);
   assert.match(html, /id="netlistTextDialog"/);
@@ -173,14 +175,14 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="fanoutDepthInput"[^>]+min="0"/);
   assert.match(html, /id="moduleBackButton"[^>]+disabled/);
   assert.match(html, /id="moduleForwardButton"[^>]+disabled/);
-  assert.match(topbar, /id="moduleHierarchyMenu"[\s\S]*id="moduleHierarchyFilter"[\s\S]*id="moduleHierarchyTree"/);
+  assert.match(navigator, /id="moduleHierarchyMenu"[\s\S]*id="moduleHierarchyFilter"[\s\S]*id="moduleHierarchyTree"/);
   assert.doesNotMatch(html, /id="moduleSelect"|id="moduleHierarchyPanel"/);
   assert.match(html, /id="focusSelectedButton"[^>]+disabled/);
   assert.match(html, /id="syncCompareFocusInput" type="checkbox" checked/);
   assert.match(html, /id="setFocusedRootButton"[^>]+disabled/);
   assert.match(html, /id="wireSpacingInput"[^>]+min="4"[^>]+max="96"[^>]+step="4"[^>]+value="24"/);
   assert.match(html, /id="wireSpacingNumberInput"[^>]+type="number"[^>]+min="4"[^>]+max="96"[^>]+step="4"[^>]+value="24"/);
-  assert.match(html, /id="wireSpacingValue">24<\/output>/);
+  assert.match(html, /id="wireSpacingValue"[^>]*>24<\/output>/);
   assert.match(html, /id="cellSpacingInput"[^>]+min="4"[^>]+max="320"[^>]+step="4"/);
   assert.match(html, /id="cellSpacingNumberInput"[^>]+type="number"[^>]+min="4"[^>]+max="320"[^>]+step="4"[^>]+value="8"/);
   assert.match(html, /id="processLogDrawer"/);
@@ -188,13 +190,13 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="processLogLevelFilter"/);
   assert.match(html, /id="processLogPhaseFilter"/);
   assert.match(html, /id="exportProcessLogButton"/);
-  assert.match(topbar, /<summary[^>]*>Import<\/summary>/);
-  assert.match(topbar, /<summary[^>]*>More<\/summary>/);
+  assert.match(topbar, /id="fileMenu"[\s\S]*<summary>File<\/summary>/);
+  assert.match(topbar, /id="cellConfigMenu"/);
   assert.match(topbar, /class="topbar-search"[\s\S]*id="searchInput"/);
   assert.doesNotMatch(html, /class="panel-section search-panel"/);
   assert.doesNotMatch(topbar, /id="layoutProviderSelect"|id="timingSnapshotSelect"|id="wireSpacingInput"/);
-  assert.match(html, /<details class="panel-section collapsible-panel layout-settings-panel" open>/);
-  assert.match(html, /<details class="panel-section collapsible-panel timing-policy-panel" open>/);
+  assert.match(contextbar, /id="layoutMenu"[\s\S]*id="layoutProviderSelect"/);
+  assert.match(contextbar, /id="timingMenu"[\s\S]*id="timingMetricSelect"/);
 });
 
 test("app forwards both Focused depths into the module workspace", async () => {

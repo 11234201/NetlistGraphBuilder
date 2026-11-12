@@ -11,10 +11,13 @@ import { findCompareNode, getCompareNodeName } from "./compareWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { isEditableInputTarget } from "../ui/quick_input_controller.js";
+import { captureFocusedRootsFocus } from "../ui/focused_roots_focus.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createFocusedRootsController({ state, elements, services }) {
+  let focusedRootsQuery = "";
+
   function getSelectedSingleCell() {
     return state.fullGraph?.nodes.find(
       (node) => node.id === state.selectedNodeId && node.kind === "cell"
@@ -426,18 +429,24 @@ export function createFocusedRootsController({ state, elements, services }) {
     services.setStatus(`Active Compare ${context.side} Focused root: ${node?.label || nodeId}`);
   }
 
+  function handleFocusedRootsFilter(event) {
+    focusedRootsQuery = String(event.target.value || "").trim().toLocaleLowerCase();
+    renderFocusedRootList();
+  }
+
   function renderFocusedRootList() {
     if (!elements.focusedRootsList || !elements.focusedRootCount) return;
+    const restoreFocus = captureFocusedRootsFocus(elements.focusedRootsList);
     const context = getFocusedRootContext();
     const roots = context.roots;
     elements.focusedRootCount.value = String(roots.length);
     elements.focusedRootCount.textContent = String(roots.length);
     if (roots.length === 0) {
       elements.focusedRootsList.textContent = "No roots";
+      restoreFocus();
       return;
     }
-    elements.focusedRootsList.innerHTML = roots.map((nodeId) => {
-      const rootIndex = roots.indexOf(nodeId);
+    elements.focusedRootsList.innerHTML = roots.map((nodeId, rootIndex) => {
       const rootRef = context.compare
         ? state.compare.focusedRootRefs?.[context.side]?.[rootIndex]
         : state.focusedRootRefs?.[rootIndex];
@@ -448,10 +457,13 @@ export function createFocusedRootsController({ state, elements, services }) {
       const occurrencePath = rootRef?.occurrencePath?.join("/") || node?.ref?.occurrencePath?.join("/") ||
         (netName && !context.compare ? state.occurrenceContext?.occurrencePath?.join("/") : "") || "";
       const label = occurrencePath ? `${occurrencePath} · ${localLabel}` : localLabel;
+      if (focusedRootsQuery && !`${nodeId} ${label}`.toLocaleLowerCase().includes(focusedRootsQuery)) return "";
       const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
-      const title = `${context.compare ? `${context.side}: ` : ""}${occurrencePath ? `${occurrencePath} / ` : ""}${localLabel}`;
-      return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${context.compare ? `${escapeHtml(context.side)}: ` : ""}${escapeHtml(label)}</span><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
-    }).join("");
+      const sideLabel = context.compare ? `${context.side === "left" ? "A" : "B"}: ` : "";
+      const title = `${sideLabel}${occurrencePath ? `${occurrencePath} / ` : ""}${localLabel}`;
+      return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}"><button type="button" class="focused-root-activate" aria-pressed="${nodeId === context.activeRootNodeId}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${sideLabel}${escapeHtml(label)}</span></button><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
+    }).join("") || "No matching roots";
+    restoreFocus();
   }
 
   function updateFocusSelectedControl() {
@@ -471,7 +483,7 @@ export function createFocusedRootsController({ state, elements, services }) {
     services.focusSelectedCell();
   }
 
-  return Object.freeze({ getSelectedSingleCell, getFocusedRootContext, setCompareFocusedRootNodeIds, syncCompareFocusedRootNode, setSelectedAsFocusedRoot, setSelectedCompareAsFocusedRoot, addSelectedAsFocusedRoot, addSelectedCompareAsFocusedRoot, removeSelectedFromFocusedRoots, removeSelectedCompareFocusedRoot, clearFocusedRoots, handleFocusedRootListClick, handleCompareFocusedRootListClick, renderFocusedRootList, updateFocusSelectedControl, handleFocusSelectedShortcut });
+  return Object.freeze({ getSelectedSingleCell, getFocusedRootContext, setCompareFocusedRootNodeIds, syncCompareFocusedRootNode, setSelectedAsFocusedRoot, setSelectedCompareAsFocusedRoot, addSelectedAsFocusedRoot, addSelectedCompareAsFocusedRoot, removeSelectedFromFocusedRoots, removeSelectedCompareFocusedRoot, clearFocusedRoots, handleFocusedRootListClick, handleCompareFocusedRootListClick, handleFocusedRootsFilter, renderFocusedRootList, updateFocusSelectedControl, handleFocusSelectedShortcut });
 }
 
 export const focusedRootsPorts = Object.freeze({

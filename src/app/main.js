@@ -10,7 +10,8 @@ import { createLayoutSpacingController } from "../ui/layout_spacing_controller.j
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
 import { createQuickInputController } from "../ui/quick_input_controller.js";
 import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
-import { createSearchControls } from "../ui/searchControls.js";
+import { bindWorkbenchEvents } from "./workbench_event_bindings.js";
+import { createWorkbenchUi } from "./workbench_ui_bootstrap.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
 import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
@@ -24,11 +25,6 @@ import { restoreWorkbenchStorage } from "./workbench_storage.js";
 import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
 import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
-import {
-  closeAllDisclosures,
-  closeDisclosuresOutside,
-  closeOtherDisclosures
-} from "../ui/disclosure.js";
 import { createDocumentStore } from "../application/document_store.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createArtifactStore } from "../application/artifact_store.js";
@@ -104,6 +100,7 @@ const {
   removeSelectedCompareFocusedRoot,
   clearFocusedRoots,
   handleFocusedRootListClick,
+  handleFocusedRootsFilter,
   handleCompareFocusedRootListClick,
   renderFocusedRootList,
   updateFocusSelectedControl,
@@ -395,7 +392,6 @@ const wheelGestureController = createWheelGestureController({
   apply: applyPendingWheelGesture,
   onSettled: persistSession
 });
-const toolbarMenus = [...document.querySelectorAll(".toolbar-menu")];
 
 const refreshLibraryWorkspace = createLibraryWorkspaceRefresh({
   readContext: () => ({ compareActive: state.compare.active, hasModule: Boolean(state.currentModule), selectedNodeId: state.selectedNodeId }),
@@ -415,88 +411,50 @@ createQuickInputController({
   setStatus,
   logProcess
 });
-elements.moduleBackButton.addEventListener("click", () => navigateViewHistory(-1));
-elements.moduleForwardButton.addEventListener("click", () => navigateViewHistory(1));
-elements.layoutProviderSelect.addEventListener("change", handleLayoutProviderChange);
-elements.compareButton.addEventListener("click", () => {
-  if (state.compare.active) exitCompareView();
-  else enterCompareView();
-});
-elements.applyCompareButton.addEventListener("click", applyCompareSelection);
-elements.exitCompareButton.addEventListener("click", exitCompareView);
-elements.syncCompareInput.addEventListener("change", (event) => { state.compare.synchronized = event.target.checked; });
-elements.syncCompareFocusInput.addEventListener("change", (event) => {
-  state.compare.focusedRootsSynchronized = event.target.checked;
-});
-elements.compareLayoutSelect.addEventListener("change", (event) => {
-  state.compare.layout = event.target.value === "horizontal" ? "horizontal" : "vertical";
-  applyCompareLayout();
-  fitToView();
-});
-elements.compareOutputSelect.addEventListener("change", handleCompareOutputChange);
-const { handleSearchInput, handleSearchKeydown, handleSearchResultClick, clearSearch } = createSearchControls({
-  elements: {
-    searchInput: elements.searchInput,
-    searchResults: elements.searchResults,
-    searchClearButton: elements.searchClearButton
+const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
+  elements, windowTarget: window,
+  commands: {
+  navigateViewHistory, handleLayoutProviderChange, exitCompareView,
+  enterCompareView, applyCompareSelection, applyCompareLayout,
+  fitToView: () => { fitToView(); workbenchUi.refreshViewport(); }, handleCompareOutputChange, activateSearchResult,
+  addSearchResultToFocus, handleSelectionNavigationClick, handleOccurrenceChoiceClick,
+  setViewMode, handleConeDepthChange, scheduleFocusedDepthChange,
+  handleAliasVisibilityChange, handleGraphSimplificationChange, commitGateSymbolMode,
+  setSelectedAsFocusedRoot, addSelectedAsFocusedRoot, removeSelectedFromFocusedRoots,
+  clearFocusedRoots, handleFocusedRootListClick, handleFocusedRootsFilter, focusSelectedCell,
+  openSelectedCellDefinition, handleCellConfigImport, exportCellConfig,
+  resetAllCellConfig, saveActiveCellDefinition, closeCellDefinitionDialog,
+  deleteActiveCellDefinition, exportCurrentSvg, toggleCalibrationMode,
+  saveLayoutGolden, resetLayoutOverrides, handleWheel,
+  handlePointerDown, handleCanvasDoubleClick, handleModuleHistoryShortcut,
+  handleViewHistoryShortcut, handleFocusSelectedShortcut,
   },
-  getIndex: () => state.searchIndex,
-  onActivate: activateSearchResult,
-  onAdd: addSearchResultToFocus,
-  onChange: (search) => { state.searchQuery = search.searchQuery; }
+  compare: {
+    isActive: () => state.compare.active,
+    setSynchronized: (value) => { state.compare.synchronized = value; },
+    setRootsSynchronized: (value) => { state.compare.focusedRootsSynchronized = value; },
+    setLayout: (value) => { state.compare.layout = value === "horizontal" ? "horizontal" : "vertical"; }
+  },
+  search: { getIndex: () => state.searchIndex, onChange: (search) => { state.searchQuery = search.searchQuery; } }
 });
-elements.searchInput.addEventListener("input", handleSearchInput);
-elements.searchInput.addEventListener("keydown", handleSearchKeydown);
-elements.searchInput.addEventListener("focus", handleSearchInput);
-elements.searchClearButton.addEventListener("click", clearSearch);
-elements.searchResults.addEventListener("click", handleSearchResultClick);
-elements.details.addEventListener("click", handleSelectionNavigationClick);
-elements.moduleOccurrenceChoices.addEventListener("click", handleOccurrenceChoiceClick);
-elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));
-elements.focusedViewButton.addEventListener("click", () => setViewMode("focused"));
-elements.coneDepthInput.addEventListener("change", handleConeDepthChange);
-elements.faninDepthInput.addEventListener("change", scheduleFocusedDepthChange);
-elements.fanoutDepthInput.addEventListener("change", scheduleFocusedDepthChange);
-elements.showAliasesInput.addEventListener("change", handleAliasVisibilityChange);
-elements.fanoutHubsInput.addEventListener("change", handleGraphSimplificationChange);
-elements.gateSymbolModeSelect.addEventListener("change", (event) => commitGateSymbolMode(event.target.value));
-elements.setFocusedRootButton.addEventListener("click", setSelectedAsFocusedRoot);
-elements.addFocusedRootButton.addEventListener("click", addSelectedAsFocusedRoot);
-elements.removeFocusedRootButton.addEventListener("click", removeSelectedFromFocusedRoots);
-elements.clearFocusedRootsButton.addEventListener("click", clearFocusedRoots);
-elements.focusedRootsList.addEventListener("click", handleFocusedRootListClick);
-elements.focusSelectedButton.addEventListener("click", focusSelectedCell);
-elements.editCellDefinitionButton.addEventListener("click", openSelectedCellDefinition);
-elements.cellConfigInput.addEventListener("change", handleCellConfigImport);
-elements.exportCellConfigButton.addEventListener("click", exportCellConfig);
-elements.resetCellConfigButton.addEventListener("click", resetAllCellConfig);
-elements.cellDefinitionForm.addEventListener("submit", saveActiveCellDefinition);
-elements.closeCellDefinitionButton.addEventListener("click", closeCellDefinitionDialog);
-elements.cancelCellDefinitionButton.addEventListener("click", closeCellDefinitionDialog);
-elements.deleteCellDefinitionButton.addEventListener("click", deleteActiveCellDefinition);
-elements.fitButton.addEventListener("click", fitToView);
-elements.exportSvgButton.addEventListener("click", exportCurrentSvg);
-elements.adjustLayoutButton.addEventListener("click", toggleCalibrationMode);
-elements.saveGoldenButton.addEventListener("click", saveLayoutGolden);
-elements.resetLayoutButton.addEventListener("click", resetLayoutOverrides);
-for (const menu of toolbarMenus) {
-  menu.addEventListener("toggle", () => closeOtherDisclosures(toolbarMenus, menu));
-  menu.addEventListener("click", (event) => {
-    if (event.target.closest(".menu-action")) menu.open = false;
-  });
-}
-document.addEventListener("pointerdown", (event) => closeDisclosuresOutside(toolbarMenus, event.target));
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeAllDisclosures(toolbarMenus);
+const workbenchUi = createWorkbenchUi({
+  document, windowTarget: window, singleViewSession, compareViewSessions,
+  applyTransform, applyCompareTransforms, closeLog: () => processLogController.toggle(false),
+  subscribe: (listener) => viewSessions.subscribe(listener),
+  readViews: () => [
+    { id: "single", mount: elements.mount, viewport: state.transform },
+    { id: "left", mount: elements.leftMount, viewport: state.compare.transforms.left },
+    { id: "right", mount: elements.rightMount, viewport: state.compare.transforms.right }
+  ],
+  readContext: () => ({
+    compareActive: state.compare.active, selectedSide: state.compare.selectedSide,
+    moduleLabel: elements.moduleHierarchyCurrent.textContent || state.currentModule?.displayName || "Workspace",
+    sourceLabel: state.currentSourceLabel || "Sample", viewMode: state.graph?.view?.mode || state.viewMode,
+    leftModuleName: state.compare.leftModuleName, rightModuleName: state.compare.rightModuleName,
+    leftMode: state.compare.graphs.left?.view?.mode, rightMode: state.compare.graphs.right?.view?.mode
+  }),
+  onPreferenceError: (error) => logProcess("warning", "persistence", "UI preferences unavailable; using this window only", { error })
 });
-elements.sidebarResizeHandle.addEventListener("pointerdown", startSidebarResize);
-elements.sidebarResizeHandle.addEventListener("keydown", handleSidebarResizeKeydown);
-elements.canvas.addEventListener("wheel", handleWheel, { passive: false });
-elements.canvas.addEventListener("pointerdown", handlePointerDown);
-elements.canvas.addEventListener("dblclick", handleCanvasDoubleClick);
-window.addEventListener("keydown", handleModuleHistoryShortcut);
-window.addEventListener("keydown", handleViewHistoryShortcut);
-window.addEventListener("keydown", handleFocusSelectedShortcut);
 
 const restoredSession = restoreWorkbenchStorage({
   windowTarget: window,

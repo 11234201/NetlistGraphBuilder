@@ -220,6 +220,10 @@ graph
 - `src/ui/nodeDrag.js`：提供与具体布局引擎无关的节点拖拽位移、边界保护与坐标相等性计算，由 Single 与 Compare 画布共用。
 - `src/ui/pointerSession.js`：统一管理指针捕获（pointer capture）及 `move` / `up` / `cancel` 生命周期清理，供侧栏拖拽调宽、画布平移与节点拖拽共用。
 - `src/ui/frameScheduler.js`：将高频指针移动与滚轮事件合并为每动画帧（`requestAnimationFrame`）最多执行一次轻量更新，并在手势结束时精确刷新最终位置。
+- `src/ui/workbench_shell_controller.js` 与 `workbench_shell_policy.js`：管理 Navigator/Inspector 的停靠与抽屉、页签、面板宽度、菜单/帮助焦点和搜索快捷键。响应式默认值是纯策略，控制器通过窄接口读写界面偏好及通知视口尺寸变化，不读取完整应用状态或调度布局。
+- `src/ui/workbench_context_controller.js`：通过窄 `readContext` 查询刷新模式/对象/作用域摘要、Compare 待应用状态、Focused 控件可见性和诊断入口，不持有业务状态副本。
+- `src/ui/canvas_resize_controller.js`：面板尺寸变化时保持图中心与阅读比例，合并高频尺寸更新；通过注入的视口提交回调供 Single/Compare 共用，不重建图或调用 provider。
+- `src/ui/inspector_tabs_controller.js`：在保留的 `#selectionDetails` 容器内管理 Connections/Timing/Adjust 页签、完整名称复制和选择变更后的滚动；测量摘要高度并用 ResizeObserver 跟随换行/调宽，使固定摘要下方的页签保持正确偏移。更换摘要或释放控制器时解除观察。`objectDetailsPanel.js` 对连接/层次表按 100 行、关联目标按 20 项分页，只限制 DOM 数量，不截断 inspection 模型；HTML 内容继续由共享转义边界处理。
 - `src/ui/timingPanel.js`、`src/ui/adjustPanel.js`、`src/ui/cellDefinitionPanel.js`、`src/ui/objectDetailsPanel.js`、`src/ui/processLogPanel.js`、`src/ui/module_hierarchy_panel.js`：分别负责各功能面板的 HTML 渲染与事件绑定；面板自身不持有全局应用状态，状态变更统一通过注入的窄接口回调或命令触发。
 - `src/ui/html.js`：提供全项目共用的 HTML/SVG 安全字符转义与格式化工具。
 
@@ -229,14 +233,16 @@ graph
 
 ### 8. `src/application/` 与 `src/app/`
 
-- **入口收敛与职责归属**：`src/app/main.js` 仅作为浏览器端依赖组装与顶层事件绑定入口（受架构门禁 611 行上限与单职责模块 520 行上限约束，详见 [入口收敛计划](plans/main_entry_modularization.md)）。共享的同步/异步任务调度与过期结果隔离由 `src/application/workspace_execution.js` 统一掌管，Single 与 Compare 工作区通过注入任务与渲染回调共用同一套执行机制；`src/app/workspace_inputs.js` 仅负责将旧版状态投影为不可变请求对象。
+- **入口收敛与职责归属**：`src/app/main.js` 仅作为浏览器端依赖组装与顶层事件绑定入口，遵守 `tests/unit/architecture-boundaries.test.js` 中持续收紧的入口与单职责模块行数上限，详见 [入口收敛计划](plans/main_entry_modularization.md)。共享的同步/异步任务调度与过期结果隔离由 `src/application/workspace_execution.js` 统一掌管，Single 与 Compare 工作区通过注入任务与渲染回调共用同一套执行机制；`src/app/workspace_inputs.js` 仅负责将旧版状态投影为不可变请求对象。
 - **文档与视图会话存储（`DocumentStore` & `ViewSessionStore`）**：作为文档、画布会话及其修订号（revision）的唯一权威所有者。Single 与 Compare 桥接器（bridge）仅负责在 `ObjectRef` 与旧版 UI/存档字段之间做兼容投影，并在投影图中完整保留层次路径 `occurrencePath`；同一模块定义在不同实例路径（`hinst`）下的选中项与聚焦根均按精确的 occurrence 身份隔离与恢复。
 - **统一视图命令与流水线（`view_commands.js` & `view_pipeline.js`）**：`view_commands.js` 统一处理模块切换、Focused roots、选中项、视口、布局策略与手工覆盖，并显式返回 `query` / `layout` / `render` / `viewport` / `persist` 副作用标记（纯视口变换或幂等相同值提交不会错误推进计算修订号）。`view_pipeline.js` 固定执行 `query -> project -> measure -> layout -> overrides -> scene` 流水线，Netlist 与测试用内存 AIG 均经由此公共路径完成渲染，公共层不含任何按领域 ID 分支的硬编码。
 - **作业协调与渲染代际隔离（`JobCoordinator` & `renderGeneration.js`）**：`JobCoordinator` 基于文档与会话修订号管理同步/异步工作区计算身份，在结果提交前自动丢弃已过期的成功、失败或进度回调；`src/render/renderGeneration.js` 则作为渐进式 DOM 批次提交的独立单调守卫，当新一次画布渲染启动时立即终止上一轮未完成的 DOM 批次挂载。
-- **单模块与双模块工作区（`moduleWorkspace.js` & `compareWorkspace.js`）**：Single 画布始终仅投影当前打开的模块定义（Focused 扇入/扇出追踪到达模块端口或子模块实例边界即停止，不将相邻层级的实例混入当前层布局图）；跨层次导航通过 `Selection` 面板的 `Hierarchy / Parent occurrence` 或双击子模块实例（`hinst`）触发。Compare 工作区先执行一次共享的全图提取与对比统计准备，再为左右两侧分别以独立任务作用域（`compare-left-workspace` / `compare-right-workspace`）提交布局、覆盖与场景构建，单侧取消或过期绝不会干扰另一侧。
+- **单模块与双模块工作区（`moduleWorkspace.js` & `compareWorkspace.js`）**：Single 画布始终仅投影当前打开的模块定义（Focused 扇入/扇出追踪到达模块端口或子模块实例边界即停止，不将相邻层级的实例混入当前层布局图）；跨层次导航通过 Inspector > Connections 中的 `Hierarchy / Parent occurrence` 或双击子模块实例（`hinst`）触发。Compare 工作区先执行一次共享的全图提取与对比统计准备，再为两侧分别以独立任务作用域（`compare-left-workspace` / `compare-right-workspace`）提交布局、覆盖与场景构建，单侧取消或过期绝不会干扰另一侧。界面使用稳定的 A/B 身份，内部 left/right 字段与已有序列化保持兼容。
 - **有界工作区产物缓存（`workspaceArtifactCache.js` & `ArtifactStore`）**：采用带容量权重上限的 LRU 缓存复用不可变的全图与自动布局产物；缓存键完整包含文档、源码指纹、会话、模块、查询、布局引擎及布局策略依赖（排除视口与选中状态），上游图或单元配置变更会自动使下游几何缓存失效。
 - **不可变会话快照與事务化视图历史（`viewHistoryTransaction.js`）**：`ViewSession` 中的策略与手工覆盖均为深冻结的不可变快照（含嵌套 `Map` / `Set`），任何状态修改必须经过 store 命令更新。复合视图操作通过 `viewHistoryTransaction` 在最外层操作完成时一次性提交单条历史快照。
 - **启动协议与持久化边界（`startupController.js` & `src/persistence/`）**：`startupController.js` 通过注入的处理器按序执行 `Cell Config`、网表、时序、目标模块与初始聚焦动作，相关的编解码器统一收敛于 `src/persistence/`。Node.js、Python 与 Windows 启动器仅提供本地回环（`127.0.0.1`）静态资源服务、参数校验与 `/__ngb_startup__.json` 清单传输，绝不在服务端复制前端业务算法。
+- **工作台界面偏好与视口桥接**：`contracts/workbench_ui_preferences.js` 定义面板开关、宽度与页签的规范化契约；`persistence/ui_preferences_codec.js` 处理版本化编解码，`platform/ui_preferences_storage.js` 封装 `localStorage`，`app/ui_preferences.js` 负责默认值与失败报告。该存储与网表 session、Cell Config、Golden、ViewHistory 分离，不保存网表或新增领域状态。`app/workbench_viewport_bridge.js` 将 shell 尺寸调整桥接到既有 Single/Compare 会话的 `viewport.set`，不记录视图历史、不重新布局。
+- **工作台装配**：`app/workbench_ui_bootstrap.js` 组合 shell、Inspector、上下文展示与视口适配，通过窄查询、订阅及回调接入既有会话；UI 新增状态留在各控制器或界面偏好契约中，不扩大 legacy ports 或将全局 state 传入新控制器。
 
 ---
 
@@ -291,7 +297,7 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 存储边界提供保留原始异常的结果接口，同时保留旧调用方的值/布尔返回接口。`app/workbench_storage.js` 通过窄回调管理启动读取与离开页面前保存，在日志初始化之后报告恢复失败；历史控制器对连续自动保存失败只报告一次，恢复后记录一次成功。Cell Config 的持久化提交与后续刷新分开报告，导出失败归入 `export`，日志仅携带操作上下文而不附带完整快照。
 
-日志元素映射归 `ui/workbench_elements.js`；main 的迁移行数上限进一步降为 515。
+日志元素映射归 `ui/workbench_elements.js`；main 的入口行数上限继续随完整职责抽取收紧，以架构测试中的当前门限为准。
 
 终端侧日志由各宿主的独立适配器负责：`tools/terminal_log.mjs`、`terminal_log.py`、`terminal_log.sh`、`native/launcher/TerminalLog.h` 和 `tools/windows-launcher/TerminalLog.cs`。共同使用带时间、级别、进程号与事件的 JSONL 格式，按进程分开运行/错误文件并限容滚动；文件故障降级到 stderr。HTTP 请求记录方法、去掉查询串的路径及状态码，不记录正文。Node 的流读取异常在请求边界处理，原生与 Windows 的工作线程异常在请求边界处理；已捕获异常不作为成功操作报告。stdout 保持 ready/status/help/licenses 协议，日志不通过页面 API 暴露，Bash 保留 exec 交接语义。进程强杀不保证退出记录；终端日志与浏览器 Process Log 没有隐式汇聚。
 
@@ -301,7 +307,7 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 `infer/cell_semantics.js` 是普通图与层次模板的共享字段解析入口。真实 module 定义保持身份和已声明方向；leaf 方向顺序为 override → user-config → library → rule/fallback，显式 unknown 保留。缺失接口和冲突产出诊断；`internal` 与 `pg_pin` 不参与外部数据连线。顺序/三态与未知 function 保守显示，原始 function 保留。
 
-`domains/netlist/liberty_import.js` 独立拥有页面生命周期内的不可变附件。prepare 完整成功后原子提交，generation 和 AbortSignal 拒绝过期结果；解析失败保留快照。通用 `application/cooperative_task.js` 只驱动 iterator，UI 通过窄命令/查询导入、取消、卸载。main 只组合依赖，元素绑定归 `ui/workbench_elements.js`；入口行数门限从 611 降为 530。
+`domains/netlist/liberty_import.js` 独立拥有页面生命周期内的不可变附件。prepare 完整成功后原子提交，generation 和 AbortSignal 拒绝过期结果；解析失败保留快照。通用 `application/cooperative_task.js` 只驱动 iterator，UI 通过窄命令/查询导入、取消、卸载。main 只组合依赖，元素绑定归 `ui/workbench_elements.js`；Liberty 实施阶段曾将入口行数门限从 611 降为 530，工作台界面改造后当前门限进一步收紧为 470。
 
 `cellLibrary` 显式传入 workspace/feature 查询。full graph、布局衍生缓存与工作区 identity 使用不可变库引用身份；层次模板缓存同时核对库、配置、覆盖引用。替换/卸载取消旧工作区任务并通过现有 Single/Compare 生命周期重建。库没有 Session/Golden/localStorage 序列化或启动器协议扩展。
 

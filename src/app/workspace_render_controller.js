@@ -94,7 +94,7 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     const request = services.renderGeneration.current();
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
-      mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell to open its focused neighborhood, or choose Whole for an explicit overview.</span></div>`;
+      mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell or net to open its Focused neighborhood. Add more roots to trace nearby logic, or choose Whole for an explicit overview.</span></div>`;
       return Promise.resolve().then(() => ({ cancelled: !request.isCurrent() }));
     }
     if (!renderOptions.scene) {

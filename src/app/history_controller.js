@@ -341,6 +341,7 @@ export function createHistoryController({ state, elements, services }) {
   }
 
   function noteViewCommandDispatch(command, result) {
+    if (command?.recordHistory === false) return;
     if (!result || result.rejected || !Object.values(result.effects || {}).some(Boolean)) return;
     const sessionId = command?.sessionId;
     const previous = state.pendingViewCommandMetadata;

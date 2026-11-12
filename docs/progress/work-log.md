@@ -1,5 +1,23 @@
 # ELK-inspired Simple layout and routing work log
 
+## 2026-11-12 — v1.4.0 UI 改造版发布验收
+
+- 用户授权提交本轮UI与文档并推出正式版本；版本升至1.4.0，更新README、CHANGELOG、使用教程和Linux指南中的当前版本及升级说明。明确暂存52个相关文件，保留用户`.vscode/settings.json`修改，构建产物不进入Git。
+- 从暂存树导出隔离源码快照；远端目录`/home/wzh/my_code/netlistGraphBuilder/release_v1_4_0_20261112`。1099/1099单测、UI浏览器9/9、56个文档相对链接、268模块/636边架构检查通过；无未解析依赖、越层或循环。
+- Linux Release构建及CTest6/6通过，HTTP逐项核验内嵌资源并保留ELK许可；Windows由同一快照在本机.NET构建，EXE版本1.4.0.0，启动冒烟与270个运行时文件及随包文档哈希核对通过。
+- 发布附件包含Windows ZIP、Linux x86-64单文件、可选ngb.tcl及各自SHA-256。Linux仍以glibc2.35为构建基线；Windows实际Chrome/Edge及125/150/200%缩放矩阵仍未人工核验。之前的v1.3.2试制包和验证记录保留为历史证据。
+
+
+## 2026-11-12 — UI 工作台改造交付
+
+- 按 `docs/plans/ui_workbench_redesign.md` 完成外壳、独立Navigator/Inspector、固定对象摘要与分页、Focused roots、A/B Compare、全局菜单/抽屉/帮助和独立UI偏好。main468行，门限470；不扩大legacy ports。
+- 最终1098/1098单测；268模块/636依赖边架构无违规。UI专项9/9、原workbench/Liberty/process-log回归全部通过；五种CSS视口、30次picker、Compare实际SVG与Fit完整节点边界均验证。
+- UI面板/页签/选择各20次p95为33.0/28.8/36.7ms，LongTask与纯UI新增布局均0；浏览器异常/失败资源/外部请求0。
+- 默认native-layered全图mapped47/47，violations0/120；max38078ms，maxHeap686MiB。未改parser/layout/render源码或Simple冻结边界。基线与候选interaction对照留远端，不宣称稳定性能提升。
+- Linux最终CMake/CTest6/6；Node/Python launcher通过。Windows本机发布编译/HTTP冒烟通过，270个运行时文件与ELK许可逐项哈希一致；完整单测在mfs-remote运行。
+- Windows ZIP：`dist/NetlistGraphBuilder-v1.3.2-win-x64.zip`，SHA256 `98859e84e984e20e9bf111406c7158f5f817566eafaa00cf029db0c921ed39cd`。未对外发布、未stage/commit/push，原.vscode/settings.json修改保留。
+- 人工Windows Chrome检查因Computer Use无法确认当前URL被中止，真实Windows浏览器与125/150/200%缩放矩阵未验证；不会把Linux紧凑CSS尺寸冒充该结果。最终报告/截图在ignored dc_runs/ui_workbench_redesign，完整产物在远端ui_workbench_redesign_20261112。
+
 ## 2026-10-21 — Linux single-file/CMake/EDA maintenance
 
 Maintained current README, guides, architecture and status documents without rewriting historical experiments.
@@ -1235,3 +1253,9 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
 - 可复跑综合、严格 manifest 合并、Yosys 逐 pin/bit 核验、独立真值 oracle、负对照、浏览器测试工具均已保留。最终报告正在补全来源与复现入口，未 stage/commit/push。
 - 最终报告 `docs/research/liberty_synthesis_validation.md` 完成，阶段计划和原验证报告已添加入口，LIB-S01–S04 全部收口。相关文档 16 个相对链接无缺失，diff 空白检查通过；小型报告/截图已取回 ignored dc_runs。原始大文件、所有失败/补跑产物仍在服务器。
 - 分支仍为 codex/liberty-reader，无暂存、提交或推送；任务开始前的用户改动及原 47 份 checked-in mapped fixtures 保留。未新增运行时依赖，未改动原有布局门禁。
+# 2026-11-12 UI-U0 — 工作台基线与实施开始
+
+- 用户授权按 UI 计划持续完成开发；基线 HEAD `0446644`，保留用户 `.vscode/settings.json` 修改。
+- 远端隔离目录 `/home/wzh/my_code/netlistGraphBuilder/ui_workbench_redesign_20261112`，baseline/candidate 分开，源码包17.4MB；原始全量单测1061/1061通过。
+- 原始 workbench、Liberty、process-log 浏览器基线均通过，pageerror为空。复用既有 Playwright 1.64.1 与 `/opt/google/chrome/chrome`。
+- U1–U6 分工迁移唯一DOM入口、外壳偏好、Inspector和业务事件，未修改布局/provider算法。后续先真实浏览器可达性，再受影响的回归与离线包。

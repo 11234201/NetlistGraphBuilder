@@ -3,27 +3,30 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成。
 
 - **默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- **版本说明**：当前版本为 `v1.3.0`，新增可选 Liberty（`.lib`）库导入与顶部库管理面板。下载对应版本的离线附件后，请核对随附的 SHA-256 校验值。
+- **界面说明**：本教程对应 `v1.4.0` UI 工作台改造版，使用 Navigator、Inspector、File 菜单及新版快捷入口；`v1.3.x` 正式发布附件使用旧界面。下载离线附件后，请核对随附的 SHA-256 校验值；更新时完整替换程序包，保留同包的启动器与资源。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
-| **标准 STA 时序与 Metric 过滤** | 左侧 Timing 面板与 Selection 面板 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 assign 链回溯；侧边栏提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 及一键清爽纯净的 `None` 模式；支持自定义 Slack 判定阈值（Threshold，默认 0.0）；内置验证时序默认联动呈现负 Slack 违例关键路径。 |
-| **Cell / Net 聚焦视图** | 顶部 Search、左侧 View 区 | 支持将 Cell 或 Net 设为聚焦根节点（root）；点击未在当前画布绘制的搜索结果默认追加为 root，点击 `+ Focus` / `Add selected` 显式追加，点击 `Set selected as Focused` 显式替换全部 roots。 |
-| **Focused roots 管理** | 左侧 View 区 root chips | 点击 chip 可激活并居中对应 root，点击 `×` 或 `Remove selected` 移除单个 root，点击 `Clear` 清空全部 roots（最多同时保留 32 个 roots）。 |
-| **分层连接展示** | 左侧 Selection 面板 | `Connections / Current module` 仅展示当前模块定义内的连接；`Hierarchy / Parent occurrence` 独立展示穿过当前模块端口边界延伸至父层实例的连接。 |
-| **标准逻辑门符号切换** | 左侧 View 区 `Gate symbols` | 支持在 `Rectangles`（标准矩形）与 `Conventional`（约定逻辑门符号，含反相气泡）之间一键切换，不改变节点边界、引脚坐标或布线路径。 |
+| **左右面板隐藏与恢复** | 面板标题 `Hide`、顶部 `Navigator` / `Inspector` | 可分别收起两侧，为画布让出空间；顶部开关可恢复面板。保留当前阅读位置，停靠状态、宽度与页签可记忆。 |
+| **标准 STA 时序与 Metric 过滤** | 上下文栏 `Timing`、Inspector 的 `Timing` 页签 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 assign 链回溯；全局菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式，支持自定义 Slack 判定阈值（默认 0.0）；对象页签提供详情及徽标覆盖。 |
+| **Cell / Net 聚焦视图** | 顶部 Search、Inspector 操作区 | 支持将 Cell 或 Net 设为聚焦根节点（root）；点击未绘制的搜索结果默认追加为 root，`Add to Focused` 显式追加，`Replace roots` 显式替换全部 roots。 |
+| **Focused roots 管理** | 画布上方 `Roots` 菜单 | 可筛选 root chips；点击 chip 激活并居中对应 root，点击 `×` 或 `Remove selected` 移除单个 root，`Clear roots` 清空全部 roots（最多 32 个）。 |
+| **分层连接展示** | Inspector 的 `Connections` 页签 | `Connections / Current module` 仅展示当前模块定义内的连接；`Hierarchy / Parent occurrence` 独立展示穿过当前模块端口边界延伸至父层实例的连接，长表分页显示。 |
+| **标准逻辑门符号切换** | 上下文栏 `View > Gate symbols` | 支持在 `Rectangles`（标准矩形）与 `Conventional`（约定逻辑门符号，含反相气泡）之间一键切换，不改变节点边界、引脚坐标或布线路径。 |
 | **统一视图历史** | 顶部 `←` / `→`、`Ctrl+Z` / `Ctrl+Y` | 事务化记录并恢复模块切换、视图模式、Focused roots 与深度、当前选中项、视口缩放平移及手工布局微调。 |
-| **Compare roots 同步** | 左侧 Module Compare | `Sync Focus roots` 控制对一侧聚焦根节点的追加、移除和清空操作是否自动同步至另一侧匹配的单元。 |
-| **模块层次树导航** | 左侧 `Module hierarchy` | 按实例层次展开并点击切换模块（顶部显示 `module @ instance/path` 面包屑）；面板折叠时惰性不构建，遇到递归或超大层次时有界截断（最多 2000 节点、深度 64）。 |
-| **间距数字输入与引脚转角** | 左侧 Layout 区与布线器 | `Wire spacing` 与 `Cell spacing` 除滑块外支持直接输入数字（提交后自动吸附至最近的 4 的倍数）；连接单元顶部/底部引脚的末段连线预留可见转角，近距离走线依然清晰可辨。 |
+| **Compare roots 同步** | Compare 配置行 `Sync & cone` | `Sync Focus roots` 控制对一侧聚焦根节点的追加、移除和清空操作是否自动同步至另一侧匹配的单元，与视口同步独立。 |
+| **模块层次树导航** | `Navigator > Hierarchy` | 按模块或实例筛选，按实例层次展开并点击切换模块；上下文栏显示模块与实例路径。遇到递归或超大层次时有界截断（最多 2000 节点、深度 64）。 |
+| **间距数字输入与引脚转角** | 上下文栏 `Layout` 与布线器 | `Wire spacing` 与 `Cell spacing` 除滑块外支持直接输入数字（提交后自动吸附至最近的 4 的倍数）；连接单元顶部/底部引脚的末段连线预留可见转角，近距离走线依然清晰可辨。 |
 | **高可靠恢复与批量导入** | Golden、Session、快速输入 | Golden v3 校验网表内容指纹（fingerprint）并恢复聚焦深度；多文件拖放/粘贴严格按“Liberty（如有）→ 网表 → 时序 → Golden”依赖顺序串行完成。 |
 
 ## 目录
 
 - [近期核心功能速览](#近期核心功能速览)
+- [隐藏、恢复与调整左右面板](#21-隐藏恢复与调整左右面板)
+- [新版入口速查](#23-新版入口速查)
 
 1. [软件定位与运行方式](#1-软件定位与运行方式)
 2. [界面总览](#2-界面总览)
@@ -38,9 +41,9 @@
 11. [Timing 导入与显示](#11-timing-导入与显示)
 12. [Cell Config](#12-cell-config)
 13. [Compare 双 module 对比](#13-compare-双-module-对比)
-14. [SVG、Golden 和状态恢复](#14-svg-golden-和状态恢复)
-15. [Process Log](#15-process-log)
-16. [快捷键](#16-快捷键)
+14. [SVG、Golden 和状态恢复](#14-svggolden-和状态恢复)
+15. [Process Log](#15-process-log过程日志)
+16. [快捷键](#16-快捷键一览)
 17. [EDA/脚本启动接口](#17-eda脚本启动接口)
 18. [推荐工作流](#18-推荐工作流)
 19. [常见问题与限制](#19-常见问题与限制)
@@ -99,28 +102,80 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 ## 2. 界面总览
 
-工作台界面由四个核心区域组成：
+工作台按全局操作、当前视图与对象详情分区：
 
-- **顶部工具栏**：包含 `Import`（导入）、`Module`（模块选择与层次面包屑）、历史前进/后退（`←` / `→`）、`Search`（全局搜索）、`Compare`（双模块对比切换）、`Fit`（适配视口）与 `More`（保存/加载 Golden、重置布局、导出 SVG）。
-- **左侧控制与检查面板**：包含视图模式（View）、布局与间距设置（Layout）、时序显示策略（Timing）、单元语义配置（Cell Config）、对比设置（Module Compare）、模块实例层次树（Module hierarchy）、设计统计（Design）、当前选中详情（Selection）与诊断信息（Diagnostics）。
+- **全局栏**：`File` 汇集导入、导出 SVG 与 Golden 存取；`Liberty` 管理可选库，`Cell Config` 管理类型定义；Search、Compare/Single 和 `?` 帮助入口保持可见。
+- **上下文工具栏**：显示模块/实例路径和视图模式，提供历史 `←` / `→`、Whole/Focused、Fit view、View、Layout、Timing、Adjust、对象摘要及 Navigator/Inspector 开关。
+- **Navigator**：左侧的 `Hierarchy` 页签用于筛选和浏览模块实例树，`Design` 页签显示当前设计或 A/B 对比统计。
+- **Inspector**：右侧显示所选对象的名称、类型和 Single/A/B 来源。`Connections`、`Timing`、`Adjust` 页签分别显示连接、对象时序和实例覆盖；`Edit cell type…` 打开类型级定义编辑器。
 - **中央主画布**：渲染当前模块的交互式 SVG 原理图，或在 Compare 模式下分屏展示两个模块的画布。
-- **底部状态与日志区**：展示最新操作状态提示，以及可折叠的 `Process Log`（过程日志面板）。
+- **底部状态栏**：展示最新操作状态与布局 provider，`Diagnostics` 和 `Log` 带计数，可分别展开诊断和过程日志抽屉。
+
+Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `Roots`、`Fanin` 和 `Fanout` 控件，不必在长侧栏中寻找。
 
 **界面交互细节**：
-- 顶部的 `Import` 与 `More` 为下拉弹出菜单；再次点击菜单按钮、点击页面空白区域或按下 `Esc` 键均可收起菜单。
-- 左侧面板与中央画布之间的竖向分隔条支持鼠标拖拽调整宽度；当分隔条获得键盘焦点时，按左右方向键（`ArrowLeft` / `ArrowRight`）可按每次 `16px` 步进微调侧栏宽度。
+
+- 菜单可再次点击、点击外部或按 `Esc` 收起。`?` 打开操作帮助；非编辑状态下按 `/` 可直接搜索。
+- 长名称可完整查看和复制，宽时序表仅在表内横向滚动。
+
+### 2.1 隐藏、恢复与调整左右面板
+
+| 需要做什么 | 操作 | 结果 |
+| --- | --- | --- |
+| 隐藏左侧导航 | 点击 Navigator 标题旁的 `‹ Hide`，或顶部 `Navigator` | 导航收起，停靠时占用的宽度交还画布 |
+| 隐藏右侧详情 | 点击 Inspector 标题旁的 `Hide ›`，或顶部 `Inspector` | 详情收起，停靠时占用的宽度交还画布 |
+| 两侧都隐藏 | 分别收起仍展开的两侧面板 | 画布占满工作区宽度，顶部工具栏仍可使用 |
+| 恢复某侧面板 | 点击顶部 `Navigator` 或 `Inspector` | 打开对应面板；开关高亮表示展开 |
+| 查看当前选择详情 | 点击顶部对象名称摘要，或 `Inspector` | 打开 Inspector，显示当前选中对象 |
+| 调整停靠面板宽度 | 拖拽面板与画布之间的分隔条 | Navigator 可调至 220–360px，Inspector 可调至 320–560px |
+
+隐藏面板后，顶部开关仍可见。停靠面板可独立恢复；窄屏下两侧均为抽屉时，打开一侧会收起另一侧。主动隐藏 Inspector 后，再次点击图中对象只更新选择和顶部摘要，不强制弹出详情。页面宽度小于1024px时，顶部对象摘要会收起，请使用 `Inspector` 开关查看选择详情。
+
+这些操作适用于 Single、Focused 与 Compare。开合或调宽保持当前图中心和阅读比例，不重新计算布局、不修改网表或 Focused roots。若想让整幅当前图重新适配更大的画布，显式点击 `Fit view`；Compare 中该按钮适配 A/B 两侧。
+
+键盘操作：用 `Tab` 移到面板开关或 `Hide`，按 `Enter` / `Space` 激活。停靠分隔条获得焦点后，左右方向键按每次 `16px` 调宽；面板内页签可用方向键和 `Home` / `End` 切换。
+
+### 2.2 窗口宽度与界面偏好
+
+未保存面板偏好时，按浏览器页面可用宽度采用以下默认布局（不是显示器物理分辨率）：
+
+| 页面宽度 | Navigator | Inspector |
+| --- | --- | --- |
+| ≥1600px，如1920px | 默认停靠并展开，宽240px | 默认停靠并展开，宽336px |
+| 1280–1599px，如1366/1440px | 默认关闭，点击后以抽屉覆盖画布 | 默认停靠并展开，宽320px |
+| <1280px | 默认关闭，按需打开抽屉 | 默认关闭，按需打开抽屉；两侧同时只开一个 |
+
+抽屉打开时覆盖部分画布，不压缩画布宽度；点抽屉外部或按 `Esc` 可关闭（若有浮层，`Esc` 先关闭顶层浮层）。抽屉模式不显示拖宽分隔条。
+
+面板开关、宽度与最近页签单独保存在当前浏览器、当前站点地址的界面偏好中；已保存的开关优先于停靠默认值。刷新时抽屉不会自动弹出，需手动打开。更换浏览器、主机名或端口会使用另一份站点存储；清除站点数据也会清除这些偏好。网表会话与 Golden 的保存范围见 [14. SVG、Golden 和状态恢复](#14-svggolden-和状态恢复)。
+
+### 2.3 新版入口速查
+
+| 要找的功能 | 当前入口 |
+| --- | --- |
+| 原 Import 菜单的文件和文本导入 | 全局栏 `File` 的 `Import` 分组 |
+| 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；SVG 导出与 Golden 保存需处于 Single |
+| 模块层次、设计统计 | 顶部 `Navigator` → `Hierarchy` / `Design` |
+| 原 Selection 对象详情、对象时序与实例调整 | 顶部 `Inspector` → `Connections` / `Timing` / `Adjust`；先选中对象，实例调整需开启上下文栏 `Adjust` |
+| 布局引擎、间距、恢复手工覆盖 | 上下文栏 `Layout` |
+| 别名与门符号显示 | 上下文栏 `View` |
+| 全局时序指标与违例阈值 | 上下文栏 `Timing` |
+| 聚焦根与扇入/扇出深度 | Focused 画布上方的 `Roots`、`Fanin`、`Fanout` |
+| Cell Config 类型定义 | 全局栏 `Cell Config`；选中单元后也可点 Inspector 的 `Edit cell type…` |
+| 诊断与过程日志 | 底部状态栏 `Diagnostics` / `Log` |
+| Compare 配对与同步 | Compare 画布上方的 A/B 选择器、`Apply`、`Split`、`Sync & cone` |
 
 ---
 
 ## 3. 导入网表、时序和配置
 
-### 3.1 Import 菜单
+### 3.1 File 菜单中的 Import 分组
 
-点击顶部工具栏的 `Import` 按钮，提供四个导入入口：
+点击全局栏的 `File`，其 `Import` 分组提供四个导入入口：
 
 - `Open netlist`：从本地选择 `.v`、`.sv` 或文本格式的结构化 Verilog 网表文件。
 - `Paste netlist`：在弹窗中直接粘贴结构化 Verilog 代码，点击 `Draw`（或按 `Ctrl+Enter` / `Cmd+Enter`）立即解析绘图。
-- `Open timing`：从本地选择 `.log` 或 `.txt` 时序报告文件。
+- `Open timing`：从本地选择 `.log`、`.txt`、`.rpt`、`.timing`、`.csv`、`.tsv` 或 `.json` 时序报告文件。
 - `Paste timing`：在弹窗中粘贴时序文本并明确按 Timing 格式解析（避免短小的时序片段被自动识别逻辑误判为 Verilog）。
 
 成功导入新网表后会替换当前 Design，并同步重建模块列表、搜索索引、诊断信息及视图状态；若新输入解析失败，系统会报错并安全保留此前已成功加载的 Design。
@@ -134,8 +189,9 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 - 结构化 Verilog 网表（`.v` / `.sv` / `.txt`）
 - 时序报告文本（Timing log）
 - 布局快照文件（Layout Golden `.json`）
+- Liberty 文本库（`.lib`）
 
-当一次性拖入多个文件时，系统会严格按照**“先加载网表，待网表就绪后再依次应用配套的 Timing 或 Golden”**的依赖顺序串行执行。若前置步骤失败，状态栏会立即报告错误并终止后续依赖步骤，绝不会将未生效的文件伪装为导入成功。自定义单元配置（Cell Config）请通过左侧 `Cell Config > Import` 专用按钮或命令行启动参数载入。
+当一次性拖入多个文件时，系统会严格按照**“Liberty（如有）→ 网表 → Timing → Golden”**的依赖顺序串行执行。若前置步骤失败，状态栏会立即报告错误并终止后续依赖步骤，绝不会将未生效的文件伪装为导入成功。自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入。
 
 ### 3.3 支持的 Verilog 语法范围
 
@@ -162,7 +218,7 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel import` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
 
-Selection 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。
+Inspector 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。
 
 首版支持标量接口、`pg_pin`、`ff`/`latch` 标记、三态标记，以及带显式 `type` 位范围的同方向 bus。常见 AND/NAND/OR/NOR/XOR/XNOR/BUF/INV/MUX 使用有界布尔识别；复杂逻辑、常量、多输出、latch 和三态保持保守展示。库面板列出前 20 条解析/语义告警，完整告警保留在库模型中。
 
@@ -172,15 +228,15 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ## 4. Module 与层次导航
 
-### 4.1 Module 下拉框
+### 4.1 选择模块
 
-顶部工具栏的 `Module` 下拉框列出了当前网表中的所有模块定义。切换模块后画布将展示对应模块的结构；若目标模块的单元数量超过大图阈值（500 个单元），将自动进入 `Search-first`（搜索优先）模式，避免因一次性全图布局造成等待。
+点击上下文栏的 `Navigator`，在 `Hierarchy` 页签按模块名或实例名筛选并选择目标；也可通过全局 Search 搜索模块。切换模块后画布将展示对应模块的结构；若目标模块的单元数量超过大图阈值（500 个单元），将自动进入 `Search-first`（搜索优先）模式，避免因一次性全图布局造成等待。Compare 中通过画布上方的 A/B 选择器配对，返回 Single 后继续层次导航。
 
 ### 4.2 Module hierarchy 列表
 
-左侧面板中的 `Module hierarchy` 是一个默认折叠的模块实例层次树。展开后可直观查看从顶层模块向下的实例层次路径，并点击任意节点切换当前查看的模块。为防止递归例化或超大规模芯片层次耗尽内存，层次树采用惰性构建与有界展开策略：**最多展开 2000 个节点、最大嵌套深度 64 层**；达到上限时会显示 `More instances omitted` 截断提示，遇到递归引用时会标记 `cycle`（这仅代表显示保护生效，并不表示网表解析出错）。
+`Navigator > Hierarchy` 展示模块实例层次树，可查看从顶层模块向下的实例路径并点击切换当前模块。为防止递归例化或超大规模芯片层次耗尽内存，层次树采用有界展开策略：**最多展开 2000 个节点、最大嵌套深度 64 层**；达到上限时会显示 `More instances omitted` 截断提示，遇到递归引用时会标记 `cycle`（这仅代表显示保护生效，并不表示网表解析出错）。
 
-列表中普通项格式为 `instance : module`（表示某实例名及其引用的模块定义），顶层根节点仅显示模块名。当前激活的实例节点会高亮显示，同时顶部 `Module` 选择器会展示 `module @ instance/path` 形式的层次面包屑（Breadcrumb），清晰指示当前所在的实例上下文（Occurrence context）。
+列表中普通项格式为 `instance : module`（表示某实例名及其引用的模块定义），顶层根节点仅显示模块名。当前激活的实例节点会高亮显示，上下文栏与层次树标题展示 `module @ instance/path`，指示当前所在的实例上下文（Occurrence context）。
 
 ### 4.3 双击进入子模块（hinst 钻取）
 
@@ -188,7 +244,7 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ### 4.4 视图历史前进与后退（View History）
 
-顶部工具栏的 `←`（后退）与 `→`（前进）按钮基于统一的事务化视图历史（View History），完整记录并恢复以下状态：
+上下文工具栏的 `←`（后退）与 `→`（前进）按钮基于统一的事务化视图历史（View History），完整记录并恢复以下状态：
 
 - 当前打开的 Module 及层次实例路径（Occurrence breadcrumb）
 - 视图模式（`Whole` / `Focused` / `Search-first`）
@@ -201,7 +257,7 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ### 4.5 逻辑门符号切换（Gate symbols）
 
-左侧 View 区的 `Gate symbols` 可在两种渲染符号风格之间无缝切换：
+上下文栏 `View > Gate symbols` 可在两种渲染符号风格之间无缝切换：
 
 - `Rectangles`：所有单元统一使用标准矩形框绘制。
 - `Conventional`：将已识别的 `BUF` / `INV`、`AND` / `NAND`、`OR` / `NOR`、`XOR` / `XNOR` 绘制为标准数字电路逻辑门图形（反相输出自动绘制小圆圈 bubble），其余子模块、黑盒（Blackbox）、寄存器（Register）及未知单元继续使用矩形框。
@@ -224,6 +280,7 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 **键盘导航快捷键**：
 
+- `/`：在非编辑状态下聚焦全局搜索；输入法组合或模态对话框打开时不触发
 - `ArrowDown` / `ArrowUp`：在下拉候选列表中上下移动焦点
 - `Enter`：激活当前高亮的搜索结果
 - `Esc`：收起搜索候选列表
@@ -234,7 +291,7 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 - **点击结果主体或按 `Enter`**：
   - 若目标对象已经存在于当前画布的已绘制图中，则**仅选中并将视口居中定位到该对象**，不会改写现有的聚焦根节点。
   - 若目标单元未在当前画布中绘制（例如处于 `Search-first` 空画布或当前 `Focused` 邻域之外），则自动进入 `Focused` 视图，并将该对象**追加**到现有的 Focused roots 集合中（保留此前已聚焦的根节点）。
-- **点击结果右侧的 `+ Focus` 按钮**：无论目标对象当前是否已绘制，均显式将其追加至 Focused roots 并进入 `Focused` 视图（若已在 roots 集合中则不重复添加）。
+- **点击结果右侧的 `Add to Focused` 按钮**：无论目标对象当前是否已绘制，均显式将其追加至 Focused roots 并进入 `Focused` 视图（若已在 roots 集合中则不重复添加）。
 - **跨模块结果隔离**：激活位于其他模块的搜索结果时，系统会先切换至目标模块的工作区；原模块的 Focused roots、选中状态和手工布局微调不会串入目标模块。若目标模块此前已访问过，会自动恢复其自身的独立工作区状态。
 
 ---
@@ -245,49 +302,51 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 - **滚轮缩放**：以当前鼠标指针所在位置为中心放大或缩小画布。
 - **拖拽平移**：在画布空白区域按住鼠标左键拖动即可平移视图；平移距离严格按 SVG 实际等比例尺度换算，即便在超大长宽比图放大至极限倍率时，画面依然严格跟随鼠标移动距离。
-- **顶部 `Fit` 按钮**：将当前 Single 原理图或 Compare 左右两侧原理图完整适配至可视窗口中央。
+- **上下文栏 `Fit view` 按钮**：将当前 Single 原理图或 Compare A/B 两侧原理图完整适配至各自的可视窗口中央。
 - **动态最大倍率与低缩放细节隐藏（LOD）**：系统会根据画布实际宽高动态提升超宽或超高图的最大放大倍率上限（保证典型 `220px` 宽度的单元在屏幕上可放大至约 `440px` 的清晰阅读尺寸）。当缩放倍率低于 `0.65` 时，为保证交互帧率与主干结构可读性，引脚名、线网标签、单元元信息和时序文字会自动暂时隐藏，放大后立即恢复。
 
 ### 6.2 选择对象与跨层连接追踪
 
-单击画布中的单元（Cell）、端口（Port）或导线（Wire）后，左侧 `Selection` 面板会展示该对象的完整属性与连接关系：
+单击画布中的单元（Cell）、端口（Port）或导线（Wire）后，右侧 Inspector 会展示该对象摘要和来源（Single，或 Compare A/B），并在 `Connections` 页签展示属性与连接关系：
 
 - **Cell**：显示单元类型、推断的逻辑门类别（gate kind）、推断来源（inference source）、各引脚方向、连接的线网、相邻驱动/负载端点以及直接扇入（Fanin）/ 扇出（Fanout）列表。
 - **Port**：显示端口方向、内部连接线网及相邻单元。
 - **Net**：显示驱动源（driver）、所有负载端（loads）及路径端点。
 
-`Selection` 面板中所有以可点击按钮呈现的 `Net`、`Driver/Load`、`Connected`、`Fanin` 和 `Fanout` 条目均支持**点击连续追踪**：若点击的目标对象已绘制则直接选中并居中；若目标处于当前局部聚焦图之外，系统会在当前模块内自动扩展或建立包含目标的 `Focused` 局部视图，而不会退回耗时的 `Whole` 整图模式。
+Inspector 中所有以可点击按钮呈现的 `Net`、`Driver/Load`、`Connected`、`Fanin` 和 `Fanout` 条目均支持**点击连续追踪**：若点击的目标对象已绘制则直接选中并居中；若目标处于当前局部聚焦图之外，系统会在当前模块内自动扩展或建立包含目标的 `Focused` 局部视图，而不会退回耗时的 `Whole` 整图模式。
+
+对象摘要提供完整名称与复制入口；滚动详情时摘要与页签固定可见，超长摘要在自身区域内滚动，避免占满 Inspector。连接/层次表超过 100 行、关联目标列表超过 20 项时分页显示，可用页码继续查看全部数据；分页仅限制当前 DOM 数量，不减少模型中的连接。切换 Connections/Timing/Adjust 时对象摘要保留；Timing 宽表在自身区域内横向滚动。
 
 **本层连接与父层跨边界连接（Connections vs. Hierarchy）**：
 
-`Selection` 面板将连接关系清晰划分为两个独立区域：
+Inspector 的 `Connections` 页签将连接关系清晰划分为两个独立区域：
 
 1. **`Connections / Current module`**：仅展示当前模块定义（Module definition）内部的引脚、线网、驱动与负载。例如在顶层 `hierarchy_demo_top` 中选中子模块实例 `u_compute_left` 时，其输入连接仅定位到本层线网；子模块内部的端口（如 `compute_cluster.a`）属于子实例内部接口，不会混入父层列表（欲进入子模块内部请直接双击该子模块实例）。
 2. **`Hierarchy / Parent occurrence`**：采用独立强调底色与 `Parent` 徽标，**仅在当前选中对象连接到了当前模块的输入/输出端口边界（Boundary port），且当前模块处于明确的父层实例上下文（即通过 `Module hierarchy` 树或双击 `hinst` 进入）时显示**。
    - 顶层模块没有父实例，因此不显示 `Hierarchy` 区。
    - 当双击 `u_compute_left` 进入 `compute_cluster @ u_compute_left` 后，若选中与边界端口 `a` 相连的内部线网或单元，`Hierarchy` 区便会列出穿过边界延伸至父层的 `hierarchy_demo_top.a`。
    - 点击带 `Parent` 标记的父层线网或单元时，系统会自动切换回父层实例上下文，清空原层级的 Focused roots，并以目标父层对象建立新的 `Focused` 视图。
-   - 若某个被多处例化的子模块仅通过顶部 `Module` 下拉框直接按定义名打开（未指定具体属于哪一个实例路径），系统不会盲目猜测父实例，而是展示显式实例选择器（Occurrence chooser）供用户指定要追踪的具体实例路径。
+   - 若某个被多处例化的子模块仅按定义名打开（未指定具体属于哪一个实例路径），系统不会盲目猜测父实例，而是在 Navigator 中展示显式实例选择器（Occurrence chooser），供用户指定要追踪的具体实例路径。
 
 > **小贴士**：单击画布空白处可清除当前选中状态；按住画布拖拽平移**不会**取消已选中导线的高亮，方便沿着长线网一路拖动追踪到远端负载。
 
-### 6.3 一键居中放大所选单元（Focus selected cell）
+### 6.3 居中放大所选对象（Zoom to selection）
 
-选中某个单元后，点击左侧 View 区的 `Focus selected cell` 按钮，或在非输入框状态下直接按下快捷键 `F`：
+选中单元或线网后，点击 Inspector 的 `Zoom to selection`，或在非输入框状态下直接按下快捷键 `F`：
 
-- 若该单元已在当前画布中绘制，视口会平滑居中并将其放大至稳定的阅读尺寸（约 `320px` 视觉宽度）。
+- 若对象已在当前画布中绘制，仅调整视口并将其放大至稳定的阅读尺寸（单元约 `320px` 视觉宽度），不改变 roots；线网定位至可见连接路径。
 - 若该单元不在当前局部图中，系统会先以它为中心建立 `Focused` 局部图，随即将视口居中定位到该单元。
 
 ### 6.4 管理聚焦根节点（Focused roots）
 
-左侧 View 区提供四个显式的根节点集合管理按钮（支持以选中的 **Cell** 或 **Net** 作为聚焦根）：
+Inspector 与画布上方的 `Roots` 菜单提供显式的根节点集合管理操作（支持以选中的 **Cell** 或 **Net** 作为聚焦根）：
 
-- `Set selected as Focused`：用当前选中的 Cell 或 Net **替换**全部已有的聚焦根节点，适合开启一段全新的局部路径分析。
-- `Add selected`：保留已有聚焦根节点，将当前选中对象**追加**为新的根节点。
-- `Remove selected`：从聚焦根节点集合中仅移除当前选中的根节点。
-- `Clear`：清空全部聚焦根节点（大型模块将返回 `Search-first` 提示页，中小型模块将返回 `Whole` 整图）。
+- Inspector 的 `Replace roots`：用当前选中的 Cell 或 Net **替换**全部已有的聚焦根节点，适合开启一段全新的局部路径分析。
+- Inspector 的 `Add to Focused`：保留已有聚焦根节点，将当前选中对象**追加**为新的根节点。
+- `Roots > Remove selected`：从聚焦根节点集合中仅移除当前选中的根节点。
+- `Roots > Clear roots`：清空全部聚焦根节点（大型模块将返回 `Search-first` 提示页，中小型模块将返回 `Whole` 整图）。
 
-按钮下方的 **root chips** 标签栏实时展示当前的根节点集合（最多容纳 **32 个 roots**）：
+`Roots` 菜单中的 **root chips** 实时展示当前的根节点集合（最多容纳 **32 个 roots**），可输入名称筛选；画布上方同时显示数量和摘要：
 - 点击任意 chip 可将其设为当前激活根节点（active root）并将视口居中定位到该对象，无需重新计算布局。
 - 点击 chip 右侧的 `×` 仅移除该根节点。
 - 在执行追加、移除或激活操作期间，当前设置的 `Fanin depth` 与 `Fanout depth` 保持不变。
@@ -296,13 +355,13 @@ Selection 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ### 6.5 指定 net 不布线
 
-点击导线，或在单元 `Connections` 中点击 net 名称，在 `Selection → Net routing` 取消勾选
+点击导线，或在单元 `Connections` 中点击 net 名称，在 `Inspector > Connections > Net routing` 取消勾选
 `Route net / 布线`，即可跳过 clk、reset 或任意所选 net 的布线。默认所有 net 均布线；
 net 之间的 assign 别名同步生效，赋为相同常量的独立 net 可分别设置；单元、引脚、连接详情与 Focused 追踪保持完整。
 
-取消布线后仍可通过 Search 或 Connections 打开该 net，重新勾选恢复。Compare 左右侧独立设置。
+取消布线后仍可通过 Search 或 Connections 打开该 net，重新勾选恢复。Compare A/B 两侧独立设置。
 设置支持 Back/Forward、模块切换和 Golden 保存/加载；刷新页面时恢复 Single 当前模块的设置。
-SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线。
+SVG 导出遵循当前设置，`Layout > Reset view overrides` 清除覆盖时也会恢复布线。
 
 ## 7. Whole 和 Focused 视图
 
@@ -337,9 +396,9 @@ SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线�
 
 1. 在顶部搜索框输入目标实例名（instance）、线网名（net）、端口名（port）或单元类型（cell type）。
 2. 在下拉列表中点击或按 `Enter` 激活目标结果，瞬间生成围绕该对象的 `Focused` 局部图。
-3. 通过左侧 `Fanin depth` 与 `Fanout depth` 按需增减上下文层数。
-4. 在左侧 `Selection` 面板中点击上下游的驱动、负载或跨层次父/子连接，沿信号链路逐步推进追踪。
-5. 仅在确实需要审视全模块宏观分布时，再点击左侧 `Whole` 按钮渲染整图。
+3. 通过画布上方的 `Fanin` 与 `Fanout` 按需增减上下文层数。
+4. 在 Inspector 的 `Connections` 页签中点击上下游的驱动、负载或跨层次父/子连接，沿信号链路逐步推进追踪。
+5. 仅在确实需要审视全模块宏观分布时，再点击上下文栏的 `Whole` 按钮渲染整图。
 
 > **性能保护**：在大型模块中修改并保存 `Cell Config` 时，系统会自动保持当前正在查看的 `Focused` 局部视图并仅重排该局部图，避免触发全图重布局导致界面等待。
 
@@ -349,7 +408,7 @@ SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线�
 
 ### 9.1 布局引擎选择（Layout Provider）
 
-左侧 `Layout` 面板提供三种完全离线运行的布局引擎：
+上下文栏的 `Layout` 菜单提供三种完全离线运行的布局引擎：
 
 - **`Native Layered AnchorLayered`（默认）**：项目内置的高性能物理锚点分层布局与正交布线引擎（原称 H08），Single 与 Compare 视图共用同一流水线。若遇到超出支持范围的拓扑，会输出明确诊断并自动依次尝试降级至 `ELK` 与 `Simple`。
 - **`ELK Layered (Experimental)`**：本地化集成的 Eclipse Layout Kernel（vendored `elkjs 0.11.1`），适合对比或尝试不同的大图初始排布；若失败则自动回退至 `Simple`。
@@ -388,7 +447,7 @@ SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线�
 
 ## 10. Adjust 手工校准
 
-点击左侧 Layout 区的 `Adjust layout` 按钮即可进入手工校准模式；再次点击该按钮退出校准模式。
+点击上下文栏的 `Adjust` 按钮即可进入手工校准模式；再次点击该按钮退出校准模式。
 
 ### 10.1 拖拽移动节点
 
@@ -399,7 +458,7 @@ SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线�
 
 ### 10.2 调整节点尺寸（Size）
 
-在 `Adjust` 模式下选中节点后，左侧面板可精确修改其外框尺寸：
+在 `Adjust` 模式下选中节点后，Inspector 的 `Adjust` 页签可精确修改其外框尺寸：
 
 - `Width`（宽度）：可调范围 `24–420 px`
 - `Height`（高度）：可调范围 `12–260 px`
@@ -423,8 +482,8 @@ SVG 导出遵循当前设置，`Reset` 清除布局覆盖时也会恢复布线�
 
 ### 10.5 重置与保存校准结果
 
-- `More > Reset layout`：一键清除当前模块的所有手工位置、尺寸与属性覆盖，恢复当前布局引擎的自动输出。
-- `More > Save Golden`：将当前视图模式、聚焦状态及所有手工校准覆盖导出保存为 Layout Golden JSON 文件。
+- `Layout > Reset view overrides`：清除当前 Single 模块的位置、尺寸、实例属性、引脚方向及不布线 net 覆盖；Compare 中清除 A/B 两侧的覆盖。
+- `File > Save Golden`：将当前 Single 视图模式、聚焦状态及所有手工校准覆盖导出保存为 Layout Golden JSON 文件；Compare 中不可用。
 
 ---
 
@@ -480,7 +539,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 ### 11.3 全图时序显示策略（Timing Display Policy）
 
-左侧 `Timing` 面板提供全图级别的 `Metric` 指标选择与 `Threshold` 阈值配置：
+上下文栏的 `Timing` 菜单提供全图级别的 `Metric` 指标选择与 `Threshold` 阈值配置：
 - **Metric 指标过滤**：可选 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None`。
   - `Worst Slack`：默认模式，展示输出引脚最差 Slack 与输入引脚到达时间（AT）；
   - `AT` / `RT` / `Delay` / `Slew`：整图仅展示单一指定物理维度，避免海量文字密集遮挡；
@@ -495,7 +554,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 ### 11.4 单个对象的 Timing 详情与徽标定制
 
 - **端口（Port）图元时序排版**：输入/输出端口图元采用上下双行垂直居中排版（上行显示端口名称，下行显示时序徽标并自动省略冗余前缀），确保窄端口外框内文字清晰无挤压溢出。
-- **单元详情查验**：选中带有时序数据的单元后，左侧 `Selection` 面板会列出该单元所有引脚的 `AT`、`RT`、`Slack`、最差引脚（worst pin）、最差裕量（worst slack）以及当前是否达标违例。用户可在面板中针对该单元微调徽标展示：
+- **单元详情查验**：选中带有时序数据的单元后，Inspector 的 `Timing` 页签会列出该单元所有引脚的 `AT`、`RT`、`Slack`、最差引脚（worst pin）、最差裕量（worst slack）以及当前是否达标违例。用户可在面板中针对该单元微调徽标展示：
   - 单独勾选或取消勾选某个引脚/指标是否显示为画布 badge；
   - 调整 badge 挂载在节点外框的方位（左上、右上、左下、右下）；
   - 点击 `Default badges` 一键恢复默认徽标显示策略。
@@ -509,7 +568,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 ### 12.1 创建或修改单元类型定义
 
 1. 在画布或搜索结果中选中目标原语单元实例。
-2. 点击左侧 `Cell Config > Edit selected type`。
+2. 点击 Inspector 底部的 `Edit cell type…`。
 3. 在弹出的编辑器中设置 `Gate kind` 以及各个引脚的 `direction`。
 4. 点击 `Save` 保存。
 
@@ -523,7 +582,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 ### 12.2 删除与全部重置
 
 - `Delete saved`：仅删除当前选中单元类型的自定义配置，使其恢复使用内置推断规则。
-- `Reset all`：清空浏览器本地保存的全部自定义 `Cell Config`。
+- 全局栏 `Cell Config > Reset all definitions`：清空浏览器本地保存的全部自定义 `Cell Config`。
 
 ### 12.3 浏览器本地持久化
 
@@ -531,8 +590,8 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 ### 12.4 导入与导出 JSON
 
-- `Export`：将当前保存的所有单元配置按确定性字母序导出为 `netlist-cell-config.json`。
-- `Import`：载入符合 version 1 规范的 JSON 配置文件；若导入文件与本地已有配置存在同名 `cell type` 冲突，系统会弹窗提示用户确认是否覆盖。
+- `Cell Config > Export definitions`：将当前保存的所有单元配置按确定性字母序导出为 `netlist-cell-config.json`。
+- `Cell Config > Import definitions…`：载入符合 version 1 规范的 JSON 配置文件；若导入文件与本地已有配置存在同名 `cell type` 冲突，系统会弹窗提示用户确认是否覆盖。
 
 **`netlist-cell-config.json` 示例结构**：
 
@@ -564,16 +623,16 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 1. 加载一个至少包含两个 `module` 的网表设计。
 2. 点击顶部工具栏的 `Compare` 按钮。
-3. 在左侧 `Module Compare` 面板中分别选择 `Left`（左侧/上方）和 `Right`（右侧/下方）模块。
+3. 在画布上方的 Compare 配置行分别选择 `A` 和 `B` 模块。
 4. 点击 `Apply` 启动对比。
 
-系统会自动优先推荐同名前缀且带有 `_Flex`、`_orig`、`_new` 等常见版本后缀的配对模块。进入对比模式后，顶部工具栏的原按钮文字变为 `Single`；点击顶部或左侧面板中的 `Single` 均可随时退回单模块视图。
+系统会自动优先推荐同名前缀且带有 `_Flex`、`_orig`、`_new` 等常见版本后缀的配对模块。选择器中的修改为待应用草稿，点击 `Apply` 后更新画布。进入对比模式后，顶部原按钮变为 `Single`；点击它或 `Sync & cone > Return to Single` 可退回单模块视图。A/B 身份不随分屏方向改变：A 位于上方或左侧，B 位于下方或右侧。
 
 ### 13.2 分屏方向与视口同步
 
-- **分屏方向（`Layout`）**：支持 `Top / Bottom`（上下并排）或 `Left / Right`（左右并排），切换后自动适配两侧视口。
-- **同步缩放平移（`Sync pan / zoom`）**：默认开启，在任意一侧画布滚动缩放或拖拽平移时，另一侧画布实时同步执行相同变换；取消勾选后两侧可独立缩放和平移。
-- **顶部 `Fit` 按钮**：同时将左右两侧画布重置适配至各自的可视区域。
+- **分屏方向（`Split`）**：默认 `Top / Bottom`（上下分屏），可切换为 `Left / Right`（左右分屏），切换后自动适配两侧视口。
+- **同步缩放平移（`Sync & cone > Sync pan / zoom`）**：默认开启，在任意一侧画布滚动缩放或拖拽平移时，另一侧画布实时同步执行相同变换；取消勾选后两侧可独立缩放和平移。
+- **上下文栏 `Fit view`**：同时将 A/B 两侧画布重置适配至各自的可视区域。
 
 ### 13.3 跨侧联动选择与结构差异高亮
 
@@ -592,22 +651,24 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 ### 13.4 Compare 模式下的 Focused roots 管理
 
-Compare 左右两侧画布各自独立维护其 `Focused roots` 集合、激活根节点、选中对象与视口状态。先在左侧或右侧画布中点击某个对象，再点击左侧 View 区的 `Set` / `Add` / `Remove` / `Clear` 按钮，操作即以当前选中侧为起点。
+Compare A/B 两侧各自维护 `Focused roots`、激活根、选中对象与视口状态。先在一侧点击对象，再使用 Inspector 的 `Replace roots` / `Add to Focused` 或 `Roots` 菜单中的 `Remove selected` / `Clear roots`，操作以当前活动侧为起点；Inspector 摘要明确显示 `A · Compare · module` 或 `B · Compare · module`。
 
-**`Sync Focus roots`（默认开启）联动规则**：
+**`Sync & cone > Sync Focus roots`（默认开启）联动规则**：
 
-- **`Add` / `Set`**：若在另一侧模块中找到同名匹配的单元，则自动在另一侧同步追加或替换聚焦根；若另一侧不存在匹配单元，则仅更新当前操作侧并在状态栏给出提示。
-- **`Remove`**：若另一侧存在对应的聚焦根，则同步将其移除。
-- **`Clear`**：同时清空左右两侧的全部聚焦根。
+- **`Add to Focused` / `Replace roots`**：若在另一侧模块中找到同名匹配的单元，则自动在另一侧同步追加或替换聚焦根；若另一侧不存在匹配单元，则仅更新当前操作侧并在状态栏给出提示。
+- **`Remove selected`**：若另一侧存在对应的聚焦根，则同步将其移除。
+- **`Clear roots`**：同时清空 A/B 两侧的全部聚焦根。
 - **关闭 `Sync Focus roots` 后**：左右两侧的聚焦根操作完全独立（此时 `Sync pan / zoom` 仍仅同步视口平移与缩放，绝不会隐式修改另一侧的聚焦根）。
 
-在 Compare 模式下，View 区的 root chips 会自动冠以 `left:` 或 `right:` 前缀以区分所属侧；点击某个 chip 仅激活并居中对应侧的该根节点，点击 `×` 将其移除。
+在 Compare 模式下，`Roots` 菜单的 root chips 带有 `A:` 或 `B:` 前缀；点击 chip 激活并居中对应侧的该根节点，点击 `×` 将其移除。`Fanin` / `Fanout` 深度是两侧共享设置，不因关闭 roots 同步而变成单侧设置。
+
+上下文栏的 `Focused` 以活动侧为起点；`Whole` 则清除两侧 roots 和 Output cone 并返回两侧整图，与单侧根操作的范围不同。`Layout > Reset view overrides` 同时清除两侧实例覆盖。SVG 导出与 Save Golden 仅在 Single 中可用。
 
 ### 13.5 同名输出逻辑锥对比（Output cone）
 
-`Module Compare` 面板中的 `Output cone` 下拉框列出了左右两侧模块共有的输出端口（例如内置示例中的 `sco_891`）。选择任一共有输出端口后，两侧画布将同步提取并展示该输出端口的扇入逻辑锥（Fanin cone），可通过 `Depth` 调整追踪层数；选择 `Whole module` 则返回完整模块对比。
+Compare 配置行 `Sync & cone > Output cone` 列出了 A/B 两侧模块共有的输出端口（例如内置示例中的 `sco_891`）。选择任一共有输出端口后，两侧画布将同步提取并展示该输出端口的扇入逻辑锥（Fanin cone），通过 `Output depth` 调整追踪层数；选择 `Whole module` 则返回完整模块对比。
 
-为避免两种局部裁剪模式冲突，选择 `Output cone` 时会自动清空两侧的 `Focused roots`；反之，当重新设置或追加 `Focused root` 时会自动退出 `Output cone` 模式。左侧 `Design` 面板会实时汇总两侧的单元数、门类型数、估算逻辑深度、最大扇出及其差值与未匹配数量。
+为避免两种局部裁剪模式冲突，选择 `Output cone` 时会自动清空两侧的 `Focused roots`；反之，当重新设置或追加 `Focused root` 时会自动退出 `Output cone` 模式。`Navigator > Design` 汇总两侧的单元数、门类型数、估算逻辑深度、最大扇出及其差值与未匹配数量。
 
 ---
 
@@ -615,13 +676,13 @@ Compare 左右两侧画布各自独立维护其 `Focused roots` 集合、激活�
 
 ### 14.1 导出独立 SVG（Export SVG）
 
-在 Single 视图下点击 `More > Export SVG`，即可将当前画布（整图或 Focused 局部图）导出为自包含的 `.svg` 文件。导出的文件内嵌了完整的导线、跨线桥、文本标签、时序徽标与 CSS 样式，无需联网或外部字体即可在任意浏览器或矢量图工具中打开（Compare 模式专用于双屏交互对比；如需导出对比中的某个模块，请先切回 `Single` 选择对应模块后再执行导出）。
+在 Single 视图下点击 `File > Export SVG`，即可将当前画布（整图或 Focused 局部图）导出为自包含的 `.svg` 文件。导出的文件内嵌了完整的导线、跨线桥、文本标签、时序徽标与 CSS 样式，无需联网或外部字体即可在任意浏览器或矢量图工具中打开（Compare 模式专用于双屏交互对比；如需导出对比中的某个模块，请先切回 `Single` 选择对应模块后再执行导出）。
 
 ### 14.2 Layout Golden 的保存与恢复
 
-- `More > Save Golden`：将当前模块名称、视图模式（`Whole` / `Focused` / `Search-first`）、Focused roots、扇入/扇出深度、所有节点的位置/尺寸手工覆盖以及导线路径保存为 Golden JSON 文件。
-- `More > Load Golden`：加载本地 Golden JSON 文件（请先载入与之对应的网表设计）。
-- `More > Reset layout`：清除所有手工校准覆盖，恢复自动布局。
+- `File > Save Golden`：将当前 Single 模块名称、视图模式（`Whole` / `Focused` / `Search-first`）、Focused roots、扇入/扇出深度、所有节点的位置/尺寸与实例覆盖以及导线路径保存为 Golden JSON 文件；Compare 中不可用。
+- `File > Load Golden`：加载本地 Golden JSON 文件（请先载入与之对应的网表设计）；在 Compare 中加载会退出对比，恢复对应的 Single 工作区。
+- `Layout > Reset view overrides`：清除位置、尺寸、实例属性、引脚方向及不布线 net 覆盖，恢复自动输出；Compare 中作用于两侧。
 
 **Golden v3 内容指纹校验**：当前版本生成的 Golden v3 文件会记录网表源码的内容指纹（Source fingerprint）。若网表内容发生实质变化，即使文件名与文件大小碰巧相同，系统也会拒绝错配旧布局；反之，若网表文件仅被重命名但内容未变，仍可正常匹配加载。系统同时向后兼容导入旧版 v1 / v2 Golden 文件。请注意：Layout Golden（保存单模块几何布局与实例显示覆盖）与 `Cell Config`（保存可跨网表复用的单元类型语义）是两种用途不同的独立 JSON 格式。
 
@@ -636,11 +697,15 @@ Compare 左右两侧画布各自独立维护其 `Focused roots` 集合、激活�
 
 网表会话数据保存在当前标签页的 `sessionStorage` 中，关闭标签页后由浏览器自动清理；而 `Cell Config` 则保存在持久化的 `localStorage` 中长期留存。
 
+### 14.4 工作台界面偏好
+
+Navigator/Inspector 的停靠开关、宽度与最近页签单独保存在 `localStorage` 的版本化界面偏好中，不写入网表会话或 Golden，也不占用视图历史。未保存过偏好时按窗口宽度采用默认布局；抽屉不在启动时自动弹出。偏好内容损坏、版本不兼容或浏览器禁止存储时回退至默认值，不影响网表浏览。
+
 ---
 
 ## 15. Process Log（过程日志）
 
-点击页面底部状态栏左侧的 `Process Log` 按钮可展开或收起过程日志面板。日志按以下处理阶段（Phase）分类记录系统运行轨迹：
+点击底部状态栏带计数的 `Log` 按钮展开或收起 Process Log 抽屉；`Diagnostics` 则打开当前设计/导入诊断，两者为独立入口。日志按以下处理阶段（Phase）分类记录系统运行轨迹：
 
 - `Import`（文件与文本导入）
 - `Parse`（Verilog 词法与语法解析）
@@ -702,15 +767,17 @@ NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --
 
 | 快捷键 | 功能说明 | 生效条件 |
 | --- | --- | --- |
+| `/` | 聚焦全局 Search | 非编辑状态、无模态对话框、未处于输入法组合中 |
 | `Ctrl+Enter` / `Cmd+Enter` | 提交 `Paste netlist` 或 `Paste timing` 文本 | 文本粘贴导入对话框打开时 |
 | `Ctrl+Z` / `Alt+Left` | 视图历史后退（View History Back） | 焦点不在文本输入框内 |
 | `Ctrl+Shift+Z` / `Ctrl+Y` / `Alt+Right` | 视图历史前进（View History Forward） | 焦点不在文本输入框内 |
-| `F` | 将当前选中的单元居中并放大至阅读尺寸 | 焦点不在文本输入框内且已选中单元 |
+| `F` | Zoom to selection，定位当前选中单元或线网 | 焦点不在文本输入框内且存在可定位对象 |
 | `ArrowUp` / `ArrowDown` | 在搜索下拉候选列表中上下切换 | 顶部搜索框获得焦点时 |
 | `Enter` | 激活并定位当前选中的搜索结果 | 顶部搜索框获得焦点时 |
-| `Esc` | 收起搜索候选列表或关闭 `Import` / `More` 菜单 | 对应浮层或菜单处于打开状态时 |
-| `Ctrl+V` / `Cmd+V` | 全局粘贴并自动识别网表、时序或 Golden | 焦点不在任何可编辑输入控件内 |
-| `ArrowLeft` / `ArrowRight` | 按 `16px` 步进调整左侧面板宽度 | 侧栏与画布之间的分隔条获得焦点时 |
+| `Esc` | 收起搜索候选、活动菜单、抽屉或对话框 | 对应界面处于打开状态时；菜单/抽屉关闭后归还触发按钮焦点 |
+| `Ctrl+V` / `Cmd+V` | 全局粘贴并自动识别网表、时序、Golden 或 Liberty | 焦点不在任何可编辑输入控件内 |
+| `ArrowLeft` / `ArrowRight` | 按 `16px` 步进调整 Navigator 或 Inspector 宽度 | 停靠面板分隔条获得焦点时 |
+| `ArrowLeft` / `ArrowRight`、`Home` / `End` | 切换页签，或跳至首个/末个页签 | Navigator 或 Inspector 页签获得焦点时 |
 
 ---
 
@@ -786,51 +853,62 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 1. 导入网表文件（大型模块自动进入 `Search-first` 模式）。
 2. 在顶部搜索框输入目标实例名（instance）或线网名（net）。
 3. 点击或按回车激活搜索结果，自动进入围绕该对象的 `Focused` 视图。
-4. 在左侧调整 `Fanin depth` 与 `Fanout depth` 控制上下文范围。
-5. 在左侧 `Selection` 面板中点击上下游关联对象顺藤摸瓜。
+4. 在画布上方调整 `Fanin` 与 `Fanout` 控制上下文范围。
+5. 在 Inspector 的 `Connections` 页签中点击上下游关联对象顺藤摸瓜。
 6. 浏览过程中随时按 `F` 键将当前选中单元重新居中放大。
 
 ### 18.2 排查负 Slack 关键路径周边的门级结构
 
 1. 先导入 Verilog 网表，再导入配套的 Timing 时序报告。
-2. 在左侧 `Timing` 面板将 `Snapshot` 设为 `Global` 或 `Local`（或保持 `Auto`），将 `Metric` 设为 `Slack`。
+2. 在上下文栏的 `Timing` 菜单将 `Metric` 设为 `Worst Slack`，按需设置 `Threshold`（默认 0.0）。
 3. 在顶部搜索框检索时序报告中的关键违例单元或端口。
 4. 使用 `Focused` 视图观察局部连接（若只需向驱动侧回溯，可将 `Fanout depth` 设为 `0`）。
-5. 选中关键单元，在 `Selection` 面板核对各引脚的 `AT`、`RT`、`Slack` 与 `worst pin`。
+5. 选中关键单元，在 Inspector 的 `Timing` 页签核对各引脚的 `AT`、`RT`、`Slack` 与 `worst pin`。
 
 ### 18.3 补充未知标准单元的引脚定义并复用
 
 1. 搜索或点击图中显示为黑盒（`BLACKBOX`）的未知单元实例。
-2. 点击左侧 `Cell Config > Edit selected type`。
+2. 点击 Inspector 底部的 `Edit cell type…`。
 3. 检查编辑器自动预填的推断值，修正门类型（Gate kind）与各引脚方向（Pin direction）。
 4. 点击 `Save`，确认图中所有同类型单元均已更新且来源显示为 `user-config`。
-5. 点击 `Cell Config > Export` 导出 JSON 文件，供团队其他成员或 EDA 启动脚本（`--cell-config`）直接加载复用。
+5. 点击 `Cell Config > Export definitions` 导出 JSON 文件，供团队其他成员或 EDA 启动脚本（`--cell-config`）直接加载复用。
 
 ### 18.4 手工微调原理图并保存为 Golden
 
-1. 点击左侧 `Adjust layout` 进入手工校准模式。
+1. 点击上下文栏的 `Adjust` 进入手工校准模式。
 2. 拖拽调整节点位置、修改尺寸或单实例属性，释放鼠标后检查自动重布线效果。
-3. 再次点击 `Adjust layout` 退出校准模式。
-4. 点击顶部 `More > Save Golden` 导出保存 `.json` 布局快照。
-5. 日后复盘时，先加载同一份网表，再点击 `More > Load Golden` 即可完整还原当时的视图与微调布局。
+3. 再次点击 `Adjust` 退出校准模式。
+4. 点击顶部 `File > Save Golden` 导出保存 `.json` 布局快照。
+5. 日后复盘时，先加载同一份网表，再点击 `File > Load Golden` 即可完整还原当时的视图与微调布局。
 
 ### 18.5 对比优化前后的两个模块（Resyn vs. Flex）
 
 1. 加载同时包含优化前后两个模块的网表文件。
-2. 点击顶部 `Compare` 按钮，在左侧确认系统自动推荐的 `Left` 与 `Right` 模块配对并点击 `Apply`。
-3. 查看左侧 `Design` 统计面板的单元数量、逻辑深度差值及画布上的红/绿差异高亮。
-4. 在 `Output cone` 下拉框中选择共有输出端口，同步比对两侧的扇入逻辑锥结构。
+2. 点击顶部 `Compare`，在画布上方确认 A/B 模块配对并点击 `Apply`。
+3. 查看 `Navigator > Design` 的单元数量、逻辑深度差值及画布上的红/绿差异高亮。
+4. 在 `Sync & cone > Output cone` 中选择共有输出端口，同步比对两侧的扇入逻辑锥结构。
 5. 点击两侧的关键单元或线网进行跨侧高亮定位。
+
+### 18.6 放大画布并按需恢复详情
+
+1. 打开示例或自己的网表，通过 Search 或 `Navigator > Hierarchy` 找到要看的模块或对象。
+2. 先收起 Navigator，再收起 Inspector，确认两侧均已隐藏；画布使用整个工作区宽度。
+3. 继续按当前缩放阅读，或点击 `Fit view` 查看整幅当前图。大图仍可搜索目标进入 Focused，再调整 `Fanin` / `Fanout`。
+4. 点击图中的单元或线网，顶部对象摘要随选择更新。需要查连接时点击该摘要打开 Inspector，在 `Connections` 中连续追踪；看完点 `Hide` 继续读图。
+5. 需要切换模块时点击顶部 `Navigator`；完成后再次收起。无需重新导入网表，也无需重置手工布局。
+6. 在 Compare 中可重复上述操作。查看 Inspector 时先核对 A/B 来源；恢复 `Navigator > Design` 可查看对比统计。
+
+在同一浏览器、同一地址刷新后，已隐藏的停靠面板仍保持隐藏；顶部开关始终可用于恢复。窗口缩窄导致的抽屉规则见 [2.2 窗口宽度与界面偏好](#22-窗口宽度与界面偏好)。
 
 ---
 
 ## 19. 常见问题与限制
 
 ### 19.1 导入网表后显示 Search-first 提示页而没有直接画图？
-这是针对超过 500 个单元的大模块的预期性能保护机制。请直接使用顶部搜索框检索目标单元/线网进入 `Focused` 局部视图，或显式点击左侧的 `Whole` 按钮渲染全图。
+这是针对超过 500 个单元的大模块的预期性能保护机制。请直接使用顶部搜索框检索目标单元/线网进入 `Focused` 局部视图，或显式点击上下文栏的 `Whole` 按钮渲染全图。
 
 ### 19.2 打开 Cell Config 编辑器时显示为 BLACKBOX？
-当某单元类型尚未保存自定义配置时，编辑器会展示内置规则的推断结果；若该命名完全不在内置规则库中，则默认显示为 `BLACKBOX` 与 `unknown` 引脚。请手动指定正确的 `Gate kind` 与引脚方向并保存，保存后可在 `Selection` 面板确认其推断来源已变为 `user-config`。
+当某单元类型尚未保存自定义配置时，编辑器会展示内置规则的推断结果；若该命名完全不在内置规则库中，则默认显示为 `BLACKBOX` 与 `unknown` 引脚。请手动指定正确的 `Gate kind` 与引脚方向并保存，保存后可在 Inspector 中确认其推断来源已变为 `user-config`。
 
 ### 19.3 修改并保存 Cell Config 后为什么图形布局发生了变化？
 修改引脚的 `input` / `output` 方向会直接改变图中的驱动（driver）与负载（load）拓扑流向，因此必须重新提取图并计算布局。对于大型模块，系统会自动保持当前的 `Focused` 局部视图，避免触发全图重排。
@@ -841,7 +919,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 - 日志中的实例或线网层次路径后缀是否能在当前模块中找到唯一对应项。
 - 表头行、`[Global]` / `[Local]` 标记行与数据行之间是否保留了正常换行。
 - 表头声明的列数是否与数据行的数值列数一致。
-- 展开底部 `Process Log` 并按 `Timing` 阶段过滤，同时查看左侧 `Diagnostics` 面板的具体告警提示。
+- 展开底部 `Process Log` 并按 `Timing` 阶段过滤，同时查看底部 `Diagnostics` 抽屉的具体告警提示。
 
 ### 19.5 Whole 整图模式下画面显得非常细长或渲染较慢？
 `Whole` 模式会完整布局并渲染模块内的所有单元与连线。遇到数千单元的大模块或上千级串行长链时，建议优先采用 `Search-first` 与有限深度的 `Focused` 视图，并保持 `Fanout hubs` 开启（产品已不再使用结构分组折叠作为大图路径）。
@@ -853,7 +931,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 请确保已先加载了与该 Golden 对应的网表文件。Golden v3 会严格校验领域标识、模块名以及网表内容指纹（fingerprint）：一旦网表内容发生修改，即使文件名相同也会被安全拒绝，防止将旧坐标错配到新网表上。状态栏与 `Process Log` 会给出拒绝的具体原因。
 
 ### 19.8 刷新页面与关闭标签页后，哪些数据会保留？
-在同一标签页内按 `F5` 刷新，会自动从 `sessionStorage` 恢复当前网表、模块、聚焦视图与视口状态；关闭标签页后，`sessionStorage` 中的网表会话会由浏览器自动清理。而在 `Cell Config` 中保存的单元类型定义存储在 `localStorage` 中，关闭浏览器后依然长期保留（除非手动点击 `Delete` / `Reset all` 或清除浏览器站点数据）。
+在同一标签页内按 `F5` 刷新，会自动从 `sessionStorage` 恢复当前网表、模块、聚焦视图与视口状态；关闭标签页后，`sessionStorage` 中的网表会话会由浏览器自动清理。`Cell Config` 类型定义与工作台面板偏好分别保存在 `localStorage`，关闭浏览器后仍保留；清除站点数据会移除二者。`Delete saved` / `Reset all definitions` 仅管理 Cell Config。Liberty 只保存在页面内存，刷新后需重新加载。
 
 ### 19.9 运行时安全与离线边界是什么？
 - **100% 离线运行**：浏览器端与启动器在运行期间均不发起任何外网请求。
@@ -861,11 +939,22 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 - **XSS 转义保护**：所有来自网表、时序日志、Golden 或用户输入的标识符文本在插入 HTML / SVG 前均经过严格的字符转义。
 - **最小化日志输出**：`Process Log` 与命令行 `ready` JSON 均不输出完整的网表、时序或配置原文。
 
-### 19.10 为什么点击搜索结果、`+ Focus`、`Add selected` 与 `Set selected as Focused` 的效果不同？
+### 19.10 为什么点击搜索结果、`Add to Focused` 与 `Replace roots` 的效果不同？
 这是为了在“画布内定位”与“增删聚焦根节点”之间提供清晰、可预期的区分：
 - **点击已在当前画布绘制的搜索结果**：仅选中并将视口居中定位到该对象，**不修改**当前的 Focused roots 集合。
 - **点击未在当前画布绘制的单元搜索结果**：自动将其**追加**到现有 Focused roots 中并展示局部图。
-- **点击搜索结果右侧的 `+ Focus` 或左侧 View 区的 `Add selected`**：显式将目标**追加**到现有 Focused roots。
-- **点击左侧 View 区的 `Set selected as Focused`**：显式**清空旧集合**，仅以当前选中对象作为唯一的 Focused root。
+- **点击搜索结果或 Inspector 中的 `Add to Focused`**：显式将目标**追加**到现有 Focused roots。
+- **点击 Inspector 中的 `Replace roots`**：显式**清空旧集合**，仅以当前选中对象作为唯一的 Focused root。
 
 若当前 Focused roots 已达 32 个上限，继续追加会被拒绝，请先移除不再需要的 root chip。跨模块搜索会自动切换至目标模块的独立工作区，不会将原模块的 roots 混入新模块。
+
+### 19.11 左右面板不见了，或点击对象后没有出现详情？
+
+先点击顶部 `Navigator` / `Inspector` 恢复对应面板；已有选择时也可点击顶部对象名称摘要。面板主动隐藏后不会被选择操作自动打开。窄屏默认使用抽屉，点击画布或刷新会收起抽屉；两侧均为抽屉时不能同时展开。无需清空浏览器数据或重新导入网表。
+
+### 19.12 更新后还是旧界面，或面板偏好没有沿用？
+
+- 确认启动的是 `v1.4.0` 程序包，而非仍运行的 `v1.3.x` 旧目录副本；以启动器输出的实际 URL 为准。
+- 源码预览在更新后刷新页面；Windows 离线版需完整替换程序包并重新启动；Linux 单文件版已内嵌界面资源，需重新构建或使用新二进制，再启动服务。仅替换外部文档不会更新界面。
+- 服务更新后刷新当前标签页；若仍加载缓存，可用浏览器的强制刷新。新版工作台应能看到顶部 `Navigator` / `Inspector`，面板标题旁有带方向箭头的 `Hide`。
+- 面板偏好按浏览器及站点地址保存；例如 `127.0.0.1:4173` 与 `127.0.0.1:7724` 不共享偏好。换端口后重新设置一次即可。

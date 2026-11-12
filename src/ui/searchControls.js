@@ -14,6 +14,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
 
   function handleSearchKeydown(event) {
     if (event.key === "Escape") {
+      if (!elements.searchResults.hidden) event.preventDefault();
       elements.searchResults.hidden = true;
       state.activeSearchResult = -1;
       return;
@@ -63,7 +64,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
 
     elements.searchResults.hidden = false;
     if (state.searchResults.length === 0) {
-      elements.searchResults.innerHTML = `<div class="search-empty">No matches</div>`;
+      elements.searchResults.innerHTML = `<div class="search-empty">No matches in the loaded design. Search by module, cell, cell type, net or port name.</div>`;
       return;
     }
 
@@ -74,7 +75,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
           ? result.detail
           : `${result.detail} / ${result.moduleName}`;
         const addAction = result.kind === "net" || result.target?.kind === "cell"
-          ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">+ Focus</button>`
+          ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">Add to Focused</button>`
           : "";
         return `<div class="search-result${active ? " is-active" : ""}" role="option" aria-selected="${active}" title="${escapeAttr(result.label)}">
           <button class="search-result-main" type="button" data-search-index="${escapeAttr(index)}">

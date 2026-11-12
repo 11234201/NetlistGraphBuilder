@@ -258,8 +258,8 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       leftModule: leftModule.name,
       rightModule: rightModule.name
     });
-    elements.compareMount.querySelector('[data-compare-side="left"] > header').textContent = leftModule.displayName;
-    elements.compareMount.querySelector('[data-compare-side="right"] > header').textContent = rightModule.displayName;
+    updateCompareSideStatus("left", leftModule, "ready");
+    updateCompareSideStatus("right", rightModule, "ready");
     renderCompareOutputOptions(leftModule, rightModule);
     Promise.all([
       services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left }),
@@ -293,7 +293,8 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   function updateCompareSideStatus(side, module, status) {
     const header = elements.compareMount.querySelector(`[data-compare-side="${side}"] > header`);
     if (!header) return;
-    const label = module?.displayName || module?.name || side;
+    const label = `${side === "left" ? "A" : "B"} · ${module?.displayName || module?.name || side}`;
+    header.title = module?.name && module.name !== module.displayName ? `${label}\n${module.name}` : label;
     header.textContent = status === "loading"
       ? `${label} · Loading…`
       : status === "failed" ? `${label} · Failed`

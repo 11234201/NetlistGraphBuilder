@@ -184,6 +184,27 @@ export function formatViewportTransform(transform) {
   return `scale(${round(scale)}) translate(${round(translatedX)} ${round(translatedY)})`;
 }
 
+// The SVG itself uses xMidYMid meet. Preserve the world point at its centre
+// and the actual pixel magnification when the containing UI changes size.
+export function getResizedViewportTransform(transform, viewBox, previousSize, nextSize) {
+  const original = { x: Number(transform?.x), y: Number(transform?.y), scale: Number(transform?.scale) };
+  const dimensions = [viewBox?.width, viewBox?.height, previousSize?.width, previousSize?.height, nextSize?.width, nextSize?.height];
+  if (dimensions.some((value) => !Number.isFinite(value) || value <= 0) ||
+      !Object.values(original).every(Number.isFinite) || original.scale <= 0) return { ...transform };
+  const oldFit = Math.min(previousSize.width / viewBox.width, previousSize.height / viewBox.height);
+  const newFit = Math.min(nextSize.width / viewBox.width, nextSize.height / viewBox.height);
+  const scale = original.scale * oldFit / newFit;
+  const centerX = finiteNumber(viewBox.x, 0) + viewBox.width / 2;
+  const centerY = finiteNumber(viewBox.y, 0) + viewBox.height / 2;
+  const ratio = scale / original.scale;
+  const next = {
+    x: centerX - (centerX - original.x) * ratio,
+    y: centerY - (centerY - original.y) * ratio,
+    scale
+  };
+  return Object.values(next).every(Number.isFinite) ? next : { ...transform };
+}
+
 function safeRatio(viewBoxWidth, viewportWidth) {
   const rawViewportWidth = Number(viewportWidth);
   const width = Number.isFinite(rawViewportWidth) && rawViewportWidth > 0 ? rawViewportWidth : 1;

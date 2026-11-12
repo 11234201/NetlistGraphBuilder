@@ -77,9 +77,34 @@ test("Compare Whole explicitly bypasses Search-first and Focused accepts a selec
   const controller = createViewControlsController({ state, elements, services });
   controller.setCompareViewModeImpl("focused");
   assert.deepEqual(state.compare.focusedRootNodeIds.left, ["net:n"]);
+  state.compare.focusedRootNodeIds.right = ["cell:other"];
+  state.compare.outputName = "y";
   controller.setCompareViewModeImpl("whole");
   assert.equal(state.compare.wholeRequested, true);
+  assert.deepEqual(state.compare.focusedRootNodeIds, { left: [], right: [] });
+  assert.equal(state.compare.outputName, null);
   assert.equal(calls.length, 2);
+});
+
+test("Compare headers keep A and B identities in Split and Stack and all statuses", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const headers = { left: {}, right: {} };
+  const elements = { compareMount: {
+    querySelector: (selector) => headers[selector.includes('"left"') ? "left" : "right"],
+    classList: { toggle() {} }
+  } };
+  const controller = createCompareWorkspaceController({ state, elements, services: {} });
+  for (const layout of ["horizontal", "vertical"]) {
+    state.compare.layout = layout;
+    controller.applyCompareLayout();
+    for (const status of ["ready", "loading", "failed", "cancelled"]) {
+      controller.updateCompareSideStatus("left", { displayName: "Same module" }, status);
+      controller.updateCompareSideStatus("right", { displayName: "Same module" }, status);
+      const suffix = { ready: "", loading: " · Loading…", failed: " · Failed", cancelled: " · Cancelled" }[status];
+      assert.equal(headers.left.textContent, `A · Same module${suffix}`);
+      assert.equal(headers.right.textContent, `B · Same module${suffix}`);
+    }
+  }
 });
 
 test("entering Compare cancels Single computation before starting Compare work", () => {

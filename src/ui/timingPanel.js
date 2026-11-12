@@ -58,15 +58,16 @@ export function renderTimingPanel(node, choices) {
     summaryRows.push(["Source net", node.timing.sourceNet]);
   }
 
-  return `<div class="timing-list">
+  return `<section class="timing-list" data-inspector-section="timing" aria-label="Timing">
     <dl class="stats-list">${renderDefinitionRows(summaryRows)}</dl>
-    <table class="timing-table">
+    <p class="help-text">Checked values are badges on this object. The global Timing metric also filters the visible badges.</p>
+    <div class="timing-table-wrap" tabindex="0" role="region" aria-label="Pin timing table"><table class="timing-table">
       <thead><tr>${headerCols}</tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     ${renderBadgePosition(node.timing.badgePosition)}
     <button id="resetTimingBadgeButton" class="mini-button" type="button">Default badges</button>
-  </div>`;
+  </section>`;
 }
 
 export function renderNetTimingPanel(netTiming) {
@@ -83,9 +84,9 @@ export function renderNetTimingPanel(netTiming) {
   if (Number.isFinite(netTiming.slew)) rows.push(["Slew", formatNumber(netTiming.slew)]);
   if (netTiming.edge) rows.push(["Edge", netTiming.edge]);
 
-  return `<div class="timing-list">
+  return `<section class="timing-list" data-inspector-section="timing" aria-label="Timing">
     <dl class="stats-list">${renderDefinitionRows(rows)}</dl>
-  </div>`;
+  </section>`;
 }
 
 export function getTimingBadgeChoices(node, badgeChoices, instance) {
@@ -155,7 +156,7 @@ function renderTimingChoiceCell(pin, metric, choices) {
     ? " checked"
     : "";
   return `<td><label class="timing-choice">
-    <input type="checkbox" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked}>
+    <input type="checkbox" data-timing-pin="${escapeAttr(pin.pin)}" data-timing-metric="${metric}"${checked} aria-label="Show ${escapeAttr(pin.pin)} ${metric.toUpperCase()} badge">
     <span>${formatNumber(pin[metric])}</span>
   </label></td>`;
 }

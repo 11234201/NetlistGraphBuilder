@@ -8,7 +8,7 @@ import {
   isTimingBadgePosition,
   updateTimingBadgeChoices
 } from "../ui/timingPanel.js";
-import { renderObjectDetails } from "../ui/objectDetailsPanel.js";
+import { renderObjectDetails, bindObjectDetailsPanel } from "../ui/objectDetailsPanel.js";
 import { inspectGraphNode, inspectGraphNet } from "../analysis/graphInspector.js";
 import { renderAdjustPanel, bindAdjustPanel } from "../ui/adjustPanel.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
@@ -22,16 +22,16 @@ export function createInspectorController({ state, elements, services, netRoutin
       const { left, right, delta, unmatchedPorts, unmatchedNets } = state.compare.analysis;
       const pair = (a, b) => `${a} / ${b}`;
       elements.stats.innerHTML = statsRows([
-        ["Cells L/R", pair(left.cells, right.cells)],
+        ["Cells A/B", pair(left.cells, right.cells)],
         ["Cell delta", signed(delta.cells)],
-        ["Depth L/R", pair(left.logicDepth, right.logicDepth)],
+        ["Depth A/B", pair(left.logicDepth, right.logicDepth)],
         ["Depth delta", signed(delta.logicDepth)],
-        ["Max fanout L/R", pair(left.maxFanout, right.maxFanout)],
+        ["Max fanout A/B", pair(left.maxFanout, right.maxFanout)],
         ["Fanout delta", signed(delta.maxFanout)],
-        ["Gate kinds L", formatGateKinds(left.gateKinds)],
-        ["Gate kinds R", formatGateKinds(right.gateKinds)],
+        ["Gate kinds A", formatGateKinds(left.gateKinds)],
+        ["Gate kinds B", formatGateKinds(right.gateKinds)],
         ["Unmatched ports", unmatchedPorts.length],
-        ["Unmatched nets L/R", pair(unmatchedNets.left.length, unmatchedNets.right.length)]
+        ["Unmatched nets A/B", pair(unmatchedNets.left.length, unmatchedNets.right.length)]
       ]);
       return;
     }
@@ -127,7 +127,8 @@ export function createInspectorController({ state, elements, services, netRoutin
       }
     }
     elements.details.className = "details-block";
-    elements.details.innerHTML = statsRows([["Compare object", name], ["Kind", kind], ["Present", "highlighted on both sides where available"]]);
+    elements.details.innerHTML = renderObjectDetails({ kind, summary: [["Kind", kind], ["Present", "highlighted on both sides where available"]], connections: [] },
+      inspectionOptions({ kind, id: name, label: name }, selectedSide));
     services.recordViewHistory();
   }
 
@@ -150,9 +151,9 @@ export function createInspectorController({ state, elements, services, netRoutin
     elements.details.className = "details-block";
     const timingKey = getTimingKey(node);
     const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], timingKey);
-    elements.details.innerHTML = `${statsRows([["Compare side", side]])}${renderObjectDetails(
-      inspectGraphNode(state.compare.fullGraphs[side] || state.compare.graphs[side], node)
-    )}${renderTimingPanel(node, choices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    const inspection = inspectGraphNode(state.compare.fullGraphs[side] || state.compare.graphs[side], node);
+    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node, side))}${renderTimingPanel(node, choices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    bindObjectDetailsPanel(elements.details, inspection);
     bindCompareSelectionControls(side, node);
   }
 
@@ -254,7 +255,7 @@ export function createInspectorController({ state, elements, services, netRoutin
     if (!node) {
       services.updateCellDefinitionControls(null);
       elements.details.className = "details-empty";
-      elements.details.textContent = "未选择对象";
+      elements.details.textContent = "Select a cell, net or port to inspect its connections.";
       return;
     }
 
@@ -263,9 +264,11 @@ export function createInspectorController({ state, elements, services, netRoutin
     elements.details.className = "details-block";
     const timingKey = getTimingKey(node);
     const timingChoices = getTimingBadgeChoices(node, state.timingBadgeChoices, timingKey);
-    elements.details.innerHTML = `${renderObjectDetails(inspectGraphNode(state.fullGraph || state.graph, node, {
+    const inspection = inspectGraphNode(state.fullGraph || state.graph, node, {
       hierarchyContext: currentHierarchyInspectionContext()
-    }))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    });
+    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    bindObjectDetailsPanel(elements.details, inspection);
     bindSelectionControls(node);
   }
 
@@ -276,9 +279,15 @@ export function createInspectorController({ state, elements, services, netRoutin
       ? state.compare.fullGraphs[side] || state.compare.graphs[side]
       : state.fullGraph || state.graph;
     const netTiming = activeGraph?.netTiming?.[netName] || null;
-    elements.details.innerHTML = `${side ? statsRows([["Compare side", side]]) : ""}${netRouting && netName ? renderNetRoutingPanel(netRouting.isEnabled(netName, side)) : ""}${renderObjectDetails(inspectGraphNet(activeGraph, netName, {
+    const inspection = inspectGraphNet(activeGraph, netName, {
       hierarchyContext: side ? null : currentHierarchyInspectionContext()
-    }))}${renderNetTimingPanel(netTiming)}`;
+    });
+    const label = inspection.summary.find(([key]) => key === "Name")?.[1] || netName;
+    elements.details.innerHTML = `${renderObjectDetails(inspection, {
+      ...inspectionOptions({ kind: "net", id: netName, label, ref: { name: netName } }, side),
+      connectionTools: netRouting && netName ? renderNetRoutingPanel(netRouting.isEnabled(netName, side)) : ""
+    })}${renderNetTimingPanel(netTiming)}`;
+    bindObjectDetailsPanel(elements.details, inspection);
     if (netRouting && netName) bindNetRoutingPanel(elements.details, (enabled) => {
       netRouting.setEnabled(netName, enabled, side);
       renderNetSelection(netName, side);
@@ -291,6 +300,18 @@ export function createInspectorController({ state, elements, services, netRoutin
       currentModule: state.currentModule,
       rootModuleName: state.occurrenceContext?.rootModuleName,
       occurrencePath: state.occurrenceContext?.occurrencePath || []
+    };
+  }
+
+  function inspectionOptions(node, side = null) {
+    const graph = side ? state.compare.fullGraphs?.[side] || state.compare.graphs?.[side] : state.fullGraph || state.graph;
+    const moduleName = graph?.moduleName || state.currentModule?.name || "";
+    const occurrencePath = node.ref?.occurrencePath || (side ? [] : state.occurrenceContext?.occurrencePath || []);
+    return {
+      identity: JSON.stringify([side || "single", moduleName, occurrencePath, node.kind, node.id]),
+      label: node.label,
+      canonicalName: node.ref?.instance || node.ref?.name || node.label || node.id,
+      scope: `${side ? `${side === "left" ? "A" : "B"} · Compare` : "Single"}${moduleName ? ` · ${moduleName}` : ""}${occurrencePath.length ? ` / ${occurrencePath.join("/")}` : ""}`
     };
   }
 

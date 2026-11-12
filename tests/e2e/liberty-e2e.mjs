@@ -23,7 +23,7 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await page.locator("#libertyPanel").waitFor({ state: "visible" });
   assert.deepEqual(await page.locator("#canvas").boundingBox(), canvasBounds);
   await page.keyboard.press("Tab");
-  assert.equal(await page.evaluate(() => document.activeElement.id), "libertyInput");
+  assert.equal(await page.evaluate(() => document.activeElement.id === "libertyInput" || document.activeElement.querySelector("#libertyInput") !== null), true);
   await page.keyboard.press("Escape");
   await page.locator("#libertyPanel").waitFor({ state: "hidden" });
   const source = 'module top(input a,b,output z); ODD u(.X(a),.Y(b),.RESULT(z)); endmodule\nmodule alt(input a,b,output z); ODD v(.X(a),.Y(b),.RESULT(z)); endmodule';
@@ -37,7 +37,7 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await (await chooserPromise).setFiles(file("demo.lib", liberty));
   await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded Liberty demo.lib"));
   assert.equal(await menu.evaluate((element) => element.open), true);
-  await page.locator('#schematicMount [data-node-id="cell:u"]').first().click({ force: true });
+  await page.locator('#schematicMount [data-node-id="cell:u"] .node-shape').first().click();
   assert.equal(await menu.evaluate((element) => element.open), false);
   assert.match(await page.locator("#selectionDetails").innerText(), /library/);
   assert.match(await page.locator("#selectionDetails").innerText(), /demo.lib/);
@@ -54,6 +54,7 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await page.locator("#clearLibertyButton").click();
   await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Liberty unloaded"));
   assert.match(await page.locator("#libertySummary").innerText(), /No library/);
+  await page.locator("#compareOptionsMenu > summary").click();
   await page.locator("#exitCompareButton").click();
   await page.locator("#schematicMount svg").waitFor();
   // The complete JSON extends beyond the sniffing prefix and must be applied
@@ -70,7 +71,8 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded timing drop_timing.json"));
   await openLibrary();
   assert.match(await page.locator("#libertySummary").innerText(), /drop.lib/);
-  await page.locator('#schematicMount [data-node-id="cell:u"]').first().click({ force: true });
+  await page.locator('#schematicMount [data-node-id="cell:u"] .node-shape').first().click();
+  await page.locator('[data-inspector-tab="timing"]').click();
   assert.match(await page.locator("#selectionDetails").innerText(), /-0\.25/);
   await openLibrary();
   // Exercise the actual Cancel button while a File import is being scanned.

@@ -4,7 +4,9 @@ export function renderAdjustPanel(node, calibrationMode) {
   if (!calibrationMode) {
     return "";
   }
-  return `${renderNodeSizeControls(node)}${renderNodePropertyControls(node)}${renderPinDirectionControls(node)}`;
+  return `<section data-inspector-section="adjust" aria-label="Adjust">
+    <p class="help-text">Overrides apply to this instance in the current view. Use Edit cell type to change a reusable type definition.</p>
+    ${renderNodeSizeControls(node)}${renderNodePropertyControls(node)}${renderPinDirectionControls(node)}</section>`;
 }
 
 export function bindAdjustPanel(container, node, calibrationMode, handlers) {

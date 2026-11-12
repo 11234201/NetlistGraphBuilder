@@ -1,6 +1,8 @@
 # Linux 单文件启动器、CMake 构建与 EDA/Tcl 集成指南
 
-本文档对应当前主干代码与 `v1.3.2` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
+本文档对应当前主干代码与 `v1.4.0` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
+
+启动后的界面操作见 [完整使用教程](USER_GUIDE.md)，其中 [左右面板隐藏与恢复](USER_GUIDE.md#21-隐藏恢复与调整左右面板) 说明如何为中央画布腾出空间。Linux 单文件内嵌构建时的界面资源；采用新版工作台时需重新构建或换用新二进制，更新外部 HTML/CSS 不会改变已有可执行文件中的界面。
 
 ## 1. 各运行入口与职责对比
 

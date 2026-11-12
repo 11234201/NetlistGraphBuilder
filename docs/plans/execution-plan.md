@@ -1,5 +1,17 @@
 # ELK-inspired Simple layout and routing execution plan
 
+## 2026-11-12 UI 工作台改造
+
+当前用户授权按 [UI 工作台改造计划](ui_workbench_redesign.md) 持续完成 U0–U8。
+此项仅调整工作台与交互，下面的布局研究记录保留为历史；Simple 冻结继续有效。
+U0 已完成远端基线：1061/1061 单测、workbench/Liberty/process-log 浏览器通过。
+U1–U7 已完成；U8 自动化验收与离线构建通过，Windows 人工 GUI/缩放矩阵未核验。
+面板隐藏追补后为1099/1099单测；UI专项9/9、mapped47/47、Linux CTest6/6及Windows发布冒烟通过。
+v1.4.0发布快照再次通过1099项单测、UI专项9/9、架构零违规、Linux CTest6/6与Windows打包冒烟；
+新版README、教程、升级说明和双平台离线附件随本次版本交付。
+完整结果与限制见UI计划末尾；计算与测试目录为
+`/home/wzh/my_code/netlistGraphBuilder/ui_workbench_redesign_20261112`。
+
 Final acceptance (2026-10-15): human accepted the last three mapped strata (sop001/eq006/dp002).
 The agreed H08 layout/routing milestone is complete, including visual, original47 strict gates,
 808 unit tests and Windows offline verification. Conclusion is restricted to declared flat-graph support
