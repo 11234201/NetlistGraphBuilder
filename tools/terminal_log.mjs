@@ -2,6 +2,7 @@ import { appendFileSync, closeSync, mkdirSync, openSync, renameSync, constants }
 import { homedir, tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { sanitizeLogDetails, errorMessage } from "../src/foundation/log_details.js";
+import { cleanupTerminalLogs } from "./log_retention.mjs";
 
 export function createTerminalLog(runtime, env = process.env) {
   const base = process.platform === "win32" ? env.LOCALAPPDATA || tmpdir() : env.XDG_STATE_HOME || join(homedir(), ".local/state");
@@ -57,5 +58,10 @@ export function createTerminalLog(runtime, env = process.env) {
     contains(path) { const rel = relative(directory, path); return !rel || !rel.startsWith("..") && !isAbsolute(rel); }
   };
   write("info", "log.ready", "Terminal logging initialized", files);
+  if (enabled) {
+    const result = cleanupTerminalLogs(directory, env.NGB_LOG_RETENTION_DAYS);
+    write(result.failedFiles ? "error" : "info", result.failedFiles ? "log.cleanup_failed" : "log.cleanup",
+      "Old terminal log cleanup completed", result, Boolean(result.failedFiles));
+  }
   return log;
 }

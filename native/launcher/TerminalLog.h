@@ -1,5 +1,7 @@
 #pragma once
 
+#include "LogRetention.h"
+
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -93,6 +95,14 @@ private:
         if (!MakeDirectory(directory) || !Create(runPath_) || !Create(errorPath_)) Disable();
         Write("info", "log.ready", "Terminal logging initialized",
               "{\"run\":" + Quote(runPath_) + ",\"error\":" + Quote(errorPath_) + "}");
+        if (enabled_) {
+            const LogRetentionResult result = LogRetention::Cleanup(directory, std::getenv("NGB_LOG_RETENTION_DAYS"));
+            Write(result.m_failedFiles ? "error" : "info", result.m_failedFiles ? "log.cleanup_failed" : "log.cleanup",
+                  "Old terminal log cleanup completed", "{\"retentionDays\":" + std::to_string(result.m_retentionDays) +
+                  ",\"deletedFiles\":" + std::to_string(result.m_deletedFiles) + ",\"deletedBytes\":" +
+                  std::to_string(result.m_deletedBytes) + ",\"failedFiles\":" + std::to_string(result.m_failedFiles) +
+                  ",\"error\":" + Quote(result.m_error) + "}", result.m_failedFiles != 0);
+        }
     }
 
     static bool MakeDirectory(const std::string& path) {

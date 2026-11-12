@@ -679,7 +679,10 @@ Bash 预览入口、Node/Python 服务、Linux 单文件启动器和 Windows 离
 - Windows 默认目录：`%LOCALAPPDATA%\netlist_graph_builder\logs`。
 - 设置环境变量 `NGB_LOG_DIR` 可指定目录；`log.ready` 诊断会给出当前文件位置。
 - 每次启动使用独立的 `<运行时>-<时间>-<PID>.run.jsonl` 和 `.error.jsonl`。前者包含全部级别，后者仅包含 Error；普通 4xx 请求归为 Warning。
-- 每个运行时日志文件默认在约 2 MiB 时滚动，保留一个 `.1` 备份；`NGB_LOG_MAX_BYTES` 可设置 1024～67108864 字节的阈值。单条诊断不拆行，文件可超出阈值至多一条有界记录。历史启动的文件不自动删除，可在停止对应进程后按需归档或清理。Bash 只记录交接前的少量事件，后续由接管进程的日志记录。
+- 每个运行时日志文件默认在约 2 MiB 时滚动，保留一个 `.1` 备份；`NGB_LOG_MAX_BYTES` 可设置 1024～67108864 字节的阈值。单条诊断不拆行，文件可超出阈值至多一条有界记录。Bash 只记录交接前的少量事件，后续由接管进程的日志记录。
+- 每次启动会清理超过 **14 天** 的旧日志。`NGB_LOG_RETENTION_DAYS` 可设置为 `1`～`3650` 天，`0` 关闭清理；非法值使用默认 14 天。保留期按文件最后修改时间计算，同一次启动的运行日志、错误日志和 `.1` 备份必须全部过期，且文件名中的 PID 已退出，才会清理。PID 被复用或无法确认退出时保守保留。
+- 清理只检查指定日志目录的直接子文件，匹配上述五种运行时的日志命名；不递归、不清理其他文件或目录，含符号链接的日志组也会保留。Bash 历史日志由接管它的 Node/Python 服务一并清理；缺少运行时、无法完成交接时不执行清理。清理仅在启动时执行，持续运行期间仍按大小轮转。
+- `log.cleanup` 记录保留天数、删除文件数和释放字节数；失败时用 `log.cleanup_failed` 记录失败数量和首个错误，服务与后续日志继续运行。清理不是整组原子操作：部分删除失败时，剩余文件留待下次启动重试。需要长期保留的日志请提前归档到其他目录，或关闭自动清理。
 
 JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，并按事件附带状态码、操作、异常类型、错误码或调用栈。查询参数和请求正文不进入请求日志，启动输入原文也不附带到日志中。原生 C++ 错误记录系统错误码或异常消息，不承诺提供调用栈。正常请求主要写文件，启动/退出和失败诊断也写入 `stderr`；文件日志不可写时只报告一次故障，随后退回 `stderr`，不会伪装成启动失败。
 
@@ -691,7 +694,7 @@ JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，
 NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --no-open
 ```
 
-开发验证可运行 `npm run test:launcher`，以及 `python3 tests/e2e/terminal_logging_e2e.py --native build/native/ngb`；Windows 包使用 `python tests/e2e/terminal_logging_e2e.py --windows <exe路径>` 验证。
+开发验证可运行 `npm run test:launcher`、`python3 tests/e2e/terminal_logging_e2e.py --native build/native/ngb` 和 `python3 tests/e2e/log_retention_e2e.py --native build/native/ngb`；Windows 包使用对应脚本的 `--windows <exe路径>` 验证。
 
 ---
 

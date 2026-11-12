@@ -39,6 +39,7 @@ add_executable(ngb
     launcher/embedded_assets.hpp
     launcher/ProcessGuard.h
     launcher/TerminalLog.h
+    launcher/LogRetention.h
     "${NGB_ASSET_CPP}"
 )
 
@@ -66,6 +67,11 @@ endif()
 option(NGB_BUILD_TESTS "Build native launcher smoke tests" OFF)
 if (NGB_BUILD_TESTS)
     enable_testing()
+    add_executable(ngb-log-retention-test "${NGB_SOURCE_ROOT}/tests/native/LogRetentionTest.cpp")
+    target_compile_features(ngb-log-retention-test PRIVATE cxx_std_11)
+    target_include_directories(ngb-log-retention-test PRIVATE launcher)
+    target_link_options(ngb-log-retention-test PRIVATE "-Wl,--wrap=readdir" "-Wl,--wrap=unlink")
+    add_test(NAME ngb-log-retention COMMAND ngb-log-retention-test)
     add_test(
         NAME ngb-help
         COMMAND ngb --help)

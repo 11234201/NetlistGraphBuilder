@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import traceback
+from log_retention import cleanup_terminal_logs
 
 
 class TerminalLog:
@@ -32,6 +33,11 @@ class TerminalLog:
         except OSError as error:
             self.disable(error)
         self.write("info", "log.ready", "Terminal logging initialized", files=self.files)
+        if self.enabled:
+            result = cleanup_terminal_logs(self.directory, os.environ.get("NGB_LOG_RETENTION_DAYS"))
+            failed = bool(result["failedFiles"])
+            self.write("error" if failed else "info", "log.cleanup_failed" if failed else "log.cleanup",
+                       "Old terminal log cleanup completed", console=failed, **result)
 
     def record(self, level, event, message, details):
         return dict(time=datetime.datetime.now(datetime.timezone.utc).isoformat(), level=level,
