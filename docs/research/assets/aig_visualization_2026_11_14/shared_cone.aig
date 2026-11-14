@@ -1,0 +1,12 @@
+aig 12 4 0 3 8
+21
+22
+25
+i0 a
+i1 b
+i2 c
+i3 d
+o0 y
+o1 shared
+o2 masked
+c

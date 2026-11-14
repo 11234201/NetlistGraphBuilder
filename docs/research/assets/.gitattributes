@@ -1,0 +1,3 @@
+# Preserve exact experiment inputs and outputs for recorded SHA-256 checks.
+* -text -working-tree-encoding
+*.aig binary

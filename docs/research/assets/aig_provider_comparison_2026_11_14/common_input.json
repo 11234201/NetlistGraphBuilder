@@ -1,0 +1,838 @@
+{
+  "diagram": {
+    "id": "shared-aig",
+    "domainId": "aig-research",
+    "unitId": "sample",
+    "nodes": [
+      {
+        "id": "n1",
+        "aigId": 1,
+        "kind": "aig-input",
+        "label": "a",
+        "level": 0,
+        "fanout": 2,
+        "reverseDepth": 4,
+        "critical": true
+      },
+      {
+        "id": "n2",
+        "aigId": 2,
+        "kind": "aig-input",
+        "label": "b",
+        "level": 0,
+        "fanout": 2,
+        "reverseDepth": 4,
+        "critical": true
+      },
+      {
+        "id": "n3",
+        "aigId": 3,
+        "kind": "aig-input",
+        "label": "c",
+        "level": 0,
+        "fanout": 2,
+        "reverseDepth": 4,
+        "critical": true
+      },
+      {
+        "id": "n4",
+        "aigId": 4,
+        "kind": "aig-input",
+        "label": "d",
+        "level": 0,
+        "fanout": 3,
+        "reverseDepth": 2,
+        "critical": false
+      },
+      {
+        "id": "n5",
+        "aigId": 5,
+        "kind": "aig-and",
+        "label": "n5",
+        "level": 1,
+        "fanout": 2,
+        "reverseDepth": 3,
+        "critical": true
+      },
+      {
+        "id": "n6",
+        "aigId": 6,
+        "kind": "aig-and",
+        "label": "n6",
+        "level": 1,
+        "fanout": 1,
+        "reverseDepth": 3,
+        "critical": true
+      },
+      {
+        "id": "n7",
+        "aigId": 7,
+        "kind": "aig-and",
+        "label": "n7",
+        "level": 2,
+        "fanout": 1,
+        "reverseDepth": 2,
+        "critical": true
+      },
+      {
+        "id": "n8",
+        "aigId": 8,
+        "kind": "aig-and",
+        "label": "n8",
+        "level": 2,
+        "fanout": 1,
+        "reverseDepth": 1,
+        "critical": false
+      },
+      {
+        "id": "n9",
+        "aigId": 9,
+        "kind": "aig-and",
+        "label": "n9",
+        "level": 3,
+        "fanout": 1,
+        "reverseDepth": 1,
+        "critical": true
+      },
+      {
+        "id": "n10",
+        "aigId": 10,
+        "kind": "aig-and",
+        "label": "n10",
+        "level": 4,
+        "fanout": 1,
+        "reverseDepth": 0,
+        "critical": true
+      },
+      {
+        "id": "n11",
+        "aigId": 11,
+        "kind": "aig-and",
+        "label": "n11",
+        "level": 1,
+        "fanout": 2,
+        "reverseDepth": 1,
+        "critical": false
+      },
+      {
+        "id": "n12",
+        "aigId": 12,
+        "kind": "aig-and",
+        "label": "n12",
+        "level": 2,
+        "fanout": 1,
+        "reverseDepth": 0,
+        "critical": false
+      },
+      {
+        "id": "po0",
+        "kind": "aig-output",
+        "label": "y",
+        "level": 4,
+        "fanout": 0,
+        "reverseDepth": 0,
+        "critical": true
+      },
+      {
+        "id": "po1",
+        "kind": "aig-output",
+        "label": "shared",
+        "level": 1,
+        "fanout": 0,
+        "reverseDepth": 0,
+        "critical": false
+      },
+      {
+        "id": "po2",
+        "kind": "aig-output",
+        "label": "masked",
+        "level": 2,
+        "fanout": 0,
+        "reverseDepth": 0,
+        "critical": false
+      }
+    ],
+    "edges": [
+      {
+        "id": "e5_0",
+        "source": "n2",
+        "sourcePin": "out",
+        "target": "n5",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": false,
+        "net": "signal:2",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e5_1",
+        "source": "n1",
+        "sourcePin": "out",
+        "target": "n5",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": false,
+        "net": "signal:1",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e6_0",
+        "source": "n3",
+        "sourcePin": "out",
+        "target": "n6",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": false,
+        "net": "signal:3",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e6_1",
+        "source": "n1",
+        "sourcePin": "out",
+        "target": "n6",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": true,
+        "net": "signal:1",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e7_0",
+        "source": "n6",
+        "sourcePin": "out",
+        "target": "n7",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:6",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e7_1",
+        "source": "n5",
+        "sourcePin": "out",
+        "target": "n7",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": true,
+        "net": "signal:5",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e8_0",
+        "source": "n5",
+        "sourcePin": "out",
+        "target": "n8",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": false,
+        "net": "signal:5",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e8_1",
+        "source": "n4",
+        "sourcePin": "out",
+        "target": "n8",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": false,
+        "net": "signal:4",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e9_0",
+        "source": "n7",
+        "sourcePin": "out",
+        "target": "n9",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:7",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e9_1",
+        "source": "n4",
+        "sourcePin": "out",
+        "target": "n9",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": true,
+        "net": "signal:4",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e10_0",
+        "source": "n9",
+        "sourcePin": "out",
+        "target": "n10",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:9",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "e10_1",
+        "source": "n8",
+        "sourcePin": "out",
+        "target": "n10",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": true,
+        "net": "signal:8",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e11_0",
+        "source": "n3",
+        "sourcePin": "out",
+        "target": "n11",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": false,
+        "net": "signal:3",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e11_1",
+        "source": "n2",
+        "sourcePin": "out",
+        "target": "n11",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": false,
+        "net": "signal:2",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e12_0",
+        "source": "n11",
+        "sourcePin": "out",
+        "target": "n12",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:11",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "e12_1",
+        "source": "n4",
+        "sourcePin": "out",
+        "target": "n12",
+        "targetPin": "in1",
+        "slot": 1,
+        "inverted": false,
+        "net": "signal:4",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "epo0",
+        "source": "n10",
+        "sourcePin": "out",
+        "target": "po0",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:10",
+        "label": "",
+        "showLabel": false,
+        "critical": true
+      },
+      {
+        "id": "epo1",
+        "source": "n11",
+        "sourcePin": "out",
+        "target": "po1",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": false,
+        "net": "signal:11",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      },
+      {
+        "id": "epo2",
+        "source": "n12",
+        "sourcePin": "out",
+        "target": "po2",
+        "targetPin": "in0",
+        "slot": 0,
+        "inverted": true,
+        "net": "signal:12",
+        "label": "",
+        "showLabel": false,
+        "critical": false
+      }
+    ]
+  },
+  "measurements": {
+    "n1": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n2": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n3": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n4": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n5": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n6": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n7": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n8": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n9": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n10": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n11": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "n12": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "po0": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "po1": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    },
+    "po2": {
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "portLayout": {
+        "mode": "fixed"
+      }
+    }
+  },
+  "logicalDepth": 4,
+  "layoutPolicy": {
+    "name": "schematic-readable-v1",
+    "spacing": {
+      "x": 260,
+      "y": 88,
+      "margin": 32,
+      "topPadding": 0,
+      "wireLanePitch": 24,
+      "cellSpacing": 8,
+      "cellPinPitch": 36,
+      "branchTopY": 80,
+      "branchLanePitch": 228,
+      "branchBandSize": 16,
+      "branchBandGap": 192,
+      "focusedTreeGroupGap": 512,
+      "recursiveTreeMaximumShift": 32,
+      "branchCenterGap": 2048,
+      "compactX": 196,
+      "fanoutX": 292,
+      "focusedFanoutX": 544,
+      "compactYGap": 8,
+      "fanoutYGap": 28
+    },
+    "features": {
+      "alignDrivenLinks": true,
+      "branchAwareLanes": true,
+      "balancedLayerPlacement": true,
+      "symmetricBranchPlacement": true,
+      "recursiveFocusedTreePlacement": true,
+      "localizeSingleFanoutInputs": true,
+      "minimalSpanLayering": false,
+      "longEdgeDummies": true,
+      "physicalCarrierRouting": true,
+      "routingDrivenLayerSpacing": true,
+      "wholeProperLayering": true
+    },
+    "layering": {
+      "relaxationSweeps": 8,
+      "boundaryAnchor": "constrained",
+      "anchorPrimaryPorts": true,
+      "carrierMinimumFanout": 8,
+      "wholeCarrierMinimumFanout": 2,
+      "wholeCarrierMinimumSpan": 6,
+      "wholeProperLayeringMinimumNodes": 512,
+      "maxDummyNodes": 40000
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "sample_sha256": "84f01ae772ac4d394af942a6e2c286deb6b0ebbdd01e7dd5cd7ce0de9b54887e",
+  "sample": {
+    "pi": 4,
+    "and_nodes": 8,
+    "po": 3,
+    "depth": 4,
+    "input_names": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "output_names": [
+      "y",
+      "shared",
+      "masked"
+    ]
+  },
+  "checks": {
+    "same_binary_input": true,
+    "no_optimization": true,
+    "structural_fingerprints_equal": true,
+    "exhaustive_truth_tables_equal": true,
+    "input_assignments": 16
+  },
+  "fixture_note": "A trailing newline was appended to the bare comment delimiter emitted by the aigverse/mockturtle writer, for AIGER compatibility; no graph data changed.",
+  "versions": {
+    "abc_source_commit": "d527cfab4ad731b767ea0a2be2021d920d3afece",
+    "abc_build_compatibility": "C-only -Dnullptr=NULL; upstream snapshot has nullptr in giaCut.c; no source edits.",
+    "abc": "======== ABC command line \"version\"\nUC Berkeley, ABC 1.01 (compiled Nov 14 2026 21:56:03)",
+    "mockturtle_source_commit": "a3f817de4005ee6ae12b4dd1ffcf4a4f910691d7",
+    "graphviz": "dot - graphviz version 2.43.0 (0)",
+    "aiger_source_sha256": {
+      "aiger.c": "f1c91c25fa0cbe6ff6eb0606da4a45751d775178a45bbf35e87d43be135ccd22",
+      "aiger.h": "9f192f8c7844a7fc2cc2f70d8f27b3b7a2d74f4545735a9992f492e2c36bcb98",
+      "aigtodot.c": "936887ac07c3e57aaf7bc3706c1dae4b8ffbc50304c07c17b98cb53f3492c36e"
+    },
+    "aigverse": "0.1.7"
+  },
+  "renderings": {
+    "abc": {
+      "width": "1080pt",
+      "height": "834pt",
+      "viewBox": "0.00 0.00 540.00 417.14"
+    },
+    "mockturtle": {
+      "width": "854pt",
+      "height": "848pt",
+      "viewBox": "0.00 0.00 426.90 424.00"
+    },
+    "aiger": {
+      "width": "928pt",
+      "height": "1052pt",
+      "viewBox": "0.00 0.00 463.99 526.00"
+    }
+  },
+  "rendering_note": "Native DOT unchanged; all rendered at 144 DPI. Composite uses one common scale.",
+  "truth_table": [
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      1,
+      1
+    ],
+    [
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0
+    ],
+    [
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1
+    ]
+  ]
+}

@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="890" height="432" viewBox="-12 -12 890 432">
+<rect x="-12" y="-12" width="890" height="432" fill="white"/>
+<path data-edge-id="e5_0" d="M 84 372 L 108 372 L 108 372.5 L 115 372.5 L 115 132.5 L 165 132.5 L 165 132 L 166 132" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e5_1" d="M 84 156 L 108 156 L 108 156.5 L 165 156.5 L 165 156 L 166 156" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e6_0" d="M 84 36 L 108 36 L 108 36.5 L 165 36.5 L 165 36 L 166 36" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e6_1" d="M 84 156 L 108 156 L 108 156.5 L 105 156.5 L 105 60.5 L 165 60.5 L 165 60 L 166 60" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e7_0" d="M 238 48 L 262 48 L 262 48.5 L 319 48.5 L 319 48 L 320 48" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e7_1" d="M 238 144 L 262 144 L 262 144.5 L 249 144.5 L 249 72.5 L 319 72.5 L 319 72 L 320 72" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e8_0" d="M 238 144 L 262 144 L 262 144.5 L 319 144.5 L 319 144 L 320 144" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e8_1" d="M 238 264 L 262 264 L 262 264.5 L 259 264.5 L 259 168.5 L 319 168.5 L 319 168 L 320 168" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e9_0" d="M 392 60 L 416 60 L 416 60.5 L 403 60.5 L 403 97 L 473 97 L 473 96.5 L 474 96.5" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e9_1" d="M 238 264 L 262 264 L 262 264.5 L 259 264.5 L 259 121 L 473 121 L 473 120.5 L 474 120.5" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e10_0" d="M 546 108.5 L 570 108.5 L 570 109 L 557 109 L 557 132.5 L 627 132.5 L 627 132 L 628 132" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e10_1" d="M 392 156 L 416 156 L 416 156.5 L 627 156.5 L 627 156 L 628 156" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e11_0" d="M 84 36 L 108 36 L 108 36.5 L 95 36.5 L 95 348.5 L 165 348.5 L 165 348 L 166 348" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e11_1" d="M 84 372 L 108 372 L 108 372.5 L 165 372.5 L 165 372 L 166 372" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e12_0" d="M 238 360 L 262 360 L 262 360.5 L 269 360.5 L 269 240.5 L 319 240.5 L 319 240 L 320 240" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e12_1" d="M 238 264 L 262 264 L 262 264.5 L 319 264.5 L 319 264 L 320 264" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo0" d="M 700 144 L 724 144 L 724 144.5 L 781 144.5 L 781 144 L 782 144" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo1" d="M 238 360 L 262 360 L 262 360.5 L 319 360.5 L 319 360 L 320 360" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo2" d="M 392 252 L 416 252 L 416 252.5 L 473 252.5 L 473 252 L 474 252" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<g data-node-id="n1"><rect x="20" y="132" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="52" y="151" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">a</text>
+<text x="27" y="170" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="48" y="159" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="63" y="170" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n2"><rect x="20" y="348" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="52" y="367" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">b</text>
+<text x="27" y="386" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="48" y="375" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="63" y="386" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n3"><rect x="20" y="12" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="52" y="31" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">c</text>
+<text x="27" y="50" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="48" y="39" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="63" y="50" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n4"><rect x="174" y="240" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="206" y="259" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">d</text>
+<text x="181" y="278" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="202" y="267" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="217" y="278" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 3</text></g>
+<g data-node-id="n5"><rect x="174" y="120" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="206" y="139" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n5</text>
+<text x="181" y="158" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="202" y="147" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="217" y="158" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<line x1="166" y1="132" x2="174" y2="132" stroke="#596579" stroke-width="1.6"/>
+<line x1="166" y1="156" x2="174" y2="156" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n6"><rect x="174" y="24" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="206" y="43" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n6</text>
+<text x="181" y="62" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="202" y="51" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="217" y="62" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="166" y1="36" x2="174" y2="36" stroke="#596579" stroke-width="1.6"/>
+<line x1="166" y1="60" x2="174" y2="60" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e6_1" cx="170" cy="60" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n7"><rect x="328" y="36" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="360" y="55" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n7</text>
+<text x="335" y="74" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="356" y="63" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="371" y="74" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="320" y1="48" x2="328" y2="48" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e7_0" cx="324" cy="48" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="320" y1="72" x2="328" y2="72" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e7_1" cx="324" cy="72" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n8"><rect x="328" y="132" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="360" y="151" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n8</text>
+<text x="335" y="170" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="356" y="159" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="371" y="170" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="320" y1="144" x2="328" y2="144" stroke="#596579" stroke-width="1.6"/>
+<line x1="320" y1="168" x2="328" y2="168" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n9"><rect x="482" y="84.5" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="514" y="103.5" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n9</text>
+<text x="489" y="122.5" font-family="DejaVu Sans" font-size="10" fill="#566174">L3</text>
+<rect x="510" y="111.5" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="525" y="122.5" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="474" y1="96.5" x2="482" y2="96.5" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e9_0" cx="478" cy="96.5" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="474" y1="120.5" x2="482" y2="120.5" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e9_1" cx="478" cy="120.5" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n10"><rect x="636" y="120" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="668" y="139" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n10</text>
+<text x="643" y="158" font-family="DejaVu Sans" font-size="10" fill="#566174">L4</text>
+<rect x="664" y="147" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="679" y="158" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="628" y1="132" x2="636" y2="132" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e10_0" cx="632" cy="132" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="628" y1="156" x2="636" y2="156" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e10_1" cx="632" cy="156" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n11"><rect x="174" y="336" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="206" y="355" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n11</text>
+<text x="181" y="374" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="202" y="363" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="217" y="374" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<line x1="166" y1="348" x2="174" y2="348" stroke="#596579" stroke-width="1.6"/>
+<line x1="166" y1="372" x2="174" y2="372" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n12"><rect x="328" y="228" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="360" y="247" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n12</text>
+<text x="335" y="266" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="356" y="255" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="371" y="266" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="320" y1="240" x2="328" y2="240" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e12_0" cx="324" cy="240" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="320" y1="264" x2="328" y2="264" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="po0"><rect x="790" y="120" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="822" y="139" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">y</text>
+<text x="797" y="158" font-family="DejaVu Sans" font-size="10" fill="#566174">L4</text>
+<rect x="818" y="147" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="833" y="158" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="782" y1="144" x2="790" y2="144" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="epo0" cx="786" cy="144" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="po1"><rect x="328" y="336" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="360" y="355" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">shared</text>
+<text x="335" y="374" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="356" y="363" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="371" y="374" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="320" y1="360" x2="328" y2="360" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="po2"><rect x="482" y="228" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="514" y="247" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">masked</text>
+<text x="489" y="266" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="510" y="255" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="525" y="266" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="474" y1="252" x2="482" y2="252" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="epo2" cx="478" cy="252" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+</svg>

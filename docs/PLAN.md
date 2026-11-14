@@ -51,6 +51,10 @@ Structural Verilog
 
 ## 5. 需求拆解与完成状态
 
+AIG 主界面接入已单独编制 [实施计划](plans/aig_graphviz_integration.md)，当前为待实施：支持 ABC AIG DOT / AND-NOT BLIF、保留输入输出名称、统一 Graphviz 曲线与分析高亮，并以现有网表无新增回归作为交付条件。该计划不包含生产 AIGER 导入，也不改变 Simple 冻结范围。
+
+AIG 的两项 [后续需求](plans/aig_followup_roadmap.md) 已登记为计划中，**不纳入当前接入轮次**：F-AIG-01 为 AIG before/after Compare，并将 Compare 默认分屏改为左右；F-AIG-02 为 Netlist → AIG，支持选定 cone、Whole 默认当前 module 全量转换，以及 Compare 两侧转换为 AIG 对比图。
+
 **当前里程碑进展**：
 - **阶段 7（已完成）**：模块化单体多领域工作台架构已全面落地，涵盖领域契约与静态注册、`DocumentStore` / `ViewSessionStore` / 命令总线、共享视图流水线与 `Scene` 渲染器、职责解耦的 UI 控制器、版本化存档编解码器（codec）以及内存 AIG 扩展性验证门禁。
 - **阶段 8（进行中）**：跨层 Fanin/Fanout 追踪、Cell/Net 统一聚焦根、可切换的标准逻辑门符号、通用事务化视图历史（View History）、搜索与聚焦解耦以及 Compare 大图按需加载均已完成范围内交付；当前重点围绕交互性能基线、最小化缓存失效与代码审查问题闭环。阶段 5 的可选 Liberty `.lib` 增强继续作为后续储备计划，生产级 AIGER 导入与分析另行独立规划。

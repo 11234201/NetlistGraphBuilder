@@ -1,0 +1,262 @@
+{
+  "rawTotals": {
+    "corners": 18,
+    "reversals": 0,
+    "shortSegmentsAtMostOneUnit": 0
+  },
+  "adaptedTotals": {
+    "corners": 94,
+    "reversals": 0,
+    "shortSegmentsAtMostOneUnit": 57
+  },
+  "edges": [
+    {
+      "edgeId": "e5_0",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e5_1",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e6_0",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e6_1",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e7_0",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e7_1",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e8_0",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e8_1",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e9_0",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e9_1",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e10_0",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e10_1",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e11_0",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e11_1",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e12_0",
+      "raw": {
+        "corners": 2,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 6,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "e12_1",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "epo0",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "epo1",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    },
+    {
+      "edgeId": "epo2",
+      "raw": {
+        "corners": 0,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 0
+      },
+      "adapted": {
+        "corners": 4,
+        "reversals": 0,
+        "shortSegmentsAtMostOneUnit": 3
+      }
+    }
+  ],
+  "note": "Same actual ELK call; raw section geometry versus measured_elk_layout.js output. No correction was applied."
+}

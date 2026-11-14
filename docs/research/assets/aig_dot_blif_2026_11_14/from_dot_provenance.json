@@ -1,0 +1,77 @@
+{
+  "Node1": {
+    "node_id": "n1",
+    "inverted": false,
+    "source_label": "a"
+  },
+  "Node10": {
+    "node_id": "n10",
+    "inverted": false,
+    "source_label": "11\\n"
+  },
+  "Node11": {
+    "node_id": "n8",
+    "inverted": false,
+    "source_label": "12\\n"
+  },
+  "Node12": {
+    "node_id": "n11",
+    "inverted": false,
+    "source_label": "13\\n"
+  },
+  "Node13": {
+    "node_id": "n12",
+    "inverted": false,
+    "source_label": "14\\n"
+  },
+  "Node14": {
+    "node_id": "n6",
+    "inverted": false,
+    "source_label": "15\\n"
+  },
+  "Node15": {
+    "node_id": "n9",
+    "inverted": false,
+    "source_label": "16\\n"
+  },
+  "Node2": {
+    "node_id": "n2",
+    "inverted": false,
+    "source_label": "b"
+  },
+  "Node3": {
+    "node_id": "n3",
+    "inverted": false,
+    "source_label": "c"
+  },
+  "Node4": {
+    "node_id": "n4",
+    "inverted": false,
+    "source_label": "d"
+  },
+  "Node5": {
+    "node_id": "n12",
+    "inverted": true,
+    "source_label": "y"
+  },
+  "Node6": {
+    "node_id": "n6",
+    "inverted": false,
+    "source_label": "shared"
+  },
+  "Node7": {
+    "node_id": "n9",
+    "inverted": true,
+    "source_label": "masked"
+  },
+  "Node8": {
+    "node_id": "n7",
+    "inverted": false,
+    "source_label": "9\\n"
+  },
+  "Node9": {
+    "node_id": "n5",
+    "inverted": false,
+    "source_label": "10\\n"
+  }
+}

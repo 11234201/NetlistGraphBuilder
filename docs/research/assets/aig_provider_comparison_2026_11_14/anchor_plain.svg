@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="8 8 880 480">
+<rect x="8" y="8" width="880" height="480" fill="white"/>
+<path data-edge-id="e5_0" d="M 104 344 L 124 344 L 124 416 L 184 416" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e5_1" d="M 104 440 L 184 440" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e6_0" d="M 104 224 L 184 224" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e6_1" d="M 104 440 L 134 440 L 134 248 L 184 248" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e7_0" d="M 256 236 L 336 236" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e7_1" d="M 256 428 L 276 428 L 276 260 L 336 260" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e8_0" d="M 256 428 L 336 428" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e8_1" d="M 256 332 L 266 332 L 266 452 L 336 452" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e9_0" d="M 408 248 L 418 248 L 418 308 L 488 308" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e9_1" d="M 256 332 L 488 332" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e10_0" d="M 560 320 L 570 320 L 570 416 L 640 416" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e10_1" d="M 408 440 L 640 440" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e11_0" d="M 104 224 L 114 224 L 114 128 L 184 128" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e11_1" d="M 104 344 L 124 344 L 124 152 L 184 152" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e12_0" d="M 256 140 L 336 140" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="e12_1" d="M 256 332 L 266 332 L 266 164 L 336 164" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo0" d="M 712 428 L 792 428" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo1" d="M 256 140 L 266 140 L 266 56 L 336 56" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path data-edge-id="epo2" d="M 408 152 L 488 152" fill="none" stroke="#596579" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+<g data-node-id="n1"><rect x="40" y="416" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="72" y="435" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">a</text>
+<text x="47" y="454" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="68" y="443" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="83" y="454" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n2"><rect x="40" y="320" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="72" y="339" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">b</text>
+<text x="47" y="358" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="68" y="347" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="83" y="358" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n3"><rect x="40" y="200" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="72" y="219" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">c</text>
+<text x="47" y="238" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="68" y="227" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="83" y="238" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<g data-node-id="n4"><rect x="192" y="308" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="224" y="327" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">d</text>
+<text x="199" y="346" font-family="DejaVu Sans" font-size="10" fill="#566174">L0</text>
+<rect x="220" y="335" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="235" y="346" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 3</text></g>
+<g data-node-id="n5"><rect x="192" y="404" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="224" y="423" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n5</text>
+<text x="199" y="442" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="220" y="431" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="235" y="442" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<line x1="184" y1="416" x2="192" y2="416" stroke="#596579" stroke-width="1.6"/>
+<line x1="184" y1="440" x2="192" y2="440" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n6"><rect x="192" y="212" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="224" y="231" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n6</text>
+<text x="199" y="250" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="220" y="239" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="235" y="250" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="184" y1="224" x2="192" y2="224" stroke="#596579" stroke-width="1.6"/>
+<line x1="184" y1="248" x2="192" y2="248" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e6_1" cx="188" cy="248" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n7"><rect x="344" y="224" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="376" y="243" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n7</text>
+<text x="351" y="262" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="372" y="251" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="387" y="262" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="336" y1="236" x2="344" y2="236" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e7_0" cx="340" cy="236" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="336" y1="260" x2="344" y2="260" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e7_1" cx="340" cy="260" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n8"><rect x="344" y="416" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="376" y="435" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n8</text>
+<text x="351" y="454" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="372" y="443" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="387" y="454" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="336" y1="428" x2="344" y2="428" stroke="#596579" stroke-width="1.6"/>
+<line x1="336" y1="452" x2="344" y2="452" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n9"><rect x="496" y="296" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="528" y="315" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n9</text>
+<text x="503" y="334" font-family="DejaVu Sans" font-size="10" fill="#566174">L3</text>
+<rect x="524" y="323" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="539" y="334" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="488" y1="308" x2="496" y2="308" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e9_0" cx="492" cy="308" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="488" y1="332" x2="496" y2="332" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e9_1" cx="492" cy="332" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n10"><rect x="648" y="404" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="680" y="423" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n10</text>
+<text x="655" y="442" font-family="DejaVu Sans" font-size="10" fill="#566174">L4</text>
+<rect x="676" y="431" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="691" y="442" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="640" y1="416" x2="648" y2="416" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e10_0" cx="644" cy="416" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="640" y1="440" x2="648" y2="440" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e10_1" cx="644" cy="440" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="n11"><rect x="192" y="116" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="224" y="135" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n11</text>
+<text x="199" y="154" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="220" y="143" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="235" y="154" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 2</text></g>
+<line x1="184" y1="128" x2="192" y2="128" stroke="#596579" stroke-width="1.6"/>
+<line x1="184" y1="152" x2="192" y2="152" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="n12"><rect x="344" y="128" width="64" height="48" rx="5" fill="#f4f6f9" stroke="#43536b" stroke-width="1.5"/>
+<text x="376" y="147" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">n12</text>
+<text x="351" y="166" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="372" y="155" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="387" y="166" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 1</text></g>
+<line x1="336" y1="140" x2="344" y2="140" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="e12_0" cx="340" cy="140" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<line x1="336" y1="164" x2="344" y2="164" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="po0"><rect x="800" y="404" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="832" y="423" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">y</text>
+<text x="807" y="442" font-family="DejaVu Sans" font-size="10" fill="#566174">L4</text>
+<rect x="828" y="431" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="843" y="442" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="792" y1="428" x2="800" y2="428" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="epo0" cx="796" cy="428" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+<g data-node-id="po1"><rect x="344" y="32" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="376" y="51" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">shared</text>
+<text x="351" y="70" font-family="DejaVu Sans" font-size="10" fill="#566174">L1</text>
+<rect x="372" y="59" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="387" y="70" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="336" y1="56" x2="344" y2="56" stroke="#596579" stroke-width="1.6"/>
+<g data-node-id="po2"><rect x="496" y="128" width="64" height="48" rx="5" fill="#e5effb" stroke="#43536b" stroke-width="1.5"/>
+<text x="528" y="147" font-family="DejaVu Sans" font-size="13" font-weight="bold" text-anchor="middle" fill="#16263b">masked</text>
+<text x="503" y="166" font-family="DejaVu Sans" font-size="10" fill="#566174">L2</text>
+<rect x="524" y="155" width="30" height="15" rx="3" fill="#e5e9ef"/><text x="539" y="166" text-anchor="middle" font-family="DejaVu Sans" font-size="10" fill="#59401f">fo 0</text></g>
+<line x1="488" y1="152" x2="496" y2="152" stroke="#596579" stroke-width="1.6"/>
+<circle data-inversion="epo2" cx="492" cy="152" r="3.5" fill="white" stroke="#172b4d" stroke-width="1.5"/>
+</svg>

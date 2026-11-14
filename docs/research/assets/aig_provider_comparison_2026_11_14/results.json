@@ -1,0 +1,282 @@
+{
+  "date": "2026-11-14T14:40:42.817Z",
+  "sampleSha256": "99e128ede1db5ebe0785cbdd3138835ef220334e9bc3e6a39679708e77085271",
+  "sourceArchiveSha256": "6a46922822c1569fd1ebce0b9ac3db792311850babfcb08da7874fcc135f21bb",
+  "sourceRevision": "59eea493d2ad947b74119771dbe7357cd54ea1b9 plus current working-tree changes",
+  "defaultProvider": "native-layered",
+  "nodeVersion": "v24.16.0",
+  "elkVersion": "0.11.1",
+  "graphviz": "Graphviz 2.43.0 (environment verified)",
+  "sourceHashes": {
+    "src/contracts/measured_graph.js": "09993a4fd3cf85f0d6634ab735ef9daf221494d78b8f394fb080c6359a7f531e",
+    "src/layout/measured_anchor_layout.js": "926249cdf06d5be4f162409924b1e8ad6863c540a44bf0318154984491ef29f9",
+    "src/layout/measured_elk_layout.js": "9c74dbc5c83bbdea740c0b47f71f3a48186f21a9049200b7cc84689700b39e5a",
+    "src/layout/anchor_layered/anchor.js": "b65128e964a903a18fa67678e4e65eb19dce6c314cc05dd85b7c614122ce837f",
+    "src/layout/layoutValidator.js": "121f753d4fc7bec6f1386511781d3b5d4a8bf48fd90ce0e8d8157cc57dbcefad"
+  },
+  "common": {
+    "nodes": 15,
+    "andNodes": 8,
+    "edges": 19,
+    "invertedEdges": 10,
+    "criticalGraphNodes": 9,
+    "criticalEdges": 9,
+    "highFanoutNodes": 6,
+    "depth": 4,
+    "dimensions": {
+      "width": 72,
+      "height": 48,
+      "bodyWidth": 64,
+      "inversionGutter": 8
+    },
+    "direction": "LR",
+    "nodeGap": 48,
+    "rankGap": 80,
+    "rankConstraints": "None explicitly added; each provider assigns ranks.",
+    "fanout": "Reference/slot count including PO references",
+    "rendering": "Shared SVG renderer; native logical-edge geometry; no route repair; common scale; constant 0 unused and omitted everywhere.",
+    "graphvizMode": "dot splines=spline; HTML fixed-size ports, arrowhead=none",
+    "metricNotes": "Crossings use cubic subdivision (32 samples/segment), exclude same-source pairs, and count proper interior intersections only. Wire length sums logical edges, counting shared trunks repeatedly. Graphviz is not judged by the project's orthogonal-only validator. Timing is one cold call with different execution overhead, not a benchmark."
+  },
+  "analysis": [
+    {
+      "id": "n1",
+      "level": 0,
+      "fanout": 2,
+      "critical": true
+    },
+    {
+      "id": "n2",
+      "level": 0,
+      "fanout": 2,
+      "critical": true
+    },
+    {
+      "id": "n3",
+      "level": 0,
+      "fanout": 2,
+      "critical": true
+    },
+    {
+      "id": "n4",
+      "level": 0,
+      "fanout": 3,
+      "critical": false
+    },
+    {
+      "id": "n5",
+      "level": 1,
+      "fanout": 2,
+      "critical": true
+    },
+    {
+      "id": "n6",
+      "level": 1,
+      "fanout": 1,
+      "critical": true
+    },
+    {
+      "id": "n7",
+      "level": 2,
+      "fanout": 1,
+      "critical": true
+    },
+    {
+      "id": "n8",
+      "level": 2,
+      "fanout": 1,
+      "critical": false
+    },
+    {
+      "id": "n9",
+      "level": 3,
+      "fanout": 1,
+      "critical": true
+    },
+    {
+      "id": "n10",
+      "level": 4,
+      "fanout": 1,
+      "critical": true
+    },
+    {
+      "id": "n11",
+      "level": 1,
+      "fanout": 2,
+      "critical": false
+    },
+    {
+      "id": "n12",
+      "level": 2,
+      "fanout": 1,
+      "critical": false
+    },
+    {
+      "id": "po0",
+      "level": 4,
+      "fanout": 0,
+      "critical": true
+    },
+    {
+      "id": "po1",
+      "level": 1,
+      "fanout": 0,
+      "critical": false
+    },
+    {
+      "id": "po2",
+      "level": 2,
+      "fanout": 0,
+      "critical": false
+    }
+  ],
+  "results": [
+    {
+      "name": "anchor",
+      "elapsedMs": 58.51415499999999,
+      "nativeStatus": "routed",
+      "nativeValidation": {
+        "total": 0,
+        "byCode": {}
+      },
+      "nativeDiagnostics": [],
+      "metrics": {
+        "bounds": {
+          "left": 32,
+          "top": 32,
+          "width": 832,
+          "height": 432
+        },
+        "width": 832,
+        "height": 432,
+        "area": 359424,
+        "logicalWireLength": 3072,
+        "bends": 20,
+        "properCrossingsApprox": 5,
+        "crossingPoints": [
+          {
+            "x": 134,
+            "y": 416
+          },
+          {
+            "x": 124,
+            "y": 224
+          },
+          {
+            "x": 266,
+            "y": 236
+          },
+          {
+            "x": 266,
+            "y": 428
+          },
+          {
+            "x": 276,
+            "y": 332
+          }
+        ],
+        "nodeOverlaps": 0,
+        "nodeIntersections": [],
+        "endpointErrors": []
+      }
+    },
+    {
+      "name": "elk",
+      "elapsedMs": 181.43973299999996,
+      "nativeStatus": "routed",
+      "nativeValidation": {
+        "total": 0,
+        "byCode": {}
+      },
+      "nativeDiagnostics": [],
+      "metrics": {
+        "bounds": {
+          "left": 12,
+          "top": 12,
+          "width": 842,
+          "height": 384
+        },
+        "width": 842,
+        "height": 384,
+        "area": 323328,
+        "logicalWireLength": 3146.5,
+        "bends": 94,
+        "properCrossingsApprox": 5,
+        "crossingPoints": [
+          {
+            "x": 115,
+            "y": 156.5
+          },
+          {
+            "x": 115,
+            "y": 348.5
+          },
+          {
+            "x": 95,
+            "y": 156
+          },
+          {
+            "x": 259,
+            "y": 144
+          },
+          {
+            "x": 269,
+            "y": 264.5
+          }
+        ],
+        "nodeOverlaps": 0,
+        "nodeIntersections": [],
+        "endpointErrors": []
+      }
+    },
+    {
+      "name": "graphviz",
+      "elapsedMs": 20.57890699999996,
+      "nativeStatus": "dot completed",
+      "nativeValidation": null,
+      "metrics": {
+        "bounds": {
+          "left": 0,
+          "top": 0,
+          "width": 832,
+          "height": 434
+        },
+        "width": 832,
+        "height": 434,
+        "area": 361088,
+        "logicalWireLength": 2628.99,
+        "bends": null,
+        "properCrossingsApprox": 6,
+        "crossingPoints": [
+          {
+            "x": 111.55079411962242,
+            "y": 324.1957545590651
+          },
+          {
+            "x": 113.23809633650937,
+            "y": 169.5376851518542
+          },
+          {
+            "x": 263.8546872066829,
+            "y": 204
+          },
+          {
+            "x": 262.99528924538333,
+            "y": 353.146824394985
+          },
+          {
+            "x": 263.859773350392,
+            "y": 300.72500089298103
+          },
+          {
+            "x": 270.9798761935,
+            "y": 397.30659783907714
+          }
+        ],
+        "nodeOverlaps": 0,
+        "nodeIntersections": [],
+        "endpointErrors": []
+      }
+    }
+  ]
+}

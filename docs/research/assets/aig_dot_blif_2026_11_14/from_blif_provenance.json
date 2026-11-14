@@ -1,0 +1,62 @@
+{
+  "a": {
+    "node_id": "n1",
+    "inverted": false,
+    "source_label": "a"
+  },
+  "b": {
+    "node_id": "n2",
+    "inverted": false,
+    "source_label": "b"
+  },
+  "c": {
+    "node_id": "n3",
+    "inverted": false,
+    "source_label": "c"
+  },
+  "d": {
+    "node_id": "n4",
+    "inverted": false,
+    "source_label": "d"
+  },
+  "masked": {
+    "node_id": "n9",
+    "inverted": true,
+    "source_label": "masked"
+  },
+  "new_n10": {
+    "node_id": "n10",
+    "inverted": false,
+    "source_label": "new_n10"
+  },
+  "new_n11": {
+    "node_id": "n8",
+    "inverted": false,
+    "source_label": "new_n11"
+  },
+  "new_n12": {
+    "node_id": "n11",
+    "inverted": false,
+    "source_label": "new_n12"
+  },
+  "new_n8": {
+    "node_id": "n7",
+    "inverted": false,
+    "source_label": "new_n8"
+  },
+  "new_n9": {
+    "node_id": "n5",
+    "inverted": false,
+    "source_label": "new_n9"
+  },
+  "shared": {
+    "node_id": "n6",
+    "inverted": false,
+    "source_label": "shared"
+  },
+  "y": {
+    "node_id": "n12",
+    "inverted": true,
+    "source_label": "y"
+  }
+}

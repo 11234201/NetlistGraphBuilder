@@ -1,0 +1,37 @@
+{
+  "graphviz": "dot - graphviz version 2.43.0 (0)",
+  "source_sha256": {
+    "abc_input.dot": "b09b17bd199a240db7903d093c1e486d7eb301e55937f231c8d3432626f1d5f9",
+    "abc_input.blif": "ccbce3dae6ab62eebd68e6cdd77f708f436e28e506de94a3739e813919355018",
+    "shared_cone.aag": "99e128ede1db5ebe0785cbdd3138835ef220334e9bc3e6a39679708e77085271"
+  },
+  "canonical_model_equal": true,
+  "analysis_equal": true,
+  "display_dot_equal": true,
+  "svg_bytes_equal": true,
+  "highlight_svg_bytes_equal": true,
+  "png_bytes_equal": true,
+  "highlight_geometry_unchanged": true,
+  "display_dot_sha256": "f4bb6d8ea9a342b039f35bba1af2b802ffbe43289dad4b194c0ca0dee9bc512a",
+  "svg_sha256": "1f33c66bbb99032504de2c9cc2b03d1bd815bc8bdb4dc3eba373b6d82f4f44ea",
+  "highlighted_svg_sha256": "75958d69d3415066d4afe2e2db3e4878d3ee2b5b45d91b1e5feaa5e7e5f655e1",
+  "names": {
+    "pi": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "po": [
+      "masked",
+      "shared",
+      "y"
+    ]
+  },
+  "nodes": 15,
+  "edges": 19,
+  "inverted_edges": 10,
+  "critical_edges": 9,
+  "high_fanout_nodes": 6,
+  "scope": "Research CLI for ABC AIG DOT and flat AND/NOT BLIF; not production UI"
+}

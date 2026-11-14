@@ -1,0 +1,80 @@
+[
+  {
+    "node": 0,
+    "level": 0,
+    "fanout": 0,
+    "critical": false
+  },
+  {
+    "node": 1,
+    "level": 0,
+    "fanout": 2,
+    "critical": true
+  },
+  {
+    "node": 2,
+    "level": 0,
+    "fanout": 2,
+    "critical": true
+  },
+  {
+    "node": 3,
+    "level": 0,
+    "fanout": 2,
+    "critical": true
+  },
+  {
+    "node": 4,
+    "level": 0,
+    "fanout": 3,
+    "critical": false
+  },
+  {
+    "node": 5,
+    "level": 1,
+    "fanout": 2,
+    "critical": true
+  },
+  {
+    "node": 6,
+    "level": 1,
+    "fanout": 1,
+    "critical": true
+  },
+  {
+    "node": 7,
+    "level": 2,
+    "fanout": 1,
+    "critical": true
+  },
+  {
+    "node": 8,
+    "level": 2,
+    "fanout": 1,
+    "critical": false
+  },
+  {
+    "node": 9,
+    "level": 3,
+    "fanout": 1,
+    "critical": true
+  },
+  {
+    "node": 10,
+    "level": 4,
+    "fanout": 1,
+    "critical": true
+  },
+  {
+    "node": 11,
+    "level": 1,
+    "fanout": 2,
+    "critical": false
+  },
+  {
+    "node": 12,
+    "level": 2,
+    "fanout": 1,
+    "critical": false
+  }
+]

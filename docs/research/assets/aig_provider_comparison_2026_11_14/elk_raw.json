@@ -1,0 +1,3640 @@
+{
+  "id": "shared-aig",
+  "domainId": "aig-research",
+  "unitId": "sample",
+  "nodes": [
+    {
+      "id": "n1",
+      "aigId": 1,
+      "kind": "aig-input",
+      "label": "a",
+      "level": 0,
+      "fanout": 2,
+      "reverseDepth": 4,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 12,
+      "y": 132
+    },
+    {
+      "id": "n2",
+      "aigId": 2,
+      "kind": "aig-input",
+      "label": "b",
+      "level": 0,
+      "fanout": 2,
+      "reverseDepth": 4,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 12,
+      "y": 348
+    },
+    {
+      "id": "n3",
+      "aigId": 3,
+      "kind": "aig-input",
+      "label": "c",
+      "level": 0,
+      "fanout": 2,
+      "reverseDepth": 4,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 12,
+      "y": 12
+    },
+    {
+      "id": "n4",
+      "aigId": 4,
+      "kind": "aig-input",
+      "label": "d",
+      "level": 0,
+      "fanout": 3,
+      "reverseDepth": 2,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 166,
+      "y": 240
+    },
+    {
+      "id": "n5",
+      "aigId": 5,
+      "kind": "aig-and",
+      "label": "n5",
+      "level": 1,
+      "fanout": 2,
+      "reverseDepth": 3,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 166,
+      "y": 120
+    },
+    {
+      "id": "n6",
+      "aigId": 6,
+      "kind": "aig-and",
+      "label": "n6",
+      "level": 1,
+      "fanout": 1,
+      "reverseDepth": 3,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 166,
+      "y": 24
+    },
+    {
+      "id": "n7",
+      "aigId": 7,
+      "kind": "aig-and",
+      "label": "n7",
+      "level": 2,
+      "fanout": 1,
+      "reverseDepth": 2,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 320,
+      "y": 36
+    },
+    {
+      "id": "n8",
+      "aigId": 8,
+      "kind": "aig-and",
+      "label": "n8",
+      "level": 2,
+      "fanout": 1,
+      "reverseDepth": 1,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 320,
+      "y": 132
+    },
+    {
+      "id": "n9",
+      "aigId": 9,
+      "kind": "aig-and",
+      "label": "n9",
+      "level": 3,
+      "fanout": 1,
+      "reverseDepth": 1,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 474,
+      "y": 84.5
+    },
+    {
+      "id": "n10",
+      "aigId": 10,
+      "kind": "aig-and",
+      "label": "n10",
+      "level": 4,
+      "fanout": 1,
+      "reverseDepth": 0,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 628,
+      "y": 120
+    },
+    {
+      "id": "n11",
+      "aigId": 11,
+      "kind": "aig-and",
+      "label": "n11",
+      "level": 1,
+      "fanout": 2,
+      "reverseDepth": 1,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 166,
+      "y": 336
+    },
+    {
+      "id": "n12",
+      "aigId": 12,
+      "kind": "aig-and",
+      "label": "n12",
+      "level": 2,
+      "fanout": 1,
+      "reverseDepth": 0,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 12
+        },
+        {
+          "id": "in1",
+          "pin": "in1",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 36
+        },
+        {
+          "id": "out",
+          "pin": "out",
+          "direction": "output",
+          "side": "right",
+          "x": 72,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 320,
+      "y": 228
+    },
+    {
+      "id": "po0",
+      "kind": "aig-output",
+      "label": "y",
+      "level": 4,
+      "fanout": 0,
+      "reverseDepth": 0,
+      "critical": true,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 782,
+      "y": 120
+    },
+    {
+      "id": "po1",
+      "kind": "aig-output",
+      "label": "shared",
+      "level": 1,
+      "fanout": 0,
+      "reverseDepth": 0,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 320,
+      "y": 336
+    },
+    {
+      "id": "po2",
+      "kind": "aig-output",
+      "label": "masked",
+      "level": 2,
+      "fanout": 0,
+      "reverseDepth": 0,
+      "critical": false,
+      "width": 72,
+      "height": 48,
+      "ports": [
+        {
+          "id": "in0",
+          "pin": "in0",
+          "direction": "input",
+          "side": "left",
+          "x": 0,
+          "y": 24
+        }
+      ],
+      "connectionOffsets": {
+        "source": {
+          "x": 0,
+          "y": 0
+        },
+        "target": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "portLayout": {
+        "mode": "fixed"
+      },
+      "x": 474,
+      "y": 228
+    }
+  ],
+  "edges": [
+    {
+      "id": "e5_0",
+      "source": "n2",
+      "sourcePin": "out",
+      "target": "n5",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": false,
+      "net": "signal:2",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 84,
+          "y": 372
+        },
+        {
+          "x": 108,
+          "y": 372
+        },
+        {
+          "x": 108,
+          "y": 372.5
+        },
+        {
+          "x": 115,
+          "y": 372.5
+        },
+        {
+          "x": 115,
+          "y": 132.5
+        },
+        {
+          "x": 165,
+          "y": 132.5
+        },
+        {
+          "x": 165,
+          "y": 132
+        },
+        {
+          "x": 166,
+          "y": 132
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e5_1",
+      "source": "n1",
+      "sourcePin": "out",
+      "target": "n5",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": false,
+      "net": "signal:1",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 84,
+          "y": 156
+        },
+        {
+          "x": 108,
+          "y": 156
+        },
+        {
+          "x": 108,
+          "y": 156.5
+        },
+        {
+          "x": 165,
+          "y": 156.5
+        },
+        {
+          "x": 165,
+          "y": 156
+        },
+        {
+          "x": 166,
+          "y": 156
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e6_0",
+      "source": "n3",
+      "sourcePin": "out",
+      "target": "n6",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": false,
+      "net": "signal:3",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 84,
+          "y": 36
+        },
+        {
+          "x": 108,
+          "y": 36
+        },
+        {
+          "x": 108,
+          "y": 36.5
+        },
+        {
+          "x": 165,
+          "y": 36.5
+        },
+        {
+          "x": 165,
+          "y": 36
+        },
+        {
+          "x": 166,
+          "y": 36
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e6_1",
+      "source": "n1",
+      "sourcePin": "out",
+      "target": "n6",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": true,
+      "net": "signal:1",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 84,
+          "y": 156
+        },
+        {
+          "x": 108,
+          "y": 156
+        },
+        {
+          "x": 108,
+          "y": 156.5
+        },
+        {
+          "x": 105,
+          "y": 156.5
+        },
+        {
+          "x": 105,
+          "y": 60.5
+        },
+        {
+          "x": 165,
+          "y": 60.5
+        },
+        {
+          "x": 165,
+          "y": 60
+        },
+        {
+          "x": 166,
+          "y": 60
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e7_0",
+      "source": "n6",
+      "sourcePin": "out",
+      "target": "n7",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:6",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 238,
+          "y": 48
+        },
+        {
+          "x": 262,
+          "y": 48
+        },
+        {
+          "x": 262,
+          "y": 48.5
+        },
+        {
+          "x": 319,
+          "y": 48.5
+        },
+        {
+          "x": 319,
+          "y": 48
+        },
+        {
+          "x": 320,
+          "y": 48
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e7_1",
+      "source": "n5",
+      "sourcePin": "out",
+      "target": "n7",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": true,
+      "net": "signal:5",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 238,
+          "y": 144
+        },
+        {
+          "x": 262,
+          "y": 144
+        },
+        {
+          "x": 262,
+          "y": 144.5
+        },
+        {
+          "x": 249,
+          "y": 144.5
+        },
+        {
+          "x": 249,
+          "y": 72.5
+        },
+        {
+          "x": 319,
+          "y": 72.5
+        },
+        {
+          "x": 319,
+          "y": 72
+        },
+        {
+          "x": 320,
+          "y": 72
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e8_0",
+      "source": "n5",
+      "sourcePin": "out",
+      "target": "n8",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": false,
+      "net": "signal:5",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 144
+        },
+        {
+          "x": 262,
+          "y": 144
+        },
+        {
+          "x": 262,
+          "y": 144.5
+        },
+        {
+          "x": 319,
+          "y": 144.5
+        },
+        {
+          "x": 319,
+          "y": 144
+        },
+        {
+          "x": 320,
+          "y": 144
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e8_1",
+      "source": "n4",
+      "sourcePin": "out",
+      "target": "n8",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": false,
+      "net": "signal:4",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264.5
+        },
+        {
+          "x": 259,
+          "y": 264.5
+        },
+        {
+          "x": 259,
+          "y": 168.5
+        },
+        {
+          "x": 319,
+          "y": 168.5
+        },
+        {
+          "x": 319,
+          "y": 168
+        },
+        {
+          "x": 320,
+          "y": 168
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e9_0",
+      "source": "n7",
+      "sourcePin": "out",
+      "target": "n9",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:7",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 392,
+          "y": 60
+        },
+        {
+          "x": 416,
+          "y": 60
+        },
+        {
+          "x": 416,
+          "y": 60.5
+        },
+        {
+          "x": 403,
+          "y": 60.5
+        },
+        {
+          "x": 403,
+          "y": 97
+        },
+        {
+          "x": 473,
+          "y": 97
+        },
+        {
+          "x": 473,
+          "y": 96.5
+        },
+        {
+          "x": 474,
+          "y": 96.5
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e9_1",
+      "source": "n4",
+      "sourcePin": "out",
+      "target": "n9",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": true,
+      "net": "signal:4",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264.5
+        },
+        {
+          "x": 259,
+          "y": 264.5
+        },
+        {
+          "x": 259,
+          "y": 121
+        },
+        {
+          "x": 473,
+          "y": 121
+        },
+        {
+          "x": 473,
+          "y": 120.5
+        },
+        {
+          "x": 474,
+          "y": 120.5
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e10_0",
+      "source": "n9",
+      "sourcePin": "out",
+      "target": "n10",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:9",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 546,
+          "y": 108.5
+        },
+        {
+          "x": 570,
+          "y": 108.5
+        },
+        {
+          "x": 570,
+          "y": 109
+        },
+        {
+          "x": 557,
+          "y": 109
+        },
+        {
+          "x": 557,
+          "y": 132.5
+        },
+        {
+          "x": 627,
+          "y": 132.5
+        },
+        {
+          "x": 627,
+          "y": 132
+        },
+        {
+          "x": 628,
+          "y": 132
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e10_1",
+      "source": "n8",
+      "sourcePin": "out",
+      "target": "n10",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": true,
+      "net": "signal:8",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 392,
+          "y": 156
+        },
+        {
+          "x": 416,
+          "y": 156
+        },
+        {
+          "x": 416,
+          "y": 156.5
+        },
+        {
+          "x": 627,
+          "y": 156.5
+        },
+        {
+          "x": 627,
+          "y": 156
+        },
+        {
+          "x": 628,
+          "y": 156
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e11_0",
+      "source": "n3",
+      "sourcePin": "out",
+      "target": "n11",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": false,
+      "net": "signal:3",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 84,
+          "y": 36
+        },
+        {
+          "x": 108,
+          "y": 36
+        },
+        {
+          "x": 108,
+          "y": 36.5
+        },
+        {
+          "x": 95,
+          "y": 36.5
+        },
+        {
+          "x": 95,
+          "y": 348.5
+        },
+        {
+          "x": 165,
+          "y": 348.5
+        },
+        {
+          "x": 165,
+          "y": 348
+        },
+        {
+          "x": 166,
+          "y": 348
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e11_1",
+      "source": "n2",
+      "sourcePin": "out",
+      "target": "n11",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": false,
+      "net": "signal:2",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 84,
+          "y": 372
+        },
+        {
+          "x": 108,
+          "y": 372
+        },
+        {
+          "x": 108,
+          "y": 372.5
+        },
+        {
+          "x": 165,
+          "y": 372.5
+        },
+        {
+          "x": 165,
+          "y": 372
+        },
+        {
+          "x": 166,
+          "y": 372
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e12_0",
+      "source": "n11",
+      "sourcePin": "out",
+      "target": "n12",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:11",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 360
+        },
+        {
+          "x": 262,
+          "y": 360
+        },
+        {
+          "x": 262,
+          "y": 360.5
+        },
+        {
+          "x": 269,
+          "y": 360.5
+        },
+        {
+          "x": 269,
+          "y": 240.5
+        },
+        {
+          "x": 319,
+          "y": 240.5
+        },
+        {
+          "x": 319,
+          "y": 240
+        },
+        {
+          "x": 320,
+          "y": 240
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "e12_1",
+      "source": "n4",
+      "sourcePin": "out",
+      "target": "n12",
+      "targetPin": "in1",
+      "slot": 1,
+      "inverted": false,
+      "net": "signal:4",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264
+        },
+        {
+          "x": 262,
+          "y": 264.5
+        },
+        {
+          "x": 319,
+          "y": 264.5
+        },
+        {
+          "x": 319,
+          "y": 264
+        },
+        {
+          "x": 320,
+          "y": 264
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "epo0",
+      "source": "n10",
+      "sourcePin": "out",
+      "target": "po0",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:10",
+      "label": "",
+      "showLabel": false,
+      "critical": true,
+      "points": [
+        {
+          "x": 700,
+          "y": 144
+        },
+        {
+          "x": 724,
+          "y": 144
+        },
+        {
+          "x": 724,
+          "y": 144.5
+        },
+        {
+          "x": 781,
+          "y": 144.5
+        },
+        {
+          "x": 781,
+          "y": 144
+        },
+        {
+          "x": 782,
+          "y": 144
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "epo1",
+      "source": "n11",
+      "sourcePin": "out",
+      "target": "po1",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": false,
+      "net": "signal:11",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 238,
+          "y": 360
+        },
+        {
+          "x": 262,
+          "y": 360
+        },
+        {
+          "x": 262,
+          "y": 360.5
+        },
+        {
+          "x": 319,
+          "y": 360.5
+        },
+        {
+          "x": 319,
+          "y": 360
+        },
+        {
+          "x": 320,
+          "y": 360
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    },
+    {
+      "id": "epo2",
+      "source": "n12",
+      "sourcePin": "out",
+      "target": "po2",
+      "targetPin": "in0",
+      "slot": 0,
+      "inverted": true,
+      "net": "signal:12",
+      "label": "",
+      "showLabel": false,
+      "critical": false,
+      "points": [
+        {
+          "x": 392,
+          "y": 252
+        },
+        {
+          "x": 416,
+          "y": 252
+        },
+        {
+          "x": 416,
+          "y": 252.5
+        },
+        {
+          "x": 473,
+          "y": 252.5
+        },
+        {
+          "x": 473,
+          "y": 252
+        },
+        {
+          "x": 474,
+          "y": 252
+        }
+      ],
+      "routeKind": "elk-orthogonal",
+      "routeStatus": "routed"
+    }
+  ],
+  "wireRoutes": [
+    {
+      "id": "wire:n10_00signal_3A10",
+      "netGroupKey": "n10\u0000signal:10",
+      "net": "signal:10",
+      "logicalEdgeIds": [
+        "epo0"
+      ],
+      "sourceNodeId": "n10",
+      "sourceNodeIds": [
+        "n10"
+      ],
+      "targetNodeIds": [
+        "po0"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n10_00signal_3A10:0",
+          "start": {
+            "x": 700,
+            "y": 144
+          },
+          "end": {
+            "x": 724,
+            "y": 144
+          },
+          "kind": "branch",
+          "netGroupKey": "n10\u0000signal:10",
+          "physicalOwner": "n10\u0000signal:10",
+          "logicalEdgeIds": [
+            "epo0"
+          ]
+        },
+        {
+          "id": "wire-segment:n10_00signal_3A10:1",
+          "start": {
+            "x": 781,
+            "y": 144
+          },
+          "end": {
+            "x": 782,
+            "y": 144
+          },
+          "kind": "branch",
+          "netGroupKey": "n10\u0000signal:10",
+          "physicalOwner": "n10\u0000signal:10",
+          "logicalEdgeIds": [
+            "epo0"
+          ]
+        },
+        {
+          "id": "wire-segment:n10_00signal_3A10:2",
+          "start": {
+            "x": 724,
+            "y": 144.5
+          },
+          "end": {
+            "x": 781,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n10\u0000signal:10",
+          "physicalOwner": "n10\u0000signal:10",
+          "logicalEdgeIds": [
+            "epo0"
+          ]
+        },
+        {
+          "id": "wire-segment:n10_00signal_3A10:3",
+          "start": {
+            "x": 724,
+            "y": 144
+          },
+          "end": {
+            "x": 724,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n10\u0000signal:10",
+          "physicalOwner": "n10\u0000signal:10",
+          "logicalEdgeIds": [
+            "epo0"
+          ]
+        },
+        {
+          "id": "wire-segment:n10_00signal_3A10:4",
+          "start": {
+            "x": 781,
+            "y": 144
+          },
+          "end": {
+            "x": 781,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n10\u0000signal:10",
+          "physicalOwner": "n10\u0000signal:10",
+          "logicalEdgeIds": [
+            "epo0"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:10",
+      "labelPoint": {
+        "x": 752.5,
+        "y": 138.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n11_00signal_3A11",
+      "netGroupKey": "n11\u0000signal:11",
+      "net": "signal:11",
+      "logicalEdgeIds": [
+        "e12_0",
+        "epo1"
+      ],
+      "sourceNodeId": "n11",
+      "sourceNodeIds": [
+        "n11"
+      ],
+      "targetNodeIds": [
+        "n12",
+        "po1"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 2,
+      "segments": [
+        {
+          "id": "wire-segment:n11_00signal_3A11:0",
+          "start": {
+            "x": 319,
+            "y": 240
+          },
+          "end": {
+            "x": 320,
+            "y": 240
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:1",
+          "start": {
+            "x": 269,
+            "y": 240.5
+          },
+          "end": {
+            "x": 319,
+            "y": 240.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:2",
+          "start": {
+            "x": 238,
+            "y": 360
+          },
+          "end": {
+            "x": 262,
+            "y": 360
+          },
+          "kind": "trunk",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0",
+            "epo1"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:3",
+          "start": {
+            "x": 319,
+            "y": 360
+          },
+          "end": {
+            "x": 320,
+            "y": 360
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "epo1"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:4",
+          "start": {
+            "x": 262,
+            "y": 360.5
+          },
+          "end": {
+            "x": 269,
+            "y": 360.5
+          },
+          "kind": "trunk",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0",
+            "epo1"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:5",
+          "start": {
+            "x": 269,
+            "y": 360.5
+          },
+          "end": {
+            "x": 319,
+            "y": 360.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "epo1"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:6",
+          "start": {
+            "x": 262,
+            "y": 360
+          },
+          "end": {
+            "x": 262,
+            "y": 360.5
+          },
+          "kind": "trunk",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0",
+            "epo1"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:7",
+          "start": {
+            "x": 269,
+            "y": 240.5
+          },
+          "end": {
+            "x": 269,
+            "y": 360.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:8",
+          "start": {
+            "x": 319,
+            "y": 240
+          },
+          "end": {
+            "x": 319,
+            "y": 240.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "e12_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n11_00signal_3A11:9",
+          "start": {
+            "x": 319,
+            "y": 360
+          },
+          "end": {
+            "x": 319,
+            "y": 360.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n11\u0000signal:11",
+          "physicalOwner": "n11\u0000signal:11",
+          "logicalEdgeIds": [
+            "epo1"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 269,
+          "y": 360.5
+        }
+      ],
+      "label": "signal:11",
+      "labelPoint": {
+        "x": 294,
+        "y": 234.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n12_00signal_3A12",
+      "netGroupKey": "n12\u0000signal:12",
+      "net": "signal:12",
+      "logicalEdgeIds": [
+        "epo2"
+      ],
+      "sourceNodeId": "n12",
+      "sourceNodeIds": [
+        "n12"
+      ],
+      "targetNodeIds": [
+        "po2"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n12_00signal_3A12:0",
+          "start": {
+            "x": 392,
+            "y": 252
+          },
+          "end": {
+            "x": 416,
+            "y": 252
+          },
+          "kind": "branch",
+          "netGroupKey": "n12\u0000signal:12",
+          "physicalOwner": "n12\u0000signal:12",
+          "logicalEdgeIds": [
+            "epo2"
+          ]
+        },
+        {
+          "id": "wire-segment:n12_00signal_3A12:1",
+          "start": {
+            "x": 473,
+            "y": 252
+          },
+          "end": {
+            "x": 474,
+            "y": 252
+          },
+          "kind": "branch",
+          "netGroupKey": "n12\u0000signal:12",
+          "physicalOwner": "n12\u0000signal:12",
+          "logicalEdgeIds": [
+            "epo2"
+          ]
+        },
+        {
+          "id": "wire-segment:n12_00signal_3A12:2",
+          "start": {
+            "x": 416,
+            "y": 252.5
+          },
+          "end": {
+            "x": 473,
+            "y": 252.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n12\u0000signal:12",
+          "physicalOwner": "n12\u0000signal:12",
+          "logicalEdgeIds": [
+            "epo2"
+          ]
+        },
+        {
+          "id": "wire-segment:n12_00signal_3A12:3",
+          "start": {
+            "x": 416,
+            "y": 252
+          },
+          "end": {
+            "x": 416,
+            "y": 252.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n12\u0000signal:12",
+          "physicalOwner": "n12\u0000signal:12",
+          "logicalEdgeIds": [
+            "epo2"
+          ]
+        },
+        {
+          "id": "wire-segment:n12_00signal_3A12:4",
+          "start": {
+            "x": 473,
+            "y": 252
+          },
+          "end": {
+            "x": 473,
+            "y": 252.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n12\u0000signal:12",
+          "physicalOwner": "n12\u0000signal:12",
+          "logicalEdgeIds": [
+            "epo2"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:12",
+      "labelPoint": {
+        "x": 444.5,
+        "y": 246.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n1_00signal_3A1",
+      "netGroupKey": "n1\u0000signal:1",
+      "net": "signal:1",
+      "logicalEdgeIds": [
+        "e5_1",
+        "e6_1"
+      ],
+      "sourceNodeId": "n1",
+      "sourceNodeIds": [
+        "n1"
+      ],
+      "targetNodeIds": [
+        "n5",
+        "n6"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 2,
+      "segments": [
+        {
+          "id": "wire-segment:n1_00signal_3A1:0",
+          "start": {
+            "x": 165,
+            "y": 60
+          },
+          "end": {
+            "x": 166,
+            "y": 60
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e6_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:1",
+          "start": {
+            "x": 105,
+            "y": 60.5
+          },
+          "end": {
+            "x": 165,
+            "y": 60.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e6_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:2",
+          "start": {
+            "x": 84,
+            "y": 156
+          },
+          "end": {
+            "x": 105,
+            "y": 156
+          },
+          "kind": "trunk",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1",
+            "e6_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:3",
+          "start": {
+            "x": 165,
+            "y": 156
+          },
+          "end": {
+            "x": 166,
+            "y": 156
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:4",
+          "start": {
+            "x": 105,
+            "y": 156.5
+          },
+          "end": {
+            "x": 108,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:5",
+          "start": {
+            "x": 108,
+            "y": 156.5
+          },
+          "end": {
+            "x": 165,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:6",
+          "start": {
+            "x": 105,
+            "y": 60.5
+          },
+          "end": {
+            "x": 105,
+            "y": 156
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e6_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:7",
+          "start": {
+            "x": 105,
+            "y": 156
+          },
+          "end": {
+            "x": 105,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:8",
+          "start": {
+            "x": 165,
+            "y": 60
+          },
+          "end": {
+            "x": 165,
+            "y": 60.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e6_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n1_00signal_3A1:9",
+          "start": {
+            "x": 165,
+            "y": 156
+          },
+          "end": {
+            "x": 165,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n1\u0000signal:1",
+          "physicalOwner": "n1\u0000signal:1",
+          "logicalEdgeIds": [
+            "e5_1"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 105,
+          "y": 156
+        }
+      ],
+      "label": "signal:1",
+      "labelPoint": {
+        "x": 135,
+        "y": 54.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n2_00signal_3A2",
+      "netGroupKey": "n2\u0000signal:2",
+      "net": "signal:2",
+      "logicalEdgeIds": [
+        "e11_1",
+        "e5_0"
+      ],
+      "sourceNodeId": "n2",
+      "sourceNodeIds": [
+        "n2"
+      ],
+      "targetNodeIds": [
+        "n11",
+        "n5"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 2,
+      "segments": [
+        {
+          "id": "wire-segment:n2_00signal_3A2:0",
+          "start": {
+            "x": 165,
+            "y": 132
+          },
+          "end": {
+            "x": 166,
+            "y": 132
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:1",
+          "start": {
+            "x": 115,
+            "y": 132.5
+          },
+          "end": {
+            "x": 165,
+            "y": 132.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:2",
+          "start": {
+            "x": 84,
+            "y": 372
+          },
+          "end": {
+            "x": 108,
+            "y": 372
+          },
+          "kind": "trunk",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1",
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:3",
+          "start": {
+            "x": 165,
+            "y": 372
+          },
+          "end": {
+            "x": 166,
+            "y": 372
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:4",
+          "start": {
+            "x": 108,
+            "y": 372.5
+          },
+          "end": {
+            "x": 115,
+            "y": 372.5
+          },
+          "kind": "trunk",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1",
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:5",
+          "start": {
+            "x": 115,
+            "y": 372.5
+          },
+          "end": {
+            "x": 165,
+            "y": 372.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:6",
+          "start": {
+            "x": 108,
+            "y": 372
+          },
+          "end": {
+            "x": 108,
+            "y": 372.5
+          },
+          "kind": "trunk",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1",
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:7",
+          "start": {
+            "x": 115,
+            "y": 132.5
+          },
+          "end": {
+            "x": 115,
+            "y": 372.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:8",
+          "start": {
+            "x": 165,
+            "y": 132
+          },
+          "end": {
+            "x": 165,
+            "y": 132.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e5_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n2_00signal_3A2:9",
+          "start": {
+            "x": 165,
+            "y": 372
+          },
+          "end": {
+            "x": 165,
+            "y": 372.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n2\u0000signal:2",
+          "physicalOwner": "n2\u0000signal:2",
+          "logicalEdgeIds": [
+            "e11_1"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 115,
+          "y": 372.5
+        }
+      ],
+      "label": "signal:2",
+      "labelPoint": {
+        "x": 140,
+        "y": 126.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n3_00signal_3A3",
+      "netGroupKey": "n3\u0000signal:3",
+      "net": "signal:3",
+      "logicalEdgeIds": [
+        "e11_0",
+        "e6_0"
+      ],
+      "sourceNodeId": "n3",
+      "sourceNodeIds": [
+        "n3"
+      ],
+      "targetNodeIds": [
+        "n11",
+        "n6"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 2,
+      "segments": [
+        {
+          "id": "wire-segment:n3_00signal_3A3:0",
+          "start": {
+            "x": 84,
+            "y": 36
+          },
+          "end": {
+            "x": 108,
+            "y": 36
+          },
+          "kind": "trunk",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0",
+            "e6_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:1",
+          "start": {
+            "x": 165,
+            "y": 36
+          },
+          "end": {
+            "x": 166,
+            "y": 36
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e6_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:2",
+          "start": {
+            "x": 95,
+            "y": 36.5
+          },
+          "end": {
+            "x": 108,
+            "y": 36.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:3",
+          "start": {
+            "x": 108,
+            "y": 36.5
+          },
+          "end": {
+            "x": 165,
+            "y": 36.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e6_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:4",
+          "start": {
+            "x": 165,
+            "y": 348
+          },
+          "end": {
+            "x": 166,
+            "y": 348
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:5",
+          "start": {
+            "x": 95,
+            "y": 348.5
+          },
+          "end": {
+            "x": 165,
+            "y": 348.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:6",
+          "start": {
+            "x": 95,
+            "y": 36.5
+          },
+          "end": {
+            "x": 95,
+            "y": 348.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:7",
+          "start": {
+            "x": 108,
+            "y": 36
+          },
+          "end": {
+            "x": 108,
+            "y": 36.5
+          },
+          "kind": "trunk",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0",
+            "e6_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:8",
+          "start": {
+            "x": 165,
+            "y": 36
+          },
+          "end": {
+            "x": 165,
+            "y": 36.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e6_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n3_00signal_3A3:9",
+          "start": {
+            "x": 165,
+            "y": 348
+          },
+          "end": {
+            "x": 165,
+            "y": 348.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n3\u0000signal:3",
+          "physicalOwner": "n3\u0000signal:3",
+          "logicalEdgeIds": [
+            "e11_0"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 108,
+          "y": 36.5
+        }
+      ],
+      "label": "signal:3",
+      "labelPoint": {
+        "x": 130,
+        "y": 342.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n4_00signal_3A4",
+      "netGroupKey": "n4\u0000signal:4",
+      "net": "signal:4",
+      "logicalEdgeIds": [
+        "e12_1",
+        "e8_1",
+        "e9_1"
+      ],
+      "sourceNodeId": "n4",
+      "sourceNodeIds": [
+        "n4"
+      ],
+      "targetNodeIds": [
+        "n12",
+        "n8",
+        "n9"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 3,
+      "segments": [
+        {
+          "id": "wire-segment:n4_00signal_3A4:0",
+          "start": {
+            "x": 473,
+            "y": 120.5
+          },
+          "end": {
+            "x": 474,
+            "y": 120.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e9_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:1",
+          "start": {
+            "x": 259,
+            "y": 121
+          },
+          "end": {
+            "x": 473,
+            "y": 121
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e9_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:2",
+          "start": {
+            "x": 319,
+            "y": 168
+          },
+          "end": {
+            "x": 320,
+            "y": 168
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e8_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:3",
+          "start": {
+            "x": 259,
+            "y": 168.5
+          },
+          "end": {
+            "x": 319,
+            "y": 168.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e8_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:4",
+          "start": {
+            "x": 238,
+            "y": 264
+          },
+          "end": {
+            "x": 259,
+            "y": 264
+          },
+          "kind": "trunk",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1",
+            "e8_1",
+            "e9_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:5",
+          "start": {
+            "x": 319,
+            "y": 264
+          },
+          "end": {
+            "x": 320,
+            "y": 264
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:6",
+          "start": {
+            "x": 259,
+            "y": 264.5
+          },
+          "end": {
+            "x": 262,
+            "y": 264.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:7",
+          "start": {
+            "x": 262,
+            "y": 264.5
+          },
+          "end": {
+            "x": 319,
+            "y": 264.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:8",
+          "start": {
+            "x": 259,
+            "y": 121
+          },
+          "end": {
+            "x": 259,
+            "y": 168.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e9_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:9",
+          "start": {
+            "x": 259,
+            "y": 168.5
+          },
+          "end": {
+            "x": 259,
+            "y": 264
+          },
+          "kind": "trunk",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e8_1",
+            "e9_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:10",
+          "start": {
+            "x": 259,
+            "y": 264
+          },
+          "end": {
+            "x": 259,
+            "y": 264.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:11",
+          "start": {
+            "x": 319,
+            "y": 168
+          },
+          "end": {
+            "x": 319,
+            "y": 168.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e8_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:12",
+          "start": {
+            "x": 319,
+            "y": 264
+          },
+          "end": {
+            "x": 319,
+            "y": 264.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e12_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n4_00signal_3A4:13",
+          "start": {
+            "x": 473,
+            "y": 120.5
+          },
+          "end": {
+            "x": 473,
+            "y": 121
+          },
+          "kind": "branch",
+          "netGroupKey": "n4\u0000signal:4",
+          "physicalOwner": "n4\u0000signal:4",
+          "logicalEdgeIds": [
+            "e9_1"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 259,
+          "y": 168.5
+        },
+        {
+          "x": 259,
+          "y": 264
+        }
+      ],
+      "label": "signal:4",
+      "labelPoint": {
+        "x": 366,
+        "y": 115
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n5_00signal_3A5",
+      "netGroupKey": "n5\u0000signal:5",
+      "net": "signal:5",
+      "logicalEdgeIds": [
+        "e7_1",
+        "e8_0"
+      ],
+      "sourceNodeId": "n5",
+      "sourceNodeIds": [
+        "n5"
+      ],
+      "targetNodeIds": [
+        "n7",
+        "n8"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 2,
+      "segments": [
+        {
+          "id": "wire-segment:n5_00signal_3A5:0",
+          "start": {
+            "x": 319,
+            "y": 72
+          },
+          "end": {
+            "x": 320,
+            "y": 72
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e7_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:1",
+          "start": {
+            "x": 249,
+            "y": 72.5
+          },
+          "end": {
+            "x": 319,
+            "y": 72.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e7_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:2",
+          "start": {
+            "x": 238,
+            "y": 144
+          },
+          "end": {
+            "x": 249,
+            "y": 144
+          },
+          "kind": "trunk",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e7_1",
+            "e8_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:3",
+          "start": {
+            "x": 319,
+            "y": 144
+          },
+          "end": {
+            "x": 320,
+            "y": 144
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e8_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:4",
+          "start": {
+            "x": 249,
+            "y": 144.5
+          },
+          "end": {
+            "x": 262,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e8_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:5",
+          "start": {
+            "x": 262,
+            "y": 144.5
+          },
+          "end": {
+            "x": 319,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e8_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:6",
+          "start": {
+            "x": 249,
+            "y": 72.5
+          },
+          "end": {
+            "x": 249,
+            "y": 144
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e7_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:7",
+          "start": {
+            "x": 249,
+            "y": 144
+          },
+          "end": {
+            "x": 249,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e8_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:8",
+          "start": {
+            "x": 319,
+            "y": 72
+          },
+          "end": {
+            "x": 319,
+            "y": 72.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e7_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n5_00signal_3A5:9",
+          "start": {
+            "x": 319,
+            "y": 144
+          },
+          "end": {
+            "x": 319,
+            "y": 144.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n5\u0000signal:5",
+          "physicalOwner": "n5\u0000signal:5",
+          "logicalEdgeIds": [
+            "e8_0"
+          ]
+        }
+      ],
+      "junctions": [
+        {
+          "x": 249,
+          "y": 144
+        }
+      ],
+      "label": "signal:5",
+      "labelPoint": {
+        "x": 284,
+        "y": 66.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n6_00signal_3A6",
+      "netGroupKey": "n6\u0000signal:6",
+      "net": "signal:6",
+      "logicalEdgeIds": [
+        "e7_0"
+      ],
+      "sourceNodeId": "n6",
+      "sourceNodeIds": [
+        "n6"
+      ],
+      "targetNodeIds": [
+        "n7"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n6_00signal_3A6:0",
+          "start": {
+            "x": 238,
+            "y": 48
+          },
+          "end": {
+            "x": 262,
+            "y": 48
+          },
+          "kind": "branch",
+          "netGroupKey": "n6\u0000signal:6",
+          "physicalOwner": "n6\u0000signal:6",
+          "logicalEdgeIds": [
+            "e7_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n6_00signal_3A6:1",
+          "start": {
+            "x": 319,
+            "y": 48
+          },
+          "end": {
+            "x": 320,
+            "y": 48
+          },
+          "kind": "branch",
+          "netGroupKey": "n6\u0000signal:6",
+          "physicalOwner": "n6\u0000signal:6",
+          "logicalEdgeIds": [
+            "e7_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n6_00signal_3A6:2",
+          "start": {
+            "x": 262,
+            "y": 48.5
+          },
+          "end": {
+            "x": 319,
+            "y": 48.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n6\u0000signal:6",
+          "physicalOwner": "n6\u0000signal:6",
+          "logicalEdgeIds": [
+            "e7_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n6_00signal_3A6:3",
+          "start": {
+            "x": 262,
+            "y": 48
+          },
+          "end": {
+            "x": 262,
+            "y": 48.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n6\u0000signal:6",
+          "physicalOwner": "n6\u0000signal:6",
+          "logicalEdgeIds": [
+            "e7_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n6_00signal_3A6:4",
+          "start": {
+            "x": 319,
+            "y": 48
+          },
+          "end": {
+            "x": 319,
+            "y": 48.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n6\u0000signal:6",
+          "physicalOwner": "n6\u0000signal:6",
+          "logicalEdgeIds": [
+            "e7_0"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:6",
+      "labelPoint": {
+        "x": 290.5,
+        "y": 42.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n7_00signal_3A7",
+      "netGroupKey": "n7\u0000signal:7",
+      "net": "signal:7",
+      "logicalEdgeIds": [
+        "e9_0"
+      ],
+      "sourceNodeId": "n7",
+      "sourceNodeIds": [
+        "n7"
+      ],
+      "targetNodeIds": [
+        "n9"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n7_00signal_3A7:0",
+          "start": {
+            "x": 392,
+            "y": 60
+          },
+          "end": {
+            "x": 416,
+            "y": 60
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:1",
+          "start": {
+            "x": 403,
+            "y": 60.5
+          },
+          "end": {
+            "x": 416,
+            "y": 60.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:2",
+          "start": {
+            "x": 473,
+            "y": 96.5
+          },
+          "end": {
+            "x": 474,
+            "y": 96.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:3",
+          "start": {
+            "x": 403,
+            "y": 97
+          },
+          "end": {
+            "x": 473,
+            "y": 97
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:4",
+          "start": {
+            "x": 403,
+            "y": 60.5
+          },
+          "end": {
+            "x": 403,
+            "y": 97
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:5",
+          "start": {
+            "x": 416,
+            "y": 60
+          },
+          "end": {
+            "x": 416,
+            "y": 60.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n7_00signal_3A7:6",
+          "start": {
+            "x": 473,
+            "y": 96.5
+          },
+          "end": {
+            "x": 473,
+            "y": 97
+          },
+          "kind": "branch",
+          "netGroupKey": "n7\u0000signal:7",
+          "physicalOwner": "n7\u0000signal:7",
+          "logicalEdgeIds": [
+            "e9_0"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:7",
+      "labelPoint": {
+        "x": 438,
+        "y": 91
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n8_00signal_3A8",
+      "netGroupKey": "n8\u0000signal:8",
+      "net": "signal:8",
+      "logicalEdgeIds": [
+        "e10_1"
+      ],
+      "sourceNodeId": "n8",
+      "sourceNodeIds": [
+        "n8"
+      ],
+      "targetNodeIds": [
+        "n10"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n8_00signal_3A8:0",
+          "start": {
+            "x": 392,
+            "y": 156
+          },
+          "end": {
+            "x": 416,
+            "y": 156
+          },
+          "kind": "branch",
+          "netGroupKey": "n8\u0000signal:8",
+          "physicalOwner": "n8\u0000signal:8",
+          "logicalEdgeIds": [
+            "e10_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n8_00signal_3A8:1",
+          "start": {
+            "x": 627,
+            "y": 156
+          },
+          "end": {
+            "x": 628,
+            "y": 156
+          },
+          "kind": "branch",
+          "netGroupKey": "n8\u0000signal:8",
+          "physicalOwner": "n8\u0000signal:8",
+          "logicalEdgeIds": [
+            "e10_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n8_00signal_3A8:2",
+          "start": {
+            "x": 416,
+            "y": 156.5
+          },
+          "end": {
+            "x": 627,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n8\u0000signal:8",
+          "physicalOwner": "n8\u0000signal:8",
+          "logicalEdgeIds": [
+            "e10_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n8_00signal_3A8:3",
+          "start": {
+            "x": 416,
+            "y": 156
+          },
+          "end": {
+            "x": 416,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n8\u0000signal:8",
+          "physicalOwner": "n8\u0000signal:8",
+          "logicalEdgeIds": [
+            "e10_1"
+          ]
+        },
+        {
+          "id": "wire-segment:n8_00signal_3A8:4",
+          "start": {
+            "x": 627,
+            "y": 156
+          },
+          "end": {
+            "x": 627,
+            "y": 156.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n8\u0000signal:8",
+          "physicalOwner": "n8\u0000signal:8",
+          "logicalEdgeIds": [
+            "e10_1"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:8",
+      "labelPoint": {
+        "x": 521.5,
+        "y": 150.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    },
+    {
+      "id": "wire:n9_00signal_3A9",
+      "netGroupKey": "n9\u0000signal:9",
+      "net": "signal:9",
+      "logicalEdgeIds": [
+        "e10_0"
+      ],
+      "sourceNodeId": "n9",
+      "sourceNodeIds": [
+        "n9"
+      ],
+      "targetNodeIds": [
+        "n10"
+      ],
+      "topology": "tree",
+      "treeFallback": false,
+      "componentCount": 1,
+      "cycleCount": 0,
+      "reachableTargetCount": 1,
+      "segments": [
+        {
+          "id": "wire-segment:n9_00signal_3A9:0",
+          "start": {
+            "x": 546,
+            "y": 108.5
+          },
+          "end": {
+            "x": 570,
+            "y": 108.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:1",
+          "start": {
+            "x": 557,
+            "y": 109
+          },
+          "end": {
+            "x": 570,
+            "y": 109
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:2",
+          "start": {
+            "x": 627,
+            "y": 132
+          },
+          "end": {
+            "x": 628,
+            "y": 132
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:3",
+          "start": {
+            "x": 557,
+            "y": 132.5
+          },
+          "end": {
+            "x": 627,
+            "y": 132.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:4",
+          "start": {
+            "x": 557,
+            "y": 109
+          },
+          "end": {
+            "x": 557,
+            "y": 132.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:5",
+          "start": {
+            "x": 570,
+            "y": 108.5
+          },
+          "end": {
+            "x": 570,
+            "y": 109
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        },
+        {
+          "id": "wire-segment:n9_00signal_3A9:6",
+          "start": {
+            "x": 627,
+            "y": 132
+          },
+          "end": {
+            "x": 627,
+            "y": 132.5
+          },
+          "kind": "branch",
+          "netGroupKey": "n9\u0000signal:9",
+          "physicalOwner": "n9\u0000signal:9",
+          "logicalEdgeIds": [
+            "e10_0"
+          ]
+        }
+      ],
+      "junctions": [],
+      "label": "signal:9",
+      "labelPoint": {
+        "x": 592,
+        "y": 126.5
+      },
+      "labelAnchor": "middle",
+      "showLabel": false
+    }
+  ],
+  "width": 866,
+  "height": 408,
+  "layoutProvider": "elk-layered",
+  "layoutStatus": "routed",
+  "layoutDiagnostics": [],
+  "layoutDiagnosticsTruncated": false,
+  "validationMetrics": {
+    "total": 0,
+    "byCode": {}
+  },
+  "providerDiagnostics": []
+}

@@ -1,0 +1,35 @@
+{
+  "graphviz": "dot - graphviz version 2.43.0 (0)",
+  "source_aag_sha256": "99e128ede1db5ebe0785cbdd3138835ef220334e9bc3e6a39679708e77085271",
+  "source_dot_sha256": "c6f40a295231ebee376c1b9c37b1aeb67de9a2eac5680cfdda84b9ce27f47557",
+  "geometry_identical": true,
+  "labels_identical": true,
+  "inversion_dash_patterns_identical": true,
+  "node_count": 16,
+  "edge_count": 19,
+  "inverted_edge_count": 10,
+  "critical_nodes": [
+    "1",
+    "10",
+    "2",
+    "3",
+    "5",
+    "6",
+    "7",
+    "9",
+    "po0"
+  ],
+  "critical_edge_count": 9,
+  "highlighted_fanout": {
+    "1": 2,
+    "2": 2,
+    "3": 2,
+    "4": 3,
+    "5": 2,
+    "11": 2
+  },
+  "critical_semantics": "All longest PI-to-PO paths with unit AND delay; not timing STA",
+  "fanout_semantics": "Signal reference count including PO references",
+  "overlay": "Post-layout SVG attributes only; no node repositioning or edge rerouting",
+  "scope": "Fixed combinational shared_cone fixture; no production UI integration"
+}

@@ -1,0 +1,229 @@
+{
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "pi",
+      "level": 0,
+      "label": "a"
+    },
+    {
+      "id": "n2",
+      "kind": "pi",
+      "level": 0,
+      "label": "b"
+    },
+    {
+      "id": "n3",
+      "kind": "pi",
+      "level": 0,
+      "label": "c"
+    },
+    {
+      "id": "n4",
+      "kind": "pi",
+      "level": 0,
+      "label": "d"
+    },
+    {
+      "id": "n5",
+      "kind": "and",
+      "level": 1,
+      "label": "5"
+    },
+    {
+      "id": "n6",
+      "kind": "and",
+      "level": 1,
+      "label": "6"
+    },
+    {
+      "id": "n7",
+      "kind": "and",
+      "level": 1,
+      "label": "7"
+    },
+    {
+      "id": "n8",
+      "kind": "and",
+      "level": 2,
+      "label": "8"
+    },
+    {
+      "id": "n9",
+      "kind": "and",
+      "level": 2,
+      "label": "9"
+    },
+    {
+      "id": "n10",
+      "kind": "and",
+      "level": 2,
+      "label": "10"
+    },
+    {
+      "id": "n11",
+      "kind": "and",
+      "level": 3,
+      "label": "11"
+    },
+    {
+      "id": "n12",
+      "kind": "and",
+      "level": 4,
+      "label": "12"
+    },
+    {
+      "id": "po0",
+      "kind": "po",
+      "label": "masked",
+      "level": 2
+    },
+    {
+      "id": "po1",
+      "kind": "po",
+      "label": "shared",
+      "level": 1
+    },
+    {
+      "id": "po2",
+      "kind": "po",
+      "label": "y",
+      "level": 4
+    }
+  ],
+  "edges": [
+    {
+      "id": "n5:0",
+      "source": "n1",
+      "target": "n5",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "n5:1",
+      "source": "n3",
+      "target": "n5",
+      "slot": 1,
+      "inverted": false
+    },
+    {
+      "id": "n6:0",
+      "source": "n2",
+      "target": "n6",
+      "slot": 0,
+      "inverted": false
+    },
+    {
+      "id": "n6:1",
+      "source": "n3",
+      "target": "n6",
+      "slot": 1,
+      "inverted": false
+    },
+    {
+      "id": "n7:0",
+      "source": "n1",
+      "target": "n7",
+      "slot": 0,
+      "inverted": false
+    },
+    {
+      "id": "n7:1",
+      "source": "n2",
+      "target": "n7",
+      "slot": 1,
+      "inverted": false
+    },
+    {
+      "id": "n8:0",
+      "source": "n7",
+      "target": "n8",
+      "slot": 0,
+      "inverted": false
+    },
+    {
+      "id": "n8:1",
+      "source": "n4",
+      "target": "n8",
+      "slot": 1,
+      "inverted": false
+    },
+    {
+      "id": "n9:0",
+      "source": "n6",
+      "target": "n9",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "n9:1",
+      "source": "n4",
+      "target": "n9",
+      "slot": 1,
+      "inverted": false
+    },
+    {
+      "id": "n10:0",
+      "source": "n5",
+      "target": "n10",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "n10:1",
+      "source": "n7",
+      "target": "n10",
+      "slot": 1,
+      "inverted": true
+    },
+    {
+      "id": "n11:0",
+      "source": "n10",
+      "target": "n11",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "n11:1",
+      "source": "n4",
+      "target": "n11",
+      "slot": 1,
+      "inverted": true
+    },
+    {
+      "id": "n12:0",
+      "source": "n8",
+      "target": "n12",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "n12:1",
+      "source": "n11",
+      "target": "n12",
+      "slot": 1,
+      "inverted": true
+    },
+    {
+      "id": "po0:0",
+      "source": "n9",
+      "target": "po0",
+      "slot": 0,
+      "inverted": true
+    },
+    {
+      "id": "po1:0",
+      "source": "n6",
+      "target": "po1",
+      "slot": 0,
+      "inverted": false
+    },
+    {
+      "id": "po2:0",
+      "source": "n12",
+      "target": "po2",
+      "slot": 0,
+      "inverted": true
+    }
+  ]
+}

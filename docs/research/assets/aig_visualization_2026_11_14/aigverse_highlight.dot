@@ -1,0 +1,46 @@
+digraph {
+rankdir=BT;
+graph [bgcolor="white",label="aigverse: critical-path nodes + fanout",labelloc=t,fontsize=18];
+node [fontname="DejaVu Sans",fontsize=11,style=filled];
+0 [label="0\nfo=0",shape=box,fillcolor="#e8edf4",width=0.60];
+1 [label="1\nfo=2",shape=triangle,fillcolor="#f4b0a8",width=0.96];
+2 [label="2\nfo=2",shape=triangle,fillcolor="#f4b0a8",width=0.96];
+3 [label="3\nfo=2",shape=triangle,fillcolor="#f4b0a8",width=0.96];
+4 [label="4\nfo=3",shape=triangle,fillcolor="#e8edf4",width=1.14];
+5 [label="5\nfo=2",shape=ellipse,fillcolor="#f4b0a8",width=0.96];
+1 -> 5 [style=solid];
+2 -> 5 [style=solid];
+6 [label="6\nfo=1",shape=ellipse,fillcolor="#f4b0a8",width=0.78];
+1 -> 6 [style=dashed];
+3 -> 6 [style=solid];
+7 [label="7\nfo=1",shape=ellipse,fillcolor="#f4b0a8",width=0.78];
+5 -> 7 [style=dashed];
+6 -> 7 [style=dashed];
+8 [label="8\nfo=1",shape=ellipse,fillcolor="#e8edf4",width=0.78];
+4 -> 8 [style=solid];
+5 -> 8 [style=solid];
+9 [label="9\nfo=1",shape=ellipse,fillcolor="#f4b0a8",width=0.78];
+4 -> 9 [style=dashed];
+7 -> 9 [style=dashed];
+10 [label="10\nfo=1",shape=ellipse,fillcolor="#f4b0a8",width=0.78];
+8 -> 10 [style=dashed];
+9 -> 10 [style=dashed];
+11 [label="11\nfo=2",shape=ellipse,fillcolor="#e8edf4",width=0.96];
+2 -> 11 [style=solid];
+3 -> 11 [style=solid];
+12 [label="12\nfo=1",shape=ellipse,fillcolor="#e8edf4",width=0.78];
+4 -> 12 [style=solid];
+11 -> 12 [style=dashed];
+{rank=same;0;1;2;3;4;}
+{rank=same;5;6;11;}
+{rank=same;7;8;12;}
+{rank=same;9;}
+{rank=same;10;}
+po0 [label="y",shape=invtriangle,fillcolor="#d9e8f7"];
+10 -> po0 [style=dashed];
+po1 [label="shared",shape=invtriangle,fillcolor="#d9e8f7"];
+11 -> po1 [style=solid];
+po2 [label="masked",shape=invtriangle,fillcolor="#d9e8f7"];
+12 -> po2 [style=dashed];
+{rank=same;po0;po1;po2;}
+}
