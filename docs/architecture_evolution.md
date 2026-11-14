@@ -1,6 +1,6 @@
 # 面向 Netlist 与 AIG 的可扩展工作台架构
 
-日期：2026-09-09；2026-09-11 全量审计。设计基线：`8d53bfc`。状态：阶段 7 架构基线已实现。
+日期：2026-09-09；2026-09-11 全量审计；2026-11-14 校准当前迁移状态。设计基线：`8d53bfc`。状态：阶段 7 架构基线及 2026-11 收敛计划已完成；明确保留旧存档、raw API 与 Simple 冻结边界。
 
 本文定义后续架构与迁移约束；当前实现说明见 [ARCHITECTURE.md](ARCHITECTURE.md)，实施记录与验证证据见 [阶段 7](STAGE_7_PLAN.md)。文中的核心目录、接口和契约已经落地；示意类型不保证与 JavaScript 导出逐字一致。
 
@@ -14,21 +14,19 @@ Netlist schematic 与未来 AIG 是两个领域功能。它们分别拥有输入
 
 阶段 7 已建立并验证这些边界。生产级 AIG 导入和浏览属于后续功能交付；本阶段使用最小内存 AIG 样例验证扩展性，避免为未明确的输入格式实现完整产品。
 
-当前产品仍有三类明确的过渡层：`main.js` 负责浏览器组装及少量旧状态 hydration，Single/Compare view-session bridge 向旧 DOM/存档字段投影，`workspaceRequest.js` 仍是产品中的异步失效保护。`JobCoordinator`、`ArtifactStore` 和 `ComparisonCoordinator` 已有契约与测试，但尚未替换所有产品编排；旧 Netlist graph/layout 实现也仍由领域 facade 适配。它们不是第二套业务规则，新功能不得绕过 commands、pipeline 或 Scene 边界。移除条件见阶段 7 审计记录。
+当前产品通过 `application/workspace_execution.js` 接入 `JobCoordinator` 与 `ArtifactStore`，`workspaceRequest.js` 已退役；DOM 挂载仍由独立 render generation 守卫保护。ViewSession 的导航、模式/深度、viewport、策略与 overrides 全部采用命令/显式导入写入及只读投影；普通命令和计算不回读旧字段。历史提交与 Session 保存已分离，导航命令 effects 由统一执行器消费，用户操作采用显式事务与受代际保护的异步延续。AnchorLayered/ELK 生产入口消费完整 MeasuredGraph；Simple 与 raw schematic API 保留明确的冻结/兼容边界。`main.js` 负责组装，现有 DOM 控制器仍通过窄注入动作协作。最新实施与证据见 [2026-11 架构重构计划](plans/architecture_refactoring_2026_11.md)。
 
-## 2. 当前拖累来自哪里
+## 2. 当前兼容边界
 
-| 当前证据 | 影响 | 目标边界 |
-| --- | --- | --- |
-| `src/app/main.js` 仍编排输入、搜索目标、roots、Compare、布局、手势和存档 | 每次功能变化需要理解全局状态与多个回调链 | application 用例 + 独立 UI 控制器，入口只组装依赖 |
-| `appState.js` 将 Single 和左右 Compare 状态平行维护 | 新状态需要复制 reset/save/restore/sync 逻辑 | 每个画布一个 ViewSession；Compare 只协调两份 session |
-| `workspaceRequest.js` 捕获整份应用的当前 module 和 Compare 字段 | 目前可保护旧结果，但多文档、多画布时取消范围不清楚 | 按 document/session/job 分域的 revision 与提交令牌 |
-| `nodeGeometry.js` 读取 `node.ref.pins` 并调用 inference | 布局无法直接处理没有 cell/pin 的另一种图 | 领域展示适配器给出完整尺寸、端口与连接点 |
-| `svgRenderer.js` 引用 gate inference、nodeGeometry，内部判断 gate kind | 新领域渲染会牵动已有门级语义 | 领域符号投影 + 公共 Scene renderer |
-| `layoutGolden.js` 导入 `app/focusedViewPolicy.js` | 底层数据格式反向依赖应用状态 | Golden codec 在存档边界组合视图状态和几何快照 |
-| `moduleWorkspace.js` / `compareWorkspace.js` 已共享 graph/layout helpers，但编排参数仍重复 | 共享算法不足以保证相同状态操作的行为一致 | 一条 View pipeline，Compare 复用两次 |
+| 保留边界 | 用途与约束 |
+| --- | --- |
+| legacy DOM controllers 与窄 peer actions | 保持既有产品交互；新计算用例归 application，不能扩展全局状态写入面 |
+| History/Session/Golden 和模块快照的旧字段 | 仅在显式导入时解码；导航 ID 可以延迟解析，不能回放旧 viewport/策略/overrides |
+| 手势、Adjust、timing 的专用协调 | 高频预览不保存、不布局；提交时消费对应效果，历史由最外层操作事务负责 |
+| `nodeGeometry.js` 与 raw provider 兼容适配 | 保留既有 schematic 几何和离线调用；新领域提供完整测量结果直达中性核心，不依赖旧类型语义；Simple 原路径冻结 |
+| 产品工作区缓存与领域 facade 的不同外层编排 | 已共享 `queryNetlistView`；缓存由工作区拥有，ArtifactStore 只保管已提交产物 |
 
-已有 parser、IR、routing contract、空间索引、viewport、pointerSession、progressive renderer 等模块有实际价值，按职责迁入或包在适配层后逐步替换。文件拆小本身不构成架构完成。
+这些是有明确用途的接口与兼容约束，不表示重新引入旧状态回读或隐式历史提交。生产级 AIGER、Simple 解冻、删除旧存档格式等后续产品变化不属于本次架构收敛。
 
 ## 3. 模块与依赖方向
 

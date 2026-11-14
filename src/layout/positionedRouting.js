@@ -20,6 +20,7 @@ import {
 import { updateWireRoutes } from "./wireRoutes.js";
 import { getNetGroupKey } from "./layoutTopology.js";
 import { finalizeLayoutGraph } from "./layoutValidator.js";
+import { resizeMeasuredPorts } from "./measured_geometry.js";
 
 export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodePositions = normalizeNodeOverrides(options.nodePositions);
@@ -150,7 +151,7 @@ function applyNodeOverrides(nodes, nodePositions, nodeSizes, cellPinPitch) {
       width: size?.width ?? node.width,
       height: size?.height ?? node.height
     };
-    next.ports = buildNodePorts(next, next, cellPinPitch);
+    next.ports = next.portLayout ? resizeMeasuredPorts(next) : buildNodePorts(next, next, cellPinPitch);
     return next;
   });
 }

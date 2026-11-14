@@ -20,7 +20,8 @@ import { createViewHistoryEntry } from "../../src/app/viewHistory.js";
 import { createSessionSnapshot, saveSessionState, loadSessionState } from "../../src/app/sessionState.js";
 import { createLayoutGolden, getLayoutGoldenState } from "../../src/domains/netlist/layout_golden.js";
 import { createInspectorController } from "../../src/app/inspector_controller.js";
-import { createSearchNavigationController } from "../../src/app/search_navigation_controller.js";
+import { createSearchNavigationController, searchNavigationPorts } from "../../src/app/search_navigation_controller.js";
+import { createViewHistoryTransaction } from "../../src/app/viewHistoryTransaction.js";
 import { createGoldenController } from "../../src/app/golden_controller.js";
 import { createSingleWorkspaceInput } from "../../src/app/workspace_inputs.js";
 import { renderNetRoutingPanel, bindNetRoutingPanel } from "../../src/ui/net_routing_panel.js";
@@ -293,18 +294,31 @@ async function createRoutingSearchHarness(viewMode) {
   Object.assign(state, { design, currentModule: design.modules[0], document: { documentId: "d" }, viewMode,
     focusedRootNodeIds: viewMode === "focused" ? ["cell:u_data"] : [], selectedNodeId: "cell:u_data",
     graphOverrides: { nodeProperties: {}, cellPinDirections: {}, unroutedNets: ["clk"] } });
-  const render = async () => Object.assign(state, await buildModuleWorkspace(createSingleWorkspaceInput(state, provider)));
-  await render();
   const bridge = createSingleViewSessionBridge({ state, getDocumentId: () => "d" });
+  const render = async () => Object.assign(state, await buildModuleWorkspace(createSingleWorkspaceInput(state, provider, bridge.readQuery())));
+  await render();
   const history = [];
+  const transactions = createViewHistoryTransaction({ commit: (metadata) => {
+    const entry = createViewHistoryEntry(state, metadata);
+    if (metadata.continuation && history.at(-1)?.transactionId === metadata.transactionId) history[history.length - 1] = entry;
+    else history.push(entry);
+  } });
   let pending;
-  const controller = createSearchNavigationController({ state, elements: { searchResults: {} }, services: {
+  const actions = createSearchNavigationController({ state, elements: { searchResults: {} }, services: {
     singleViewSession: bridge,
     setSelectedNet: (name) => bridge.dispatch({ type: "selection.set", objectRef: bridge.objectRefForNet(name) }),
     setSingleTransform: (viewport) => bridge.dispatch({ type: "viewport.set", viewport }),
-    renderCurrentModuleGraph: ({ onRendered }) => { pending = render().then(() => onRendered(state.graph)); },
-    recordViewHistory: () => history.push(createViewHistoryEntry(state)), setStatus() {}, getSvg: () => null
+    renderCurrentModuleGraph: ({ onRendered }) => {
+      const complete = transactions.bind(onRendered);
+      pending = render().then(() => complete(state.graph));
+    },
+    setStatus() {}, getSvg: () => null
   } });
+  const controller = Object.fromEntries(Object.entries(actions).map(([name, action]) => [name,
+    searchNavigationPorts.historyActions[name]
+      ? (...args) => transactions.run({ label: searchNavigationPorts.historyActions[name] }, () => action(...args))
+      : action
+  ]));
   return { state, controller, render, history, flush: () => pending,
     result: { moduleName: "isolated", label: "clk", target: { kind: "net", name: "clk" } } };
 }

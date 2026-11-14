@@ -1,5 +1,6 @@
+import { cloneObjectRefs } from "../contracts/object_ref.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
+import { cloneGraphOverrides } from "../domains/netlist/graph_overrides.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 export const DEFAULT_VIEW_HISTORY_LIMIT = 128;
@@ -195,13 +196,6 @@ function snapshotOverrides(state) {
   };
 }
 
-function cloneObjectRefs(value) {
-  return (Array.isArray(value) ? value : []).map((ref) => ({
-    ...ref,
-    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
-  }));
-}
-
 function snapshotSideOverrides(compare, side) {
   return {
     nodePositions: [...(compare.nodePositions?.[side] || new Map()).entries()].map(([id, value]) => [id, { ...value }]),
@@ -215,14 +209,6 @@ function cloneOverrides(value = {}) {
     nodePositions: (value.nodePositions || []).map(([id, item]) => [id, { ...item }]),
     nodeSizes: (value.nodeSizes || []).map(([id, item]) => [id, { ...item }]),
     graphOverrides: cloneGraphOverrides(value.graphOverrides)
-  };
-}
-
-function cloneGraphOverrides(value = {}) {
-  return {
-    ...cloneNetRoutingOverrides(value),
-    nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
-    cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
   };
 }
 

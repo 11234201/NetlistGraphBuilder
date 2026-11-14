@@ -1,5 +1,8 @@
+import { snapshotNavigationImport, resolveNavigationImport, projectNavigation, navigationGraph, importViewQuery } from "./view_navigation_import.js";
+import { normalizeViewQuery } from "../contracts/view_query.js";
+import { graphNodeToObjectRef } from "../domains/netlist/graph_object_refs.js";
 import { createCommandBus } from "../application/command_bus.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
+import { importViewState, initialViewState, projectViewState } from "./view_state_import.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createObjectRef, objectRefKey } from "../contracts/object_ref.js";
@@ -15,68 +18,135 @@ export function createSingleViewSessionBridge({
 }) {
   const bus = createCommandBus(createViewCommandHandlers({ sessions, maxFocusedRoots }), { onDispatch });
 
-  function synchronizeSession() {
-    const documentId = getDocumentId();
-    const unitId = state.currentModule?.name;
-    if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
-    const focusedRootRefs = resolveFocusedRootRefs(state, documentId, unitId);
-    const value = {
-      sessionId: "single:primary",
-      documentId,
-      domainId: "netlist",
-      unitId,
-      viewMode: state.viewMode,
-      faninDepth: state.faninDepth,
-      fanoutDepth: state.fanoutDepth,
-      focusedRootRefs,
-      activeFocusedRootRef: activeRootRef(state.activeFocusedRootNodeId, focusedRootRefs, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath),
-      selectedObjectRef: selectedToRef(state, documentId, unitId),
-      viewport: state.transform,
-      layoutPolicy: state.layoutPolicy,
-      presentationPolicy: state.presentationPolicy,
-      overrides: snapshotOverrides(state)
-    };
-    const current = sessions.get(value.sessionId);
-    state.focusedRootRefs = cloneObjectRefs(value.focusedRootRefs);
-    if (!current || current.documentId !== documentId || current.unitId !== unitId) {
-      if (current) sessions.close(value.sessionId);
-      return sessions.create(value);
+  let pendingNavigation = null;
+  // Before a document opens, explicitly imported startup preferences live here.
+  // Once opened, the ViewSession is authoritative; legacy fields are projections.
+  let initialQuery = importViewQuery(state);
+  let initialState = initialViewState(state);
+  projectViewState(state, initialState);
+  const context = () => ({ documentId: getDocumentId(), unitId: state.currentModule?.name,
+    occurrencePath: state.occurrenceContext?.occurrencePath });
+  const currentGraph = () => navigationGraph(state.fullGraph, context().unitId, context().occurrencePath || []);
+
+  function project(session, graph = currentGraph()) {
+    initialState = Object.freeze({ viewport: session.viewport, layoutPolicy: session.layoutPolicy,
+      presentationPolicy: session.presentationPolicy, overrides: session.overrides });
+    projectViewState(state, session);
+    initialQuery = normalizeViewQuery(session);
+    Object.assign(state, initialQuery);
+    Object.assign(state, projectNavigation(session, graph, pendingNavigation));
+  }
+
+  function readQuery() {
+    return normalizeViewQuery(sessions.get("single:primary") || initialQuery);
+  }
+
+  function importQuery(value = {}) {
+    const query = importViewQuery(value, readQuery());
+    if (!getDocumentId() || !state.currentModule?.name) {
+      initialQuery = query;
+      Object.assign(state, query);
+      return query;
     }
-    return hasProjectedValueChange(current, value)
-      ? sessions.update(value.sessionId, () => value, { invalidateComputation: false })
-      : current;
+    const current = synchronizeSession();
+    const next = hasProjectedValueChange(current, query)
+      ? sessions.update(current.sessionId, () => query) : current;
+    project(next);
+    return next;
+  }
+
+  function readState() {
+    return sessions.get("single:primary") || initialState;
+  }
+
+  function importState(value = {}) {
+    const current = readState();
+    const patch = importViewState(value, current);
+    if (!getDocumentId() || !state.currentModule?.name) {
+      initialState = initialViewState({ ...current, ...patch });
+      projectViewState(state, initialState);
+      return initialState;
+    }
+    const session = synchronizeSession();
+    const next = hasProjectedValueChange(session, patch)
+      ? sessions.update(session.sessionId, () => patch, {
+        invalidateComputation: Boolean(patch.layoutPolicy || patch.overrides)
+      }) : session;
+    project(next);
+    return next;
+  }
+
+  function synchronizeSession() {
+    const { documentId, unitId } = context();
+    if (!documentId || !unitId) throw new Error("Legacy view command requires an open document and module");
+    const current = sessions.get("single:primary");
+    if (!current || current.documentId !== documentId || current.unitId !== unitId) {
+      if (current) sessions.close(current.sessionId);
+      const initial = snapshotNavigationImport(current ? {} : state);
+      pendingNavigation = currentGraph() ? null : initial;
+      const viewState = current ? initialViewState({ layoutPolicy: initialState.layoutPolicy,
+        presentationPolicy: initialState.presentationPolicy }) : initialState;
+      const session = sessions.create({ sessionId: "single:primary", documentId, domainId: "netlist", unitId,
+        ...viewState, ...initialQuery, ...resolveNavigationImport(initial, context(), currentGraph()) });
+      project(session);
+      return session;
+    }
+    return current;
+  }
+
+  function importNavigation(value = {}) {
+    const current = synchronizeSession();
+    const snapshot = snapshotNavigationImport(value);
+    const graph = currentGraph();
+    const patch = { ...resolveNavigationImport(snapshot, context(), graph), ...importViewQuery(value, readQuery()),
+      ...importViewState(value, current) };
+    const next = sessions.update(current.sessionId, () => patch);
+    pendingNavigation = graph ? null : snapshot;
+    project(next, graph);
+    return next;
+  }
+
+  function refreshNavigation() {
+    const current = synchronizeSession();
+    const graph = currentGraph();
+    if (!pendingNavigation || !graph) { project(current, graph); return current; }
+    const next = sessions.update(current.sessionId,
+      () => resolveNavigationImport(pendingNavigation, context(), graph), { invalidateComputation: false });
+    pendingNavigation = null;
+    project(next, graph);
+    return next;
   }
 
   return Object.freeze({
-    sessions,
+    sessions, importNavigation, refreshNavigation, importQuery, readQuery, readState, importState,
+    isWorkspaceReady: () => Boolean(state.graph && state.singleWorkspaceIdentity),
+    resetNavigation() {
+      initialQuery = normalizeViewQuery({ ...readQuery(), viewMode: "whole" });
+      const previous = readState();
+      initialState = initialViewState({ layoutPolicy: previous.layoutPolicy, presentationPolicy: previous.presentationPolicy });
+      sessions.close("single:primary");
+      projectViewState(state, initialState);
+      pendingNavigation = null;
+      Object.assign(state, initialQuery);
+      Object.assign(state, projectNavigation({ focusedRootRefs: [] }, null));
+    },
     dispatch(command) {
       const synchronized = synchronizeSession();
-      const unitId = synchronized.unitId;
-      const result = bus.dispatch({ ...command, sessionId: "single:primary" });
-      const graph = result.session.unitId === unitId ? state.fullGraph : null;
-      state.viewMode = result.session.viewMode;
-      state.faninDepth = result.session.faninDepth;
-      state.fanoutDepth = result.session.fanoutDepth;
-      state.focusedRootRefs = cloneObjectRefs(result.session.focusedRootRefs);
-      state.focusedRootNodeIds = refsToNodeIds(result.session.focusedRootRefs, graph);
-      state.activeFocusedRootNodeId = refToNodeId(result.session.activeFocusedRootRef, graph);
-      state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
-      state.selectedNodeId = result.session.selectedObjectRef?.kind === "net"
-        ? null
-        : refToNodeId(result.session.selectedObjectRef, graph);
-      state.selectedNet = result.session.selectedObjectRef?.kind === "net"
-        ? result.session.selectedObjectRef.localId
-        : null;
-      state.transform = { ...result.session.viewport };
-      state.layoutPolicy = result.session.layoutPolicy;
-      state.presentationPolicy = { ...result.session.presentationPolicy };
-      applyOverridesSnapshot(state, result.session.overrides || {
-        nodePositions: [], nodeSizes: [], graphOverrides: null
-      });
+      const result = bus.dispatch({ ...command,
+        ...(command.type === "overrides.set" ? { overrides: importViewState({ overrides: command.overrides ?? null }, synchronized).overrides } : {}),
+        sessionId: "single:primary" });
+      if (command.type.startsWith("focus.") || command.type === "unit.set" || command.type === "selection.reveal") {
+        if (!result.rejected) pendingNavigation = null;
+      } else if (pendingNavigation && command.type.startsWith("selection.")) {
+        pendingNavigation = snapshotNavigationImport({ ...pendingNavigation,
+          selectedNodeId: null, selectedNet: null, selectedObjectRef: result.session.selectedObjectRef });
+      }
+      const graph = result.session.unitId === synchronized.unitId ? currentGraph() : null;
+      project(result.session, graph);
       return result;
     },
     beginComputation() {
-      const current = synchronizeSession();
+      const current = refreshNavigation();
       return sessions.update(current.sessionId, () => ({}));
     },
     objectRefForNode(node) {
@@ -96,139 +166,11 @@ export function createSingleViewSessionBridge({
   });
 }
 
-function snapshotOverrides(state) {
-  return {
-    nodePositions: new Map(state.nodePositions || []),
-    nodeSizes: new Map(state.nodeSizes || []),
-    graphOverrides: cloneGraphOverrides(state.graphOverrides)
-  };
-}
-
-function applyOverridesSnapshot(state, snapshot) {
-  if (!snapshot) return;
-  state.nodePositions = new Map(snapshot.nodePositions || []);
-  state.nodeSizes = new Map(snapshot.nodeSizes || []);
-  state.graphOverrides = cloneGraphOverrides(snapshot.graphOverrides);
-}
-
-function cloneGraphOverrides(value) {
-  return {
-    ...cloneNetRoutingOverrides(value),
-    nodeProperties: Object.fromEntries(Object.entries(value?.nodeProperties || {}).map(([id, properties]) => [id, { ...properties }])),
-    cellPinDirections: Object.fromEntries(Object.entries(value?.cellPinDirections || {}).map(([id, pins]) => [id, { ...pins }]))
-  };
-}
-
-function selectedToRef(state, documentId, unitId) {
-  if (state.selectedNodeId) return nodeIdToRef(state.selectedNodeId, state.fullGraph, documentId, unitId);
-  if (state.selectedNet) {
-    const netNode = state.fullGraph?.nodes?.find((node) =>
-      (node.kind === "hub" || node.kind === "net") &&
-      (node.ref?.localId || node.ref?.name || node.label) === state.selectedNet &&
-      occurrenceMatches(node.ref?.occurrencePath, state.occurrenceContext?.occurrencePath)
-    ) || state.fullGraph?.nodes?.find((node) =>
-      (node.kind === "hub" || node.kind === "net") &&
-      (node.ref?.localId || node.ref?.name || node.label) === state.selectedNet
-    );
-    return valueToRef(
-      "net",
-      state.selectedNet,
-      documentId,
-      unitId,
-      netNode?.ref?.occurrencePath || state.occurrenceContext?.occurrencePath
-    );
-  }
-  return null;
-}
-
 function valueToRef(kind, localId, documentId, unitId, occurrencePath = null) {
   if (!kind || !localId || !documentId || !unitId) return null;
   return createObjectRef({ documentId, unitId, kind, localId, occurrencePath });
 }
 
-function rootsToRefs(nodeIds, graph, documentId, unitId, occurrencePath = null) {
-  return (nodeIds || []).map((nodeId) => focusedRootIdToRef(nodeId, graph, documentId, unitId, occurrencePath)).filter(Boolean);
-}
-
-function resolveFocusedRootRefs(state, documentId, unitId) {
-  const candidate = cloneObjectRefs(state.focusedRootRefs).filter((ref) =>
-    ref.documentId === documentId && ref.unitId === unitId
-  );
-  const nodeIds = refsToNodeIds(candidate, state.fullGraph);
-  const expected = normalizeRootIds(state.focusedRootNodeIds, state.coneRootNodeId);
-  if (candidate.length === expected.length && candidate.every((ref, index) => nodeIds[index] === expected[index])) {
-    return candidate;
-  }
-  if (!state.fullGraph && candidate.length === expected.length) return candidate;
-  return rootsToRefs(expected, state.fullGraph, documentId, unitId, state.occurrenceContext?.occurrencePath);
-}
-
-function normalizeRootIds(value, legacyRootNodeId = null) {
-  const roots = Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.length > 0) : [];
-  if (roots.length > 0) return [...roots];
-  return legacyRootNodeId ? [legacyRootNodeId] : [];
-}
-
-function activeRootRef(activeRootNodeId, refs, graph, documentId, unitId, occurrencePath) {
-  const index = refsToNodeIds(refs, graph).findIndex((nodeId) => nodeId === activeRootNodeId);
-  return refs[index] || focusedRootIdToRef(activeRootNodeId, graph, documentId, unitId, occurrencePath);
-}
-
-function focusedRootIdToRef(rootId, graph, documentId, unitId, occurrencePath = null) {
-  if (typeof rootId === "string" && rootId.startsWith("net:")) {
-    const netName = rootId.slice(4);
-    const netNode = graph?.nodes?.find((node) =>
-      (node.kind === "hub" || node.kind === "net") &&
-      (node.ref?.localId || node.ref?.name || node.label) === netName &&
-      occurrenceMatches(node.ref?.occurrencePath, occurrencePath)
-    ) || graph?.nodes?.find((node) =>
-      (node.kind === "hub" || node.kind === "net") &&
-      (node.ref?.localId || node.ref?.name || node.label) === netName
-    );
-    return valueToRef("net", netName, documentId, unitId, netNode?.ref?.occurrencePath || occurrencePath);
-  }
-  return nodeIdToRef(rootId, graph, documentId, unitId);
-}
-
-function nodeIdToRef(nodeId, graph, documentId, unitId) {
-  if (!nodeId) return null;
-  return nodeToRef(graph?.nodes?.find((node) => node.id === nodeId), documentId, unitId);
-}
-
 function nodeToRef(node, documentId, unitId) {
-  if (!node || !documentId || !unitId) return null;
-  return createObjectRef({
-    documentId,
-    unitId,
-    kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.ref?.instance || node.ref?.name || node.ref?.localId || node.id,
-    occurrencePath: node.ref?.occurrencePath
-  });
-}
-
-function refsToNodeIds(refs, graph) {
-  return refs.map((ref) => refToNodeId(ref, graph)).filter(Boolean);
-}
-
-function refToNodeId(ref, graph) {
-  if (!ref || !graph) return null;
-  if (ref.kind === "net") return `net:${ref.localId}`;
-  return graph.nodes.find((node) =>
-    (node.ref?.instance || node.ref?.name || node.ref?.localId || node.id) === ref.localId &&
-    (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell")) &&
-    occurrenceMatches(node.ref?.occurrencePath, ref.occurrencePath)
-  )?.id || null;
-}
-
-function occurrenceMatches(nodePath, refPath) {
-  if (!Array.isArray(refPath) || refPath.length === 0) return true;
-  return Array.isArray(nodePath) && nodePath.length === refPath.length &&
-    nodePath.every((segment, index) => segment === refPath[index]);
-}
-
-function cloneObjectRefs(value) {
-  return (Array.isArray(value) ? value : []).map((ref) => ({
-    ...ref,
-    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
-  }));
+  return graphNodeToObjectRef(node, { documentId, unitId });
 }

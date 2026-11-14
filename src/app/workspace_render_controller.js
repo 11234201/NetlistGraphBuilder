@@ -10,6 +10,7 @@ import { createSingleWorkspaceIdentity } from "./workspace_identity.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createWorkspaceRenderController({ state, elements, services }) {
   function renderCurrentModuleGraph(options = {}) {
+    options = services.bindViewHistoryCallbacks(options);
     const request = services.renderGeneration.begin();
     state.singleWorkspaceIdentity = null;
     const requestId = request.id;
@@ -18,7 +19,8 @@ export function createWorkspaceRenderController({ state, elements, services }) {
       viewMode: state.viewMode,
       provider: layoutProvider.id
     });
-    const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider, services.readCellLibrary?.());
+    const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider,
+      services.singleViewSession.readQuery(), services.readCellLibrary?.());
     const workspaceIdentity = createSingleWorkspaceIdentity(state, services.readCellLibrary?.());
     const isCurrentSingleRequest = () => request.isCurrent() && !state.compare.active;
     services.workspaceExecution.execute({
@@ -52,12 +54,14 @@ export function createWorkspaceRenderController({ state, elements, services }) {
   function commitCurrentWorkspace(workspace, options = {}) {
     state.compare.singleWorkspaceInvalidated = false;
     state.fullGraph = workspace.fullGraph;
+    services.singleViewSession.refreshNavigation();
     state.scene = workspace.scene;
     services.logProcess("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
       fullNodes: workspace.fullGraph.nodes.length,
       viewMode: workspace.graph.view?.mode || state.viewMode
     });
-    commitCurrentGraph(workspace.autoGraph, workspace.graph, { ...options, scene: workspace.scene });
+    commitCurrentGraph(workspace.autoGraph, workspace.graph, { ...options, scene: workspace.scene,
+      workspaceIdentity: createSingleWorkspaceIdentity(state, services.readCellLibrary?.()) });
   }
 
   function commitCurrentGraph(autoGraph, graph, options = {}) {
@@ -178,7 +182,7 @@ export const workspaceRenderPorts = Object.freeze({
   ],
   services: [
     "readCellLibrary",
-    "applyTransform", "getCurrentLayoutProvider", "logProcess", "persistSession", "renderCompareGraphs",
+    "bindViewHistoryCallbacks", "applyTransform", "getCurrentLayoutProvider", "logProcess", "persistSession", "renderCompareGraphs",
     "renderDiagnostics", "renderGeneration", "renderStats", "setSingleTransform", "setStatus",
     "singleViewSession", "updateCalibrationControls", "updateViewControls", "workspaceExecution"
   ]

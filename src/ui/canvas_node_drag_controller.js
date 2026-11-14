@@ -13,6 +13,7 @@ export function startCanvasNodeDrag({
   getPreviousPosition,
   updatePosition,
   onPreview,
+  onEnd,
   onCommit
 }) {
   if (!event || !target || !mount || !graph || !node || typeof updatePosition !== "function") {
@@ -49,6 +50,7 @@ export function startCanvasNodeDrag({
     onMove: (moveEvent) => frames.schedule(clientPoint(moveEvent)),
     onEnd: (endEvent) => {
       frames.flush();
+      onEnd?.({ moved, cancelled: endEvent?.type === "pointercancel" });
       if (!moved || endEvent?.type === "pointercancel") {
         preview.clear();
         return;

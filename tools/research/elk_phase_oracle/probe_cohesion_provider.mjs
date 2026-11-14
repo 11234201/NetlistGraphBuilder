@@ -1,3 +1,4 @@
+import {compileProviderAdapter} from './compile_provider_adapter.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {NativeLayeredLayoutProvider} from '../../../src/layout/anchor_layout_provider.js';
@@ -49,17 +50,12 @@ export const layoutGraph=(input,options)=>original(splitImplicitEndpoints(input)
 }
 export class CohesionResearchProvider extends NativeLayeredLayoutProvider{
   constructor({groupSweep=false,cohesion=true,structuralKey=false,implicitPorts=false,layoutUnits=false,physicalAnchors=false}={}){
-    super();Object.assign(this,{groupSweep,cohesion,structuralKey,implicitPorts,layoutUnits,physicalAnchors});}
+    super();this.measurementContract=null;Object.assign(this,{groupSweep,cohesion,structuralKey,implicitPorts,layoutUnits,physicalAnchors});}
   async layout(graph,options={}){
     const entries=this.cohesion?buildFocusedFaninTreeBlocks(graph.nodes,graph.edges).entries:[];
     if(!entries.length&&!this.structuralKey&&!this.implicitPorts&&!this.physicalAnchors)return super.layout(graph,options);
     const {layoutModule,compiledIndexDigest,compiledModuleDigest}=await compileCohesionModule(entries,this);
-    const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
-    let adapter=await readFile(adapterLocation,'utf8');
-    const adapterAnchor="from './anchor_layered/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
-    adapter=adapter.replace(adapterAnchor,`from '${layoutModule}'`)
-      .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);
-    const Provider=(await import(moduleUrl(adapter))).NativeLayeredLayoutProvider;
+    const Provider=await compileProviderAdapter(layoutModule);
     const result=await new Provider().layout(graph,options);
     return {...result,layoutMetrics:{...result.layoutMetrics,researchCohesion:{
       mode:this.groupSweep?(this.layoutUnits?'four-candidate-unit-sweep':'four-candidate-group-sweep'):'three-candidate-final-order',structuralKey:this.structuralKey,implicitPorts:this.implicitPorts,

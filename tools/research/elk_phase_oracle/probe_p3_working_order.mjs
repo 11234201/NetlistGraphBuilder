@@ -1,3 +1,4 @@
+import {compileProviderAdapter} from './compile_provider_adapter.mjs';
 import assert from 'node:assert/strict';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -40,13 +41,7 @@ export async function compileWorkingOrderLayout(){
 }
 export async function compileWorkingOrderProvider(){
   const indexUrl=await workingIndexUrl();
-  const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
-  let adapter=await readFile(adapterLocation,'utf8');
-  const adapterAnchor="from './anchor_layered/index.js'";
-  assert.equal(adapter.split(adapterAnchor).length,2);
-  adapter=adapter.replace(adapterAnchor,`from '${indexUrl}'`)
-    .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);
-  return (await import(`data:text/javascript;base64,${Buffer.from(adapter).toString('base64')}`)).NativeLayeredLayoutProvider;
+  return compileProviderAdapter(indexUrl);
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const [file,output]=process.argv.slice(2);

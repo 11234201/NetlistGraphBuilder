@@ -1,3 +1,4 @@
+import { createSessionPersistenceController, sessionPersistencePorts } from "./session_persistence_controller.js";
 import { createInputController, inputPorts } from "./input_controller.js";
 import { createSidebarController, sidebarPorts } from "./sidebar_controller.js";
 import { createModuleNavigationController, moduleNavigationPorts } from "./module_navigation_controller.js";
@@ -23,6 +24,8 @@ import { createStatusController, statusPorts } from "./status_controller.js";
 import { createPreferencesController, preferencesPorts } from "./preferences_controller.js";
 import { createHelpersController, helpersPorts } from "./helpers_controller.js";
 import { createLegacyPort } from "./legacy_port.js";
+import { SINGLE_NAVIGATION_FIELDS, COMPARE_NAVIGATION_FIELDS } from "./view_navigation_import.js";
+import { SINGLE_VIEW_STATE_FIELDS, COMPARE_VIEW_STATE_FIELDS } from "./view_state_import.js";
 import { createNetRoutingBridge } from "./net_routing_bridge.js";
 
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
@@ -44,6 +47,8 @@ export function createWorkbenchControllers({ state, getElements, services }) {
   const wire = (owner, factory, ports) => factory({
     state: createLegacyPort(() => state, ports.state, {
       writable: true,
+      readOnly: [...SINGLE_NAVIGATION_FIELDS, ...SINGLE_VIEW_STATE_FIELDS],
+      nestedReadOnly: { compare: [...COMPARE_NAVIGATION_FIELDS, ...COMPARE_VIEW_STATE_FIELDS] },
       nestedFields: { compare: COMPARE_FIELDS_BY_CONTROLLER[owner] || [] }
     }),
     elements: createLegacyPort(getElements, ports.elements),
@@ -54,6 +59,7 @@ export function createWorkbenchControllers({ state, getElements, services }) {
     ["input", createInputController, inputPorts], ["sidebar", createSidebarController, sidebarPorts],
     ["module-navigation", createModuleNavigationController, moduleNavigationPorts],
     ["compare-workspace", createCompareWorkspaceController, compareWorkspacePorts],
+    ["session-persistence", createSessionPersistenceController, sessionPersistencePorts],
     ["history", createHistoryController, historyPorts], ["workspace-render", createWorkspaceRenderController, workspaceRenderPorts],
     ["view-controls", createViewControlsController, viewControlsPorts], ["focused-roots", createFocusedRootsController, focusedRootsPorts],
     ["focus-navigation", createFocusNavigationController, focusNavigationPorts], ["presentation", createPresentationController, presentationPorts],
@@ -77,10 +83,17 @@ export function createWorkbenchControllers({ state, getElements, services }) {
   });
   const owners = new Map();
   for (const [owner, factory, ports] of controllers) {
-    for (const [name, action] of Object.entries(wire(owner, factory, ports))) {
+    const controller = wire(owner, factory, ports);
+    for (const name of Object.keys(ports.historyActions || {})) {
+      if (typeof controller[name] !== "function") throw new Error(`Missing history action ${name} for ${owner}`);
+    }
+    for (const [name, action] of Object.entries(controller)) {
       if (owners.has(name)) throw new Error(`Duplicate controller action ${name}: ${owners.get(name)} and ${owner}`);
       owners.set(name, owner);
-      actions[name] = action;
+      actions[name] = ports.historyActions?.[name]
+        ? (...args) => args.some((arg) => arg?.historyMode === "restore") ? action(...args)
+          : services.runViewHistoryTransaction({ label: ports.historyActions[name] }, () => action(...args))
+        : action;
     }
   }
   return Object.freeze(actions);
@@ -117,7 +130,7 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
 const OBJECT_SERVICE_KEYS = new Set([
   "browserDownload", "cellConfigUseCases", "compareViewSessions", "documents", "layoutSpacingController",
   "moduleHierarchyController", "netlistFeature", "processLogController", "renderGeneration",
-  "schematicSelectionController", "singleViewSession", "timingDisplayController", "viewHistoryTransactions",
+  "schematicSelectionController", "singleViewSession", "timingDisplayController",
   "viewSessions", "wheelGestureController", "workspaceExecution", "workspaceJobs"
 ]);
 

@@ -66,7 +66,7 @@ export function prepareCompareWorkspace(options = {}) {
   }
   throwIfAborted(signal);
 
-  const workspaceInputs = resolveWorkspaceInputs({
+  const workspaceInputs = resolveCompareWorkspaceInputs({
     leftModule,
     rightModule,
     fullGraphs,
@@ -183,7 +183,7 @@ export function buildCompareWorkspace(options = {}) {
     : finalize([leftLayout, rightLayout]);
 }
 
-function resolveWorkspaceInputs({
+export function resolveCompareWorkspaceInputs({
   leftModule,
   rightModule,
   fullGraphs,

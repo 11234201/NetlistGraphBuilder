@@ -1,8 +1,7 @@
 import { formatViewportTransform } from "../ui/viewport.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
+import { cloneGraphOverrides } from "../domains/netlist/graph_overrides.js";
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
-import { setFocusedRootNodeIds, createEmptyGraphOverrides } from "./appState.js";
 import { focusedNetName } from "./focusedSelection.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
@@ -21,8 +20,7 @@ export function createStateCommandsController({ state, elements, services }) {
 
   function setSingleTransform(transform) {
     if (!state.document?.documentId || !state.currentModule?.name) {
-      state.transform = { ...transform };
-      return state.transform;
+      return services.singleViewSession.importState({ viewport: transform }).viewport;
     }
     return services.singleViewSession.dispatch({
       type: "viewport.set",
@@ -33,8 +31,7 @@ export function createStateCommandsController({ state, elements, services }) {
   function setSingleLayoutPolicy(layoutPolicy) {
     const normalized = normalizeLayoutPolicy(layoutPolicy);
     if (!state.document?.documentId || !state.currentModule?.name) {
-      state.layoutPolicy = normalized;
-      return state.layoutPolicy;
+      return services.singleViewSession.importState({ layoutPolicy: normalized }).layoutPolicy;
     }
     services.singleViewSession.dispatch({ type: "layout.policy.set", layoutPolicy: normalized });
     return state.layoutPolicy;
@@ -43,7 +40,7 @@ export function createStateCommandsController({ state, elements, services }) {
   function setSingleViewMode(viewMode) {
     const normalized = normalizeSingleViewMode(viewMode);
     if (!state.document?.documentId || !state.currentModule?.name) {
-      state.viewMode = normalized;
+      services.singleViewSession.importQuery({ viewMode: normalized });
       services.recordViewHistory();
       return { rejected: null };
     }
@@ -54,8 +51,7 @@ export function createStateCommandsController({ state, elements, services }) {
 
   function setSingleFocusedDepths(faninDepth, fanoutDepth) {
     if (!state.document?.documentId || !state.currentModule?.name) {
-      state.faninDepth = faninDepth;
-      state.fanoutDepth = fanoutDepth;
+      services.singleViewSession.importQuery({ faninDepth, fanoutDepth });
       services.recordViewHistory();
       return null;
     }
@@ -66,7 +62,6 @@ export function createStateCommandsController({ state, elements, services }) {
 
   function replaceSingleFocusedRoots(nodeIds, activeNodeId = null) {
     if (!state.document?.documentId || !state.currentModule?.name) {
-      setFocusedRootNodeIds(state, nodeIds, activeNodeId);
       services.recordViewHistory();
       return null;
     }
@@ -90,9 +85,7 @@ export function createStateCommandsController({ state, elements, services }) {
 
   function setSingleOverrides(overrides) {
     if (!state.document?.documentId || !state.currentModule?.name) {
-      state.nodePositions = new Map(overrides?.nodePositions || []);
-      state.nodeSizes = new Map(overrides?.nodeSizes || []);
-      state.graphOverrides = overrides?.graphOverrides || createEmptyGraphOverrides();
+      services.singleViewSession.importState({ overrides: overrides || null });
       services.recordViewHistory();
       return;
     }
@@ -101,14 +94,11 @@ export function createStateCommandsController({ state, elements, services }) {
   }
 
   function updateSingleOverrides(update) {
+    const current = services.singleViewSession.readState().overrides;
     const overrides = {
-      nodePositions: new Map(state.nodePositions),
-      nodeSizes: new Map(state.nodeSizes),
-      graphOverrides: {
-        ...cloneNetRoutingOverrides(state.graphOverrides),
-        nodeProperties: Object.fromEntries(Object.entries(state.graphOverrides.nodeProperties).map(([id, value]) => [id, { ...value }])),
-        cellPinDirections: Object.fromEntries(Object.entries(state.graphOverrides.cellPinDirections).map(([id, value]) => [id, { ...value }]))
-      }
+      nodePositions: new Map(current?.nodePositions || []),
+      nodeSizes: new Map(current?.nodeSizes || []),
+      graphOverrides: cloneGraphOverrides(current?.graphOverrides)
     };
     update(overrides);
     setSingleOverrides(overrides);
@@ -125,14 +115,11 @@ export function createStateCommandsController({ state, elements, services }) {
   }
 
   function updateCompareOverrides(side, update) {
+    const current = services.compareViewSessions.readState(side).overrides;
     const overrides = {
-      nodePositions: new Map(state.compare.nodePositions[side]),
-      nodeSizes: new Map(state.compare.nodeSizes[side]),
-      graphOverrides: {
-        ...cloneNetRoutingOverrides(state.compare.graphOverrides[side]),
-        nodeProperties: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].nodeProperties).map(([id, value]) => [id, { ...value }])),
-        cellPinDirections: Object.fromEntries(Object.entries(state.compare.graphOverrides[side].cellPinDirections).map(([id, value]) => [id, { ...value }]))
-      }
+      nodePositions: new Map(current?.nodePositions || []),
+      nodeSizes: new Map(current?.nodeSizes || []),
+      graphOverrides: cloneGraphOverrides(current?.graphOverrides)
     };
     update(overrides);
     setCompareOverrides(side, overrides);
@@ -143,12 +130,9 @@ export function createStateCommandsController({ state, elements, services }) {
 
 export const stateCommandsPorts = Object.freeze({
   state: [
-    "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
-    "coneRootNodeId", "currentModule", "document", "expandedGroupIds", "faninDepth", "fanoutDepth",
-    "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "layoutPolicy",
-    "moduleWorkspaces", "nodePositions", "nodeSizes", "occurrenceContext", "restoringViewHistory",
-    "scene", "searchResults", "selectedNet", "selectedNodeId", "timing", "timingBadgeChoices",
-    "timingBadgePositions", "transform", "viewHistory", "viewMode", "workspaceArtifactCache"
+    "activeFocusedRootNodeId", "compare", "coneRootNodeId", "currentModule", "document",
+    "faninDepth", "fanoutDepth", "focusedRootNodeIds", "fullGraph", "graphOverrides",
+    "layoutPolicy", "nodePositions", "nodeSizes", "transform", "viewMode"
   ],
   elements: [
     "canvas", "mount"

@@ -122,6 +122,10 @@ LayoutProvider
 
 **当前冻结决策（2026-11-10）**：按用户要求，Simple 实现、策略与输出永久冻结；只有用户明确解除相应范围的冻结后才可修改。只读对照与既有失败记录保留，失败不自动授权修复。共享基础设施的变更不得改变 Simple 行为。当前规则以 [`AGENTS.md`](../AGENTS.md#simple-freeze-2026-11-10) 为准，优先于历史冻结文档中的修复例外。产品 mapped 门禁与正式 benchmark 默认读取 `providerDefaults.js` 的 `DEFAULT_LAYOUT_PROVIDER_ID`，显式 Simple 对照单独记录。
 
+**生产测量边界**：`contracts/measured_graph.js` 校验并保护完整尺寸、端口 ID/侧/局部坐标、源/目标连接偏移、resize 端口排布策略和顺序组。`domains/netlist/measure_graph.js` 在布局前解析既有 schematic 展示几何，AnchorLayered/ELK 的 `layoutMeasured` 核心只消费测量结果，不再猜节点类型或重建端口。端口调整由 `measured_geometry.js` 消费显式几何策略。公开 `layout(rawGraph)` 继续通过 `legacy_measurement.js` 适配既有离线调用；兼容投影保持原输出字段。Simple 继续使用原 `measureDiagramGraph` 和原 provider 路径，冻结约束不变。中性测量入口与第二领域测试共享同一 provider 核心。 Anchor 适配器通过 `native_port_ids.js` 对真实/虚拟端口的组合 ID 做线性冲突检查；无冲突时保留既有 ID，有冲突时整组改为 `[nodeId, port/virtual, localId/role]` 的 JSON 元组编码。该内部编码不修改公开节点/端口身份，且不依赖节点或端口输入顺序。
+
+测量边界只复制一次自有几何记录，并冻结尺寸、端口、连接偏移和策略；可选端口元数据及顺序组继续通过严格快照隔离。布局物化创建独立节点框架并复用只读局部端口，resize 必须先复制端口再调整，raw API 仍返回兼容投影。只读 Map/Set 的代理封装由 `foundation/readonly_collection.js` 共享，调用方必须私有持有 backing collection 并保护条目，禁止发布可写 backing 引用。 代理只为显式读取方法绑定 backing，未知函数调用一律拒绝，未知 getter 的 receiver 保持为代理；因此浏览器新增的集合写方法不能绕过命令和修订号。
+
 **当前实现与协作边界**：
 - `src/layout/layoutProvider.js` 维护布局引擎注册表（registry）与降级策略。
 - `layout(graph, options)` 支持同步返回 `PositionedGraph` 或异步返回 `Promise`；应用编排层统一通过修订号（revision）校验并仅提交最新请求，过期的异步结果绝不会覆盖当前最新视图状态。
@@ -233,12 +237,14 @@ graph
 
 ### 8. `src/application/` 与 `src/app/`
 
-- **入口收敛与职责归属**：`src/app/main.js` 仅作为浏览器端依赖组装与顶层事件绑定入口，遵守 `tests/unit/architecture-boundaries.test.js` 中持续收紧的入口与单职责模块行数上限，详见 [入口收敛计划](plans/main_entry_modularization.md)。共享的同步/异步任务调度与过期结果隔离由 `src/application/workspace_execution.js` 统一掌管，Single 与 Compare 工作区通过注入任务与渲染回调共用同一套执行机制；`src/app/workspace_inputs.js` 仅负责将旧版状态投影为不可变请求对象。
-- **文档与视图会话存储（`DocumentStore` & `ViewSessionStore`）**：作为文档、画布会话及其修订号（revision）的唯一权威所有者。Single 与 Compare 桥接器（bridge）仅负责在 `ObjectRef` 与旧版 UI/存档字段之间做兼容投影，并在投影图中完整保留层次路径 `occurrencePath`；同一模块定义在不同实例路径（`hinst`）下的选中项与聚焦根均按精确的 occurrence 身份隔离与恢复。
-- **统一视图命令与流水线（`view_commands.js` & `view_pipeline.js`）**：`view_commands.js` 统一处理模块切换、Focused roots、选中项、视口、布局策略与手工覆盖，并显式返回 `query` / `layout` / `render` / `viewport` / `persist` 副作用标记（纯视口变换或幂等相同值提交不会错误推进计算修订号）。`view_pipeline.js` 固定执行 `query -> project -> measure -> layout -> overrides -> scene` 流水线，Netlist 与测试用内存 AIG 均经由此公共路径完成渲染，公共层不含任何按领域 ID 分支的硬编码。
+- **入口收敛与职责归属**：`src/app/main.js` 仅作为浏览器端依赖组装与顶层事件绑定入口，遵守 `tests/unit/architecture-boundaries.test.js` 中持续收紧的入口与单职责模块行数上限，详见 [入口收敛计划](plans/main_entry_modularization.md)。共享的同步/异步任务调度与过期结果隔离由 `src/application/workspace_execution.js` 统一掌管，Single 与 Compare 工作区通过注入任务与渲染回调共用同一套执行机制；`src/app/workspace_inputs.js` 组合旧字段投影与显式会话查询，形成工作区请求。
+- **文档与视图会话存储（`DocumentStore` & `ViewSessionStore`）**：拥有文档、会话记录及其修订号（revision）。Single/Compare 的 roots、active root、选区以及模式/深度由会话命令或显式 `importNavigation` / `importQuery` 写入，旧控制器字段为只读投影，普通命令与计算不再反向读取这些字段。历史、模块工作区、Session 与 Golden 使用同一导入边界；仅有图 ID 的旧快照由 `view_navigation_import.js` 暂存不可变意图，待目标模块/occurrence 图就绪后解析引用，不额外推进计算修订号。Compare 的两侧选区独立，非选中侧的视口更新不切换 Inspector 所选侧。Single 的模式及三种深度由 `readQuery()` 提供，Compare 显式接收共享深度并记录两侧实际查询；查询模式/深度不再从旧字段回读。viewport、layoutPolicy、presentationPolicy 和 overrides 也由会话拥有，`importState` / `view_state_import.js` 只在启动及恢复边界解码旧字段；普通命令和计算不回读旧投影。投影直接复用不可变 viewport、策略与覆盖 Map，视口更新不复制整个覆盖层。产品共享策略由 canonical Single 会话同步到 Compare，两侧 viewport 命令不反向覆盖全局策略。
+- **统一视图命令与流水线（`view_commands.js` & `view_pipeline.js`）**：`view_commands.js` 统一处理模块切换、视图模式、查询深度、Focused roots、选中项、视口、布局策略与手工覆盖，并显式返回 `query` / `layout` / `render` / `viewport` / `persist` 副作用标记（纯视口变换或幂等相同值提交不会错误推进计算修订号）。`view_pipeline.js` 固定执行 `query -> project -> measure -> layout -> overrides -> scene` 流水线，Netlist 与测试用内存 AIG 均经由此公共路径完成渲染，公共层不含任何按领域 ID 分支的硬编码。
 - **作业协调与渲染代际隔离（`JobCoordinator` & `renderGeneration.js`）**：`JobCoordinator` 基于文档与会话修订号管理同步/异步工作区计算身份，在结果提交前自动丢弃已过期的成功、失败或进度回调；`src/render/renderGeneration.js` 则作为渐进式 DOM 批次提交的独立单调守卫，当新一次画布渲染启动时立即终止上一轮未完成的 DOM 批次挂载。
 - **单模块与双模块工作区（`moduleWorkspace.js` & `compareWorkspace.js`）**：Single 画布始终仅投影当前打开的模块定义（Focused 扇入/扇出追踪到达模块端口或子模块实例边界即停止，不将相邻层级的实例混入当前层布局图）；跨层次导航通过 Inspector > Connections 中的 `Hierarchy / Parent occurrence` 或双击子模块实例（`hinst`）触发。Compare 工作区先执行一次共享的全图提取与对比统计准备，再为两侧分别以独立任务作用域（`compare-left-workspace` / `compare-right-workspace`）提交布局、覆盖与场景构建，单侧取消或过期绝不会干扰另一侧。界面使用稳定的 A/B 身份，内部 left/right 字段与已有序列化保持兼容。
-- **有界工作区产物缓存（`workspaceArtifactCache.js` & `ArtifactStore`）**：采用带容量权重上限的 LRU 缓存复用不可变的全图与自动布局产物；缓存键完整包含文档、源码指纹、会话、模块、查询、布局引擎及布局策略依赖（排除视口与选中状态），上游图或单元配置变更会自动使下游几何缓存失效。
+- **阶段缓存与提交产物**：`workspaceArtifactCache.js` 采用带容量权重上限的 LRU 缓存复用不可变的全图与自动布局产物；缓存键包含文档、源码指纹、会话、模块、查询、布局引擎及布局策略依赖（排除视口与选中状态）。`ArtifactStore` 则按 session/kind 保存经修订校验后提交的不可变产物，随会话/文档清理；它不是第二个 LRU 阶段缓存。
+- **共享领域查询与纯数据快照**：`domains/netlist/netlist_view_query.js` 同时服务 `netlistFeature.queryView` 与生产 `moduleWorkspace`，统一 whole/Focused/Search-first 的选择与显示变换；工作区保留缓存、测量、布局与 Scene 编排。`graph_overrides.js` 拥有领域覆盖快照，`contracts/object_ref.js` 拥有引用列表复制；Cell Config 统计和推断在 `cell_definition_query.js`，UI 仅渲染和读取表单。
+- **应用用例与兼容入口**：`application/adjusted_view.js` 供 Single/Compare 共用自动产物到 Adjust 图与 Scene 的过程，不调用 provider；`view_effects.js` 统一合并命令 effects、拒绝/无变化短路及计算、轻量 UI/viewport、成功后保存的顺序；`focused_view_command.js` 和导航控制器通过该边界贯通 Single/Compare roots、模式/深度、搜索与连接 reveal。无变化请求仍检查产物就绪；在途 Focused 等操作重新绑定当前工作，避免过早使用旧图。手势预览的保存仍延迟到提交边界，Adjust/timing 等领域用例保持各自计算职责。`session_persistence_controller.js` 组合快照 codec 与 `debounced_persistence.js`，只负责保存及失败/恢复通知；`persistSession()` 不修改历史。控制器以 `historyActions` 声明用户操作，事务按同步段捕获嵌套命令，显式绑定的异步回调更新本操作历史项；若同步阶段无变化，首次异步有效变化才追加，保留撤销基线；新操作或历史导航使旧回调失效并走取消收尾。pan/wheel/drag 在手势完成时显式提交，布局完成和选区投影不追加条目。历史恢复同时校验恢复前的请求身份，避免复用过期的 Adjust 图。实施证据见 [架构收敛计划](plans/architecture_refactoring_2026_11.md)。
 - **不可变会话快照與事务化视图历史（`viewHistoryTransaction.js`）**：`ViewSession` 中的策略与手工覆盖均为深冻结的不可变快照（含嵌套 `Map` / `Set`），任何状态修改必须经过 store 命令更新。复合视图操作通过 `viewHistoryTransaction` 在最外层操作完成时一次性提交单条历史快照。
 - **启动协议与持久化边界（`startupController.js` & `src/persistence/`）**：`startupController.js` 通过注入的处理器按序执行 `Cell Config`、网表、时序、目标模块与初始聚焦动作，相关的编解码器统一收敛于 `src/persistence/`。Node.js、Python 与 Windows 启动器仅提供本地回环（`127.0.0.1`）静态资源服务、参数校验与 `/__ngb_startup__.json` 清单传输，绝不在服务端复制前端业务算法。
 - **工作台界面偏好与视口桥接**：`contracts/workbench_ui_preferences.js` 定义面板开关、宽度与页签的规范化契约；`persistence/ui_preferences_codec.js` 处理版本化编解码，`platform/ui_preferences_storage.js` 封装 `localStorage`，`app/ui_preferences.js` 负责默认值与失败报告。该存储与网表 session、Cell Config、Golden、ViewHistory 分离，不保存网表或新增领域状态。`app/workbench_viewport_bridge.js` 将 shell 尺寸调整桥接到既有 Single/Compare 会话的 `viewport.set`，不记录视图历史、不重新布局。
@@ -295,7 +301,7 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 `ui/process_log_controller.js` 管理过滤、复制、JSONL 导出和错误展开，并通过注入的 window target 安装 `runtime_error_controller.js`。全局监听观察 error（含捕获阶段资源错误）和 unhandledrejection，不阻止浏览器默认报告；仍在缓冲区内的同一异常对象避免被全局监听重复记录（淘汰或清空后可再次记录），主动取消不作为错误。监听可释放，日志接收端故障有重入保护。日志初始化之前的脚本故障仍由浏览器报告。Native Worker 只补传错误调用栈，不改变布局结果或降级策略。
 
-存储边界提供保留原始异常的结果接口，同时保留旧调用方的值/布尔返回接口。`app/workbench_storage.js` 通过窄回调管理启动读取与离开页面前保存，在日志初始化之后报告恢复失败；历史控制器对连续自动保存失败只报告一次，恢复后记录一次成功。Cell Config 的持久化提交与后续刷新分开报告，导出失败归入 `export`，日志仅携带操作上下文而不附带完整快照。
+存储边界提供保留原始异常的结果接口，同时保留旧调用方的值/布尔返回接口。`app/workbench_storage.js` 通过窄回调管理启动读取与离开页面前保存，在日志初始化之后报告恢复失败；会话持久化控制器对连续自动保存失败只报告一次，恢复后记录一次成功。Cell Config 的持久化提交与后续刷新分开报告，导出失败归入 `export`，日志仅携带操作上下文而不附带完整快照。
 
 日志元素映射归 `ui/workbench_elements.js`；main 的入口行数上限继续随完整职责抽取收紧，以架构测试中的当前门限为准。
 

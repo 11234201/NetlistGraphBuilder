@@ -1,6 +1,8 @@
+import { snapshotNavigationImport, resolveNavigationImport, projectNavigation, navigationGraph, importViewQuery } from "./view_navigation_import.js";
+import { graphNodeToObjectRef, objectRefToNodeId as refToNodeId } from "../domains/netlist/graph_object_refs.js";
 import { createViewSessionStore } from "../application/view_session_store.js";
 import { createCommandBus } from "../application/command_bus.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
+import { importViewState, initialViewState, compareSideViewState, projectCompareViewState } from "./view_state_import.js";
 import { createViewCommandHandlers } from "../application/view_commands.js";
 import { createObjectRef } from "../contracts/object_ref.js";
 import { hasProjectedValueChange } from "../foundation/structured_value.js";
@@ -14,6 +16,57 @@ export function createCompareViewSessionBridge({
   const bus = createCommandBus(createViewCommandHandlers({ sessions }), { onDispatch });
   const sessionIdFor = (side) => `compare:${side}`;
 
+  const pendingNavigation = new Map();
+  const initialStates = Object.fromEntries(["left", "right"].map((side) => [side,
+    initialViewState({ ...compareSideViewState(state.compare, side), layoutPolicy: state.layoutPolicy,
+      presentationPolicy: state.presentationPolicy })]));
+  for (const side of ["left", "right"]) projectCompareViewState(state.compare, side, initialStates[side]);
+  const policies = () => {
+    const source = sessions.get("single:primary") || initialStates.left;
+    return { layoutPolicy: source.layoutPolicy, presentationPolicy: source.presentationPolicy };
+  };
+  // Shared product policies are copied from the canonical Single session when
+  // they change, never inferred from a legacy field during pointer commands.
+  sessions.subscribe((next) => {
+    if (next?.sessionId !== "single:primary") return;
+    const patch = { layoutPolicy: next.layoutPolicy, presentationPolicy: next.presentationPolicy };
+    for (const side of ["left", "right"]) {
+      const current = sessions.get(sessionIdFor(side));
+      if (!current || current.documentId !== next.documentId || !hasProjectedValueChange(current, patch)) continue;
+      project(side, sessions.update(current.sessionId, () => patch, {
+        invalidateComputation: hasProjectedValueChange(current, { layoutPolicy: next.layoutPolicy })
+      }));
+    }
+  });
+  const graphFor = (side) => navigationGraph(state.compare.fullGraphs?.[side] || state.compare.graphs?.[side],
+    state.compare[`${side}ModuleName`]);
+  const importedSide = (value, side) => ({
+    focusedRootNodeIds: value.focusedRootNodeIds?.[side] || [],
+    focusedRootRefs: value.focusedRootRefs?.[side] || [],
+    activeFocusedRootNodeId: value.activeFocusedRootNodeId?.[side],
+    selectedObjectRef: value.selectedSide === side && value.selectedName ? objectRefForSelection(graphFor(side),
+      { documentId: getDocumentId(), unitId: state.compare[`${side}ModuleName`] },
+      value.selectedKind || "cell", value.selectedName) : null
+  });
+
+  function project(side, session, select = false) {
+    ensureProjectionContainers(state.compare);
+    projectCompareViewState(state.compare, side, session);
+    const value = projectNavigation(session, graphFor(side), pendingNavigation.get(side));
+    for (const key of ["focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId"]) {
+      state.compare[key] = Object.freeze({ ...state.compare[key], [side]: value[key] });
+    }
+    if (select && session.selectedObjectRef) {
+      state.compare.selectedKind = session.selectedObjectRef.kind;
+      state.compare.selectedName = session.selectedObjectRef.localId;
+      state.compare.selectedSide = side;
+    } else if (!session.selectedObjectRef && state.compare.selectedSide === side) {
+      state.compare.selectedKind = null;
+      state.compare.selectedName = null;
+      state.compare.selectedSide = null;
+    }
+  }
+
   function ensure(side) {
     const sessionId = sessionIdFor(side);
     const unitId = side === "left" ? state.compare.leftModuleName : state.compare.rightModuleName;
@@ -21,84 +74,51 @@ export function createCompareViewSessionBridge({
     const current = sessions.get(sessionId);
     if (current && current.documentId === documentId && current.unitId === unitId) return current;
     if (current) sessions.close(sessionId);
-    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const focusedRootRefs = resolveFocusedRootRefs(state.compare, side, graph, { documentId, unitId });
-    const activeFocusedRootRef = focusedRootRefs.find((ref) =>
-      refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
-    ) || focusedRootRefs[0] || null;
+    const snapshot = snapshotNavigationImport(current ? {} : importedSide(state.compare, side));
+    const graph = graphFor(side);
+    if (!graph) pendingNavigation.set(side, snapshot);
+    else pendingNavigation.delete(side);
+    const navigation = resolveNavigationImport(snapshot, { documentId, unitId }, graph);
     const session = sessions.create({
       sessionId, documentId, domainId: "netlist", unitId,
-      viewMode: focusedRootRefs.length > 0 ? "focused" : "whole",
-      focusedRootRefs,
-      activeFocusedRootRef,
-      viewport: state.compare.transforms?.[side] || { x: 0, y: 0, scale: 1 },
-      layoutPolicy: state.layoutPolicy,
-      presentationPolicy: state.presentationPolicy,
-      overrides: snapshotOverrides(state.compare, side)
+      viewMode: snapshot.focusedRootNodeIds.length > 0 ? "focused" : "whole",
+      ...navigation,
+      ...(current ? initialViewState() : initialStates[side]),
+      ...policies()
     });
-    ensureProjectionContainers(state.compare);
-    state.compare.focusedRootRefs[side] = cloneObjectRefs(session.focusedRootRefs);
+    project(side, session);
     return session;
   }
 
-  function synchronize(side) {
+  function importState(side, value = {}) {
     const current = ensure(side);
-    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const focusedRootRefs = resolveFocusedRootRefs(state.compare, side, graph, current);
-    const activeFocusedRootRef = focusedRootRefs.find((ref) =>
-      refToNodeId(ref, graph) === state.compare.activeFocusedRootNodeId?.[side]
-    ) || focusedRootRefs[0] || null;
-    const projection = {
-      viewMode: focusedRootRefs.length > 0 ? "focused" : "whole",
-      focusedRootRefs,
-      activeFocusedRootRef,
-      viewport: state.compare.transforms?.[side] || current.viewport,
-      layoutPolicy: state.layoutPolicy,
-      presentationPolicy: state.presentationPolicy,
-      overrides: snapshotOverrides(state.compare, side),
-      selectedObjectRef: state.compare.selectedSide === side && state.compare.selectedName
-        ? objectRefForSelection(graph, current, state.compare.selectedKind || "cell", state.compare.selectedName)
-        : null
-    };
-    state.compare.focusedRootRefs[side] = cloneObjectRefs(focusedRootRefs);
-    return hasProjectedValueChange(current, projection)
-      ? sessions.update(current.sessionId, () => projection, { invalidateComputation: false })
-      : current;
+    const patch = importViewState(value, current);
+    const next = hasProjectedValueChange(current, patch)
+      ? sessions.update(current.sessionId, () => patch, {
+        invalidateComputation: Boolean(patch.layoutPolicy || patch.overrides)
+      }) : current;
+    project(side, next);
+    return next;
   }
 
   function dispatch(side, command) {
-    const current = synchronize(side);
-    const result = bus.dispatch({ ...command, sessionId: current.sessionId });
-    const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    ensureProjectionContainers(state.compare);
-    state.compare.transforms[side] = { ...result.session.viewport };
-    state.layoutPolicy = result.session.layoutPolicy;
-    state.presentationPolicy = { ...result.session.presentationPolicy };
-    applyOverridesSnapshot(state.compare, side, result.session.overrides);
-    if (!state.compare.focusedRootNodeIds) state.compare.focusedRootNodeIds = { left: [], right: [] };
-    if (!state.compare.activeFocusedRootNodeId) state.compare.activeFocusedRootNodeId = { left: null, right: null };
-    if (!state.compare.focusedRootRefs) state.compare.focusedRootRefs = { left: [], right: [] };
-    state.compare.focusedRootRefs[side] = cloneObjectRefs(result.session.focusedRootRefs);
-    state.compare.focusedRootNodeIds[side] = result.session.focusedRootRefs
-      .map((ref) => refToNodeId(ref, graph))
-      .filter(Boolean);
-    state.compare.activeFocusedRootNodeId[side] = refToNodeId(result.session.activeFocusedRootRef, graph);
-    if (result.session.selectedObjectRef) {
-      state.compare.selectedKind = result.session.selectedObjectRef.kind;
-      state.compare.selectedName = result.session.selectedObjectRef.localId;
-      state.compare.selectedSide = side;
-    } else if (state.compare.selectedSide === side) {
-      state.compare.selectedKind = null;
-      state.compare.selectedName = null;
-      state.compare.selectedSide = null;
+    const current = ensure(side);
+    const result = bus.dispatch({ ...command,
+      ...(command.type === "overrides.set" ? { overrides: importViewState({ overrides: command.overrides ?? null }, current).overrides } : {}),
+      sessionId: current.sessionId });
+    if (command.type.startsWith("focus.") && !result.rejected) pendingNavigation.delete(side);
+    if (command.type.startsWith("selection.") && pendingNavigation.has(side)) {
+      pendingNavigation.set(side, snapshotNavigationImport({ ...pendingNavigation.get(side),
+        selectedObjectRef: result.session.selectedObjectRef }));
     }
+    project(side, result.session, command.type === "selection.set" || command.type === "selection.reveal");
     return result;
   }
 
   function replaceRoots(side, nodeIds, activeNodeId = null) {
     const current = ensure(side);
     const graph = state.compare.fullGraphs?.[side] || state.compare.graphs?.[side];
-    const previousRefs = state.compare.focusedRootRefs?.[side] || [];
+    const previousRefs = current.focusedRootRefs;
     const previousIds = refsToNodeIds(previousRefs, graph);
     const refs = nodeIds.map((nodeId) => {
       const previous = previousRefs[previousIds.indexOf(nodeId)];
@@ -118,19 +138,62 @@ export function createCompareViewSessionBridge({
     const mirrored = {
       rootNodeIds: session.focusedRootRefs.map((ref) => refToNodeId(ref, graph)).filter(Boolean),
       activeRootNodeId: refToNodeId(session.activeFocusedRootRef, graph),
-      session
+      rejected: result.rejected, effects: result.effects, session
     };
-    ensureProjectionContainers(state.compare);
-    state.compare.focusedRootRefs[side] = cloneObjectRefs(session.focusedRootRefs);
-    state.compare.focusedRootNodeIds[side] = mirrored.rootNodeIds;
-    state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
+    if (!result.rejected) pendingNavigation.delete(side);
+    project(side, session);
     return mirrored;
   }
 
+  function refreshNavigation(side) {
+    const current = ensure(side);
+    const graph = graphFor(side);
+    const pending = pendingNavigation.get(side);
+    if (!pending || !graph) { project(side, current); return current; }
+    const next = sessions.update(current.sessionId,
+      () => resolveNavigationImport(pending, current, graph), { invalidateComputation: false });
+    pendingNavigation.delete(side);
+    project(side, next);
+    return next;
+  }
+
   return Object.freeze({
-    sessions, ensure, replaceRoots, dispatch,
+    sessions, ensure, replaceRoots, dispatch, refreshNavigation, importState, readState: ensure,
+    isWorkspaceReady: () => Boolean(!state.compare.layoutAbortController && state.compare.workspaceIdentity && state.compare.graphs?.left && state.compare.graphs?.right),
+    resetState() {
+      pendingNavigation.clear();
+      for (const side of ["left", "right"]) {
+        sessions.close(sessionIdFor(side));
+        initialStates[side] = initialViewState();
+        project(side, { ...initialStates[side], focusedRootRefs: [], activeFocusedRootRef: null, selectedObjectRef: null });
+      }
+    },
+    importQuery(query, workspaceInputs = null) {
+      for (const side of ["left", "right"]) {
+        const current = ensure(side);
+        const nextQuery = importViewQuery({ coneDepth: query.coneDepth,
+          faninDepth: query.faninDepth, fanoutDepth: query.fanoutDepth,
+          ...(workspaceInputs ? { viewMode: "whole", ...workspaceInputs[side] } : {})
+        }, current);
+        if (hasProjectedValueChange(current, nextQuery)) sessions.update(current.sessionId, () => nextQuery);
+      }
+    },
+    importNavigation(value = {}) {
+      for (const side of ["left", "right"]) {
+        const current = ensure(side);
+        const snapshot = snapshotNavigationImport(importedSide(value, side));
+        const graph = graphFor(side);
+        const next = sessions.update(current.sessionId, () => ({
+          ...resolveNavigationImport(snapshot, current, graph),
+          viewMode: snapshot.focusedRootNodeIds.length ? "focused" : "whole",
+          ...importViewState(compareSideViewState(value, side), current)
+        }));
+        if (graph) pendingNavigation.delete(side); else pendingNavigation.set(side, snapshot);
+        project(side, next, value.selectedSide === side);
+      }
+    },
     beginComputation(side) {
-      const current = synchronize(side);
+      const current = refreshNavigation(side);
       return sessions.update(current.sessionId, () => ({}));
     },
     objectRef(side, kind, localId) {
@@ -200,105 +263,10 @@ function ensureProjectionContainers(compare) {
   compare.activeFocusedRootNodeId ||= { left: null, right: null };
 }
 
-function snapshotOverrides(compare, side) {
-  return {
-    nodePositions: new Map(compare.nodePositions?.[side] || []),
-    nodeSizes: new Map(compare.nodeSizes?.[side] || []),
-    graphOverrides: cloneGraphOverrides(compare.graphOverrides?.[side])
-  };
-}
-
-function applyOverridesSnapshot(compare, side, snapshot) {
-  if (!snapshot) return;
-  compare.nodePositions[side] = new Map(snapshot.nodePositions || []);
-  compare.nodeSizes[side] = new Map(snapshot.nodeSizes || []);
-  compare.graphOverrides[side] = cloneGraphOverrides(snapshot.graphOverrides);
-}
-
-function cloneGraphOverrides(value) {
-  return {
-    ...cloneNetRoutingOverrides(value),
-    nodeProperties: Object.fromEntries(Object.entries(value?.nodeProperties || {}).map(([id, properties]) => [id, { ...properties }])),
-    cellPinDirections: Object.fromEntries(Object.entries(value?.cellPinDirections || {}).map(([id, pins]) => [id, { ...pins }]))
-  };
-}
-
-function nodeToRef(node, session) {
-  if (!node) throw new Error("Compare root node is not available in its session graph");
-  return createObjectRef({
-    documentId: session.documentId,
-    unitId: session.unitId,
-    kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.ref?.instance || node.ref?.name || node.ref?.localId || node.id,
-    occurrencePath: node.ref?.occurrencePath
-  });
-}
-
-function rootsToRefs(nodeIds, graph, session) {
-  return (nodeIds || [])
-    .map((nodeId) => {
-      if (typeof nodeId === "string" && nodeId.startsWith("net:")) {
-        const localId = nodeId.slice(4);
-        const netNode = graph?.nodes?.find((item) =>
-          (item.kind === "hub" || item.kind === "net") &&
-          (item.ref?.localId || item.ref?.name || item.label) === localId
-        );
-        return createObjectRef({
-          documentId: session.documentId,
-          unitId: session.unitId,
-          kind: "net",
-          localId,
-          occurrencePath: netNode?.ref?.occurrencePath
-        });
-      }
-      const node = graph?.nodes?.find((item) => item.id === nodeId);
-      return node ? nodeToRef(node, session) : null;
-    })
-    .filter(Boolean);
-}
-
-function resolveFocusedRootRefs(compare, side, graph, session) {
-  const candidate = cloneObjectRefs(compare.focusedRootRefs?.[side]).filter((ref) =>
-    ref.documentId === session.documentId && ref.unitId === session.unitId
-  );
-  const expected = normalizeRootIds(compare.focusedRootNodeIds?.[side]);
-  const projected = refsToNodeIds(candidate, graph);
-  if (candidate.length === expected.length && candidate.every((ref, index) => projected[index] === expected[index])) {
-    return candidate;
-  }
-  if (!graph && candidate.length === expected.length) return candidate;
-  return rootsToRefs(expected, graph, session);
-}
-
-function normalizeRootIds(value) {
-  return Array.isArray(value)
-    ? value.filter((item) => typeof item === "string" && item.length > 0)
-    : [];
-}
-
-function refToNodeId(ref, graph) {
-  if (!ref || !graph) return null;
-  if (ref.kind === "net") return `net:${ref.localId}`;
-  return graph.nodes.find((node) =>
-    (node.ref?.instance || node.ref?.name || node.ref?.localId || node.id) === ref.localId &&
-    (node.kind === ref.kind || (ref.kind === "cell" && node.kind === "cell")) &&
-    occurrenceMatches(node.ref?.occurrencePath, ref.occurrencePath)
-  )?.id || null;
-}
-
 function refsToNodeIds(refs, graph) {
   return (Array.isArray(refs) ? refs : []).map((ref) => refToNodeId(ref, graph)).filter(Boolean);
 }
 
-function occurrenceMatches(nodePath, refPath) {
-  if (!Array.isArray(refPath) || refPath.length === 0) return true;
-  return Array.isArray(nodePath) && nodePath.length === refPath.length &&
-    nodePath.every((segment, index) => segment === refPath[index]);
-}
-
-function cloneObjectRefs(value) {
-  return (Array.isArray(value) ? value : []).map((ref) => ({
-    ...ref,
-    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
-  }));
+function nodeToRef(node, session) {
+  return graphNodeToObjectRef(node, { documentId: session.documentId, unitId: session.unitId });
 }

@@ -16,10 +16,9 @@ import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
 import {
-  collectCellTypeSummary,
-  createInferredCellDefinition,
   renderCellDefinitionEditor
 } from "../../src/ui/cellDefinitionPanel.js";
+import { collectCellTypeSummary, createInferredCellDefinition } from "../../src/domains/netlist/cell_definition_query.js";
 import { renderProcessLogEntries } from "../../src/ui/processLogPanel.js";
 import {
   getTimingBadgeChoices,
@@ -202,10 +201,10 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
 test("app forwards both Focused depths into the module workspace", async () => {
   const source = await readWorkbenchSource();
   const workspaceCall = await readFile(new URL("../../src/app/workspace_inputs.js", import.meta.url), "utf8");
-  assert.match(source, /createSingleWorkspaceInput\(state, layoutProvider, services\.readCellLibrary\?\.\(\)\)/);
+  assert.match(source, /createSingleWorkspaceInput\(state, layoutProvider,\s*services\.singleViewSession\.readQuery\(\), services\.readCellLibrary\?\.\(\)\)/);
 
-  assert.match(workspaceCall, /faninDepth: state\.faninDepth/);
-  assert.match(workspaceCall, /fanoutDepth: state\.fanoutDepth/);
+  assert.match(workspaceCall, /\.\.\.query/);
+  assert.doesNotMatch(workspaceCall, /state\.(?:viewMode|coneDepth|faninDepth|fanoutDepth)/);
   assert.match(source, /faninDepthInput\.addEventListener\("change", scheduleFocusedDepthChange\)/);
   assert.match(source, /fanoutDepthInput\.addEventListener\("change", scheduleFocusedDepthChange\)/);
 });
@@ -215,8 +214,8 @@ test("Focused depth changes preserve the active mode and roots", async () => {
   const handler = source.match(/function handleFocusedDepthChange\(\) \{([\s\S]*?)\n  \}\n\n  function scheduleFocusedDepthChange/)?.[1] || "";
 
   assert.match(handler, /setSingleFocusedDepths\(/);
-  assert.match(handler, /state\.viewMode === "focused" && result\?\.effects\?\.layout/);
-  assert.match(handler, /renderCurrentModuleGraph\(\)/);
+  assert.match(handler, /executeViewEffects\(result/);
+  assert.match(handler, /shouldCompute: Boolean\(focused && result\?\.effects\?\.layout\)/);
   assert.doesNotMatch(handler, /setViewMode\(/);
 });
 
@@ -317,12 +316,14 @@ test("hidden net search requires Focused unless routing was explicitly disabled"
   assert.doesNotMatch(handler.replace(explicitlyUnrouted, ""), /setSelectedNet\(target\.name\);/);
 });
 
-test("search history captures the final selection and viewport together", async () => {
+test("search declares an operation boundary instead of recording history inside selection callbacks", async () => {
   const source = await readWorkbenchSource();
   const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
 
-  assert.match(handler, /setSelectedNode\(positioned\.id, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
-  assert.match(handler, /setSelectedNet\(target\.name, false\)[\s\S]*centerGraphPoint\([\s\S]*recordViewHistory\(\)/);
+  assert.match(handler, /setSelectedNode\(positioned\.id, false\)[\s\S]*centerGraphPoint\(/);
+  assert.match(handler, /setSelectedNet\(target\.name, false\)[\s\S]*centerGraphPoint\(/);
+  assert.doesNotMatch(handler, /recordViewHistory/);
+  assert.match(source, /historyActions: \{\s*"activateSearchResult": "[^"]+"/);
 });
 
 test("fit-to-view is one explicit view-history operation", async () => {
@@ -348,10 +349,10 @@ test("viewport gesture history metadata is only written after a completed pan", 
 
   assert.equal(panHandlers.length, 2);
   panHandlers.forEach((handler) => {
-    assert.match(handler, /didPan && !cancelled\) services\.persistSession\(\{[\s\S]*label: "Viewport gesture"/);
+    assert.match(handler, /didPan && !cancelled\) services\.commitViewHistory\(\{[\s\S]*label: "Viewport gesture"/);
     assert.doesNotMatch(handler, /!didPan && !cancelled\).*Viewport gesture/);
   });
-  assert.match(source, /function persistSession\(metadata = \{\}\)/);
+  assert.match(source, /function commitViewHistory\(metadata = \{\}\)/);
   assert.match(source, /recordViewHistory\(metadata\)/);
 });
 
@@ -388,7 +389,7 @@ test("compare layout dispatches independent side jobs", async () => {
 
 test("compound view actions commit one history transaction", async () => {
   const source = await readWorkbenchSource();
-  assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => recordViewHistory\(metadata\)/);
+  assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => commitViewHistory\(metadata\)/);
   assert.match(source, /function applyCompareSelection\(options = \{\}\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Compare selection" \}/);
   assert.match(source, /function setViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `View mode: \$\{mode\}` \}/);
   assert.match(source, /function setCompareViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Compare view mode: \$\{mode\}` \}/);

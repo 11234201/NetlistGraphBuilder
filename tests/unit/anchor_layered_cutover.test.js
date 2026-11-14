@@ -7,6 +7,7 @@ import {createAppState} from '../../src/app/appState.js';
 import {DEFAULT_LAYOUT_POLICY} from '../../src/layout/layoutPolicy.js';
 import {createInspectorController} from '../../src/app/inspector_controller.js';
 import {createInputController} from '../../src/app/input_controller.js';
+import {createTestViewBridges} from '../helpers/view_session_bridges.js';
 
 test('product AnchorLayered has one registry identity and no retired or research runtime imports',async()=>{
   assert.equal(getLayoutProvider().id,'native-layered');
@@ -58,8 +59,8 @@ test('app, registry and EDA startup share AnchorLayered default while explicit l
   assert.equal(getLayoutProvider('unknown-provider').id,FALLBACK_LAYOUT_PROVIDER_ID);
   assert.equal(getLayoutProvider('simple-layered').id,'simple-layered');
   const elements={layoutProviderSelect:{},faninDepthInput:{},fanoutDepthInput:{}};
-  const state={layoutProviderId:'simple-layered',faninDepth:3,fanoutDepth:3};
-  createInputController({state,elements,services:{}}).createStartupHandlers().configureTarget({faninDepth:2});
+  const state={...createAppState(DEFAULT_LAYOUT_POLICY),layoutProviderId:'simple-layered',faninDepth:3,fanoutDepth:3};
+  createInputController({state,elements,services:createTestViewBridges(state)}).createStartupHandlers().configureTarget({faninDepth:2});
   assert.equal(state.layoutProviderId,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(elements.layoutProviderSelect.value,DEFAULT_LAYOUT_PROVIDER_ID);
   assert.equal(state.faninDepth,2);

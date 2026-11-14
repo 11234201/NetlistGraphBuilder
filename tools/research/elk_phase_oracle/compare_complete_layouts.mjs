@@ -27,6 +27,7 @@ for(const entry of manifest.cases.filter((entry)=>['focused','mapped'].includes(
     const started=performance.now();
     let providerInputDigest;
     const layout=provider.layout.bind(provider);
+    provider.measurementContract=null; // Preserve the raw-input observer boundary.
     provider.layout=async(input,options)=>{
       providerInputDigest=sha256(JSON.stringify(input));
       const result=await layout(input,options);

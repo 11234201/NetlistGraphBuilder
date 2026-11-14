@@ -65,11 +65,11 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       saveCompareWorkspace(state);
     }
     state.compare.active = true;
-    const restoredWorkspace = pairChanged
-      ? restoreCompareWorkspace(state, left.name, right.name)
-      : true;
     state.compare.leftModuleName = left.name;
     state.compare.rightModuleName = right.name;
+    const restoredWorkspace = pairChanged
+      ? restoreCompareWorkspace(state, left.name, right.name, (value) => services.compareViewSessions.importNavigation(value))
+      : true;
     if (!restoredWorkspace) {
       state.compare.outputName = null;
       state.compare.wholeRequested = false;
@@ -137,28 +137,29 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   }
 
   function renderCompareGraphs(options = {}) {
+    options = services.bindViewHistoryCallbacks(options, "onCommitted");
     const leftModule = getCompareModule("left");
     const rightModule = getCompareModule("right");
     if (!leftModule || !rightModule) return;
     state.compare.layoutAbortController?.abort();
     const layoutController = new AbortController();
     state.compare.layoutAbortController = layoutController;
-    services.recordViewHistory();
     const request = services.renderGeneration.begin();
     const requestId = request.id;
     const compareLayoutProvider = services.getCurrentLayoutProvider();
     services.logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
       provider: compareLayoutProvider.id
     });
+    const query = services.singleViewSession.readQuery();
     const workspaceOptions = {
       leftModule,
       rightModule,
       layoutProvider: compareLayoutProvider,
       layoutPolicy: state.layoutPolicy,
       outputName: state.compare.outputName,
-      coneDepth: state.coneDepth,
-      faninDepth: state.faninDepth,
-      fanoutDepth: state.fanoutDepth,
+      coneDepth: query.coneDepth,
+      faninDepth: query.faninDepth,
+      fanoutDepth: query.fanoutDepth,
       focusedRootNodeIds: state.compare.focusedRootNodeIds,
       activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
       showAliases: state.showAliases,
@@ -196,6 +197,9 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       // per compare side so a stale side cannot commit through its peer.
       const prepared = prepareCompareWorkspace(workspaceOptions);
       state.compare.fullGraphs = prepared.fullGraphs;
+      services.compareViewSessions.importQuery(query, prepared.workspaceInputs);
+      for (const side of ["left", "right"]) services.compareViewSessions.refreshNavigation(side);
+      renderOptions.workspaceIdentity = createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
       const sides = ["left", "right"];
       const buildSide = (side, contextSignal) => buildCompareSideWorkspace({
         ...workspaceOptions,
@@ -318,6 +322,10 @@ export function createCompareWorkspaceController({ state, elements, services }) 
 }
 
 export const compareWorkspacePorts = Object.freeze({
+  historyActions: {
+    "handleCompareOutputChange": "Compare output",
+    "exitCompareView": "Exit Compare"
+  },
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "cellConfig", "compare",
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "design", "document",
@@ -334,10 +342,11 @@ export const compareWorkspacePorts = Object.freeze({
     "syncCompareFocusInput"
   ],
   services: [
+    "singleViewSession",
     "readCellLibrary",
     "applyCompareHighlights", "applyCompareTransforms", "applyTransform", "clearCompareSelection",
     "compareViewSessions", "getCurrentLayoutProvider", "handleLayoutFailure", "logProcess",
-    "recordViewHistory", "renderCurrentModuleGraph", "renderDiagnostics", "renderGeneration",
+    "bindViewHistoryCallbacks", "recordViewHistory", "renderCurrentModuleGraph", "renderDiagnostics", "renderGeneration",
     "renderGraphMount", "renderSelection", "renderStats", "runViewHistoryTransaction", "setCompareTransform", "setStatus",
     "updateCalibrationControls", "updateFocusSelectedControl", "updateModuleHierarchyPicker",
     "updateViewControls", "updateViewHistoryControls", "workspaceExecution", "workspaceJobs"

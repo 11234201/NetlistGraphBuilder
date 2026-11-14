@@ -1,5 +1,5 @@
+import { createViewHistoryTransaction } from "./viewHistoryTransaction.js";
 import { isEditableInputTarget } from "../ui/quick_input_controller.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
 import {
   replaceCurrentViewHistory,
   createViewHistoryEntry,
@@ -8,21 +8,33 @@ import {
   pushViewHistory
 } from "./viewHistory.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
-import { setFocusedRootNodeIds, createEmptyGraphOverrides } from "./appState.js";
+import { resolveCompareWorkspaceInputs } from "./compareWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
-import { createSessionSnapshot } from "./sessionState.js";
-import { saveSessionStateResult } from "../persistence/session_storage.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createHistoryController({ state, elements, services }) {
-  let sessionSaveTimer = null;
   let nextViewTransactionId = 1;
   let nextRestoreId = 1;
   let activeRestoreId = 0;
-  let sessionSaveFailureReported = false;
+  let unchangedContinuation = null;
+  const transactions = createViewHistoryTransaction({
+    before() {
+      unchangedContinuation = null;
+      checkpointViewHistory();
+      state.pendingViewCommandMetadata = null;
+    },
+    commit: (metadata) => commitViewHistory(metadata)
+  });
+
+  function checkpointViewHistory() {
+    if (state.restoringViewHistory || !state.currentModule) return;
+    const current = state.viewHistory.entries[state.viewHistory.index];
+    if (current) state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state, current));
+  }
+
   function reportHistoryRenderFailure(error, view, isCurrent, endRestore) {
     try {
       if (isCurrent() && readErrorField(error, "name") !== "AbortError") {
@@ -52,7 +64,7 @@ export function createHistoryController({ state, elements, services }) {
 
   function navigateViewHistory(delta) {
     if (!state.currentModule) return;
-    state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state));
+    checkpointViewHistory();
     const result = stepViewHistory(state.viewHistory, delta);
     if (!result.entry) {
       updateViewHistoryControls();
@@ -63,6 +75,8 @@ export function createHistoryController({ state, elements, services }) {
   }
 
   function restoreViewHistoryEntry(entry) {
+    unchangedContinuation = null;
+    transactions.invalidate();
     const restoreId = nextRestoreId++;
     activeRestoreId = restoreId;
     state.restoringViewHistory = true;
@@ -71,6 +85,7 @@ export function createHistoryController({ state, elements, services }) {
       activeRestoreId = 0;
       state.restoringViewHistory = false;
       updateViewHistoryControls();
+      services.persistSession();
     };
     if (entry.kind === "compare" && entry.compare) {
       try { restoreCompareViewHistoryEntry(entry, endRestore, () => activeRestoreId === restoreId); }
@@ -79,32 +94,24 @@ export function createHistoryController({ state, elements, services }) {
     }
     if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
     const previousPresentationPolicy = JSON.stringify(state.presentationPolicy || {});
+    const previousWorkspaceIdentity = createSingleWorkspaceHistoryIdentity();
     const finish = (graph) => {
       state.occurrenceContext = entry.occurrenceContext ? {
         rootModuleName: entry.occurrenceContext.rootModuleName || null,
         occurrencePath: [...(entry.occurrenceContext.occurrencePath || [])]
       } : null;
       services.updateModuleHierarchyPicker();
-      state.viewMode = normalizeSingleViewMode(entry.viewMode);
-      setFocusedRootNodeIds(state, entry.focusedRootNodeIds, entry.activeFocusedRootNodeId);
-      state.focusedRootRefs = cloneObjectRefs(entry.focusedRootRefs);
-      state.coneDepth = entry.coneDepth;
-      state.faninDepth = entry.faninDepth;
-      state.fanoutDepth = entry.fanoutDepth;
+      services.singleViewSession.importNavigation({ ...entry, viewMode: normalizeSingleViewMode(entry.viewMode) });
       elements.coneDepthInput.value = String(state.coneDepth);
       elements.faninDepthInput.value = String(state.faninDepth);
       elements.fanoutDepthInput.value = String(state.fanoutDepth);
-      state.selectedNodeId = entry.selectedNodeId || null;
-      state.selectedNet = entry.selectedNet || null;
-      state.presentationPolicy = entry.presentationPolicy
-        ? { ...entry.presentationPolicy }
-        : state.presentationPolicy;
-      state.nodePositions = new Map(entry.overrides?.nodePositions || []);
-      state.nodeSizes = new Map(entry.overrides?.nodeSizes || []);
-      state.graphOverrides = entry.overrides?.graphOverrides || createEmptyGraphOverrides();
-      services.setSingleTransform(entry.transform);
+      services.singleViewSession.importState({
+        ...(entry.presentationPolicy ? { presentationPolicy: entry.presentationPolicy } : {}),
+        overrides: entry.overrides || null, viewport: entry.transform
+      });
       const canReuseWorkspace = Boolean(
         !state.compare.singleWorkspaceInvalidated && state.graph &&
+        state.singleWorkspaceIdentity === previousWorkspaceIdentity &&
         state.singleWorkspaceIdentity === createSingleWorkspaceHistoryIdentity()
       );
       const finishRestore = () => {
@@ -154,6 +161,7 @@ export function createHistoryController({ state, elements, services }) {
 
   function restoreCompareViewHistoryEntry(entry, endRestore, isCurrentRestore = () => true) {
     const compare = entry.compare;
+    const previousWorkspaceIdentity = createCompareWorkspaceHistoryIdentity();
     const previousPresentationPolicy = JSON.stringify(state.presentationPolicy || {});
     const pairChanged = state.compare.leftModuleName !== compare.leftModuleName
       || state.compare.rightModuleName !== compare.rightModuleName;
@@ -164,52 +172,24 @@ export function createHistoryController({ state, elements, services }) {
     }
 
     state.compare.active = true;
-    state.presentationPolicy = entry.presentationPolicy
-      ? { ...entry.presentationPolicy }
-      : state.presentationPolicy;
+    if (entry.presentationPolicy) services.singleViewSession.importState({ presentationPolicy: entry.presentationPolicy });
     state.compare.leftModuleName = compare.leftModuleName;
     state.compare.rightModuleName = compare.rightModuleName;
     state.compare.layout = compare.layout || "vertical";
     state.compare.outputName = compare.outputName || null;
     state.compare.wholeRequested = compare.wholeRequested === true;
-    state.coneDepth = entry.coneDepth;
-    state.faninDepth = entry.faninDepth;
-    state.fanoutDepth = entry.fanoutDepth;
+    services.singleViewSession.importQuery({ coneDepth: entry.coneDepth, faninDepth: entry.faninDepth, fanoutDepth: entry.fanoutDepth });
     elements.coneDepthInput.value = String(state.coneDepth);
     elements.faninDepthInput.value = String(state.faninDepth);
     elements.fanoutDepthInput.value = String(state.fanoutDepth);
     state.compare.focusedRootsSynchronized = compare.focusedRootsSynchronized !== false;
-    state.compare.focusedRootNodeIds = {
-      left: [...(compare.focusedRootNodeIds?.left || [])],
-      right: [...(compare.focusedRootNodeIds?.right || [])]
-    };
-    state.compare.focusedRootRefs = {
-      left: cloneObjectRefs(compare.focusedRootRefs?.left),
-      right: cloneObjectRefs(compare.focusedRootRefs?.right)
-    };
-    state.compare.activeFocusedRootNodeId = {
-      left: compare.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
-      right: compare.activeFocusedRootNodeId?.right || state.compare.focusedRootNodeIds.right[0] || null
-    };
-    state.compare.transforms = {
-      left: { ...compare.transforms.left },
-      right: { ...compare.transforms.right }
-    };
-    state.compare.selectedName = compare.selectedName || null;
-    state.compare.selectedKind = compare.selectedKind || null;
-    state.compare.selectedSide = compare.selectedSide || null;
-    state.compare.nodePositions = {
-      left: new Map(compare.overrides.left.nodePositions || []),
-      right: new Map(compare.overrides.right.nodePositions || [])
-    };
-    state.compare.nodeSizes = {
-      left: new Map(compare.overrides.left.nodeSizes || []),
-      right: new Map(compare.overrides.right.nodeSizes || [])
-    };
-    state.compare.graphOverrides = {
-      left: cloneGraphOverridesForHistory(compare.overrides.left.graphOverrides),
-      right: cloneGraphOverridesForHistory(compare.overrides.right.graphOverrides)
-    };
+    services.compareViewSessions.importNavigation(compare);
+    const query = services.singleViewSession.readQuery();
+    services.compareViewSessions.importQuery(query, resolveCompareWorkspaceInputs({
+      ...query, leftModule: services.getCompareModule("left"), rightModule: services.getCompareModule("right"),
+      fullGraphs: state.compare.fullGraphs, outputName: state.compare.outputName,
+      focusedRootNodeIds: state.compare.focusedRootNodeIds, forceWhole: state.compare.wholeRequested
+    }));
     elements.compareLayoutSelect.value = state.compare.layout;
     elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized;
     elements.comparePanel.hidden = false;
@@ -220,6 +200,7 @@ export function createHistoryController({ state, elements, services }) {
     services.updateViewControls();
     const canReuseWorkspace = Boolean(
       state.compare.graphs?.left && state.compare.graphs?.right &&
+      state.compare.workspaceIdentity === previousWorkspaceIdentity &&
       state.compare.workspaceIdentity === createCompareWorkspaceHistoryIdentity()
     );
     const finishRestore = () => {
@@ -271,21 +252,6 @@ export function createHistoryController({ state, elements, services }) {
     return createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
   }
 
-  function cloneGraphOverridesForHistory(value = {}) {
-    return {
-      ...cloneNetRoutingOverrides(value),
-      nodeProperties: Object.fromEntries(Object.entries(value.nodeProperties || {}).map(([id, item]) => [id, { ...item }])),
-      cellPinDirections: Object.fromEntries(Object.entries(value.cellPinDirections || {}).map(([id, item]) => [id, { ...item }]))
-    };
-  }
-
-  function cloneObjectRefs(value) {
-    return (Array.isArray(value) ? value : []).map((ref) => ({
-      ...ref,
-      ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
-    }));
-  }
-
   function updateViewHistoryControls() {
     const canViewBack = canStepViewHistory(state.viewHistory, -1);
     const canViewForward = canStepViewHistory(state.viewHistory, 1);
@@ -293,31 +259,20 @@ export function createHistoryController({ state, elements, services }) {
     elements.moduleForwardButton.disabled = !canViewForward;
   }
 
-  function persistSession(metadata = {}) {
-    if (!state.currentSource) return;
+  function commitViewHistory(metadata = {}) {
     recordViewHistory(metadata);
-    clearTimeout(sessionSaveTimer);
-    sessionSaveTimer = setTimeout(() => {
-      let result;
-      try { result = saveSessionStateResult(createSessionSnapshot(state)); }
-      catch (error) { result = { ok: false, error }; }
-      if (result.ok) {
-        if (sessionSaveFailureReported) services.logProcess("info", "persistence", "Session saving recovered", {
-          operation: "save-session", moduleName: state.currentModule?.name
-        });
-        sessionSaveFailureReported = false;
-        return;
-      }
-      if (sessionSaveFailureReported) return;
-      sessionSaveFailureReported = true;
-      services.logProcess("error", "persistence", `Session could not be saved: ${errorMessage(result.error)}`, {
-        error: result.error, operation: "save-session", moduleName: state.currentModule?.name
-      });
-      services.setStatus("Session save failed; changes may not survive a refresh");
-    }, 150);
+    services.persistSession();
+  }
+
+  function bindViewHistoryCallbacks(options = {}, successKey = "onRendered") {
+    return { ...options, [successKey]: transactions.bind(options[successKey] || (() => {}), () => options.onCancelled?.()) };
   }
 
   function recordViewHistory(metadata = {}) {
+    const currentTransactionId = state.viewHistory.entries[state.viewHistory.index]?.transactionId;
+    const firstAsyncChange = metadata.continuation && unchangedContinuation?.transactionId === metadata.transactionId
+      && unchangedContinuation.baseTransactionId === currentTransactionId;
+    if (metadata.continuation && currentTransactionId !== metadata.transactionId && !firstAsyncChange) return;
     const pendingCommand = state.pendingViewCommandMetadata;
     state.pendingViewCommandMetadata = null;
     const mergedMetadata = pendingCommand
@@ -328,15 +283,24 @@ export function createHistoryController({ state, elements, services }) {
       }
       : metadata;
     if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
-    if (services.viewHistoryTransactions.capture(mergedMetadata)) return;
+    if (transactions.capture(mergedMetadata)) return;
+    if (!mergedMetadata.transactionId) transactions.invalidate();
     const affectedSessionIds = mergedMetadata.affectedSessionIds || (state.compare.active
       ? ["compare:left", "compare:right"]
       : ["single:primary"]);
-    state.viewHistory = pushViewHistory(state.viewHistory, createViewHistoryEntry(state, {
+    const entry = createViewHistoryEntry(state, {
       transactionId: mergedMetadata.transactionId || `view:${nextViewTransactionId++}`,
       label: mergedMetadata.label || "View change",
       affectedSessionIds
-    }));
+    });
+    // A synchronous no-op owns no entry yet. Its first asynchronous change must
+    // append (so Undo retains the baseline); subsequent completions replace it.
+    state.viewHistory = mergedMetadata.continuation && !firstAsyncChange
+      ? replaceCurrentViewHistory(state.viewHistory, entry)
+      : pushViewHistory(state.viewHistory, entry);
+    const committedId = state.viewHistory.entries[state.viewHistory.index]?.transactionId;
+    unchangedContinuation = mergedMetadata.transactionId && committedId !== mergedMetadata.transactionId
+      ? { transactionId: mergedMetadata.transactionId, baseTransactionId: committedId } : null;
     updateViewHistoryControls();
   }
 
@@ -368,6 +332,7 @@ export function createHistoryController({ state, elements, services }) {
       "focus.activate": "Activate Focused root",
       "view.mode.set": "Change view mode",
       "view.depths.set": "Change Focused depth",
+      "view.coneDepth.set": "Change output depth",
       "viewport.set": "Change viewport",
       "layout.policy.set": "Change layout policy",
       "presentation.policy.set": "Change presentation",
@@ -377,10 +342,11 @@ export function createHistoryController({ state, elements, services }) {
   }
 
   function runViewHistoryTransaction(metadata, operation) {
-    return services.viewHistoryTransactions.run(metadata, operation);
+    if (state.restoringViewHistory) return operation();
+    return transactions.run(metadata, operation);
   }
 
-  return Object.freeze({ handleModuleHistoryShortcut, handleViewHistoryShortcut, navigateViewHistory, restoreViewHistoryEntry, createSingleWorkspaceHistoryIdentity, restoreCompareViewHistoryEntry, createCompareWorkspaceHistoryIdentity, cloneGraphOverridesForHistory, cloneObjectRefs, updateViewHistoryControls, persistSession, recordViewHistory, noteViewCommandDispatch, viewCommandLabel, runViewHistoryTransaction });
+  return Object.freeze({ handleModuleHistoryShortcut, handleViewHistoryShortcut, navigateViewHistory, restoreViewHistoryEntry, createSingleWorkspaceHistoryIdentity, restoreCompareViewHistoryEntry, createCompareWorkspaceHistoryIdentity, updateViewHistoryControls, commitViewHistory, bindViewHistoryCallbacks, recordViewHistory, noteViewCommandDispatch, viewCommandLabel, runViewHistoryTransaction });
 }
 
 export const historyPorts = Object.freeze({
@@ -409,6 +375,6 @@ export const historyPorts = Object.freeze({
     "renderCompareOutputOptions", "renderCurrentModuleGraph", "renderDiagnostics", "renderGraphMount",
     "renderStats", "selectCompareObject", "selectModule", "setSelectedNet", "setSelectedNode", "setStatus", "logProcess",
     "setSingleTransform", "updateModuleHierarchyPicker", "updateViewControls",
-    "viewHistoryTransactions"
+    "persistSession", "singleViewSession", "compareViewSessions"
   ]
 });

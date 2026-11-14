@@ -1,3 +1,4 @@
+import {compileProviderAdapter} from './compile_provider_adapter.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const url=source=>`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
@@ -30,10 +31,5 @@ export async function compileRandomProvider(options){
   const anchor="import { orderLayers } from './p3_ordering.js';";assert.equal(index.split(anchor).length,2);
   index=index.replace(anchor,`import { orderLayers } from '${await randomModuleUrl(options)}';`)
     .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);
-  const adapterLocation=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
-  let adapter=await readFile(adapterLocation,'utf8');
-  const adapterAnchor="from './anchor_layered/index.js'";assert.equal(adapter.split(adapterAnchor).length,2);
-  adapter=adapter.replace(adapterAnchor,`from '${url(index)}'`)
-    .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,adapterLocation).href}'`);
-  return (await import(url(adapter))).NativeLayeredLayoutProvider;
+  return compileProviderAdapter(url(index));
 }

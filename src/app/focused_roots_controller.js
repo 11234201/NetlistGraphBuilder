@@ -12,11 +12,34 @@ import { shouldUseSearchFirst } from "./graphWorkspace.js";
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { isEditableInputTarget } from "../ui/quick_input_controller.js";
 import { captureFocusedRootsFocus } from "../ui/focused_roots_focus.js";
+import { runFocusedViewCommand } from "../application/focused_view_command.js";
+import { executeViewEffects, mergeViewEffects } from "../application/view_effects.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createFocusedRootsController({ state, elements, services }) {
   let focusedRootsQuery = "";
+
+  function runSingleFocusedCommand(command, options = {}) {
+    return runFocusedViewCommand({
+      command,
+      dispatch: (value) => {
+        const result = services.singleViewSession.dispatch(value);
+        if (!result.rejected && ["focus.remove", "focus.clear"].includes(value.type) && !state.focusedRootNodeIds.length) {
+          const mode = services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD)
+            ? "search-first" : "whole");
+          return { ...result, effects: mergeViewEffects(result.effects, mode?.effects) };
+        }
+        return result;
+      },
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+      rebuild: (callbacks) => services.renderCurrentModuleGraph(callbacks),
+      ...options,
+      onAccepted: (result) => { services.updateViewControls(); options.onAccepted?.(result); }
+    });
+  }
 
   function getSelectedSingleCell() {
     return state.fullGraph?.nodes.find(
@@ -47,25 +70,28 @@ export function createFocusedRootsController({ state, elements, services }) {
   }
 
   function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
-    if (!state.compare.focusedRootNodeIds) state.compare.focusedRootNodeIds = { left: [], right: [] };
-    if (!state.compare.focusedRootNodeIds[side]) state.compare.focusedRootNodeIds[side] = [];
-    if (!state.compare.activeFocusedRootNodeId) {
-      state.compare.activeFocusedRootNodeId = { left: null, right: null };
-    }
     const resolved = resolveFocusedRootState(value, activeRootNodeId, state.compare.activeFocusedRootNodeId[side]);
     const mirrored = services.compareViewSessions.replaceRoots(side, resolved.rootNodeIds, resolved.activeRootNodeId);
-    const roots = mirrored.rootNodeIds;
-    state.compare.focusedRootNodeIds[side] = roots;
-    state.compare.activeFocusedRootNodeId[side] = mirrored.activeRootNodeId;
+    const outputChanged = Boolean(state.compare.outputName);
     state.compare.outputName = null;
-    return roots;
+    return { ...mirrored, effects: mergeViewEffects(mirrored.effects,
+      outputChanged ? { query: true, layout: true, render: true, persist: true } : null) };
   }
 
-  function syncCompareFocusedRootNode(side, nodeId, operation) {
+  function applyCompareFocusedEffects(side, results) {
+    return executeViewEffects({ effects: mergeViewEffects(...results.map((result) => result?.effects)) }, {
+      requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
+      beforeCompute: () => services.setCompareTransform(side, { x: 0, y: 0, scale: 1 }),
+      compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+      render: () => services.updateViewControls()
+    });
+  }
+
+  function syncCompareFocusedRootNode(side, nodeId, operation, results = []) {
     if (state.compare.focusedRootsSynchronized === false) return null;
     const oppositeSide = side === "left" ? "right" : "left";
     if (operation === "clear") {
-      setCompareFocusedRootNodeIds(oppositeSide, []);
+      results.push(setCompareFocusedRootNodeIds(oppositeSide, []));
       return null;
     }
     const sourceNode = state.compare.fullGraphs?.[side]?.nodes.find((node) => node.id === nodeId);
@@ -74,11 +100,11 @@ export function createFocusedRootsController({ state, elements, services }) {
     if (!oppositeNode) return null;
     const currentRoots = normalizeFocusedSelectionRoots(state.compare.focusedRootNodeIds?.[oppositeSide]);
     if (operation === "replace") {
-      setCompareFocusedRootNodeIds(oppositeSide, [oppositeNode.id], oppositeNode.id);
+      results.push(setCompareFocusedRootNodeIds(oppositeSide, [oppositeNode.id], oppositeNode.id));
     } else if (operation === "remove") {
-      setCompareFocusedRootNodeIds(oppositeSide, currentRoots.filter((id) => id !== oppositeNode.id));
+      results.push(setCompareFocusedRootNodeIds(oppositeSide, currentRoots.filter((id) => id !== oppositeNode.id)));
     } else if (operation === "add") {
-      setCompareFocusedRootNodeIds(oppositeSide, addFocusedRootNodeId(currentRoots, oppositeNode.id), oppositeNode.id);
+      results.push(setCompareFocusedRootNodeIds(oppositeSide, addFocusedRootNodeId(currentRoots, oppositeNode.id), oppositeNode.id));
     }
     return oppositeNode;
   }
@@ -97,28 +123,19 @@ export function createFocusedRootsController({ state, elements, services }) {
     const rootId = nodeId || focusedNetRootId(state.selectedNet);
     if (!rootId || state.compare.active) return;
     if (focusedNetName(rootId)) {
-      const commandResult = services.singleViewSession.dispatch({
+      return runSingleFocusedCommand({
         type: "focus.set",
         objectRef: services.singleViewSession.objectRefForNet(focusedNetName(rootId))
+      }, {
+        onAccepted: () => services.setStatus(`Focused view around net ${focusedNetName(rootId)}`)
       });
-      if (commandResult.rejected) return;
-      services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.setStatus(`Rebuilding Focused view around net ${focusedNetName(rootId)}…`);
-      services.renderCurrentModuleGraph();
-      return;
     }
     const fullNode = state.fullGraph.nodes.find((node) => node.id === nodeId);
-    const commandResult = services.singleViewSession.dispatch({
+    const requestId = ++state.selectionFocusRequestId;
+    return runSingleFocusedCommand({
       type: "focus.set",
       objectRef: services.singleViewSession.objectRefForNode(fullNode)
-    });
-    if (commandResult.rejected) return;
-    const requestId = ++state.selectionFocusRequestId;
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    services.setStatus("Rebuilding Focused view around selected cell…");
-    services.renderCurrentModuleGraph({
+    }, {
       onRendered: (graph) => {
         if (requestId !== state.selectionFocusRequestId || !state.focusedRootNodeIds.includes(nodeId)) return;
         const node = graph.nodes.find((item) => item.id === nodeId);
@@ -135,20 +152,15 @@ export function createFocusedRootsController({ state, elements, services }) {
     const context = getFocusedRootContext();
     if (state.compare.selectedKind === "net" && state.compare.selectedName) {
       const rootId = focusedNetRootId(state.compare.selectedName);
-      setCompareFocusedRootNodeIds(context.side, [rootId], rootId);
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.renderCompareGraphs();
+      applyCompareFocusedEffects(context.side, [setCompareFocusedRootNodeIds(context.side, [rootId], rootId)]);
       services.setStatus(`Focused compare ${context.side} view around net ${state.compare.selectedName}`);
       return;
     }
     const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
     if (!node) return;
-    setCompareFocusedRootNodeIds(context.side, [node.id], node.id);
-    const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "replace");
-    services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    services.renderCompareGraphs();
+    const results = [setCompareFocusedRootNodeIds(context.side, [node.id], node.id)];
+    const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "replace", results);
+    applyCompareFocusedEffects(context.side, results);
     services.setStatus(`Focused compare ${context.side} view around ${node.label}${state.compare.focusedRootsSynchronized !== false && !matchedNode ? " (no matching cell on other side)" : ""}`);
   }
 
@@ -160,17 +172,14 @@ export function createFocusedRootsController({ state, elements, services }) {
     const node = getSelectedSingleCell();
     const rootId = node?.id || focusedNetRootId(state.selectedNet);
     if (!rootId || state.focusedRootNodeIds.includes(rootId)) return;
-    const action = services.singleViewSession.dispatch({
+    const requestId = ++state.selectionFocusRequestId;
+    return runSingleFocusedCommand({
       type: "focus.add",
       objectRef: node
         ? services.singleViewSession.objectRefForNode(node)
         : services.singleViewSession.objectRefForNet(state.selectedNet)
-    });
-    if (action.rejected) { services.setStatus("Focused root limit reached"); return; }
-    const requestId = ++state.selectionFocusRequestId;
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    services.renderCurrentModuleGraph({
+    }, {
+      onRejected: () => services.setStatus("Focused root limit reached"),
       onRendered: (graph) => {
         if (requestId !== state.selectionFocusRequestId || !state.focusedRootNodeIds.includes(rootId)) return;
         const positioned = node ? graph.nodes.find((item) => item.id === node.id) : null;
@@ -185,10 +194,7 @@ export function createFocusedRootsController({ state, elements, services }) {
     if (state.compare.selectedKind === "net" && state.compare.selectedName) {
       const rootId = focusedNetRootId(state.compare.selectedName);
       if (context.roots.includes(rootId)) return;
-      setCompareFocusedRootNodeIds(context.side, [...context.roots, rootId], rootId);
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.renderCompareGraphs();
+      applyCompareFocusedEffects(context.side, [setCompareFocusedRootNodeIds(context.side, [...context.roots, rootId], rootId)]);
       services.setStatus(`Added net ${state.compare.selectedName} to Compare ${context.side} Focused roots`);
       return;
     }
@@ -196,11 +202,9 @@ export function createFocusedRootsController({ state, elements, services }) {
     if (!node || context.roots.includes(node.id)) return;
     const action = resolveFocusedRootAction({ rootNodeIds: context.roots }, { type: "add", nodeId: node.id });
     if (action.rejected) { services.setStatus("Focused root limit reached"); return; }
-    setCompareFocusedRootNodeIds(context.side, action.rootNodeIds, node.id);
-    const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "add");
-    services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    services.renderCompareGraphs();
+    const results = [setCompareFocusedRootNodeIds(context.side, action.rootNodeIds, node.id)];
+    const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "add", results);
+    applyCompareFocusedEffects(context.side, results);
     services.setStatus(`Added ${node.label} to Compare ${context.side} Focused roots${state.compare.focusedRootsSynchronized !== false && !matchedNode ? " (no matching cell on other side)" : ""}`);
   }
 
@@ -212,32 +216,15 @@ export function createFocusedRootsController({ state, elements, services }) {
     const nodeId = state.selectedNodeId;
     const rootId = state.selectedNet ? focusedNetRootId(state.selectedNet) : nodeId;
     if (!rootId || !state.focusedRootNodeIds.includes(rootId)) return;
-    if (focusedNetName(rootId)) {
-      services.singleViewSession.dispatch({
-        type: "focus.remove",
-        objectRef: services.singleViewSession.objectRefForNet(focusedNetName(rootId))
-      });
-      const nextRoots = state.focusedRootNodeIds;
-      if (nextRoots.length === 0) services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole");
-      services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-      services.renderCurrentModuleGraph();
-      services.setStatus(nextRoots.length ? "Removed selected Focused net root" : "Cleared final Focused root");
-      return;
-    }
+    const netName = focusedNetName(rootId);
     const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
-    if (!fullNode) return;
-    services.singleViewSession.dispatch({
+    if (!netName && !fullNode) return;
+    return runSingleFocusedCommand({
       type: "focus.remove",
-      objectRef: services.singleViewSession.objectRefForNode(fullNode)
+      objectRef: netName ? services.singleViewSession.objectRefForNet(netName) : services.singleViewSession.objectRefForNode(fullNode)
+    }, {
+      onAccepted: () => services.setStatus(state.focusedRootNodeIds.length ? "Removed selected Focused root" : "Cleared final Focused root")
     });
-    const nextRoots = state.focusedRootNodeIds;
-    if (nextRoots.length === 0) {
-      services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD)
-        ? "search-first" : "whole");
-    }
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.renderCurrentModuleGraph();
-    services.setStatus(nextRoots.length ? "Removed selected Focused root" : "Cleared final Focused root");
   }
 
   function removeSelectedCompareFocusedRoot() {
@@ -246,10 +233,7 @@ export function createFocusedRootsController({ state, elements, services }) {
       const rootId = focusedNetRootId(state.compare.selectedName);
       if (!context.roots.includes(rootId)) return;
       const roots = context.roots.filter((item) => item !== rootId);
-      setCompareFocusedRootNodeIds(context.side, roots);
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.renderCompareGraphs();
+      applyCompareFocusedEffects(context.side, [setCompareFocusedRootNodeIds(context.side, roots)]);
       services.setStatus(roots.length
         ? `Removed net ${state.compare.selectedName} from Compare ${context.side} Focused roots`
         : `Cleared Compare ${context.side} Focused roots`);
@@ -258,11 +242,9 @@ export function createFocusedRootsController({ state, elements, services }) {
     const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
     if (!node || !context.roots.includes(node.id)) return;
     const roots = context.roots.filter((nodeId) => nodeId !== node.id);
-    setCompareFocusedRootNodeIds(context.side, roots);
-    syncCompareFocusedRootNode(context.side, node.id, "remove");
-    services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    services.renderCompareGraphs();
+    const results = [setCompareFocusedRootNodeIds(context.side, roots)];
+    syncCompareFocusedRootNode(context.side, node.id, "remove", results);
+    applyCompareFocusedEffects(context.side, results);
     services.setStatus(roots.length
       ? `Removed ${node.label} from Compare ${context.side} Focused roots`
       : `Cleared Compare ${context.side} Focused roots`);
@@ -272,22 +254,17 @@ export function createFocusedRootsController({ state, elements, services }) {
     if (state.compare.active) {
       const context = getFocusedRootContext();
       if (context.roots.length === 0) return;
-      setCompareFocusedRootNodeIds(context.side, []);
+      const results = [setCompareFocusedRootNodeIds(context.side, [])];
       const activeNodeId = context.activeRootNodeId;
-      if (activeNodeId) syncCompareFocusedRootNode(context.side, activeNodeId, "clear");
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.renderCompareGraphs();
+      if (activeNodeId) syncCompareFocusedRootNode(context.side, activeNodeId, "clear", results);
+      applyCompareFocusedEffects(context.side, results);
       services.setStatus(`Compare ${context.side} Focused roots cleared`);
       return;
     }
     if (state.focusedRootNodeIds.length === 0) return;
-    services.singleViewSession.dispatch({ type: "focus.clear" });
-    services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD)
-      ? "search-first" : "whole");
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.renderCurrentModuleGraph();
-    services.setStatus("Focused roots cleared");
+    return runSingleFocusedCommand({ type: "focus.clear" }, {
+      onAccepted: () => services.setStatus("Focused roots cleared")
+    });
   }
 
   function handleFocusedRootListClick(event) {
@@ -300,70 +277,53 @@ export function createFocusedRootsController({ state, elements, services }) {
       const nodeId = removeButton.dataset.focusedRootRemove;
       if (!state.focusedRootNodeIds.includes(nodeId)) return;
       const netName = focusedNetName(nodeId);
-      if (netName) {
-        services.singleViewSession.dispatch({ type: "focus.remove", objectRef: services.singleViewSession.objectRefForNet(netName) });
-        if (state.focusedRootNodeIds.length === 0) services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD) ? "search-first" : "whole");
-        services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-        services.renderCurrentModuleGraph();
-        services.setStatus(`Removed Focused root: net ${netName}`);
-        return;
-      }
       const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
-      if (!fullNode) return;
-      services.singleViewSession.dispatch({
+      if (!netName && !fullNode) return;
+      return runSingleFocusedCommand({
         type: "focus.remove",
-        objectRef: services.singleViewSession.objectRefForNode(fullNode)
+        objectRef: netName ? services.singleViewSession.objectRefForNet(netName) : services.singleViewSession.objectRefForNode(fullNode)
+      }, {
+        onAccepted: () => services.setStatus(`Removed Focused root: ${netName ? `net ${netName}` : nodeId}`)
       });
-      if (state.focusedRootNodeIds.length === 0) {
-        services.setSingleViewMode(shouldUseSearchFirst(state.currentModule, services.SEARCH_FIRST_NODE_THRESHOLD)
-          ? "search-first" : "whole");
-      }
-      services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-      services.renderCurrentModuleGraph();
-      services.setStatus(`Removed Focused root: ${nodeId}`);
-      return;
     }
     const chip = event.target.closest?.("[data-focused-root-activate]");
     const nodeId = chip?.dataset.focusedRootActivate;
     if (!state.focusedRootNodeIds.includes(nodeId)) return;
     const netName = focusedNetName(nodeId);
-    if (netName) {
-      services.singleViewSession.dispatch({ type: "focus.activate", objectRef: services.singleViewSession.objectRefForNet(netName) });
-      const edge = state.graph?.edges.find((item) => item.net === netName);
-      if (edge) {
-        services.focusPositionedEdge(edge, elements.mount, state.transform, services.setSingleTransform);
-        services.applyTransform();
-      }
-      services.updateViewControls();
-      services.setStatus(`Active Focused net root: ${netName}`);
-      return;
-    }
     const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
-    if (!fullNode) return;
-    services.singleViewSession.dispatch({
+    if (!netName && !fullNode) return;
+    const result = services.singleViewSession.dispatch({
       type: "focus.activate",
-      objectRef: services.singleViewSession.objectRefForNode(fullNode)
+      objectRef: netName ? services.singleViewSession.objectRefForNet(netName) : services.singleViewSession.objectRefForNode(fullNode)
     });
     const positioned = state.graph?.nodes.find((node) => node.id === nodeId);
-    if (positioned) {
-      services.setSelectedNode(nodeId);
-      services.focusPositionedCell(positioned, elements.mount, state.transform, services.setSingleTransform);
-      services.applyTransform();
-      services.updateViewControls();
-      services.setStatus(`Active Focused root: ${positioned.label}`);
-      return;
-    }
     const requestId = ++state.selectionFocusRequestId;
-    services.renderCurrentModuleGraph({
-      onRendered: (graph) => {
+    const activate = (graph = state.graph) => {
         if (requestId !== state.selectionFocusRequestId || state.activeFocusedRootNodeId !== nodeId) return;
+        if (netName) {
+          const edge = graph?.edges.find((item) => item.net === netName);
+          if (edge) {
+            services.focusPositionedEdge(edge, elements.mount, state.transform, services.setSingleTransform);
+            services.applyTransform();
+          }
+          services.updateViewControls();
+          services.setStatus(`Active Focused net root: ${netName}`);
+          return;
+        }
         const node = graph.nodes.find((item) => item.id === nodeId);
         if (!node) return;
         services.setSelectedNode(nodeId);
         services.focusPositionedCell(node, elements.mount, state.transform, services.setSingleTransform);
         services.applyTransform();
+        services.updateViewControls();
         services.setStatus(`Active Focused root: ${node.label}`);
-      }
+    };
+    return executeViewEffects(result, {
+      shouldCompute: !netName && !positioned,
+      requireReady: true, isReady: () => services.singleViewSession.isWorkspaceReady(),
+      compute: (callbacks) => services.renderCurrentModuleGraph(callbacks),
+      onCommitted: activate,
+      onUnchanged: activate
     });
   }
 
@@ -375,18 +335,13 @@ export function createFocusedRootsController({ state, elements, services }) {
       if (!context.roots.includes(nodeId)) return;
       const netName = focusedNetName(nodeId);
       if (netName) {
-        setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId));
-        services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-        services.updateViewControls();
-        services.renderCompareGraphs();
+        applyCompareFocusedEffects(context.side, [setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId))]);
         services.setStatus(`Removed Compare ${context.side} Focused net root: ${netName}`);
         return;
       }
-      setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId));
-      syncCompareFocusedRootNode(context.side, nodeId, "remove");
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      services.updateViewControls();
-      services.renderCompareGraphs();
+      const results = [setCompareFocusedRootNodeIds(context.side, context.roots.filter((id) => id !== nodeId))];
+      syncCompareFocusedRootNode(context.side, nodeId, "remove", results);
+      applyCompareFocusedEffects(context.side, results);
       services.setStatus(`Removed Compare ${context.side} Focused root: ${nodeId}`);
       return;
     }
@@ -395,38 +350,47 @@ export function createFocusedRootsController({ state, elements, services }) {
     if (!context.roots.includes(nodeId)) return;
     const netName = focusedNetName(nodeId);
     if (netName) {
-      services.compareViewSessions.dispatch(context.side, {
+      const result = services.compareViewSessions.dispatch(context.side, {
         type: "focus.activate",
         objectRef: services.compareViewSessions.objectRef(context.side, "net", netName)
       });
-      const edge = context.graph?.edges.find((item) => item.net === netName);
-      if (edge) {
-        const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
-        services.focusPositionedEdge(edge, mount, state.compare.transforms[context.side], (transform) => {
-          services.setCompareTransform(context.side, transform);
-        });
-        services.applyCompareTransforms();
-        services.selectCompareObject("net", netName, false, context.side);
-      }
-      services.updateViewControls();
-      services.setStatus(`Active Compare ${context.side} Focused net root: ${netName}`);
-      return;
+      return executeViewEffects(result, {
+        requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
+        compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+        render: () => services.updateViewControls(),
+        viewport: () => {
+          const edge = state.compare.graphs[context.side]?.edges.find((item) => item.net === netName);
+          if (!edge) return;
+          const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
+          services.focusPositionedEdge(edge, mount, state.compare.transforms[context.side], (transform) => {
+            services.setCompareTransform(context.side, transform);
+          });
+          services.applyCompareTransforms();
+          services.selectCompareObject("net", netName, false, context.side);
+        },
+        onCommitted: () => services.setStatus(`Active Compare ${context.side} Focused net root: ${netName}`)
+      });
     }
-    services.compareViewSessions.dispatch(context.side, {
+    const result = services.compareViewSessions.dispatch(context.side, {
       type: "focus.activate",
       objectRef: services.compareViewSessions.objectRef(context.side, "cell", nodeId)
     });
-    const node = context.graph?.nodes.find((item) => item.id === nodeId);
-    if (node) {
-      const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
-      services.focusPositionedCell(node, mount, state.compare.transforms[context.side], (transform) => {
-        services.setCompareTransform(context.side, transform);
-      });
-      services.applyCompareTransforms();
-      services.selectCompareObject("cell", getCompareNodeName(node), false, context.side);
-    }
-    services.updateViewControls();
-    services.setStatus(`Active Compare ${context.side} Focused root: ${node?.label || nodeId}`);
+    return executeViewEffects(result, {
+      requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
+      compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+      render: () => services.updateViewControls(),
+      viewport: () => {
+        const node = state.compare.graphs[context.side]?.nodes.find((item) => item.id === nodeId);
+        if (!node) return;
+        const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
+        services.focusPositionedCell(node, mount, state.compare.transforms[context.side], (transform) => {
+          services.setCompareTransform(context.side, transform);
+        });
+        services.applyCompareTransforms();
+        services.selectCompareObject("cell", getCompareNodeName(node), false, context.side);
+      },
+      onCommitted: () => services.setStatus(`Active Compare ${context.side} Focused root: ${state.compare.graphs[context.side]?.nodes.find((item) => item.id === nodeId)?.label || nodeId}`)
+    });
   }
 
   function handleFocusedRootsFilter(event) {
@@ -487,6 +451,13 @@ export function createFocusedRootsController({ state, elements, services }) {
 }
 
 export const focusedRootsPorts = Object.freeze({
+  historyActions: {
+    "setSelectedAsFocusedRoot": "Set Focused root",
+    "addSelectedAsFocusedRoot": "Add Focused root",
+    "removeSelectedFromFocusedRoots": "Remove Focused root",
+    "clearFocusedRoots": "Clear Focused roots",
+    "handleFocusedRootListClick": "Change Focused roots"
+  },
   state: [
     "activeFocusedRootNodeId", "compare", "currentModule", "focusedRootNodeIds", "focusedRootRefs",
     "fullGraph", "graph", "occurrenceContext", "selectedNet", "selectedNodeId",

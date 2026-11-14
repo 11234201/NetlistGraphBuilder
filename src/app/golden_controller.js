@@ -86,14 +86,7 @@ export function createGoldenController({ state, elements, services }) {
 
     if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
     if (state.currentModule?.name !== module.name) services.selectModule(module.name, { deferRender: true });
-    applyLayoutGoldenState(state, imported);
-    services.setSingleOverrides({
-      nodePositions: state.nodePositions,
-      nodeSizes: state.nodeSizes,
-      graphOverrides: state.graphOverrides
-    });
-    services.setSingleLayoutPolicy(state.layoutPolicy);
-
+    applyLayoutGoldenState(state, imported, (value) => services.singleViewSession.importNavigation(value));
     elements.coneDepthInput.value = String(state.coneDepth);
     elements.faninDepthInput.value = String(state.faninDepth);
     elements.fanoutDepthInput.value = String(state.fanoutDepth);
@@ -231,6 +224,7 @@ export const goldenPorts = Object.freeze({
     "resetLayoutButton", "saveGoldenButton"
   ],
   services: [
+    "singleViewSession",
     "applyTransform", "browserDownload", "countGraphOverrides", "exitCompareView",
     "hasCompareLayoutOverrides", "logProcess", "renderCompareGraphs", "renderCompareSelection",
     "renderCurrentModuleGraph", "renderDiagnostics", "renderNetSelection", "renderSelection", "renderStats",

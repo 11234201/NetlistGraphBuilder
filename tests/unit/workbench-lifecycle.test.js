@@ -1,3 +1,5 @@
+import { createSessionPersistenceController } from "../../src/app/session_persistence_controller.js";
+import { createTestViewBridges } from "../helpers/view_session_bridges.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCompareWorkspaceController } from "../../src/app/compare_workspace_controller.js";
@@ -20,6 +22,7 @@ test("Compare output change is exported and updates the selected output", () => 
     state,
     elements: { coneDepthInput: {} },
     services: {
+      bindViewHistoryCallbacks: (options) => options,
       compareViewSessions: { dispatch: (...args) => calls.push(args) },
       renderStats: () => calls.push("stats"),
       recordViewHistory: () => calls.push("history")
@@ -48,9 +51,11 @@ test("reapplying the current Compare pair preserves its query and viewport", () 
   const elements = new Proxy({
     leftModuleSelect: { value: left.name }, rightModuleSelect: { value: right.name }
   }, { get: (target, key) => key in target ? target[key] : element });
+  const bridges = createTestViewBridges(state);
   const services = new Proxy({
+    ...bridges,
     workspaceJobs: { cancelSession: noOp },
-    setCompareTransform: (side, transform) => { state.compare.transforms[side] = transform; }
+    setCompareTransform: (side, viewport) => bridges.compareViewSessions.dispatch(side, { type: "viewport.set", viewport })
   }, { get: (target, key) => key in target ? target[key] : noOp });
   createCompareWorkspaceController({ state, elements, services }).applyCompareSelectionImpl({ deferRender: true });
   assert.equal(state.compare.outputName, "y");
@@ -64,20 +69,25 @@ test("Compare Whole explicitly bypasses Search-first and Focused accepts a selec
   state.compare.selectedSide = "left";
   state.compare.selectedKind = "net";
   state.compare.selectedName = "n";
+  state.compare.leftModuleName = "left";
+  state.compare.rightModuleName = "right";
+  state.compare.fullGraphs = { left: { nodes: [], edges: [] }, right: { nodes: [], edges: [] } };
   const calls = [];
   const noOp = () => {};
+  const bridges = createTestViewBridges(state);
   const services = new Proxy({
+    ...bridges,
     runViewHistoryTransaction: (_metadata, operation) => operation(),
-    getFocusedRootContext: () => ({ side: "left", roots: [], fullGraph: { nodes: [] } }),
-    setCompareFocusedRootNodeIds: (side, roots) => { state.compare.focusedRootNodeIds[side] = roots; },
-    renderCompareGraphs: () => calls.push("render")
+    getFocusedRootContext: () => ({ side: "left", roots: state.compare.focusedRootNodeIds.left, fullGraph: state.compare.fullGraphs.left }),
+    setCompareFocusedRootNodeIds: (side, roots) => bridges.compareViewSessions.replaceRoots(side, roots),
+    renderCompareGraphs: ({ onCommitted }) => { calls.push("render"); onCommitted?.(); }
   }, { get: (target, key) => key in target ? target[key] : noOp });
   const control = { classList: { toggle: noOp } };
   const elements = new Proxy({}, { get: (target, key) => target[key] ||= control });
   const controller = createViewControlsController({ state, elements, services });
   controller.setCompareViewModeImpl("focused");
   assert.deepEqual(state.compare.focusedRootNodeIds.left, ["net:n"]);
-  state.compare.focusedRootNodeIds.right = ["cell:other"];
+  bridges.compareViewSessions.replaceRoots("right", ["net:other"]);
   state.compare.outputName = "y";
   controller.setCompareViewModeImpl("whole");
   assert.equal(state.compare.wholeRequested, true);
@@ -122,6 +132,7 @@ test("entering Compare cancels Single computation before starting Compare work",
     syncCompareFocusInput: {}, coneDepthInput: {}
   };
   const services = new Proxy({
+    ...createTestViewBridges(state),
     workspaceJobs: { cancelSession: (id) => cancelled.push(id) },
     runViewHistoryTransaction: (_options, action) => action(),
     renderGeneration: { begin: () => { throw new Error("stop after view transition"); } }
@@ -143,11 +154,11 @@ test("obsolete Single success and failure callbacks cannot affect an active Comp
   const failures = [];
   let cancellations = 0;
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderGeneration: generation,
     readCellLibrary: () => null,
     getCurrentLayoutProvider: () => ({ id: "simple", label: "Simple", executionMode: "async" }),
     workspaceExecution: { execute: (request) => { executionRequest = request; } },
-    singleViewSession: { beginComputation: () => ({ sessionId: "single:primary" }) },
     logProcess() {}
   }, { get: (target, key) => key in target ? target[key] : (...args) => failures.push([key, args]) });
   const controller = createWorkspaceRenderController({ state, elements: { mount: {} }, services });
@@ -180,6 +191,7 @@ test("Compare history restores query depths and cancellation always releases his
   const noOp = () => {};
   const elements = new Proxy({}, { get: (target, key) => target[key] ||= {} });
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderCompareGraphs: (options) => { renderOptions = options; },
     getCompareModule: (side) => side === "left" ? left : right
   }, { get: (target, key) => key in target ? target[key] : noOp });
@@ -209,6 +221,7 @@ test("cross-pair Compare history restore defers intermediate work and starts one
   let renders = 0;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     applyCompareSelection(options) {
       prepares += 1;
       assert.deepEqual(options, { historyMode: "restore", deferRender: true });
@@ -241,6 +254,7 @@ test("Compare mount rejection records and exposes a default render failure", asy
     compareOutputSelect: { innerHTML: "", value: "" }, leftMount: {}, rightMount: {}
   };
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderGraphMount: (mount) => mount === elements.leftMount ? Promise.reject(new Error("left SVG failed")) : Promise.resolve({}),
     logProcess: (_level, _phase, message) => messages.push(message),
     setStatus: (message) => statuses.push(message),
@@ -271,6 +285,7 @@ test("Compare workspace identity is published only after both mounts complete", 
     compareOutputSelect: {}, leftMount: {}, rightMount: {}
   };
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderGeneration: { current: () => ({ isCurrent: () => true }) },
     renderGraphMount: () => new Promise((resolve) => resolvers.push(resolve)),
     getCurrentLayoutProvider: () => ({ label: "Test" })
@@ -303,6 +318,7 @@ test("an obsolete Compare history completion performs no selection or transform 
   let selections = 0;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderCompareGraphs: (options) => renders.push(options),
     getCompareModule: (side) => side === "left" ? left : right,
     applyCompareTransforms: () => { transforms += 1; },
@@ -335,6 +351,7 @@ test("cancelled Single history render releases the restore lifecycle", () => {
   let renderOptions;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     renderCurrentModuleGraph: (options) => { renderOptions = options; }
   }, { get: (target, key) => key in target ? target[key] : noOp });
   const elements = {
@@ -364,6 +381,7 @@ test("exiting Compare rebuilds a Single workspace that was cancelled on entry", 
     compareButton: { classList: { remove: noOp }, setAttribute: noOp }
   };
   const services = new Proxy({
+    ...createTestViewBridges(state),
     workspaceJobs: { cancelSession: noOp }, renderGeneration: { begin: noOp },
     renderCurrentModuleGraph: () => renders++
   }, { get: (target, key) => key in target ? target[key] : noOp });
@@ -385,6 +403,7 @@ test("design restore applies state before one final render and preserves its com
   let renders = 0;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     documents: createDocumentStore(),
     viewSessions: { closeByDocument: noOp },
     workspaceJobs: { cancelDocument: noOp },
@@ -424,6 +443,7 @@ test("loading a design exits and clears an active Compare workspace", async () =
   let exited = 0;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
     netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: () => [],
     exitCompareView: (options) => { exited += 1; assert.equal(options.deferSingleRender, true); },
@@ -444,6 +464,7 @@ test("startup display module name resolves to its canonical escaped module", asy
   let selected;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
     netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: () => [],
     selectModule(name) { selected = name; state.currentModule = state.design.modules.find((module) => module.name === name); },
@@ -462,6 +483,7 @@ test("startup ensureDesign rejects when its final render fails or is cancelled",
     let renderOptions;
     const noOp = () => {};
     const services = new Proxy({
+    ...createTestViewBridges(state),
       documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
       netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: (refs) => [...(refs || [])],
       selectModule(name) { state.currentModule = state.design.modules.find((module) => module.name === name); },
@@ -480,6 +502,7 @@ test("timing quick input resolves only after the refreshed workspace is mounted"
   let renderOptions;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     rerenderPreservingView: (_selectedNodeId, options) => { renderOptions = options; }
   }, { get: (target, key) => key in target ? target[key] : noOp });
   const controller = createInputController({ state, elements: {}, services });
@@ -500,6 +523,7 @@ test("startup rejects an explicit missing module before scheduling layout", () =
   let renders = 0;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     documents: createDocumentStore(), viewSessions: { closeByDocument: noOp }, workspaceJobs: { cancelDocument: noOp },
     netlistFeature: { buildSearchIndex: () => [] }, cloneObjectRefs: (refs) => [...(refs || [])],
     renderCurrentModuleGraph: () => { renders += 1; }
@@ -524,13 +548,12 @@ test("session persistence retains diagnostics, coalesces a failure streak, and r
     const logs = [];
     const noOp = () => {};
     const services = new Proxy({
+    ...createTestViewBridges(state),
       viewHistoryTransactions: { capture: () => false },
       setStatus: (message) => statuses.push(message),
       logProcess: (level, phase, message, details) => logs.push({ level, phase, message, details })
     }, { get: (target, key) => key in target ? target[key] : noOp });
-    const controller = createHistoryController({
-      state, elements: { moduleBackButton: {}, moduleForwardButton: {} }, services
-    });
+    const controller = createSessionPersistenceController({ state, services });
     controller.persistSession();
     await new Promise((resolve) => setTimeout(resolve, 180));
     controller.persistSession();

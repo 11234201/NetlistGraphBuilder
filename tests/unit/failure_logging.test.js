@@ -1,3 +1,4 @@
+import { createTestViewBridges } from "../helpers/view_session_bridges.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createProcessLog } from "../../src/app/processLog.js";
@@ -29,7 +30,7 @@ for (const compare of [false, true]) {
       const { log, services } = logging();
       if (failure instanceof Error) failure.diagnostic = { phase: "render", code: "invalid-scene" };
       const controller = createPresentationController({ state, elements: { gateSymbolModeSelect: {}, mount: {}, leftMount: {}, rightMount: {} }, services: {
-        ...services, persistSession() {}, compareViewSessions: { dispatch() {} },
+        ...createTestViewBridges(state), ...services, persistSession() {}, compareViewSessions: { dispatch() {} },
         renderGraphMount: async () => { throw failure; }
       } });
       controller.commitGateSymbolMode("conventional");
@@ -57,7 +58,7 @@ for (const compare of [false, true]) {
       const { log, services } = logging();
       const rejectors = [];
       const controller = createPresentationController({ state, elements: { gateSymbolModeSelect: {}, mount: {}, leftMount: {}, rightMount: {} }, services: {
-        ...services, persistSession() {}, compareViewSessions: { dispatch() {} },
+        ...createTestViewBridges(state), ...services, persistSession() {}, compareViewSessions: { dispatch() {} },
         renderGraphMount: () => new Promise((_, reject) => rejectors.push(reject))
       } });
       controller.commitGateSymbolMode("conventional");
@@ -90,7 +91,8 @@ for (const compare of [false, true]) {
       const noOp = () => {};
       const controller = createHistoryController({ state,
         elements: new Proxy({}, { get: (target, key) => target[key] ||= {} }),
-        services: new Proxy({ ...services, readCellLibrary: () => null,
+        services: new Proxy({
+        ...createTestViewBridges(state), ...services, readCellLibrary: () => null,
           renderGraphMount: async () => { throw failure; },
           renderCurrentModuleGraph: () => assert.fail("must reuse Single workspace"),
           renderCompareGraphs: () => assert.fail("must reuse Compare workspace")

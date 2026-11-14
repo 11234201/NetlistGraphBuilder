@@ -6,6 +6,7 @@ import {createAppState} from '../../src/app/appState.js';
 import {DEFAULT_LAYOUT_POLICY} from '../../src/layout/layoutPolicy.js';
 import {createSessionSnapshot,getSessionLayoutProviderId} from '../../src/app/sessionState.js';
 import {createWorkspaceRenderController} from '../../src/app/workspace_render_controller.js';
+import {createTestViewBridges} from '../helpers/view_session_bridges.js';
 
 test('AnchorLayered is default; old Simple snapshots migrate once, new explicit choices survive',()=>{
   assert.equal(getSessionLayoutProviderId(null),DEFAULT_LAYOUT_PROVIDER_ID);
@@ -27,12 +28,12 @@ for(const compare of [false,true]){
     state.design={modules:[state.currentModule]};
     const calls=[],logs=[],elements={layoutProviderSelect:{}};
     const services={
+      ...createTestViewBridges(state),
       logProcess:(...args)=>logs.push(args),setStatus(){},
       renderCompareGraphs:()=>calls.push('compare'),
       getCurrentLayoutProvider:()=>getLayoutProvider(state.layoutProviderId),
       renderGeneration:{begin:()=>({id:1,isCurrent:()=>true})},
-      workspaceExecution:{execute:()=>calls.push('single')},
-      singleViewSession:{beginComputation:()=>({sessionId:'single:primary'})}
+      workspaceExecution:{execute:()=>calls.push('single')}
     };
     const controller=createWorkspaceRenderController({state,elements,services});
     controller.handleLayoutFailure({name:'AbortError',message:'cancelled'});

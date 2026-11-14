@@ -12,7 +12,7 @@ function createFixture({ roots, refs, nodes = [], compare = false, services = {}
       activeFocusedRootNodeId: { right: roots[0] }
     },
     focusedRootNodeIds: roots, focusedRootRefs: refs, activeFocusedRootNodeId: roots[0],
-    fullGraph: graph, graph
+    fullGraph: graph, graph, selectionFocusRequestId: 0
   };
   const elements = { focusedRootsList: { innerHTML: "", textContent: "" }, focusedRootCount: {} };
   const controller = createFocusedRootsController({ state, elements, services });
@@ -67,6 +67,7 @@ test("the root activation button uses the existing activation command without re
     roots: ["net:n"],
     services: {
       singleViewSession: {
+        isWorkspaceReady: () => true,
         objectRefForNet: (name) => ({ kind: "net", localId: name }),
         dispatch: (command) => commands.push(command)
       },

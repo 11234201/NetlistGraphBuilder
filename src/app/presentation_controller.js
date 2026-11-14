@@ -82,14 +82,13 @@ export function createPresentationController({ state, elements, services }) {
       elements.gateSymbolModeSelect.value = presentationPolicy.gateSymbolMode;
       return;
     }
-    state.presentationPolicy = presentationPolicy;
     elements.gateSymbolModeSelect.value = presentationPolicy.gateSymbolMode;
     if (state.document?.documentId && state.currentModule?.name) {
       services.singleViewSession.dispatch({
         type: "presentation.policy.set",
         presentationPolicy
       });
-    }
+    } else services.singleViewSession.importState({ presentationPolicy });
     if (state.compare.active) {
       for (const side of ["left", "right"]) {
         services.compareViewSessions.dispatch(side, {
@@ -141,6 +140,10 @@ export function createPresentationController({ state, elements, services }) {
 }
 
 export const presentationPorts = Object.freeze({
+  historyActions: {
+    "commitGateSymbolMode": "Change gate symbols",
+    "commitLayoutSpacing": "Change layout spacing"
+  },
   state: [
     "compare", "currentModule", "document", "graph", "layoutPolicy", "presentationPolicy", "scene",
     "selectedNodeId", "timing", "timingDisplayPolicy", "transform", "useFanoutHubs"

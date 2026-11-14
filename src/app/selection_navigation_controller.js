@@ -1,4 +1,6 @@
 import { getCompareNodeName } from "./compareWorkspace.js";
+import { runFocusedViewCommand } from "../application/focused_view_command.js";
+import { executeViewEffects } from "../application/view_effects.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -7,33 +9,33 @@ export function createSelectionNavigationController({ state, elements, services 
     const node = state.graph?.nodes.find((item) => item.id === nodeId)
       || state.fullGraph?.nodes.find((item) => item.id === nodeId)
       || null;
-    services.singleViewSession.dispatch(node ? {
+    const result = services.singleViewSession.dispatch(node ? {
       type: "selection.set",
       objectRef: services.singleViewSession.objectRefForNode(node)
     } : { type: "selection.clear" });
-    services.renderSelection(node);
-    services.updateViewControls();
+    const render = () => { services.renderSelection(node); services.updateViewControls(); };
+    executeViewEffects(result, { render, onUnchanged: render });
   }
 
   function handleSingleNetSelection(netName) {
-    services.singleViewSession.dispatch(netName ? {
+    const result = services.singleViewSession.dispatch(netName ? {
       type: "selection.set",
       objectRef: services.singleViewSession.objectRefForNet(netName)
     } : { type: "selection.clear" });
-    services.renderNetSelection(netName);
-    services.updateViewControls();
+    const render = () => { services.renderNetSelection(netName); services.updateViewControls(); };
+    executeViewEffects(result, { render, onUnchanged: render });
   }
 
   function setSelectedNode(nodeId, shouldRecord = true) {
     state.selectionFocusRequestId += 1;
     services.schematicSelectionController.selectNode(nodeId);
-    if (shouldRecord) services.recordViewHistory();
+    if (shouldRecord) services.commitViewHistory();
   }
 
   function setSelectedNet(netName, shouldRecord = true) {
     state.selectionFocusRequestId += 1;
     services.schematicSelectionController.selectNet(netName);
-    if (shouldRecord) services.recordViewHistory();
+    if (shouldRecord) services.commitViewHistory();
   }
 
   function clearSchematicSelection() {
@@ -98,19 +100,23 @@ export function createSelectionNavigationController({ state, elements, services 
       return;
     }
 
-    const reveal = services.singleViewSession.dispatch({
-      type: "selection.reveal",
-      objectRef: services.singleViewSession.objectRefForNode(fullNode),
-      visibleObjectKeys: services.singleViewSession.visibleObjectKeys(),
-      replaceActiveWhenFull: true
-    });
-    if (reveal.rejected) {
-      services.setStatus("Connected cell could not be added to the current Focused roots");
-      return;
-    }
-    services.updateViewControls();
-    services.setStatus("Opening connected cell in Focused view…");
-    services.renderCurrentModuleGraph({
+    return runFocusedViewCommand({
+      command: {
+        type: "selection.reveal",
+        objectRef: services.singleViewSession.objectRefForNode(fullNode),
+        visibleObjectKeys: services.singleViewSession.visibleObjectKeys(),
+        replaceActiveWhenFull: true
+      },
+      dispatch: (command) => services.singleViewSession.dispatch(command),
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => {},
+      rebuild: (options) => services.renderCurrentModuleGraph(options),
+      onRejected: () => services.setStatus("Connected cell could not be added to the current Focused roots"),
+      onAccepted: () => {
+        services.updateViewControls();
+        services.setStatus("Opening connected cell in Focused view…");
+      },
       onRendered: (graph) => {
         const node = graph.nodes.find((item) => item.id === fullNode.id);
         setSelectedNode(node?.id || null);
@@ -148,9 +154,13 @@ export function createSelectionNavigationController({ state, elements, services 
       services.setStatus("Connected hierarchy object is unavailable");
       return;
     }
-    services.singleViewSession.dispatch({ type: "focus.replace", objectRefs: [objectRef], activeObjectRef: objectRef });
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.renderCurrentModuleGraph({
+    return runFocusedViewCommand({
+      command: { type: "focus.replace", objectRefs: [objectRef], activeObjectRef: objectRef },
+      dispatch: (command) => services.singleViewSession.dispatch(command),
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+      rebuild: (options) => services.renderCurrentModuleGraph(options),
       onRendered: (graph) => {
         if (target.kind === "net") {
           const edge = graph.edges.find((item) => item.net === target.name);
@@ -161,7 +171,6 @@ export function createSelectionNavigationController({ state, elements, services 
           setSelectedNode(positioned?.id || null, false);
           if (positioned) services.centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
         }
-        services.recordViewHistory();
         services.setStatus(`Focused connected object in ${state.currentModule.displayName}`);
       }
     });
@@ -220,6 +229,11 @@ export function createSelectionNavigationController({ state, elements, services 
 }
 
 export const selectionNavigationPorts = Object.freeze({
+  historyActions: {
+    "handleSelectionNavigationClick": "Open connected object",
+    "navigateSingleSelectionTarget": "Open connected object",
+    "navigateCompareSelectionTarget": "Open connected object"
+  },
   state: [
     "compare", "currentModule", "fullGraph", "graph", "occurrenceContext", "selectionFocusRequestId",
     "viewMode"
@@ -228,7 +242,7 @@ export const selectionNavigationPorts = Object.freeze({
 
   ],
   services: [
-    "renderSelection", "renderNetSelection", "centerGraphPoint", "getEdgeCenter", "recordViewHistory", "renderCurrentModuleGraph",
+    "renderSelection", "renderNetSelection", "centerGraphPoint", "getEdgeCenter", "commitViewHistory", "renderCurrentModuleGraph",
     "runViewHistoryTransaction", "sameOccurrencePath", "schematicSelectionController",
     "selectCompareObject", "selectModule", "setSingleTransform", "setStatus", "singleViewSession",
     "updateViewControls"

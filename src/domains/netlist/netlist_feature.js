@@ -1,4 +1,6 @@
-import { applyWorkspaceGraphTransforms, buildWorkspaceGraph, selectWorkspaceGraphView } from "./netlist_graph_projection.js";
+import { buildWorkspaceGraph } from "./netlist_graph_projection.js";
+import { queryNetlistView } from "./netlist_view_query.js";
+import { graphNodeToObjectRef } from "./graph_object_refs.js";
 import { createDocumentEnvelope, normalizeSourceInput } from "../../contracts/document.js";
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createObjectRef } from "../../contracts/object_ref.js";
@@ -95,27 +97,20 @@ export const netlistFeature = defineDomainFeature({
       timingDisplayPolicy: options.timingDisplayPolicy,
       timingBadgeChoices: options.timingBadgeChoices,
       timingBadgePositions: options.timingBadgePositions,
-      showAliases: options.showAliases
+      showAliases: options.showAliases,
+      occurrencePath: options.occurrencePath
     });
-    const visibleGraph = selectWorkspaceGraphView(fullGraph, {
-      viewMode: normalizedQuery.mode,
-      rootNodeIds: normalizedQuery.rootNodeIds,
-      activeRootNodeId: normalizedQuery.activeRootNodeId,
-      rootNodeId: normalizedQuery.rootNodeId,
-      faninDepth: normalizedQuery.faninDepth,
-      fanoutDepth: normalizedQuery.fanoutDepth,
-      maxDepth: normalizedQuery.maxDepth,
+    const { visibleGraph } = queryNetlistView(fullGraph, {
+      ...normalizedQuery,
       preserveLegacyProjection: options.preserveLegacyProjection === true
-    });
-    const transformedGraph = applyWorkspaceGraphTransforms(visibleGraph, {
+    }, {
       ...options.transforms,
-      fullGraph,
       unroutedNets: options.graphOverrides?.unroutedNets
     });
     return {
       fullGraph,
-      visibleGraph: transformedGraph,
-      projectionMap: createProjectionMap(document.documentId, module.name, fullGraph, transformedGraph)
+      visibleGraph,
+      projectionMap: createProjectionMap(document.documentId, module.name, fullGraph, visibleGraph)
     };
   },
 
@@ -140,12 +135,8 @@ function searchEntryObjectRef(documentId, entry) {
 }
 
 function createProjectionMap(documentId, unitId, sourceGraph, visibleGraph) {
-  const sourceRefById = new Map(sourceGraph.nodes.map((node) => [node.id, createObjectRef({
-    documentId,
-    unitId,
-    kind: node.kind === "cell" ? "cell" : node.kind,
-    localId: node.ref?.instance || node.ref?.name || node.id
-  })]));
+  const sourceRefById = new Map(sourceGraph.nodes.map((node) => [node.id,
+    graphNodeToObjectRef(node, { documentId, unitId })]));
   const projectionMap = new Map();
   for (const node of visibleGraph.nodes) {
     const sourceRef = sourceRefById.get(node.id);

@@ -1,7 +1,6 @@
 import { createObjectRef, isObjectRef, objectRefKey } from "../contracts/object_ref.js";
 import { immutableSnapshot } from "../foundation/immutable_snapshot.js";
-
-const VIEW_MODES = new Set(["whole", "focused", "search-first"]);
+import { normalizeViewQuery } from "../contracts/view_query.js";
 
 function requireId(value, label) {
   if (typeof value !== "string" || value.length === 0) throw new Error(`${label} is required`);
@@ -24,9 +23,7 @@ export function createViewSession(value) {
     unitId,
     sessionRevision: normalizeRevision(value.sessionRevision, "sessionRevision"),
     computationRevision: normalizeRevision(value.computationRevision, "computationRevision"),
-    viewMode: normalizeViewMode(value.viewMode),
-    faninDepth: normalizeDepth(value.faninDepth, 3),
-    fanoutDepth: normalizeDepth(value.fanoutDepth, 3),
+    ...normalizeViewQuery(value),
     focusedRootRefs,
     activeFocusedRootRef,
     selectedObjectRef,
@@ -35,13 +32,6 @@ export function createViewSession(value) {
     overrides: immutableSnapshot(value.overrides || null),
     viewport: normalizeViewport(value.viewport)
   });
-}
-
-function normalizeDepth(value, fallback) {
-  if (value === undefined || value === null) return fallback;
-  const number = Number(value);
-  if (!Number.isFinite(number)) throw new Error("View depth must be finite");
-  return Math.min(99, Math.max(0, Math.floor(number)));
 }
 
 export function createViewSessionStore(initialSessions = []) {
@@ -126,12 +116,6 @@ function normalizeRevision(value, label) {
   if (value === undefined || value === null) return 1;
   if (!Number.isInteger(value) || value < 1) throw new Error(`View ${label} must be a positive integer`);
   return value;
-}
-
-function normalizeViewMode(value) {
-  const mode = value || "whole";
-  if (!VIEW_MODES.has(mode)) throw new Error(`View mode is unsupported: ${mode}`);
-  return mode;
 }
 
 function normalizeRefs(values, documentId, unitId, label) {

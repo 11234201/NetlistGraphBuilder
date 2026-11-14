@@ -76,7 +76,7 @@ export function createModuleNavigationController({ state, elements, services }) 
     state.currentModule = module;
     if (switchingModule && !hasExplicitOccurrencePath) state.occurrenceContext = null;
     if (switchingModule) services.logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
-    const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name);
+    const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name, (value) => services.singleViewSession.importNavigation(value));
     if (hasExplicitOccurrencePath) {
       state.occurrenceContext = options.occurrencePath.length
         ? {
@@ -85,13 +85,18 @@ export function createModuleNavigationController({ state, elements, services }) 
         }
         : null;
     }
+    if (hasExplicitOccurrencePath) {
+      services.singleViewSession.importNavigation({
+        focusedRootNodeIds: state.focusedRootNodeIds, activeFocusedRootNodeId: state.activeFocusedRootNodeId
+      });
+    }
     renderOccurrenceChoicePanel(
       !state.occurrenceContext ? ambiguousOccurrences : [],
       module.name
     );
     updateModuleHierarchyPicker();
     renderModuleHierarchy();
-    if (switchingModule && !restoredWorkspace) state.viewMode = defaultViewMode;
+    if (switchingModule && !restoredWorkspace) services.singleViewSession.importQuery({ viewMode: defaultViewMode });
     services.setSingleTransform({ x: 0, y: 0, scale: 1 });
     const requestedOnRendered = options.onRendered;
     if (!options.deferRender) {
@@ -117,6 +122,10 @@ export function createModuleNavigationController({ state, elements, services }) 
 }
 
 export const moduleNavigationPorts = Object.freeze({
+  historyActions: {
+    "selectModule": "Navigate module",
+    "handleOccurrenceChoiceClick": "Open occurrence"
+  },
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
     "coneRootNodeId", "currentModule", "design", "expandedGroupIds", "faninDepth", "fanoutDepth",

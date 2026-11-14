@@ -1,5 +1,6 @@
 import { resolveSearchTargetAction, findSearchTargetNode } from "./searchLocatePolicy.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
+import { runFocusedViewCommand } from "../application/focused_view_command.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -32,7 +33,6 @@ export function createSearchNavigationController({ state, elements, services }) 
       if (action === "locate" && edge) {
         services.setSelectedNet(target.name, false);
         centerGraphPoint(getEdgeCenter(edge));
-        services.recordViewHistory();
         services.setStatus(`Search: net ${result.label}`);
         return;
       }
@@ -42,7 +42,6 @@ export function createSearchNavigationController({ state, elements, services }) 
           const positioned = state.graph?.edges.find((item) => item.net === target.name);
           services.setSelectedNet(target.name, false);
           if (positioned) centerGraphPoint(getEdgeCenter(positioned));
-          services.recordViewHistory();
           services.setStatus(`Focused search net ${result.label}`);
         });
         return;
@@ -62,13 +61,8 @@ export function createSearchNavigationController({ state, elements, services }) 
       const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
       const positioned = action === "locate" ? findSearchTargetNode(target, state.graph) : null;
       if (action === "locate" && positioned) {
-        services.singleViewSession.dispatch({
-          type: "selection.set",
-          objectRef: result.objectRef || services.singleViewSession.objectRefForNode(fullNode)
-        });
         services.setSelectedNode(positioned.id, false);
         centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
-        services.recordViewHistory();
         services.setStatus(`Search: ${result.kind} ${result.label}`);
         return;
       }
@@ -76,7 +70,6 @@ export function createSearchNavigationController({ state, elements, services }) 
         const positioned = state.graph?.nodes.find((node) => node.id === fullNode.id);
         services.setSelectedNode(positioned?.id || null, false);
         if (positioned) centerGraphPoint({ x: positioned.x + positioned.width / 2, y: positioned.y + positioned.height / 2 }, positioned.width);
-        services.recordViewHistory();
         services.setStatus(`Focused ${result.label}: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
       });
       if (action !== "focus") services.setStatus(`Search: ${result.label} is unavailable in the current graph`);
@@ -98,21 +91,17 @@ export function createSearchNavigationController({ state, elements, services }) 
   }
 
   function revealSearchTarget(objectRef, onRendered) {
-    const reveal = services.singleViewSession.dispatch({
-      type: "selection.reveal",
-      objectRef,
-      visibleObjectKeys: services.singleViewSession.visibleObjectKeys()
+    return runFocusedViewCommand({
+      command: { type: "selection.reveal", objectRef,
+        visibleObjectKeys: services.singleViewSession.visibleObjectKeys() },
+      dispatch: (command) => services.singleViewSession.dispatch(command),
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+      rebuild: (options) => services.renderCurrentModuleGraph(options),
+      onRejected: () => services.setStatus("Search target could not be added to Focused roots"),
+      onRendered
     });
-    if (reveal.rejected) {
-      services.setStatus("Search target could not be added to Focused roots");
-      return;
-    }
-    if (!reveal.effects.layout) {
-      onRendered?.(state.graph);
-      return;
-    }
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.renderCurrentModuleGraph({ onRendered });
   }
 
   function addSearchResultToFocus(result) {
@@ -129,21 +118,21 @@ export function createSearchNavigationController({ state, elements, services }) 
       : null;
     if (!fullNode && !fullEdge) return;
     elements.searchResults.hidden = true;
-    const action = services.singleViewSession.dispatch({
-      type: "focus.add",
-      objectRef: result.objectRef || (fullNode
+    return runFocusedViewCommand({
+      command: { type: "focus.add", objectRef: result.objectRef || (fullNode
         ? services.singleViewSession.objectRefForNode(fullNode)
-        : services.singleViewSession.objectRefForNet(result.target.name))
-    });
-    if (action.rejected) { services.setStatus("Focused root limit reached"); return; }
-    if (!action.effects.layout) {
-      if (fullNode) services.setSelectedNode(fullNode.id);
-      else services.setSelectedNet(result.target.name);
-      services.setStatus(`${result.label} is already a Focused root`);
-      return;
-    }
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.renderCurrentModuleGraph({
+        : services.singleViewSession.objectRefForNet(result.target.name)) },
+      dispatch: (command) => services.singleViewSession.dispatch(command),
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+      rebuild: (options) => services.renderCurrentModuleGraph(options),
+      onRejected: () => services.setStatus("Focused root limit reached"),
+      onUnchanged: () => {
+        if (fullNode) services.setSelectedNode(fullNode.id);
+        else services.setSelectedNet(result.target.name);
+        services.setStatus(`${result.label} is already a Focused root`);
+      },
       onRendered: (graph) => {
         const node = fullNode ? graph.nodes.find((item) => item.id === fullNode.id) : null;
         const edge = fullEdge ? graph.edges.find((item) => item.net === result.target.name) : null;
@@ -154,7 +143,6 @@ export function createSearchNavigationController({ state, elements, services }) 
           services.setSelectedNet(result.target.name, false);
           if (edge) centerGraphPoint(getEdgeCenter(edge));
         }
-        services.recordViewHistory();
         services.setStatus(`Added ${result.label} to ${state.focusedRootNodeIds.length} Focused roots`);
       }
     });
@@ -193,6 +181,10 @@ export function createSearchNavigationController({ state, elements, services }) 
 }
 
 export const searchNavigationPorts = Object.freeze({
+  historyActions: {
+    "activateSearchResult": "Locate search target",
+    "addSearchResultToFocus": "Add search target to Focused"
+  },
   state: [
     "currentModule", "faninDepth", "fanoutDepth", "focusedRootNodeIds", "fullGraph", "graph",
     "transform"
@@ -201,7 +193,7 @@ export const searchNavigationPorts = Object.freeze({
     "searchResults"
   ],
   services: [
-    "applyTransform", "getSvg", "recordViewHistory", "renderCurrentModuleGraph", "selectModule",
+    "applyTransform", "getSvg", "renderCurrentModuleGraph", "selectModule",
     "setSelectedNet", "setSelectedNode", "setSingleTransform", "setStatus", "singleViewSession"
   ]
 });

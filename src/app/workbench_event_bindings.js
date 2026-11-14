@@ -2,7 +2,7 @@ import { createSearchControls } from "../ui/searchControls.js";
 
 export function bindWorkbenchEvents({ elements, commands, compare, search, windowTarget }) {
   const {
-  navigateViewHistory, handleLayoutProviderChange, exitCompareView,
+  runViewHistoryTransaction, navigateViewHistory, handleLayoutProviderChange, exitCompareView,
   enterCompareView, applyCompareSelection, applyCompareLayout,
   fitToView, handleCompareOutputChange, activateSearchResult,
   addSearchResultToFocus, handleSelectionNavigationClick, handleOccurrenceChoiceClick,
@@ -28,13 +28,13 @@ export function bindWorkbenchEvents({ elements, commands, compare, search, windo
   elements.exitCompareButton.addEventListener("click", exitCompareView);
   elements.syncCompareInput.addEventListener("change", (event) => { compare.setSynchronized(event.target.checked); });
   elements.syncCompareFocusInput.addEventListener("change", (event) => {
-    compare.setRootsSynchronized(event.target.checked);
+    runViewHistoryTransaction({ label: "Synchronize Focused roots" }, () => compare.setRootsSynchronized(event.target.checked));
   });
-  elements.compareLayoutSelect.addEventListener("change", (event) => {
+  elements.compareLayoutSelect.addEventListener("change", (event) => runViewHistoryTransaction({ label: "Compare orientation" }, () => {
     compare.setLayout(event.target.value);
     applyCompareLayout();
     fitToView();
-  });
+  }));
   elements.compareOutputSelect.addEventListener("change", handleCompareOutputChange);
   const { handleSearchInput, handleSearchKeydown, handleSearchResultClick, clearSearch } = createSearchControls({
     elements: {

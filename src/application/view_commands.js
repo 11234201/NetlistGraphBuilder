@@ -1,6 +1,7 @@
 import { isObjectRef, objectRefKey } from "../contracts/object_ref.js";
 import { DEFAULT_FOCUSED_VIEW_POLICY, normalizeMaximumRoots } from "../foundation/view_policy.js";
 import { areStructuredValuesEqual } from "../foundation/structured_value.js";
+import { normalizeViewDepth } from "../contracts/view_query.js";
 
 const NO_EFFECTS = Object.freeze({ query: false, layout: false, render: false, viewport: false, persist: false });
 
@@ -156,6 +157,13 @@ export function createViewCommandHandlers({
         effects: computeEffects({ query: true, layout: true, render: true, persist: true })
       };
     }),
+    "view.coneDepth.set": (command) => withSession(command, (session) => {
+      const coneDepth = normalizeViewDepth(requireDepth(command.coneDepth, "coneDepth"), 3, 1);
+      return coneDepth === session.coneDepth ? { effects: NO_EFFECTS } : {
+        patch: { coneDepth },
+        effects: computeEffects({ query: true, layout: true, render: true, persist: true })
+      };
+    }),
     "viewport.set": (command) => {
       if (!command.sessionId) throw new Error(`${command.type} requires sessionId`);
       const viewport = requireViewport(command.viewport);
@@ -256,7 +264,7 @@ function requireViewMode(value) {
 function requireDepth(value, label) {
   const number = Number(value);
   if (!Number.isFinite(number)) throw new Error(`Command requires finite ${label}`);
-  return Math.min(99, Math.max(0, Math.floor(number)));
+  return normalizeViewDepth(number);
 }
 
 function requireDocumentRef(session, ref) {

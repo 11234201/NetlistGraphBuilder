@@ -4,7 +4,6 @@ import {
   createSchematicScene
 } from "../../render/svgRenderer.js";
 import { renderSvgScene } from "../../render/svg_scene_renderer.js";
-import { renderSvgSceneIntoMount } from "../../render/progressiveSvgRenderer.js";
 import { createNetlistNodePrimitive } from "./netlist_scene_presentation.js";
 import { normalizeNetlistPresentationPolicy } from "./netlist_presentation_policy.js";
 
@@ -26,8 +25,4 @@ export function createSchematicRenderPlan(graph, options = {}) {
 
 export function createProgressiveSchematicRenderPlan(graph, options = {}) {
   return createGenericProgressivePlan(graph, { ...options, createNodePrimitive: createNetlistNodePrimitive });
-}
-
-export function renderSchematicIntoMount(mount, graph, options = {}) {
-  return renderSvgSceneIntoMount(mount, createNetlistScene(graph, options), options);
 }

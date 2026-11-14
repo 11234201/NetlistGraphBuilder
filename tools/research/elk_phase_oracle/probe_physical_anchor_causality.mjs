@@ -19,6 +19,7 @@ for(const entry of manifest.cases.filter(entry=>selected.has(entry.id))){
     const preP5=[],routing=[];
     const provider=new CohesionResearchProvider({groupSweep:true,structuralKey:true,implicitPorts:true,layoutUnits:true,physicalAnchors});
     const layout=provider.layout.bind(provider);
+    provider.measurementContract=null; // Preserve the raw-input observer boundary.
     provider.layout=async(input,options)=>{
       const digest=sha256(JSON.stringify(input));
       const result=await layout(input,{...options,nativeLayered:{...options.nativeLayered,onPhase:(phase,componentId)=>{

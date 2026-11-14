@@ -3,7 +3,7 @@ import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { findModuleOccurrences, buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
-import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
+import { buildAdjustedView } from "../application/adjusted_view.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
@@ -45,16 +45,17 @@ export function createCanvasController({ state, elements, services }) {
     if (nodeElement) {
       const clickedNode = state.graph?.nodes.find((node) => node.id === nodeElement.dataset.nodeId);
       if (event.shiftKey && clickedNode?.kind === "cell") {
-        const nextRoots = toggleFocusedRootNodeId(state.focusedRootNodeIds, clickedNode.id);
-        services.setSelectedNode(clickedNode.id);
-        services.replaceSingleFocusedRoots(nextRoots,
-          nextRoots.includes(clickedNode.id) ? clickedNode.id : null);
-        services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-        services.renderCurrentModuleGraph();
-        services.setStatus(nextRoots.includes(clickedNode.id)
-          ? `Added Focused root: ${clickedNode.label}`
-          : `Removed Focused root: ${clickedNode.label}`);
-        return;
+        return services.runViewHistoryTransaction({ label: "Toggle Focused root" }, () => {
+          const nextRoots = toggleFocusedRootNodeId(state.focusedRootNodeIds, clickedNode.id);
+          services.setSelectedNode(clickedNode.id);
+          services.replaceSingleFocusedRoots(nextRoots,
+            nextRoots.includes(clickedNode.id) ? clickedNode.id : null);
+          services.setSingleTransform({ x: 0, y: 0, scale: 1 });
+          services.renderCurrentModuleGraph();
+          services.setStatus(nextRoots.includes(clickedNode.id)
+            ? `Added Focused root: ${clickedNode.label}`
+            : `Removed Focused root: ${clickedNode.label}`);
+        });
       }
       services.setSelectedNode(nodeElement.dataset.nodeId);
       return;
@@ -76,7 +77,7 @@ export function createCanvasController({ state, elements, services }) {
         services.applyTransform(false);
       },
       onEnd({ didPan, cancelled }) {
-        if (didPan && !cancelled) services.persistSession({ label: "Viewport gesture" });
+        if (didPan && !cancelled) services.commitViewHistory({ label: "Viewport gesture" });
         if (!didPan && !cancelled) services.setSelectedNode(null);
       }
     });
@@ -136,7 +137,7 @@ export function createCanvasController({ state, elements, services }) {
       return;
     }
 
-    services.setSelectedNode(nodeId);
+    services.setSelectedNode(nodeId, false);
     let draggedPosition = state.nodePositions.get(nodeId);
     startCanvasNodeDrag({
       event,
@@ -153,6 +154,9 @@ export function createCanvasController({ state, elements, services }) {
           services.setStatus(`${node.label}: x=${position.x}, y=${position.y}`);
         }
       },
+      onEnd({ moved, cancelled }) {
+        if (!moved && !cancelled) services.commitViewHistory({ label: "Select object" });
+      },
       onCommit({ preview }) {
         services.updateSingleOverrides((overrides) => overrides.nodePositions.set(nodeId, draggedPosition));
         services.setStatus(`Rerouting ${node.label}…`);
@@ -167,16 +171,18 @@ export function createCanvasController({ state, elements, services }) {
       services.renderCurrentModuleGraph();
       return;
     }
-    state.graph = applyWorkspaceOverrides(state.autoGraph, {
+    const adjusted = buildAdjustedView(state.autoGraph, {
       nodePositions: state.nodePositions,
       nodeSizes: state.nodeSizes,
-      layoutPolicy: state.layoutPolicy
+      layoutPolicy: state.layoutPolicy,
+      createScene: (graph) => createNetlistScene(graph, { presentationPolicy: state.presentationPolicy })
     });
-    state.scene = createNetlistScene(state.graph, { presentationPolicy: state.presentationPolicy });
+    state.graph = adjusted.graph;
+    state.scene = adjusted.scene;
     preview.clear();
     services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
       if (result?.cancelled) return;
-      services.setSelectedNode(nodeId);
+      services.setSelectedNode(nodeId, false);
       services.applyTransform();
       services.updateCalibrationControls();
       services.setStatus(`Layout overrides: ${state.nodePositions.size} moved node(s)`);
@@ -201,6 +207,10 @@ export function createCanvasController({ state, elements, services }) {
 }
 
 export const canvasPorts = Object.freeze({
+  historyActions: {
+    "fitToView": "Fit view",
+    "handleCanvasDoubleClick": "Open child module"
+  },
   state: [
     "autoGraph", "calibrationMode", "compare", "currentModule", "design", "focusedRootNodeIds", "graph",
     "layoutPolicy", "nodePositions", "nodeSizes", "occurrenceContext", "presentationPolicy", "scene",
@@ -211,7 +221,7 @@ export const canvasPorts = Object.freeze({
   ],
   services: [
     "applyCompareTransforms", "applyTransform", "exitCompareView", "getCompareModule", "getSvg",
-    "handleComparePointerDown", "handleCompareWheel", "persistSession", "queueWheelGesture",
+    "handleComparePointerDown", "handleCompareWheel", "commitViewHistory", "runViewHistoryTransaction", "queueWheelGesture",
     "recordViewHistory", "renderCurrentModuleGraph", "renderGraphMount", "replaceSingleFocusedRoots",
     "runAfterNextPaint", "selectModule", "setCompareTransform", "setSelectedNet", "setSelectedNode",
     "setSingleTransform", "setStatus", "updateCalibrationControls", "updateSingleOverrides"

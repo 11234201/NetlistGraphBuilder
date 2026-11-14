@@ -8,8 +8,7 @@ import { importTimingSource } from "../domains/netlist/timing_import.js";
 import {
   resetTimingPresentation,
   resetDesignWorkspace,
-  normalizeFocusedRootNodeIds,
-  setFocusedRootNodeIds
+  normalizeFocusedRootNodeIds
 } from "./appState.js";
 import { importDesignSource } from "./designInput.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
@@ -39,8 +38,7 @@ export function createInputController({ state, elements, services }) {
         state.layoutProviderId = DEFAULT_LAYOUT_PROVIDER_ID;
         state.layoutFallbackFromProviderId = null;
         elements.layoutProviderSelect.value = state.layoutProviderId;
-        if (target.faninDepth !== undefined) state.faninDepth = target.faninDepth;
-        if (target.fanoutDepth !== undefined) state.fanoutDepth = target.fanoutDepth;
+        services.singleViewSession.importQuery({ faninDepth: target.faninDepth, fanoutDepth: target.fanoutDepth });
         elements.faninDepthInput.value = String(state.faninDepth);
         elements.fanoutDepthInput.value = String(state.fanoutDepth);
       },
@@ -165,7 +163,8 @@ export function createInputController({ state, elements, services }) {
       state.currentSource = source;
       state.currentSourceLabel = label;
       state.sourceIdentity = createSourceIdentity(label, source);
-      resetDesignWorkspace(state);
+      resetDesignWorkspace(state, () => services.singleViewSession.resetNavigation());
+      services.compareViewSessions.resetState();
       state.currentModule = null;
       state.searchIndex = services.netlistFeature.buildSearchIndex(documentEnvelope);
       services.clearSearch();
@@ -197,22 +196,22 @@ export function createInputController({ state, elements, services }) {
         restore?.focusedRootNodeIds,
         restore?.coneRootNodeId
       );
-      state.focusedRootRefs = services.cloneObjectRefs(restore?.focusedRootRefs);
-      if (Number.isFinite(Number(restore?.coneDepth))) state.coneDepth = Number(restore.coneDepth);
-      if (Number.isFinite(Number(restore?.faninDepth))) state.faninDepth = Number(restore.faninDepth);
-      if (Number.isFinite(Number(restore?.fanoutDepth))) state.fanoutDepth = Number(restore.fanoutDepth);
+      const restoredQuery = {};
+      for (const key of ["coneDepth", "faninDepth", "fanoutDepth"]) {
+        if (Number.isFinite(Number(restore?.[key]))) restoredQuery[key] = Number(restore[key]);
+      }
+      const restoredViewMode = restore?.viewMode ? normalizeSingleViewMode(restore.viewMode) : null;
+      if (restoredViewMode && (restoredViewMode !== "focused" || restoredFocusedRoots.length > 0)) {
+        services.singleViewSession.importNavigation({
+          ...restoredQuery, viewMode: restoredViewMode,
+          focusedRootNodeIds: restoredViewMode === "focused" ? restoredFocusedRoots : [],
+          focusedRootRefs: restore?.focusedRootRefs,
+          activeFocusedRootNodeId: restore.activeFocusedRootNodeId
+        });
+      } else services.singleViewSession.importQuery(restoredQuery);
       elements.coneDepthInput.value = String(state.coneDepth);
       elements.faninDepthInput.value = String(state.faninDepth);
       elements.fanoutDepthInput.value = String(state.fanoutDepth);
-      const restoredViewMode = restore?.viewMode ? normalizeSingleViewMode(restore.viewMode) : null;
-      if (restoredViewMode && (restoredViewMode !== "focused" || restoredFocusedRoots.length > 0)) {
-        state.viewMode = restoredViewMode;
-        setFocusedRootNodeIds(
-          state,
-          restoredViewMode === "focused" ? restoredFocusedRoots : [],
-          restore.activeFocusedRootNodeId
-        );
-      }
       if (restore?.unroutedNets) services.setSingleOverrides({
         nodePositions: state.nodePositions,
         nodeSizes: state.nodeSizes,
@@ -222,6 +221,7 @@ export function createInputController({ state, elements, services }) {
       const completion = new Promise((resolve, reject) => services.renderCurrentModuleGraph({
         readyMessage,
         onRendered: (graph) => {
+          services.recordViewHistory({ label: "Open document" });
           restore?.onRendered?.(graph);
           resolve(graph);
         },
@@ -267,9 +267,10 @@ export const inputPorts = Object.freeze({
     "coneDepthInput", "faninDepthInput", "fanoutDepthInput", "layoutProviderSelect", "searchInput"
   ],
   services: [
-    "clearSearch", "cloneObjectRefs", "documents", "focusStartupCell", "focusStartupCells",
-    "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
-    "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
+    "compareViewSessions",
+    "clearSearch", "documents", "focusStartupCell", "focusStartupCells",
+    "singleViewSession", "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
+    "recordViewHistory", "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
     "selectModule", "selectStartupModule", "setSingleOverrides", "setSingleTransform", "setStatus", "viewSessions",
     "workspaceJobs"
   ]

@@ -85,10 +85,10 @@ export function createInspectorController({ state, elements, services, netRoutin
         edge.classList.add(commonNets.has(edge.dataset.net) ? "is-compare-match" : "is-compare-unmatched");
       }
     }
-    if (state.compare.selectedName) selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false);
+    if (state.compare.selectedName) selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false, state.compare.selectedSide, false);
   }
 
-  function selectCompareObject(kind, name, focus = true, selectedSide = state.compare.selectedSide) {
+  function selectCompareObject(kind, name, focus = true, selectedSide = state.compare.selectedSide, shouldRecord = true) {
     if (!selectedSide) return;
     const peerSide = selectedSide === "left" ? "right" : "left";
     if (compareObjectExists(peerSide, kind, name)) {
@@ -115,21 +115,21 @@ export function createInspectorController({ state, elements, services, netRoutin
     if (focus) focusCompareSelection(kind, name);
     if (kind === "net") {
       renderNetSelection(name, selectedSide);
-      services.recordViewHistory();
+      if (shouldRecord) services.commitViewHistory();
       return;
     }
     if (kind !== "net" && selectedSide) {
       const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
       if (node) {
         renderCompareSelection(selectedSide, node);
-        services.recordViewHistory();
+        if (shouldRecord) services.commitViewHistory();
         return;
       }
     }
     elements.details.className = "details-block";
     elements.details.innerHTML = renderObjectDetails({ kind, summary: [["Kind", kind], ["Present", "highlighted on both sides where available"]], connections: [] },
       inspectionOptions({ kind, id: name, label: name }, selectedSide));
-    services.recordViewHistory();
+    if (shouldRecord) services.commitViewHistory();
   }
 
   function clearCompareSelection() {
@@ -469,7 +469,7 @@ export const inspectorPorts = Object.freeze({
   ],
   services: [
     "applyCompareTransforms", "applyTransform", "clamp", "compareViewSessions", "cssEscape",
-    "getEdgeCenter", "getNodeInstance", "isEditableNodeProperty", "recordViewHistory",
+    "getEdgeCenter", "getNodeInstance", "isEditableNodeProperty", "commitViewHistory",
     "renderCompareGraphs", "renderCurrentModuleGraph", "setCompareTransform", "setSelectedNode",
     "setSingleTransform", "setStatus", "updateCellDefinitionControls", "updateCompareOverrides",
     "updateSingleOverrides", "updateViewControls"

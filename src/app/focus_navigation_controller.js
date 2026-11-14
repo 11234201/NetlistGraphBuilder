@@ -1,5 +1,6 @@
 import { findCompareNode } from "./compareWorkspace.js";
 import { getFocusedObjectTransform, getAdaptiveMaxScale } from "../ui/viewport.js";
+import { runFocusedViewCommand } from "../application/focused_view_command.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -45,11 +46,13 @@ export function createFocusNavigationController({ state, elements, services }) {
     }
 
     const requestId = ++state.selectionFocusRequestId;
-    services.singleViewSession.dispatch({
-      type: "focus.set",
-      objectRef: services.singleViewSession.objectRefForNode(fullNode)
-    });
-    services.renderCurrentModuleGraph({
+    return runFocusedViewCommand({
+      command: { type: "focus.set", objectRef: services.singleViewSession.objectRefForNode(fullNode) },
+      dispatch: (command) => services.singleViewSession.dispatch(command),
+      readGraph: () => state.graph,
+      isReady: () => services.singleViewSession.isWorkspaceReady(),
+      resetViewport: () => {},
+      rebuild: (options) => services.renderCurrentModuleGraph(options),
       onRendered: (graph) => {
         if (requestId !== state.selectionFocusRequestId || state.selectedNodeId !== selectedNodeId) return;
         const node = graph.nodes.find((item) => item.id === selectedNodeId);
@@ -69,7 +72,9 @@ export function createFocusNavigationController({ state, elements, services }) {
     );
     if (!module) return Promise.reject(new Error(`Startup module not found: ${moduleName}`));
     if (state.currentModule?.name === module.name) return Promise.resolve();
-    return new Promise((resolve) => services.selectModule(module.name, { onRendered: resolve }));
+    return new Promise((resolve, reject) => services.selectModule(module.name, {
+      onRendered: resolve, onCancelled: () => reject(cancelledFocus()), onFailed: reject
+    }));
   }
 
   function focusStartupCell(value) {
@@ -84,7 +89,8 @@ export function createFocusNavigationController({ state, elements, services }) {
         services.selectModule(state.currentModule.name, {
           rootModuleName: occurrenceTarget.rootModuleName,
           occurrencePath: occurrenceTarget.occurrencePath,
-          onRendered: () => focusStartupCells(values).then(resolve, reject)
+          onRendered: () => focusStartupCells(values).then(resolve, reject),
+          onCancelled: () => reject(cancelledFocus()), onFailed: reject
         });
       });
     }
@@ -111,18 +117,22 @@ export function createFocusNavigationController({ state, elements, services }) {
       ? services.singleViewSession.objectRefForNet(target.localId)
       : services.singleViewSession.objectRefForNode(nodes[index]));
     const activeObjectRef = objectRefs[0] || null;
-    services.singleViewSession.dispatch({
-      type: "focus.replace",
-      objectRefs,
-      activeObjectRef
-    });
     const firstNodeId = nodes[0]?.id || null;
-    if (focusTargets[0]?.kind === "net") services.setSelectedNet(focusTargets[0].localId);
-    else services.setSelectedNode(firstNodeId);
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    services.updateViewControls();
-    return new Promise((resolve) => {
-      services.renderCurrentModuleGraph({
+    return new Promise((resolve, reject) => {
+      runFocusedViewCommand({
+        command: { type: "focus.replace", objectRefs, activeObjectRef },
+        dispatch: (command) => services.singleViewSession.dispatch(command),
+        readGraph: () => state.graph,
+        isReady: () => services.singleViewSession.isWorkspaceReady(),
+        resetViewport: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+        rebuild: (options) => services.renderCurrentModuleGraph(options),
+        onAccepted: () => {
+          if (focusTargets[0]?.kind === "net") services.setSelectedNet(focusTargets[0].localId);
+          else services.setSelectedNode(firstNodeId);
+          services.updateViewControls();
+        },
+        onRejected: (reason) => reject(new Error(`Startup focus rejected: ${reason}`)),
+        onCancelled: () => reject(cancelledFocus()), onFailed: reject,
         onRendered: (graph) => {
           if (focusTargets[0]?.kind === "net") {
             const edge = graph.edges.find((item) => item.net === focusTargets[0].localId);
@@ -143,6 +153,12 @@ export function createFocusNavigationController({ state, elements, services }) {
         }
       });
     });
+  }
+
+  function cancelledFocus() {
+    const error = new Error("Focus operation cancelled");
+    error.name = "AbortError";
+    return error;
   }
 
   function normalizeStartupFocusTarget(value) {
@@ -227,6 +243,11 @@ export function createFocusNavigationController({ state, elements, services }) {
 }
 
 export const focusNavigationPorts = Object.freeze({
+  historyActions: {
+    "focusSelectedCell": "Focus selected object",
+    "focusStartupCells": "Focus startup targets",
+    "focusStartupCell": "Focus startup target"
+  },
   state: [
     "compare", "currentModule", "design", "fullGraph", "graph", "occurrenceContext", "selectedNet",
     "selectedNodeId", "selectionFocusRequestId", "transform"

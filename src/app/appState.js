@@ -1,5 +1,6 @@
+import { cloneObjectRefs } from "../contracts/object_ref.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
-import { cloneNetRoutingOverrides } from "../domains/netlist/net_routing.js";
+import { cloneGraphOverrides } from "../domains/netlist/graph_overrides.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 import { resolveFocusedRootState } from "./focusedSelection.js";
@@ -100,17 +101,15 @@ export function createCompareState() {
   });
 }
 
-export function resetDesignWorkspace(state) {
+export function resetDesignWorkspace(state, resetNavigation = (value) => Object.assign(state, value)) {
   state.compare?.layoutAbortController?.abort();
   state.compare = createCompareState();
-  resetModuleWorkspace(state);
+  resetModuleWorkspace(state, resetNavigation);
   state.fullGraph = null;
   state.autoGraph = null;
   state.graph = null;
   state.scene = null;
   state.singleWorkspaceIdentity = null;
-  state.selectedNodeId = null;
-  state.selectedNet = null;
   state.searchResults = [];
   state.activeSearchResult = -1;
   state.timing = null;
@@ -143,26 +142,23 @@ export function saveModuleWorkspace(state, moduleName) {
   });
 }
 
-export function restoreModuleWorkspace(state, moduleName) {
+export function restoreModuleWorkspace(state, moduleName, restoreNavigation = (value) => Object.assign(state, value)) {
   const saved = state.moduleWorkspaces.get(moduleName);
-  resetModuleWorkspace(state);
+  resetModuleWorkspace(state, restoreNavigation);
   if (!saved) return false;
-  state.nodePositions = new Map(saved.nodePositions);
-  state.nodeSizes = new Map(saved.nodeSizes);
-  state.graphOverrides = cloneGraphOverrides(saved.graphOverrides);
-  state.viewMode = normalizeSingleViewMode(saved.viewMode);
-  state.focusedRootNodeIds = normalizeFocusedRootNodeIds(saved.focusedRootNodeIds, saved.coneRootNodeId);
-  state.focusedRootRefs = cloneObjectRefs(saved.focusedRootRefs);
-  state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
-  state.activeFocusedRootNodeId = state.focusedRootNodeIds.includes(saved.activeFocusedRootNodeId)
-    ? saved.activeFocusedRootNodeId
-    : state.coneRootNodeId;
+  const roots = normalizeFocusedRootNodeIds(saved.focusedRootNodeIds, saved.coneRootNodeId);
   state.occurrenceContext = saved.occurrenceContext ? {
     rootModuleName: saved.occurrenceContext.rootModuleName || null,
     occurrencePath: [...(saved.occurrenceContext.occurrencePath || [])]
   } : null;
-  state.faninDepth = normalizeDepth(saved.faninDepth, state.faninDepth);
-  state.fanoutDepth = normalizeDepth(saved.fanoutDepth, state.fanoutDepth);
+  restoreNavigation({ nodePositions: new Map(saved.nodePositions), nodeSizes: new Map(saved.nodeSizes),
+    graphOverrides: cloneGraphOverrides(saved.graphOverrides), viewMode: normalizeSingleViewMode(saved.viewMode),
+    faninDepth: normalizeDepth(saved.faninDepth, state.faninDepth),
+    fanoutDepth: normalizeDepth(saved.fanoutDepth, state.fanoutDepth),
+    focusedRootNodeIds: roots, focusedRootRefs: cloneObjectRefs(saved.focusedRootRefs),
+    coneRootNodeId: roots[0] || null,
+    activeFocusedRootNodeId: roots.includes(saved.activeFocusedRootNodeId) ? saved.activeFocusedRootNodeId : roots[0] || null,
+    selectedNodeId: null, selectedNet: null });
   state.timingBadgeChoices = cloneRecord(saved.timingBadgeChoices);
   state.timingBadgePositions = { ...saved.timingBadgePositions };
   return true;
@@ -174,21 +170,13 @@ export function saveCompareWorkspace(state) {
   state.compareWorkspaces.set(key, cloneCompareAdjustments(state.compare));
 }
 
-export function restoreCompareWorkspace(state, leftModuleName, rightModuleName) {
+export function restoreCompareWorkspace(state, leftModuleName, rightModuleName, restoreNavigation = (value) => {
+  Object.assign(state.compare, value);
+}) {
   const saved = state.compareWorkspaces.get(compareWorkspaceKey(leftModuleName, rightModuleName));
   const fresh = saved || createCompareState();
   state.compare.outputName = fresh.outputName || null;
   state.compare.wholeRequested = fresh.wholeRequested === true;
-  state.compare.transforms = {
-    left: { ...fresh.transforms.left },
-    right: { ...fresh.transforms.right }
-  };
-  state.compare.nodePositions = cloneSideMaps(fresh.nodePositions);
-  state.compare.nodeSizes = cloneSideMaps(fresh.nodeSizes);
-  state.compare.graphOverrides = {
-    left: cloneGraphOverrides(fresh.graphOverrides.left),
-    right: cloneGraphOverrides(fresh.graphOverrides.right)
-  };
   state.compare.timingBadgeChoices = {
     left: cloneRecord(fresh.timingBadgeChoices.left),
     right: cloneRecord(fresh.timingBadgeChoices.right)
@@ -197,32 +185,31 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName) 
     left: { ...fresh.timingBadgePositions.left },
     right: { ...fresh.timingBadgePositions.right }
   };
-  state.compare.focusedRootNodeIds = {
-    left: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.left),
-    right: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.right)
-  };
-  state.compare.focusedRootRefs = {
-    left: cloneObjectRefs(fresh.focusedRootRefs?.left),
-    right: cloneObjectRefs(fresh.focusedRootRefs?.right)
-  };
-  state.compare.activeFocusedRootNodeId = {
-    left: fresh.activeFocusedRootNodeId?.left || state.compare.focusedRootNodeIds.left[0] || null,
-    right: fresh.activeFocusedRootNodeId?.right || state.compare.focusedRootNodeIds.right[0] || null
-  };
+  restoreNavigation({
+    transforms: {
+      left: { ...fresh.transforms.left },
+      right: { ...fresh.transforms.right }
+    },
+    nodePositions: cloneSideMaps(fresh.nodePositions),
+    nodeSizes: cloneSideMaps(fresh.nodeSizes),
+    graphOverrides: {
+      left: cloneGraphOverrides(fresh.graphOverrides.left),
+      right: cloneGraphOverrides(fresh.graphOverrides.right)
+    },
+    focusedRootNodeIds: { left: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.left), right: normalizeFocusedRootNodeIds(fresh.focusedRootNodeIds?.right) },
+    focusedRootRefs: { left: cloneObjectRefs(fresh.focusedRootRefs?.left), right: cloneObjectRefs(fresh.focusedRootRefs?.right) },
+    activeFocusedRootNodeId: { left: fresh.activeFocusedRootNodeId?.left || fresh.focusedRootNodeIds?.left?.[0] || null,
+      right: fresh.activeFocusedRootNodeId?.right || fresh.focusedRootNodeIds?.right?.[0] || null }
+  });
   state.compare.focusedRootsSynchronized = fresh.focusedRootsSynchronized !== false;
   return Boolean(saved);
 }
 
-export function resetModuleWorkspace(state) {
-  state.nodePositions = new Map();
-  state.nodeSizes = new Map();
-  state.graphOverrides = createEmptyGraphOverrides();
+export function resetModuleWorkspace(state, restoreNavigation = (value) => Object.assign(state, value)) {
   state.expandedGroupIds = new Set();
-  state.viewMode = "whole";
-  state.coneRootNodeId = null;
-  state.focusedRootNodeIds = [];
-  state.focusedRootRefs = [];
-  state.activeFocusedRootNodeId = null;
+  restoreNavigation({ nodePositions: new Map(), nodeSizes: new Map(), graphOverrides: createEmptyGraphOverrides(),
+    viewMode: "whole", coneRootNodeId: null, focusedRootNodeIds: [], focusedRootRefs: [], activeFocusedRootNodeId: null,
+    selectedNodeId: null, selectedNet: null });
   state.occurrenceContext = null;
   resetTimingPresentation(state);
 }
@@ -285,14 +272,6 @@ function cloneSideMaps(value) {
   return { left: new Map(value.left), right: new Map(value.right) };
 }
 
-function cloneGraphOverrides(value = createEmptyGraphOverrides()) {
-  return {
-    ...cloneNetRoutingOverrides(value),
-    nodeProperties: cloneRecord(value.nodeProperties),
-    cellPinDirections: cloneRecord(value.cellPinDirections)
-  };
-}
-
 function cloneRecord(value = {}) {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [
     key,
@@ -323,11 +302,4 @@ export function setFocusedRootNodeIds(state, value, activeRootNodeId = null) {
   state.coneRootNodeId = state.focusedRootNodeIds[0] || null;
   state.activeFocusedRootNodeId = resolved.activeRootNodeId;
   return state.focusedRootNodeIds;
-}
-
-function cloneObjectRefs(value) {
-  return (Array.isArray(value) ? value : []).map((ref) => ({
-    ...ref,
-    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
-  }));
 }

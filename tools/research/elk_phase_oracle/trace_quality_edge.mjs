@@ -12,6 +12,7 @@ const bytes=await readFile(source),design=parseVerilog(bytes.toString('utf8'));
 const module=design.modules.find((module)=>module.name==='tc')??design.modules[0];
 const provider=new NativeLayeredLayoutProvider(),original=provider.layout.bind(provider),phases=[];
 let inputDigest;
+provider.measurementContract=null; // Preserve the raw-input observer boundary.
 provider.layout=(graph,options)=>{
   inputDigest=sha256(JSON.stringify(graph));
   return original(graph,{...options,nativeLayered:{onPhase:async(phase,componentId)=>{

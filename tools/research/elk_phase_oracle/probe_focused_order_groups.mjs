@@ -25,6 +25,7 @@ for(const entry of manifest.cases.filter(entry=>selected.has(entry.id))){
   const Provider=cohesion||structuralKey||implicitPorts?CohesionResearchProvider:NativeLayeredLayoutProvider;
   const provider=new Provider({groupSweep,cohesion,structuralKey,implicitPorts,layoutUnits}),layout=provider.layout.bind(provider),phases=[];
   let decomposition,providerInputDigest;
+  provider.measurementContract=null; // Preserve the raw-input observer boundary.
   provider.layout=async(input,options)=>{
     providerInputDigest=sha256(JSON.stringify(input));
     decomposition=buildFocusedFaninTreeBlocks(input.nodes,input.edges);

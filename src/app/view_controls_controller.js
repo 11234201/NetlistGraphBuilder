@@ -2,6 +2,7 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds } from "./appState.js";
 import { findCompareNode } from "./compareWorkspace.js";
 import { resolveFocusedRootTarget, focusedNetRootId } from "./focusedSelection.js";
+import { executeViewEffects, mergeViewEffects } from "../application/view_effects.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -17,6 +18,7 @@ export function createViewControlsController({ state, elements, services }) {
       setCompareViewMode(mode);
       return;
     }
+    let rootsResult;
     if (mode !== "whole" && mode !== "search-first") {
       const existingRootNodeIds = normalizeFocusedRootNodeIds(
         state.focusedRootNodeIds,
@@ -30,22 +32,26 @@ export function createViewControlsController({ state, elements, services }) {
         services.setStatus("Select a cell before opening Focused view");
         return;
       }
-      services.replaceSingleFocusedRoots(rootNodeIds);
+      rootsResult = services.replaceSingleFocusedRoots(rootNodeIds);
+      if (rootsResult?.rejected) return;
     }
     const modeResult = services.setSingleViewMode(mode);
     if (modeResult?.rejected) return;
-    services.renderCurrentModuleGraph();
-    services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-    if (mode === "focused" && !state.selectedNodeId && state.coneRootNodeId) {
-      services.setSelectedNode(state.coneRootNodeId);
-    }
-    services.applyTransform();
     const message = mode === "whole"
       ? "Whole module overview"
       : mode === "focused"
         ? `Focused neighborhood: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`
         : "Search-first mode";
     services.setStatus(message);
+    return executeViewEffects({ ...modeResult, effects: mergeViewEffects(rootsResult?.effects, modeResult?.effects) }, {
+      requireReady: true, isReady: () => services.singleViewSession.isWorkspaceReady(),
+      beforeCompute: () => services.setSingleTransform({ x: 0, y: 0, scale: 1 }),
+      compute: (options) => services.renderCurrentModuleGraph(options),
+      onCommitted: () => {
+        if (mode === "focused" && !state.selectedNodeId && state.coneRootNodeId) services.setSelectedNode(state.coneRootNodeId);
+        services.applyTransform();
+      }
+    });
   }
 
   function setCompareViewMode(mode) {
@@ -55,6 +61,7 @@ export function createViewControlsController({ state, elements, services }) {
   function setCompareViewModeImpl(mode) {
     const context = services.getFocusedRootContext();
     if (mode === "focused") {
+      let result;
       if (context.roots.length === 0) {
         const selected = state.compare.selectedKind === "net" && state.compare.selectedName
           ? { id: focusedNetRootId(state.compare.selectedName) }
@@ -63,39 +70,51 @@ export function createViewControlsController({ state, elements, services }) {
           services.setStatus("Select a compare cell before opening Focused view");
           return;
         }
-        services.setCompareFocusedRootNodeIds(context.side, [selected.id], selected.id);
+        result = services.setCompareFocusedRootNodeIds(context.side, [selected.id], selected.id);
       }
-      services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 });
-      updateViewControls();
-      services.renderCompareGraphs();
       services.setStatus(`Compare ${context.side} Focused: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
-      return;
+      return executeViewEffects(result, {
+        requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
+        beforeCompute: () => services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 }),
+        compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+        render: updateViewControls
+      });
     }
     if (mode === "whole") {
+      const changedQuery = !state.compare.wholeRequested || Boolean(state.compare.outputName);
+      const results = [];
       for (const side of ["left", "right"]) {
-        services.setCompareFocusedRootNodeIds(side, []);
-        services.setCompareTransform(side, { x: 0, y: 0, scale: 1 }, false);
+        results.push(services.setCompareFocusedRootNodeIds(side, []));
       }
       state.compare.outputName = null;
       state.compare.wholeRequested = true;
-      updateViewControls();
-      services.renderCompareGraphs();
+      const effects = mergeViewEffects(...results.map((result) => result?.effects),
+        changedQuery ? { query: true, layout: true, render: true, persist: true } : null);
       services.setStatus("Whole compare modules");
+      return executeViewEffects({ effects }, {
+        requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
+        beforeCompute: () => { for (const side of ["left", "right"]) services.setCompareTransform(side, { x: 0, y: 0, scale: 1 }, false); },
+        compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+        render: updateViewControls
+      });
     }
   }
 
   function handleConeDepthChange(event) {
-    state.coneDepth = services.clamp(Math.floor(Number(event.target.value) || 1), 1, 99);
+    const result = services.singleViewSession.dispatch({ type: "view.coneDepth.set", coneDepth: Number(event.target.value) || 1 });
     elements.coneDepthInput.value = String(state.coneDepth);
-    if (state.compare.active && state.compare.outputName) {
-      services.renderCompareGraphs();
-      services.renderStats();
-      services.setStatus(`Compare fanin cone depth ${state.coneDepth}`);
-      return;
-    }
-    if (state.viewMode !== "whole") {
-      setViewMode(state.viewMode);
-    }
+    const shouldCompute = Boolean(state.compare.active && state.compare.outputName && result.effects?.layout);
+    if (shouldCompute) services.setStatus(`Compare fanin cone depth ${state.coneDepth}`);
+    return executeViewEffects(result, {
+      shouldCompute,
+      requireReady: Boolean(state.compare.active && state.compare.outputName),
+      isReady: () => services.compareViewSessions.isWorkspaceReady(),
+      compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
+      onCommitted: () => {
+        if (shouldCompute) services.renderStats();
+      },
+      persist: () => services.persistSession()
+    });
   }
 
   function handleFocusedDepthChange() {
@@ -105,21 +124,27 @@ export function createViewControlsController({ state, elements, services }) {
     );
     elements.faninDepthInput.value = String(state.faninDepth);
     elements.fanoutDepthInput.value = String(state.fanoutDepth);
-    if (state.compare.active) {
-      if (state.compare.focusedRootNodeIds.left.length > 0 || state.compare.focusedRootNodeIds.right.length > 0) {
-        services.renderCompareGraphs();
-        services.renderStats();
-      }
-    } else if (state.viewMode === "focused" && result?.effects?.layout) {
-      services.setSingleTransform({ x: 0, y: 0, scale: 1 });
-      services.renderCurrentModuleGraph();
-    }
-    else services.persistSession();
+    const focused = state.compare.active
+      ? state.compare.focusedRootNodeIds.left.length > 0 || state.compare.focusedRootNodeIds.right.length > 0
+      : state.viewMode === "focused";
+    return executeViewEffects(result, {
+      shouldCompute: Boolean(focused && result?.effects?.layout),
+      requireReady: focused,
+      isReady: () => state.compare.active ? services.compareViewSessions.isWorkspaceReady() : services.singleViewSession.isWorkspaceReady(),
+      beforeCompute: () => { if (!state.compare.active) services.setSingleTransform({ x: 0, y: 0, scale: 1 }); },
+      compute: (options) => {
+        if (!state.compare.active) services.renderCurrentModuleGraph(options);
+        else { const { onRendered, ...callbacks } = options; services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }); }
+      },
+      onCommitted: () => { if (state.compare.active && focused) services.renderStats(); },
+      persist: () => services.persistSession()
+    });
   }
 
   function scheduleFocusedDepthChange() {
     clearTimeout(focusedDepthChangeTimer);
-    focusedDepthChangeTimer = setTimeout(handleFocusedDepthChange, 120);
+    focusedDepthChangeTimer = setTimeout(() => services.runViewHistoryTransaction(
+      { label: "Change Focused depth" }, handleFocusedDepthChange), 120);
   }
 
   function handleAliasVisibilityChange(event) {
@@ -196,6 +221,10 @@ export function createViewControlsController({ state, elements, services }) {
 }
 
 export const viewControlsPorts = Object.freeze({
+  historyActions: {
+    "handleConeDepthChange": "Change output depth",
+    "handleFocusedDepthChange": "Change Focused depth"
+  },
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
     "coneDepth", "coneRootNodeId", "expandedGroupIds", "faninDepth", "fanoutDepth",
@@ -210,7 +239,7 @@ export const viewControlsPorts = Object.freeze({
     "setFocusedRootButton", "showAliasesInput", "wholeViewButton"
   ],
   services: [
-    "applyTransform", "clamp", "getFocusedRootContext", "getSelectedSingleCell", "persistSession",
+    "applyTransform", "clamp", "compareViewSessions", "getFocusedRootContext", "getSelectedSingleCell", "persistSession",
     "renderCompareGraphs", "renderCurrentModuleGraph", "renderFocusedRootList", "renderStats",
     "replaceSingleFocusedRoots", "runViewHistoryTransaction", "setCompareFocusedRootNodeIds",
     "setCompareTransform", "setSelectedNode", "setSingleFocusedDepths", "setSingleTransform",

@@ -1,6 +1,6 @@
 // Compatibility projection from legacy UI state into a workspace request.
 // Domain computation and scheduling belong to their owning boundaries.
-export function createSingleWorkspaceInput(state, layoutProvider, cellLibrary = null) {
+export function createSingleWorkspaceInput(state, layoutProvider, query, cellLibrary = null) {
   return {
     module: state.currentModule,
     moduleLibrary: state.design.modules,
@@ -13,13 +13,10 @@ export function createSingleWorkspaceInput(state, layoutProvider, cellLibrary = 
     timingBadgePositions: state.timingBadgePositions,
     presentationPolicy: state.presentationPolicy,
     showAliases: state.showAliases,
-    viewMode: state.viewMode,
+    ...query,
     focusedRootNodeIds: state.focusedRootNodeIds,
     activeFocusedRootNodeId: state.activeFocusedRootNodeId,
     coneRootNodeId: state.coneRootNodeId,
-    coneDepth: state.coneDepth,
-    faninDepth: state.faninDepth,
-    fanoutDepth: state.fanoutDepth,
     occurrencePath: state.occurrenceContext?.occurrencePath || null,
     useFanoutHubs: state.useFanoutHubs,
     layoutProvider,

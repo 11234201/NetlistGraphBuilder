@@ -1,9 +1,8 @@
 import {
-  collectCellTypeSummary,
-  createInferredCellDefinition,
   renderCellDefinitionEditor,
   readCellDefinitionEditor
 } from "../ui/cellDefinitionPanel.js";
+import { collectCellTypeSummary, createInferredCellDefinition } from "../domains/netlist/cell_definition_query.js";
 import { serializeCellConfig } from "../infer/cellConfig.js";
 import { resolveCellConfigRefreshView } from "./graphWorkspace.js";
 import { errorMessage } from "../foundation/log_details.js";

@@ -34,6 +34,7 @@ for (const fixtureCase of cases) {
     }
   }) });
   const layout = provider.layout.bind(provider);
+  provider.measurementContract=null; // Preserve the raw-input observer boundary.
   provider.layout = async (graph, options) => {
     displayGraph = structuredClone(graph);
     return layout(graph, options);

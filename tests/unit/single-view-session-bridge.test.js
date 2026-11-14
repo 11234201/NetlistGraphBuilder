@@ -204,7 +204,7 @@ test("single view session bridge owns immutable-style override replacement", () 
 
 test("single view session bridge projects unit navigation and clears scoped mirrors", () => {
   const { state, adapter } = setup();
-  state.nodePositions.set("cell:u0", { x: 1, y: 2 });
+  adapter.importState({ nodePositions: new Map([["cell:u0", { x: 1, y: 2 }]]) });
   const result = adapter.dispatch({ type: "unit.set", unitId: "replacement", viewMode: "search-first" });
   assert.equal(result.session.unitId, "replacement");
   assert.equal(state.viewMode, "search-first");

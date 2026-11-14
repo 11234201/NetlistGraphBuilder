@@ -1,3 +1,5 @@
+import { readonlyCollection } from "./readonly_collection.js";
+
 const snapshots = new WeakSet();
 
 // Snapshot supported session data, including collections whose native mutators
@@ -23,17 +25,7 @@ export function immutableSnapshot(value, options = {}, seen = new WeakMap()) {
   if (value instanceof Map || value instanceof Set) {
     const isMap = value instanceof Map;
     const target = isMap ? new Map() : new Set();
-    const reject = () => { throw new TypeError("Session snapshots are read-only"); };
-    const proxy = new Proxy(target, {
-      get(collection, key) {
-        if (key === "valueOf") return () => proxy;
-        if (["set", "add", "delete", "clear"].includes(key)) return reject;
-        if (key === "forEach") return (callback, thisArg) => collection.forEach((item, itemKey) =>
-          callback.call(thisArg, item, itemKey, proxy));
-        const member = Reflect.get(collection, key, collection);
-        return typeof member === "function" && key !== "constructor" ? member.bind(collection) : member;
-      }
-    });
+    const proxy = readonlyCollection(target);
     seenMap.set(value, proxy);
     if (isMap) for (const [key, item] of value) {
       if (key !== null && (typeof key === "object" || typeof key === "function")) {
@@ -42,7 +34,6 @@ export function immutableSnapshot(value, options = {}, seen = new WeakMap()) {
       target.set(key, immutableSnapshot(item, opts, seenMap));
     }
     else for (const item of value) target.add(immutableSnapshot(item, opts, seenMap));
-    Object.freeze(proxy);
     snapshots.add(proxy);
     return proxy;
   }
@@ -54,9 +45,15 @@ export function immutableSnapshot(value, options = {}, seen = new WeakMap()) {
   }
   const result = Array.isArray(value) ? new Array(value.length) : {};
   seenMap.set(value, result);
-  for (const key of Object.keys(value)) Object.defineProperty(result, key, {
-    value: immutableSnapshot(value[key], opts, seenMap), enumerable: true, configurable: true, writable: true
-  });
+  for (const key of Object.keys(value)) {
+    const item = immutableSnapshot(value[key], opts, seenMap);
+    // Ordinary fresh data properties can use the fast assignment path. Keep
+    // inherited names (especially __proto__ and accessors) as own data fields.
+    if (key in result) Object.defineProperty(result, key, {
+      value: item, enumerable: true, configurable: true, writable: true
+    });
+    else result[key] = item;
+  }
   Object.freeze(result);
   snapshots.add(result);
   return result;

@@ -1,4 +1,3 @@
-import { setFocusedRootNodeIds, normalizeFocusedRootNodeIds } from "./appState.js";
 import { getSessionLayoutProviderId } from "./sessionState.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 
@@ -7,14 +6,12 @@ import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_p
 export function createPreferencesController({ state, elements, services }) {
   function applySessionPreferences(session) {
     if (session) {
-      state.coneDepth = services.clamp(Number(session.coneDepth) || 3, 1, 99);
-      state.faninDepth = services.clamp(Number.isFinite(Number(session.faninDepth)) ? Number(session.faninDepth) : 3, 0, 99);
-      state.fanoutDepth = services.clamp(Number.isFinite(Number(session.fanoutDepth)) ? Number(session.fanoutDepth) : 3, 0, 99);
-      setFocusedRootNodeIds(state, normalizeFocusedRootNodeIds(
-        session.focusedRootNodeIds,
-        session.coneRootNodeId
-      ), session.activeFocusedRootNodeId);
-      state.focusedRootRefs = services.cloneObjectRefs(session.focusedRootRefs);
+      services.singleViewSession.importQuery({
+        coneDepth: services.clamp(Number(session.coneDepth) || 3, 1, 99),
+        faninDepth: Number.isFinite(Number(session.faninDepth)) ? Number(session.faninDepth) : 3,
+        fanoutDepth: Number.isFinite(Number(session.fanoutDepth)) ? Number(session.fanoutDepth) : 3
+      });
+      // Navigation is imported with its document by loadDesign, not preferences.
       state.showAliases = Boolean(session.showAliases);
       state.layoutProviderId = getSessionLayoutProviderId(session);
       state.layoutFallbackFromProviderId = null;
@@ -23,7 +20,7 @@ export function createPreferencesController({ state, elements, services }) {
       // reactivate the removed display transform.
       state.collapseLargeGroups = false;
       state.expandedGroupIds.clear();
-      state.presentationPolicy = normalizeNetlistPresentationPolicy(session.presentationPolicy);
+      services.singleViewSession.importState({ presentationPolicy: normalizeNetlistPresentationPolicy(session.presentationPolicy) });
       if (session.layoutPolicy) services.setSingleLayoutPolicy(session.layoutPolicy);
       const metrics = session.timingDisplayPolicy?.metrics;
       const rawThreshold = session.timingDisplayPolicy?.threshold;
@@ -63,7 +60,8 @@ export const preferencesPorts = Object.freeze({
     "coneDepthInput", "faninDepthInput", "fanoutDepthInput", "gateSymbolModeSelect"
   ],
   services: [
-    "clamp", "cloneObjectRefs", "layoutSpacingController", "setSingleLayoutPolicy",
+    "singleViewSession",
+    "clamp", "layoutSpacingController", "setSingleLayoutPolicy",
     "timingDisplayController"
   ]
 });

@@ -116,6 +116,10 @@ export function findBoundaryViolations(graph) {
     for (const edge of edges) {
       const layer = edge.target.split("/")[0];
       let forbidden = edge.target === "app/main.js";
+      // Domain presentation produces scene data; mounting is a UI boundary.
+      if (owner === "domains" && edge.target === "render/progressiveSvgRenderer.js") forbidden = true;
+      // UI may render Cell Config enums, but inference belongs to a domain query.
+      if (owner === "ui" && edge.target === "infer/defaultCellRules.js") forbidden = true;
       if (owner === "app" && edge.target.startsWith("app/")) {
         forbidden ||= appModuleRank(source) < appModuleRank(edge.target);
       }

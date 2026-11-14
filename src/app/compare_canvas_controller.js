@@ -6,7 +6,7 @@ import {
 } from "./focusedSelection.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
 import { getSteppedZoomedTransform, formatViewportTransform, clientPointToViewBox } from "../ui/viewport.js";
-import { applyWorkspaceOverrides } from "./layoutWorkspace.js";
+import { buildAdjustedView } from "../application/adjusted_view.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { getLayoutProvider } from "../layout/layoutProvider.js";
 
@@ -42,9 +42,10 @@ export function createCompareCanvasController({ state, elements, services }) {
         return;
       }
       if (event.shiftKey && graphNode?.kind === "cell") {
-        services.selectCompareObject("cell", getCompareNodeName(graphNode), false, side);
-        toggleCompareFocusedRoot(side, graphNode.id);
-        return;
+        return services.runViewHistoryTransaction({ label: "Toggle Compare Focused root" }, () => {
+          services.selectCompareObject("cell", getCompareNodeName(graphNode), false, side);
+          toggleCompareFocusedRoot(side, graphNode.id);
+        });
       }
       services.selectCompareObject(graphNode?.kind === "cell" ? "cell" : "port", getCompareNodeName(graphNode), true, side);
       return;
@@ -61,7 +62,7 @@ export function createCompareCanvasController({ state, elements, services }) {
       transform: state.compare.transforms[side],
       commit: (transform) => setCompareTransform(side, transform),
       onEnd({ didPan, cancelled }) {
-        if (didPan && !cancelled) services.persistSession({
+        if (didPan && !cancelled) services.commitViewHistory({
           label: "Viewport gesture",
           affectedSessionIds: [`compare:${side}`]
         });
@@ -86,7 +87,7 @@ export function createCompareCanvasController({ state, elements, services }) {
 
   function startCompareNodeDrag(event, side, node) {
     const mount = side === "left" ? elements.leftMount : elements.rightMount;
-    services.selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side);
+    services.selectCompareObject(node.kind === "cell" ? "cell" : "port", getCompareNodeName(node), false, side, false);
     let draggedPosition = state.compare.nodePositions[side].get(node.id);
     startCanvasNodeDrag({
       event,
@@ -96,6 +97,9 @@ export function createCompareCanvasController({ state, elements, services }) {
       node,
       getPreviousPosition: () => draggedPosition,
       updatePosition: (position) => { draggedPosition = position; },
+      onEnd({ moved, cancelled }) {
+        if (!moved && !cancelled) services.commitViewHistory({ label: "Select Compare object" });
+      },
       onCommit({ preview }) {
         services.updateCompareOverrides(side, (overrides) => overrides.nodePositions.set(node.id, draggedPosition));
         services.setStatus(`Rerouting ${side} ${node.label}…`);
@@ -162,13 +166,14 @@ export function createCompareCanvasController({ state, elements, services }) {
       services.renderCompareGraphs();
       return Promise.resolve();
     }
-    const graph = applyWorkspaceOverrides(autoGraph, {
+    const { graph, scene } = buildAdjustedView(autoGraph, {
       nodePositions: state.compare.nodePositions[side],
       nodeSizes: state.compare.nodeSizes[side],
-      layoutPolicy: state.layoutPolicy
+      layoutPolicy: state.layoutPolicy,
+      createScene: (graph) => createNetlistScene(graph, { presentationPolicy: state.presentationPolicy })
     });
     state.compare.graphs[side] = graph;
-    state.compare.scenes[side] = createNetlistScene(graph, { presentationPolicy: state.presentationPolicy });
+    state.compare.scenes[side] = scene;
     const mount = side === "left" ? elements.leftMount : elements.rightMount;
     return services.renderGraphMount(mount, graph, { ...renderOptions, scene: state.compare.scenes[side] }).then((result) => {
       if (result?.cancelled) return result;
@@ -229,7 +234,7 @@ export const compareCanvasPorts = Object.freeze({
     "canvas", "leftMount", "mount", "rightMount"
   ],
   services: [
-    "applyCompareHighlights", "applyTransform", "compareViewSessions", "persistSession",
+    "applyCompareHighlights", "applyTransform", "compareViewSessions", "commitViewHistory", "runViewHistoryTransaction",
     "renderCompareGraphs", "renderGraphMount", "selectCompareObject", "setCompareFocusedRootNodeIds",
     "setSingleTransform", "setStatus", "syncCompareFocusedRootNode", "updateCalibrationControls",
     "updateCompareOverrides", "updateViewControls", "wheelGestureController"

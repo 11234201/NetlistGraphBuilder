@@ -1,6 +1,7 @@
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { applyPositionedOverrides } from "../layout/positionedRouting.js";
 import { shiftWireRoutes } from "../layout/wireRoutes.js";
+import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
 
 export function layoutWorkspaceGraph(graph, options) {
   const layoutResult = layoutWorkspaceGraphAutomatically(graph, options);
@@ -16,7 +17,10 @@ export function layoutWorkspaceGraph(graph, options) {
 }
 
 export function layoutWorkspaceGraphAutomatically(graph, options) {
-  const layoutResult = options.layoutProvider.layout(graph, {
+  const provider = options.layoutProvider;
+  const layout = graph?.contract === MEASURED_GRAPH_CONTRACT
+    ? provider.layoutMeasured.bind(provider) : provider.layout.bind(provider);
+  const layoutResult = layout(graph, {
     layoutPolicy: options.layoutPolicy,
     signal: options.signal,
     jobId: options.jobId

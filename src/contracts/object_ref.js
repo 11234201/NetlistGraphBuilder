@@ -31,6 +31,15 @@ export function objectRefKey(value) {
     .join("/");
 }
 
+// Legacy projections and history need mutable copies, not another validation
+// pass. Canonical validation remains at createObjectRef / ViewSession inputs.
+export function cloneObjectRefs(value) {
+  return (Array.isArray(value) ? value : []).map((ref) => ({
+    ...ref,
+    ...(Array.isArray(ref?.occurrencePath) ? { occurrencePath: [...ref.occurrencePath] } : {})
+  }));
+}
+
 function normalizeOccurrencePath(value) {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) throw new Error("ObjectRef occurrencePath must be an array");

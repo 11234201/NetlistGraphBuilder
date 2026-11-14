@@ -1,10 +1,9 @@
-import {
-  applyWorkspaceGraphTransforms,
-  buildWorkspaceGraph,
-  selectWorkspaceGraphView
-} from "./graphWorkspace.js";
+import { buildWorkspaceGraph } from "../domains/netlist/netlist_graph_projection.js";
+import { queryNetlistView } from "../domains/netlist/netlist_view_query.js";
 import { runViewPipeline } from "../application/view_pipeline.js";
 import { measureDiagramGraph } from "../diagram/measure_graph.js";
+import { measureNetlistGraph } from "../domains/netlist/measure_graph.js";
+import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { createWorkspaceArtifactKey, workspaceArtifactReference } from "./workspaceArtifactCache.js";
@@ -62,7 +61,7 @@ export function buildModuleWorkspace(options) {
     artifactIdentity
   });
   if (viewMode === "search-first") {
-    const emptyGraph = selectWorkspaceGraphView(fullGraph, { viewMode: "search-first" });
+    const { visibleGraph: emptyGraph } = queryNetlistView(fullGraph, { mode: "search-first" });
     return {
       fullGraph,
       sourceGraph: emptyGraph,
@@ -122,31 +121,30 @@ export function buildModuleWorkspace(options) {
     };
   }
   const pipeline = runViewPipeline({
-    query: () => ({
-      fullGraph,
-      graph: selectWorkspaceGraphView(fullGraph, {
-        viewMode,
-        rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
-        rootNetIds: focusedRootNetIds,
-        rootNodeId: coneRootNodeId,
-        activeRootNodeId: activeFocusedRootNodeId,
-        maxDepth: coneDepth,
-        faninDepth,
-        fanoutDepth,
-        maximumVisibleNodes,
-        maximumFrontier,
-        // Simple's source projection is frozen along with its geometry.
-        preserveLegacyProjection: preserveLegacyProjection || layoutProvider?.id === "simple-layered"
-      })
-    }),
-    project: (result) => applyWorkspaceGraphTransforms(result.graph, {
-      fullGraph,
+    query: () => queryNetlistView(fullGraph, {
+      mode: viewMode,
+      rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
+      rootNetIds: focusedRootNetIds,
+      rootNodeId: coneRootNodeId,
+      activeRootNodeId: activeFocusedRootNodeId,
+      maxDepth: coneDepth,
+      faninDepth,
+      fanoutDepth,
+      maximumVisibleNodes,
+      maximumFrontier,
+      // Simple's source projection is frozen along with its geometry.
+      preserveLegacyProjection: preserveLegacyProjection || layoutProvider?.id === "simple-layered"
+    }, {
       unroutedNets: graphOverrides?.unroutedNets,
       useFanoutHubs,
       collapseLargeGroups,
       expandedGroupIds
     }),
-    measure: (graph) => measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
+    project: (result) => result.visibleGraph,
+    measure: (graph) => layoutProvider?.measurementContract === MEASURED_GRAPH_CONTRACT
+      ? measureNetlistGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch,
+        focusedOrderGroups: layoutProvider.id === "native-layered" })
+      : measureDiagramGraph(graph, { cellPinPitch: layoutPolicy?.spacing?.cellPinPitch }),
     layout: (graph) => layoutWorkspaceGraphAutomatically(graph, {
       layoutProvider, layoutPolicy, signal: options.signal, jobId: options.jobId
     }),

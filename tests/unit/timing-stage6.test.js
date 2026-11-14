@@ -1,3 +1,4 @@
+import { createTestViewBridges } from "../helpers/view_session_bridges.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createAppState } from "../../src/app/appState.js";
@@ -246,6 +247,7 @@ test("default startup opens built-in sample module with timing initialized and v
   let readyMessageReported = null;
   const noOp = () => {};
   const services = new Proxy({
+    ...createTestViewBridges(state),
     documents: createDocumentStore(),
     viewSessions: { closeByDocument: noOp },
     workspaceJobs: { cancelDocument: noOp },

@@ -1,0 +1,233 @@
+import {
+  computeBoundsWithRoutes,
+  computeSafeLayoutExtent,
+  getConnectionPoint,
+  getPort,
+  translateLayoutGeometry
+} from "./nodeGeometry.js";
+import { materializeMeasuredGraph } from "./measured_geometry.js";
+import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
+import { compactOrthogonalPoints } from "./orthogonalRouting.js";
+import { applyPositionedOverrides } from "./positionedRouting.js";
+import { placeWireLabels } from "./wireLabelPlacement.js";
+import { buildWireRoutes } from "./wireRoutes.js";
+import { finalizeLayoutGraph } from "./layoutValidator.js";
+
+export const ELK_LAYOUT_PROVIDER_ID = "elk-layered";
+
+export class MeasuredElkLayoutProvider {
+  constructor(options = {}) {
+    this.id = ELK_LAYOUT_PROVIDER_ID;
+    this.label = "ELK Layered (Experimental)";
+    this.experimental = true;
+    this.executionMode = "async";
+    this.measurementContract = MEASURED_GRAPH_CONTRACT;
+    this.elkFactory = options.elkFactory || (() => {
+      if (typeof globalThis.ELK !== "function") {
+        throw new Error("Vendored ELK runtime is not loaded");
+      }
+      return new globalThis.ELK();
+    });
+  }
+
+  async layoutMeasured(measuredGraph, options = {}) {
+    const graph = materializeMeasuredGraph(measuredGraph);
+    const cellSpacing = Number(options.layoutPolicy?.spacing?.cellSpacing) || 8;
+    const measuredNodes = graph.nodes;
+    const measuredNodeById = new Map(measuredNodes.map((node) => [node.id, node]));
+    const elkGraph = {
+      id: "root",
+      layoutOptions: {
+        "elk.algorithm": "layered",
+        "elk.direction": "RIGHT",
+        "elk.spacing.nodeNode": String(40 + cellSpacing),
+        "elk.layered.spacing.nodeNodeBetweenLayers": String(72 + cellSpacing),
+        "elk.edgeRouting": "ORTHOGONAL"
+      },
+      children: measuredNodes.map(toElkNode),
+      edges: graph.edges.map((edge) => toElkEdge(edge, measuredNodeById))
+    };
+    const result = await this.elkFactory().layout(elkGraph);
+    const childById = new Map((result.children || []).map((child) => [child.id, child]));
+    const positionedNodes = measuredNodes.map((node) => {
+      const child = childById.get(node.id) || {};
+      const positioned = { ...node, x: child.x || 0, y: child.y || 0 };
+      return positioned;
+    });
+    const elkEdgeById = new Map((result.edges || []).map((edge) => [edge.id, edge]));
+    const positionedNodeById = new Map(positionedNodes.map((node) => [node.id, node]));
+    const routedEdges = graph.edges.map((edge) => {
+      const rawRoute = getEdgePoints(elkEdgeById.get(edge.id));
+      const source = positionedNodeById.get(edge.source);
+      const target = positionedNodeById.get(edge.target);
+      if (rawRoute.status === "unroutable") {
+        return {
+          ...edge,
+          points: [],
+          routeKind: "unroutable",
+          routeStatus: "unroutable",
+          routeDiagnostics: rawRoute.diagnostics
+        };
+      }
+      const rawPoints = rawRoute.points;
+      const sourcePort = source && getPort(source, edge.sourcePin, "source");
+      const targetPort = target && getPort(target, edge.targetPin, "target");
+      const points = source && target
+        ? attachToExactPorts(
+          rawPoints,
+          getConnectionPoint(source, edge.sourcePin, "source"),
+          getConnectionPoint(target, edge.targetPin, "target"),
+          sourcePort?.side,
+          targetPort?.side
+        )
+        : rawPoints;
+      return {
+        ...edge,
+        points,
+        routeKind: "elk-orthogonal",
+        routeStatus: "routed"
+      };
+    });
+    const positionedEdges = placeWireLabels(routedEdges, positionedNodes, {
+      order: "longest",
+      minimumPadding: 32,
+      baselineOffsets: [-5],
+      checkCollisions: false,
+      includeEmpty: true
+    });
+    const wireRoutes = buildWireRoutes(positionedEdges);
+    const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
+    translateLayoutGeometry(positionedNodes, positionedEdges, wireRoutes, {
+      x: Math.max(0, -bounds.left),
+      y: Math.max(0, -bounds.top)
+    });
+    const normalizedBounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
+    const safeExtent = computeSafeLayoutExtent(normalizedBounds, 0, {
+      width: result.width || 0,
+      height: result.height || 0
+    });
+    const positionedGraph = {
+      ...graph,
+      nodes: positionedNodes,
+      edges: positionedEdges,
+      wireRoutes,
+      width: safeExtent.width,
+      height: safeExtent.height,
+      layoutProvider: this.id
+    };
+    return finalizeLayoutGraph(applyPositionedOverrides(positionedGraph, {
+      ...options,
+      validate: false
+    }));
+  }
+}
+
+function toElkNode(node) {
+  return {
+    id: node.id,
+    width: node.width,
+    height: node.height,
+      layoutOptions: { "elk.portConstraints": "FIXED_POS" },
+    ports: node.ports.map((port) => ({
+      id: elkPortId(node.id, port),
+      width: 1,
+      height: 1,
+      x: port.x,
+      y: port.y,
+      layoutOptions: { "elk.port.side": sideToElk(port.side) }
+    }))
+  };
+}
+
+function toElkEdge(edge, nodeById) {
+  const sourcePort = getPort(nodeById.get(edge.source), edge.sourcePin, "source");
+  const targetPort = getPort(nodeById.get(edge.target), edge.targetPin, "target");
+  return {
+    id: edge.id,
+    sources: [sourcePort ? elkPortId(edge.source, sourcePort) : edge.source],
+    targets: [targetPort ? elkPortId(edge.target, targetPort) : edge.target]
+  };
+}
+
+function elkPortId(nodeId, port) {
+  return `${nodeId}::${port.direction}:${encodeURIComponent(port.rawPin || port.pin || port.id)}`;
+}
+
+function attachToExactPorts(points, start, end, sourceSide = "right", targetSide = "left") {
+  const rawStart = points[0] || start;
+  const rawEnd = points.at(-1) || end;
+  const sourceEscape = offsetFromPort(start, sourceSide, 24);
+  const targetEscape = offsetFromPort(end, targetSide, 24);
+  return compactOrthogonalPoints([
+    start,
+    sourceEscape,
+    ...alignEscapeToPoint(sourceEscape, rawStart, sourceSide),
+    rawStart,
+    ...points.slice(1, -1),
+    rawEnd,
+    ...alignEscapeToPoint(rawEnd, targetEscape, targetSide),
+    targetEscape,
+    end
+  ]);
+}
+
+function sideToElk(side) {
+  return {
+    left: "WEST",
+    right: "EAST",
+    top: "NORTH",
+    bottom: "SOUTH"
+  }[side] || "WEST";
+}
+
+function offsetFromPort(point, side, distance) {
+  const amount = Number(distance) || 24;
+  if (side === "left") return { x: point.x - amount, y: point.y };
+  if (side === "top") return { x: point.x, y: point.y - amount };
+  if (side === "bottom") return { x: point.x, y: point.y + amount };
+  return { x: point.x + amount, y: point.y };
+}
+
+function alignEscapeToPoint(from, to, side) {
+  if (side === "top" || side === "bottom") {
+    return [{ x: from.x, y: from.y }, { x: to.x, y: from.y }];
+  }
+  return [{ x: from.x, y: from.y }, { x: from.x, y: to.y }];
+}
+
+function getEdgePoints(edge) {
+  const section = edge?.sections?.[0];
+  if (!section || !finitePoint(section.startPoint) || !finitePoint(section.endPoint)) {
+    return {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{
+        code: "elk-edge-section-missing",
+        edgeId: edge?.id
+      }]
+    };
+  }
+  const rawPoints = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
+  if (!rawPoints.every(finitePoint)) {
+    return {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{
+        code: "elk-edge-section-invalid-point",
+        edgeId: edge?.id
+      }]
+    };
+  }
+  const points = rawPoints.map((point) => ({ x: point.x, y: point.y }));
+  return points.length >= 2
+    ? { points, status: "routed", diagnostics: [] }
+    : {
+      points: [],
+      status: "unroutable",
+      diagnostics: [{ code: "elk-edge-section-empty", edgeId: edge?.id }]
+    };
+}
+
+function finitePoint(point) {
+  return Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y));
+}

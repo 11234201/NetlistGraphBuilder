@@ -1,4 +1,4 @@
-import { normalizeFocusedRootNodeIds, setFocusedRootNodeIds } from "./appState.js";
+import { normalizeFocusedRootNodeIds } from "./appState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { sourceIdentitiesMatch } from "../persistence/source_identity.js";
 
@@ -26,32 +26,30 @@ function validateGoldenIdentity(goldenIdentity, currentIdentity) {
   }
 }
 
-export function applyLayoutGoldenState(state, imported) {
-  state.nodePositions = new Map(imported.nodePositions);
-  state.nodeSizes = new Map(imported.nodeSizes);
-  state.graphOverrides = imported.graphOverrides;
+export function applyLayoutGoldenState(state, imported, restoreNavigation = (value) => Object.assign(state, value)) {
+  const viewState = { nodePositions: new Map(imported.nodePositions), nodeSizes: new Map(imported.nodeSizes),
+    graphOverrides: imported.graphOverrides, ...(imported.layoutPolicy ? { layoutPolicy: imported.layoutPolicy } : {}) };
   state.timingBadgeChoices = imported.timingBadgeChoices;
   state.timingBadgePositions = imported.timingBadgePositions;
-  if (imported.layoutPolicy) state.layoutPolicy = imported.layoutPolicy;
+
 
   const display = imported.display;
   const viewMode = normalizeSingleViewMode(display.viewMode);
+  const query = {
+    ...(display.coneDepth ? { coneDepth: clamp(display.coneDepth, 1, 99) } : {}),
+    ...(display.faninDepth !== null ? { faninDepth: clamp(display.faninDepth, 0, 99) } : {}),
+    ...(display.fanoutDepth !== null ? { fanoutDepth: clamp(display.fanoutDepth, 0, 99) } : {})
+  };
   if (viewMode === "whole" || viewMode === "search-first") {
-    state.viewMode = viewMode;
-    state.focusedRootRefs = [];
-    setFocusedRootNodeIds(state, []);
+    restoreNavigation({ ...viewState, ...query, viewMode, focusedRootNodeIds: [], focusedRootRefs: [], activeFocusedRootNodeId: null, coneRootNodeId: null });
   } else if (display.viewMode) {
-    const roots = normalizeFocusedRootNodeIds(
-      display.focusedRootNodeIds,
-      display.coneRootNodeId
-    );
-    state.viewMode = roots.length > 0 ? viewMode : "whole";
-    state.focusedRootRefs = cloneObjectRefs(display.focusedRootRefs);
-    setFocusedRootNodeIds(state, roots, display.activeFocusedRootNodeId);
+    const roots = normalizeFocusedRootNodeIds(display.focusedRootNodeIds, display.coneRootNodeId);
+    restoreNavigation({ ...viewState, ...query, viewMode: roots.length > 0 ? viewMode : "whole",
+      focusedRootNodeIds: roots, focusedRootRefs: cloneObjectRefs(display.focusedRootRefs),
+      coneRootNodeId: roots[0] || null,
+      activeFocusedRootNodeId: roots.includes(display.activeFocusedRootNodeId) ? display.activeFocusedRootNodeId : roots[0] || null });
   }
-  if (display.coneDepth) state.coneDepth = clamp(display.coneDepth, 1, 99);
-  if (display.faninDepth !== null) state.faninDepth = clamp(display.faninDepth, 0, 99);
-  if (display.fanoutDepth !== null) state.fanoutDepth = clamp(display.fanoutDepth, 0, 99);
+  if (!display.viewMode) restoreNavigation(viewState);
   if (display.useFanoutHubs !== null) state.useFanoutHubs = display.useFanoutHubs;
   // Decode legacy collapse fields for compatibility, but never reactivate the
   // retired display transform in a current workspace.

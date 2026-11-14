@@ -1,3 +1,4 @@
+import {compileProviderAdapter} from './compile_provider_adapter.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {layoutGraph as baselineLayout} from '../../../src/layout/anchor_layered/index.js';
@@ -40,13 +41,8 @@ export async function layoutAliasControl(input,options={},freezeKey=false){
   return result;
 }
 export async function compileAliasKeyProvider(freezeKey=false){
-  const location=new URL('../../../src/layout/anchor_layout_provider.js',import.meta.url);
-  let adapter=await readFile(location,'utf8');
   const helper=moduleUrl(`import {layoutAliasControl} from '${import.meta.url}';
 export {PhaseError} from '${new URL('../../../src/layout/anchor_layered/protocol.js',import.meta.url).href}';
 export const layoutGraph=(input,options)=>layoutAliasControl(input,options,${JSON.stringify(freezeKey)});`);
-  const anchor="from './anchor_layered/index.js'";assert.equal(adapter.split(anchor).length,2);
-  adapter=adapter.replace(anchor,`from '${helper}'`)
-    .replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,location).href}'`);
-  return (await import(moduleUrl(adapter))).NativeLayeredLayoutProvider;
+  return compileProviderAdapter(helper);
 }

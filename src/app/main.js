@@ -30,7 +30,6 @@ import { createViewSessionStore } from "../application/view_session_store.js";
 import { createArtifactStore } from "../application/artifact_store.js";
 import { createJobCoordinator } from "../application/job_coordinator.js";
 import { createWorkspaceExecution } from "../application/workspace_execution.js";
-import { createViewHistoryTransaction } from "./viewHistoryTransaction.js";
 
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const {
@@ -67,8 +66,6 @@ const {
   createSingleWorkspaceHistoryIdentity,
   restoreCompareViewHistoryEntry,
   createCompareWorkspaceHistoryIdentity,
-  cloneGraphOverridesForHistory,
-  cloneObjectRefs,
   updateViewHistoryControls,
   renderCurrentModuleGraph,
   commitCurrentWorkspace,
@@ -211,6 +208,8 @@ const {
   applySessionPreferences,
   syncLayoutSpacingControls,
   persistSession,
+  commitViewHistory,
+  bindViewHistoryCallbacks,
   recordViewHistory,
   noteViewCommandDispatch,
   viewCommandLabel,
@@ -236,7 +235,6 @@ const {
   get clamp() { return clamp; },
   get clearCompareSelection() { return clearCompareSelection; },
   get clearSearch() { return clearSearch; },
-  get cloneObjectRefs() { return cloneObjectRefs; },
   get compareViewSessions() { return compareViewSessions; },
   get countGraphOverrides() { return countGraphOverrides; },
   get cssEscape() { return cssEscape; },
@@ -266,6 +264,8 @@ const {
   get moduleHierarchyController() { return moduleHierarchyController; },
   get netlistFeature() { return netlistFeature; },
   get persistSession() { return persistSession; },
+  get bindViewHistoryCallbacks() { return bindViewHistoryCallbacks; },
+  get commitViewHistory() { return commitViewHistory; },
   get processLogController() { return processLogController; },
   get queueWheelGesture() { return queueWheelGesture; },
   get recordViewHistory() { return recordViewHistory; },
@@ -313,7 +313,6 @@ const {
   get updateSingleOverrides() { return updateSingleOverrides; },
   get updateViewControls() { return updateViewControls; },
   get updateViewHistoryControls() { return updateViewHistoryControls; },
-  get viewHistoryTransactions() { return viewHistoryTransactions; },
   get viewSessions() { return viewSessions; },
   get wheelGestureController() { return wheelGestureController; },
   get workspaceExecution() { return workspaceExecution; },
@@ -348,9 +347,6 @@ const compareViewSessions = createCompareViewSessionBridge({
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
 const libertyService = createLibertyLibraryService({ execute: runCooperativeTask });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
-const viewHistoryTransactions = createViewHistoryTransaction({
-  commit: (metadata) => recordViewHistory(metadata)
-});
 
 const elements = createWorkbenchElements(document);
 const processLogController = createProcessLogController({
@@ -390,7 +386,7 @@ const timingDisplayController = createTimingDisplayController({
 const wheelGestureController = createWheelGestureController({
   canvas: elements.canvas,
   apply: applyPendingWheelGesture,
-  onSettled: persistSession
+  onSettled: () => commitViewHistory({ label: "Viewport gesture" })
 });
 
 const refreshLibraryWorkspace = createLibraryWorkspaceRefresh({
@@ -414,7 +410,7 @@ createQuickInputController({
 const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
   elements, windowTarget: window,
   commands: {
-  navigateViewHistory, handleLayoutProviderChange, exitCompareView,
+  runViewHistoryTransaction, navigateViewHistory, handleLayoutProviderChange, exitCompareView,
   enterCompareView, applyCompareSelection, applyCompareLayout,
   fitToView: () => { fitToView(); workbenchUi.refreshViewport(); }, handleCompareOutputChange, activateSearchResult,
   addSearchResultToFocus, handleSelectionNavigationClick, handleOccurrenceChoiceClick,

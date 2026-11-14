@@ -1,3 +1,5 @@
+export { createMeasuredLayoutGraph as createMeasuredGraph } from "./measured_graph.js";
+
 function requireId(value, label) {
   if (typeof value !== "string" || value.length === 0) throw new Error(`${label} is required`);
   return value;
@@ -38,12 +40,6 @@ export function createDiagramGraph(value) {
     nodes: Object.freeze(nodes),
     edges: Object.freeze(edges)
   });
-}
-
-export function createMeasuredGraph(diagram, measurements) {
-  if (!diagram?.id) throw new Error("Measured graph requires a diagram");
-  if (!measurements || typeof measurements !== "object") throw new Error("Measured graph requires measurements");
-  return Object.freeze({ diagram, measurements: freezeRecord(measurements) });
 }
 
 export function createScene(value) {

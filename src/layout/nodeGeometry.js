@@ -97,6 +97,8 @@ export function getConnectionPoint(node, pin, role) {
   const port = getPort(node, pin, role);
   const x = node.x + (port?.x ?? (role === "source" ? node.width : 0));
   const y = node.y + (port?.y ?? node.height / 2);
+  const measuredOffset = node.connectionOffsets?.[role];
+  if (measuredOffset) return { x: x + measuredOffset.x, y: y + measuredOffset.y };
   const bubbleOffset =
     role === "source" &&
     node.kind === "cell" &&
@@ -111,6 +113,7 @@ export function getPort(node, pin, role) {
   const directionMatches = (candidate) =>
     candidate.direction === preferredDirection || candidate.direction === "inout";
   return (
+    node.ports?.find((candidate) => candidate.id !== undefined && candidate.id === pin && directionMatches(candidate)) ||
     node.ports?.find((candidate) => candidate.pin === pin && directionMatches(candidate)) ||
     node.ports?.find((candidate) => candidate.rawPin === pin && directionMatches(candidate)) ||
     node.ports?.find((candidate) => directionMatches(candidate)) ||

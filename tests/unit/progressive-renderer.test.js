@@ -4,9 +4,12 @@ import { cancelSchematicRender, renderSvgSceneIntoMount } from "../../src/render
 import {
   createProgressiveSchematicRenderPlan,
   createSchematicRenderPlan,
-  createNetlistScene,
-  renderSchematicIntoMount
+  createNetlistScene
 } from "../../src/domains/netlist/netlist_scene.js";
+
+function renderSchematicIntoMount(mount, graph, options = {}) {
+  return renderSvgSceneIntoMount(mount, createNetlistScene(graph, options), options);
+}
 
 const graph = {
   moduleDisplayName: "progressive",
