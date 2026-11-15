@@ -1,6 +1,6 @@
 # Linux 单文件启动器、CMake 构建与 EDA/Tcl 集成指南
 
-本文档对应当前主干代码与 `v1.5.0` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
+本文档对应当前主干代码与 `v1.5.1` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
 
 启动后的界面操作见 [完整使用教程](USER_GUIDE.md)，其中 [左右面板隐藏与恢复](USER_GUIDE.md#21-隐藏恢复与调整左右面板) 说明如何为中央画布腾出空间。Linux 单文件内嵌构建时的界面资源；采用新版工作台时需重新构建或换用新二进制，更新外部 HTML/CSS 不会改变已有可执行文件中的界面。
 
@@ -34,7 +34,7 @@ ctest --test-dir build/linux --output-on-failure
 
 - **独立子目录构建**：也支持直接以 `native/` 作为顶层构建：`cmake -S native -B build/ngb`，此时生成的可执行文件位于 `build/ngb/ngb`。
 - **测试开关说明**：`NGB_BUILD_TESTS` 默认为 `OFF`。设为 `ON` 时，运行集成测试需要 **Python 3.6+**；若构建环境中可找到 `tclsh`，CMake 还会自动注册 Tcl 辅助脚本测试（缺少 `tclsh` 时不得将 Tcl 集成记为已验证）。`CTest` 套件完整覆盖 HTTP 服务、进程生命周期、Tcl 接口、CMake 增量重嵌入以及安装规则检查。
-- **静态资源自动嵌入**：`index.html`、`styles.css`、`src/**/*.js`、本地化的 `vendor/elkjs` 以及开源许可证均在构建阶段自动打包嵌入 C++ 产物；对任何前端 JS 文件的新增、删除或修改都会自动触发重新嵌入。生成的资源清单与 C++ 源文件位于 `build/` 目录内（请勿手动编辑生成代码，亦不要将 `build/` 或 `dist/` 提交至 Git）。
+- **静态资源自动嵌入**：`index.html`、`styles.css`、`src/**/*.js`、本地化的 `vendor/elkjs`、`vendor/graphviz`（含 WASM）以及开源许可证均在构建阶段自动打包嵌入 C++ 产物；对任何前端 JS 文件的新增、删除或修改都会自动触发重新嵌入。生成的资源清单与 C++ 源文件位于 `build/` 目录内（请勿手动编辑生成代码，亦不要将 `build/` 或 `dist/` 提交至 Git）。
 
 ---
 
@@ -151,4 +151,4 @@ puts [::ngb::Status $ngb_bin $ngb_state]
 
 - **远程服务器访问**：在远程 Linux 服务器上启动时，`ready.url` 中的端口为远程服务器回环端口。请通过 VS Code `Ports` 面板或 SSH 本地端口转发（例如将远端 `43821` 转发至本地 `43822`），随后在本地浏览器打开 `http://127.0.0.1:43822/?startup=1`。切勿混淆远端与本地端口号，亦不能将请求参数中的 `--port 0` 当作实际监听端口。
 - **发行版与系统库兼容性**：单文件 ELF 仅代表“前端资源已内嵌、无外部脚本依赖”，并不等同于完全静态链接（static binary）或跨任意 Linux 发行版通用。建议在不高于目标生产环境 glibc 基线的构建机上编译，并在发布前使用 `file ngb` 与 `ldd ngb` 核查动态库依赖（必要时可附加 `-static-libgcc -static-libstdc++`，但仍受限于目标系统的 glibc 版本；musl libc 属于独立构建目标，未经验收前不宣称兼容）。
-- **内嵌开源许可证**：vendored ELK `0.11.1` 的 `EPL-2.0` 许可证文本已直接内嵌至 `ngb` 二进制中，随时可通过 `ngb --licenses` 打印查看，无需附带外部许可证文件。
+- **内嵌开源许可证**：vendored ELK `0.11.1`（`EPL-2.0`）以及 Viz.js（`MIT`）、Graphviz（`EPL-1.0`）与 Expat（`MIT`）许可证文本均已直接内嵌至 `ngb` 二进制中，随时可通过 `ngb --licenses` 打印查看，无需附带外部许可证文件。

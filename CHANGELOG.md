@@ -2,6 +2,12 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.5.1] - 2026-11-15
+
+- 保护 Graphviz 离线资源与许可证字节一致性：在 `.gitattributes` 中为 `vendor/graphviz/viz.js` 与 `vendor/graphviz/*LICENSE.txt` 声明 `-text`，避免跨平台检出时的换行转换改变 `vendor/graphviz/manifest.json` 锁定的原始字节长度与 SHA-256 校验值。
+- 完善 README 与完整使用教程（`docs/USER_GUIDE.md`）：新增 AIG 快速上手、最小可运行 BLIF 示例、取消/恢复与功能边界说明及 AIG 常见问题；补齐目录树（`src/domains/aig/`、`vendor/`）、指定 Net 不布线（`Route net`）、批量导入顺序与失败保护（`3.4`）、结构化 Liberty 与日志章节，并将时序排障说明（`19.4`）更新至现行 NGB Timing Format v1.0。
+- 清理已退役的早期 Native 分层布局参考源码（`tests/reference/retired_native_layered/*.js`）及 10 个冗余历史单测文件，将有效回归断言收敛至活跃测试集（当前常驻单元测试 1240 项，Simple 冻结基线与产品运行时行为保持不变）。
+
 ## [1.5.0] - 2026-11-15
 
 - 新增 AIG Single / Whole 工作区：离线打开 ABC AIG DOT 与平坦 AND/NOT BLIF，保留输入输出名称、独立输入槽位、反相边和来源信息；首版不提供 AIGER、AIG Compare 或 Netlist→AIG 转换。

@@ -8,3 +8,7 @@
 *.json text eol=lf working-tree-encoding=UTF-8
 *.v text eol=lf working-tree-encoding=UTF-8
 *.sv text eol=lf working-tree-encoding=UTF-8
+
+# Preserve the exact upstream bytes pinned by vendor/graphviz/manifest.json.
+vendor/graphviz/viz.js -text !working-tree-encoding
+vendor/graphviz/*LICENSE.txt -text

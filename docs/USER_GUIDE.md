@@ -1,17 +1,20 @@
 # Netlist Graph Builder 完整使用教程
 
-本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成。
+本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成，并介绍独立的 AIG 导入、浏览与逻辑分析流程。
 
-- **默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- **界面说明**：本教程对应 `v1.5.0`，使用 Navigator、Inspector、File 菜单及新版快捷入口，并新增 AIG 浏览工作区；`v1.3.x` 正式发布附件使用旧界面。下载离线附件后，请核对随附的 SHA-256 校验值；更新时完整替换程序包，保留同包的启动器与资源。
+- **网表默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
+- **界面说明**：本教程对应 `v1.5.1`（兼容 `v1.5.0`），使用 Navigator、Inspector、File 菜单及新版快捷入口，并提供独立的 AIG 浏览工作区；`v1.3.x` 正式发布附件使用旧界面。下载离线附件后，请核对随附的 SHA-256 校验值；更新时完整替换程序包，保留同包的启动器与资源。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
-| **左右面板隐藏与恢复** | 面板标题 `Hide`、顶部 `Navigator` / `Inspector` | 可分别收起两侧，为画布让出空间；顶部开关可恢复面板。保留当前阅读位置，停靠状态、宽度与页签可记忆。 |
-| **标准 STA 时序与 Metric 过滤** | 上下文栏 `Timing`、Inspector 的 `Timing` 页签 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 assign 链回溯；全局菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式，支持自定义 Slack 判定阈值（默认 0.0）；对象页签提供详情及徽标覆盖。 |
+| **AIG 导入与分析** | `File → Open AIG…` | 支持 ABC AIG DOT 与平坦 AND/NOT BLIF；提供对象筛选、来源追踪、逻辑关键路径与高扇出高亮，支持 SVG 导出与刷新恢复。 |
+| **左右面板隐藏与恢复** | 面板标题 `Hide`、顶部 `Navigator` / `Inspector` | 可分别收起两侧面板，为画布让出空间；顶部开关可随时恢复面板，保留当前阅读位置，停靠状态、宽度与页签自动记忆。 |
+| **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 离线加载、替换、取消与卸载文本 `.lib`，利用库方向和有界布尔 `function` 增强单元识别，保留人工配置优先级。 |
+| **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复布线，保留完整连接详情与 Focused 追踪；Single 与 Compare 两侧独立。 |
+| **标准 STA 时序与 Metric 过滤** | 上下文栏 `Timing`、Inspector 的 `Timing` 页签 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 `assign` 链回溯；全局菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式，支持自定义 Slack 判定阈值（默认 0.0）；对象页签提供详情及徽标覆盖。 |
 | **Cell / Net 聚焦视图** | 顶部 Search、Inspector 操作区 | 支持将 Cell 或 Net 设为聚焦根节点（root）；点击未绘制的搜索结果默认追加为 root，`Add to Focused` 显式追加，`Replace roots` 显式替换全部 roots。 |
 | **Focused roots 管理** | 画布上方 `Roots` 菜单 | 可筛选 root chips；点击 chip 激活并居中对应 root，点击 `×` 或 `Remove selected` 移除单个 root，`Clear roots` 清空全部 roots（最多 32 个）。 |
 | **分层连接展示** | Inspector 的 `Connections` 页签 | `Connections / Current module` 仅展示当前模块定义内的连接；`Hierarchy / Parent occurrence` 独立展示穿过当前模块端口边界延伸至父层实例的连接，长表分页显示。 |
@@ -27,7 +30,7 @@
 - [近期核心功能速览](#近期核心功能速览)
 - [隐藏、恢复与调整左右面板](#21-隐藏恢复与调整左右面板)
 - [新版入口速查](#23-新版入口速查)
-- [AIG 图浏览](#aig-图浏览)
+- [AIG 图浏览](#aig-图浏览)（含 [最小示例](#aig-最小示例) 与 [常见问题](#aig-常见问题)）
 
 1. [软件定位与运行方式](#1-软件定位与运行方式)
 2. [界面总览](#2-界面总览)
@@ -48,6 +51,7 @@
 17. [EDA/脚本启动接口](#17-eda脚本启动接口)
 18. [推荐工作流](#18-推荐工作流)
 19. [常见问题与限制](#19-常见问题与限制)
+- [附：AIG 图浏览专章](#aig-图浏览)
 
 ---
 
@@ -64,7 +68,7 @@
 - 为缺乏内置规则的定制标准单元补充可复用的引脚与门类型定义（Cell Config）。
 - 从外部 EDA 脚本一键拉起指定网表、目标模块与聚焦实例。
 
-**能力边界说明**：本工具并非完整的 Verilog / SystemVerilog 编译器，亦不提供形式化逻辑等价验证（Formal Equivalence Checking）。当前产品界面仅开放 Netlist 工作流；代码库中的内存 AIG 样例仅用于验证多领域架构边界，尚未开放 `.aag` / `.aig` 文件导入或 AIG 浏览界面。
+**能力边界说明**：本工具并非完整的 Verilog / SystemVerilog 编译器，亦不提供形式化逻辑等价验证（Formal Equivalence Checking）。当前同时提供 Netlist 与 AIG 工作区：AIG 支持 ABC AIG DOT 和平坦 AND/NOT BLIF，尚不支持 AIGER（`.aag` / `.aig`）。下文第 3–18 节的网表功能不全部适用于 AIG，具体操作与边界见 [AIG 图浏览](#aig-图浏览)。
 
 ### 1.1 Windows 离线版
 
@@ -73,7 +77,7 @@
 3. 启动窗口会在本机 `127.0.0.1` 启动本地服务并自动打开默认浏览器。
 4. 使用期间请勿关闭启动控制台窗口；需要退出时在窗口内按 `Ctrl+C` 或直接关闭该窗口。
 
-> **注意**：请勿单独复制 `NetlistGraphBuilder.exe` 到其他目录运行，它依赖同级目录中的 `app/` 前端资源文件夹。发布压缩包内同时包含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、本教程 `USER_GUIDE.md` 以及 `ELKJS-LICENSE.md`。
+> **注意**：请勿单独复制 `NetlistGraphBuilder.exe` 到其他目录运行，它依赖同级目录中的 `app/` 前端资源文件夹。发布压缩包内同时包含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、本教程 `USER_GUIDE.md` 以及 `ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt` 和 `EXPAT-LICENSE.txt`。
 
 ### 1.2 Node.js 开发启动
 
@@ -103,7 +107,7 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 ## 2. 界面总览
 
-工作台按全局操作、当前视图与对象详情分区：
+网表工作台按全局操作、当前视图与对象详情分区；打开 AIG 后会切换为专用工具栏和面板：
 
 - **全局栏**：`File` 汇集导入、导出 SVG 与 Golden 存取；`Liberty` 管理可选库，`Cell Config` 管理类型定义；Search、Compare/Single 和 `?` 帮助入口保持可见。
 - **上下文工具栏**：显示模块/实例路径和视图模式，提供历史 `←` / `→`、Whole/Focused、Fit view、View、Layout、Timing、Adjust、对象摘要及 Navigator/Inspector 开关。
@@ -130,7 +134,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 | 查看当前选择详情 | 点击顶部对象名称摘要，或 `Inspector` | 打开 Inspector，显示当前选中对象 |
 | 调整停靠面板宽度 | 拖拽面板与画布之间的分隔条 | Navigator 可调至 220–360px，Inspector 可调至 320–560px |
 
-隐藏面板后，顶部开关仍可见。停靠面板可独立恢复；窄屏下两侧均为抽屉时，打开一侧会收起另一侧。主动隐藏 Inspector 后，再次点击图中对象只更新选择和顶部摘要，不强制弹出详情。页面宽度小于1024px时，顶部对象摘要会收起，请使用 `Inspector` 开关查看选择详情。
+隐藏面板后，顶部开关仍可见。停靠面板可独立恢复；窄屏下两侧均为抽屉时，打开一侧会收起另一侧。主动隐藏 Inspector 后，再次点击图中对象只更新选择和顶部摘要，不强制弹出详情。页面宽度小于 `1024px` 时，顶部对象摘要会收起，请使用 `Inspector` 开关查看选择详情。
 
 这些操作适用于 Single、Focused 与 Compare。开合或调宽保持当前图中心和阅读比例，不重新计算布局、不修改网表或 Focused roots。若想让整幅当前图重新适配更大的画布，显式点击 `Fit view`；Compare 中该按钮适配 A/B 两侧。
 
@@ -142,9 +146,9 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 | 页面宽度 | Navigator | Inspector |
 | --- | --- | --- |
-| ≥1600px，如1920px | 默认停靠并展开，宽240px | 默认停靠并展开，宽336px |
-| 1280–1599px，如1366/1440px | 默认关闭，点击后以抽屉覆盖画布 | 默认停靠并展开，宽320px |
-| <1280px | 默认关闭，按需打开抽屉 | 默认关闭，按需打开抽屉；两侧同时只开一个 |
+| ≥ 1600px（如 1920px） | 默认停靠并展开，宽 240px | 默认停靠并展开，宽 336px |
+| 1280–1599px（如 1366/1440px） | 默认关闭，点击后以抽屉覆盖画布 | 默认停靠并展开，宽 320px |
+| < 1280px | 默认关闭，按需打开抽屉 | 默认关闭，按需打开抽屉；两侧同时只开一个 |
 
 抽屉打开时覆盖部分画布，不压缩画布宽度；点抽屉外部或按 `Esc` 可关闭（若有浮层，`Esc` 先关闭顶层浮层）。抽屉模式不显示拖宽分隔条。
 
@@ -155,9 +159,12 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 | 要找的功能 | 当前入口 |
 | --- | --- |
 | 原 Import 菜单的文件和文本导入 | 全局栏 `File` 的 `Import` 分组 |
-| 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；SVG 导出与 Golden 保存需处于 Single |
-| 模块层次、设计统计 | 顶部 `Navigator` → `Hierarchy` / `Design` |
-| 原 Selection 对象详情、对象时序与实例调整 | 顶部 `Inspector` → `Connections` / `Timing` / `Adjust`；先选中对象，实例调整需开启上下文栏 `Adjust` |
+| 打开或取消 AIG 图导入 | 全局栏 `File` → `Open AIG…` / `Cancel AIG import` |
+| 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；SVG 导出与 Golden 保存需处于 Single（AIG 模式亦支持 `Export SVG`） |
+| Liberty 标准单元库管理 | 全局栏 `Liberty` → `Load .lib` / `Cancel import` / `Unload` |
+| 模块层次、设计统计 | 顶部 `Navigator` → `Hierarchy` / `Design`（AIG 模式下为 `Design` / `Objects`） |
+| 原 Selection 对象详情、对象时序与实例调整 | 顶部 `Inspector` → `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）；实例调整需开启上下文栏 `Adjust` |
+| 指定某条 net 不布线 | 选中线网后在 `Inspector` → `Connections` → `Net routing` 取消勾选 `Route net` |
 | 布局引擎、间距、恢复手工覆盖 | 上下文栏 `Layout` |
 | 别名与门符号显示 | 上下文栏 `View` |
 | 全局时序指标与违例阈值 | 上下文栏 `Timing` |
@@ -172,8 +179,9 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 ### 3.1 File 菜单中的 Import 分组
 
-点击全局栏的 `File`，其 `Import` 分组提供四个导入入口：
+点击全局栏的 `File`，其 `Import` 分组提供以下导入入口：
 
+- `Open AIG…`：选择 ABC AIG DOT 或平坦 AND/NOT BLIF，进入独立 AIG 工作区，详见 [AIG 图浏览](#aig-图浏览)。
 - `Open netlist`：从本地选择 `.v`、`.sv` 或文本格式的结构化 Verilog 网表文件。
 - `Paste netlist`：在弹窗中直接粘贴结构化 Verilog 代码，点击 `Draw`（或按 `Ctrl+Enter` / `Cmd+Enter`）立即解析绘图。
 - `Open timing`：从本地选择 `.log`、`.txt`、`.rpt`、`.timing`、`.csv`、`.tsv` 或 `.json` 时序报告文件。
@@ -192,7 +200,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 - 布局快照文件（Layout Golden `.json`）
 - Liberty 文本库（`.lib`）
 
-当一次性拖入多个文件时，系统会严格按照**“Liberty（如有）→ 网表 → Timing → Golden”**的依赖顺序串行执行。若前置步骤失败，状态栏会立即报告错误并终止后续依赖步骤，绝不会将未生效的文件伪装为导入成功。自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入。
+自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入；AIG 文件（`.dot` / `.blif`）请通过 `File → Open AIG…` 导入。
 
 ### 3.3 支持的 Verilog 语法范围
 
@@ -209,21 +217,31 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 > **提示**：行为级 `always` 块、复杂算术/逻辑运算符表达式、宏定义展开（`` `define ``）及完整的参数化 `generate` 展开不属于结构化网表阅读器的目标范围。建议输入已经过综合器映射的标准门级网表。
 
----
+### 3.4 批量导入顺序与失败保护
+
+当一次性拖入或粘贴多个文件时，系统会严格按照 **“Liberty（如有）→ 网表 → Timing → Golden”** 的依赖顺序串行执行：
+
+- **前置失败即中止**：若前置步骤（例如 Liberty 或网表解析）失败，状态栏会立即报告错误并终止后续依赖步骤，绝不会将未生效的后续文件伪装为导入成功。
+- **单份库文件约束**：单次批量操作至多接受一份 `.lib` 文件；若同一批次包含多份 Liberty 文件，系统会整体拒绝并提示，避免按文件排列顺序隐式挑出某一个工艺角（Corner）。
+- **活动视图保护**：无论是导入新网表、替换 Liberty 还是切换到 AIG 工作区，均在后台完成新输入的解析与校验后再切换视图；失败或中途取消不会破坏当前正在浏览的画面。
 
 ### 3.5 Liberty 库
 
-顶部工具栏的 `Liberty` 入口展开独立库管理面板，`Load .lib` 可加载标准单元库，面板中显示库摘要与告警，不占用左侧栏。再次点击入口、按 Escape 或点击面板外部可收起；收起不会卸载库或取消导入，取消扫描请使用 `Cancel import`。也可以将 `.lib` 拖入页面，或在非输入框位置直接粘贴 `library(...) { ... }` 文本。可以先加载库再加载网表；批量拖放按 Liberty、网表、时序、Golden 的顺序处理。
+顶部工具栏的 `Liberty` 入口展开独立库管理面板（不占用左侧导航栏），用于加载、替换、取消和卸载标准单元库（`.lib`）：
 
-一次拖放或文件粘贴只接受一份 Liberty 文件；含多份库文件的批次会整体拒绝，不会按文件顺序选择工艺角。请选定一份库后再加载，或将库分别作为独立的替换操作导入。
-
-每次成功导入替换当前库，并刷新 Single 或 Compare 两侧的连接方向与门类型；`Cancel import` 取消正在扫描的导入，`Unload` 恢复无库语义。语法错误、超限或同名 cell 冲突会保留原有效库。文件中允许多个名字不同的 library，但 cell 名必须全局唯一；多工艺角请每次选择一份库文件。当前附件只在页面内存中保留，刷新或重新打开后需重载，不写入 Cell Config、Session 或 Golden。
-
-Inspector 显示库名、源文件和原始 function；引脚来源 `library` 表示使用库方向。真实 Verilog 子模块仍保留模块身份；leaf 引脚优先级为实例方向覆盖、Cell Config、库声明、命名规则。显式 `unknown` 人工配置同样优先。缺失 cell/pin、用户与库冲突在 Diagnostics 中说明；电源和内部 pin 不作为数据连线。
-
-首版支持标量接口、`pg_pin`、`ff`/`latch` 标记、三态标记，以及带显式 `type` 位范围的同方向 bus。常见 AND/NAND/OR/NOR/XOR/XNOR/BUF/INV/MUX 使用有界布尔识别；复杂逻辑、常量、多输出、latch 和三态保持保守展示。库面板列出前 20 条解析/语义告警，完整告警保留在库模型中。
-
-文本上限 64 MiB（UTF-8），单 token 上限 1 MiB 字符；超限错误包含限制名和可用的行列位置。`include_file`、`.lib.gz`、二进制 `.db`、bundle 位映射和 bus 成员区间简写暂不支持。Liberty 导入不会计算延时、Slack 或替代 STA；启动器尚无 `--liberty` 参数。
+- **导入与生命周期**：
+  - 点击 `Load .lib` 选择文件，或直接将 `.lib` 拖入页面、在非输入框位置粘贴 `library(...) { ... }` 文本；支持先加载库再加载网表。
+  - 再次点击 `Liberty` 按钮、按 `Esc` 或点击面板外部仅收起下拉面板，不会卸载库或中断后台扫描；如需中止正在扫描的大库，请点击面板内的 `Cancel import`。
+  - 每次成功导入会替换当前库，并立即刷新 Single 或 Compare 两侧的连接方向与门类型；点击 `Unload` 可卸载当前库并恢复无库推断语义。
+  - 若遇到语法错误、超限或同名 `cell` 冲突，系统会拒绝新库并安全保留此前已生效的库。单个文件中允许包含多个名称不同的 `library` 块，但 `cell` 名称必须全局唯一。
+  - 当前加载的 Liberty 库仅保存在页面内存中，刷新或重新打开标签页后需重新加载，不会写入 `Cell Config`、`sessionStorage` 或 Golden 文件。
+- **语义推断优先级与诊断**：
+  - 选中单元后，Inspector 会显示库名、源文件名及原始布尔 `function`；当引脚方向取自库声明时，来源标记为 `library`。
+  - 网表中存在真实 `module` 定义的层次化子模块始终遵循其自身的模块端口声明；对于原语（leaf）单元引脚，方向优先级从高到低依次为：**单实例 `Adjust` 覆盖 > `Cell Config`（含显式 `unknown`）> Liberty 库声明 > 内置命名规则**。
+  - 缺失 `cell` / `pin` 或人工配置与库声明冲突时，底部 `Diagnostics` 会给出明确说明；电源/地引脚（`pg_pin`）与内部引脚不作为信号连线绘制。
+- **支持子集与容量边界**：
+  - 支持标量接口、`pg_pin`、`ff` / `latch` 标记、三态标记，以及带显式 `type` 位范围的同方向 `bus`。常见 `AND` / `NAND` / `OR` / `NOR` / `XOR` / `XNOR` / `BUF` / `INV` / `MUX` 采用有界布尔识别；复杂逻辑、常量、多输出、锁存器与三态单元保持保守展示。库管理面板展示前 20 条解析/语义告警（完整告警保留在库模型中）。
+  - 文本大小上限为 **64 MiB**（UTF-8），单个 token 上限为 **1 MiB** 字符；超限报错会指明限制项及可用的行列位置。暂不支持 `include_file`、`.lib.gz`、二进制 `.db`、`bundle` 位映射及 `bus` 成员区间简写。Liberty 导入仅服务于连接方向与门类型识别，不执行 STA 延时/Slack 计算；命令行启动器暂不设 `--liberty` 参数。
 
 ---
 
@@ -241,7 +259,7 @@ Inspector 显示库名、源文件和原始 function；引脚来源 `library` �
 
 ### 4.3 双击进入子模块（hinst 钻取）
 
-当画布中的某个单元实例（Hierarchical instance，简称 `hinst`）引用了当前网表中真实存在的子模块定义时，在画布上**双击该实例**即可直接钻取进入对应的子模块occurrence上下文。真实子模块的端口方向严格取自其自身的 `module` 端口声明，不会被 `Cell Config` 覆盖。
+当画布中的某个单元实例（Hierarchical instance，简称 `hinst`）引用了当前网表中真实存在的子模块定义时，在画布上**双击该实例**即可直接钻取进入对应的子模块实例（occurrence）上下文。真实子模块的端口方向严格取自其自身的 `module` 端口声明，不会被 `Cell Config` 覆盖。
 
 ### 4.4 视图历史前进与后退（View History）
 
@@ -352,17 +370,15 @@ Inspector 与画布上方的 `Roots` 菜单提供显式的根节点集合管理�
 - 点击 chip 右侧的 `×` 仅移除该根节点。
 - 在执行追加、移除或激活操作期间，当前设置的 `Fanin depth` 与 `Fanout depth` 保持不变。
 
----
-
 ### 6.5 指定 net 不布线
 
-点击导线，或在单元 `Connections` 中点击 net 名称，在 `Inspector > Connections > Net routing` 取消勾选
-`Route net / 布线`，即可跳过 clk、reset 或任意所选 net 的布线。默认所有 net 均布线；
-net 之间的 assign 别名同步生效，赋为相同常量的独立 net 可分别设置；单元、引脚、连接详情与 Focused 追踪保持完整。
+点击画布中的导线，或在单元的 `Connections` 页签中点击目标 net 名称，随后在 `Inspector > Connections > Net routing` 区域取消勾选 `Route net / 布线`，即可跳过 `clk`、`reset` 或任意选定 net 的几何连线绘制：
 
-取消布线后仍可通过 Search 或 Connections 打开该 net，重新勾选恢复。Compare A/B 两侧独立设置。
-设置支持 Back/Forward、模块切换和 Golden 保存/加载；刷新页面时恢复 Single 当前模块的设置。
-SVG 导出遵循当前设置，`Layout > Reset view overrides` 清除覆盖时也会恢复布线。
+- **默认与别名联动**：默认所有 net 均参与布线；同一信号链上的 `assign` 别名会同步隐藏或恢复，而赋为相同常量的独立 net 则互不影响、可分别设置。隐藏几何导线后，单元引脚标记、Inspector 连接详情与 Focused 锥体追踪仍保持完整。
+- **重新找回与双侧独立**：取消布线后，仍可通过顶部 Search 或相邻单元的 `Connections` 列表选中该 net，重新勾选 `Route net` 即可恢复连线。Compare 模式下 A/B 两侧独立维护各自的隐藏 net 集合。
+- **状态保存与重置**：该设置支持视图历史 `Back` / `Forward`、模块切换、Single 当前模块的标签页刷新恢复、Golden 保存/加载及 SVG 导出；执行 `Layout > Reset view overrides` 清除覆盖时会一并恢复所有被隐藏 net 的布线。
+
+---
 
 ## 7. Whole 和 Focused 视图
 
@@ -378,8 +394,7 @@ SVG 导出遵循当前设置，`Layout > Reset view overrides` 清除覆盖时�
 - **`Fanout depth`**：向输出/负载端（load）方向追踪展开的逻辑层数（`0–99`）。
 - **深度设为 `0`**：关闭该方向的扩展（例如将 `Fanout depth` 设为 `0` 即可仅查看纯扇入逻辑锥 Fanin Cone）。
 
-在 AnchorLayered/ELK 中，即使 `Fanout depth=0`，已有可见 net 的范围外负载仍会以 `Focused output`
-标记显示；标记只表示连线继续到视图外，不会把外部 cell 展开进来。Simple 保留冻结的旧行为。
+在 `AnchorLayered` 与 `ELK` 布局中，即便将 `Fanout depth` 设为 `0`，当前已可见线网若仍连接着局部视图范围之外的负载，也会在边界处显示 `Focused output` 延续标记（仅提示该信号还会继续扇出至视图外，不会将外部单元展开进当前局部图；`Simple` 引擎则保留冻结的原有行为）。
 
 当存在多个聚焦根节点时，系统会分别计算每个根节点的扇入与扇出邻域并自动合并去重；当根节点数量达到 32 个上限时，新的追加请求会被明确拒绝并提示，绝不会静默丢弃或截断已有的根节点。对于高扇出线网作为根节点的情况，系统还内置了有界节点预算策略，确保根节点的直接连通路径完整保留且不会因超大多扇出一次性撑爆局部图。
 
@@ -439,7 +454,7 @@ SVG 导出遵循当前设置，`Layout > Reset view overrides` 清除覆盖时�
 
 `Fanout hubs` 默认开启：对于扇出负载数不少于 8 的高扇出同源线网，系统会自动生成共享的分支中继节点（hub），避免从驱动引脚拉出数十条重复的长距离平行干线；取消勾选后则展示原始的逐一分支连接。
 
-### 9.6 结构分组折叠说明與渐进式渲染
+### 9.6 结构分组折叠说明与渐进式渲染
 
 - **分组折叠已退役**：结构分组折叠（Group collapse/expand）已从产品路线中正式移除；大图统一通过完整图、`Search-first` 或 `Focused` 局部图进行浏览（旧版 Session 或 Golden 文件中遗留的折叠字段仅作兼容读取忽略）。
 - **分批渐进渲染**：当当前视图的可见节点与连线总数达到渐进渲染阈值（400）时，渲染器会自动分批向 DOM 提交 SVG 图元，并通过底部状态栏报告进度。在拖拽或预览过渡帧中可临时省略装饰性跨线桥（wire bridge），一旦渲染或手势完成，画面与导出的 SVG 均会完整恢复所有导线、桥接弧、文本标签与点击热区。
@@ -729,38 +744,43 @@ Navigator/Inspector 的停靠开关、宽度与最近页签单独保存在 `loca
 - `Export`：将当前日志下载保存为本地文本文件
 - `Clear`：清空当前内存中的日志记录
 
-日志默认在当前页面内存中保留最近 500 条，刷新或关闭页面后清空；相邻同阶段、同任务的渐进渲染进度会自动合并。Copy 和 Export 均使用当前过滤结果，导出文件为 `netlist-process-log.jsonl`。
+**日志容量、脱敏与失败归类**：
 
-失败条目的 details 可包含错误名称、调用栈、cause、结构化诊断，以及操作、文件、模块、布局引擎或请求编号（以失败边界实际提供的字段为准）。日志对详情递归过滤源码、原始文本、口令和 token 等字段，并限制深度、条数和文本大小；截断及循环引用会显示标记。默认不记录完整的网表、时序或配置原文。主动取消和过期任务不作为当前操作错误报告；全局捕获保留浏览器原有控制台报错行为。应用日志初始化之前的模块加载失败仍需查看浏览器控制台。
-
-当遇到解析报错、布局降级或启动异常时，可展开 `Process Log` 筛选 `Error` / `Warning` 或对应 `Phase`，查看 details 并导出后排查。
-
-会话或 Cell Config 读取失败会记录为 `Persistence` 错误，并继续使用默认状态；自动保存失败会保留底层异常，连续失败只报告一次，恢复后记录 `Session saving recovered`。Cell Config 的保存、删除、重置与导入写入失败均归入 `Persistence`；已保存但刷新失败归入 `Render`。SVG、Golden 和 Cell Config 的生成或下载触发失败归入 `Export`，包含操作及文件名。关闭页面时的保存错误只能在页面仍存活时进入内存日志，不会形成跨会话日志文件。
+- **内存容量与过滤导出**：日志默认在当前页面内存中保留最近 **500 条**，刷新或关闭页面后清空；相邻同阶段、同任务的渐进渲染进度会自动合并。`Copy` 和 `Export` 均输出当前过滤结果，导出文件名为 `netlist-process-log.jsonl`。
+- **结构化详情与源码脱敏**：失败条目的 `details` 可包含错误名称、调用栈、`cause`、结构化诊断以及操作、文件、模块、布局引擎或请求编号（以失败边界实际提供的字段为准）。日志会对详情递归过滤源码、原始文本、口令和 token 等敏感字段，并限制嵌套深度、条数和文本大小（截断或循环引用会显示显式标记），默认绝不记录完整的网表、时序或配置原文。
+- **取消与全局异常捕获**：用户主动取消或已过期的异步任务不作为当前操作错误报告；全局捕获机制保留浏览器原有的控制台报错行为（应用日志初始化之前的早期模块加载失败仍请查看浏览器控制台）。遇到解析报错、布局降级或启动异常时，可展开 `Process Log` 筛选 `Error` / `Warning` 或对应 `Phase` 查看 `details` 并导出排查。
+- **持久化与导出失败归类**：
+  - 会话或 `Cell Config` 读取失败会记录为 `Persistence` 错误并安全回退至默认状态；自动保存失败会保留底层异常，连续失败仅报告一次，恢复正常后记录 `Session saving recovered`。
+  - `Cell Config` 的保存、删除、重置与导入写入失败均归入 `Persistence`；配置已保存但触发视图刷新失败归入 `Render`。
+  - SVG、Golden 和 `Cell Config` 的生成或下载触发失败归入 `Export`（含具体操作及文件名）。关闭页面瞬间的保存错误仅能在页面存活期内进入内存日志，不会跨会话落盘。
 
 ### 终端与启动器日志
 
-Bash 预览入口、Node/Python 服务、Linux 单文件启动器和 Windows 离线启动器会自动保存终端侧日志。这与页面内的 Process Log 分开：浏览器日志仍需从页面导出，启动器日志用于排查启动、文件读取、HTTP 请求、状态文件清理和退出问题。
+Bash 预览入口、Node/Python 服务、Linux 单文件启动器和 Windows 离线启动器会自动在磁盘保存终端侧 JSONL 日志。这与页面内的 `Process Log` 相互独立：浏览器内运行轨迹从页面导出，终端启动器日志则专门用于排查进程启动、文件读取、HTTP 请求、状态文件清理与退出问题。
 
-- Linux 默认目录：`${XDG_STATE_HOME:-$HOME/.local/state}/netlist_graph_builder/logs`。
-- Windows 默认目录：`%LOCALAPPDATA%\netlist_graph_builder\logs`。
-- 设置环境变量 `NGB_LOG_DIR` 可指定目录；`log.ready` 诊断会给出当前文件位置。
-- 每次启动使用独立的 `<运行时>-<时间>-<PID>.run.jsonl` 和 `.error.jsonl`。前者包含全部级别，后者仅包含 Error；普通 4xx 请求归为 Warning。
-- 每个运行时日志文件默认在约 2 MiB 时滚动，保留一个 `.1` 备份；`NGB_LOG_MAX_BYTES` 可设置 1024～67108864 字节的阈值。单条诊断不拆行，文件可超出阈值至多一条有界记录。Bash 只记录交接前的少量事件，后续由接管进程的日志记录。
-- 每次启动会清理超过 **14 天** 的旧日志。`NGB_LOG_RETENTION_DAYS` 可设置为 `1`～`3650` 天，`0` 关闭清理；非法值使用默认 14 天。保留期按文件最后修改时间计算，同一次启动的运行日志、错误日志和 `.1` 备份必须全部过期，且文件名中的 PID 已退出，才会清理。PID 被复用或无法确认退出时保守保留。
-- 清理只检查指定日志目录的直接子文件，匹配上述五种运行时的日志命名；不递归、不清理其他文件或目录，含符号链接的日志组也会保留。Bash 历史日志由接管它的 Node/Python 服务一并清理；缺少运行时、无法完成交接时不执行清理。清理仅在启动时执行，持续运行期间仍按大小轮转。
-- `log.cleanup` 记录保留天数、删除文件数和释放字节数；失败时用 `log.cleanup_failed` 记录失败数量和首个错误，服务与后续日志继续运行。清理不是整组原子操作：部分删除失败时，剩余文件留待下次启动重试。需要长期保留的日志请提前归档到其他目录，或关闭自动清理。
+- **默认目录与自定义路径**：
+  - Linux 默认目录：`${XDG_STATE_HOME:-$HOME/.local/state}/netlist_graph_builder/logs`
+  - Windows 默认目录：`%LOCALAPPDATA%\netlist_graph_builder\logs`
+  - 可通过环境变量 `NGB_LOG_DIR` 指定日志目录；启动时的 `log.ready` 诊断会指明当前日志文件路径。
+- **文件命名与大小轮转**：
+  - 每次启动生成独立的 `<运行时>-<时间>-<PID>.run.jsonl`（包含全部级别，普通 4xx 请求记为 `Warning`）与 `.error.jsonl`（仅包含 `Error`）。
+  - 单个日志文件默认在约 **2 MiB** 时自动轮转并保留一个 `.1` 备份；可通过 `NGB_LOG_MAX_BYTES` 在 `1024`～`67108864` 字节范围内调整阈值（单条诊断不拆行，文件可超出阈值至多一条有界记录）。Bash 入口仅记录 `exec` 交接前的少量事件，交接后由 Node 或 Python 进程的日志接管。
+- **自动过期清理（默认 14 天）**：
+  - 每次启动时自动清理超过 **14 天** 的历史日志；可通过 `NGB_LOG_RETENTION_DAYS` 设置为 `1`～`3650` 天，设为 `0` 则关闭自动清理（非法值回退至默认 14 天）。
+  - **进程与安全保护**：保留期按文件最后修改时间计算；仅当同一次启动的 `.run.jsonl`、`.error.jsonl` 及 `.1` 备份全部过期，且文件名对应的 PID 确已退出时才执行删除（PID 被复用或无法确认退出时保守保留）。清理仅扫描日志目录的直接子文件并严格匹配五种运行时的日志命名，不递归子目录、不触碰无关文件，含符号链接的日志组也会跳过。
+  - `log.cleanup` 事件记录保留天数、删除文件数与释放字节数；若部分删除失败，则通过 `log.cleanup_failed` 记录失败数量与首个错误，剩余文件留待下次启动重试，不影响当前服务运行。如需长期留存日志，请提前归档至其他目录或设 `NGB_LOG_RETENTION_DAYS=0`。
+- **字段规范与标准流隔离**：
+  - JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，并按事件附带状态码、操作、异常类型、错误码或调用栈（原生 C++ 错误记录系统错误码或异常消息）。查询参数、请求正文与启动输入原文均不写入日志。
+  - 正常 HTTP 请求仅写入日志文件，启动/退出与失败诊断同步输出至 `stderr`；若日志目录不可写，仅报告一次告警并自动回退至 `stderr`，绝不伪装成服务启动失败。
+  - 启动成功时，`stdout` 严格保持原有的单行 `ready` JSON 协议；`status`、`--help` 与 `--licenses` 的标准输出格式不变。
 
-JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，并按事件附带状态码、操作、异常类型、错误码或调用栈。查询参数和请求正文不进入请求日志，启动输入原文也不附带到日志中。原生 C++ 错误记录系统错误码或异常消息，不承诺提供调用栈。正常请求主要写文件，启动/退出和失败诊断也写入 `stderr`；文件日志不可写时只报告一次故障，随后退回 `stderr`，不会伪装成启动失败。
-
-启动成功时，`stdout` 保留原有单行 `ready` JSON；`status`、帮助和许可证命令的标准输出格式不变。Bash 使用 `exec` 交接，不引入 `tee` 管道或改变进程号、退出码及信号语义。正常退出会尽力记录退出原因/状态；强制结束进程或断电无法保证最后一条日志。
-
-例如，在 Bash 中指定日志位置后启动：
+例如，在 Bash 中指定自定义日志目录启动预览服务：
 
 ```bash
 NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --no-open
 ```
 
-开发验证可运行 `npm run test:launcher`、`python3 tests/e2e/terminal_logging_e2e.py --native build/native/ngb` 和 `python3 tests/e2e/log_retention_e2e.py --native build/native/ngb`；Windows 包使用对应脚本的 `--windows <exe路径>` 验证。
+开发验证可执行 `npm run test:launcher`、`python3 tests/e2e/terminal_logging_e2e.py --native build/native/ngb` 与 `python3 tests/e2e/log_retention_e2e.py --native build/native/ngb`（Windows 离线包可将参数替换为 `--windows <exe路径>`）。
 
 ---
 
@@ -916,11 +936,11 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.4 导入 Timing 文件后画布上没有任何时序徽标？
 请依次排查以下几项：
-- 时序日志中的 `Module` / `scope` 名称是否与当前加载的网表模块名匹配。
-- 日志中的实例或线网层次路径后缀是否能在当前模块中找到唯一对应项。
-- 表头行、`[Global]` / `[Local]` 标记行与数据行之间是否保留了正常换行。
-- 表头声明的列数是否与数据行的数值列数一致。
-- 展开底部 `Process Log` 并按 `Timing` 阶段过滤，同时查看底部 `Diagnostics` 抽屉的具体告警提示。
+- 检查上下文栏 `Timing` 菜单中的 `Metric` 是否被设为了 `None`（`None` 模式会隐藏全图所有画布时序徽标），或当前画布缩放倍率是否低于 `0.65`（触发了低倍率 LOD 文字隐藏）。
+- 检查时序文件中的 `@module` 指令（或 JSON 中的 `"module"` / `"modules"` 键名）是否与当前打开的网表模块名一致。
+- 检查时序数据行中的 `point`（端口、单元引脚 `inst/pin` 或线网名）是否能在当前模块中找到对应项。
+- 列式文本格式下，确认表头行（如 `point at rt slack`）与数据行的列数对齐，且至少提供了可展示的时序数值。
+- 展开底部 `Log` 抽屉并按 `Timing` 阶段过滤，同时查看底部 `Diagnostics` 抽屉中的具体未匹配或解析告警提示。
 
 ### 19.5 Whole 整图模式下画面显得非常细长或渲染较慢？
 `Whole` 模式会完整布局并渲染模块内的所有单元与连线。遇到数千单元的大模块或上千级串行长链时，建议优先采用 `Search-first` 与有限深度的 `Focused` 视图，并保持 `Fanout hubs` 开启（产品已不再使用结构分组折叠作为大图路径）。
@@ -955,27 +975,78 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.12 更新后还是旧界面，或面板偏好没有沿用？
 
-- 确认启动的是 `v1.5.0` 程序包，而非仍运行的旧目录副本；以启动器输出的实际 URL 为准。
+- 确认启动的是 `v1.5.1`（或 `v1.5.0`）程序包，而非仍运行的旧目录副本；以启动器输出的实际 URL 为准。
 - 源码预览在更新后刷新页面；Windows 离线版需完整替换程序包并重新启动；Linux 单文件版已内嵌界面资源，需重新构建或使用新二进制，再启动服务。仅替换外部文档不会更新界面。
 - 服务更新后刷新当前标签页；若仍加载缓存，可用浏览器的强制刷新。新版工作台应能看到顶部 `Navigator` / `Inspector`，面板标题旁有带方向箭头的 `Hide`。
 - 面板偏好按浏览器及站点地址保存；例如 `127.0.0.1:4173` 与 `127.0.0.1:7724` 不共享偏好。换端口后重新设置一次即可。
 
 ## AIG 图浏览
 
-本节适用于 v1.5.0 及后续版本；从旧版升级时请完整替换离线包并重新启动。
+本节对应 `v1.5.1`（自 `v1.5.0` 引入）；从旧版升级时请完整替换离线包并重新启动。AIG 工作区采用本地离线 Graphviz（Viz.js / WASM）曲线布局，与门级网表的 `AnchorLayered → ELK → Simple` 正交布局流水线相互独立。
 
-1. 在 `File → Open AIG…` 选择 ABC 的 AIG `write_dot` 输出（`.dot`），或平坦组合 AND/NOT BLIF（`.blif`）。菜单标明格式范围，不接受任意 DOT 逻辑图。
-2. PI/PO 保留原名称，AND 使用稳定编号。信号自下向上流动，三角形为输入，倒三角形为输出，椭圆为 AND。反相由虚线表示，输出反相也保留。
-3. Navigator 的 `Design` 显示数量、深度与分析统计；`Objects` 默认列出输入/输出，可按类型、名称/来源 ID、关键性、扇出筛选，并按名称/深度/扇出排序。筛选只改变列表，不裁剪画布。列表每页最多 100 项。
-4. 点击列表、全局 Search 或画布对象选中目标。Inspector 的 `Connections` 展示独立的输入槽位、极性及邻接节点，点击槽位可选中具体边；`Analysis` 显示逻辑深度和扇出；`Source` 显示来源 ID、别名、极性与可用行列位置。完整名称可复制。
-5. 工具条的 `Logical critical path` 标出所有最长单位 AND 深度路径；它不代表真实器件时序。红色节点填充/边描边表示关键路径，橙色外框表示扇出达到阈值（默认 ≥ 2，包含每个输入槽位及 PO 引用），蓝色外框表示选择。切换开关和阈值不重新布局。
-6. 使用滚轮缩放、空白处拖动平移、`Fit view` 或 `Zoom to selection` / `F` 定位。面板显隐和宽度沿用工作台偏好；AIG 页签支持左右方向键与 Home/End。
-7. `File → Export SVG` 导出当前图和高亮；当前标签页刷新会恢复源文件内容、选择、视口和分析开关。浏览器禁用存储或容量不足时仍可浏览，无法跨刷新恢复；保存失败会清除旧 AIG 存档，避免刷新后误恢复上一份图。
+### AIG 导入与阅读流程
 
-新文件先完成独立解析和首个场景，再替换当前视图；格式错误、布局失败或取消均保留上个可用视图。`File → Cancel AIG import` 可取消在途作业。Graphviz 在独立 Worker 中运行，单次布局超过 20 秒会终止；图较复杂时可拆分输入后重试，失败不会转入网表正交布局。
+1. **打开 AIG 文件**：点击全局栏 `File → Open AIG…`，选择 ABC `write_dot` 生成的 AIG `.dot` 文件，或平坦组合 AND/NOT `.blif` 文件（菜单已标明受支持格式范围，不接受任意通用 DOT 逻辑图）。
+2. **图元与极性约定**：主输入（PI）与主输出（PO）保留原始信号名，内部与门（AND）采用稳定编号。信号整体**自下向上**流动：**正三角形**代表输入（PI），**倒三角形**代表输出（PO），**椭圆**代表二输入 AND 节点；**虚线边**表示逻辑反相（含输出端反相），实线边表示正相传输。
+3. **浏览与筛选对象**：左侧 `Navigator` 的 `Design` 页签汇总节点规模、最大逻辑深度与分析统计；`Objects` 页签默认列出输入/输出，支持按类型（PI / PO / AND）、名称或来源 ID、关键路径属性及扇出数筛选，并支持按名称、深度或扇出排序（每页最多显示 100 项）。注意：**列表筛选仅过滤左侧对象列表，不会裁剪中央画布**。
+4. **连接与来源追踪**：点击 `Objects` 列表项、全局 `Search` 候选或画布图元即可选中目标。右侧 `Inspector` 提供三个专用页签：
+   - `Connections`：展示独立的输入槽位（Input slots）、边极性及上下游邻接节点，点击具体输入槽位可单独选中对应连线；
+   - `Analysis`：展示当前节点的单位 AND 逻辑深度与扇出引用统计；
+   - `Source`：展示原始来源 ID、归一化折叠的 BUF/NOT 别名链、极性及可用的源文件行列位置（支持一键复制完整名称）。
+5. **关键路径与高扇出高亮**：使用上下文栏的 `Logical critical path` 开关高亮所有最长单位 AND 深度路径（注：逻辑深度按单位 AND 级数计算，不代表真实工艺器件的 STA 延时）；使用 `High fanout` 开关及数值阈值高亮高扇出节点：
+   - **红色节点填充 / 红色边描边**：位于逻辑关键路径上；
+   - **橙色节点外框**：节点扇出引用数达到设定阈值（默认 `≥ 2`，统计每个输入槽位及 PO 引用）；
+   - **蓝色外框**：当前选中的对象。
+   切换高亮开关或修改扇出阈值均即时生效，**不会触发重新布局**。
+6. **视口操作与键盘导航**：支持滚轮缩放、空白处拖拽平移、`Fit view` 整图适配以及 `Zoom to selection`（快捷键 `F`）居中定位。左右面板的显隐和宽度沿用工作台界面偏好；AIG 页签同样支持左右方向键与 `Home` / `End` 键盘切换。
+7. **SVG 导出与会话恢复**：点击 `File → Export SVG` 可导出包含当前高亮状态的独立 SVG 文件。在同一标签页刷新页面时，系统会自动从 `sessionStorage` 恢复源文件内容、当前选中项、视口变换与分析高亮开关（若浏览器禁用存储或超出配额，当前会话仍可正常浏览，同时自动清除旧 AIG 存档，防止刷新后误恢复上一份旧图）。
 
-首版仅提供 Single / Whole 浏览。AIG 的 Compare、Focused 锥裁剪、Adjust、节点拖动/尺寸编辑、门级时序/Liberty/Cell Config 和 Golden 入口不可用；重新 `Open netlist…` 后恢复网表功能。AIGER 导入、Netlist→AIG 与 before/after Compare 为后续范围。
+### AIG 取消、恢复与功能边界
 
-BLIF 支持 `.model/.inputs/.outputs/.names/.end`、注释、续行、可还原为至多二输入 AND/NOT/BUF/常量的 ON/OFF cover。一般多输入逻辑、`.gate/.subckt/.latch/.exdc`、无驱动、多驱动和组合环会给出诊断。独立重复 AND 保留身份与引用，BUF/NOT 链作为带极性的来源别名保留。来源文本上限 16 MiB、对象上限 100000，规范化有独立工作预算；这些是拒绝不受支持输入的边界，不是大型图布局速度保证。
+- **原子替换与超时取消**：导入新文件时，系统会先在后台完成独立解析与首帧场景构建，成功后再替换当前视图；若格式错误、布局超时或中途点击 `File → Cancel AIG import` 取消，均安全保留上一个可用视图。Graphviz 在独立 Web Worker 中运行，单次布局超过 **20 秒**会自动终止并报错；遇到超大图超时请先在外部拆分逻辑锥后重试，系统不会将 AIG 回退至网表正交布局器。
+- **首版工作区边界**：当前版本仅提供 **Single / Whole** 整图浏览。在 AIG 工作区中，网表专用的 `Compare`、`Focused` 局部锥裁剪、`Adjust` 节点拖拽/尺寸编辑、`Timing`、`Liberty`、`Cell Config` 与 `Golden` 入口均处于禁用状态；随时点击 `File → Open netlist…` 加载 Verilog 网表即可切回完整的网表工作台。二进制/ASCII AIGER（`.aig` / `.aag`）直接导入、网表转 AIG 及 AIG 双图对比属于后续规划范围。
+- **BLIF 与 DOT 语法及配额边界**：
+  - BLIF 支持 `.model`、`.inputs`、`.outputs`、`.names`、`.end`、注释、`\` 续行，以及可还原为至多二输入 `AND` / `NOT` / `BUF` / 常量的 ON/OFF 积项表（cover）。遇到一般多输入逻辑、`.gate` / `.subckt` / `.latch` / `.exdc`、无驱动信号、多驱动冲突或组合逻辑环路时，系统会拒绝导入并给出明确诊断。
+  - 结构中独立的重复 AND 节点会完整保留各自的身份与扇出引用；纯 `BUF` / `NOT` 链则规范化折叠为带极性的来源别名（记录在 `Inspector > Source` 中）。
+  - 源文件文本上限为 **16 MiB**，AIG 对象总数上限为 **100,000**，规范化阶段设有独立工作步数预算（上述上限用于拦截不受支持的超大输入，不代表对任意十万级节点图提供 20 秒内完成 Graphviz 布局的速度承诺）。
+- **离线运行时与字体说明**：Graphviz / Viz.js / WASM 已完整随 Windows 与 Linux 离线包分发，无需联网、Python 或本地安装 ABC / Graphviz。布局阶段按标准 Arial 字体度量计算文本框尺寸；不同操作系统或浏览器的实际回退字体可能存在细微字宽差异，不承诺跨平台像素级完全一致。
 
-Graphviz/Viz.js/WASM 随离线包分发，无 CDN、Python 或 ABC 运行时要求。字体采用 Arial 的 Graphviz 测量；不同浏览器/系统的字体回退可能影响外观，不承诺跨平台像素一致。
+### AIG 最小示例
+
+将以下文本保存为 `aig_demo.blif`，通过 `File → Open AIG…` 导入即可体验（源码预览与离线发布包均可直接使用，无需安装额外综合工具）：
+
+```blif
+.model aig_demo
+.inputs a b
+.outputs y yn
+.names a b n
+11 1
+.names n y
+1 1
+.names n yn
+0 1
+.end
+```
+
+该电路表示 `n = a AND b`、`y = n`、`yn = NOT n`。导入后可按以下步骤核对：
+
+1. 在 `Navigator → Objects` 默认的输入/输出列表中找到 `a`、`b`、`y`、`yn`；将筛选条件 `Type` 切换为 `AND` 可查看内部 AND 节点。
+2. 选中输出 `yn`，在 `Inspector → Connections` 查看其输入槽位的 `Inverted`（反相）极性标记；画布上连接至 `yn` 的边呈现为虚线。原文件中的单输入缓冲/反相规则（`.names n y` 与 `.names n yn`）已被规范化折叠为带极性的输出引用，不会额外绘制冗余的独立 BUF / INV 门节点。
+3. 选中内部 AND 节点，在 `Inspector → Analysis` 核对 `AND depth = 1` 与 `Fanout references = 2`。由于默认高扇出阈值为 `2`，该 AND 节点会呈现橙色高扇出外框；取消勾选顶部 `High fanout` 即可关闭该高亮。
+4. 切换至 `Inspector → Source` 查看原始信号名称与别名链，点击 `Copy` 可复制完整名称；也可在顶部全局 `Search` 中按名称或来源 ID 检索并按 `F` 键居中放大。
+5. 点击 `File → Export SVG` 将当前视图及高亮导出为 SVG 文件（注：导出的 SVG 仅供图像查阅与文档归档，不可作为 AIG 源文件重新导入，请妥善保留原始 `.dot` / `.blif` 文件）。
+
+### AIG 常见问题
+
+- **文件后缀正确但导入失败？**
+  `.dot` 文件必须符合 ABC `write_dot` 的 AIG 结构约定，`.blif` 文件必须属于受支持的平坦组合 AND/NOT 子集；仅修改文件扩展名无法转换网表语义。包含时序锁存器（`.latch`）、层次化子电路（`.subckt`）、工艺映射门（`.gate`）或任意多输入复杂真值表的 BLIF 文件不在当前支持范围内。
+- **红色高亮是否代表 STA 时序违例？**
+  **不是**。AIG 模式下的红色高亮仅表示按单位 AND 级数计算的**最长逻辑深度路径（Logical critical path）**，不读取 Liberty 单元延迟、Arrival Time、Required Time 或 Slack。
+- **在 `Navigator → Objects` 中筛选后，为什么中央画布没有变小？**
+  `Objects` 面板中的筛选器仅用于过滤左侧列表以便快速查找对象；当前 AIG 工作区仅提供 `Whole` 整图模式，暂不支持网表工作区的 `Focused` 局部逻辑锥裁剪。若当前选中的画布对象因筛选条件或分页未出现在左侧列表中，点击列表上方的 `Show selection` 即可定位并展开其所在页。
+- **遇到 Graphviz 布局超时怎么办？**
+  可在导入期间点击 `File → Cancel AIG import` 取消等待，或在外部综合工具（如 ABC）中先提取目标局部逻辑锥后再导出 `.dot` / `.blif`。超时或取消后会安全保留上一个可用视图，不会自动降级到网表正交布局引擎。
+- **为什么 Timing、Golden、Compare、Liberty 或 Cell Config 按钮不可用？**
+  这些能力专属于门级 Verilog 网表工作区。通过 `File → Open netlist…` 重新载入 Verilog 网表后即可恢复全部网表功能；网表时序报告与 Layout Golden 不能跨领域套用到 AIG 图上。
+- **标签页刷新恢复是否等同于保存了文件？**
+  **不是**。AIG 会话仅保存在当前浏览器、当前站点地址与当前标签页的 `sessionStorage` 中，关闭标签页、清除站点数据或超出浏览器存储配额后将无法恢复（存储受限时会在日志与状态栏给出警告）。需要长期保存时，请保留原始 `.dot` / `.blif` 文件并按需执行 `File → Export SVG`。
