@@ -61,6 +61,9 @@ test("progressive render plan produces the same item markup lazily", () => {
   const eager = createSchematicRenderPlan(graph);
   const progressive = createProgressiveSchematicRenderPlan(graph);
 
+  assert.equal(eager.nodes.length, graph.nodes.length);
+  assert.equal(eager.edges.length, graph.edges.length);
+  assert.match(eager.openSvg, /schematicContent/);
   assert.equal(progressive.edgeCount, eager.edges.length);
   assert.equal(progressive.nodeCount, eager.nodes.length);
   assert.deepEqual(progressive.renderEdges(0, 1), eager.edges);

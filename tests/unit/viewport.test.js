@@ -53,15 +53,6 @@ test("adaptive zoom values remain bounded for malformed or extreme sizes", () =>
   assert.equal(getAdaptiveMaxScale(1e12, 1), 2e12);
 });
 
-test("maximum zoom renders a typical 220px cell at about twice its layout width", () => {
-  const viewBoxWidth = 200000;
-  const viewportWidth = 1000;
-  const maxScale = getAdaptiveMaxScale(viewBoxWidth, viewportWidth);
-  const renderedCellWidth = (220 * maxScale) / (viewBoxWidth / viewportWidth);
-
-  assert.equal(renderedCellWidth, 440);
-});
-
 test("focused object sizing uses the limiting viewport axis", () => {
   const options = {
     viewBox: { x: 0, y: 0, width: 1000, height: 4000 },

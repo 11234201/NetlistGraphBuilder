@@ -287,6 +287,19 @@ test("explicit Add to Focus selects an excluded net after its neighborhood is re
   assert.equal(harness.history[0].selectedNet, "clk");
 });
 
+test("search reveals a hidden cell in Focused and commits its final selection once", async () => {
+  const h = await createRoutingSearchHarness("focused");
+  h.controller.activateSearchResult({ moduleName: "isolated", label: "u_clock",
+    target: { kind: "cell", name: "u_clock" } });
+  await h.flush();
+  assert.equal(h.state.viewMode, "focused");
+  assert.ok(h.state.focusedRootNodeIds.includes("cell:u_clock"));
+  assert.ok(h.state.focusedRootNodeIds.includes("cell:u_data"));
+  assert.equal(h.state.selectedNodeId, "cell:u_clock");
+  assert.equal(h.history.length, 1);
+  assert.equal(h.history[0].selectedNodeId, "cell:u_clock");
+});
+
 async function createRoutingSearchHarness(viewMode) {
   const design = parseVerilog(`module isolated(input clk, d, output y, z);
     BUFX1 u_clock (.A(clk), .Y(y)); BUFX1 u_data (.A(d), .Y(z)); endmodule`);
@@ -306,6 +319,8 @@ async function createRoutingSearchHarness(viewMode) {
   let pending;
   const actions = createSearchNavigationController({ state, elements: { searchResults: {} }, services: {
     singleViewSession: bridge,
+    setSelectedNode: (id) => bridge.dispatch({ type: "selection.set",
+      objectRef: bridge.objectRefForNode(state.fullGraph.nodes.find((node) => node.id === id)) }),
     setSelectedNet: (name) => bridge.dispatch({ type: "selection.set", objectRef: bridge.objectRefForNet(name) }),
     setSingleTransform: (viewport) => bridge.dispatch({ type: "viewport.set", viewport }),
     renderCurrentModuleGraph: ({ onRendered }) => {

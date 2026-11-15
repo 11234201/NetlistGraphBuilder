@@ -10,6 +10,7 @@ import { createCompareViewSessionBridge } from "../../src/app/compare_view_sessi
 import { createFocusedRootsController, focusedRootsPorts } from "../../src/app/focused_roots_controller.js";
 import { createViewControlsController, viewControlsPorts } from "../../src/app/view_controls_controller.js";
 import { createFocusNavigationController, focusNavigationPorts } from "../../src/app/focus_navigation_controller.js";
+import { createStateCommandsController } from "../../src/app/state_commands_controller.js";
 import { createLegacyPort } from "../../src/app/legacy_port.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
@@ -163,6 +164,27 @@ test("Single roots consume real command effects and repeated Set does not rebuil
   assert.deepEqual(h.state.focusedRootNodeIds, []);
   assert.equal(h.state.viewMode, "whole");
   assert.equal(h.events.filter((event) => event === "single").length, 2);
+});
+
+test("Single controls enable a selected net and retain its identity through root replacement and depth changes", () => {
+  const h = controllerHarness();
+  const bridge = h.services.singleViewSession;
+  bridge.dispatch({ type: "selection.set", objectRef: bridge.objectRefForNet("a") });
+  h.controls.updateFocusedRootControl();
+  assert.equal(h.elements.setFocusedRootButton.disabled, false);
+  h.roots.setSelectedAsFocusedRoot();
+  assert.deepEqual(h.state.focusedRootNodeIds, ["net:a"]);
+  h.elements.faninDepthInput.value = "0";
+  h.elements.fanoutDepthInput.value = "5";
+  h.controls.handleFocusedDepthChange();
+  assert.equal(h.state.viewMode, "focused");
+  assert.deepEqual(h.state.focusedRootNodeIds, ["net:a"]);
+  assert.deepEqual([h.state.faninDepth, h.state.fanoutDepth], [0, 5]);
+  const commands = createStateCommandsController({ state: h.state, elements: h.elements, services: h.services });
+  commands.replaceSingleFocusedRoots(["net:y"], "net:y");
+  assert.deepEqual(h.state.focusedRootNodeIds, ["net:y"]);
+  assert.equal(bridge.readState().activeFocusedRootRef.kind, "net");
+  assert.equal(bridge.readState().activeFocusedRootRef.localId, "y");
 });
 
 test("Compare synchronized roots merge both command results into one rebuild", () => {

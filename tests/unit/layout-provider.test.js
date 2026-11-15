@@ -42,6 +42,9 @@ test("layout provider registry falls back to simple layered", () => {
   assert.ok(native instanceof NativeLayeredLayoutProvider);
   assert.equal(native.profile, "anchor");
   assert.equal(native.experimental, false);
+  assert.equal(native.executionMode, "async");
+  assert.equal(getLayoutProvider(ELK_LAYOUT_PROVIDER_ID).executionMode, "async");
+  assert.notEqual(getLayoutProvider(SIMPLE_LAYOUT_PROVIDER_ID).executionMode, "async");
 });
 
 test("ELK provider normalizes async layout output", async () => {

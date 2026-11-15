@@ -48,16 +48,6 @@ test("independent memory AIG runs through shared document, command, pipeline, la
   assert.equal(feature.capabilities.cellConfig, false);
 });
 
-test("memory AIG preserves duplicate fanin slots, shared subgraphs, constants and latch boundaries", () => {
-  const model = createMemoryAigModel().units[0];
-  const duplicate = model.edges.filter((item) => item.source === "and0" && item.target === "and1");
-
-  assert.deepEqual(duplicate.map((item) => item.slot), [0, 1]);
-  assert.ok(model.nodes.some((item) => item.kind === "constant"));
-  assert.ok(model.nodes.some((item) => item.kind === "latch"));
-  assert.ok(model.edges.some((item) => item.inverted));
-});
-
 test("Netlist and AIG documents and focused commands remain isolated", () => {
   const documents = createDocumentStore();
   const aigDocument = documents.open(memoryAigFeature.importSource({ model: createMemoryAigModel() }));

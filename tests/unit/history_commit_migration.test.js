@@ -5,6 +5,7 @@ import { createHistoryController } from "../../src/app/history_controller.js";
 import { createSessionPersistenceController } from "../../src/app/session_persistence_controller.js";
 import { createStateCommandsController } from "../../src/app/state_commands_controller.js";
 import { createSelectionNavigationController } from "../../src/app/selection_navigation_controller.js";
+import { createCanvasController } from "../../src/app/canvas_controller.js";
 import { createSingleViewSessionBridge } from "../../src/app/single_view_session_bridge.js";
 import { createCompareViewSessionBridge } from "../../src/app/compare_view_session_bridge.js";
 import { createViewSessionStore } from "../../src/application/view_session_store.js";
@@ -88,7 +89,7 @@ function setup(t, { compare = false } = {}) {
   singleViewSession.importQuery({});
   if (compare) { compareViewSessions.ensure("left"); compareViewSessions.ensure("right"); }
   history.recordViewHistory({ label: "Initial view" });
-  return { state, history, persistence, commands, selection, singleViewSession, compareViewSessions, viewSessions, logs, writes, renderRequests,
+  return { state, elements, services, history, persistence, commands, selection, singleViewSession, compareViewSessions, viewSessions, logs, writes, renderRequests,
     layouts: () => layouts,
     completeRender() {
       const request = renderRequests.at(-1);
@@ -335,10 +336,15 @@ test("Back and Forward cannot reactivate an old callback when its history identi
     });
   });
   const transactionId = h.state.viewHistory.entries[1].transactionId;
-  h.history.navigateViewHistory(-1);
+  let prevented = 0;
+  const shortcut = (key) => h.history.handleModuleHistoryShortcut({
+    altKey: true, key, preventDefault() { prevented++; }
+  });
+  shortcut("ArrowLeft");
   h.completeRender();
-  h.history.navigateViewHistory(1);
+  shortcut("ArrowRight");
   h.completeRender();
+  assert.equal(prevented, 2);
   assert.equal(h.state.viewHistory.entries[h.state.viewHistory.index].transactionId, transactionId);
   const before = JSON.stringify(h.state.viewHistory);
   const transform = { ...h.state.transform };
@@ -350,6 +356,45 @@ test("Back and Forward cannot reactivate an old callback when its history identi
 });
 
 for (const compare of [false, true]) {
+  test(`${compare ? "Compare" : "Single"} selection-only history restore reuses its committed graphs`, (t) => {
+    const h = setup(t, { compare });
+    const original = createViewHistoryEntry(h.state);
+    const graphs = compare ? { ...h.state.compare.graphs } : h.state.graph;
+    if (compare) {
+      h.state.compare.workspaceIdentity = createCompareWorkspaceIdentity(h.state);
+      h.compareViewSessions.dispatch("left", { type: "selection.set",
+        objectRef: h.compareViewSessions.objectRef("left", "cell", "u") });
+    } else {
+      h.state.singleWorkspaceIdentity = createSingleWorkspaceIdentity(h.state);
+      h.selection.setSelectedNode("cell:u", false);
+    }
+    h.history.restoreViewHistoryEntry(original);
+    assert.equal(h.layouts(), 0);
+    assert.equal(h.state.restoringViewHistory, false);
+    assert.deepEqual(compare ? h.state.compare.graphs : h.state.graph, graphs);
+    assert.equal(compare ? h.state.compare.selectedName : h.state.selectedNodeId, null);
+  });
+
+  test(`${compare ? "Compare" : "Single"} Fit resets viewports and records one history operation`, (t) => {
+    const h = setup(t, { compare });
+    const viewport = { x: 45, y: 60, scale: 2 };
+    const setCompare = (side, value) => h.compareViewSessions.dispatch(side, { type: "viewport.set", viewport: value });
+    if (compare) for (const side of ["left", "right"]) setCompare(side, viewport);
+    else h.commands.setSingleTransform(viewport);
+    h.history.recordViewHistory();
+    const before = h.state.viewHistory.entries.length;
+    const canvas = createCanvasController({ state: h.state, elements: h.elements, services: {
+      ...h.services, setCompareTransform: setCompare, applyTransform: h.commands.applyTransform,
+      applyCompareTransforms() {}, setStatus() {}
+    } });
+    h.history.runViewHistoryTransaction({ label: "Fit view" }, () => canvas.fitToView());
+    assert.equal(h.state.viewHistory.entries.length, before + 1);
+    assert.equal(h.layouts(), 0);
+    for (const value of compare ? Object.values(h.state.compare.transforms) : [h.state.transform]) {
+      assert.deepEqual(value, { x: 0, y: 0, scale: 1 });
+    }
+  });
+
   test(`${compare ? "Compare" : "Single"} undo rebuilds an Adjust graph whose published identity still describes the automatic graph`, (t) => {
     const h = setup(t, { compare });
     const original = createViewHistoryEntry(h.state);

@@ -209,65 +209,6 @@ test("app forwards both Focused depths into the module workspace", async () => {
   assert.match(source, /fanoutDepthInput\.addEventListener\("change", scheduleFocusedDepthChange\)/);
 });
 
-test("Focused depth changes preserve the active mode and roots", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function handleFocusedDepthChange\(\) \{([\s\S]*?)\n  \}\n\n  function scheduleFocusedDepthChange/)?.[1] || "";
-
-  assert.match(handler, /setSingleFocusedDepths\(/);
-  assert.match(handler, /executeViewEffects\(result/);
-  assert.match(handler, /shouldCompute: Boolean\(focused && result\?\.effects\?\.layout\)/);
-  assert.doesNotMatch(handler, /setViewMode\(/);
-});
-
-test("single-canvas Focused controls accept a selected net as the replacement root", async () => {
-  const source = await readWorkbenchSource();
-  const controls = source.match(/function updateFocusedRootControl\(\) \{([\s\S]*?)\n  \}/)?.[1] || "";
-  const replace = source.match(/function replaceSingleFocusedRoots\(nodeIds, activeNodeId = null\) \{([\s\S]*?)\n  \}\n\n  function setSingleOverrides/)?.[1] || "";
-
-  assert.match(controls, /selectedSingleNet/);
-  assert.match(controls, /selectedCompareNet \|\| selectedSingleNet/);
-  assert.match(replace, /focusedNetName\(nodeId\)/);
-  assert.match(replace, /singleViewSession\.objectRefForNet\(netName\)/);
-});
-
-test("cross-module View History applies the target entry before its only render", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n  \}\n\n  function createSingleWorkspaceHistoryIdentity/)?.[1] || "";
-
-  assert.match(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", deferRender: true \}\);[\s\S]{0,120}?finish\(state\.graph\);/);
-  assert.doesNotMatch(handler, /selectModule\(entry\.moduleName, \{ historyMode: "restore", onRendered: finish \}\)/);
-});
-
-test("connection navigation reveals hidden cells inside Focused instead of opening Whole", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function focusSingleSelectionTarget/)?.[1] || "";
-
-  assert.match(handler, /type: "selection\.reveal"/);
-  assert.match(handler, /replaceActiveWhenFull: true/);
-  assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
-});
-
-test("hierarchy net navigation switches context before its only render", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function selectionTargetChangesHierarchyContext/)?.[1] || "";
-  const netBranch = handler.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n        \}\n        services\.selectModule/)?.[1] || "";
-
-  assert.match(handler, /runViewHistoryTransaction\(\{ label: "Open hierarchy connection" \}/);
-  assert.match(netBranch, /deferRender: true[\s\S]*replaceFocusWithSelectionTarget\(target\)/);
-  assert.doesNotMatch(netBranch, /onRendered/);
-});
-
-test("hierarchy connection navigation compares occurrence identity, not only module name", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function navigateSingleSelectionTarget\(target\) \{([\s\S]*?)\n  \}\n\n  function focusSingleSelectionTarget/)?.[1] || "";
-  const contextCheck = source.match(/function selectionTargetChangesHierarchyContext\(target\) \{([\s\S]*?)\n  \}/)?.[1] || "";
-
-  assert.match(handler, /selectionTargetChangesHierarchyContext\(target\)/);
-  assert.match(contextCheck, /target\.moduleName !== state\.currentModule\?\.name/);
-  assert.match(contextCheck, /target\.rootModuleName/);
-  assert.match(contextCheck, /sameOccurrencePath\(currentOccurrencePath, targetOccurrencePath\)/);
-});
-
 test("net selection receives the same occurrence context as cell selection", async () => {
   const source = await readWorkbenchSource();
   const handler = source.match(/function renderNetSelection\(netName, side = null\) \{([\s\S]*?)\n\}/)?.[1] || "";
@@ -293,54 +234,6 @@ test("hinst double-click carries a unique child occurrence into the selected mod
   assert.match(handler, /selectModule\(referencedModule\.name, \{ readyMessage, \.\.\.occurrenceNavigation \}\)/);
   assert.match(resolver, /occurrences\.length !== 1/);
   assert.match(resolver, /occurrencePath: \[\.\.\.occurrences\[0\]\.occurrencePath, instance\]/);
-});
-
-test("search reveals a target outside the current canvas through Focused instead of Whole", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
-
-  assert.match(handler, /revealSearchTarget\(/);
-  assert.match(source, /function revealSearchTarget\([\s\S]*?visibleObjectKeys: services\.singleViewSession\.visibleObjectKeys\(\)/);
-  assert.doesNotMatch(handler, /setSingleViewMode\("whole"\)/);
-});
-
-test("hidden net search requires Focused unless routing was explicitly disabled", async () => {
-  const source = await readWorkbenchSource();
-  const activate = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
-  const handler = activate.match(/if \(target\.kind === "net"\) \{([\s\S]*?)\n    \}\n\n    const fullNode/)?.[1] || "";
-
-  assert.match(handler, /resolveSearchTargetAction\(target, state\.graph, state\.fullGraph\)/);
-  assert.match(handler, /could not be focused/);
-  const explicitlyUnrouted = handler.match(/if \(state\.graph\?\.unroutedNets\?\.includes\(target\.name\)\) \{[\s\S]*?return;\n      \}/)?.[0] || "";
-  assert.match(explicitlyUnrouted, /setSelectedNet\(target\.name\);/);
-  assert.doesNotMatch(handler.replace(explicitlyUnrouted, ""), /setSelectedNet\(target\.name\);/);
-});
-
-test("search declares an operation boundary instead of recording history inside selection callbacks", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function activateSearchResult\(result\) \{([\s\S]*?)\n  \}\n\n  function revealSearchTarget/)?.[1] || "";
-
-  assert.match(handler, /setSelectedNode\(positioned\.id, false\)[\s\S]*centerGraphPoint\(/);
-  assert.match(handler, /setSelectedNet\(target\.name, false\)[\s\S]*centerGraphPoint\(/);
-  assert.doesNotMatch(handler, /recordViewHistory/);
-  assert.match(source, /historyActions: \{\s*"activateSearchResult": "[^"]+"/);
-});
-
-test("fit-to-view is one explicit view-history operation", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function fitToView\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
-
-  assert.equal((handler.match(/recordViewHistory\(\)/g) || []).length, 2);
-});
-
-test("view-history restore reuses the workspace for selection-only changes", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function restoreViewHistoryEntry\(entry\) \{([\s\S]*?)\n  \}\n\n  function createSingleWorkspaceHistoryIdentity/)?.[1] || "";
-
-  assert.match(handler, /createSingleWorkspaceHistoryIdentity\(\)/);
-  assert.match(handler, /canReuseWorkspace/);
-  assert.match(handler, /createNetlistScene\(state\.graph/);
-  assert.match(handler, /renderCurrentModuleGraph\(/);
 });
 
 test("viewport gesture history metadata is only written after a completed pan", async () => {
@@ -380,13 +273,6 @@ test("focused net chips retain the active occurrence path", async () => {
   assert.match(handler, /state\.occurrenceContext\?\.occurrencePath/);
 });
 
-test("compare layout dispatches independent side jobs", async () => {
-  const source = await readWorkbenchSource();
-  assert.match(source, /kind: `compare-\$\{side\}-workspace`/);
-  assert.match(source, /workspaceExecution\.execute\(/);
-  assert.match(source, /buildCompareSideWorkspace\(/);
-});
-
 test("compound view actions commit one history transaction", async () => {
   const source = await readWorkbenchSource();
   assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => commitViewHistory\(metadata\)/);
@@ -395,32 +281,6 @@ test("compound view actions commit one history transaction", async () => {
   assert.match(source, /function setCompareViewMode\(mode\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Compare view mode: \$\{mode\}` \}/);
   assert.match(source, /function resetLayoutOverrides\(\) \{[\s\S]*runViewHistoryTransaction\(\{ label: "Reset layout overrides" \}/);
   assert.match(source, /function loadLayoutGolden\(imported, label\) \{[\s\S]*runViewHistoryTransaction\(\{ label: `Load Golden: \$\{label\}` \}/);
-});
-
-test("view bridges forward committed commands to the history boundary", async () => {
-  const main = await readWorkbenchSource();
-  const bus = await readFile(new URL("../../src/application/command_bus.js", import.meta.url), "utf8");
-  assert.match(main, /onDispatch: noteViewCommandDispatch/);
-  assert.match(main, /function noteViewCommandDispatch\(command, result\)/);
-  assert.match(main, /pendingViewCommandMetadata/);
-  assert.match(bus, /onDispatch\?\.\(command, result\)/);
-});
-
-test("toolbar and Alt+Arrow use only the unified view timeline", async () => {
-  const source = await readWorkbenchSource();
-  const navigate = source.match(/function navigateViewHistory\(delta\) \{([\s\S]*?)\n  \}\n\n  function restoreViewHistoryEntry/)?.[1] || "";
-  assert.doesNotMatch(navigate, /ModuleHistory|navigateModuleHistory/);
-  const shortcut = source.match(/function handleModuleHistoryShortcut\(event\) \{([\s\S]*?)\n  \}\n\n  function handleViewHistoryShortcut/)?.[1] || "";
-  assert.match(shortcut, /navigateViewHistory\(event\.key === "ArrowLeft" \? -1 : 1\)/);
-  assert.doesNotMatch(shortcut, /navigateModuleHistory\(event\.key/);
-});
-
-test("compare view-history restore keeps side graphs when computation identity is unchanged", async () => {
-  const source = await readWorkbenchSource();
-  assert.match(source, /function restoreCompareViewHistoryEntry\(/);
-  assert.match(source, /state\.compare\.workspaceIdentity === createCompareWorkspaceHistoryIdentity\(\)/);
-  assert.match(source, /renderGraphMount\(elements\.leftMount/);
-  assert.match(source, /renderCompareGraphs\(/);
 });
 
 test("screen rendering and exports consume prepared scenes", async () => {

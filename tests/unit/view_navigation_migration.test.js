@@ -164,28 +164,43 @@ test("module and Golden imports restore query settings through readonly controll
   assert.deepEqual(state.focusedRootNodeIds, []);
 });
 
-test("Single history restores mode and zero depth before scheduling its destination workspace", () => {
-  const { state, singleViewSession: bridge, node } = setup();
-  bridge.importNavigation({ viewMode: "focused", faninDepth: 0, fanoutDepth: 8, coneDepth: 6,
-    focusedRootNodeIds: [node.id] });
-  const expected = bridge.readQuery();
-  const entry = createViewHistoryEntry(state);
-  bridge.importQuery({ viewMode: "whole", faninDepth: 9, fanoutDepth: 9, coneDepth: 9 });
-  let renders = 0;
-  const services = new Proxy({ singleViewSession: bridge,
-    renderCurrentModuleGraph(options) {
-      renders++;
-      assert.deepEqual(bridge.readQuery(), expected);
-      assert.equal(state.restoringViewHistory, true);
-      options.onCancelled();
+for (const crossModule of [false, true]) {
+  test(`Single history restores its query before one render, crossModule=${crossModule}`, () => {
+    const { state, singleViewSession: bridge, node } = setup();
+    bridge.importNavigation({ viewMode: "focused", faninDepth: 0, fanoutDepth: 8, coneDepth: 6,
+      focusedRootNodeIds: [node.id] });
+    const expected = bridge.readQuery();
+    const entry = createViewHistoryEntry(state);
+    bridge.importQuery({ viewMode: "whole", faninDepth: 9, fanoutDepth: 9, coneDepth: 9 });
+    if (crossModule) {
+      state.currentModule = state.design.modules[1];
+      state.fullGraph = state.graph = buildWorkspaceGraph(state.currentModule);
     }
-  }, { get: (target, key) => key in target ? target[key] : () => {} });
-  const port = createLegacyPort(() => state, Object.keys(state), { writable: true, readOnly: SINGLE_NAVIGATION_FIELDS });
-  createHistoryController({ state: port, services,
-    elements: new Proxy({}, { get: (target, key) => target[key] ||= {} }) }).restoreViewHistoryEntry(entry);
-  assert.equal(renders, 1);
-  assert.equal(state.restoringViewHistory, false);
-});
+    let selections = 0;
+    let renders = 0;
+    const services = new Proxy({ singleViewSession: bridge,
+      selectModule(name, options) {
+        selections++;
+        assert.deepEqual(options, { historyMode: "restore", deferRender: true });
+        state.currentModule = state.design.modules.find((module) => module.name === name);
+        state.fullGraph = state.graph = buildWorkspaceGraph(state.currentModule);
+      },
+      renderCurrentModuleGraph(options) {
+        renders++;
+        assert.equal(state.currentModule.name, entry.moduleName);
+        assert.deepEqual(bridge.readQuery(), expected);
+        assert.equal(state.restoringViewHistory, true);
+        options.onCancelled();
+      }
+    }, { get: (target, key) => key in target ? target[key] : () => {} });
+    const port = createLegacyPort(() => state, Object.keys(state), { writable: true, readOnly: SINGLE_NAVIGATION_FIELDS });
+    createHistoryController({ state: port, services,
+      elements: new Proxy({}, { get: (target, key) => target[key] ||= {} }) }).restoreViewHistoryEntry(entry);
+    assert.equal(renders, 1);
+    assert.equal(selections, Number(crossModule));
+    assert.equal(state.restoringViewHistory, false);
+  });
+}
 
 test("module navigation imports Search-first defaults and restores the saved module query", () => {
   const { state, singleViewSession: bridge, node } = setup();

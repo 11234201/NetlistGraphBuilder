@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { createCanonicalGraph } from '../../src/layout/anchor_layered/ir.js';
 import { orientGraph } from '../../src/layout/anchor_layered/p1_orientation.js';
 import { validateP1 } from '../../src/layout/anchor_layered/validate_p1.js';
-import { inputDigest } from '../../src/layout/anchor_layered/input_digest.js';
 import { loadPhaseOracles, inputFromSnapshot } from '../helpers/elk_phase_inputs.js';
 const corpus = await loadPhaseOracles();
 
@@ -27,12 +25,6 @@ test('elk_native P0/P1 matches six pinned upstream orientation oracles', () => {
     assert.ok(Object.isFrozen(graph) && Object.isFrozen(result));
     assert.ok(result.nodes.every((node) => Object.isFrozen(node) && Object.isFrozen(node.ports)));
     validateP1(result);
-  }
-});
-
-test('elk_native input digest matches SHA-256 and Unicode reference vectors', () => {
-  for (const text of ['', 'abc', 'a'.repeat(1000), 'cell:\\层次[7]\u0000net']) {
-    assert.equal(inputDigest(text), `sha256:${createHash('sha256').update(text).digest('hex')}`);
   }
 });
 

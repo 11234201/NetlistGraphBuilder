@@ -28,7 +28,11 @@ function sourceFiles(directory) {
 }
 
 test("complete runtime module graph is resolved, acyclic and respects layer ownership", () => {
-  const { graph, diagnostics } = buildModuleGraph(readModuleSources(join(projectRoot, "src")));
+  const sources = readModuleSources(join(projectRoot, "src"));
+  for (const name of sources.keys()) {
+    assert.doesNotMatch(name, /(?:^|\/)native_layered\//, "Retired algorithms must not ship under src");
+  }
+  const { graph, diagnostics } = buildModuleGraph(sources);
   assert.deepEqual(diagnostics, [], diagnostics.join("\n"));
   const violations = findBoundaryViolations(graph);
   assert.deepEqual(violations, [], violations.join("\n"));
