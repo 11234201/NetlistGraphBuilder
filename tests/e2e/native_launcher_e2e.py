@@ -69,6 +69,7 @@ class NativeLauncherTest(unittest.TestCase):
         child, ready = self.start("--netlist", str(netlist), "--module", "top", "--fanin-depth", "0")
         base = "http://127.0.0.1:%s" % ready["port"]
         assets = ["index.html", "styles.css", "vendor/elkjs-0.11.1/lib/elk.bundled.js"]
+        assets += [path.relative_to(SOURCE).as_posix() for path in sorted((SOURCE / "vendor/graphviz").iterdir()) if path.is_file()]
         assets += [path.relative_to(SOURCE).as_posix() for path in sorted((SOURCE / "src").rglob("*.js"))]
         for source in assets:
             route = "/" if source == "index.html" else "/" + source
@@ -157,6 +158,9 @@ class NativeLauncherTest(unittest.TestCase):
         license_output = self.command("--licenses")
         self.assertEqual(license_output.returncode, 0)
         self.assertIn(b"Eclipse Public License", license_output.stdout)
+        self.assertIn(b"Viz.js 3.31.0 (MIT)", license_output.stdout)
+        self.assertIn(b"Graphviz 16.1.0 (EPL-2.0)", license_output.stdout)
+        self.assertIn(b"Expat 2.8.5 (MIT)", license_output.stdout)
 
     def test_invalid_state_and_symlink_lock_fail_closed(self):
         self.state.write_text('{"version":1,"pid":0}')

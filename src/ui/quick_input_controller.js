@@ -3,7 +3,8 @@ import { detectQuickInputKind, getQuickInputPriority } from "../app/quickInput.j
 import { createBulkTextInput } from "./bulk_text_input.js";
 import { errorMessage } from "../foundation/log_details.js";
 
-export function createQuickInputController({ elements, windowTarget, loadText, setStatus, logProcess, schedule = defaultSchedule }) {
+export function createQuickInputController({ elements, windowTarget, loadText, setStatus, logProcess,
+  importRequests, getInputPriority = getQuickInputPriority, schedule = defaultSchedule }) {
   const reportFailure = (error, message, context = {}) => {
     if (error?.name === "AbortError") return;
     logProcess?.("error", "import", message, { error, ...context });
@@ -12,18 +13,19 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   let dragDepth = 0;
   let textKind = "netlist";
   let latestFileRequest = 0;
-  let importController = null;
+  let importRequest = null;
   const cancelPendingLoad = () => {
-    importController?.abort();
-    importController = null;
+    importRequest?.cancel();
+    importRequest = null;
     latestFileRequest += 1;
   };
   const beginRequest = () => {
     cancelPendingLoad();
-    importController = new AbortController();
+    importRequest = importRequests.begin();
     return latestFileRequest;
   };
-  const libraryOptions = (kind) => kind === "liberty" ? { signal: importController?.signal } : {};
+  const isCurrent = (requestId) => requestId === latestFileRequest && importRequest?.isCurrent();
+  const libraryOptions = (kind) => kind === "liberty" ? { signal: importRequest?.signal } : {};
   const checkFileSize = (file, kind) => {
     if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
   };
@@ -48,7 +50,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const requestId = beginRequest();
     const entries = [];
     for (const [order, file] of [...files].entries()) {
-      if (requestId !== latestFileRequest) return;
+      if (!isCurrent(requestId)) return;
       let classificationText = null;
       let kind;
       try {
@@ -58,10 +60,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
           // Sniff unknown formats cheaply, but classify JSON from the complete
           // object: root fields may occur after the prefix or use escaped keys.
           classificationText = file.slice ? await file.slice(0, 65536).text() : await file.text();
-          if (requestId !== latestFileRequest) return;
+          if (!isCurrent(requestId)) return;
           if (file.slice && (/\.json$/i.test(file.name) || classificationText.trimStart().startsWith("{"))) {
             classificationText = await file.text();
-            if (requestId !== latestFileRequest) return;
+            if (!isCurrent(requestId)) return;
           }
           kind = detectQuickInputKind(classificationText, { name: file.name });
           // Re-read real Files at import time instead of retaining every JSON
@@ -69,21 +71,21 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
           if (file.slice) classificationText = null;
         }
       } catch (error) {
-        if (requestId !== latestFileRequest) return;
+        if (!isCurrent(requestId)) return;
         reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, operation: "classify-file" });
         continue;
       }
       entries.push({ file, classificationText, kind, name: file.name, order });
     }
-    if (requestId !== latestFileRequest) return;
+    if (!isCurrent(requestId)) return;
     if (entries.filter((entry) => entry.kind === "liberty").length > 1) {
       reportFailure(undefined, "Load failed: choose one Liberty file per batch", { operation: "import-batch" });
       return;
     }
-    entries.sort((a, b) => getQuickInputPriority(a.kind) - getQuickInputPriority(b.kind) || a.order - b.order);
+    entries.sort((a, b) => getInputPriority(a.kind) - getInputPriority(b.kind) || a.order - b.order);
     let designLoaded = !entries.some((entry) => entry.kind === "netlist");
     for (const entry of entries) {
-      if (requestId !== latestFileRequest) return;
+      if (!isCurrent(requestId)) return;
       if (entry.kind !== "netlist" && entry.kind !== "liberty" && !designLoaded) {
         setStatus(`Skipped ${entry.name}: no netlist in this batch loaded successfully`);
         continue;
@@ -91,12 +93,12 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       try {
         checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
-        if (requestId !== latestFileRequest) return;
+        if (!isCurrent(requestId)) return;
         await loadText(text, { kind: entry.kind, label: entry.name, ...libraryOptions(entry.kind) });
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
         if (error?.name === "AbortError") return;
-        if (requestId !== latestFileRequest) return;
+        if (!isCurrent(requestId)) return;
         reportFailure(error, `Load failed ${entry.name}: ${errorMessage(error)}`, { fileName: entry.name, kind: entry.kind, operation: "import-batch" });
       }
     }
@@ -109,11 +111,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     try {
       checkFileSize(file, preferredKind);
       const text = await file.text();
-      if (requestId !== latestFileRequest) return;
+      if (!isCurrent(requestId)) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
       await loadText(text, { kind, label: file.name, ...libraryOptions(kind) });
     } catch (error) {
-      if (requestId === latestFileRequest) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, kind: preferredKind, operation: "import-file" });
+      if (isCurrent(requestId)) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, kind: preferredKind, operation: "import-file" });
     } finally {
       input.value = "";
     }
@@ -164,9 +166,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const submittedDialogSession = dialogSession;
     try {
       await loadText(source, { kind: textKind, label: textKind === "timing" ? "pasted timing" : "pasted Verilog" });
-      if (requestId === latestFileRequest && submittedDialogSession === dialogSession) closeDialog();
+      if (isCurrent(requestId) && submittedDialogSession === dialogSession) closeDialog();
     } catch (error) {
-      if (requestId === latestFileRequest && submittedDialogSession === dialogSession) {
+      if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
         reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind: textKind, operation: "paste-text" });
         elements.textInput.focus();
       }
@@ -215,7 +217,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const label = kind === "liberty" ? "pasted Liberty" : kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
     try { await loadText(text, { kind, label, ...libraryOptions(kind) }); }
     catch (error) {
-      if (requestId === latestFileRequest) reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind, operation: "paste-text" });
+      if (isCurrent(requestId)) reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind, operation: "paste-text" });
     }
   });
 

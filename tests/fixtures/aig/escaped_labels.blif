@@ -1,0 +1,28 @@
+.model escaped_labels
+.inputs \foo literal\n literal\N literal\r literal\l literal\t pair\\n triple\\\foo tail\ quote"\foo 汉字\foo <&>\foo
+.outputs \out output\n output\N output\r output\l output\t pair\\out triple\\\out tail_out out"\foo 输出\foo <&>\out
+.names \foo \out
+1 1
+.names literal\n output\n
+1 1
+.names literal\N output\N
+1 1
+.names literal\r output\r
+1 1
+.names literal\l output\l
+1 1
+.names literal\t output\t
+1 1
+.names pair\\n pair\\out
+1 1
+.names triple\\\foo triple\\\out
+1 1
+.names tail\ tail_out
+1 1
+.names quote"\foo out"\foo
+1 1
+.names 汉字\foo 输出\foo
+1 1
+.names <&>\foo <&>\out
+1 1
+.end

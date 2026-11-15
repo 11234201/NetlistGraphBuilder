@@ -1,0 +1,16 @@
+{
+  "package": "@viz-js/viz",
+  "version": "3.31.0",
+  "graphvizVersion": "16.1.0",
+  "expatVersion": "2.8.5",
+  "source": "https://github.com/mdaines/viz-js/tree/release-viz-3.31.0",
+  "archive": "https://registry.npmjs.org/@viz-js/viz/-/viz-3.31.0.tgz",
+  "wasm": "embedded in viz.js",
+  "fontResources": [],
+  "files": [
+    { "path": "viz.js", "bytes": 1188719, "sha256": "b9840ae5b70681356c207510db8820ac3f883607740616455d9c7c47d67ea646" },
+    { "path": "VIZ-LICENSE.txt", "bytes": 1066, "sha256": "f1fb91bf7cbcb42b2af56949e4fa909e1979d5b57c2826cabacdb4b631457720" },
+    { "path": "GRAPHVIZ-LICENSE.txt", "bytes": 14198, "sha256": "0becf16567beb77fa252b7664631dd177c8f9a1889e48995b45379c7130e5303" },
+    { "path": "EXPAT-LICENSE.txt", "bytes": 1144, "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87" }
+  ]
+}

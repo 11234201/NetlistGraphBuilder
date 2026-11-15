@@ -1,0 +1,27 @@
+aag 12 4 0 3 8
+2
+4
+6
+8
+21
+22
+25
+10 4 2
+12 6 3
+14 13 11
+16 10 8
+18 15 9
+20 19 17
+22 6 4
+24 23 8
+i0 a
+i1 b
+i2 c
+i3 d
+o0 y
+o1 shared
+o2 masked
+c
+Shared reconvergent AIG for drawing comparison.
+4 inputs, 8 AND nodes, 3 outputs, 4 logic levels.
+No synthesis optimization is applied.

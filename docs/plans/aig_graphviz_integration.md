@@ -1,6 +1,6 @@
 # AIG 主界面接入计划
 
-日期：2026-11-14。状态：待实施。本轮只编制计划，不修改运行时代码。
+日期：2026-11-14；实施完成：2026-11-15。状态：P0–P5 已完成。实际验证、发布包及保留的压力边界见 [验收记录](../reports/aig_integration_acceptance.md)。
 
 代码检查基线：`9efb8c7`（v1.4.1 工作区）。视觉和格式依据：[mockturtle 风格选择](../research/aig_mockturtle_style.md)、[带名称的 DOT / BLIF 同图实跑](../research/aig_dot_blif_consistency.md)。研究原型的 12 项检查已通过；它不是生产导入器，也不能直接作为浏览器运行时。
 
@@ -204,4 +204,4 @@ DOT 语法优先评估用同一 Graphviz 运行时的 `dot_json` 解析，再做
 
 建议提交按 P0–P5 分批，先得到主界面外的真实浏览器 AIG 流水线，再接菜单和会话。最终交付包含：生产源代码、成对 fixture 与专项测试、真实主界面操作证据、网表回归报告、离线发布验证和更新后的架构/使用文档。
 
-当前状态：仅本计划完成；P0–P5 均未开始。本计划没有授权 Simple 解冻，也没有将研究原型标记为生产支持。
+实施记录：见 [执行计划](execution-plan.md)、[工作日志](../progress/work-log.md) 与 [验收记录](../reports/aig_integration_acceptance.md)。P0 基线、P1 生产模型、P2 离线 Worker、P3 Scene/分析、P4 主界面、P5 回归/离线包均完成。Simple 保持冻结，后续 Compare/转换需求未并入本轮。

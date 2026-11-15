@@ -69,3 +69,33 @@ test("Escape consumes only the visible search layer before shell drawers", () =>
   controls.handleSearchKeydown(event);
   assert.equal(prevented, 1, "An already closed search leaves Escape to the shell");
 });
+
+test("search result activation closes its popup and arrow navigation can reopen it", () => {
+  const elements = { searchInput: { value: "node" }, searchResults: { hidden: true, innerHTML: "", querySelector: () => null }, searchClearButton: {} };
+  const result = { id: "node", kind: "pi", label: "node" };
+  const actions = [];
+  const controls = createSearchControls({ elements, getIndex: () => [], search: () => [result],
+    onActivate: (value) => actions.push(value), onAdd() {}, onChange() {} });
+  controls.handleSearchInput();
+  controls.handleSearchKeydown({ key: "Enter", preventDefault() {} });
+  assert.equal(elements.searchResults.hidden, true);
+  assert.equal(elements.searchInput.value, "node");
+  controls.handleSearchKeydown({ key: "ArrowDown", preventDefault() {} });
+  assert.equal(elements.searchResults.hidden, false);
+  controls.handleSearchResultClick({ target: { closest: (selector) => selector === "[data-search-index]" ? { dataset: { searchIndex: "0" } } : null } });
+  assert.equal(elements.searchResults.hidden, true);
+  assert.deepEqual(actions, [result, result]);
+});
+
+test("IME composition keeps search keys in the input instead of activating results", () => {
+  const elements = { searchInput: { value: "node" }, searchResults: { hidden: true, innerHTML: "", querySelector: () => null }, searchClearButton: {} };
+  let activated = false, prevented = false;
+  const controls = createSearchControls({ elements, getIndex: () => [], search: () => [{ id: "node", kind: "pi", label: "node" }],
+    onActivate: () => { activated = true; }, onAdd() {}, onChange() {} });
+  controls.handleSearchInput();
+  for (const key of ["Enter", "ArrowDown", "ArrowUp", "Escape"]) controls.handleSearchKeydown({ key, isComposing: true,
+    preventDefault() { prevented = true; } });
+  assert.equal(activated, false);
+  assert.equal(prevented, false);
+  assert.equal(elements.searchResults.hidden, false);
+});

@@ -29,7 +29,7 @@ import { SINGLE_VIEW_STATE_FIELDS, COMPARE_VIEW_STATE_FIELDS } from "./view_stat
 import { createNetRoutingBridge } from "./net_routing_bridge.js";
 
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
-export function createWorkbenchControllers({ state, getElements, services }) {
+export function createWorkbenchControllers({ state, getElements, services, routeAction = (_name, action, args) => action(...args) }) {
   const actions = Object.create(null);
   const netRouting = createNetRoutingBridge({
     readContext: (side) => ({
@@ -53,7 +53,8 @@ export function createWorkbenchControllers({ state, getElements, services }) {
     }),
     elements: createLegacyPort(getElements, ports.elements),
     services: createLegacyPort(() => services, ports.services),
-    ...(owner === "inspector" ? { netRouting } : {})
+    ...(owner === "inspector" ? { netRouting } : {}),
+    ...(owner === "cell-config" ? { present: (action) => routeAction("presentCellConfig", action, []) } : {})
   });
   const controllers = [
     ["input", createInputController, inputPorts], ["sidebar", createSidebarController, sidebarPorts],
@@ -90,10 +91,11 @@ export function createWorkbenchControllers({ state, getElements, services }) {
     for (const [name, action] of Object.entries(controller)) {
       if (owners.has(name)) throw new Error(`Duplicate controller action ${name}: ${owners.get(name)} and ${owner}`);
       owners.set(name, owner);
-      actions[name] = ports.historyActions?.[name]
+      const invoke = ports.historyActions?.[name]
         ? (...args) => args.some((arg) => arg?.historyMode === "restore") ? action(...args)
           : services.runViewHistoryTransaction({ label: ports.historyActions[name] }, () => action(...args))
         : action;
+      actions[name] = (...args) => routeAction(name, invoke, args);
     }
   }
   return Object.freeze(actions);
@@ -128,7 +130,7 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
 });
 
 const OBJECT_SERVICE_KEYS = new Set([
-  "browserDownload", "cellConfigUseCases", "compareViewSessions", "documents", "layoutSpacingController",
+  "browserDownload", "cellConfigUseCases", "compareViewSessions", "documents", "importRequests", "layoutSpacingController",
   "moduleHierarchyController", "netlistFeature", "processLogController", "renderGeneration",
   "schematicSelectionController", "singleViewSession", "timingDisplayController",
   "viewSessions", "wheelGestureController", "workspaceExecution", "workspaceJobs"

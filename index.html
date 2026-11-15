@@ -16,6 +16,8 @@
           <div class="toolbar-menu-popover">
             <span class="menu-heading">Import</span>
             <label class="menu-action" tabindex="0"><input id="fileInput" type="file" accept=".v,.sv,.txt">Open netlist…</label>
+            <label class="menu-action" tabindex="0"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif">Open AIG… <span class="help-text">ABC AIG DOT / AND-NOT BLIF</span></label>
+            <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
             <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
             <label class="menu-action" tabindex="0"><input id="timingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing…</label>
             <button id="pasteTimingButton" class="menu-action" type="button">Paste timing…</button>

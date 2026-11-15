@@ -32,6 +32,36 @@ test("panel drag previews only DOM transforms and releases one final viewport co
   controller.dispose();
 });
 
+test("preview-aware consumers retain resize ownership until one final commit", () => {
+  const fixture = createFixture();
+  const previews = [];
+  const controller = fixture.create({ previewViewport(id, viewport) {
+    previews.push([id, viewport]);
+    fixture.views[0].viewport = viewport;
+    return true;
+  } });
+  fixture.resize(controller, 500, true);
+  assert.deepEqual(fixture.commits, []);
+  assert.deepEqual(fixture.views[0].viewport, { x: -300, y: -150, scale: 4 });
+  fixture.resize(controller, 400, true);
+  assert.equal(previews.length, 2);
+  fixture.resize(controller, 400, false);
+  assert.deepEqual(fixture.commits, [["single", { x: -500, y: -250, scale: 5 }]]);
+  controller.dispose();
+});
+
+test("a gesture taking over a published resize preview cannot be overwritten at resize settlement", () => {
+  const fixture = createFixture();
+  const controller = fixture.create({ previewViewport(_id, viewport) { fixture.views[0].viewport = viewport; return true; } });
+  fixture.resize(controller, 500, true);
+  fixture.views[0].viewport = { x: -340, y: -170, scale: 4.4 };
+  fixture.content.setAttribute("transform", formatViewportTransform(fixture.views[0].viewport));
+  fixture.resize(controller, 500, false);
+  assert.deepEqual(fixture.commits, []);
+  assert.equal(fixture.content.getAttribute("transform"), formatViewportTransform(fixture.views[0].viewport));
+  controller.dispose();
+});
+
 test("new SVG and external viewport changes cannot inherit a stale resize baseline", () => {
   const fixture = createFixture();
   const controller = fixture.create();

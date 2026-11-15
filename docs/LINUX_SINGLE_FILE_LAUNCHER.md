@@ -1,6 +1,6 @@
 # Linux 单文件启动器、CMake 构建与 EDA/Tcl 集成指南
 
-本文档对应当前主干代码与 `v1.4.0` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
+本文档对应当前主干代码与 `v1.5.0` 发布包。历史实测记录与后续规划见 [Linux 启动器维护计划](plans/linux_launcher_maintenance.md)。
 
 启动后的界面操作见 [完整使用教程](USER_GUIDE.md)，其中 [左右面板隐藏与恢复](USER_GUIDE.md#21-隐藏恢复与调整左右面板) 说明如何为中央画布腾出空间。Linux 单文件内嵌构建时的界面资源；采用新版工作台时需重新构建或换用新二进制，更新外部 HTML/CSS 不会改变已有可执行文件中的界面。
 
@@ -11,7 +11,7 @@
 | `node tools/serve.mjs` | Node.js 18+ | 源码开发调试；在绑定端口前复用项目 parser 执行网表与目标语义预校验 |
 | `python3 -u tools/serve.py` | Python 3 标准库 | 无法运行新版 Node.js 的 Linux 源码预览环境 |
 | Windows `NetlistGraphBuilder.exe` | 同级目录下的 `app/` 资源 | Windows 离线发布包（非 Linux 可执行程序） |
-| Linux `ngb` | Linux 基础系统 C/C++ 库 | 单个 ELF 可执行文件（已内嵌全部前端源码与 ELK 资源），无需安装 Node.js、Python 或携带外部资源目录 |
+| Linux `ngb` | Linux 基础系统 C/C++ 库 | 单个 ELF 可执行文件（已内嵌全部前端源码、ELK、Graphviz/WASM 与许可证），无需安装 Node.js、Python 或携带外部资源目录 |
 
 **职责边界说明**：
 - `ngb` 仅负责读取显式指定的输入文件、生成启动清单（startup manifest）并提供仅限本机回环（`127.0.0.1`）的 HTTP 服务，不在 C++ 层重复实现 Verilog 解析、Netlist IR、单元推断、布局或渲染逻辑。

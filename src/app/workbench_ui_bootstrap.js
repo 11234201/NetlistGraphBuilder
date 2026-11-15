@@ -6,10 +6,11 @@ import { createWorkbenchContextController } from "../ui/workbench_context_contro
 
 export function createWorkbenchUi({
   document, windowTarget, readViews, readContext, subscribe, singleViewSession,
-  compareViewSessions, applyTransform, applyCompareTransforms, closeLog, onPreferenceError
+  compareViewSessions, applyTransform, applyCompareTransforms, closeLog, onPreferenceError, domainViewport
 }) {
   const viewport = createWorkbenchViewportBridge({
-    readViews, singleViewSession, compareViewSessions, applyTransform, applyCompareTransforms, windowTarget
+    readViews, singleViewSession, compareViewSessions, applyTransform, applyCompareTransforms, windowTarget,
+    commitView: domainViewport?.commit, previewView: domainViewport?.preview
   });
   const preferences = createUiPreferencesStore({ windowTarget, onError: onPreferenceError });
   const shell = createWorkbenchShell({ document, windowTarget, preferences, onViewportResize: viewport.onViewportResize });

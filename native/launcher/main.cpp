@@ -722,14 +722,24 @@ void printUsage(const char* command) {
 }
 
 int printLicenses() {
-    const ngb::EmbeddedAsset* license = ngb::findEmbeddedAsset("vendor/elkjs-0.11.1/LICENSE.md");
-    std::cout << "Netlist Graph Builder native launcher\n"
-              << "Embedded dependency: ELK.js 0.11.1 (EPL-2.0)\n\n";
-    if (!license) {
-        std::cerr << "Embedded ELK.js license is missing" << std::endl;
-        return 1;
+    const char* licensePaths[] = {
+        "vendor/elkjs-0.11.1/LICENSE.md", "vendor/graphviz/VIZ-LICENSE.txt",
+        "vendor/graphviz/GRAPHVIZ-LICENSE.txt", "vendor/graphviz/EXPAT-LICENSE.txt"
+    };
+    const char* labels[] = {
+        "ELK.js 0.11.1 (EPL-2.0)", "Viz.js 3.31.0 (MIT)",
+        "Graphviz 16.1.0 (EPL-2.0)", "Expat 2.8.5 (MIT)"
+    };
+    std::cout << "Netlist Graph Builder native launcher\n";
+    for (std::size_t index = 0; index < sizeof(licensePaths) / sizeof(licensePaths[0]); ++index) {
+        const ngb::EmbeddedAsset* license = ngb::findEmbeddedAsset(licensePaths[index]);
+        if (!license) {
+            std::cerr << "Embedded license is missing: " << licensePaths[index] << std::endl;
+            return 1;
+        }
+        std::cout << "\nEmbedded dependency: " << labels[index] << "\n\n";
+        std::cout.write(reinterpret_cast<const char*>(license->data), license->size);
     }
-    std::cout.write(reinterpret_cast<const char*>(license->data), license->size);
     return 0;
 }
 

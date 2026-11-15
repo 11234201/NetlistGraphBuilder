@@ -43,6 +43,7 @@ export function bindWorkbenchEvents({ elements, commands, compare, search, windo
       searchClearButton: elements.searchClearButton
     },
     getIndex: search.getIndex,
+    search: search.search,
     onActivate: activateSearchResult,
     onAdd: addSearchResultToFocus,
     onChange: search.onChange

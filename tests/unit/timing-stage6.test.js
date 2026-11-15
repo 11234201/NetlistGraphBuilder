@@ -6,6 +6,7 @@ import { createInputController } from "../../src/app/input_controller.js";
 import { detectQuickInputKind } from "../../src/app/quickInput.js";
 import { sampleTiming } from "../../src/app/sampleTiming.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
+import { createImportRequests } from "../../src/application/import_requests.js";
 import { buildWorkspaceGraph } from "../../src/domains/netlist/netlist_graph_projection.js";
 import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
@@ -248,6 +249,7 @@ test("default startup opens built-in sample module with timing initialized and v
   const noOp = () => {};
   const services = new Proxy({
     ...createTestViewBridges(state),
+    importRequests: createImportRequests(),
     documents: createDocumentStore(),
     viewSessions: { closeByDocument: noOp },
     workspaceJobs: { cancelDocument: noOp },

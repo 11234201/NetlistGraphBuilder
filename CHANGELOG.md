@@ -2,6 +2,16 @@
 
 本项目遵循语义化版本号（Semantic Versioning）规范。
 
+## [1.5.0] - 2026-11-15
+
+- 新增 AIG Single / Whole 工作区：离线打开 ABC AIG DOT 与平坦 AND/NOT BLIF，保留输入输出名称、独立输入槽位、反相边和来源信息；首版不提供 AIGER、AIG Compare 或 Netlist→AIG 转换。
+- 将 Graphviz/Viz.js/WASM 随 Windows 和 Linux 离线包分发，采用可取消的 Worker、有界布局和渐进式 SVG 挂载；布局失败或取消保留原可用视图。
+- 提供 AIG Navigator / Inspector、名称与来源搜索、分页筛选、逻辑关键路径与高扇出高亮、完整图 SVG 导出及标签页恢复。
+- 修复跨领域及启动导入竞态、混合 Netlist/Liberty 导入、标签转义与空白、面板键盘/输入法、视口手势交接、缩放坐标和即时刷新恢复；存档配额不足不再复活旧图。
+- 隔离网表诊断和延迟 Cell Config 界面效果，修复并发配置导入覆盖新定义；完善剪贴板失败处理和离线资源/许可证检查。
+- 纳入已完成的 ELK 测量端口修复，保留固定端点、正交路段和稳定端口标识；Simple 算法、策略及冻结基线保持不变。
+- 验证记录：1294 项单元测试通过，AIG 主界面/交互/shell/存档浏览器回归 28 项通过，通用 UI 9 项通过；详细证据见 `docs/reports/aig_integration_acceptance.md`。
+
 ## [1.4.1] - 2026-11-14
 
 - 统一 Single / Compare 的 ViewSession 写入入口、视图模式与查询深度，旧格式只在导入边界转换，消除运行时对旧状态的兼容回读。

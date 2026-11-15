@@ -318,3 +318,16 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 `cellLibrary` 显式传入 workspace/feature 查询。full graph、布局衍生缓存与工作区 identity 使用不可变库引用身份；层次模板缓存同时核对库、配置、覆盖引用。替换/卸载取消旧工作区任务并通过现有 Single/Compare 生命周期重建。库没有 Session/Golden/localStorage 序列化或启动器协议扩展。
 
 具体支持子集、资源限制与验证入口见 [实施计划](plans/liberty_reader_implementation.md) 和 [验证报告](research/liberty_reader_validation.md)。
+
+## AIG Single 领域接入（2026-11-15）
+
+- `domains/aig/` 拥有 DOT/BLIF 结构解析、AND/NOT 语义、保留 multiplicity 的有界规范化、单位 AND 深度与独立关键边分析、来源/搜索索引、稳定 DOT 投影及惰性 Scene。运行时不导入 Python 研究原型，也不支持生产 AIGER。
+- `bootstrap/default_domains.js` 静态注册 Netlist 与 AIG。AIG 的 `createWorkspaceStages` 贡献通过公共 `runViewPipeline` 执行；应用公共层没有领域 ID 分支。AIG 曲线使用 `curve-geometry.v1` 的中心/边界、三次样条路径、箭头及文字坐标，不进入 `edge.points`、wireRoutes、正交 validator 或 Adjust。
+- `application/domain_workspace.js` 在独立候选 Document/ViewSession 中运行 JobCoordinator，首个 Scene 成功后由装配层在分离 DOM 中渐进挂载并原子提交。失败、取消、过期成功或错误不会替换当前视图；候选和旧文档的 jobs、sessions、artifacts 随生命周期释放。
+- `application/import_requests.js` 统一文档输入的请求生命周期，由 `workspace_services` 创建并显式注入 AIG、quick-input 与启动清单控制器。文件选择、拖放和粘贴在读取前使旧请求失效；启动 fetch、后续各导入阶段及错误回退均受同一请求保护，取消候选不清除已提交工作区。`app/workbench_input_bindings.js` 负责 quick-input 接线，通过注入的导入路由与批次优先级，在 AIG 中先成功载入 Netlist 再应用其附件，Netlist 内保留库文件优先策略；`app/workbench_startup.js` 组合存储恢复与领域启动。
+- `platform/graphviz_runtime.js` 按需启动静态 module Worker，固定 Viz.js 3.31.0 / Graphviz 16.1.0。WASM 内含于 `vendor/graphviz/viz.js`；同步计算通过终止 Worker 取消，20 秒硬超时，同一实例可重建。只有 `platform/graphviz_vendor.js` 到该确切资源的导入获准越过 src 边界，资源哈希/许可证清单与递归依赖检查仍生效。
+- `app/domain_workbench.js` 是领域装配与 legacy 工作台适配器，不传递完整全局 state。命令路由在活跃领域能力边界拦截旧操作；Netlist 控制器保留现有职责。异步 Cell Config 的全局配置保存与界面更新分离，后者通过窄 `present` 回调重新经过领域路由。`ui/domain_canvas_controller.js` 复用 viewport、pan、pointerSession 和帧调度，手势中仅变换 DOM，结束才保存会话；跨文档手势由代际保护隔离。领域通过 `viewport.read/preview/commit` 与共享 resize 边界交接当前可见视口，预览通知不持久化；未采用该接口的工作区保持原有行为。
+- AIG Navigator / Inspector 的纯呈现器消费索引与查询回调，列表每页最多 100 项。`ui/aig_panel_interactions.js` 拥有组合输入与重绘后的键盘焦点，使用窄操作/筛选回调接入。选择复用缓存筛选与对象索引；高亮仅改受控图元属性，不解析、分析或布局。样条有独立透明命中路径，反相槽位从不合并。
+- 领域存档 `ngb.domain-workspace.v1` 包含格式/源文本、规范化版本、选区、视口、面板与分析策略；Worker、WASM、Scene 闭包和几何仅存在运行时。旧网表存档独立解码。存储访问失败不阻止网表或 AIG 浏览。
+- Graphviz 结果缓存最多四项/20000 节点，键含文档修订、规范化/显示版本、字体、引擎版本和完整布局请求；选区、高亮、视口不进入布局键。Simple 冻结文件与输出保持原样。
+- Graphviz 曲线转换可接收投影提供的完整纯文本 `nodeLabels`，以原始标签补足 JSON 绘图命令对连续反斜杠的截断，位置、对齐与空行间距仍来自引擎。AIG 投影提供该映射，显示版本为 3；公共几何层不读取 AIG 模型。

@@ -9,7 +9,7 @@ import { errorMessage } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createCellConfigController({ state, elements, services }) {
+export function createCellConfigController({ state, elements, services, present = (action) => action() }) {
   let activeCellDefinition = null;
   function openSelectedCellDefinition() {
     const node = state.fullGraph?.nodes.find((item) => item.id === state.selectedNodeId)
@@ -56,8 +56,13 @@ export function createCellConfigController({ state, elements, services }) {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const prepared = services.cellConfigUseCases.prepareImport(state.cellConfig, await file.text());
-      if (prepared.conflicts.length && !window.confirm(`Replace ${prepared.conflicts.length} existing Cell Config definition(s): ${prepared.conflicts.join(", ")}?`)) return;
+      const source = await file.text();
+      const prepared = services.cellConfigUseCases.prepareImport(state.cellConfig, source);
+      if (prepared.conflicts.length) {
+        const confirmed = present(() => window.confirm(`Replace ${prepared.conflicts.length} existing Cell Config definition(s): ${prepared.conflicts.join(", ")}?`));
+        if (confirmed === undefined) services.logProcess("warning", "import", `Cell Config ${file.name} requires confirmation in the Netlist workspace; definitions were not changed`, { fileName: file.name });
+        if (!confirmed) return;
+      }
       commitConfigChange("import-cell-config", () => services.cellConfigUseCases.commitImport(prepared),
         `Imported Cell Config ${file.name}: ${Object.keys(prepared.incoming.cells).length} definition(s)`, { fileName: file.name });
     } catch (error) {
@@ -90,7 +95,7 @@ export function createCellConfigController({ state, elements, services }) {
   function reportFailure(error, phase, label, details) {
     const message = `${label}: ${errorMessage(error)}`;
     services.logProcess("error", phase, message, { error, ...details });
-    services.setStatus(message);
+    present(() => services.setStatus(message));
   }
 
   function commitConfigChange(operation, commit, message, details, closeEditor = false) {
@@ -102,8 +107,10 @@ export function createCellConfigController({ state, elements, services }) {
     }
     services.logProcess("info", "persistence", message, { operation, ...details });
     try {
-      if (closeEditor) closeCellDefinitionDialog();
-      rebuildAfterCellConfigChange(message);
+      present(() => {
+        if (closeEditor) closeCellDefinitionDialog();
+        rebuildAfterCellConfigChange(message);
+      });
     } catch (error) {
       reportFailure(error, "render", "Cell Config saved, but workspace refresh failed", { operation, ...details });
     }

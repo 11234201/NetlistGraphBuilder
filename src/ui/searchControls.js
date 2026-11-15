@@ -1,18 +1,19 @@
 import { searchDesignIndex } from "../search/designSearch.js";
 import { escapeAttr, escapeHtml } from "./html.js";
 
-export function createSearchControls({ elements, getIndex, onActivate, onAdd, onChange }) {
+export function createSearchControls({ elements, getIndex, onActivate, onAdd, onChange, search = searchDesignIndex }) {
   const state = { searchQuery: "", searchResults: [], activeSearchResult: -1 };
   function handleSearchInput() {
     const query = elements.searchInput.value;
     state.searchQuery = query;
-    state.searchResults = searchDesignIndex(getIndex(), query);
+    state.searchResults = search(getIndex(), query);
     state.activeSearchResult = state.searchResults.length > 0 ? 0 : -1;
     onChange(state);
     renderSearchResults();
   }
 
   function handleSearchKeydown(event) {
+    if (event.isComposing) return;
     if (event.key === "Escape") {
       if (!elements.searchResults.hidden) event.preventDefault();
       elements.searchResults.hidden = true;
@@ -28,7 +29,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
 
     event.preventDefault();
     if (event.key === "Enter") {
-      onActivate(state.searchResults[Math.max(0, state.activeSearchResult)]);
+      activateResult(state.searchResults[Math.max(0, state.activeSearchResult)]);
       return;
     }
 
@@ -50,7 +51,13 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
     if (!button) {
       return;
     }
-    onActivate(state.searchResults[Number(button.dataset.searchIndex)]);
+    activateResult(state.searchResults[Number(button.dataset.searchIndex)]);
+  }
+
+  function activateResult(result) {
+    if (!result) return;
+    elements.searchResults.hidden = true;
+    onActivate(result);
   }
 
   function renderSearchResults() {
@@ -73,7 +80,7 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
         const active = index === state.activeSearchResult;
         const context = result.kind === "module"
           ? result.detail
-          : `${result.detail} / ${result.moduleName}`;
+          : `${result.detail || ""}${result.moduleName ? ` / ${result.moduleName}` : ""}`;
         const addAction = result.kind === "net" || result.target?.kind === "cell"
           ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">Add to Focused</button>`
           : "";

@@ -18,15 +18,18 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createInputController({ state, elements, services }) {
   async function initializeApplication(session) {
+    const request = services.importRequests.begin();
     try {
-      const manifest = await fetchStartupManifest(globalThis.location?.search || "");
+      const manifest = await fetchStartupManifest(globalThis.location?.search || "", undefined, { signal: request.signal });
+      if (!request.isCurrent()) return;
       if (!manifest) {
         await loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
         return;
       }
       services.logProcess("info", "launcher", "Applying EDA startup manifest");
-      await executeStartupManifest(manifest, createStartupHandlers());
+      await executeStartupManifest(manifest, createStartupHandlers(), { signal: request.signal });
     } catch (error) {
+      if (!request.isCurrent() || error?.name === "AbortError") return;
       services.logProcess("error", "launcher", `Startup failed: ${error.message}`, { error });
       if (!state.currentModule) await loadDesign(sampleNetlist, "built-in sample");
     }
@@ -268,7 +271,7 @@ export const inputPorts = Object.freeze({
   ],
   services: [
     "compareViewSessions",
-    "clearSearch", "documents", "focusStartupCell", "focusStartupCells",
+    "clearSearch", "documents", "focusStartupCell", "focusStartupCells", "importRequests",
     "singleViewSession", "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
     "recordViewHistory", "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
     "selectModule", "selectStartupModule", "setSingleOverrides", "setSingleTransform", "setStatus", "viewSessions",

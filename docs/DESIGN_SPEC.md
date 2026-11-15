@@ -96,3 +96,9 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 ## Liberty 导入交互
 
 全局栏 `Liberty` 展开独立浮层，提供 Load .lib、扫描期间 Cancel import 和 Unload。复用工具栏展开/互斥、点击外部及 Escape 收起行为；收起仅隐藏面板，不取消导入或卸载库。摘要显示文件、cell 数与告警数，文本安全写入。文件选择、拖放和非输入区粘贴走同一导入用例。新导入准备完成前保留上次有效库；语法失败不清空旧快照。提交后刷新活动 Single/Compare 工作区，保留既有视口与显式布局覆盖；刷新失败与库解析失败分别报告。库来源与原始 function 在 Inspector 中可见；缺失接口和配置冲突在 Diagnostics 中可见。页面刷新需重载库。
+
+## AIG 图形与工作台（2026-11-15）
+
+AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 原名与内部稳定编号分开，虚线逐边表示反相。关键节点红色填充、关键边红色加粗、扇出橙色边框、选择蓝色外框可叠加，开关不改变布局。
+
+Navigator 使用 Design / Objects；Inspector 使用 Connections / Analysis / Source。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。

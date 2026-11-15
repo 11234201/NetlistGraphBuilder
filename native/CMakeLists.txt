@@ -16,7 +16,13 @@ set(NGB_ASSETS
     "${NGB_SOURCE_ROOT}/styles.css"
     ${NGB_SOURCE_ASSETS}
     "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/lib/elk.bundled.js"
-    "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/LICENSE.md")
+    "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/LICENSE.md"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/viz.js"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/manifest.json"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/README.md"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/VIZ-LICENSE.txt"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/GRAPHVIZ-LICENSE.txt"
+    "${NGB_SOURCE_ROOT}/vendor/graphviz/EXPAT-LICENSE.txt")
 list(SORT NGB_ASSETS)
 set(NGB_ASSET_MANIFEST "${CMAKE_CURRENT_BINARY_DIR}/asset_manifest.txt")
 string(REPLACE ";" "\n" NGB_ASSET_MANIFEST_CONTENT "${NGB_ASSETS}")

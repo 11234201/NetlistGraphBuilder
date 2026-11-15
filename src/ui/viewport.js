@@ -139,7 +139,7 @@ export function getPannedTransform(transform, startClient, currentClient, viewBo
   const viewportHeight = positiveNumber(viewport?.height, 1);
   const viewBoxWidth = positiveNumber(viewBox?.width, viewportWidth);
   const viewBoxHeight = positiveNumber(viewBox?.height, viewportHeight);
-  const viewportUnitRatio = getViewportUnitRatio(
+  const viewportUnitRatio = getActualViewportUnitRatio(
     viewBoxWidth,
     viewportWidth,
     viewBoxHeight,
@@ -161,7 +161,7 @@ export function clientPointToViewBox(client, viewport, viewBox) {
   const viewportHeight = positiveNumber(viewport?.height, 1);
   const viewBoxWidth = positiveNumber(viewBox?.width, viewportWidth);
   const viewBoxHeight = positiveNumber(viewBox?.height, viewportHeight);
-  const viewportUnitRatio = getViewportUnitRatio(
+  const viewportUnitRatio = getActualViewportUnitRatio(
     viewBoxWidth,
     viewportWidth,
     viewBoxHeight,
@@ -203,6 +203,12 @@ export function getResizedViewportTransform(transform, viewBox, previousSize, ne
     scale
   };
   return Object.values(next).every(Number.isFinite) ? next : { ...transform };
+}
+
+// Pointer coordinates follow the actual xMidYMid meet scale, including SVGs
+// magnified above their viewBox size. Zoom/readability policy keeps its own floor.
+function getActualViewportUnitRatio(viewBoxWidth, viewportWidth, viewBoxHeight, viewportHeight) {
+  return Math.max(viewBoxWidth / viewportWidth, viewBoxHeight / viewportHeight);
 }
 
 function safeRatio(viewBoxWidth, viewportWidth) {

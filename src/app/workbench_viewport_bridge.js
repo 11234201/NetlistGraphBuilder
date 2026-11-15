@@ -2,11 +2,12 @@ import { createCanvasResizeController } from "../ui/canvas_resize_controller.js"
 
 export function createWorkbenchViewportBridge({
   readViews, singleViewSession, compareViewSessions, applyTransform, applyCompareTransforms,
-  windowTarget, requestFrame, cancelFrame, ResizeObserverClass, MutationObserverClass
+  windowTarget, requestFrame, cancelFrame, ResizeObserverClass, MutationObserverClass, commitView, previewView
 }) {
   return createCanvasResizeController({
-    readViews, windowTarget, requestFrame, cancelFrame, ResizeObserverClass, MutationObserverClass,
+    readViews, windowTarget, requestFrame, cancelFrame, ResizeObserverClass, MutationObserverClass, previewViewport: previewView,
     commit(id, viewport) {
+      if (commitView?.(id, viewport)) return;
       // Resizing preserves physical magnification, so it also preserves the
       // current LOD. Legacy transform adapters derive LOD from raw scale and
       // the Compare adapter repaints both sides on either side's commit.

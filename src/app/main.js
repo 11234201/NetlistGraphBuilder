@@ -1,4 +1,4 @@
-import { createWorkbenchElements, createQuickInputElements, createProcessLogElements } from "../ui/workbench_elements.js";
+import { createWorkbenchElements, createProcessLogElements } from "../ui/workbench_elements.js";
 import { createLibertyController } from "../ui/liberty_controller.js";
 import { createLibertyLibraryService } from "../domains/netlist/liberty_import.js";
 import { runCooperativeTask } from "../application/cooperative_task.js";
@@ -8,7 +8,7 @@ import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { createRenderGeneration } from "../render/renderGeneration.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
 import { createTimingDisplayController } from "../ui/timing_display_controller.js";
-import { createQuickInputController } from "../ui/quick_input_controller.js";
+import { bindWorkbenchInput } from "./workbench_input_bindings.js";
 import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
 import { bindWorkbenchEvents } from "./workbench_event_bindings.js";
 import { createWorkbenchUi } from "./workbench_ui_bootstrap.js";
@@ -21,16 +21,15 @@ import { saveStoredCellConfig } from "../persistence/cell_config_storage.js";
 import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cases.js";
 import { createAppState } from "./appState.js";
 import { createSessionSnapshot } from "./sessionState.js";
-import { restoreWorkbenchStorage } from "./workbench_storage.js";
+import { initializeWorkbench } from "./workbench_startup.js";
 import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
 import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
-import { createDocumentStore } from "../application/document_store.js";
-import { createViewSessionStore } from "../application/view_session_store.js";
-import { createArtifactStore } from "../application/artifact_store.js";
-import { createJobCoordinator } from "../application/job_coordinator.js";
-import { createWorkspaceExecution } from "../application/workspace_execution.js";
+import { createWorkspaceServices } from "./workspace_services.js";
+import { createWorkbenchCommandRouter } from "./workbench_command_router.js";
+import { createDomainWorkbench } from "./domain_workbench.js";
 
+const domainRouter = createWorkbenchCommandRouter();
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const {
   initializeApplication,
@@ -221,7 +220,7 @@ const {
   cssEscape,
   clamp,
   round
-} = createWorkbenchControllers({ state, getElements: () => elements, services: {
+} = createWorkbenchControllers({ state, getElements: () => elements, routeAction: domainRouter.route, services: {
   get SEARCH_FIRST_NODE_THRESHOLD() { return SEARCH_FIRST_NODE_THRESHOLD; },
   get applyCompareHighlights() { return applyCompareHighlights; },
   get applyCompareLayout() { return applyCompareLayout; },
@@ -316,21 +315,14 @@ const {
   get viewSessions() { return viewSessions; },
   get wheelGestureController() { return wheelGestureController; },
   get workspaceExecution() { return workspaceExecution; },
+  get importRequests() { return importRequests; },
   get workspaceJobs() { return workspaceJobs; }
 } });
 
 const browserDownload = createBrowserDownload();
 const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
-const documents = createDocumentStore();
-const viewSessions = createViewSessionStore();
-const workspaceArtifacts = createArtifactStore();
-const workspaceJobs = createJobCoordinator({
-  documents,
-  sessions: viewSessions,
-  artifacts: workspaceArtifacts
-});
-const workspaceExecution = createWorkspaceExecution({ jobs: workspaceJobs });
+const { documents, viewSessions, workspaceJobs, workspaceExecution, importRequests } = createWorkspaceServices();
 const renderGeneration = createRenderGeneration();
 const singleViewSession = createSingleViewSessionBridge({
   state,
@@ -349,6 +341,11 @@ const libertyService = createLibertyLibraryService({ execute: runCooperativeTask
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 
 const elements = createWorkbenchElements(document);
+const domainWorkbench = createDomainWorkbench({ document, windowTarget: window, registry: domainRegistry,
+  documents, sessions: viewSessions, jobs: workspaceJobs, download: browserDownload,
+  importRequests, clearSearch: () => clearSearch(),
+  setStatus, logProcess, suspendLegacy: () => workspaceJobs.cancelDocument(state.document?.documentId) });
+domainRouter.connect(domainWorkbench.routeCommand);
 const processLogController = createProcessLogController({
   elements: createProcessLogElements(elements),
   windowTarget: window,
@@ -400,12 +397,10 @@ const libertyController = createLibertyController({
   read: libertyService.read, importText: libertyService.importText, clear: libertyService.clear,
   cancel: libertyService.cancel, refresh: refreshLibraryWorkspace, setStatus, logProcess
 });
-createQuickInputController({
-  elements: createQuickInputElements(elements, document.body),
-  windowTarget: window,
-  loadText: (text, options) => options.kind === "liberty" ? libertyController.load(text, options) : loadQuickInputText(text, options),
-  setStatus,
-  logProcess
+bindWorkbenchInput({
+  elements, document, windowTarget: window, importRequests, imports: domainWorkbench.imports,
+  loadNetlistText: loadQuickInputText, loadLibertyText: libertyController.load,
+  setStatus, logProcess
 });
 const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
   elements, windowTarget: window,
@@ -431,13 +426,15 @@ const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
     setRootsSynchronized: (value) => { state.compare.focusedRootsSynchronized = value; },
     setLayout: (value) => { state.compare.layout = value === "horizontal" ? "horizontal" : "vertical"; }
   },
-  search: { getIndex: () => state.searchIndex, onChange: (search) => { state.searchQuery = search.searchQuery; } }
+  search: { getIndex: () => state.searchIndex, search: domainWorkbench.search,
+    onChange: (search) => { state.searchQuery = search.searchQuery; } }
 });
 const workbenchUi = createWorkbenchUi({
   document, windowTarget: window, singleViewSession, compareViewSessions,
   applyTransform, applyCompareTransforms, closeLog: () => processLogController.toggle(false),
   subscribe: (listener) => viewSessions.subscribe(listener),
-  readViews: () => [
+  domainViewport: domainWorkbench.viewport,
+  readViews: () => domainWorkbench.viewport.read() || [
     { id: "single", mount: elements.mount, viewport: state.transform },
     { id: "left", mount: elements.leftMount, viewport: state.compare.transforms.left },
     { id: "right", mount: elements.rightMount, viewport: state.compare.transforms.right }
@@ -447,18 +444,16 @@ const workbenchUi = createWorkbenchUi({
     moduleLabel: elements.moduleHierarchyCurrent.textContent || state.currentModule?.displayName || "Workspace",
     sourceLabel: state.currentSourceLabel || "Sample", viewMode: state.graph?.view?.mode || state.viewMode,
     leftModuleName: state.compare.leftModuleName, rightModuleName: state.compare.rightModuleName,
-    leftMode: state.compare.graphs.left?.view?.mode, rightMode: state.compare.graphs.right?.view?.mode
+    leftMode: state.compare.graphs.left?.view?.mode, rightMode: state.compare.graphs.right?.view?.mode,
+    ...domainWorkbench.context()
   }),
   onPreferenceError: (error) => logProcess("warning", "persistence", "UI preferences unavailable; using this window only", { error })
 });
 
-const restoredSession = restoreWorkbenchStorage({
-  windowTarget: window,
-  logProcess,
+initializeWorkbench({
+  windowTarget: window, logProcess,
   setCellConfig: (bundle) => { state.cellConfig = bundle; },
-  getSessionSnapshot: () => state.currentSource ? createSessionSnapshot(state) : null
+  getSessionSnapshot: () => state.currentSource ? createSessionSnapshot(state) : null,
+  applySessionPreferences, renderLayoutProviderOptions, initializeDomain: domainWorkbench.initialize,
+  initializeApplication, updateCalibrationControls
 });
-applySessionPreferences(restoredSession);
-renderLayoutProviderOptions();
-initializeApplication(restoredSession);
-updateCalibrationControls();

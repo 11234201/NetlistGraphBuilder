@@ -1259,3 +1259,46 @@ human review question for sop001/eq006/dp002; no overall acceptance or default p
 - 远端隔离目录 `/home/wzh/my_code/netlistGraphBuilder/ui_workbench_redesign_20261112`，baseline/candidate 分开，源码包17.4MB；原始全量单测1061/1061通过。
 - 原始 workbench、Liberty、process-log 浏览器基线均通过，pageerror为空。复用既有 Playwright 1.64.1 与 `/opt/google/chrome/chrome`。
 - U1–U6 分工迁移唯一DOM入口、外壳偏好、Inspector和业务事件，未修改布局/provider算法。后续先真实浏览器可达性，再受影响的回归与离线包。
+
+## 2026-11-15 AIG 主界面接入开始
+
+- 核对现有计划，P0–P5 尚未启动；F-AIG-01/F-AIG-02 明确不在本轮。
+- `git status --short` 初始仅 `.vscode/settings.json` 修改，保留为用户改动。
+- 已读取项目约束与领域技能；Simple 冻结，不修改其算法、策略或期待值。
+- `mfs-remote` 非交互 SSH 可用，Linux x86_64。准备隔离 baseline 与 candidate，测试/依赖/临时日志留远端。
+- 并行职责：P1 导入模型；P2 离线 Graphviz/Worker；P0 基线；主线程负责 Scene、领域工作区与主界面装配、最终收尾。
+- 下一步：先固定模型/几何接口，完成实际流水线再接线。当前尚无本轮通过结论。
+
+### AIG P0 完成 / P1、P2 专项验证（2026-11-15）
+
+- 基线 HEAD：`b305189029f4ccf867fb7eed622c22ee6d9785b3`；远端隔离目录 `aig_integration_20261115/baseline`，Node v24.16.0，Chrome 146.0.7680.164。
+- `npm test` 1198/1198；architecture 287 modules / 693 edges、0 unresolved / violations / cycles；workbench e2e 通过，UI-workbench 9/9。
+- `MAPPED_CASE_NO_COLLAPSE=1 npm run test:mapped-cases` 47/47，硬违规 0，默认 provider `native-layered`，最大 layout 39197 ms、heap 540 MiB。
+- `npm run benchmark` 默认 provider：1024/4096/8192 节点 median layout 344.0/1515.1/4032.5 ms，全部 routed、0 violations。与 mapped 同时运行，耗时属于当时主机负载观察，不当作绝对阈值。
+- 六个 Simple 冻结模块及 layered helper 哈希、默认/显式 Simple 的 Whole/Focused/manual override 代表几何保存在 `baseline/dc_runs/aig_baseline/`；无基线失败。
+- P1 专项 14/14（591 ms）：双格式/重复 AND/对称身份/声明重排与改名/极性槽位/常量/别名/OFF cover/错误诊断/关键边/Unicode，以及 1200 层链、10000 PI+PO 宽图；日志目录 `aig_integration_20261115/model_tests`。
+- P2 固定 Viz.js 3.31.0 / Graphviz 16.1.0，单个本地 ESM 内含 WASM，无单独字体/WASM 请求；专项 6/6，真实浏览器 10 项通过。冷 Worker+WASM+layout 186.4 ms，热 2.3 ms（单次观察）。覆盖断网、json/dot_json、平行曲线、取消重建、超时和 Unicode。
+- 运行期间出现并行的 `src/layout/measured_elk_layout.js` 与 `tests/unit/elk_port_adaptation.test.js` 修改，归属其他工作；本任务不改写，最终比较区分其影响。
+- P3/P4 已进入真实流水线与工作台集成验证；当前不宣称主界面验收完成。
+
+### AIG P3/P4 集成通过，P5 验证中
+
+- 真实 `parser → model → pipeline → WASM → curve geometry → lazy Scene → ArtifactStore → DOM` 已通过成对结构/几何/SVG 检查；高亮与选择保持布局请求、源模型与几何不变。
+- 主界面浏览器 6/6 场景通过：Compare→AIG、双格式同图、搜索/侧栏/逐边连接选择、SVG、会话刷新、错误保留旧图、宽窄屏、快速文件读取乱序/取消、跨文档拖动、存储被拒绝。无页面错误和外部资源请求。
+- 修复候选会话创建失败遗留文档，以及旧 pan/file-read 回调影响新文档的问题；增加独立生命周期边界测试。正常浏览器之外的恶意/不兼容存档会被拒绝，继续保留可用浏览。
+- 1920px 与窄屏截图存于远端 `candidate_browser/dc_runs/aig_workbench_final_2/`；审阅用小图复制到本地 ignored `dc_runs/aig_integration_20261115/`。人工检查命名、形状、BT 层次、箭头、虚线、叠加选择与两栏可读性。
+- 首轮完整单元 1236/1236；最终全节点 mapped 47/47、0 violations、默认 native-layered，maxLayout35872ms/heap546MiB。代表性几何和全部 Simple 冻结哈希与基线一致。
+- Graphviz 无上限 simplex 在 80 单位重汇聚压力图（323 节点/481 边）超过 20s。采用具名 `nslimit=2,nslimit1=2` 后约 2.0–2.2s，链形 283ms、宽层97ms、高扇出95ms；规模未缩减，四例完整曲线/箭头/ID/BT 层次/重复几何通过。原失败保留于 [有界策略研究](../research/aig_graphviz_bounded_policy.md)。
+- Windows 构建必须调用 Windows .NET 编译器与启动器，因此仅发布构建和平台烟测在本机进行；完整测试和性能工作继续远端。使用 `-SkipTests` 复用已通过远端全量单测，`-PackageSuffix aig-validation` 将审阅包写入独立路径，保留既有发布包，不发布外部 release。
+
+### AIG P5 收尾完成（2026-11-15）
+
+- 最终送测快照完整单元 1240/1240；architecture312/736零问题；workbench通过、UI9/9、AIG6/6、四类浏览器性能8/8、文档链接无缺失。精确结果与命令见 `docs/reports/aig_integration_acceptance.md`。
+- Windows 独立验证包构建成功，本机 Chrome 实际验收两格式真实 WASM 同图、网表启动/恢复，无页面错误/外部请求；SHA-256 `b794355839505731c9c7cee5418c0d9eb036cafe075a9ae355d32e9924d36674`。已有发布包保留，未发布远端 release。
+- 本机首次构建发现环境不提供 Get-FileHash，改用与既有脚本一致的 .NET SHA256 流式校验后通过；首次烟测等待文案不匹配（实际为 Loaded built-in sample）修正后通过，未修改产品行为。
+- 512层链在20秒预算内仍超时，作为压力边界保留，未扩大超时；该失败不会破坏当前可用视图。
+- 并行 ELK 文件在验收后仍有外部修改；AIG 源码与包内检查一致，只有该外部文件不一致。测试与包的结论限定于记录的快照，不覆盖别人后续变更。
+- P0–P5 全部完成；计划、架构、设计、使用说明及发布资源契约已更新。F-AIG-01/F-AIG-02 继续后续排期；无 Simple 改动，无提交/推送。
+
+- 最终补齐新 AIG 文档提交时两侧列表滚动位置重置；6/6 主界面测试及 Windows 实际包烟测再通过。独立验证包最终 SHA-256 更新为 `496951cb61887ba97079f6649dfd731a53832b76acb175cc353efe64cbd4babc`（上文 hash 为首轮包的历史记录）。
+- 重跑命令曾误用 Graphviz 独立脚本的 NGB_CHROMIUM_PATH 给工作台脚本，导致找不到 Playwright 默认浏览器；按既有 NGB_CHROME 指定已安装 Chrome 后6/6通过。已在验收文档分别记录两个环境变量，未下载浏览器或扩大本机计算范围。

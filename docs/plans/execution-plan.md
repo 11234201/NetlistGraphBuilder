@@ -233,3 +233,19 @@ Native candidate/channel router is not an implementation base for this continuat
 大型网表、综合日志、JSON、库及截图留在远端 dc_runs；本地只保留稳定测试脚本、计划与报告。先用代表用例验证流程再全量 94 例；本轮核验 lib/网表语义，不把 STA 或完整形式等价证明混作读取器验收。
 
 收尾证据：[重新综合配对验证报告](../research/liberty_synthesis_validation.md)。本地另保存小型 JSON 摘要和两张 QA 截图到 ignored dc_runs；本轮没有运行时代码修改。
+
+## 2026-11-15 AIG 主界面接入 P0–P5
+
+- 依据：`docs/plans/aig_graphviz_integration.md`。用户授权持续执行至完成；Compare 与 Netlist→AIG 保持后续范围。
+- P0：锁定当前 HEAD、默认 provider、Simple 冻结文件与测试基线；远端独立 baseline，不包含用户 `.vscode/settings.json` 改动。
+- P1：独立 DOT/BLIF 结构解析、统一不可变模型、来源/极性/重复 AND 身份、分析和搜索；先通过专项边界与排列测试。
+- P2：固定本地 Graphviz/Viz.js 分发、Worker 生命周期、曲线几何契约；验证真实 WASM 与离线资源。
+- P3：稳定 DOT 投影、惰性 Scene、精确关键边/扇出/选区样式；验证同图及不重布局。
+- P4：领域候选导入与原子提交、Open AIG、Navigator/Inspector、共享画布交互、导出与版本化恢复；跨领域能力隔离。
+- P5：单元/架构、真实浏览器、47 mapped full graph、性能对照、Windows 发布构建与离线冒烟，更新实际文档。
+- 测试与日志目录：`/home/wzh/my_code/netlistGraphBuilder/aig_integration_20261115/`；Windows 发布与本机必需冒烟例外。
+- 当前状态：P0/P1/P2 执行中；每阶段证据补入工作日志后再标记完成。
+
+### AIG P0–P5 完成记录（2026-11-15）
+
+所有阶段完成，详细验收见 `docs/reports/aig_integration_acceptance.md`：P0网表基线；P1双格式生产模型/独立真值；P2离线Graphviz/Worker；P3曲线Scene/分析；P4工作台双侧栏/搜索/恢复；P5完整回归、性能、Windows与Linux离线包。512层压力链仍受20秒硬超时限制，作为明确边界保留。后续Compare/转换需求不变，Simple继续冻结。

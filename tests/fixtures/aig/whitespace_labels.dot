@@ -1,0 +1,7 @@
+digraph whitespace_labels {
+  a [shape=triangle, label="a  b"];
+  b [shape=triangle, label="  pad  "];
+  c [shape=triangle, label="a	b"];
+  y [shape=invtriangle, label=" out   name "];
+  y -> a [dir=back];
+}

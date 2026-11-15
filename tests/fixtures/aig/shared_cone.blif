@@ -1,0 +1,21 @@
+# Benchmark "/home/wzh/my_code/netlistGraphBuilder/aig_visualization_research_20261114/same_aig_comparison/shared_cone" written by ABC on Sat Nov 14 23:10:14 2026
+.model /home/wzh/my_code/netlistGraphBuilder/aig_visualization_research_20261114/same_aig_comparison/shared_cone
+.inputs a b c d
+.outputs y shared masked
+.names a b new_n8
+11 1
+.names a c new_n9
+01 1
+.names new_n8 new_n9 new_n10
+00 1
+.names d new_n8 new_n11
+11 1
+.names d new_n10 new_n12
+00 1
+.names new_n11 new_n12 y
+00 0
+.names b c shared
+11 1
+.names d shared masked
+10 0
+.end

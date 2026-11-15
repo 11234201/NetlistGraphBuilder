@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createQuickInputController, isEditableInputTarget } from "../../src/ui/quick_input_controller.js";
+import { createQuickInputController as createController, isEditableInputTarget } from "../../src/ui/quick_input_controller.js";
 import { createProcessLog } from "../../src/app/processLog.js";
+import { createImportRequests } from "../../src/application/import_requests.js";
+import { getQuickInputPriority } from "../../src/app/quickInput.js";
+
+function createQuickInputController(options) {
+  return createController({ importRequests: createImportRequests(), ...options });
+}
 
 function eventTarget() {
   const listeners = {};
@@ -111,6 +117,75 @@ test("file input ignores an older read that finishes after the latest selection"
   assert.deepEqual(loaded, ["module new; endmodule"]);
 });
 
+test("an external domain import invalidates pending picker, drop and clipboard-file reads", async () => {
+  for (const ingress of ["picker", "drop", "clipboard"]) {
+    const elements = inputElements(), windowTarget = eventTarget(), importRequests = createImportRequests();
+    const loaded = [], statuses = [];
+    const controller = createQuickInputController({ elements, windowTarget, importRequests,
+      loadText: (text) => loaded.push(text), setStatus: (message) => statuses.push(message) });
+    let release;
+    const file = { name: "older.v", text: () => new Promise((resolve) => { release = resolve; }) };
+    const pending = ingress === "picker"
+      ? elements.netlistInput.listeners.change({ target: { files: [file] } })
+      : ingress === "drop" ? controller.loadFiles([file])
+        : windowTarget.listeners.paste({ clipboardData: { files: [file] }, preventDefault() {} });
+    assert.equal(typeof release, "function", ingress);
+    const current = importRequests.begin();
+    release("module older; endmodule");
+    await pending;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(loaded, [], `${ingress} cannot replace the newer domain`);
+    assert.deepEqual(statuses, []);
+    assert.equal(current.isCurrent(), true);
+  }
+});
+
+test("every document input invalidates an external domain request at intent, before file reading", async () => {
+  for (const ingress of ["picker", "drop", "clipboard-files", "clipboard-text", "dialog"]) {
+    const elements = inputElements(), windowTarget = eventTarget(), importRequests = createImportRequests();
+    const loaded = [];
+    const controller = createQuickInputController({ elements, windowTarget, importRequests,
+      loadText: (text) => loaded.push(text), setStatus() {}, schedule: (task) => task() });
+    const previous = importRequests.begin();
+    let release;
+    const file = { name: "latest.v", text: () => new Promise((resolve) => { release = resolve; }) };
+    const source = "module latest; endmodule";
+    let pending;
+    if (ingress === "picker") pending = elements.netlistInput.listeners.change({ target: { files: [file] } });
+    else if (ingress === "drop") pending = controller.loadFiles([file]);
+    else if (ingress === "clipboard-files") pending = windowTarget.listeners.paste({ clipboardData: { files: [file] }, preventDefault() {} });
+    else if (ingress === "clipboard-text") pending = windowTarget.listeners.paste({ clipboardData: { getData: () => source }, preventDefault() {} });
+    else {
+      elements.textInput.value = source;
+      pending = elements.textForm.listeners.submit({ preventDefault() {} });
+    }
+    assert.equal(previous.signal.aborted, true, ingress);
+    assert.equal(previous.isCurrent(), false, ingress);
+    release?.(source);
+    await pending;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(loaded, [source], ingress);
+  }
+});
+
+test("replacing an in-flight import suppresses obsolete failures and aborts Liberty work", async () => {
+  const elements = inputElements(), importRequests = createImportRequests();
+  const statuses = [];
+  let rejectLoad, librarySignal;
+  createQuickInputController({ elements, windowTarget: eventTarget(), importRequests,
+    loadText: (_text, options) => {
+      librarySignal = options.signal;
+      return new Promise((_, reject) => { rejectLoad = reject; });
+    }, setStatus: (message) => statuses.push(message) });
+  const pending = elements.libertyInput.listeners.change({ target: { files: [{ name: "older.lib", text: async () => "library(old){}" }] } });
+  await Promise.resolve();
+  importRequests.begin();
+  assert.equal(librarySignal.aborted, true);
+  rejectLoad(new Error("obsolete import failed"));
+  await pending;
+  assert.deepEqual(statuses, []);
+});
+
 test("mixed dropped files classify timing JSON before sorting dependencies", async () => {
   const loaded = [], statuses = [];
   const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
@@ -125,6 +200,20 @@ test("mixed dropped files classify timing JSON before sorting dependencies", asy
   assert.deepEqual(loaded.map(([kind]) => kind), ["liberty", "netlist", "timing", "golden"]);
   assert.equal(loaded[2][1], timing);
   assert.deepEqual(statuses, []);
+});
+
+test("a domain transition can prepare the netlist before applying its batch attachments", async () => {
+  const loaded = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    getInputPriority: (kind) => kind === "netlist" ? -2 : getQuickInputPriority(kind),
+    loadText: (_text, options) => loaded.push(options.kind), setStatus() {} });
+  await controller.loadFiles([
+    { name: "cells.lib", text: async () => "library(cells){}" },
+    { name: "design.v", text: async () => "module top; endmodule" },
+    { name: "timing.rpt", text: async () => "point at rt slack\nu/Y 1 2 1" },
+    { name: "saved.json", text: async () => "{}" }
+  ]);
+  assert.deepEqual(loaded, ["netlist", "liberty", "timing", "golden"]);
 });
 
 test("JSON file classification reads past the sniffing prefix for known and unknown extensions", async () => {

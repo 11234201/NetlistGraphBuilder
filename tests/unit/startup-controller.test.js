@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createImportRequests } from "../../src/application/import_requests.js";
 import {
   executeStartupManifest,
   fetchStartupManifest,
@@ -31,6 +32,29 @@ test("startup controller executes inputs and target in dependency order", async 
 
   await executeStartupManifest(MANIFEST, handlers);
   assert.deepEqual(calls, ["target", "config", "netlist", "design", "timing", "module", "focus", "ready"]);
+});
+
+test("replacing startup during an awaited stage prevents every later handler", async () => {
+  const stages = ["configureTarget", "loadCellConfig", "loadNetlist", "ensureDesign", "loadTiming", "selectModule", "focusCell"];
+  for (const heldStage of stages) {
+    const requests = createImportRequests(), request = requests.begin();
+    const calls = [];
+    let release, entered;
+    const started = new Promise((resolve) => { entered = resolve; });
+    const handlers = Object.fromEntries([...stages, "ready"].map((name) => [name, () => {
+      calls.push(name);
+      if (name === heldStage) {
+        entered();
+        return new Promise((resolve) => { release = resolve; });
+      }
+    }]));
+    const pending = executeStartupManifest(MANIFEST, handlers, { signal: request.signal });
+    await started;
+    requests.begin();
+    release();
+    await assert.rejects(pending, { name: "AbortError" });
+    assert.deepEqual(calls, stages.slice(0, stages.indexOf(heldStage) + 1), heldStage);
+  }
 });
 
 test("startup manifest normalization rejects malformed data without mutation", () => {

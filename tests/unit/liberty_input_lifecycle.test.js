@@ -5,6 +5,7 @@ import { createLibertyController } from "../../src/ui/liberty_controller.js";
 import { createQuickInputElements } from "../../src/ui/workbench_elements.js";
 import { createLibertyLibraryService } from "../../src/domains/netlist/liberty_import.js";
 import { runCooperativeTask } from "../../src/application/cooperative_task.js";
+import { createImportRequests } from "../../src/application/import_requests.js";
 import { createProcessLog } from "../../src/app/processLog.js";
 
 function target() {
@@ -36,6 +37,7 @@ async function setup({ execute = runCooperativeTask, refresh = async () => {} } 
   }, read: service.read, importText: service.importText, clear: service.clear, cancel: service.cancel,
   refresh, setStatus: (status) => statuses.push(status), logProcess });
   const quick = createQuickInputController({ elements: createQuickInputElements(elements, {}), windowTarget: target(),
+    importRequests: createImportRequests(),
     loadText: (text, options) => options.kind === "liberty" ? library.load(text, options) : loadedDesigns.push(text),
     setStatus: (status) => statuses.push(status), logProcess });
   return { service, elements, quick, statuses, summary, loadedDesigns, log };

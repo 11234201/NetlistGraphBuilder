@@ -1,0 +1,14 @@
+digraph duplicate_and {
+  edge [dir=back];
+  a [shape=triangle,label="a"];
+  b [shape=triangle,label="b"];
+  x [shape=ellipse];
+  w [shape=ellipse];
+  k [shape=ellipse];
+  out_y [shape=invtriangle,label="y"];
+  out_z [shape=invtriangle,label="z"];
+  w -> b; w -> a;
+  x -> a; x -> b;
+  k -> w; k -> x;
+  out_y -> k; out_z -> x;
+}

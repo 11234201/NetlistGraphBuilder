@@ -1,5 +1,6 @@
 param(
-  [switch]$SkipTests
+  [switch]$SkipTests,
+  [string]$PackageSuffix = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +13,10 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') {
 
 $distRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dist"))
 $packageName = "NetlistGraphBuilder-v$version-win-x64"
+if ($PackageSuffix) {
+  if ($PackageSuffix -notmatch '^[a-z0-9-]+$') { throw "PackageSuffix must use lowercase letters, digits and hyphens." }
+  $packageName += "-$PackageSuffix"
+}
 $packageRoot = [System.IO.Path]::GetFullPath((Join-Path $distRoot $packageName))
 $buildRoot = [System.IO.Path]::GetFullPath((Join-Path $distRoot ".build-$packageName"))
 $zipPath = Join-Path $distRoot "$packageName.zip"
@@ -30,6 +35,15 @@ function Reset-BuildPath([string]$Path) {
   if (Test-Path -LiteralPath $Path) {
     Remove-Item -LiteralPath $Path -Recurse -Force
   }
+}
+
+function Get-AssetHash([string]$Path) {
+  $algorithm = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $assetStream = [System.IO.File]::OpenRead($Path)
+    try { return ([System.BitConverter]::ToString($algorithm.ComputeHash($assetStream))).Replace("-", "").ToLowerInvariant() }
+    finally { $assetStream.Dispose() }
+  } finally { $algorithm.Dispose() }
 }
 
 if (-not $SkipTests) {
@@ -58,11 +72,28 @@ $elkTarget = Join-Path $appRoot "vendor\elkjs-0.11.1\lib"
 New-Item -ItemType Directory -Force -Path $elkTarget | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\elkjs-0.11.1\lib\elk.bundled.js") -Destination $elkTarget
 
+$graphvizTarget = Join-Path $appRoot "vendor\graphviz"
+New-Item -ItemType Directory -Force -Path $graphvizTarget | Out-Null
+$graphvizManifest = Get-Content -Raw -Encoding UTF8 (Join-Path $repoRoot "vendor\graphviz\manifest.json") | ConvertFrom-Json
+foreach ($asset in $graphvizManifest.files) {
+  $sourcePath = Join-Path (Join-Path $repoRoot "vendor\graphviz") $asset.path
+  $actualHash = Get-AssetHash $sourcePath
+  if ($actualHash -ne $asset.sha256 -or (Get-Item -LiteralPath $sourcePath).Length -ne $asset.bytes) {
+    throw "Graphviz offline resource does not match its manifest: $($asset.path)"
+  }
+  Copy-Item -LiteralPath $sourcePath -Destination $graphvizTarget
+}
+Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\graphviz\manifest.json") -Destination $graphvizTarget
+Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\graphviz\README.md") -Destination $graphvizTarget
+
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "docs\USER_GUIDE.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\elkjs-0.11.1\LICENSE.md") -Destination (Join-Path $packageRoot "ELKJS-LICENSE.md")
+foreach ($notice in @("VIZ-LICENSE.txt", "GRAPHVIZ-LICENSE.txt", "EXPAT-LICENSE.txt")) {
+  Copy-Item -LiteralPath (Join-Path $graphvizTarget $notice) -Destination $packageRoot
+}
 Set-Content -LiteralPath (Join-Path $packageRoot "VERSION") -Encoding ASCII -Value $version
 
 $assemblyInfoPath = Join-Path $buildRoot "AssemblyInfo.cs"
@@ -118,10 +149,16 @@ try {
     try {
       $indexResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$smokePort/" -TimeoutSec 2
       $moduleResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$smokePort/src/app/main.js" -TimeoutSec 2
+      $workerResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$smokePort/src/platform/graphviz_worker.js" -TimeoutSec 2
+      $graphvizResponse = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$smokePort/vendor/graphviz/viz.js" -TimeoutSec 2
       if ($indexResponse.StatusCode -eq 200 -and
           $indexResponse.Content -match 'Netlist Graph Builder' -and
           $moduleResponse.StatusCode -eq 200 -and
-          $moduleResponse.Headers['Content-Type'] -match 'text/javascript') {
+          $moduleResponse.Headers['Content-Type'] -match 'text/javascript' -and
+          $workerResponse.StatusCode -eq 200 -and
+          $workerResponse.Headers['Content-Type'] -match 'text/javascript' -and
+          $graphvizResponse.StatusCode -eq 200 -and
+          $graphvizResponse.Headers['Content-Type'] -match 'text/javascript') {
         $ready = $true
         break
       }

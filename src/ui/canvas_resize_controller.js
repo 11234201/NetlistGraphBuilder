@@ -4,6 +4,7 @@ import { formatViewportTransform, getResizedViewportTransform } from "./viewport
 export function createCanvasResizeController({
   readViews,
   commit,
+  previewViewport,
   windowTarget = globalThis.window,
   requestFrame,
   cancelFrame,
@@ -118,7 +119,12 @@ export function createCanvasResizeController({
       entry.size = current.size;
       entry.display = next;
       entry.pending ||= changed;
-      if (changed) current.content.setAttribute("transform", formatViewportTransform(next));
+      if (changed) {
+        current.content.setAttribute("transform", formatViewportTransform(next));
+        // A preview-aware consumer now exposes this value through readViews.
+        // Keep the pending resize while recognizing our own published preview.
+        if (preview && previewViewport?.(view.id, { ...next })) entry.authoritative = { ...next };
+      }
       if (!preview && entry.pending) commits.push([view.id, entry]);
     }
     // Gather both Compare views before an adapter reapplies either shared DOM.

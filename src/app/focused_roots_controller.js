@@ -10,7 +10,7 @@ import {
 import { findCompareNode, getCompareNodeName } from "./compareWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
 import { escapeAttr, escapeHtml } from "../ui/html.js";
-import { isEditableInputTarget } from "../ui/quick_input_controller.js";
+import { handleFocusShortcut } from "../ui/focus_shortcut.js";
 import { captureFocusedRootsFocus } from "../ui/focused_roots_focus.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
 import { executeViewEffects, mergeViewEffects } from "../application/view_effects.js";
@@ -441,10 +441,7 @@ export function createFocusedRootsController({ state, elements, services }) {
   }
 
   function handleFocusSelectedShortcut(event) {
-    if (event.key.toLowerCase() !== "f" || event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
-    if (elements.focusSelectedButton.disabled) return;
-    event.preventDefault();
-    services.focusSelectedCell();
+    handleFocusShortcut(event, services.focusSelectedCell, !elements.focusSelectedButton.disabled);
   }
 
   return Object.freeze({ getSelectedSingleCell, getFocusedRootContext, setCompareFocusedRootNodeIds, syncCompareFocusedRootNode, setSelectedAsFocusedRoot, setSelectedCompareAsFocusedRoot, addSelectedAsFocusedRoot, addSelectedCompareAsFocusedRoot, removeSelectedFromFocusedRoots, removeSelectedCompareFocusedRoot, clearFocusedRoots, handleFocusedRootListClick, handleCompareFocusedRootListClick, handleFocusedRootsFilter, renderFocusedRootList, updateFocusSelectedControl, handleFocusSelectedShortcut });

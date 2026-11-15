@@ -1,6 +1,13 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { posix, relative, sep } from "node:path";
+import { join, posix, relative, sep } from "node:path";
 import acorn from "./vendor/acorn/acorn.cjs";
+
+// Pinned, dependency-free distribution. No other importer or vendor path is allowed.
+// readModuleSources includes its real source; the unit suite also verifies its manifest hash.
+const GRAPHVIZ_VENDOR_IMPORT = Object.freeze({
+  importer: "platform/graphviz_vendor.js", target: "../vendor/graphviz/viz.js",
+  specifier: "../../vendor/graphviz/viz.js", kind: "ImportDeclaration"
+});
 
 export function readModuleSources(root) {
   const sources = new Map();
@@ -14,6 +21,9 @@ export function readModuleSources(root) {
     }
   }
   visit(root);
+  if (sources.has(GRAPHVIZ_VENDOR_IMPORT.importer)) {
+    sources.set(GRAPHVIZ_VENDOR_IMPORT.target, readFileSync(join(root, GRAPHVIZ_VENDOR_IMPORT.target), "utf8"));
+  }
   return sources;
 }
 
@@ -42,7 +52,9 @@ export function buildModuleGraph(sources) {
         target = rooted ? posix.normalize(path.slice(5)) : posix.normalize(posix.join(posix.dirname(name), path));
       }
       catch { diagnostics.push(`${name}:${node.loc.start.line}: invalid module URL ${specifier}`); return; }
-      if (!graph.has(target)) {
+      if (isGraphvizVendorImport(name, { target, specifier, kind })) {
+        if (!graph.has(target)) graph.set(target, []);
+      } else if (!graph.has(target)) {
         diagnostics.push(`${name}:${node.loc.start.line}: unresolved module ${specifier} -> ${target}`);
         return;
       }
@@ -114,6 +126,7 @@ export function findBoundaryViolations(graph) {
   for (const [source, edges] of graph) {
     const owner = source.split("/")[0];
     for (const edge of edges) {
+      if (isGraphvizVendorImport(source, edge)) continue;
       const layer = edge.target.split("/")[0];
       let forbidden = edge.target === "app/main.js";
       // Domain presentation produces scene data; mounting is a UI boundary.
@@ -132,6 +145,11 @@ export function findBoundaryViolations(graph) {
     }
   }
   return violations;
+}
+
+function isGraphvizVendorImport(source, edge) {
+  return source === GRAPHVIZ_VENDOR_IMPORT.importer && edge.target === GRAPHVIZ_VENDOR_IMPORT.target &&
+    edge.specifier === GRAPHVIZ_VENDOR_IMPORT.specifier && edge.kind === GRAPHVIZ_VENDOR_IMPORT.kind;
 }
 
 function appModuleRank(name) {

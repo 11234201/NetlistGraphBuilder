@@ -161,6 +161,40 @@ test("pan uses the limiting SVG meet scale on very wide schematics", () => {
   );
 });
 
+test("pan follows screen pixels when the SVG viewBox is magnified", () => {
+  assert.deepEqual(getPannedTransform(
+    { x: 10, y: 20, scale: 1.3 }, { x: 200, y: 300 }, { x: 260, y: 330 },
+    { x: 20, y: 30, width: 640, height: 525 }, { width: 1280, height: 1200 }
+  ), { x: 40, y: 35, scale: 1.3 });
+});
+
+test("magnified SVG client coordinates preserve either letterbox axis and nonzero viewBox origins", () => {
+  assert.deepEqual(clientPointToViewBox(
+    { x: 420, y: 245 }, { left: 100, top: 50, width: 1280, height: 1200 },
+    { x: 20, y: 30, width: 640, height: 525 }
+  ), { x: 180, y: 90 });
+  assert.deepEqual(clientPointToViewBox(
+    { x: 410, y: 420 }, { left: 10, top: 20, width: 1200, height: 1600 },
+    { x: -40, y: 90, width: 400, height: 800 }
+  ), { x: 60, y: 290 });
+});
+
+test("off-center wheel zoom retains its screen anchor in a magnified letterboxed SVG", () => {
+  const viewBox = { x: 20, y: 30, width: 640, height: 525 };
+  const viewport = { left: 100, top: 50, width: 1280, height: 1200 };
+  const client = { x: 420, y: 245 };
+  const start = { x: 35, y: -12, scale: 1.3 };
+  // xMidYMid meet scales this viewBox by two, leaving 75px above/below it.
+  const graphPoint = { x: (180 - start.x) / start.scale, y: (90 - start.y) / start.scale };
+  const next = getZoomedTransform(start, clientPointToViewBox(client, viewport, viewBox), -1,
+    viewBox.width, viewport.width, 0.25, viewBox.height, viewport.height);
+  assert.ok(Math.abs(viewport.left + (next.x + graphPoint.x * next.scale - viewBox.x) * 2 - client.x) < 1e-9);
+  assert.ok(Math.abs(viewport.top + 75 + (next.y + graphPoint.y * next.scale - viewBox.y) * 2 - client.y) < 1e-9);
+  assert.equal(getAdaptiveMaxScale(viewBox.width, viewport.width, viewBox.height, viewport.height), 2);
+  assert.equal(getFocusedObjectTransform({ viewBox, viewportWidth: viewport.width, viewportHeight: viewport.height,
+    bounds: { x: 20, y: 30, width: 100, height: 40 }, targetPixels: 320 }).scale, 2);
+});
+
 test("malformed pointer snapshots cannot poison pan and zoom transforms", () => {
   const panned = getPannedTransform(
     { x: 10, y: 20, scale: 1 },

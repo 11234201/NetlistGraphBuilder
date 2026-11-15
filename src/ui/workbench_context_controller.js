@@ -28,7 +28,7 @@ export function createWorkbenchContextController({ document, windowTarget, readC
     text("focusedRootPreview", activeRoot?.querySelector("[data-focused-root-activate]")?.textContent || activeRoot?.textContent?.replace(/×$/, "") || "Choose a cell and add a root");
     text("sourceBadge", context.sourceLabel);
     get("sourceBadge").title = context.sourceLabel;
-    text("providerStatus", get("layoutProviderSelect").selectedOptions[0]?.textContent || "");
+    text("providerStatus", context.providerLabel || get("layoutProviderSelect").selectedOptions[0]?.textContent || "");
     get("compareNavigationNote").hidden = !compare;
     text("inspectorScope", compare ? (context.selectedSide === "right" ? "B" : context.selectedSide === "left" ? "A" : "Choose a side") : "Single");
     for (const side of document.querySelectorAll("[data-compare-side]")) side.classList.toggle("is-active-side", compare && side.dataset.compareSide === context.selectedSide);
@@ -44,6 +44,7 @@ export function createWorkbenchContextController({ document, windowTarget, readC
     frame = windowTarget.requestAnimationFrame(() => { frame = null; refresh(); });
   }
   function toggleDiagnostics(open) {
+    if (get("toggleDiagnosticsButton").hidden) return;
     get("diagnosticsDrawer").hidden = !open;
     get("toggleDiagnosticsButton").setAttribute("aria-expanded", String(open));
     if (open) closeLog();
