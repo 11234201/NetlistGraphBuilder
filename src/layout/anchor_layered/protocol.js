@@ -4,7 +4,7 @@ export const PACKAGE_VERSION = '0.3.0';
 export class PhaseError extends Error {
   constructor(phase, invariant, entityIds = [], detail = '') {
     super(`${phase}: ${invariant}${detail ? ` (${detail})` : ''}`);
-    this.name = 'ElkNativePhaseError';
+    this.name = 'AnchorLayeredPhaseError';
     this.diagnostic = Object.freeze({ phase, invariant,
       entityIds: Object.freeze([...entityIds].sort(compareIds)), detail });
   }

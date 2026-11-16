@@ -2,7 +2,7 @@
 
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成，并介绍独立的 AIG 导入、浏览与逻辑分析流程。
 
-- **网表默认布局与降级机制**：当前版本默认启用 `Native Layered AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
+- **网表默认布局与降级机制**：当前版本默认启用 `AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
 - **界面说明**：本教程对应 `v1.5.1`（兼容 `v1.5.0`），使用 Navigator、Inspector、File 菜单及新版快捷入口，并提供独立的 AIG 浏览工作区；`v1.3.x` 正式发布附件使用旧界面。下载离线附件后，请核对随附的 SHA-256 校验值；更新时完整替换程序包，保留同包的启动器与资源。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
@@ -426,7 +426,7 @@ Inspector 与画布上方的 `Roots` 菜单提供显式的根节点集合管理�
 
 上下文栏的 `Layout` 菜单提供三种完全离线运行的布局引擎：
 
-- **`Native Layered AnchorLayered`（默认）**：项目内置的高性能物理锚点分层布局与正交布线引擎（原称 H08），Single 与 Compare 视图共用同一流水线。若遇到超出支持范围的拓扑，会输出明确诊断并自动依次尝试降级至 `ELK` 与 `Simple`。
+- **`AnchorLayered`（默认）**：项目内置的高性能物理锚点分层布局与正交布线引擎（原称 H08），Single 与 Compare 视图共用同一流水线。若遇到超出支持范围的拓扑，会输出明确诊断并自动依次尝试降级至 `ELK` 与 `Simple`。
 - **`ELK Layered (Experimental)`**：本地化集成的 Eclipse Layout Kernel（vendored `elkjs 0.11.1`），适合对比或尝试不同的大图初始排布；若失败则自动回退至 `Simple`。
 - **`Simple Layered`**：轻量级分层布局引擎，可手动选择，同时作为最终兜底回退方案。
 

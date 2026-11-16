@@ -5,7 +5,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦 AND/NOT BLIF。
 
 - **当前版本**：[`v1.5.1 — AIG 教程与离线资源校验补丁`](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.5.1)（基于 `v1.5.0` AIG 主界面接入版）。补齐 AIG 快速上手、最小 BLIF 示例与完整教程润色，固定 `vendor/graphviz/` 离线资源与许可证跨平台检出字节一致性，清理已退役旧版参考测试副本；完整保留离线 AIG 工作区、网表工作台、Liberty 库管理、时序、Golden 与日志功能。
-- **默认布局引擎**：网表默认使用 `Native Layered AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
+- **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
 - **AIG 浏览**：`File → Open AIG…` 支持 ABC AIG DOT 和平坦 AND/NOT BLIF，采用本地 Graphviz/WASM 曲线布局，保留输入输出名称、逻辑关键路径与扇出高亮，以及 Navigator / Inspector、搜索、SVG 导出和刷新恢复。首版为 Single / Whole；AIGER、Compare 与网表转 AIG 尚未开放。详见 [AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)。
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
 - **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0；`v1.5.0` 发布验收通过 1294 项单元测试、28 项 AIG 浏览器回归、9 项通用工作台回归及 47/47 映射网表严格门禁（清理已退役的旧版参考测试后，当前常驻单元测试为 1240 项，详见 [AIG 集成验收报告](docs/reports/aig_integration_acceptance.md)）。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。已退役的早期 Native 算法已从工作树移除（历史追溯见 [retired_native_layered 说明](tests/reference/retired_native_layered/README.md)），不进入离线运行时。
@@ -241,7 +241,7 @@ node tools/generate-large-example.mjs
 
 ### 大图渲染与布局策略
 
-1. **布局引擎与降级**：`Layout` 默认选用 `Native Layered AnchorLayered`；若遇到不支持的复杂拓扑导致失败，会依次尝试 `ELK Layered (Experimental)` 与 `Simple Layered`。ELK 引擎已完整本地化（vendored），运行时无需联网；主动取消任务不会触发降级。
+1. **布局引擎与降级**：`Layout` 默认选用 `AnchorLayered`；若遇到不支持的复杂拓扑导致失败，会依次尝试 `ELK Layered (Experimental)` 与 `Simple Layered`。ELK 引擎已完整本地化（vendored），运行时无需联网；主动取消任务不会触发降级。
 2. **高扇出中继（Fanout hubs）**：默认开启，扇出数不少于 8 的同源线网会自动插入共享 hub 节点，显著减少长距离平行干线。
 3. **全图与聚焦策略**：结构分组折叠（Group-collapse）已退出产品路线；映射网表回归、性能优化与大图交互均围绕完整图、`Search-first` 与 `Focused` 局部图构建（旧存档中的折叠字段仅作向后兼容忽略）。
 4. **渐进式渲染**：当可见节点与连线总数达到 400 时，自动启用可取消的分批 SVG 渲染，底部状态栏实时显示渲染进度；渲染完成后会完整恢复所有跨线桥接弧（wire bridge）、线网标签与点击热区。

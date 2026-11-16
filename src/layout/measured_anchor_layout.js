@@ -20,7 +20,7 @@ export class MeasuredAnchorLayoutProvider{
   constructor({profile='anchor'}={}){
     const isAnchor = isAnchorProfile(profile);
     this.id=NATIVE_LAYERED_LAYOUT_PROVIDER_ID;
-    this.label=isAnchor?'Native Layered AnchorLayered':'Native Layered (Experimental)';
+    this.label=isAnchor?'AnchorLayered':'AnchorLayered Baseline (Experimental)';
     this.experimental=!isAnchor;
     this.executionMode='async';
     this.profile=profile;
@@ -70,7 +70,7 @@ export class MeasuredAnchorLayoutProvider{
       // conversion only; intermediate bends and layer/node positions stay fixed.
       points[0]=getConnectionPoint(positionedById.get(edge.source),edge.sourcePin,'source');
       points[points.length-1]=getConnectionPoint(positionedById.get(edge.target),edge.targetPin,'target');
-      return {...edge,points,routeKind:'native-elk-orthogonal',routeStatus:'routed'};
+      return {...edge,points,routeKind:'anchor-layered-orthogonal',routeStatus:'routed'};
     });
     const edges=placeWireLabels(routed,nodes),wireRoutes=buildWireRoutes(edges);
     const bounds=computeBoundsWithRoutes(nodes,edges,wireRoutes),extent=computeSafeLayoutExtent(bounds,margin);

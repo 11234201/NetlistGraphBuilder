@@ -1,6 +1,6 @@
 export function getNetGroupKey(edge) {
   const source = normalizeIdentityPart(edge?.source);
-  const net = normalizeIdentityPart(edge?.net ?? edge?.label ?? edge?.id);
+  const net = normalizeIdentityPart(edge?.routingNet ?? edge?.net ?? edge?.label ?? edge?.id);
   return `${source}\u0000${net}`;
 }
 

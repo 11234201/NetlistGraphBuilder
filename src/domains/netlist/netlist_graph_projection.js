@@ -7,6 +7,7 @@ import { normalizeFocusedRootIds, normalizeViewMode } from "../../foundation/vie
 import { buildSchematicGraph } from "../../netlist/graph.js";
 import { annotateGraphTiming } from "../../timing/timingAnnotation.js";
 import { omitUnroutedNets } from "./net_routing.js";
+import { projectAliasRoutingIdentity } from "./alias_routing_identity.js";
 
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
@@ -87,6 +88,7 @@ export function resolveCellConfigRefreshView({ module, fullGraph, selectedNodeId
 
 export function applyWorkspaceGraphTransforms(graph, options = {}) {
   let result = omitUnroutedNets(graph, options.unroutedNets, options.fullGraph || graph);
+  if (!options.preserveLegacyProjection) result = projectAliasRoutingIdentity(result, options.fullGraph || graph);
   if (options.useFanoutHubs !== false) result = simplifyFanoutWithHubs(result);
   if (options.collapseLargeGroups === true) result = collapseLargeGraph(result, { expandedGroupIds: options.expandedGroupIds || new Set() });
   return result;

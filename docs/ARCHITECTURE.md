@@ -116,7 +116,7 @@ LayoutProvider
 ```
 
 **布局引擎体系**：
-- **`Native Layered AnchorLayered`（默认主力）**：基于 `src/layout/anchor_layered/` 的纯静态 ES 模块分层布局与边界超边正交布线引擎。基于物理锚点分层布局（AnchorLayered，原称 H08），实现逻辑端点独立与物理锚点共享。
+- **`AnchorLayered`（默认主力）**：基于 `src/layout/anchor_layered/` 的纯静态 ES 模块分层布局与边界超边正交布线引擎。基于物理锚点分层布局（AnchorLayered，原称 H08），实现逻辑端点独立与物理锚点共享。
 - **`ElkLayoutProvider`（内置离线备选）**：封装 `vendor/elkjs-0.11.1/lib/elk.bundled.js`，将内部图转换为 ELK Layered 格式并规范化回 `PositionedGraph`。
 - **`SimpleLayeredLayoutProvider`（轻量兜底）**：封装 `simpleLayered.layoutGraph`，作为同步轻量布局与最终兜底回退引擎。
 
@@ -137,7 +137,7 @@ LayoutProvider
 - `src/analysis/fanoutHub.js` 与 `src/analysis/groupCollapse.js`（兼容保留）均为布局前的纯函数派生显示图变换，绝不原地修改源 Netlist IR。
 - `src/app/sessionState.js` 负责会话快照的序列化边界；用户导入的网表文本仅保存在当前浏览器标签页的 `sessionStorage` 中。
 
-#### Native Layered AnchorLayered 产品路径（2026-10-15）
+#### AnchorLayered 产品路径（2026-10-15）
 
 - **默认注册与自动降级**：`native-layered` 注册项采用 `anchor_layout_provider.js` 的 `AnchorLayered` 配置（内部完整相位实现位于 `src/layout/anchor_layered/`，提供 `anchor.js` 及 `h08.js` 兼容入口）。自 `v1.1.1` 起由 `providerDefaults.js` 将新会话、无参数注册表查询及 EDA 启动的默认引擎统一设为 `AnchorLayered`。当 UI 布局失败时，按 `AnchorLayered -> ELK -> Simple` 顺序依次降级，`Simple` 仍失败则停止重试；用户主动取消任务不会触发降级。自动降级仅改变当前这一次运行的引擎，会话持久化仍保留用户原始首选项，避免将临时回退固化为下次启动的默认设置。对于缺少首选项版本号且保存为 `Simple` 的旧版会话，首次加载时会一次性迁移回 `AnchorLayered`；新版会话均记录首选项版本号，此后用户主动选择的 `Simple` 或 `ELK` 会被持久尊重。
 - **静态离线入口与异步 Worker 隔离**：离线直接调用入口为 `src/layout/anchor_layered/anchor.js`（兼容入口 `h08.js`；`index.js` 基础 profile 仅用于受控相位对比测试）。Provider 通过 `executionMode: "async"` 显式声明异步执行特性，供 Single 与 Compare 工作区统一消费。在浏览器环境中，AnchorLayered 相位计算运行在独立的离线 ES Module Worker（`native_layout_worker.js`）中：每次请求独占一个 Worker，一旦取消即刻执行 `worker.terminate()` 强制中断并释放资源，任务成功或失败后亦立即销毁 Worker；在 CLI 或带相位观察回调的测试调用中则使用进程内执行，并在相位检查点按时间预算让出事件循环。
@@ -274,6 +274,10 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 空列表沿用原行为，不修改任何 provider 算法、路由规则或 Simple 基线。
 
 ### Focused 别名与外部 fanout
+
+隐藏 assign 的活动视图在 fanout hub 之前为别名边附加 `routingNet`，以稳定的别名组名称标识布线身份；
+逻辑 `net`、显示标签与源图保持不变。Hub 分组与共享布局线网键消费该身份，仍按驱动节点隔离；
+常量赋值不合并独立信号。Simple 的 `preserveLegacyProjection` 路径不生成此字段，保留冻结行为。
 
 活动 provider 的 Focused 查询沿共享 assign 别名索引解析 net 根，保留会话中的原始 canonical 名称。
 边界投影对完整图做一次索引查找扫描：若外部驱动已有输入边界，且同一物理 net 仍有范围外负载，

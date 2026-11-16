@@ -2,7 +2,7 @@
 
 ## 1. 产品定位
 
-- **当前维护基线**：默认启用 `Native Layered AnchorLayered` 布局引擎，失败时按 `AnchorLayered → ELK → Simple` 顺序自动降级；关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 辅助脚本的专项维护，请参阅 [维护计划](plans/linux_launcher_maintenance.md)（历史阶段文档保留当时的验收背景，不代表旧发布版本包含当前主干的全部后续修复）。
+- **当前维护基线**：默认启用 `AnchorLayered` 布局引擎，失败时按 `AnchorLayered → ELK → Simple` 顺序自动降级；关于 Linux 单文件启动器、CMake 构建及 EDA/Tcl 辅助脚本的专项维护，请参阅 [维护计划](plans/linux_launcher_maintenance.md)（历史阶段文档保留当时的验收背景，不代表旧发布版本包含当前主干的全部后续修复）。
 - **核心价值**：**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Netlist Schematic Browser）。它的核心价值并非仅仅将网表转为一张静态图片，而是帮助芯片设计与验证工程师在**缺乏 Liberty（`.lib`）时序库、未安装大型商业 EDA 工具且无法访问公网**的环境中，快速读懂门级拓扑结构。
 - **目标用户与第一优先级**：面向需要排查逻辑综合（Synthesis）、重综合（Resyn）、工艺重映射（Remap）、ECO 修改或局部逻辑锥（Logic Cone）的工程师。产品第一优先级是**“结构看得清、交互顺手、离线可靠”**，而非全面替代重量级商业原理图工具。
 

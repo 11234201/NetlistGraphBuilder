@@ -37,7 +37,9 @@ test("routing exclusion normalizes exact canonical names without guessing clock/
   assert.deepEqual(normalizeUnroutedNets(["reset", "clk", "clk", "clk/data[0]", "", null, 7]), ["clk", "clk/data[0]", "reset"]);
   assert.deepEqual(normalizeUnroutedNets("clk,reset"), []);
   const graph = buildWorkspaceGraph(module);
-  assert.equal(applyWorkspaceGraphTransforms(graph, { useFanoutHubs: false }), graph);
+  const projected = applyWorkspaceGraphTransforms(graph, { useFanoutHubs: false });
+  assert.deepEqual(projected.edges.map(({ routingNet, ...edge }) => edge), graph.edges);
+  assert.equal(applyWorkspaceGraphTransforms(graph, { useFanoutHubs: false, preserveLegacyProjection: true }), graph);
   assert.ok(graph.edges.some((edge) => edge.net === "reset"));
 });
 

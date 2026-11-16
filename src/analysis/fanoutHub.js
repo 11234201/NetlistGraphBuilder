@@ -4,7 +4,7 @@ export function simplifyFanoutWithHubs(graph, options = {}) {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const edgesBySourceAndNet = new Map();
   for (const edge of graph.edges) {
-    const key = `${edge.source}\u0000${edge.net}`;
+    const key = `${edge.source}\u0000${edge.routingNet ?? edge.net}`;
     if (!edgesBySourceAndNet.has(key)) edgesBySourceAndNet.set(key, []);
     edgesBySourceAndNet.get(key).push(edge);
   }

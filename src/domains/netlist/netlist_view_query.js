@@ -20,6 +20,7 @@ export function queryNetlistView(fullGraph, query, transforms = {}) {
     fullGraph,
     // Search-first is an indexed empty view, not a graph to simplify or route.
     visibleGraph: query.mode === "search-first" ? selectedGraph
-      : applyWorkspaceGraphTransforms(selectedGraph, { ...transforms, fullGraph })
+      : applyWorkspaceGraphTransforms(selectedGraph, { ...transforms, fullGraph,
+        preserveLegacyProjection: query.preserveLegacyProjection === true })
   };
 }
