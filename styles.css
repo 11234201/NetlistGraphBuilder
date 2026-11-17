@@ -1939,3 +1939,25 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 #domainInspector .inspector-object-header { margin-bottom: 8px; }
 #domainInspector .inspector-object-name { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 #domainNavigator button:focus-visible, #domainInspector button:focus-visible { outline: 2px solid #168396; outline-offset: 2px; }
+/* Structure analysis overlays preserve the original AIG geometry and hit areas. */
+#schematicMount svg[data-aig-analysis-active="true"][data-aig-analysis-dim="true"] [data-domain-object]:not([data-aig-analysis-role]) { opacity: .22; }
+#schematicMount svg[data-aig-block-labels="false"] .aig-block-label { display: none; }
+.aig-analysis-status, .aig-analysis-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.aig-analysis-status { font-size: 12px; }
+.aig-analysis-status[data-aig-analysis-status="partial"] { color: #a65a0a; }
+.aig-analysis-list, .aig-pin-list, .aig-witness-list { list-style: none; padding: 0; margin: 8px 0; }
+.aig-analysis-list li + li { margin-top: 6px; }
+.aig-analysis-result { display: grid; gap: 4px; width: 100%; padding: 10px; text-align: left; color: inherit; background: var(--surface, #fff); border: 1px solid var(--border, #cbd5e1); border-radius: 6px; overflow-wrap: anywhere; }
+.aig-analysis-result strong { font-size: 12px; font-weight: 600; }
+.aig-analysis-result small { font-size: 11px; opacity: .75; }
+.aig-analysis-result.is-current { border-color: #087587; background: #e8f5f5; color: #164e63; box-shadow: inset 3px 0 #087587; }
+.aig-analysis-filter { display: flex; align-items: center; gap: 8px; }
+.aig-analysis-formula { padding: 12px; border-radius: 6px; background: #f3f0fa; color: #5b3d87; overflow-wrap: anywhere; font-family: monospace; }
+.aig-structure-details h3 { font-size: 15px; overflow-wrap: anywhere; }
+.aig-structure-details h4 { font-size: 12px; margin: 18px 0 8px; }
+.aig-pin-list li, .aig-witness-list li { padding: 5px 0; overflow-wrap: anywhere; font-size: 12px; }
+.aig-pin-list code, .aig-witness-list span { display: inline-block; min-width: 38px; }
+.aig-pin-list small { opacity: .7; }
+.aig-path-a { color: #1776c8; }
+.aig-path-b { color: #c16a16; }
+.aig-analysis-legend { font-size: 12px; }

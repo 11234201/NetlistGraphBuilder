@@ -53,7 +53,7 @@ Structural Verilog
 
 AIG 主界面接入的 [实施计划](plans/aig_graphviz_integration.md) P0–P5 已完成：支持 ABC AIG DOT / AND-NOT BLIF、保留输入输出名称、统一 Graphviz 曲线与分析高亮，以及现有两侧栏、搜索、导出和恢复。网表回归、离线发布验证与大型压力图的明确超时边界见 [验收记录](reports/aig_integration_acceptance.md)。不包含生产 AIGER 导入，不改变 Simple 冻结范围；既有发布附件不会自动更新。
 
-AIG 的两项 [后续需求](plans/aig_followup_roadmap.md) 已登记为计划中，**不纳入当前接入轮次**：F-AIG-01 为 AIG before/after Compare，并将 Compare 默认分屏改为左右；F-AIG-02 为 Netlist → AIG，支持选定 cone、Whole 默认当前 module 全量转换，以及 Compare 两侧转换为 AIG 对比图。
+AIG 的四项 [后续需求](plans/aig_followup_roadmap.md) 已登记，**不纳入已完成的主界面接入轮次**：F-AIG-01 为 AIG before/after Compare，并将 Compare 默认分屏改为左右；F-AIG-02 为 Netlist → AIG，支持选定 cone、Whole 默认当前 module 全量转换，以及 Compare 两侧转换为 AIG 对比图。F-AIG-03 为全图结构重收敛路径识别，F-AIG-04 为 XOR2/XNOR2/MUX2 全变体识别；两项已完成算法、工作台与离线包实现，验收和预算边界见 [实施计划](plans/aig_structure_analysis.md)。
 
 **当前里程碑进展**：
 - **阶段 7（已完成）**：模块化单体多领域工作台架构已全面落地，涵盖领域契约与静态注册、`DocumentStore` / `ViewSessionStore` / 命令总线、共享视图流水线与 `Scene` 渲染器、职责解耦的 UI 控制器、版本化存档编解码器（codec）以及内存 AIG 扩展性验证门禁。

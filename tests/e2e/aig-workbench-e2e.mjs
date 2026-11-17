@@ -54,7 +54,7 @@ async function geometry(page) {
     shapes: [...element.querySelectorAll(".aig-node-shape,.aig-edge-path,.aig-edge-arrow")].map((shape) => ({
       tag: shape.tagName, attributes: ["d", "cx", "cy", "rx", "ry", "x", "y", "width", "height", "points"].map((key) => [key, shape.getAttribute(key)])
     })),
-    labels: [...element.querySelectorAll("text")].map((label) => ({ text: label.textContent, x: label.getAttribute("x"), y: label.getAttribute("y") }))
+    labels: [...element.querySelectorAll(".aig-node-label")].map((label) => ({ text: label.textContent, x: label.getAttribute("x"), y: label.getAttribute("y") }))
   })));
 }
 

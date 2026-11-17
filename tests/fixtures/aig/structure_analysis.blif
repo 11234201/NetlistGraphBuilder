@@ -1,0 +1,22 @@
+.model structure_analysis
+.inputs a b c s
+.outputs x q y
+.names a b n10
+11 1
+.names a b n11
+00 1
+.names n10 n11 x
+00 1
+.names a c n20
+10 1
+.names a c n21
+01 1
+.names n20 n21 q
+00 1
+.names s x n30
+11 1
+.names s q n31
+01 1
+.names n30 n31 y
+00 0
+.end

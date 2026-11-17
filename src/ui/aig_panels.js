@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml, renderDefinitionRows } from "./html.js";
+import { renderAigStructureNavigator, renderAigStructureInspector, renderAigStructureMembership } from "./aig_structure_panels.js";
 
 export const AIG_PANEL_PAGE_SIZE = 100;
 
@@ -8,13 +9,15 @@ const panelIndexes = new WeakMap();
 
 export function renderAigNavigator(workspace, options = {}) {
   if (!workspace?.document?.model) return '<p class="details-empty">Open an ABC AIG DOT or AND/NOT BLIF file.</p>';
-  const tab = options.tab === "objects" ? "objects" : "design";
-  const tabs = renderTabs("nav", [["design", "Design"], ["objects", "Objects"]], tab);
+  const tab = ["objects", "analysis"].includes(options.tab) ? options.tab : "design";
+  const tabs = renderTabs("nav", [["design", "Design"], ["objects", "Objects"], ["analysis", "Analysis"]], tab);
   return `${tabs}<section data-aig-nav-content="${tab}">${tab === "design"
-    ? renderDesign(workspace, options) : renderObjects(workspace, options)}</section>`;
+    ? renderDesign(workspace, options) : tab === "analysis" ? renderAigStructureNavigator(workspace, options.structure) : renderObjects(workspace, options)}</section>`;
 }
 
 export function renderAigInspector(workspace, options = {}) {
+  const structure = renderAigStructureInspector(workspace, options.structure);
+  if (structure) return structure;
   const context = workspace?.document?.model ? getIndexes(workspace) : null;
   const selected = context?.query.getObject(options.selectedId);
   const tab = ["analysis", "source"].includes(options.tab) ? options.tab : "connections";
@@ -164,7 +167,7 @@ function renderAnalysis(workspace, object, isEdge, options) {
     ["Source depth", query.nodeById.get(object.source).level], ["Target depth", query.nodeById.get(object.target).level], ["Polarity", object.inverted ? "Inverted" : "Positive"]]
     : [["AND depth", object.level], ["Fanout references", analysis.fanout[object.id] || 0], ["Logical critical path", query.criticalNodes.has(object.id) ? "Yes" : "No"],
       ["High fanout threshold", threshold], ["Threshold reached", (analysis.fanout[object.id] || 0) >= threshold ? "Yes" : "No"]];
-  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl><p class="details-empty">Unit AND depth is a logical metric, not cell timing. Fanout includes each input slot and PO reference.</p>`;
+  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl><p class="details-empty">Unit AND depth is a logical metric, not cell timing. Fanout includes each input slot and PO reference.</p>${renderAigStructureMembership(workspace, object, isEdge, options.structure)}`;
 }
 
 function renderSource(object, isEdge, options) {

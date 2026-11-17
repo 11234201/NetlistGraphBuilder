@@ -3,6 +3,8 @@ export const aigControls = Object.freeze({
   toolbar: `<span class="context-note">Graphviz · AIG</span>
     <label>View <select data-domain-policy="viewStyle" aria-label="AIG view style"><option value="standard">Standard</option><option value="abc">ABC</option></select></label>
     <label><input type="checkbox" data-domain-policy="neighbors" checked>Highlight neighbors</label>
+    <label><input type="checkbox" data-domain-policy="structureLabels" checked>Block labels</label>
+    <label><input type="checkbox" data-domain-policy="structureDim" checked>Dim outside analysis</label>
     <label><input type="checkbox" data-domain-policy="critical" checked>Logical critical path</label>
     <label><input type="checkbox" data-domain-policy="fanout" checked>High fanout</label>
     <label>≥ <input type="number" data-domain-policy="fanoutThreshold" min="1" max="1000000" value="2" aria-label="High fanout threshold"></label>

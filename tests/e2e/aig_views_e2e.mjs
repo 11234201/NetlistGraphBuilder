@@ -25,7 +25,7 @@ const geometry = (page) => page.locator("#schematicMount").evaluate((mount) => [
   id: shape.parentElement.dataset.aigObject,
   geometry: ["d", "points", "cx", "cy", "rx", "ry"].map((key) => shape.getAttribute(key))
 })));
-const appearance = (page) => page.locator("#schematicMount").evaluate((mount) => [...mount.querySelectorAll(".aig-node-shape,.aig-edge-path,.aig-edge-arrow,[data-aig-node] text")]
+const appearance = (page) => page.locator("#schematicMount").evaluate((mount) => [...mount.querySelectorAll(".aig-node-shape,.aig-edge-path,.aig-edge-arrow,.aig-node-label")]
   .map((shape) => [shape.parentElement.dataset.aigObject, shape.tagName, shape.getAttribute("class"),
     ...["fill", "stroke", "stroke-width", "stroke-dasharray", "font-family", "font-size"].map((key) => shape.getAttribute(key))])
   .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
@@ -196,8 +196,10 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator('[data-aig-nav-tab="objects"]').click();
     const scrollBefore = await page.locator("#navigatorPanel").evaluate((panel) => { panel.scrollTop = 400; return panel.scrollTop; });
     assert.ok(scrollBefore > 0, "the fixture must exercise a scrolled sidebar");
+    await page.evaluate(() => { window.__retainedNavigator = document.querySelector('[data-aig-filter="query"]'); });
     await switchStyle("abc");
     assert.equal(await page.locator("#navigatorPanel").evaluate((panel) => panel.scrollTop), scrollBefore);
+    assert.equal(await page.evaluate(() => window.__retainedNavigator.isConnected), true);
     cases.push("same-document layout preserves the navigator scroll position");
 
     await page.locator("#aigFileInput").setInputFiles({ name: "composition.blif", mimeType: "text/plain",

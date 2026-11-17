@@ -339,3 +339,10 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 - AIG 邻接高亮通过 `selection_highlights.js` 查询缓存入边/出边索引，选择时仅遍历关联边。Scene 与 UI 共用角色/颜色定义；UI 只更新旧、新邻居集合的 halo，导出消费相同 Scene，不改写源模型或自动几何。
 - `domain_workbench` 按 Document 身份区分导入与重新布局：同文档提交仅替换画布，保留工具栏和侧栏 DOM、搜索状态与侧栏滚动，并恢复画布对象焦点；不变的详情数据不重绘，以保留异步布局期间的 IME 组合输入。跨文档导入继续清理原搜索状态。邻接高亮开关走局部更新，不进入全图分析样式刷新。
 - ABC 自然分层通过独立 `AIG_ABC_GRAPHVIZ_POLICY` 将 Graphviz crossing-minimization multiplier 设为 0.25，约束深度重汇聚图的交叉优化成本；沿用 network-simplex 上限与 20 秒 Worker 超时。Standard 的 DOT、策略与几何保持原样。
+
+### AIG 结构分析（2026-11-17）
+
+- `structure_index / structure_blocks / structure_functions / structure_paths / structure_reconvergence` 拥有稳定拓扑索引、固定三 AND 检查、有界小 cut 真值识别、支配关系候选筛选与内部节点不相交的双路径证明。结果保留边 ID、边界、角色和极性，不改写模型。工作、缓存、结果与局部搜索预算统一由 `structure_policy` 归一化，受限结果显式标记 `partial`。
+- `structure_runtime / structure_worker` 在独立 module Worker 保留源索引，依次计算逻辑块及重收敛，按需查询路径并集。取消与 15 秒硬超时终止 Worker；后续请求可重建。`application/workspace_analysis` 使用 JobCoordinator 管理文档、会话及代际，拒绝过期结果，同文档重新布局复用完成的分析。详情缓存最多 8 项。
+- `app/aig_structure_bridge` 通过窄读写回调连接可选 DomainFeature 分析贡献、面板状态与 DOM 覆盖层；应用公共层不读取 AIG 模型。`structure_query / structure_presentation` 提供结果索引和展示描述；`ui/aig_structure_panels / aig_structure_canvas` 负责列表及增量高亮。标签分批挂载，点选只更新旧、新成员集合与根级淡化属性，开关标签不重建 SVG 或重新布局。
+- Session 存档仅保存类别、筛选、分页、选中结果 ID、标签和淡化偏好。分析结果含版本、文档/源修订、策略指纹与覆盖诊断，只作为运行时 Artifact；恢复时重新分析后校验结果 ID。SVG 导出与画布使用同一领域展示描述，保留反相虚线。

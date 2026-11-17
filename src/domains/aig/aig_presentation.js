@@ -1,6 +1,7 @@
 export function normalizeAigPresentation(value = {}) {
   return Object.freeze({ critical: value?.critical !== false, fanout: value?.fanout !== false,
     viewStyle: value?.viewStyle === "abc" ? "abc" : "standard", neighbors: value?.neighbors !== false,
+    structureLabels: value?.structureLabels !== false, structureDim: value?.structureDim !== false,
     fanoutThreshold: Math.max(1, Math.min(1000000, Math.trunc(Number(value?.fanoutThreshold) || 2))) });
 }
 

@@ -1,9 +1,10 @@
-const focusFields = ["aigFilter", "aigNavTab", "aigInspectorTab", "aigSelect", "aigZoom", "aigCopy", "aigShowSelection"];
+const focusFields = ["aigFilter", "aigNavTab", "aigInspectorTab", "aigSelect", "aigZoom", "aigCopy", "aigShowSelection",
+  "aigAnalysisSelect", "aigAnalysisCategory", "aigAnalysisPage", "aigAnalysisDetailPage", "aigAnalysisAction"];
 
 export function createAigPanelInteractions({ document, navigatorHost, inspectorHost, onAction, onFilter }) {
   const hosts = [navigatorHost, inspectorHost];
   const filterValues = new Map();
-  let composing = null;
+  let composing = null, deferredRender = null;
 
   function filter(event) {
     const input = event.target;
@@ -27,6 +28,7 @@ export function createAigPanelInteractions({ document, navigatorHost, inspectorH
     host.addEventListener("compositionend", (event) => {
       if (composing === event.target) composing = null;
       filter(event);
+      if (deferredRender) render(deferredRender);
     });
     host.addEventListener("keydown", (event) => {
       const tab = event.target.closest('[role="tab"]');
@@ -35,23 +37,25 @@ export function createAigPanelInteractions({ document, navigatorHost, inspectorH
       const tabs = [...tab.parentElement.querySelectorAll('[role="tab"]')];
       const index = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
         : (tabs.indexOf(tab) + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-      tabs[index].click();
-      host.querySelectorAll('[role="tab"]')[index]?.focus();
+      const target = tabs[index], field = focusFields.find((key) => target.dataset[key] !== undefined), value = target.dataset[field];
+      target.click();
+      [...host.querySelectorAll('[role="tab"]')].find((element) => element.dataset[field] === value)?.focus();
     });
   }
 
-  return Object.freeze({
-    render({ navigator, inspector }) {
-      const active = document.activeElement;
-      const host = hosts.find((candidate) => candidate.contains(active));
-      const restore = host ? captureFocus(host, active) : null;
-      navigatorHost.innerHTML = navigator;
-      inspectorHost.innerHTML = inspector;
-      if (composing && !navigatorHost.contains(composing)) composing = null;
-      for (const input of navigatorHost.querySelectorAll("[data-aig-filter]")) filterValues.set(input.dataset.aigFilter, input.value);
-      restore?.();
-    }
-  });
+  function render({ navigator, inspector }) {
+    if (composing && navigatorHost.contains(composing)) { deferredRender = { navigator, inspector }; return; }
+    deferredRender = null;
+    const active = document.activeElement;
+    const host = hosts.find((candidate) => candidate.contains(active));
+    const restore = host ? captureFocus(host, active) : null;
+    navigatorHost.innerHTML = navigator;
+    inspectorHost.innerHTML = inspector;
+    if (composing && !navigatorHost.contains(composing)) composing = null;
+    for (const input of navigatorHost.querySelectorAll("[data-aig-filter]")) filterValues.set(input.dataset.aigFilter, input.value);
+    restore?.();
+  }
+  return Object.freeze({ render });
 }
 
 function captureFocus(host, active) {
@@ -69,6 +73,7 @@ function captureFocus(host, active) {
     if (pageTarget && target?.disabled) target = candidates.find((element) => !element.disabled);
     if (!target && field === "aigShowSelection") target = controls.find((element) => element.dataset.aigSelect === value);
     target ||= host.querySelector('[role="tab"][aria-selected="true"]');
+    target ||= controls.find((element) => element.dataset.aigAnalysisAction === "locate");
     target?.focus({ preventScroll: true });
     if (target?.type === "search" && start !== null) target.setSelectionRange(start, end);
   };

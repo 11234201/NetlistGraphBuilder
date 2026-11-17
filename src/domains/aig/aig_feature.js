@@ -7,6 +7,9 @@ import { createAigScene } from "./aig_scene.js";
 import { normalizeAigPresentation, aigNodeStyle, aigEdgeStyle } from "./aig_presentation.js";
 import { graphvizJsonToGeometry } from "../../layout/graphviz_geometry.js";
 import { aigSelectionHighlights, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
+import { createAigStructureRuntime } from "./structure_runtime.js";
+import { createStructureQuery } from "./structure_query.js";
+import { createStructurePresentation } from "./structure_presentation.js";
 
 const cache = new Map();
 const MAX_CACHE_NODES = 20000;
@@ -63,8 +66,11 @@ export const aigFeature = defineDomainFeature({
     return { geometry: pipeline.graph, scene: pipeline.scene, query, searchIndex: index,
       search: (text, limit) => searchAigIndex(index, text, limit) };
   },
-  scene: (workspace, policy, selectedId) => createAigScene(workspace.document.model.model,
-    workspace.document.model.analysis, workspace.geometry, policy, selectedId),
+  createAnalysisService: (document) => createAigStructureRuntime(document.model.model),
+  queryAnalysis: createStructureQuery,
+  analysisPresentation: (workspace, view, policy) => createStructurePresentation(workspace.geometry, view, policy),
+  scene: (workspace, policy, selectedId, structure) => createAigScene(workspace.document.model.model,
+    workspace.document.model.analysis, workspace.geometry, policy, selectedId, structure),
   nodeStyle: (workspace, node, policy) => aigNodeStyle(node, workspace.document.model.analysis, workspace.query, policy),
   edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.query, policy),
   selectionHighlights: (workspace, selectedId, policy) => aigSelectionHighlights(workspace.query, selectedId, policy),

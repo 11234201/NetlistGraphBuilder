@@ -15,6 +15,7 @@ import { createObjectRef } from "../contracts/object_ref.js";
 import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { copyBrowserText } from "../platform/browser_clipboard.js";
 import { getQuickInputPriority } from "./quickInput.js";
+import { createAigStructureBridge } from "./aig_structure_bridge.js";
 
 const presentations = new Map([[aigControls.domainId, { ...aigControls,
   navigator: renderAigNavigator, inspector: renderAigInspector }]]);
@@ -50,8 +51,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const panelInteractions = createAigPanelInteractions({ document, navigatorHost, inspectorHost, onAction: panelEvent,
     onFilter(field, value) {
       if (!workspace) return;
-      panels.navigator[field] = value;
-      panels.navigator.page = 0;
+      if (field === "structureType") { panels.analysis.type = value; panels.analysis.page = 0; }
+      else { panels.navigator[field] = value; panels.navigator.page = 0; }
       renderPanels(); persist();
     } });
   const session = () => workspace ? sessions.require(workspace.sessionId) : null;
@@ -70,15 +71,17 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   }
   function renderPanels() {
     if (!workspace) return;
-    const options = { selectedId: selectedId(), fanoutThreshold: policy().fanoutThreshold };
+    const options = { selectedId: selectedId(), fanoutThreshold: policy().fanoutThreshold, structure: structure.view() };
     panelInteractions.render({ navigator: present().navigator(workspace.presentation, { ...panels.navigator, ...options }),
       inspector: present().inspector(workspace.presentation, { ...panels.inspector, ...options }) });
     const object = workspace.query.getObject(selectedId());
-    get("selectionSummaryButton").textContent = object?.label || object?.id || "No selection";
-    get("focusSelectedButton").disabled = !object;
+    const result = options.structure.query?.get(options.structure.selectedId);
+    get("selectionSummaryButton").textContent = result ? result.category === "block" ? `${result.kind.toUpperCase()} block` : "Reconvergence paths" : object?.label || object?.id || "No selection";
+    get("focusSelectedButton").disabled = !object && !result;
   }
-  function select(id, focus = true, { refreshDetails = true } = {}) {
+  function select(id, focus = true, { refreshDetails = true, preserveAnalysis = false } = {}) {
     if (!workspace) return;
+    if (!preserveAnalysis) structure.clearSelection();
     const object = workspace.query.getObject(id);
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
       unitId: session().unitId, kind: workspace.query.edgeById.has(id) ? "edge" : object.kind, localId: id }) : null;
@@ -95,6 +98,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   }
   function focusSelection(id = selectedId()) {
     if (!workspace) return;
+    if (id === selectedId() && structure.locate()) return;
     const node = workspace.positionedNodes.get(id);
     const edge = workspace.query.edgeById.get(id);
     if (node) canvas.focus(node);
@@ -109,6 +113,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const canvas = createDomainCanvas({ canvas: get("canvas"), mount,
     readViewport: () => session()?.viewport || { x: 0, y: 0, scale: 1 },
     writeViewport: (value) => { if (workspace) sessions.updateViewport(workspace.sessionId, value); }, select, save: persist });
+  const structure = createAigStructureBridge({ jobs, mount, readWorkspace: () => workspace,
+    readPanelState: () => panels.analysis, readPolicy: policy, renderPanels, persist,
+    isAnalysisVisible: () => panels.navigator.tab === "analysis" || Boolean(panels.analysis.selectedId) || panels.inspector.tab === "analysis",
+    focus: (bounds) => canvas.focus(bounds), onSelectionChange: () => refreshSelectionHighlights() });
   function switchShell(active) {
     if (active) {
       const legacy = [...get("navigatorPanel").children].filter((item) => item !== navigatorHost && !item.matches("header"));
@@ -147,6 +155,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     }
     syncPolicyControls();
     refreshSelectionHighlights();
+    structure.refresh();
     renderPanels();
   }
   function syncPolicyControls() {
@@ -161,7 +170,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     }
   }
   function refreshSelectionHighlights() {
-    const next = workspace.feature.selectionHighlights?.(workspace, selectedId(), policy()) || new Map();
+    const next = structure.view().query?.get(panels.analysis.selectedId) ? new Map()
+      : workspace.feature.selectionHighlights?.(workspace, selectedId(), policy()) || new Map();
     updateAigSelectionHighlights(objectElements, neighborHighlights, next, workspace.feature.selectionHighlightColors);
     neighborHighlights = next;
   }
@@ -196,7 +206,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       canvas.apply();
       // Relayout leaves the visible panel data unchanged. Keep its live inputs,
       // including an IME composition, instead of replacing their DOM.
-      select(nextSelectedId || null, false, { refreshDetails: !sameDocument });
+      structure.attach(workspace, objectElements);
+      select(nextSelectedId || null, false, { refreshDetails: !sameDocument, preserveAnalysis: true });
       syncPolicyControls();
       if (focusedObjectId) objectElements.get(focusedObjectId)?.focus({ preventScroll: true });
       get("navigatorPanel").scrollTop = navigatorScroll;
@@ -239,6 +250,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     importRequest?.cancel();
     inputGeneration += 1;
     canvas.stop();
+    structure.dispose();
     useCase.leave();
     if (workspace) switchShell(false);
     workspace = null;
@@ -262,6 +274,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   }
   function panelEvent(data) {
     if (!workspace) return;
+    if (data.aigAnalysisSelect) panels.navigator.tab = "analysis";
+    if (structure.action(data)) { refreshSelectionHighlights(); return; }
     if (data.aigSelect) select(data.aigSelect);
     else if (data.aigZoom) focusSelection(data.aigZoom);
     else if (data.aigCopy !== undefined) copySourceText(data.aigCopy);
@@ -281,7 +295,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
     if (field === "viewStyle") { changeViewStyle(value); return; }
     sessions.update(workspace.sessionId, () => ({ presentationPolicy: workspace.feature.normalizePresentation({ ...policy(), [field]: value }) }), { invalidateComputation: false });
-    if (field === "neighbors") refreshSelectionHighlights(); else refreshPolicy();
+    if (field === "neighbors") refreshSelectionHighlights();
+    else if (field === "structureLabels" || field === "structureDim") structure.refresh();
+    else refreshPolicy();
     persist();
   });
   async function changeViewStyle(viewStyle) {
@@ -394,9 +410,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
         handleWheel: canvas.wheel, handlePointerDown: canvas.pointerDown, fitToView: canvas.fit,
         focusSelectedCell: focusSelection, activateSearchResult: (result) => select(result.id),
         persistSession: persist,
-        exportCurrentSvg: () => download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, policy(), selectedId()))),
+        exportCurrentSvg: () => download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, policy(), selectedId(), structure.view()))),
           `${sanitizeDownloadFileName(workspace.document.source.name)}.svg`, "image/svg+xml"),
-        handleFocusSelectedShortcut: (event) => handleFocusShortcut(event, focusSelection, Boolean(selectedId()))
+        handleFocusSelectedShortcut: (event) => handleFocusShortcut(event, focusSelection, Boolean(selectedId() || panels.analysis.selectedId))
       };
       return commands[name]?.(...args);
     }
@@ -410,9 +426,10 @@ function setAttributes(element, values) {
 }
 function defaultPanels() {
   return { navigator: { tab: "design", type: "ports", query: "", analysisFilter: "all", sort: "name", page: 0 },
-    inspector: { tab: "connections", page: 0 } };
+    inspector: { tab: "connections", page: 0 }, analysis: { category: "reconvergence", type: "all", page: 0, detailPage: 0, selectedId: null } };
 }
 function normalizePanels(value) {
   const defaults = defaultPanels();
-  return { navigator: { ...defaults.navigator, ...value?.navigator }, inspector: { ...defaults.inspector, ...value?.inspector } };
+  return { navigator: { ...defaults.navigator, ...value?.navigator }, inspector: { ...defaults.inspector, ...value?.inspector },
+    analysis: { ...defaults.analysis, ...value?.analysis } };
 }

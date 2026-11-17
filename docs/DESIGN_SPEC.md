@@ -111,4 +111,8 @@ Paste AIG 绘图前可选择 Standard / ABC，初始默认 Standard。粘贴窗�
 
 Verilog / Timing 粘贴取消会中止实际布局任务及尚未完成的绘制，取消或过期结果不得覆盖新请求。既有网表导入在布局前已应用解析结果，因此取消保留已解析的数据，清除当前取消操作的画布并明确提示可重新绘图；Single / Compare 使用共享的任务取消边界。
 
-Navigator 使用 Design / Objects；Inspector 使用 Connections / Analysis / Source。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。
+Navigator 使用 Design / Objects / Analysis；Inspector 的普通对象使用 Connections / Analysis / Source，选择结构分析结果时展示专用详情。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。
+
+Analysis 分为 Reconvergence 与 Blocks。前者列出拥有两条内部节点不相交路径的分叉/汇合对，点选后两条证明路径分别为蓝、橙，分叉与汇合外框为青色；详情按需计算相关路径并集。后者识别 XOR2/XNOR2/MUX2 的全部有限函数变体，列出根节点、边界输入、引脚映射、极性与外部用途；块成员及输入边界为紫色外框。保留原始 AIG，不折叠或替换节点。XOR/XNOR 按正相根函数命名；MUX 采用确定性的引脚/极性规范表示，出边取反不会重复计数。
+
+点选分析结果不移动视口，Locate 单独定位，Clear highlight 清除分析选区。Block labels、Dim outside analysis 均默认开启；邻接高亮在分析选区活动时暂时隐藏，反相虚线始终保留。无可用空位的块标签可省略，结果列表仍完整列出已发现块。分析首帧后异步运行，可取消和重试；达到预算时显示 Partial results 及原因，不能解释为全图不存在其它结果。详情与结果列表分页，任意大等价子图不作穷尽识别承诺。

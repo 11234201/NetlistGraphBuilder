@@ -88,6 +88,8 @@ test("composition keeps its input alive until completion and applies the final f
   input.value = "雪";
   f.navigatorHost.emit("input", { target: input, isComposing: true });
   f.navigatorHost.emit("input", { target: input, isComposing: false });
+  f.controller.render({ navigator: [{ type: "search", value: "", dataset: { aigFilter: "query" } }], inspector: [] });
+  assert.equal(f.navigatorHost.contains(input), true, "async analysis must not replace an active composition");
   assert.deepEqual(f.filters, []);
   assert.equal(f.document.activeElement, input);
   f.navigatorHost.emit("compositionend", { target: input });
@@ -106,4 +108,13 @@ test("panel arrow, Home and End keys retain their tab navigation behavior", () =
     assert.equal(f.actions.at(-1).aigNavTab, expected);
     assert.equal(f.document.activeElement.dataset.aigNavTab, expected);
   }
+});
+
+test("following an Inspector analysis link keeps keyboard focus in the replacement details", () => {
+  const f = fixture();
+  f.controller.render({ navigator: [], inspector: [{ dataset: { aigAnalysisSelect: "next-result" } }] });
+  const old = f.inspectorHost.querySelectorAll("controls")[0]; old.focus();
+  f.controller.render({ navigator: [], inspector: [{ dataset: { aigAnalysisAction: "locate" } }, { dataset: { aigAnalysisAction: "clear" } }] });
+  assert.equal(f.inspectorHost.contains(f.document.activeElement), true);
+  assert.equal(f.document.activeElement.dataset.aigAnalysisAction, "locate");
 });
