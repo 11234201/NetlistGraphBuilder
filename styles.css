@@ -1878,6 +1878,7 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 /* Alternate domain contents share the existing responsive workbench shell. */
 .domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px; border-bottom: 1px solid #dbe2ea; font-size: 12px; background: #fff; }
 .domain-toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+.domain-toolbar .aig-legend { flex-basis: 100%; }
 .domain-toolbar input[type=number] { width: 65px; }
 #domainNavigator, #domainInspector { padding: 10px; min-width: 0; overflow: auto; }
 #domainNavigator table, #domainInspector table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -1895,7 +1896,7 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .aig-panel-tabs button[aria-selected=true] { color: #086579; border-bottom-color: #178197; font-weight: 600; }
 .aig-object-filters { display: grid; gap: 9px; margin-bottom: 12px; }
 .aig-object-filters label { display: grid; gap: 4px; color: #64748b; font-size: 11px; }
-.aig-object-filters input, .aig-object-filters select, .domain-toolbar input[type=number] { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 4px; color: #334155; background: #fff; font: inherit; font-size: 12px; }
+.aig-object-filters input, .aig-object-filters select, .domain-toolbar input[type=number], .domain-toolbar select { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 4px; color: #334155; background: #fff; font: inherit; font-size: 12px; }
 .domain-toolbar input[type=number] { width: 64px; }
 .aig-object-list .module-hierarchy-link { display: grid; gap: 3px; font-size: 12px; }
 .aig-object-list .module-hierarchy-link small { font-size: 10px; font-weight: normal; }

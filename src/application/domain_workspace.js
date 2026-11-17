@@ -8,6 +8,10 @@ export function createDomainWorkspace({ documents, sessions, jobs, registry, lay
   let active = null;
   function close(value) {
     if (!value) return;
+    jobs.cancelSession(value.sessionId);
+    sessions.close(value.sessionId);
+    // A presentation candidate shares its immutable source with the visible view.
+    if (active && active !== value && active.document === value.document) return;
     jobs.cancelDocument(value.document.documentId);
     sessions.closeByDocument(value.document.documentId);
     documents.close(value.document.documentId);
@@ -25,16 +29,26 @@ export function createDomainWorkspace({ documents, sessions, jobs, registry, lay
     const document = await feature.importSource(input, { documentId: `document:workspace:${ticket}`, sourceRevision: 1 });
     if (ticket !== generation) return null;
     documents.open(document);
-    const pending = { document, sessionId: `${document.documentId}:single`, feature };
+    return prepare(document, feature, restore, ticket);
+  }
+  async function relayout(restore) {
+    if (!active) return null;
+    const { document, feature } = active;
+    cancel();
+    return prepare(document, feature, restore, generation);
+  }
+  async function prepare(document, feature, restore, ticket) {
+    const pending = { document, sessionId: `${document.documentId}:single:${ticket}`, feature };
     candidate = pending;
     try {
       const unitId = feature.listUnits(document)[0].id;
       const session = sessions.create({ sessionId: pending.sessionId, documentId: document.documentId,
-        domainId, unitId, mode: "whole", viewport: restore?.viewport,
+        domainId: document.domainId, unitId, mode: "whole", viewport: restore?.viewport,
         presentationPolicy: feature.normalizePresentation(restore?.presentationPolicy) });
       const job = jobs.start({ sessionId: session.sessionId, kind: "domain-workspace",
         run: async ({ signal }) => {
-          const pipeline = await runViewPipeline(feature.createWorkspaceStages({ layout }), { document, signal });
+          const pipeline = await runViewPipeline(feature.createWorkspaceStages({ layout }),
+            { document, signal, presentationPolicy: session.presentationPolicy });
           return feature.describeWorkspace(document, pipeline);
         } });
       const result = await job.promise;
@@ -60,6 +74,6 @@ export function createDomainWorkspace({ documents, sessions, jobs, registry, lay
       throw error;
     }
   }
-  return Object.freeze({ open, cancel, read: () => active,
+  return Object.freeze({ open, relayout, cancel, read: () => active,
     leave() { cancel(); close(active); active = null; } });
 }

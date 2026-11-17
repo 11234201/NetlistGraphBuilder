@@ -1,4 +1,7 @@
-export const AIG_DISPLAY_VERSION = 3;
+import { projectAbcAigDot } from "./abc_projection.js";
+import { quoteDot as quote } from "./dot_attributes.js";
+
+export const AIG_DISPLAY_VERSION = 4;
 export const AIG_FONT = "Arial";
 // Graphviz otherwise permits INT_MAX network-simplex iterations. These named
 // quality/cost limits supplement the Worker's hard timeout; they do not change
@@ -7,7 +10,8 @@ export const AIG_GRAPHVIZ_POLICY = Object.freeze({ networkSimplexIterationsPerNo
 
 // Only generated, quoted attributes reach Graphviz. Source DOT attributes never
 // cross this boundary (including URLs, images, HTML labels and scripts).
-export function projectAigDot(model) {
+export function projectAigDot(model, presentation = {}) {
+  if (presentation.viewStyle === "abc") return projectAbcAigDot(model, AIG_GRAPHVIZ_POLICY);
   const used = new Set(model.edges.flatMap((edge) => [edge.source, edge.target]));
   const nodes = model.nodes.filter((node) => node.kind !== "constant" || used.has(node.id));
   const lines = ["digraph AIG {", `graph [rankdir=BT, splines=true, nodesep=0.35, ranksep=0.65, pad=0.2, bgcolor="transparent", nslimit=${AIG_GRAPHVIZ_POLICY.networkSimplexIterationsPerNode}, nslimit1=${AIG_GRAPHVIZ_POLICY.rankIterationsPerNode}];`,
@@ -24,8 +28,4 @@ export function projectAigDot(model) {
   for (const edge of model.edges) lines.push(`${quote(edge.source)} -> ${quote(edge.target)} [id=${quote(edge.id)}, style=${edge.inverted ? "dashed" : "solid"}];`);
   lines.push("}");
   return lines.join("\n");
-}
-
-function quote(value) {
-  return `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("\r", "\\r").replaceAll("\n", "\\n")}"`;
 }

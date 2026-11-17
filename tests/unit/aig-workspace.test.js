@@ -86,3 +86,42 @@ test("versioned domain archives preserve pure view data and reject incompatible 
   assert.throws(() => decodeDomainWorkspace('{"version":88}'), /Unsupported/);
   assert.equal(aigFeature.capabilities.compare, false);
 });
+
+test("AIG styles reuse the source, preserve every object and cache a round trip", async () => {
+  const env = setup();
+  const first = await env.useCase.open("aig", { text: fixture("shared_cone.blif"), name: "views.blif" });
+  const snapshot = JSON.stringify(first.document.model);
+  assert.equal(env.viewSessions.require(first.sessionId).presentationPolicy.viewStyle, "standard");
+  assert.equal(env.viewSessions.require(first.sessionId).presentationPolicy.neighbors, true);
+  const beforeCalls = env.calls();
+  const abc = await env.useCase.relayout({ presentationPolicy: { viewStyle: "abc" } });
+  assert.equal(abc.document, first.document);
+  assert.equal(JSON.stringify(abc.document.model), snapshot);
+  assert.deepEqual(abc.geometry.nodes.map((node) => node.id).sort(), first.geometry.nodes.map((node) => node.id).sort());
+  assert.deepEqual(abc.geometry.edges.map((edge) => edge.id).sort(), first.geometry.edges.map((edge) => edge.id).sort());
+  assert.notDeepEqual(abc.geometry, first.geometry);
+  assert.equal(env.calls(), beforeCalls + 1);
+  assert.match(renderSvgScene(abc.scene), /Times-Roman/);
+  assert.match(renderSvgScene(abc.scene), /stroke-dasharray="1 4"/);
+  const back = await env.useCase.relayout({ presentationPolicy: { viewStyle: "standard" } });
+  assert.deepEqual(back.geometry, first.geometry);
+  assert.equal(env.calls(), beforeCalls + 1, "returning to Standard reuses cached geometry");
+  assert.equal(env.documents.list().length, 1);
+  assert.equal(env.viewSessions.list().length, 1);
+  assert.equal(env.workspaceArtifacts.list().length, 1);
+  env.useCase.leave();
+  assert.equal(env.documents.list().length, 0);
+  assert.equal(env.viewSessions.list().length, 0);
+  assert.equal(env.workspaceArtifacts.list().length, 0);
+});
+
+test("ABC projection and real geometry are invariant under node and edge permutations", () => {
+  const document = aigFeature.importSource({ text: fixture("shared_cone.blif"), name: "stable.blif" });
+  const model = document.model.model;
+  const policy = { viewStyle: "abc" };
+  const original = projectAigDot(model, policy);
+  const reversed = projectAigDot({ ...model, nodes: [...model.nodes].reverse(), edges: [...model.edges].reverse() }, policy);
+  assert.equal(reversed, original);
+  assert.deepEqual(viz.renderJSON(reversed), viz.renderJSON(original));
+  assert.equal(projectAigDot(model), projectAigDot(model, { viewStyle: "standard", neighbors: false }));
+});

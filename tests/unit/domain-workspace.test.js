@@ -108,6 +108,53 @@ test("invalid restored session is rejected without leaving an orphan document", 
   assert.equal(state.sessions.list().length, 1);
 });
 
+test("relayout failure and cancellation retain the active shared document and its artifacts", async () => {
+  const blocked = deferred(), entered = deferred();
+  let action = "ready";
+  const state = harness({ layout(value) {
+    if (action === "fail") throw new Error("layout failed");
+    if (action === "hold") { entered.resolve(); return blocked.promise.then(() => value); }
+    return value;
+  } });
+  const previous = await state.workspace.open("fixture", { name: "working" });
+  action = "fail";
+  await assert.rejects(state.workspace.relayout({}), /layout failed/);
+  assert.equal(state.workspace.read(), previous);
+  action = "hold";
+  const cancelled = state.workspace.relayout({});
+  await entered.promise;
+  state.workspace.cancel();
+  action = "ready";
+  const next = await state.workspace.relayout({});
+  blocked.resolve();
+  assert.equal(await cancelled, null);
+  assert.equal(state.workspace.read(), next);
+  assert.equal(next.document, previous.document);
+  assert.deepEqual(state.documents.list(), [previous.document]);
+  assert.equal(state.sessions.list().length, 1);
+  assert.equal(state.artifacts.list().length, 1);
+});
+
+test("stale relayout mount cannot close a newer session on the same document", async () => {
+  const mounted = deferred(), entered = deferred();
+  let hold = false;
+  const state = harness({ async onCommit(_value, _restore, isCurrent) {
+    if (hold) { hold = false; entered.resolve(); await mounted.promise; }
+    return isCurrent();
+  } });
+  await state.workspace.open("fixture", { name: "working" });
+  hold = true;
+  const stale = state.workspace.relayout({});
+  await entered.promise;
+  const current = await state.workspace.relayout({});
+  mounted.resolve();
+  assert.equal(await stale, null);
+  assert.equal(state.workspace.read(), current);
+  assert.equal(state.documents.list().length, 1);
+  assert.equal(state.sessions.require(current.sessionId).documentId, current.document.documentId);
+  assert.equal(state.artifacts.list().length, 1);
+});
+
 test("domain storage acquisition is lazy so denied browser storage cannot break composition", () => {
   let reads = 0;
   const storage = createDomainWorkspaceStorage(() => { reads += 1; throw new Error("Storage denied"); });

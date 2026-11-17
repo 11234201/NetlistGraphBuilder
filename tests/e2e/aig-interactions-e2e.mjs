@@ -138,8 +138,12 @@ await runBrowserTest(async ({ browser, url }) => {
   await page.locator("#toggleInspectorButton").evaluate((button) => button.click());
   await page.mouse.up();
   const panAfterResize = await page.evaluate(() => window.__aigPanRead());
-  assert.ok(Math.abs(panAfterResize.x - panBeforeResize.x) < 0.1, JSON.stringify({ panBeforeResize, panAfterResize }));
-  assert.ok(Math.abs(panAfterResize.y - panBeforeResize.y) < 0.1, JSON.stringify({ panBeforeResize, panAfterResize }));
+  // SVG transforms intentionally serialize to three decimal places. The toolbar
+  // changes the fit ratio; measure the centre error in screen pixels rather than
+  // imposing a fixed model-unit epsilon on every magnification.
+  const centreErrorPixels = Math.hypot(panAfterResize.x - panBeforeResize.x,
+    panAfterResize.y - panBeforeResize.y) * panBeforeResize.scale;
+  assert.ok(centreErrorPixels < 0.5, JSON.stringify({ panBeforeResize, panAfterResize, centreErrorPixels }));
   assert.ok(Math.abs(panAfterResize.scale - panBeforeResize.scale) < 0.002);
   cases.push("closing a docked panel preserves an active pan and ignores its late release");
 

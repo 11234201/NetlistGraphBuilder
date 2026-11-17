@@ -8,6 +8,7 @@ import { createDomainCanvas } from "../ui/domain_canvas_controller.js";
 import { renderAigNavigator, renderAigInspector, revealAigNavigatorSelection } from "../ui/aig_panels.js";
 import { aigControls } from "../ui/aig_controls.js";
 import { createAigPanelInteractions } from "../ui/aig_panel_interactions.js";
+import { updateAigSelectionHighlights } from "../ui/aig_selection_highlights.js";
 import { handleFocusShortcut } from "../ui/focus_shortcut.js";
 import { searchDesignIndex } from "../search/designSearch.js";
 import { createObjectRef } from "../contracts/object_ref.js";
@@ -42,6 +43,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   let savedVisibility = new Map();
   let objectElements = new Map();
   let oldSelectedId = null;
+  let neighborHighlights = new Map();
+  let switchingStyle = false;
   let inputGeneration = 0;
   let importRequest = null;
   const panelInteractions = createAigPanelInteractions({ document, navigatorHost, inspectorHost, onAction: panelEvent,
@@ -74,7 +77,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     get("selectionSummaryButton").textContent = object?.label || object?.id || "No selection";
     get("focusSelectedButton").disabled = !object;
   }
-  function select(id, focus = true) {
+  function select(id, focus = true, { refreshDetails = true } = {}) {
     if (!workspace) return;
     const object = workspace.query.getObject(id);
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
@@ -84,7 +87,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       for (const halo of objectElements.get(target)?.querySelectorAll(".aig-selection-halo") || []) halo.setAttribute("visibility", visible ? "visible" : "hidden");
     }
     oldSelectedId = selection?.localId || null;
-    renderPanels();
+    refreshSelectionHighlights();
+    if (refreshDetails) renderPanels();
     if (focus && object) focusSelection(id);
     persist();
   }
@@ -140,37 +144,62 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       for (const shape of element.querySelectorAll(selector)) setAttributes(shape, style);
       if (edge) for (const arrow of element.querySelectorAll(".aig-edge-arrow")) setAttributes(arrow, { fill: style.stroke, stroke: style.stroke });
     }
+    syncPolicyControls();
+    refreshSelectionHighlights();
+    renderPanels();
+  }
+  function syncPolicyControls() {
+    get("cancelDomainImportButton").textContent = switchingStyle ? "Cancel AIG layout" : "Cancel AIG import";
     for (const input of toolbar.querySelectorAll("[data-domain-policy]")) {
+      // Keep the requested style visible and keyboard-accessible while preparing
+      // it. Choosing the active style cancels the pending replacement.
+      if (input.dataset.domainPolicy === "viewStyle" && switchingStyle) continue;
       const value = policy()[input.dataset.domainPolicy];
       if (input.type === "checkbox") input.checked = value; else input.value = value;
+      input.disabled = switchingStyle;
     }
-    renderPanels();
+  }
+  function refreshSelectionHighlights() {
+    const next = workspace.feature.selectionHighlights?.(workspace, selectedId(), policy()) || new Map();
+    updateAigSelectionHighlights(objectElements, neighborHighlights, next, workspace.feature.selectionHighlightColors);
+    neighborHighlights = next;
   }
   const useCase = createDomainWorkspace({ documents, sessions, jobs, registry, layout: runtime,
     async onCommit(next, restore, isCurrent) {
       const candidateMount = document.createElement("div");
       const restoredPolicy = sessions.require(next.sessionId).presentationPolicy;
-      const scene = next.feature.scene(next, restoredPolicy, restore?.selectedId);
+      const scene = next.feature.scene(next, restoredPolicy);
       const result = await renderSvgSceneIntoMount(candidateMount, scene, { isCurrent });
       if (result.cancelled || !isCurrent()) return false;
+      // Retain selections made on the still-visible graph while layout was running.
+      const sameDocument = workspace?.document === next.document;
+      const nextSelectedId = sameDocument ? selectedId() : restore?.selectedId;
+      const nextPanels = sameDocument ? panels : restore?.panels;
+      const focusedObjectId = sameDocument ? document.activeElement?.closest("[data-domain-object]")?.dataset.domainObject : null;
+      const navigatorScroll = sameDocument ? get("navigatorPanel").scrollTop : 0;
+      const inspectorScroll = sameDocument ? inspectorHost.scrollTop : 0;
       suspendLegacy();
       for (const id of ["schematicMount", "leftSchematicMount", "rightSchematicMount"]) cancelSchematicRender(get(id));
       canvas.stop();
-      if (workspace) switchShell(false);
+      if (workspace && !sameDocument) switchShell(false);
       workspace = next;
       source = null;
       workspace.presentation = { ...next, document: next.document.model };
       workspace.positionedNodes = new Map(next.geometry.nodes.map((node) => [node.id, node]));
-      panels = normalizePanels(restore?.panels);
+      panels = normalizePanels(nextPanels);
       oldSelectedId = null;
-      switchShell(true);
+      neighborHighlights = new Map();
+      if (!sameDocument) switchShell(true);
       mount.replaceChildren(...candidateMount.childNodes);
       objectElements = new Map([...mount.querySelectorAll("[data-domain-object]")].map((element) => [element.dataset.domainObject, element]));
       canvas.apply();
-      select(restore?.selectedId || null, false);
-      refreshPolicy();
-      get("navigatorPanel").scrollTop = 0;
-      inspectorHost.scrollTop = 0;
+      // Relayout leaves the visible panel data unchanged. Keep its live inputs,
+      // including an IME composition, instead of replacing their DOM.
+      select(nextSelectedId || null, false, { refreshDetails: !sameDocument });
+      syncPolicyControls();
+      if (focusedObjectId) objectElements.get(focusedObjectId)?.focus({ preventScroll: true });
+      get("navigatorPanel").scrollTop = navigatorScroll;
+      inspectorHost.scrollTop = inspectorScroll;
       return true;
     } });
   function beginImport(request = importRequests.begin()) {
@@ -178,6 +207,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     request.signal.addEventListener("abort", () => {
       inputGeneration += 1;
       useCase.cancel();
+      switchingStyle = false;
+      syncPolicyControls();
       get("cancelDomainImportButton").hidden = true;
     }, { once: true });
     return request;
@@ -212,6 +243,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     workspace = null;
     source = null;
     objectElements.clear();
+    neighborHighlights.clear();
     get("cancelDomainImportButton").hidden = true;
     try { storage.clear(); } catch (error) { logProcess("warning", "persistence", error.message); }
   }
@@ -246,9 +278,46 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const field = event.target.dataset.domainPolicy;
     if (!field || !workspace) return;
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    if (field === "viewStyle") { changeViewStyle(value); return; }
     sessions.update(workspace.sessionId, () => ({ presentationPolicy: workspace.feature.normalizePresentation({ ...policy(), [field]: value }) }), { invalidateComputation: false });
-    refreshPolicy(); persist();
+    if (field === "neighbors") refreshSelectionHighlights(); else refreshPolicy();
+    persist();
   });
+  async function changeViewStyle(viewStyle) {
+    if (viewStyle === policy().viewStyle) {
+      if (switchingStyle) {
+        importRequest?.cancel();
+        setStatus(`AIG view: ${viewStyle === "abc" ? "ABC" : "Standard"}`);
+      }
+      return;
+    }
+    const request = beginImport();
+    const ticket = ++inputGeneration;
+    const savedSource = source;
+    const restore = { selectedId: selectedId(), panels, presentationPolicy:
+      workspace.feature.normalizePresentation({ ...policy(), viewStyle }) };
+    switchingStyle = true;
+    syncPolicyControls();
+    toolbar.querySelector('[data-domain-policy="viewStyle"]').value = viewStyle;
+    get("cancelDomainImportButton").hidden = false;
+    setStatus(`Switching AIG view to ${viewStyle === "abc" ? "ABC" : "Standard"}…`);
+    try {
+      const result = await useCase.relayout(restore);
+      if (!result || !request.isCurrent() || ticket !== inputGeneration) return;
+      source = savedSource;
+      canvas.fit();
+      persist();
+      setStatus(`AIG view: ${viewStyle === "abc" ? "ABC" : "Standard"}`);
+    } catch (error) {
+      if (ticket === inputGeneration) report(error);
+    } finally {
+      if (ticket === inputGeneration) {
+        switchingStyle = false;
+        syncPolicyControls();
+        get("cancelDomainImportButton").hidden = true;
+      }
+    }
+  }
   get("aigFileInput").addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -266,7 +335,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     }
   });
   get("cancelDomainImportButton").addEventListener("click", () => {
-    importRequest?.cancel(); setStatus("Import cancelled; previous view retained.");
+    const operation = switchingStyle ? "Layout" : "Import";
+    importRequest?.cancel(); setStatus(`${operation} cancelled; previous view retained.`);
   });
   mount.addEventListener("keydown", (event) => {
     if (!workspace || !["Enter", " "].includes(event.key)) return;

@@ -6,6 +6,7 @@ import { projectAigDot, AIG_DISPLAY_VERSION, AIG_FONT } from "./aig_projection.j
 import { createAigScene } from "./aig_scene.js";
 import { normalizeAigPresentation, aigNodeStyle, aigEdgeStyle } from "./aig_presentation.js";
 import { graphvizJsonToGeometry } from "../../layout/graphviz_geometry.js";
+import { aigSelectionHighlights, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
 
 const cache = new Map();
 const MAX_CACHE_NODES = 20000;
@@ -53,7 +54,7 @@ export const aigFeature = defineDomainFeature({
         return value;
       },
       applyOverrides: (geometry) => geometry,
-      createScene: (geometry, { document }) => createAigScene(document.model.model, document.model.analysis, geometry)
+      createScene: (geometry, { document, presentationPolicy }) => createAigScene(document.model.model, document.model.analysis, geometry, presentationPolicy)
     };
   },
   describeWorkspace(document, pipeline) {
@@ -65,10 +66,12 @@ export const aigFeature = defineDomainFeature({
   scene: (workspace, policy, selectedId) => createAigScene(workspace.document.model.model,
     workspace.document.model.analysis, workspace.geometry, policy, selectedId),
   nodeStyle: (workspace, node, policy) => aigNodeStyle(node, workspace.document.model.analysis, workspace.query, policy),
-  edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.query, policy)
+  edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.query, policy),
+  selectionHighlights: (workspace, selectedId, policy) => aigSelectionHighlights(workspace.query, selectedId, policy),
+  selectionHighlightColors: AIG_NEIGHBOR_COLORS
 });
 
-function projectAigDiagram(imported) {
-  return { dot: projectAigDot(imported.model),
+function projectAigDiagram(imported, { presentationPolicy } = {}) {
+  return { dot: projectAigDot(imported.model, presentationPolicy),
     nodeLabels: new Map(imported.model.nodes.map((node) => [node.id, node.label])) };
 }

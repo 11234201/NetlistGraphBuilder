@@ -90,6 +90,17 @@ try {
     assert.equal(await evaluate('document.querySelectorAll("[data-aig-edge]").length'), 19, format);
   }
   assert.equal(snapshots[0], snapshots[1]);
+  assert.equal(await evaluate('document.querySelector("[data-domain-policy=viewStyle]").value'), "standard");
+  assert.equal(await evaluate('document.querySelector("[data-domain-policy=neighbors]").checked'), true);
+  await evaluate(`document.querySelector('[data-aig-node][aria-label^="and:"]').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+    const search = document.getElementById('searchInput'); search.value = 'shared'; search.dispatchEvent(new Event('input', {bubbles:true}));
+    const style = document.querySelector('[data-domain-policy=viewStyle]'); style.focus(); style.value = 'abc'; style.dispatchEvent(new Event('change', {bubbles:true}));`);
+  await waitFor('document.querySelector("#statusBar").textContent === "AIG view: ABC"');
+  assert.equal(await evaluate('document.getElementById("searchInput").value'), "shared");
+  assert.equal(await evaluate('document.activeElement.dataset.domainPolicy'), "viewStyle");
+  assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=input]").length') > 0);
+  assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=output]").length') > 0);
+  assert.equal(await evaluate('document.querySelector("[data-aig-node] text").getAttribute("font-family")'), "Times-Roman");
   for (const id of ['fileInput', 'aigFileInput']) {
     assert.ok((await evaluate(`document.getElementById('${id}').accept`)).split(',').includes('.blif'));
   }
@@ -107,7 +118,7 @@ try {
   await waitFor('document.querySelector("#domainToolbar").hidden && document.querySelector("#schematicMount [data-node-id]")');
   assert.deepEqual(errors, []);
   assert.deepEqual(externalRequests, []);
-  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
+  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/ABC switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {
