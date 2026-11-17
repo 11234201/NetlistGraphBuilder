@@ -1,4 +1,4 @@
-const INPUT_KINDS = new Set(["netlist", "golden", "timing", "liberty"]);
+const INPUT_KINDS = new Set(["netlist", "aig", "golden", "timing", "liberty"]);
 const NETLIST_EXTENSIONS = new Set([".v", ".sv"]);
 const TIMING_EXTENSIONS = new Set([".log", ".rpt", ".timing", ".sta", ".csv", ".tsv"]);
 
@@ -16,16 +16,19 @@ export function detectQuickInputKind(text, options = {}) {
   const extension = getExtension(options.name);
   if (extension === ".lib") return "liberty";
   if (NETLIST_EXTENSIONS.has(extension)) return "netlist";
+  if (extension === ".blif" || extension === ".dot") return "aig";
   if (TIMING_EXTENSIONS.has(extension)) return "timing";
   if (extension === ".json" || source.startsWith("{")) {
     return isTimingJsonSource(source) ? "timing" : "golden";
   }
   if (hasLibertyHeader(source)) return "liberty";
+  const header = source.slice(skipCommentTrivia(source, 0));
+  if (/^(?:strict\s+)?digraph\b/i.test(header) || /^\.model\b/.test(header)) return "aig";
   if (TIMING_DIRECTIVE_PATTERN.test(source)) return "timing";
   if (/(?:^|[\s;])module\s+(?:\\\S+|[A-Za-z_$][\w$]*)/im.test(source)) return "netlist";
   if (TIMING_HEADER_PATTERN.test(source)) return "timing";
   if (TIMING_ROW_PATTERN.test(source)) return "timing";
-  throw new Error("input is not recognized as Verilog, Liberty, Golden JSON, or timing text");
+  throw new Error("input is not recognized as Verilog, AIG DOT/BLIF, Liberty, Golden JSON, or timing text");
 }
 
 function skipCommentTrivia(source, start) {
@@ -36,8 +39,8 @@ function skipCommentTrivia(source, start) {
       const end = source.indexOf("*/", offset + 2);
       if (end < 0) return source.length;
       offset = end + 2;
-    } else if (source.startsWith("//", offset)) {
-      const end = source.indexOf("\n", offset + 2);
+    } else if (source.startsWith("//", offset) || source[offset] === "#") {
+      const end = source.indexOf("\n", offset);
       if (end < 0) return source.length;
       offset = end + 1;
     } else break;
@@ -60,7 +63,7 @@ function isTimingJsonSource(source) {
 
 export function getQuickInputPriority(kind) {
   if (kind === "liberty") return -1;
-  if (kind === "netlist") return 0;
+  if (kind === "netlist" || kind === "aig") return 0;
   if (kind === "timing") return 1;
   if (kind === "golden") return 2;
   return 3;

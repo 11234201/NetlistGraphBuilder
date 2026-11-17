@@ -101,4 +101,6 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 
 AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 原名与内部稳定编号分开，虚线逐边表示反相。关键节点红色填充、关键边红色加粗、扇出橙色边框、选择蓝色外框可叠加，开关不改变布局。
 
+File → Open design 同时接受 Verilog 与 AIG 文件；Open AIG 及 Open design 的文件过滤器均包含 `.blif`、`.dot`、`.txt`。Paste AIG 对话框、非输入框 Ctrl+V 和拖放共享格式识别及导入生命周期。BLIF 文本可不带扩展名；导入失败保留原画布与对话框文本，更新请求取消旧计算。
+
 Navigator 使用 Design / Objects；Inspector 使用 Connections / Analysis / Source。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。

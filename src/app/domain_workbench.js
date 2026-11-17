@@ -173,8 +173,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       inspectorHost.scrollTop = 0;
       return true;
     } });
-  function beginImport() {
-    const request = importRequests.begin();
+  function beginImport(request = importRequests.begin()) {
     importRequest = request;
     request.signal.addEventListener("abort", () => {
       inputGeneration += 1;
@@ -183,7 +182,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     }, { once: true });
     return request;
   }
-  async function open(domainId, input, restore = null, request = beginImport()) {
+  async function open(domainId, input, restore = null, request = beginImport(), propagateErrors = false) {
     if (!request.isCurrent()) return null;
     const ticket = ++inputGeneration;
     setStatus(`Opening ${input.name}…`);
@@ -197,7 +196,11 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       setStatus(`Loaded ${input.name} · ${result.geometry.nodes.length} nodes · Graphviz${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
       logProcess("info", "import", `Loaded ${input.name}`, { domainId, provider: runtime.version });
       return result;
-    } catch (error) { if (ticket === inputGeneration) report(new Error(`${input.name}: ${error.message}`)); return null; }
+    } catch (error) {
+      if (propagateErrors) throw error;
+      if (ticket === inputGeneration) report(new Error(`${input.name}: ${error.message}`));
+      return null;
+    }
     finally { if (ticket === inputGeneration) get("cancelDomainImportButton").hidden = true; }
   }
   function leave() {
@@ -257,8 +260,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     try {
       const text = await file.text();
       if (readGeneration !== inputGeneration) return;
-      await open(event.target.dataset.domainId, { text, name: file.name,
-        format: file.name.toLowerCase().endsWith(".blif") ? "blif" : "abc-dot" }, null, request);
+      await open(event.target.dataset.domainId, { text, name: file.name }, null, request);
     } catch (error) {
       if (readGeneration === inputGeneration) { get("cancelDomainImportButton").hidden = true; report(error); }
     }
@@ -286,8 +288,11 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       await fallback();
     },
     imports: Object.freeze({
+      openAigText(text, { label, request }) {
+        return open("aig", { text, name: label }, null, beginImport(request), true);
+      },
       route(kind, run) {
-        if (workspace && kind !== "netlist") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
+        if (workspace && kind !== "netlist" && kind !== "aig") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
         return run();
       },
       // Leave the domain successfully before applying Netlist-only attachments.

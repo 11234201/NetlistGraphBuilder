@@ -6,8 +6,9 @@ export function bindWorkbenchInput({ elements, document, windowTarget, importReq
   return createQuickInputController({
     elements: createQuickInputElements(elements, document.body),
     windowTarget, importRequests, getInputPriority: imports.priority,
-    loadText: (text, options) => imports.route(options.kind, () => options.kind === "liberty"
-      ? loadLibertyText(text, options) : loadNetlistText(text, options)),
+    loadText: (text, options) => imports.route(options.kind, () => options.kind === "aig"
+      ? imports.openAigText(text, options) : options.kind === "liberty"
+        ? loadLibertyText(text, options) : loadNetlistText(text, options)),
     setStatus, logProcess
   });
 }

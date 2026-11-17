@@ -11,7 +11,7 @@ assert.equal(process.platform, "win32", "This smoke test verifies the Windows pa
 const root = resolve(import.meta.dirname, "../..");
 const version = JSON.parse(await readFile(join(root, "package.json"), "utf8")).version;
 const packageRoot = resolve(process.env.NGB_WINDOWS_PACKAGE || join(root, `dist/NetlistGraphBuilder-v${version}-win-x64`));
-const output = resolve(root, "dc_runs/aig_windows_release");
+const output = resolve(process.env.NGB_WINDOWS_AIG_ARTIFACT_DIR || join(root, "dc_runs/aig_windows_release"));
 const profile = join(output, "chrome_profile");
 await mkdir(output, { recursive: true });
 const port = await new Promise((done) => {
@@ -90,13 +90,24 @@ try {
     assert.equal(await evaluate('document.querySelectorAll("[data-aig-edge]").length'), 19, format);
   }
   assert.equal(snapshots[0], snapshots[1]);
+  for (const id of ['fileInput', 'aigFileInput']) {
+    assert.ok((await evaluate(`document.getElementById('${id}').accept`)).split(',').includes('.blif'));
+  }
+  await openFile('#fileInput', 'tests/fixtures/aig/shared_cone.blif');
+  await waitFor('document.querySelector("#statusBar").textContent.includes("Loaded shared_cone.blif")');
+  const pasteSource = await readFile(process.env.NGB_AIG_SAMPLE || join(root, 'tests/fixtures/aig/shared_cone.blif'), 'utf8');
+  await evaluate(`document.getElementById('pasteAigButton').click();
+    document.getElementById('netlistTextInput').value = ${JSON.stringify(pasteSource)};
+    document.getElementById('netlistTextForm').requestSubmit()`);
+  await waitFor('document.querySelector("#statusBar").textContent.includes("Loaded pasted AIG") && !document.getElementById("netlistTextDialog").open');
+  assert.ok(await evaluate('document.querySelectorAll("[data-aig-node]").length') > 0);
   const { data } = await send("Page.captureScreenshot", { format: "png" });
   await writeFile(join(output, "windows-package-aig.png"), Buffer.from(data, "base64"));
   await openFile("#fileInput", "examples/two_equivalent_style_modules.v");
   await waitFor('document.querySelector("#domainToolbar").hidden && document.querySelector("#schematicMount [data-node-id]")');
   assert.deepEqual(errors, []);
   assert.deepEqual(externalRequests, []);
-  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
+  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {

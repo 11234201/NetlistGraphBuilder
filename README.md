@@ -23,7 +23,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦 AND/NOT `.blif` 文件；无需安装 ABC 或 Graphviz。
 2. 在 `Navigator → Objects` 按名称或来源 ID 找到输入/输出，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看 AND 深度和扇出。
 3. 用 `Logical critical path`、`High fanout` 及阈值控制高亮；红色表示逻辑关键路径，橙色外框表示高扇出，虚线表示反相。逻辑深度不是 STA 延迟。
-4. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open netlist…`。
+4. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open design…`。
 
 没有现成输入时，可复制教程中的 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例) 保存后导入。格式边界、取消导入与恢复说明见 [AIG 完整流程](docs/USER_GUIDE.md#aig-图浏览)。
 
@@ -69,7 +69,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 - **双模块对比（Compare View）**：A/B 身份在上下或左右分屏中保持不变；支持独立控制视口同步与 roots 同步、同名输出锥联动和启发式结构差异高亮。两侧维护独立 roots，Fanin/Fanout 深度共享，Whole 与 Reset 同时作用于两侧。
 - **时序报告导入与标注**：支持符合 EDA 工具习惯的标准列式时序文本（空格/Tab/CSV）与 JSON 双模格式（默认极简 `point at rt slack`，可选详细模式 `delay`、`slew`、`edge`、`kind`），完整覆盖映射前（Pre-map）、映射后（Post-map）与布局后（Post-layout）阶段，驱动源自动沿 `assign` 别名链回溯；Timing 菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 指标过滤，支持自定义 Slack 判定阈值（Threshold，默认 0.0）与默认内置验证时序启动联动。
-- **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用网表/时序粘贴文本框，自动识别并区分 Liberty 库、Verilog 网表、Layout Golden 与时序日志；通过 `File → Open AIG…` 独立导入 ABC AIG `.dot` 或平坦 `.blif`。
+- **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用网表/AIG/时序粘贴文本框，自动识别 Liberty 库、Verilog 网表、ABC AIG DOT / AND-NOT BLIF、Layout Golden 与时序日志。`File → Open design…` 和 `Open AIG…` 均接受 `.blif`；`Paste AIG…` 可直接提交 AIG 文本。
 - **自定义单元配置（Cell Config）**：支持在界面内编辑、浏览器本地持久化及 JSON 导入/导出未知单元类型的逻辑门种类与引脚方向。
 - **过程日志与终端日志（Process & Terminal Log）**：底部可折叠 `Log` 面板支持按阶段（Phase）和级别（Level）过滤、一键复制与脱敏导出 JSONL；各平台终端启动器自动按约 2 MiB 轮转运行/错误 JSONL 日志，并在启动时清理超过 14 天的已退出进程旧日志。
 - **跨平台 EDA 启动接口**：Node.js、Python、Windows 离线版与 Linux 单文件启动器共享统一的命令行协议，支持由外部 EDA 脚本指定初始网表、时序、单元配置、目标模块、聚焦实例与追踪深度；Linux 环境提供可复用的 Tcl 集成脚本（`ngb.tcl`）。
@@ -194,7 +194,7 @@ Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共�
 
 ### 快速输入与层次浏览
 
-1. **载入网表**：点击顶部 `File > Open netlist`、将文件直接拖入页面，或在页面空白处按 `Ctrl+V` 粘贴 Verilog 文本，均可快速加载设计。
+1. **载入网表**：点击顶部 `File > Open design`、将文件直接拖入页面，或在页面空白处按 `Ctrl+V` 粘贴 Verilog 文本，均可快速加载设计。
 2. **代码片段直绘**：`File > Paste netlist` 适合直接复制一小段结构化 Verilog 代码并立即成图，无需先保存为本地文件。
 3. **多文件智能识别**：拖放与全局粘贴会自动区分 Liberty、Verilog 网表、Layout Golden 与时序日志；同时拖入多个文件时，严格按“Liberty（如有）→ 网表 → Timing → Golden”的顺序等待执行。
 4. **Golden 布局存取**：通过 `File > Save Golden` 保存当前模块的布局与手动微调结果；下次先载入相同网表，再点击 `File > Load Golden` 即可恢复布局（Golden v3 会自动校验目标模块名与网表内容指纹）。

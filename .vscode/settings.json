@@ -7,5 +7,6 @@
     }
   },
   "workbench.browser.enableRemoteProxy": true,
-  "workbench.browser.dataStorage": "workspace"
+  "workbench.browser.dataStorage": "workspace",
+  "cmake.sourceDirectory": "E:/workfile/synthesis/netlistGraphBuilder/native"
 }

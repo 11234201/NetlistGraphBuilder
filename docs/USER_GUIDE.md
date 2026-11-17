@@ -182,8 +182,9 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 点击全局栏的 `File`，其 `Import` 分组提供以下导入入口：
 
 - `Open AIG…`：选择 ABC AIG DOT 或平坦 AND/NOT BLIF，进入独立 AIG 工作区，详见 [AIG 图浏览](#aig-图浏览)。
-- `Open netlist`：从本地选择 `.v`、`.sv` 或文本格式的结构化 Verilog 网表文件。
+- `Open design`：从本地选择 `.v`、`.sv`、`.dot`、`.blif` 或 `.txt` 文件，自动识别 Verilog / AIG。Windows 文件选择器包含 `.blif`；保存为 `.txt` 的 AIG 也可按内容识别。
 - `Paste netlist`：在弹窗中直接粘贴结构化 Verilog 代码，点击 `Draw`（或按 `Ctrl+Enter` / `Cmd+Enter`）立即解析绘图。
+- `Paste AIG…`：粘贴 ABC AIG DOT 或 `.model` / `.names` 格式的 AND/NOT BLIF，点击 `Draw` 或按 `Ctrl+Enter` 绘图；失败时保留输入与上一张图。
 - `Open timing`：从本地选择 `.log`、`.txt`、`.rpt`、`.timing`、`.csv`、`.tsv` 或 `.json` 时序报告文件。
 - `Paste timing`：在弹窗中粘贴时序文本并明确按 Timing 格式解析（避免短小的时序片段被自动识别逻辑误判为 Verilog）。
 
@@ -200,7 +201,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 - 布局快照文件（Layout Golden `.json`）
 - Liberty 文本库（`.lib`）
 
-自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入；AIG 文件（`.dot` / `.blif`）请通过 `File → Open AIG…` 导入。
+自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入；AIG 文件（`.dot` / `.blif`）及文本也支持拖放和全局粘贴，或使用 `File → Open AIG…` / `Paste AIG…`。
 
 ### 3.3 支持的 Verilog 语法范围
 
@@ -789,14 +790,14 @@ NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --
 | 快捷键 | 功能说明 | 生效条件 |
 | --- | --- | --- |
 | `/` | 聚焦全局 Search | 非编辑状态、无模态对话框、未处于输入法组合中 |
-| `Ctrl+Enter` / `Cmd+Enter` | 提交 `Paste netlist` 或 `Paste timing` 文本 | 文本粘贴导入对话框打开时 |
+| `Ctrl+Enter` / `Cmd+Enter` | 提交 `Paste netlist`、`Paste AIG` 或 `Paste timing` 文本 | 文本粘贴导入对话框打开时 |
 | `Ctrl+Z` / `Alt+Left` | 视图历史后退（View History Back） | 焦点不在文本输入框内 |
 | `Ctrl+Shift+Z` / `Ctrl+Y` / `Alt+Right` | 视图历史前进（View History Forward） | 焦点不在文本输入框内 |
 | `F` | Zoom to selection，定位当前选中单元或线网 | 焦点不在文本输入框内且存在可定位对象 |
 | `ArrowUp` / `ArrowDown` | 在搜索下拉候选列表中上下切换 | 顶部搜索框获得焦点时 |
 | `Enter` | 激活并定位当前选中的搜索结果 | 顶部搜索框获得焦点时 |
 | `Esc` | 收起搜索候选、活动菜单、抽屉或对话框 | 对应界面处于打开状态时；菜单/抽屉关闭后归还触发按钮焦点 |
-| `Ctrl+V` / `Cmd+V` | 全局粘贴并自动识别网表、时序、Golden 或 Liberty | 焦点不在任何可编辑输入控件内 |
+| `Ctrl+V` / `Cmd+V` | 全局粘贴并自动识别网表、AIG、时序、Golden 或 Liberty | 焦点不在任何可编辑输入控件内 |
 | `ArrowLeft` / `ArrowRight` | 按 `16px` 步进调整 Navigator 或 Inspector 宽度 | 停靠面板分隔条获得焦点时 |
 | `ArrowLeft` / `ArrowRight`、`Home` / `End` | 切换页签，或跳至首个/末个页签 | Navigator 或 Inspector 页签获得焦点时 |
 
@@ -1004,7 +1005,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 ### AIG 取消、恢复与功能边界
 
 - **原子替换与超时取消**：导入新文件时，系统会先在后台完成独立解析与首帧场景构建，成功后再替换当前视图；若格式错误、布局超时或中途点击 `File → Cancel AIG import` 取消，均安全保留上一个可用视图。Graphviz 在独立 Web Worker 中运行，单次布局超过 **20 秒**会自动终止并报错；遇到超大图超时请先在外部拆分逻辑锥后重试，系统不会将 AIG 回退至网表正交布局器。
-- **首版工作区边界**：当前版本仅提供 **Single / Whole** 整图浏览。在 AIG 工作区中，网表专用的 `Compare`、`Focused` 局部锥裁剪、`Adjust` 节点拖拽/尺寸编辑、`Timing`、`Liberty`、`Cell Config` 与 `Golden` 入口均处于禁用状态；随时点击 `File → Open netlist…` 加载 Verilog 网表即可切回完整的网表工作台。二进制/ASCII AIGER（`.aig` / `.aag`）直接导入、网表转 AIG 及 AIG 双图对比属于后续规划范围。
+- **首版工作区边界**：当前版本仅提供 **Single / Whole** 整图浏览。在 AIG 工作区中，网表专用的 `Compare`、`Focused` 局部锥裁剪、`Adjust` 节点拖拽/尺寸编辑、`Timing`、`Liberty`、`Cell Config` 与 `Golden` 入口均处于禁用状态；随时点击 `File → Open design…` 加载 Verilog 网表即可切回完整的网表工作台。二进制/ASCII AIGER（`.aig` / `.aag`）直接导入、网表转 AIG 及 AIG 双图对比属于后续规划范围。
 - **BLIF 与 DOT 语法及配额边界**：
   - BLIF 支持 `.model`、`.inputs`、`.outputs`、`.names`、`.end`、注释、`\` 续行，以及可还原为至多二输入 `AND` / `NOT` / `BUF` / 常量的 ON/OFF 积项表（cover）。遇到一般多输入逻辑、`.gate` / `.subckt` / `.latch` / `.exdc`、无驱动信号、多驱动冲突或组合逻辑环路时，系统会拒绝导入并给出明确诊断。
   - 结构中独立的重复 AND 节点会完整保留各自的身份与扇出引用；纯 `BUF` / `NOT` 链则规范化折叠为带极性的来源别名（记录在 `Inspector > Source` 中）。
@@ -1013,7 +1014,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### AIG 最小示例
 
-将以下文本保存为 `aig_demo.blif`，通过 `File → Open AIG…` 导入即可体验（源码预览与离线发布包均可直接使用，无需安装额外综合工具）：
+将以下文本保存为 `aig_demo.blif`，通过 `File → Open AIG…` 导入，或直接粘贴到 `File → Paste AIG…` 即可体验（源码预览与离线发布包均可直接使用，无需安装额外综合工具）：
 
 ```blif
 .model aig_demo
@@ -1047,6 +1048,6 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 - **遇到 Graphviz 布局超时怎么办？**
   可在导入期间点击 `File → Cancel AIG import` 取消等待，或在外部综合工具（如 ABC）中先提取目标局部逻辑锥后再导出 `.dot` / `.blif`。超时或取消后会安全保留上一个可用视图，不会自动降级到网表正交布局引擎。
 - **为什么 Timing、Golden、Compare、Liberty 或 Cell Config 按钮不可用？**
-  这些能力专属于门级 Verilog 网表工作区。通过 `File → Open netlist…` 重新载入 Verilog 网表后即可恢复全部网表功能；网表时序报告与 Layout Golden 不能跨领域套用到 AIG 图上。
+  这些能力专属于门级 Verilog 网表工作区。通过 `File → Open design…` 重新载入 Verilog 网表后即可恢复全部网表功能；网表时序报告与 Layout Golden 不能跨领域套用到 AIG 图上。
 - **标签页刷新恢复是否等同于保存了文件？**
   **不是**。AIG 会话仅保存在当前浏览器、当前站点地址与当前标签页的 `sessionStorage` 中，关闭标签页、清除站点数据或超出浏览器存储配额后将无法恢复（存储受限时会在日志与状态栏给出警告）。需要长期保存时，请保留原始 `.dot` / `.blif` 文件并按需执行 `File → Export SVG`。

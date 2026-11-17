@@ -21,7 +21,7 @@ function inputElements() {
   const makeTarget = () => ({ ...eventTarget(), value: "", focus() {}, setSelectionRange() {} });
   return {
     netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
-    pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(),
+    pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(), pasteAigButton: makeTarget(),
     closeTextButton: makeTarget(), cancelTextButton: makeTarget(),
     textForm: { ...makeTarget(), requestSubmit() {} },
     textInput: makeTarget(), textTitle: {}, textDescription: {},
@@ -30,6 +30,25 @@ function inputElements() {
     body: { classList: { add() {}, remove() {} } }
   };
 }
+
+test("AIG file, drop, direct paste and dialog share the cancellable input request", async () => {
+  const elements = inputElements(), windowTarget = eventTarget(), loaded = [];
+  const controller = createQuickInputController({ elements, windowTarget, setStatus() {}, schedule: (run) => run(),
+    loadText: async (text, options) => { loaded.push({ text, ...options }); } });
+  const text = '.model m\n.inputs a\n.outputs a\n.end';
+  await elements.netlistInput.listeners.change({ target: { files: [{ name: 'sample.BLIF', text: async () => text }] } });
+  await controller.loadFiles([{ name: 'sample.txt', text: async () => text }]);
+  await windowTarget.listeners.paste({ clipboardData: { getData: () => text }, preventDefault() {} });
+  elements.pasteAigButton.listeners.click();
+  assert.equal(elements.textTitle.textContent, 'Paste AIG');
+  elements.textInput.value = text;
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  assert.equal(elements.textDialog.open, false);
+  assert.equal(loaded.length, 4);
+  assert.ok(loaded.every((entry) => entry.kind === 'aig' && entry.text === text && entry.request));
+  assert.ok(loaded.slice(0, -1).every((entry) => !entry.request.isCurrent()));
+  assert.equal(loaded.at(-1).request.isCurrent(), true);
+});
 
 test("file read, detection, batch and paste failures log context and preserve cancellation/stale guards", async () => {
   const elements = inputElements(), windowTarget = eventTarget(), log = createProcessLog();

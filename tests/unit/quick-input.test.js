@@ -31,6 +31,19 @@ test("quick input recognizes files and pasted content", () => {
   assert.throws(() => detectQuickInputKind("plain notes"), /not recognized/);
 });
 
+test("AIG files and clipboard text recognize BLIF and ABC DOT without a filename", () => {
+  for (const name of ["design.blif", "DESIGN.BLIF", "graph.dot"]) {
+    assert.equal(detectQuickInputKind("", { name }), "aig");
+  }
+  for (const source of ["#\n.model netlist", "\ufeff# header\r\n.model netlist\r\n.inputs n0\r\n.outputs n1",
+    "// ABC\ndigraph G {", "/* ABC */ strict digraph {", ".model netlist\n.names Const0"]) {
+    assert.equal(detectQuickInputKind(source), "aig");
+    assert.equal(detectQuickInputKind(source, { name: "pasted.txt" }), "aig");
+  }
+  assert.equal(detectQuickInputKind("", { preferredKind: "aig" }), "aig");
+  assert.equal(getQuickInputPriority("aig"), getQuickInputPriority("netlist"));
+});
+
 test("JSON classification uses root fields and decoded keys instead of nested names", () => {
   for (const points of [
     { "netlist-layout-golden": [1, 2, 1] },

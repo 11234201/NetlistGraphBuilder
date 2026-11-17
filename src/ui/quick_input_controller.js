@@ -25,7 +25,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     return latestFileRequest;
   };
   const isCurrent = (requestId) => requestId === latestFileRequest && importRequest?.isCurrent();
-  const libraryOptions = (kind) => kind === "liberty" ? { signal: importRequest?.signal } : {};
+  const requestOptions = (kind) => kind === "aig" ? { request: importRequest }
+    : kind === "liberty" ? { signal: importRequest?.signal } : {};
   const checkFileSize = (file, kind) => {
     if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
   };
@@ -86,7 +87,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     let designLoaded = !entries.some((entry) => entry.kind === "netlist");
     for (const entry of entries) {
       if (!isCurrent(requestId)) return;
-      if (entry.kind !== "netlist" && entry.kind !== "liberty" && !designLoaded) {
+      if (entry.kind !== "netlist" && entry.kind !== "aig" && entry.kind !== "liberty" && !designLoaded) {
         setStatus(`Skipped ${entry.name}: no netlist in this batch loaded successfully`);
         continue;
       }
@@ -94,7 +95,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
         if (!isCurrent(requestId)) return;
-        await loadText(text, { kind: entry.kind, label: entry.name, ...libraryOptions(entry.kind) });
+        await loadText(text, { kind: entry.kind, label: entry.name, ...requestOptions(entry.kind) });
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
         if (error?.name === "AbortError") return;
@@ -113,7 +114,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       const text = await file.text();
       if (!isCurrent(requestId)) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
-      await loadText(text, { kind, label: file.name, ...libraryOptions(kind) });
+      await loadText(text, { kind, label: file.name, ...requestOptions(kind) });
     } catch (error) {
       if (isCurrent(requestId)) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, kind: preferredKind, operation: "import-file" });
     } finally {
@@ -127,11 +128,12 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   const openDialog = (kind) => {
     beginRequest();
     dialogSession += 1;
-    textKind = kind === "timing" ? "timing" : "netlist";
+    textKind = ["timing", "aig"].includes(kind) ? kind : "netlist";
     const timing = textKind === "timing";
-    elements.textTitle.textContent = timing ? "Paste timing" : "Paste Verilog";
+    elements.textTitle.textContent = timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog";
     elements.textDescription.textContent = timing
       ? "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。"
+      : textKind === "aig" ? "粘贴 ABC AIG DOT 或 AND-NOT BLIF（.model / .names），解析成功后立即画图。"
       : "粘贴 structural Verilog，解析成功后立即画图。";
     if (!elements.textDialog.open) elements.textDialog.showModal();
     schedule(() => elements.textInput.focus());
@@ -141,10 +143,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   // These actions also invalidate reads that have not reached the library service.
   elements.cancelLibertyButton?.addEventListener("click", cancelPendingLoad);
   elements.clearLibertyButton?.addEventListener("click", cancelPendingLoad);
-  elements.netlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist"));
+  elements.netlistInput?.addEventListener("change", (event) => loadInputFile(event));
   elements.timingInput?.addEventListener("change", (event) => loadInputFile(event, "timing"));
   elements.goldenInput?.addEventListener("change", (event) => loadInputFile(event, "golden"));
   elements.pasteNetlistButton?.addEventListener("click", () => openDialog("netlist"));
+  elements.pasteAigButton?.addEventListener("click", () => openDialog("aig"));
   elements.pasteTimingButton?.addEventListener("click", () => openDialog("timing"));
   elements.closeTextButton?.addEventListener("click", closeDialog);
   elements.cancelTextButton?.addEventListener("click", closeDialog);
@@ -165,7 +168,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const requestId = beginRequest();
     const submittedDialogSession = dialogSession;
     try {
-      await loadText(source, { kind: textKind, label: textKind === "timing" ? "pasted timing" : "pasted Verilog" });
+      await loadText(source, { kind: textKind, label: pastedLabel(textKind), ...requestOptions(textKind) });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) closeDialog();
     } catch (error) {
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
@@ -214,8 +217,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     try { kind = detectQuickInputKind(text); } catch { return; }
     event.preventDefault();
     const requestId = beginRequest();
-    const label = kind === "liberty" ? "pasted Liberty" : kind === "netlist" ? "pasted Verilog" : kind === "golden" ? "pasted Golden" : "pasted timing";
-    try { await loadText(text, { kind, label, ...libraryOptions(kind) }); }
+    const label = pastedLabel(kind);
+    try { await loadText(text, { kind, label, ...requestOptions(kind) }); }
     catch (error) {
       if (isCurrent(requestId)) reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind, operation: "paste-text" });
     }
@@ -234,4 +237,8 @@ function carriesFiles(event) {
 
 function defaultSchedule(task) {
   globalThis.requestAnimationFrame?.(task) ?? setTimeout(task, 0);
+}
+
+function pastedLabel(kind) {
+  return { liberty: "pasted Liberty", netlist: "pasted Verilog", aig: "pasted AIG", golden: "pasted Golden", timing: "pasted timing" }[kind];
 }
