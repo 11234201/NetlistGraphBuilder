@@ -19,13 +19,16 @@ function eventTarget() {
 
 function inputElements() {
   const makeTarget = () => ({ ...eventTarget(), value: "", focus() {}, setSelectionRange() {} });
+  const controls = Object.fromEntries(["text-submit", "text-status", "aig-input-options", "aig-input-view", "bulk-text-expand", "bulk-text-clear"]
+    .map((name) => [`[data-${name}]`, { ...makeTarget(), hidden: true, disabled: false }]));
+  controls["[data-aig-input-view]"].value = "standard";
   return {
     netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
     pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(), pasteAigButton: makeTarget(),
     closeTextButton: makeTarget(), cancelTextButton: makeTarget(),
-    textForm: { ...makeTarget(), requestSubmit() {} },
+    textForm: { ...makeTarget(), requestSubmit() {}, querySelector: (selector) => controls[selector] },
     textInput: makeTarget(), textTitle: {}, textDescription: {},
-    textDialog: { open: false, showModal() { this.open = true; }, close() { this.open = false; } },
+    textDialog: { ...eventTarget(), open: false, showModal() { this.open = true; }, close() { this.open = false; } },
     dropOverlay: { setAttribute() {} },
     body: { classList: { add() {}, remove() {} } }
   };
@@ -400,6 +403,107 @@ test("an obsolete dialog submission cannot close a newly opened dialog", async (
   const pending = elements.textForm.listeners.submit({ preventDefault() {} });
   elements.closeTextButton.listeners.click();
   elements.pasteNetlistButton.listeners.click();
+  finish();
+  await pending;
+  assert.equal(elements.textDialog.open, true);
+});
+
+test("paste dialog shows progress and prevents repeated submissions until completion", async () => {
+  const elements = inputElements(), calls = [];
+  let finish;
+  const controller = createQuickInputController({ elements, windowTarget: eventTarget(), setStatus() {}, schedule: (run) => run(),
+    loadText: (text, options) => { calls.push({ text, options }); return new Promise((resolve) => { finish = resolve; }); } });
+  controller.openDialog("aig");
+  elements.textInput.value = ".model m\n.inputs a\n.outputs a\n.end";
+  const pending = elements.textForm.listeners.submit({ preventDefault() {} });
+  const submit = elements.textForm.querySelector("[data-text-submit]");
+  const status = elements.textForm.querySelector("[data-text-status]");
+  assert.equal(submit.disabled, true);
+  assert.equal(submit.textContent, "Drawing…");
+  assert.equal(elements.textInput.disabled, true);
+  assert.equal(elements.textForm.querySelector("[data-bulk-text-clear]").disabled, true);
+  assert.equal(status.hidden, false);
+  assert.match(status.textContent, /正在解析并布局/);
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].options.presentationPolicy, { viewStyle: "standard" });
+  finish();
+  await pending;
+  assert.equal(elements.textDialog.open, false);
+  assert.equal(submit.disabled, false);
+  assert.equal(elements.textInput.disabled, false);
+  assert.equal(status.hidden, true);
+  assert.equal(calls[0].options.request.signal.aborted, false, "success must not cancel the committed workspace");
+});
+
+test("an AIG timeout is visible in the dialog and permits ABC retry with the same source", async () => {
+  const elements = inputElements(), policies = [];
+  const controller = createQuickInputController({ elements, windowTarget: eventTarget(), setStatus() {}, schedule: (run) => run(),
+    loadText: async (text, options) => {
+      policies.push(options.presentationPolicy);
+      if (policies.length === 1) throw Object.assign(new Error("Graphviz exceeded 20000 ms"), { name: "TimeoutError" });
+      assert.equal(text, elements.textInput.value);
+    } });
+  controller.openDialog("aig");
+  elements.textInput.value = ".model m\n.inputs a\n.outputs a\n.end";
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  const view = elements.textForm.querySelector("[data-aig-input-view]");
+  const status = elements.textForm.querySelector("[data-text-status]");
+  assert.equal(elements.textDialog.open, true);
+  assert.equal(view.disabled, false);
+  assert.equal(view.value, "standard");
+  assert.equal(status.hidden, false);
+  assert.match(status.textContent, /Graphviz exceeded 20000 ms.*ABC/);
+  view.value = "abc";
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  assert.deepEqual(policies, [{ viewStyle: "standard" }, { viewStyle: "abc" }]);
+  assert.equal(elements.textDialog.open, false);
+  controller.openDialog("timing");
+  assert.equal(elements.textForm.querySelector("[data-aig-input-options]").hidden, true);
+});
+
+test("closing a busy paste dialog aborts its request without letting stale results alter a new submission", async () => {
+  for (const dismissal of ["cancel-button", "close-button", "escape", "native-close"]) {
+    const elements = inputElements(), requests = [], complete = [], statuses = [];
+    const controller = createQuickInputController({ elements, windowTarget: eventTarget(), setStatus: (value) => statuses.push(value),
+      schedule: (run) => run(), loadText: (_text, { request }) => {
+        requests.push(request); return new Promise((resolve, reject) => complete.push({ resolve, reject }));
+      } });
+    controller.openDialog("aig");
+    elements.textInput.value = ".model m\n.inputs a\n.outputs a\n.end";
+    const old = elements.textForm.listeners.submit({ preventDefault() {} });
+    if (dismissal === "cancel-button") elements.cancelTextButton.listeners.click();
+    else if (dismissal === "close-button") elements.closeTextButton.listeners.click();
+    else if (dismissal === "escape") elements.textDialog.listeners.cancel({ preventDefault() {} });
+    else { elements.textDialog.close(); elements.textDialog.listeners.close(); }
+    assert.equal(requests[0].signal.aborted, true, dismissal);
+    assert.equal(elements.textDialog.open, false, dismissal);
+    assert.equal(elements.textInput.disabled, false, dismissal);
+    controller.openDialog("aig");
+    const current = elements.textForm.listeners.submit({ preventDefault() {} });
+    complete[0].reject(new Error("obsolete failure"));
+    await old;
+    assert.equal(elements.textDialog.open, true, dismissal);
+    assert.equal(elements.textForm.querySelector("[data-text-submit]").disabled, true, dismissal);
+    assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /正在解析并布局/);
+    assert.ok(!statuses.some((value) => value.includes("obsolete failure")));
+    complete[1].resolve();
+    await current;
+    assert.equal(elements.textDialog.open, false, dismissal);
+  }
+});
+
+test("external import cancellation restores paste controls before the stale load settles", async () => {
+  const elements = inputElements(), importRequests = createImportRequests();
+  let finish;
+  const controller = createQuickInputController({ elements, importRequests, windowTarget: eventTarget(), setStatus() {},
+    schedule: (run) => run(), loadText: () => new Promise((resolve) => { finish = resolve; }) });
+  controller.openDialog("aig");
+  elements.textInput.value = "source";
+  const pending = elements.textForm.listeners.submit({ preventDefault() {} });
+  importRequests.begin();
+  assert.equal(elements.textForm.querySelector("[data-text-submit]").disabled, false);
+  assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /已取消/);
   finish();
   await pending;
   assert.equal(elements.textDialog.open, true);

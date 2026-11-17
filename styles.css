@@ -352,6 +352,16 @@ textarea {
   flex-shrink: 0;
 }
 
+.text-input-form [data-aig-input-options] {
+  margin-top: 16px;
+}
+
+.text-input-form [data-text-status] {
+  margin: 0 16px 16px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .text-input-form > footer {
   border-top: 1px solid var(--line);
 }

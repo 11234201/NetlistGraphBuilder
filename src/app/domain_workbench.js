@@ -358,8 +358,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       await fallback();
     },
     imports: Object.freeze({
-      openAigText(text, { label, request }) {
-        return open("aig", { text, name: label }, null, beginImport(request), true);
+      openAigText(text, { label, request, presentationPolicy }) {
+        return open("aig", { text, name: label }, { presentationPolicy }, beginImport(request), true);
       },
       route(kind, run) {
         if (workspace && kind !== "netlist" && kind !== "aig") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }

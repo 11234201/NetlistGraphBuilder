@@ -107,4 +107,6 @@ AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧�
 
 File → Open design 同时接受 Verilog 与 AIG 文件；Open AIG 及 Open design 的文件过滤器均包含 `.blif`、`.dot`、`.txt`。Paste AIG 对话框、非输入框 Ctrl+V 和拖放共享格式识别及导入生命周期。BLIF 文本可不带扩展名；导入失败保留原画布与对话框文本，更新请求取消旧计算。
 
+Paste AIG 绘图前可选择 Standard / ABC，初始默认 Standard。粘贴窗口内显示处理进度与失败信息；处理期间禁用重复提交和源文本编辑，Cancel、关闭及 Escape 取消待完成的导入。Standard 布局超时后保留文本并提示选择 ABC 重试；不自动更换视图样式或延长布局超时。
+
 Navigator 使用 Design / Objects；Inspector 使用 Connections / Analysis / Source。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。

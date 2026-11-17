@@ -31,6 +31,24 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
   };
   let dialogSession = 0;
+  let pendingSubmission = null;
+  const formControl = (selector) => elements.textForm?.querySelector?.(selector);
+  const submitButton = formControl("[data-text-submit]");
+  const textStatus = formControl("[data-text-status]");
+  const aigOptions = formControl("[data-aig-input-options]");
+  const aigView = formControl("[data-aig-input-view]");
+  const showTextStatus = (message = "") => {
+    if (!textStatus) return;
+    textStatus.textContent = message;
+    textStatus.hidden = !message;
+  };
+  const setSubmitting = (busy) => {
+    elements.textForm?.setAttribute?.("aria-busy", String(busy));
+    if (submitButton) { submitButton.disabled = busy; submitButton.textContent = busy ? "Drawing…" : "Draw"; }
+    for (const control of [elements.textInput, aigView, formControl("[data-bulk-text-expand]"), formControl("[data-bulk-text-clear]")]) {
+      if (control) control.disabled = busy;
+    }
+  };
   const textBuffer = createBulkTextInput({
     input: elements.textInput,
     notice: elements.textForm?.querySelector?.("[data-bulk-text-notice]"),
@@ -123,12 +141,19 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   };
   const closeDialog = () => {
     dialogSession += 1;
+    if (pendingSubmission) {
+      pendingSubmission.request.cancel();
+      setStatus("Paste cancelled");
+    }
+    showTextStatus();
     if (elements.textDialog?.open) elements.textDialog.close();
   };
   const openDialog = (kind) => {
     beginRequest();
     dialogSession += 1;
     textKind = ["timing", "aig"].includes(kind) ? kind : "netlist";
+    showTextStatus();
+    if (aigOptions) aigOptions.hidden = textKind !== "aig";
     const timing = textKind === "timing";
     elements.textTitle.textContent = timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog";
     elements.textDescription.textContent = timing
@@ -151,6 +176,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   elements.pasteTimingButton?.addEventListener("click", () => openDialog("timing"));
   elements.closeTextButton?.addEventListener("click", closeDialog);
   elements.cancelTextButton?.addEventListener("click", closeDialog);
+  elements.textDialog?.addEventListener?.("cancel", (event) => { event.preventDefault(); closeDialog(); });
+  elements.textDialog?.addEventListener?.("close", () => { if (!elements.textDialog.open) closeDialog(); });
   elements.textInput?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -159,22 +186,50 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   });
   elements.textForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (pendingSubmission) return;
     const source = textBuffer.getValue().trim();
     if (!source) {
-      reportFailure(undefined, `Paste failed: ${textKind} text is empty`, { kind: textKind, operation: "paste-text" });
+      const message = `Paste failed: ${textKind} text is empty`;
+      showTextStatus(message);
+      reportFailure(undefined, message, { kind: textKind, operation: "paste-text" });
       elements.textInput.focus();
       return;
     }
     const requestId = beginRequest();
     const submittedDialogSession = dialogSession;
+    const kind = textKind;
+    const presentationPolicy = kind === "aig" ? { viewStyle: aigView?.value === "abc" ? "abc" : "standard" } : undefined;
+    const submission = { request: importRequest };
+    pendingSubmission = submission;
+    const finish = () => {
+      submission.request.signal.removeEventListener("abort", onAbort);
+      if (pendingSubmission !== submission) return false;
+      pendingSubmission = null;
+      setSubmitting(false);
+      return true;
+    };
+    const onAbort = () => {
+      if (finish() && submittedDialogSession === dialogSession && elements.textDialog?.open) showTextStatus("已取消，可修改后重新绘图。");
+    };
+    submission.request.signal.addEventListener("abort", onAbort, { once: true });
+    setSubmitting(true);
+    showTextStatus(kind === "aig" ? "正在解析并布局 AIG…可以点击 Cancel 取消。" : "正在处理文本…");
     try {
-      await loadText(source, { kind: textKind, label: pastedLabel(textKind), ...requestOptions(textKind) });
-      if (isCurrent(requestId) && submittedDialogSession === dialogSession) closeDialog();
+      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind), ...(presentationPolicy ? { presentationPolicy } : {}) });
+      if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
     } catch (error) {
-      if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
-        reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind: textKind, operation: "paste-text" });
+      if (error?.name === "AbortError") onAbort();
+      else if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
+        const message = `Paste failed: ${errorMessage(error)}`;
+        const hint = error?.name === "TimeoutError" && presentationPolicy?.viewStyle === "standard"
+          ? " 布局超时；请将 View 切换为 ABC 后重试。" : "";
+        showTextStatus(message + hint);
+        reportFailure(error, message, { kind, operation: "paste-text" });
+        finish();
         elements.textInput.focus();
       }
+    } finally {
+      finish();
     }
   });
 
