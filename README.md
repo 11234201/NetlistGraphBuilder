@@ -4,15 +4,15 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦 AND/NOT BLIF。
 
-- **当前版本**：[`v1.5.1 — AIG 教程与离线资源校验补丁`](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.5.1)（基于 `v1.5.0` AIG 主界面接入版）。补齐 AIG 快速上手、最小 BLIF 示例与完整教程润色，固定 `vendor/graphviz/` 离线资源与许可证跨平台检出字节一致性，清理已退役旧版参考测试副本；完整保留离线 AIG 工作区、网表工作台、Liberty 库管理、时序、Golden 与日志功能。
+- **当前版本**：[`v1.5.2 — AIG 结构分析与交互更新`](https://github.com/11234201/NetlistGraphBuilder/tree/v1.5.2)。新增结构重汇聚、XOR / XNOR / MUX 识别与结果高亮，汇总 Standard / ABC 视图、BLIF / 粘贴导入、取消重试和大图手势修复；完整保留离线网表工作台、Liberty、时序、Golden 与日志功能。更新详情见 [CHANGELOG](CHANGELOG.md)。
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
 - **AIG 浏览**：`File → Open AIG…` 支持 ABC AIG DOT 和平坦 AND/NOT BLIF，采用本地 Graphviz/WASM 曲线布局，保留输入输出名称、逻辑关键路径与扇出高亮，以及 Navigator / Inspector、搜索、SVG 导出和刷新恢复。首版为 Single / Whole；AIGER、Compare 与网表转 AIG 尚未开放。详见 [AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)。
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
-- **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0；`v1.5.0` 发布验收通过 1294 项单元测试、28 项 AIG 浏览器回归、9 项通用工作台回归及 47/47 映射网表严格门禁（清理已退役的旧版参考测试后，当前常驻单元测试为 1240 项，详见 [AIG 集成验收报告](docs/reports/aig_integration_acceptance.md)）。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。已退役的早期 Native 算法已从工作树移除（历史追溯见 [retired_native_layered 说明](tests/reference/retired_native_layered/README.md)），不进入离线运行时。
+- **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0；`v1.5.0` 发布验收通过 1294 项单元测试、28 项 AIG 浏览器回归、9 项通用工作台回归及 47/47 映射网表严格门禁，历史记录见 [AIG 集成验收报告](docs/reports/aig_integration_acceptance.md)。`v1.5.2` 结构分析验收通过 1301 项单元测试，浏览器验证、映射回归首轮超时与复测、基准波动见 [结构分析验收记录](docs/plans/aig_structure_analysis.md)。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。已退役的早期 Native 算法已从工作树移除（历史追溯见 [retired_native_layered 说明](tests/reference/retired_native_layered/README.md)），不进入离线运行时。
 
 完整功能介绍、操作流程、数据格式示例与故障排查请阅读 [完整使用教程](docs/USER_GUIDE.md)（Windows 发布包根目录亦随附 `USER_GUIDE.md`）。
 
-**工作台界面概览（`v1.5.1`）**：从旧版升级时请完整替换离线包并重新启动。顶部全局栏管理 `File`、`Liberty`、`Cell Config` 与全局 `Search`；上下文工具栏管理当前视图、布局与时序策略；左侧 `Navigator` 提供模块层次与设计统计，右侧 `Inspector` 提供所选对象摘要及 `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）页签。
+**工作台界面概览（`v1.5.2`）**：从旧版升级时请完整替换离线包并重新启动。顶部全局栏管理 `File`、`Liberty`、`Cell Config` 与全局 `Search`；上下文工具栏管理当前视图、布局与时序策略；左侧 `Navigator` 提供模块层次与设计统计，AIG 模式的 `Analysis` 页提供重汇聚与逻辑块列表；右侧 `Inspector` 提供所选对象摘要及 `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）页签。
 
 **让画布占满宽度**：点击左右面板标题旁的 `Hide`，或点击顶部 `Navigator` / `Inspector` 开关即可收起面板；两侧均隐藏后，中央画布占满工作区宽度。顶部开关始终保留，可随时分别恢复面板（高亮表示已展开）。收起和恢复面板均保持当前图中心与缩放倍率，不触发重新布局。
 
@@ -78,7 +78,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.5.1`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.5.2`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md`、`ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt`、`EXPAT-LICENSE.txt` 和 `app/vendor/graphviz/` 离线资源。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
