@@ -99,7 +99,7 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 
 ## AIG 图形与工作台（2026-11-15）
 
-AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 原名与内部稳定编号分开。工具栏 View 默认 Standard，保留按深度分层的布局；可切换 ABC 样式，采用 Times 字体、黑线与珊瑚色端口，并让输入按负载自然分层。反相边在 Standard 中为虚线、ABC 中为点线；两种视图保留同一拓扑与对象身份，切换失败或取消保留旧图。
+AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 原名与内部稳定编号分开。工具栏 View 默认 Standard，按逻辑深度分层；ABC 让输入按负载自然分层。两种模式统一使用 Arial 12 字体、浅蓝输入、浅绿输出、深灰轮廓与灰色连线，反相边均为虚线，分析与选中高亮使用同一策略。仅布局方式不同；两种视图保留同一拓扑与对象身份，切换失败或取消保留旧图。
 
 关键节点红色填充、关键边红色加粗、扇出橙色边框与选中对象紫色外框可叠加。Highlight neighbors 在 AIG 默认开启，可单独关闭：选中节点的直接输入节点及边为蓝色、直接输出节点及边为绿色；选中边时标记其两个端点。选择和分析开关只更新图元属性，不触发布局；视图样式切换才重新布局。样式、邻接高亮开关和选区随工作区恢复，SVG 导出使用相同展示策略。Netlist 不启用该邻接高亮。
 
@@ -108,5 +108,7 @@ AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧�
 File → Open design 同时接受 Verilog 与 AIG 文件；Open AIG 及 Open design 的文件过滤器均包含 `.blif`、`.dot`、`.txt`。Paste AIG 对话框、非输入框 Ctrl+V 和拖放共享格式识别及导入生命周期。BLIF 文本可不带扩展名；导入失败保留原画布与对话框文本，更新请求取消旧计算。
 
 Paste AIG 绘图前可选择 Standard / ABC，初始默认 Standard。粘贴窗口内显示处理进度与失败信息；处理期间禁用重复提交和源文本编辑，Cancel、关闭及 Escape 取消待完成的导入。Standard 布局超时后保留文本并提示选择 ABC 重试；不自动更换视图样式或延长布局超时。
+
+Verilog / Timing 粘贴取消会中止实际布局任务及尚未完成的绘制，取消或过期结果不得覆盖新请求。既有网表导入在布局前已应用解析结果，因此取消保留已解析的数据，清除当前取消操作的画布并明确提示可重新绘图；Single / Compare 使用共享的任务取消边界。
 
 Navigator 使用 Design / Objects；Inspector 使用 Connections / Analysis / Source。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。

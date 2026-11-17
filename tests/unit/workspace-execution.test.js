@@ -76,3 +76,42 @@ test("async batch cancels partial startup and never commits after startup callba
   assert.deepEqual(errors, ["presentation failed"]);
   assert.equal(commits, 0);
 });
+
+test("external cancellation aborts both workspace jobs and rejects late success without fallback", async () => {
+  const controller = new AbortController(), cancelled = [], releases = [], events = [];
+  const execution = createWorkspaceExecution({ jobs: { start: (request) => ({
+    cancel: () => cancelled.push(request.sessionId),
+    promise: new Promise((resolve) => releases.push(() => resolve({ status: "committed" })))
+  }) } });
+  const pending = execution.execute({ provider: { executionMode: "async" }, signal: controller.signal,
+    tasks: ["left", "right"].map((sessionId) => ({ beginComputation: () => ({ sessionId }), kind: "workspace", run() {} })),
+    onCommit: () => events.push("commit"), onError: () => events.push("error"),
+    onSettled: (results) => events.push(results.map((result) => result.status).join(",")) });
+  controller.abort();
+  assert.deepEqual(cancelled, ["left", "right"]);
+  assert.deepEqual(events, ["cancelled"]);
+  releases.forEach((release) => release());
+  await pending;
+  assert.deepEqual(events, ["cancelled"]);
+});
+
+test("an already cancelled workspace request does not begin computation", () => {
+  const controller = new AbortController(); controller.abort();
+  let settled = 0;
+  createWorkspaceExecution({ jobs: {} }).execute({ provider: {}, signal: controller.signal,
+    tasks: [{ beginComputation() { assert.fail("cancelled request started"); } }],
+    onCommit() { assert.fail("cancelled request committed"); }, onError() { assert.fail("cancellation reached fallback"); },
+    onSettled: (results) => { assert.equal(results[0].status, "cancelled"); settled++; } });
+  assert.equal(settled, 1);
+});
+
+test("a completed layout releases its import cancellation listener", async () => {
+  const controller = new AbortController(); let cancelled = 0, committed = 0, settled = 0;
+  await createWorkspaceExecution({ jobs: { start: () => ({
+    promise: Promise.resolve({ status: "committed" }), cancel: () => cancelled++
+  }) } }).execute({ provider: { executionMode: "async" }, signal: controller.signal,
+    tasks: [{ beginComputation: () => ({ sessionId: "single" }), kind: "workspace", run() {} }],
+    onCommit: () => committed++, onError() { assert.fail("unexpected failure"); }, onSettled: () => settled++ });
+  controller.abort();
+  assert.deepEqual({ cancelled, committed, settled }, { cancelled: 0, committed: 1, settled: 1 });
+});

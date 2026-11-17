@@ -3,6 +3,7 @@ import { saveCompareWorkspace, restoreCompareWorkspace } from "./appState.js";
 import { createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { prepareCompareWorkspace, buildCompareSideWorkspace } from "./compareWorkspace.js";
 import { escapeAttr, escapeHtml } from "../ui/html.js";
+import { cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -137,6 +138,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   }
 
   function renderCompareGraphs(options = {}) {
+    if (options.signal?.aborted) { options.onCancelled?.(); return; }
     options = services.bindViewHistoryCallbacks(options, "onCommitted");
     const leftModule = getCompareModule("left");
     const rightModule = getCompareModule("right");
@@ -145,6 +147,27 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     const layoutController = new AbortController();
     state.compare.layoutAbortController = layoutController;
     const request = services.renderGeneration.begin();
+    const onCancelled = options.onCancelled;
+    let cancellationReported = false;
+    options = { ...options, onCancelled: () => {
+      if (options.signal && cancellationReported) return;
+      cancellationReported = true;
+      if (options.signal?.aborted && request.isCurrent() && state.compare.active) {
+        layoutController.abort();
+        if (state.compare.layoutAbortController === layoutController) state.compare.layoutAbortController = null;
+        for (const mount of [elements.leftMount, elements.rightMount]) {
+          cancelSchematicRender(mount);
+          mount.replaceChildren();
+        }
+        state.compare.graphs = { left: null, right: null };
+        state.compare.autoGraphs = { left: null, right: null };
+        state.compare.scenes = { left: null, right: null };
+        state.compare.workspaceIdentity = null;
+        updateCompareSideStatus("left", leftModule, "cancelled");
+        updateCompareSideStatus("right", rightModule, "cancelled");
+      }
+      onCancelled?.();
+    } };
     const requestId = request.id;
     const compareLayoutProvider = services.getCurrentLayoutProvider();
     services.logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
@@ -223,6 +246,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       };
       services.workspaceExecution.execute({
         provider: compareLayoutProvider,
+        signal: options.signal,
         tasks: sides.map((side) => ({
           beginComputation: () => services.compareViewSessions.beginComputation(side),
           kind: `compare-${side}-workspace`,
@@ -246,6 +270,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   }
 
   function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}) {
+    if (options.signal?.aborted) { options.onCancelled?.(); return; }
     if (options.layoutController && (
       state.compare.layoutAbortController !== options.layoutController || options.layoutController.signal.aborted
     )) return;
@@ -266,10 +291,10 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     updateCompareSideStatus("right", rightModule, "ready");
     renderCompareOutputOptions(leftModule, rightModule);
     Promise.all([
-      services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left }),
-      services.renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right })
+      services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left, signal: options.signal }),
+      services.renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right, signal: options.signal })
     ]).then((results) => {
-      if (!renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
+      if (options.signal?.aborted || !renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
         options.onCancelled?.(); return;
       }
       if (results.some((result) => result?.cancelled)) { options.onCancelled?.(); return; }
@@ -281,9 +306,9 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         rightNodes: state.compare.graphs.right.nodes.length
       });
       services.setStatus(`Compare ready (${services.getCurrentLayoutProvider().label})`);
-      options.onCommitted?.();
+      options.onCommitted?.(workspace.graphs);
     }).catch((error) => {
-      if (!renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
+      if (options.signal?.aborted || !renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
         options.onCancelled?.(); return;
       }
       services.logProcess("error", "render", `Compare render failed: ${error.message}`, {

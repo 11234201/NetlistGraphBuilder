@@ -13,14 +13,13 @@ export function createAigPresentationIndex(model, analysis) {
 export function aigNodeStyle(node, analysis, index, policy) {
   const critical = policy.critical && index.criticalNodes.has(node.id);
   const highFanout = policy.fanout && (analysis.fanout[node.id] || 0) >= policy.fanoutThreshold;
-  const abc = policy.viewStyle === "abc";
-  return { fill: critical ? "#fee2e2" : abc ? "#ffffff" : node.kind === "pi" ? "#e0f2fe" : node.kind === "po" ? "#ecfdf5" : "#ffffff",
-    stroke: highFanout ? "#ea580c" : abc ? ["pi", "po"].includes(node.kind) ? "#ff7f50" : "#000000" : "#334155",
+  return { fill: critical ? "#fee2e2" : node.kind === "pi" ? "#e0f2fe" : node.kind === "po" ? "#ecfdf5" : "#ffffff",
+    stroke: highFanout ? "#ea580c" : "#334155",
     "stroke-width": highFanout ? 3 : critical ? 2 : 1.5 };
 }
 
 export function aigEdgeStyle(edge, index, policy) {
   const critical = policy.critical && index.criticalEdges.has(edge.id);
-  return { stroke: critical ? "#dc2626" : policy.viewStyle === "abc" ? "#000000" : "#64748b", "stroke-width": critical ? 2.8 : 1.5,
-    "stroke-dasharray": edge.inverted ? policy.viewStyle === "abc" ? "1 4" : "5 4" : null };
+  return { stroke: critical ? "#dc2626" : "#64748b", "stroke-width": critical ? 2.8 : 1.5,
+    "stroke-dasharray": edge.inverted ? "5 4" : null };
 }

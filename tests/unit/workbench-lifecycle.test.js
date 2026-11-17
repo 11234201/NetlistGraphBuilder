@@ -14,6 +14,51 @@ import { createDocumentStore } from "../../src/application/document_store.js";
 import { createGoldenController } from "../../src/app/golden_controller.js";
 import { createSearchNavigationController } from "../../src/app/search_navigation_controller.js";
 import { createViewControlsController } from "../../src/app/view_controls_controller.js";
+import { createSvgScene } from "../../src/render/svg_scene_renderer.js";
+
+test("import cancellation settles a progressive mount before its next animation frame", async () => {
+  const abortController = new AbortController();
+  const frames = [];
+  const previousFrame = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (callback) => frames.push(callback);
+  let reads = 0;
+  const scene = createSvgScene({ kind: "svg-scene.v1", bounds: { width: 640, height: 420 },
+    edgeCount: 0, nodeCount: 400, readEdges: () => [], readNodes: () => { reads++; return []; } });
+  const mount = { innerHTML: "", querySelector: () => ({ insertAdjacentHTML() {} }) };
+  const renderer = createWorkspaceRenderController({ state: {}, elements: {}, services: {
+    renderGeneration: createRenderGeneration(), setStatus() {}, logProcess() {}
+  } });
+  try {
+    let result;
+    const pending = renderer.renderGraphMount(mount, {}, { scene, signal: abortController.signal }).then((value) => { result = value; });
+    assert.equal(frames.length, 1);
+    abortController.abort();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(result?.cancelled, true, "Cancel must settle even when browser animation frames are paused");
+    for (const frame of frames.splice(0)) frame();
+    await pending;
+    assert.equal(reads, 0, "a queued frame must not mount cancelled content");
+  } finally {
+    for (const frame of frames.splice(0)) frame();
+    if (previousFrame === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = previousFrame;
+  }
+});
+
+test("a cancelled Single mount cannot report its queued render rejection as a failure", async () => {
+  const signalController = new AbortController();
+  const events = [];
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const services = new Proxy({ renderGeneration: createRenderGeneration(),
+    setStatus: (message) => events.push(message), logProcess: () => events.push("error log")
+  }, { get: (target, key) => target[key] || (() => {}) });
+  const renderer = createWorkspaceRenderController({ state, elements: { mount: {} }, services });
+  renderer.commitCurrentGraph({}, {}, { signal: signalController.signal,
+    onCancelled: () => events.push("cancelled"), onFailed: () => events.push("failed") });
+  signalController.abort();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events, ["cancelled"]);
+});
 
 test("Compare output change is exported and updates the selected output", () => {
   const state = { compare: { outputName: null, wholeRequested: true, focusedRootNodeIds: [] }, design: { modules: [] } };
@@ -507,14 +552,39 @@ test("timing quick input resolves only after the refreshed workspace is mounted"
   }, { get: (target, key) => key in target ? target[key] : noOp });
   const controller = createInputController({ state, elements: {}, services });
   let settled = false;
+  const controllerSignal = new AbortController();
   const pending = controller.loadQuickInputText(
     "@module top\npoint at rt slack\nu0/A 1.0 0.1 -0.2",
-    { kind: "timing", label: "timing.log" }
+    { kind: "timing", label: "timing.log", request: { signal: controllerSignal.signal } }
   ).then((kind) => { settled = true; return kind; });
   await Promise.resolve();
   assert.equal(settled, false);
+  assert.equal(renderOptions.signal, controllerSignal.signal);
   renderOptions.onRendered({ nodes: [], edges: [] });
   assert.equal(await pending, "timing");
+});
+
+test("a cancelled input request cannot parse or replace the active design", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const controller = new AbortController(); controller.abort();
+  const source = state.currentSource;
+  const input = createInputController({ state, elements: {}, services: {} });
+  for (const kind of ["netlist", "timing"]) {
+    await assert.rejects(input.loadQuickInputText("invalid source", { kind, request: { signal: controller.signal } }), { name: "AbortError" });
+  }
+  assert.equal(state.currentSource, source);
+});
+
+test("Compare timing receives completed graphs through its callback instead of undeclared legacy state", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.compare.active = true;
+  Object.defineProperty(state.compare, "graphs", { get() { throw new Error("undeclared compare.graphs"); } });
+  const graphs = { left: { nodes: [] }, right: { nodes: [] } };
+  let options;
+  const services = new Proxy({ renderCompareGraphs: (value) => { options = value; } }, { get: (target, key) => target[key] || (() => {}) });
+  const pending = createInputController({ state, elements: {}, services }).loadTimingText("@module top\npoint at rt slack\nu/A 1 2 1", "timing");
+  options.onCommitted(graphs);
+  assert.equal(await pending, graphs);
 });
 
 test("startup rejects an explicit missing module before scheduling layout", () => {

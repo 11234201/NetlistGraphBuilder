@@ -10,8 +10,25 @@ import { createSingleWorkspaceIdentity } from "./workspace_identity.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createWorkspaceRenderController({ state, elements, services }) {
   function renderCurrentModuleGraph(options = {}) {
+    if (options.signal?.aborted) { options.onCancelled?.(); return; }
     options = services.bindViewHistoryCallbacks(options);
     const request = services.renderGeneration.begin();
+    const onCancelled = options.onCancelled;
+    let cancellationReported = false;
+    options = { ...options, onCancelled: () => {
+      if (options.signal && cancellationReported) return;
+      cancellationReported = true;
+      if (options.signal?.aborted && request.isCurrent() && !state.compare.active) {
+        cancelSchematicRender(elements.mount);
+        elements.mount.replaceChildren();
+        state.autoGraph = state.graph = state.scene = null;
+        state.singleWorkspaceIdentity = null;
+        services.renderStats();
+        services.updateCalibrationControls();
+        services.updateViewControls();
+      }
+      onCancelled?.();
+    } };
     state.singleWorkspaceIdentity = null;
     const requestId = request.id;
     const layoutProvider = services.getCurrentLayoutProvider();
@@ -22,9 +39,10 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider,
       services.singleViewSession.readQuery(), services.readCellLibrary?.());
     const workspaceIdentity = createSingleWorkspaceIdentity(state, services.readCellLibrary?.());
-    const isCurrentSingleRequest = () => request.isCurrent() && !state.compare.active;
+    const isCurrentSingleRequest = () => request.isCurrent() && !state.compare.active && !options.signal?.aborted;
     services.workspaceExecution.execute({
       provider: layoutProvider,
+      signal: options.signal,
       tasks: [{
         beginComputation: () => services.singleViewSession.beginComputation(),
         kind: "single-workspace",
@@ -71,15 +89,17 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     services.renderStats();
     services.renderDiagnostics();
     const renderRequest = services.renderGeneration.current();
-    renderGraphMount(elements.mount, graph, { scene }).then((result) => {
-      if (result?.cancelled) { options.onCancelled?.(); return; }
+    renderGraphMount(elements.mount, graph, { scene, signal: options.signal }).then((result) => {
+      if (result?.cancelled || options.signal?.aborted || !renderRequest.isCurrent() || state.compare.active) {
+        options.onCancelled?.(); return;
+      }
       state.singleWorkspaceIdentity = options.workspaceIdentity || null;
       services.applyTransform();
       services.setStatus(readyMessage || `Ready (${services.getCurrentLayoutProvider().label})`);
       services.updateCalibrationControls();
       onRendered?.(graph);
     }).catch((error) => {
-      if (!renderRequest.isCurrent() || state.compare.active) {
+      if (options.signal?.aborted || !renderRequest.isCurrent() || state.compare.active) {
         options.onCancelled?.();
         return;
       }
@@ -96,19 +116,21 @@ export function createWorkspaceRenderController({ state, elements, services }) {
 
   function renderGraphMount(mount, graph, renderOptions = {}) {
     const request = services.renderGeneration.current();
+    const isCurrent = () => request.isCurrent() && !renderOptions.signal?.aborted;
+    if (!isCurrent()) return Promise.resolve({ cancelled: true });
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
       mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell or net to open its Focused neighborhood. Add more roots to trace nearby logic, or choose Whole for an explicit overview.</span></div>`;
-      return Promise.resolve().then(() => ({ cancelled: !request.isCurrent() }));
+      return Promise.resolve().then(() => ({ cancelled: !isCurrent() }));
     }
     if (!renderOptions.scene) {
       return Promise.reject(new Error("Graph mount requires a prepared scene"));
     }
-    return renderSvgSceneIntoMount(mount, renderOptions.scene, {
+    const rendering = renderSvgSceneIntoMount(mount, renderOptions.scene, {
       ...renderOptions,
-      isCurrent: request.isCurrent,
+      isCurrent,
       onProgress: (progress) => {
-        if (!request.isCurrent()) return;
+        if (!isCurrent()) return;
         const { phase, rendered, total } = progress;
         if (phase === "render") {
           services.setStatus(`Rendering ${rendered}/${total}…`);
@@ -116,7 +138,20 @@ export function createWorkspaceRenderController({ state, elements, services }) {
         }
         renderOptions.onProgress?.(progress);
       }
-    }).then((result) => request.isCurrent() ? result : { ...result, cancelled: true });
+    }).then((result) => isCurrent() ? result : { ...result, cancelled: true });
+    if (!renderOptions.signal) return rendering;
+    let onAbort;
+    const cancelled = new Promise((resolve) => {
+      onAbort = () => {
+        if (request.isCurrent()) cancelSchematicRender(mount);
+        resolve({ cancelled: true });
+      };
+      renderOptions.signal.addEventListener("abort", onAbort, { once: true });
+      if (renderOptions.signal.aborted) onAbort();
+    });
+    // Background tabs can pause animation frames; cancellation must not wait
+    // for the next batch to settle the import and clear its partial canvas.
+    return Promise.race([rendering, cancelled]).finally(() => renderOptions.signal.removeEventListener("abort", onAbort));
   }
 
   function renderLayoutProviderOptions() {

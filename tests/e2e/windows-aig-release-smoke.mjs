@@ -100,7 +100,7 @@ try {
   assert.equal(await evaluate('document.activeElement.dataset.domainPolicy'), "viewStyle");
   assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=input]").length') > 0);
   assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=output]").length') > 0);
-  assert.equal(await evaluate('document.querySelector("[data-aig-node] text").getAttribute("font-family")'), "Times-Roman");
+  assert.equal(await evaluate('document.querySelector("[data-aig-node] text").getAttribute("font-family")'), "Arial");
   for (const id of ['fileInput', 'aigFileInput']) {
     assert.ok((await evaluate(`document.getElementById('${id}').accept`)).split(',').includes('.blif'));
   }

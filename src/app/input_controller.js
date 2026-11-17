@@ -81,17 +81,19 @@ export function createInputController({ state, elements, services }) {
   function loadQuickInputText(text, options = {}) {
     const kind = options.kind;
     const label = options.label || options.name || "quick input";
+    const signal = options.request?.signal;
+    if (signal?.aborted) return Promise.reject(createStartupCancellationError("Input cancelled"));
     if (kind === "netlist") {
-      return loadDesign(text, label).then(() => kind);
+      return loadDesign(text, label, null, { signal }).then(() => kind);
     }
     if (kind === "golden") {
       return Promise.resolve(services.loadLayoutGolden(getLayoutGoldenState(text), label)).then(() => kind);
     }
 
-    return Promise.resolve(loadTimingText(text, label)).then(() => kind);
+    return Promise.resolve(loadTimingText(text, label, { signal })).then(() => kind);
   }
 
-  function loadTimingText(text, label) {
+  function loadTimingText(text, label, { signal } = {}) {
     services.logProcess("info", "timing", `Parsing timing ${label}`);
     let imported;
     try {
@@ -109,10 +111,11 @@ export function createInputController({ state, elements, services }) {
     resetTimingPresentation(state);
     if (state.compare.active) {
       return new Promise((resolve, reject) => services.renderCompareGraphs({
-        onCommitted: () => {
+        signal,
+        onCommitted: (graphs) => {
           services.renderStats();
           services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
-          resolve(state.compare.graphs);
+          resolve(graphs);
         },
         onFailed: reject,
         onCancelled: () => reject(createStartupCancellationError("Timing render was cancelled"))
@@ -120,6 +123,7 @@ export function createInputController({ state, elements, services }) {
     }
     if (state.currentModule) {
       return new Promise((resolve, reject) => services.rerenderPreservingView(state.selectedNodeId, {
+        signal,
         onRendered: (graph) => {
           services.renderStats();
           services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
@@ -133,7 +137,7 @@ export function createInputController({ state, elements, services }) {
     return Promise.resolve(null);
   }
 
-  function loadDesign(source, label, restore = null) {
+  function loadDesign(source, label, restore = null, { signal } = {}) {
     services.logProcess("info", "import", `Loading design ${label}`);
     let documentEnvelope;
     try {
@@ -222,6 +226,7 @@ export function createInputController({ state, elements, services }) {
       });
       if (restore?.transform) services.setSingleTransform(restore.transform);
       const completion = new Promise((resolve, reject) => services.renderCurrentModuleGraph({
+        signal,
         readyMessage,
         onRendered: (graph) => {
           services.recordViewHistory({ label: "Open document" });

@@ -25,6 +25,10 @@ const geometry = (page) => page.locator("#schematicMount").evaluate((mount) => [
   id: shape.parentElement.dataset.aigObject,
   geometry: ["d", "points", "cx", "cy", "rx", "ry"].map((key) => shape.getAttribute(key))
 })));
+const appearance = (page) => page.locator("#schematicMount").evaluate((mount) => [...mount.querySelectorAll(".aig-node-shape,.aig-edge-path,.aig-edge-arrow,[data-aig-node] text")]
+  .map((shape) => [shape.parentElement.dataset.aigObject, shape.tagName, shape.getAttribute("class"),
+    ...["fill", "stroke", "stroke-width", "stroke-dasharray", "font-family", "font-size"].map((key) => shape.getAttribute(key))])
+  .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
 const archive = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("ngb.domain-workspace.v1")));
 const calls = (page) => page.evaluate(() => window.__viewTest.calls);
 const cases = [];
@@ -59,6 +63,7 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.equal(await style.inputValue(), "standard");
     assert.equal(await neighbors.isChecked(), true);
     const beforeGeometry = await geometry(page);
+    const beforeAppearance = await appearance(page);
     const beforeCalls = await calls(page);
     await page.evaluate(() => { window.__oldAigSvg = document.querySelector("#schematicMount svg"); });
     await page.locator(`[data-aig-node="${and.id}"]`).click();
@@ -141,8 +146,9 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.deepEqual(abcGeometry.map((item) => item.id).sort(), beforeGeometry.map((item) => item.id).sort());
     assert.deepEqual(await roles(page), expected);
     assert.equal((await archive(page)).selectedId, and.id);
-    assert.equal(await page.locator("[data-aig-node] text").first().getAttribute("font-family"), "Times-Roman");
-    assert.ok(await page.locator('.aig-edge-path[stroke-dasharray="1 4"]').count() > 0);
+    assert.equal(await page.locator("[data-aig-node] text").first().getAttribute("font-family"), "Arial");
+    assert.ok(await page.locator('.aig-edge-path[stroke-dasharray="5 4"]').count() > 0);
+    assert.deepEqual(await appearance(page), beforeAppearance);
     await page.screenshot({ path: join(artifacts, "abc-selected.png") });
     const afterAbc = await calls(page);
     await switchStyle("standard");
@@ -151,7 +157,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await switchStyle("abc");
     assert.equal(await calls(page), afterAbc, "round trips use both cached layouts");
     assert.equal(await page.locator("#searchInput").inputValue(), "shared");
-    cases.push("ABC changes presentation, preserves all identities and selection, and caches round trips");
+    cases.push("ABC changes layout while preserving colors, fonts, line styles, identities and selection, and caches round trips");
 
     const downloaded = page.waitForEvent("download");
     const exportButton = page.locator("#exportSvgButton");
@@ -161,7 +167,8 @@ await runBrowserTest(async ({ browser, url }) => {
     await exportButton.click();
     const download = await downloaded;
     const svg = await readFile(await download.path(), "utf8");
-    assert.match(svg, /Times-Roman/);
+    assert.match(svg, /Arial/);
+    assert.doesNotMatch(svg, /Times-Roman/);
     assert.match(svg, /data-neighbor-role="input"/);
     assert.match(svg, /data-neighbor-role="output"/);
     await page.reload();

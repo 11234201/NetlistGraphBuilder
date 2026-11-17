@@ -101,8 +101,11 @@ test("AIG styles reuse the source, preserve every object and cache a round trip"
   assert.deepEqual(abc.geometry.edges.map((edge) => edge.id).sort(), first.geometry.edges.map((edge) => edge.id).sort());
   assert.notDeepEqual(abc.geometry, first.geometry);
   assert.equal(env.calls(), beforeCalls + 1);
-  assert.match(renderSvgScene(abc.scene), /Times-Roman/);
-  assert.match(renderSvgScene(abc.scene), /stroke-dasharray="1 4"/);
+  assert.match(renderSvgScene(abc.scene), /Arial/);
+  assert.match(renderSvgScene(abc.scene), /stroke-dasharray="5 4"/);
+  const appearance = (scene) => [...renderSvgScene(scene).matchAll(/(?:fill|stroke|stroke-width|stroke-dasharray|font-family|font-size)="[^"]*"/g)]
+    .map((match) => match[0]).sort();
+  assert.deepEqual(appearance(abc.scene), appearance(first.scene), "layout changes must preserve the complete visual style");
   const back = await env.useCase.relayout({ presentationPolicy: { viewStyle: "standard" } });
   assert.deepEqual(back.geometry, first.geometry);
   assert.equal(env.calls(), beforeCalls + 1, "returning to Standard reuses cached geometry");

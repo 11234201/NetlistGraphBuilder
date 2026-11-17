@@ -25,8 +25,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     return latestFileRequest;
   };
   const isCurrent = (requestId) => requestId === latestFileRequest && importRequest?.isCurrent();
-  const requestOptions = (kind) => kind === "aig" ? { request: importRequest }
-    : kind === "liberty" ? { signal: importRequest?.signal } : {};
+  const requestOptions = (kind) => kind === "liberty" ? { signal: importRequest?.signal } : { request: importRequest };
   const checkFileSize = (file, kind) => {
     if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
   };
@@ -142,8 +141,9 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   const closeDialog = () => {
     dialogSession += 1;
     if (pendingSubmission) {
+      const kind = pendingSubmission.kind;
       pendingSubmission.request.cancel();
-      setStatus("Paste cancelled");
+      setStatus(kind === "aig" ? "Paste cancelled" : "Drawing cancelled; parsed input remains loaded.");
     }
     showTextStatus();
     if (elements.textDialog?.open) elements.textDialog.close();
@@ -199,7 +199,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const submittedDialogSession = dialogSession;
     const kind = textKind;
     const presentationPolicy = kind === "aig" ? { viewStyle: aigView?.value === "abc" ? "abc" : "standard" } : undefined;
-    const submission = { request: importRequest };
+    const submission = { request: importRequest, kind };
     pendingSubmission = submission;
     const finish = () => {
       submission.request.signal.removeEventListener("abort", onAbort);
