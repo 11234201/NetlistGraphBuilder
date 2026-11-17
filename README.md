@@ -21,17 +21,18 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 ## AIG 快速上手
 
 1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦 AND/NOT `.blif` 文件；无需安装 ABC 或 Graphviz。
-2. 在 `Navigator → Objects` 按名称或来源 ID 找到输入/输出，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看 AND 深度和扇出。
-3. 用 `Logical critical path`、`High fanout` 及阈值控制高亮；红色表示逻辑关键路径，橙色外框表示高扇出，虚线表示反相。逻辑深度不是 STA 延迟。
-4. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open design…`。
+2. 在 `Navigator → Objects` 按名称或来源 ID 找到节点，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看深度、扇出与相关结构。
+3. 打开左侧 `Navigator → Analysis`，在 `Reconvergence` 查看重汇聚路径，在 `Blocks` 按 XOR2 / XNOR2 / MUX2 筛选逻辑块。点选结果高亮，右侧 `Locate` 才调整视口；`Partial results` 表示结果尚不完整。
+4. 用上下文栏 `View` 切换 Standard / ABC 画法；`Block labels`、`Dim outside analysis` 控制结构标注，`Highlight neighbors` 高亮直接邻居。红色关键路径按单位 AND 深度计算，不代表 STA 延迟。
+5. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open design…`。
 
-没有现成输入时，可复制教程中的 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例) 保存后导入。格式边界、取消导入与恢复说明见 [AIG 完整流程](docs/USER_GUIDE.md#aig-图浏览)。
+没有现成输入时，可直接打开 [结构分析示例](examples/aig_structure_demo.blif)，照着 [结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习) 查看 6 对重汇聚与 3 个逻辑块；只想熟悉反相边时可使用 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例)。[点相关查询](docs/USER_GUIDE.md#aig-从节点查找相关结构) 已提供基础关联，尚不支持按节点周围 N 跳查询；完整操作与边界见 [AIG 教程](docs/USER_GUIDE.md#aig-图浏览)。
 
 ## 近期核心功能演进
 
 | 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
-| **离线 AIG 工作区** | `File → Open AIG…` | Graphviz 曲线图、对象筛选与来源追踪、逻辑关键路径/高扇出高亮、SVG 导出和标签页刷新恢复；首版提供 Single / Whole。 |
+| **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | Standard / ABC 曲线图、结构重汇聚、XOR / XNOR / MUX 识别与点相关查询；提供对象追踪、SVG 导出和刷新恢复，当前支持 Single / Whole。 |
 | **可隐藏的左右面板** | 面板标题 `Hide`、上下文栏 `Navigator` / `Inspector` | 两侧可分别隐藏或恢复，中央画布使用腾出的空间；Single、Focused 与 Compare 共用，保留当前阅读位置与缩放倍率。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复几何布线，同时完整保留引脚连接详情与 Focused 锥体追踪；Single 与 Compare 两侧独立生效。 |
 | **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 加载、替换、取消和卸载文本 `.lib`，使用库方向和布尔 `function` 辅助单元推断；Single/Compare 共用，不占用左侧栏，无库时仍可直接浏览网表。 |
@@ -203,8 +204,9 @@ Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共�
 
 ### 示例文件说明
 
-仓库 `examples/` 目录提供了多组典型测试网表：
+仓库和 Windows 离线包的 `examples/` 目录提供了可直接打开的示例：
 
+- [examples/aig_structure_demo.blif](examples/aig_structure_demo.blif)：组合 XOR / XNOR / MUX 结构，默认分析得到 6 对重汇聚、3 个块候选；操作步骤见 [AIG 结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习)。
 - `examples/two_equivalent_style_modules.v`：基础重综合（resyn / Flex）双模块对比示例。
 - `examples/hierarchical_escaped_compare.v`：包含转义层次化标识符（escaped hierarchical identifiers）与 Flex 配对模块的真实结构示例。
 - `examples/hierarchical_escaped_timing.txt`：与 `hierarchical_escaped_compare.v` 配套的标准多模块时序报告示例。
@@ -276,6 +278,8 @@ npm run test:mapped-cases
 
 - `npm test`：运行完整单元测试，覆盖语法解析、Liberty 与无库推断、图模型提取、布局与正交布线、AIG 解析/分析/Graphviz 几何、时序标注、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
 - `npm run test:aig` / `npm run test:liberty`：专项运行 AIG（DOT/BLIF 解析、分析面板与 Graphviz 适配器）或 Liberty 库语义单元测试。
+- `npm run test:aig-structure` / `npm run test:aig-views`：在已配置 Playwright 的测试环境中运行结构分析、Standard / ABC 切换的真实浏览器回归；测试依赖不属于离线运行时。
+- `npm run benchmark:aig-structure`：测量深链、高扇出、重汇聚、奇偶链和 MUX 链的分析耗时及截断状态，不包含 Graphviz 布局时间。
 - `npm run test:architecture`：基于离线 Acorn AST 校验全仓模块依赖方向、跨层边界与无环约束。
 - `npm run test:docs`：校验核心文档与教程中的所有相对路径链接有效性。
 - `npm run test:launcher`：验证 Node.js 与 Python 启动器的 CLI 参数、状态文件及 HTTP 协议。
@@ -297,7 +301,7 @@ src/application/      Document/ViewSession 状态存储、命令总线、任务�
 src/bootstrap/        静态领域注册（Netlist / AIG）与工作台依赖组装
 src/contracts/        ObjectRef、领域接口、查询与视图契约定义
 src/diagram/          领域中性的显示图模型、共享视图流水线与几何测量契约
-src/domains/aig/      AIG 领域特性：ABC DOT / 平坦 BLIF 解析、规范化、深度/扇出分析与场景投影
+src/domains/aig/      AIG 领域特性：DOT / BLIF 导入、深度/扇出、重汇聚/逻辑块分析与场景投影
 src/domains/netlist/  Netlist 领域特性、图投影、时序/单元配置/Golden 业务用例
 src/foundation/       无业务含义的标识符编码、不可变结构值与基础图/几何工具
 src/infer/            Liberty 语义模型、共享字段优先级与无库推断规则
