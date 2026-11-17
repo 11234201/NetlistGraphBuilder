@@ -1,3 +1,5 @@
+import { createLatestFrameScheduler } from "./frameScheduler.js";
+
 const TAB_LABELS = Object.freeze({ connections: "Connections", timing: "Timing", adjust: "Adjust" });
 
 export function createInspectorTabsController({
@@ -8,7 +10,9 @@ export function createInspectorTabsController({
   initialTab = "connections",
   onTabChange = () => {},
   MutationObserverClass = globalThis.MutationObserver,
-  ResizeObserverClass = globalThis.ResizeObserver
+  ResizeObserverClass = globalThis.ResizeObserver,
+  requestFrame,
+  cancelFrame
 }) {
   if (!container) throw new Error("Inspector tabs require a content container");
   let activeTab = Object.hasOwn(TAB_LABELS, initialTab) ? initialTab : "connections";
@@ -17,15 +21,29 @@ export function createInspectorTabsController({
   let disposed = false;
   let observedSummary = null;
   let summaryHeight = null;
+  let pendingScroll = false;
+  const fallbackMeasure = createLatestFrameScheduler(() => {
+    if (disposed) return;
+    const height = observedSummary?.getBoundingClientRect?.().height;
+    restoreScroll();
+    setSummaryHeight(height);
+  }, { requestFrame, cancelFrame });
   const observer = MutationObserverClass ? new MutationObserverClass(refresh) : null;
   const summaryObserver = ResizeObserverClass ? new ResizeObserverClass((entries) => {
-    if (!disposed && entries.some((entry) => entry.target === observedSummary)) measureSummary();
+    if (disposed) return;
+    const entry = entries.find((entry) => entry.target === observedSummary);
+    if (!entry) return;
+    // ResizeObserver runs after layout. Its border box includes summary padding
+    // and borders, without forcing the newly replaced inspector/SVG to reflow.
+    const box = entry.borderBoxSize?.[0] || entry.borderBoxSize;
+    const height = box?.blockSize ?? observedSummary?.getBoundingClientRect?.().height;
+    restoreScroll();
+    setSummaryHeight(height);
   }) : null;
   const sections = () => [...container.querySelectorAll("[data-inspector-section]")];
   const observe = () => observer?.observe(container, { childList: true, subtree: true });
 
-  function measureSummary() {
-    const height = observedSummary?.getBoundingClientRect?.().height;
+  function setSummaryHeight(height) {
     const nextHeight = Number.isFinite(height) ? Math.max(0, height) : 0;
     if (nextHeight === summaryHeight) return;
     summaryHeight = nextHeight;
@@ -33,19 +51,30 @@ export function createInspectorTabsController({
   }
 
   function trackSummary(summary) {
-    if (summary !== observedSummary) {
-      summaryObserver?.disconnect();
-      observedSummary = summary;
-      if (summary) summaryObserver?.observe(summary);
+    summaryObserver?.disconnect();
+    observedSummary = summary;
+    pendingScroll = true;
+    // Reobserve even an unchanged summary: a content refresh can clamp scrolling
+    // without resizing the header. The next delivery restores it after layout.
+    if (summary && summaryObserver) summaryObserver.observe(summary, { box: "border-box" });
+    else if (summary) fallbackMeasure.schedule();
+    else {
+      fallbackMeasure.cancel();
+      restoreScroll();
+      setSummaryHeight(0);
     }
-    measureSummary();
+  }
+
+  function restoreScroll() {
+    if (!pendingScroll) return;
+    scrollContainer.scrollTop = scrollTop;
+    pendingScroll = false;
   }
 
   function refresh() {
     if (disposed) return;
     observer?.disconnect();
     const summary = container.querySelector("[data-inspector-summary]");
-    trackSummary(summary);
     const nextIdentity = summary?.dataset.selectionIdentity || null;
     if (nextIdentity !== identity) {
       identity = nextIdentity;
@@ -60,7 +89,7 @@ export function createInspectorTabsController({
     let nav = container.querySelector("[data-inspector-tabs]");
     if (!panels.length) {
       nav?.remove();
-      scrollContainer.scrollTop = scrollTop;
+      trackSummary(summary);
       observe();
       return;
     }
@@ -74,7 +103,7 @@ export function createInspectorTabsController({
       container.insertBefore(nav, panels[0]);
     }
     const prefix = container.id || "inspector";
-    nav.innerHTML = panels.map((panel) => {
+    const buttons = panels.map((panel) => {
       const tab = panel.dataset.inspectorSection;
       if (!Object.hasOwn(TAB_LABELS, tab)) return "";
       panel.id = `${prefix}-panel-${tab}`;
@@ -82,8 +111,13 @@ export function createInspectorTabsController({
       panel.setAttribute("aria-labelledby", `${prefix}-tab-${tab}`);
       return `<button type="button" id="${prefix}-tab-${tab}" data-inspector-tab="${tab}" role="tab" aria-controls="${panel.id}">${TAB_LABELS[tab]}</button>`;
     }).join("");
+    // Keep existing tab buttons (including keyboard focus) on panel-only updates.
+    if (nav.dataset.tabSignature !== buttons) {
+      nav.innerHTML = buttons;
+      nav.dataset.tabSignature = buttons;
+    }
     updateVisibility();
-    scrollContainer.scrollTop = scrollTop;
+    trackSummary(summary);
     observe();
   }
 
@@ -139,7 +173,7 @@ export function createInspectorTabsController({
     buttons[nextIndex].focus();
   }
 
-  function handleScroll() { scrollTop = scrollContainer.scrollTop; }
+  function handleScroll() { if (!pendingScroll) scrollTop = scrollContainer.scrollTop; }
   container.addEventListener("click", handleClick);
   container.addEventListener("keydown", handleKeydown);
   scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
@@ -151,6 +185,7 @@ export function createInspectorTabsController({
       disposed = true;
       observer?.disconnect();
       summaryObserver?.disconnect();
+      fallbackMeasure.cancel();
       observedSummary = null;
       container.style?.removeProperty("--inspector-summary-height");
       container.removeEventListener("click", handleClick);

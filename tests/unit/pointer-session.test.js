@@ -39,6 +39,31 @@ test("pointer cancellation uses the same cleanup path", () => {
   assert.equal(target.classList.has("active"), false);
 });
 
+test("lost capture cancels the owning pointer once and releases every listener", () => {
+  const target = new FakeTarget();
+  const ended = [];
+  startPointerSession({ target, pointerId: 7, className: "active", onEnd: (event) => ended.push(event.type) });
+  target.dispatch("lostpointercapture", { pointerId: 8 });
+  assert.equal(target.classList.has("active"), true);
+  target.dispatch("lostpointercapture", { pointerId: 7 });
+  target.dispatch("pointerup", { pointerId: 7 });
+  assert.deepEqual(ended, ["pointercancel"]);
+  assert.equal(target.listenerCount(), 0);
+  assert.equal(target.classList.has("active"), false);
+});
+
+test("failed final preview still releases capture and transient styling", () => {
+  const target = new FakeTarget();
+  startPointerSession({ target, pointerId: 7, className: "active",
+    beforeEnd() { throw new Error("preview failed"); },
+    onEnd() { assert.fail("failed preview must not be persisted"); }
+  });
+  assert.throws(() => target.dispatch("pointerup", { pointerId: 7 }), /preview failed/);
+  assert.equal(target.listenerCount(), 0);
+  assert.equal(target.hasPointerCapture(7), false);
+  assert.equal(target.classList.size, 0);
+});
+
 class FakeTarget {
   constructor() {
     this.listeners = new Map();

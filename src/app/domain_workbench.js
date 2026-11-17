@@ -84,6 +84,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       unitId: session().unitId, kind: workspace.query.edgeById.has(id) ? "edge" : object.kind, localId: id }) : null;
     sessions.update(workspace.sessionId, () => ({ selectedObjectRef: selection }), { invalidateComputation: false });
     for (const [target, visible] of [[oldSelectedId, false], [selection?.localId, true]]) {
+      objectElements.get(target)?.classList.toggle("is-selected", visible);
       for (const halo of objectElements.get(target)?.querySelectorAll(".aig-selection-halo") || []) halo.setAttribute("visibility", visible ? "visible" : "hidden");
     }
     oldSelectedId = selection?.localId || null;

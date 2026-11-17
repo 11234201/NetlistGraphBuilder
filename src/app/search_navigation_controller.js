@@ -1,6 +1,7 @@
 import { resolveSearchTargetAction, findSearchTargetNode } from "./searchLocatePolicy.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
+import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -153,6 +154,7 @@ export function createSearchNavigationController({ state, elements, services }) 
     if (!svg || !point) {
       return;
     }
+    cancelCanvasGestures(svg);
     const viewBox = svg.viewBox.baseVal;
     const viewport = svg.getBoundingClientRect();
     const scale = getReadableObjectScale({

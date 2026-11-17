@@ -383,12 +383,15 @@ for (const compare of [false, true]) {
     else h.commands.setSingleTransform(viewport);
     h.history.recordViewHistory();
     const before = h.state.viewHistory.entries.length;
+    let wheelFlushes = 0;
     const canvas = createCanvasController({ state: h.state, elements: h.elements, services: {
       ...h.services, setCompareTransform: setCompare, applyTransform: h.commands.applyTransform,
+      wheelGestureController: { flush() { wheelFlushes++; } },
       applyCompareTransforms() {}, setStatus() {}
     } });
     h.history.runViewHistoryTransaction({ label: "Fit view" }, () => canvas.fitToView());
     assert.equal(h.state.viewHistory.entries.length, before + 1);
+    assert.equal(wheelFlushes, 1);
     assert.equal(h.layouts(), 0);
     for (const value of compare ? Object.values(h.state.compare.transforms) : [h.state.transform]) {
       assert.deepEqual(value, { x: 0, y: 0, scale: 1 });

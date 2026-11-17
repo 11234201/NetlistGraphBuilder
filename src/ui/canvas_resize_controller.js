@@ -50,12 +50,17 @@ export function createCanvasResizeController({
     }
   }
 
-  function snapshot(view) {
+  function snapshot(view, measureSize = true) {
     const svg = view.mount?.querySelector("svg");
     const content = svg?.querySelector("#schematicContent");
-    const bounds = svg?.getBoundingClientRect();
     const raw = svg?.viewBox?.baseVal;
     const viewBox = raw ? { x: raw.x, y: raw.y, width: raw.width, height: raw.height } : null;
+    const previous = cached.get(view.id);
+    // A content transform changes the viewport, not the SVG's CSS box. Reading
+    // its box here forces pending SVG layout on every wheel/pan frame. Actual
+    // resize, mount replacement and explicit rebase still measure the box.
+    const bounds = !measureSize && previous && previous.svg === svg && previous.content === content &&
+      viewBox && sameViewBox(previous.viewBox, viewBox) ? previous.size : svg?.getBoundingClientRect();
     const viewport = view.viewport;
     if (!content || !viewBox || !(bounds.width > 0 && bounds.height > 0) ||
         !(viewBox.width > 0 && viewBox.height > 0) ||
@@ -92,14 +97,14 @@ export function createCanvasResizeController({
     if (!entry || entry.content === content) return;
     entry.contentObserver?.disconnect();
     entry.content = content;
-    entry.contentObserver = MutationObserverClass ? new MutationObserverClass(() => capture()) : null;
+    entry.contentObserver = MutationObserverClass ? new MutationObserverClass(() => capture(false)) : null;
     entry.contentObserver?.observe(content, { attributes: true, attributeFilter: ["transform"] });
   }
 
-  function capture() {
+  function capture(measureSize = true) {
     if (disposed) return;
     for (const view of read()) {
-      const current = snapshot(view);
+      const current = snapshot(view, measureSize);
       if (!current) { cached.delete(view.id); continue; }
       ensureEntry(view, current);
       observeContent(view, current.content);

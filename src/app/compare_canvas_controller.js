@@ -33,6 +33,7 @@ export function createCompareCanvasController({ state, elements, services }) {
     const side = sideElement?.dataset.compareSide;
     const svg = sideElement?.querySelector("svg");
     if (!side || !svg || event.button !== 0) return;
+    services.wheelGestureController.flush();
     const nodeElement = event.target.closest("[data-node-id]");
     if (nodeElement) {
       const id = nodeElement.dataset.nodeId;
@@ -59,7 +60,7 @@ export function createCompareCanvasController({ state, elements, services }) {
       event,
       target: elements.canvas,
       svg,
-      transform: state.compare.transforms[side],
+      readTransform: () => state.compare.transforms[side],
       commit: (transform) => setCompareTransform(side, transform),
       onEnd({ didPan, cancelled }) {
         if (didPan && !cancelled) services.commitViewHistory({

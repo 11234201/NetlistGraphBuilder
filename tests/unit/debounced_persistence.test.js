@@ -42,3 +42,28 @@ test("persistence reports a failure once, recovers, then reports a later failure
   persistence.flush();
   assert.deepEqual(events, [failure, "recovered", failure]);
 });
+
+test("a pending save waits across a following gesture without reading its preview", () => {
+  const pending = new Map(), saved = [];
+  let next = 0, busy = false, revision = 1, reads = 0;
+  const persistence = createDebouncedPersistence({
+    readSnapshot: () => { reads++; return { revision }; },
+    save: (snapshot) => { saved.push(snapshot); return { ok: true }; },
+    canFlush: () => !busy,
+    schedule: (task) => { pending.set(++next, task); return next; },
+    cancel: (id) => pending.delete(id)
+  });
+  const tick = () => { const [id, task] = pending.entries().next().value; pending.delete(id); task(); };
+  persistence.request();
+  busy = true;
+  for (let i = 0; i < 4; i++) { tick(); assert.equal(pending.size, 1); }
+  assert.equal(reads, 0);
+  revision = 2;
+  busy = false;
+  tick();
+  assert.deepEqual(saved, [{ revision: 2 }]);
+  assert.equal(pending.size, 0);
+  busy = true;
+  persistence.request(); tick(); persistence.cancel();
+  assert.equal(pending.size, 0);
+});

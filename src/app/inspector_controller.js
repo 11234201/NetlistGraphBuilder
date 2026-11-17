@@ -1,4 +1,5 @@
 import { renderDefinitionRows as statsRows } from "../ui/html.js";
+import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { getCompareNodeName, findCompareNode } from "./compareWorkspace.js";
 import {
   getTimingBadgeChoices,
@@ -229,6 +230,7 @@ export function createInspectorController({ state, elements, services, netRoutin
         ? services.getEdgeCenter(graph?.edges.find((edge) => edge.net === name))
         : null;
       if ((!node && !edgePoint) || !svg) continue;
+      cancelCanvasGestures(svg);
       const objectWidth = node?.width || 100;
       const point = edgePoint || {
         x: node.x + node.width / 2,

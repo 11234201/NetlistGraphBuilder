@@ -5,6 +5,12 @@
 当前专项维护见 [Linux launcher/CMake/EDA 计划](plans/linux_launcher_maintenance.md)；
 以下性能实验保持历史口径，不因启动器维护而重启性能优化或宣称完成。
 
+2026-11 的 Netlist 与 AIG 大图交互专项见 [前端大图交互性能改进计划](plans/frontend_interaction_performance_2026_11.md)，
+包含共享尺寸测量、属性面板更新、AIG 手势细节策略及分阶段验收；P1–P3 已实现并验证，
+4K Netlist 已追加手势调度、接管和平移恢复优化：五轮缩放/平移帧 P95 为 48.2/82.0ms，
+平移恢复约 170ms；缩放恢复约 300ms，较本轮基线增加约 23ms，整体性能验收仍未通过。
+P5 局部试验保持产品未启用；取舍、同口径对照和验证范围见专项 8.6。
+
 范围决策（2026-09-14）：group collapse/expand 不再属于产品功能和 Stage 8 后续工作。后续性能、
 mapped 验收和 Compare/Focused 方案统一按 full graph、Search-first 或 Focused 设计；现有折叠字段
 只为旧 session/golden 兼容保留，不新增折叠交互、折叠专用路由或折叠基线。

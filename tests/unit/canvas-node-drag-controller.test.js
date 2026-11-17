@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { startCanvasNodeDrag } from "../../src/ui/canvas_node_drag_controller.js";
+import { cancelCanvasGestures } from "../../src/ui/canvas_gesture_lifecycle.js";
 
 function pointerTarget() {
   const listeners = {};
@@ -103,4 +104,20 @@ test("cancelled node drag discards its preview without committing overrides", ()
 
 test("node drag rejects an unavailable SVG coordinate surface", () => {
   assert.equal(startCanvasNodeDrag({}), false);
+});
+
+test("workspace replacement discards pending node drag and all later pointer input", () => {
+  const target = pointerTarget(), mount = dragMount("n1");
+  const graph = { nodes: [{ id: "n1", x: 16, y: 16, width: 20, height: 20 }], edges: [] };
+  let previews = 0, commits = 0;
+  startCanvasNodeDrag({ event: { clientX: 10, clientY: 10, pointerId: 5 }, target, mount, graph, node: graph.nodes[0],
+    updatePosition() { previews++; }, onCommit() { commits++; } });
+  const staleMove = target.listeners.pointermove, staleUp = target.listeners.pointerup;
+  staleMove({ pointerId: 5, clientX: 31, clientY: 19 });
+  cancelCanvasGestures(target);
+  const remainingListeners = Object.keys(target.listeners);
+  staleMove({ pointerId: 5, clientX: 80, clientY: 80 }); staleUp({ pointerId: 5, type: "pointerup" });
+  assert.deepEqual(remainingListeners, []);
+  assert.equal(previews, 0);
+  assert.equal(commits, 0);
 });

@@ -4,6 +4,7 @@ import { createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { prepareCompareWorkspace, buildCompareSideWorkspace } from "./compareWorkspace.js";
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
+import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -57,6 +58,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       services.setStatus("Choose two different modules to compare");
       return;
     }
+    cancelCanvasGestures(elements.mount);
     services.workspaceJobs.cancelSession("single:primary");
     // Compare also supersedes a progressive Single DOM render after its job has
     // already committed, so returning to Single must restore a complete mount.
@@ -105,6 +107,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   }
 
   function exitCompareView(options = {}) {
+    cancelCanvasGestures(elements.mount);
     state.compare.layoutAbortController?.abort();
     state.compare.layoutAbortController = null;
     services.workspaceJobs.cancelSession("compare:left");
@@ -143,6 +146,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     const leftModule = getCompareModule("left");
     const rightModule = getCompareModule("right");
     if (!leftModule || !rightModule) return;
+    cancelCanvasGestures(elements.mount);
     state.compare.layoutAbortController?.abort();
     const layoutController = new AbortController();
     state.compare.layoutAbortController = layoutController;

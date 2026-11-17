@@ -12,6 +12,32 @@ import {
 } from "../../src/render/svg_scene_renderer.js";
 import { createNetlistNodePrimitive } from "../../src/domains/netlist/netlist_scene_presentation.js";
 
+test("Netlist selection outlines reserve the same shape without changing source geometry or hit areas", () => {
+  for (const kind of ["cell", "input", "output", "constant", "hub"]) {
+    const node = { id: `${kind}:u`, label: "u", kind, gateKind: "and", x: 40, y: 30, width: 160, height: 80, pins: [] };
+    const before = JSON.stringify(node);
+    for (const gateKind of ["and", "buf", "xor", "xnor"]) for (const gateSymbolMode of ["rectangle", "conventional"]) {
+      const input = { ...node, gateKind };
+      const primitive = createNetlistNodePrimitive(input, { gateSymbolMode });
+      const descendants = (entry) => [entry, ...(entry.children || []).flatMap(descendants)];
+      const children = descendants(primitive);
+      const shape = children.find((child) => child.attributes?.class === "node-shape");
+      const outline = children.find((child) => child.attributes?.class === "node-selection-outline");
+      assert.ok(shape && outline, `${kind} ${gateKind} ${gateSymbolMode}`);
+      assert.equal(children.filter((child) => child.attributes?.class === "node-selection-outline").length, 1);
+      assert.equal(outline.tag, shape.tag);
+      for (const name of ["d", "points", "x", "y", "cx", "cy", "r", "width", "height"]) {
+        assert.equal(outline.attributes[name], shape.attributes[name], `${kind} ${name}`);
+      }
+      assert.equal(outline.attributes.visibility, "hidden");
+      assert.equal(outline.attributes["pointer-events"], "none");
+      assert.equal(outline.attributes["stroke-width"], 2.6);
+      assert.equal(JSON.stringify(node), before);
+      assert.deepEqual(input, { ...node, gateKind });
+    }
+  }
+});
+
 const graph = {
   moduleDisplayName: "scene & module",
   width: 320,

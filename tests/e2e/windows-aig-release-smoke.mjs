@@ -48,6 +48,33 @@ async function openFile(selector, file) {
   const { nodeId } = await send("DOM.querySelector", { nodeId: dom.nodeId, selector });
   await send("DOM.setFileInputFiles", { nodeId, files: [resolve(root, file)] });
 }
+async function exerciseViewport(aig) {
+  await evaluate('document.getElementById("fitButton").click()');
+  const point = await evaluate('(()=>{const b=document.getElementById("canvas").getBoundingClientRect();return {x:b.x+5,y:b.y+5}})()');
+  const transform = () => evaluate('document.querySelector("#schematicContent").getAttribute("transform")');
+  const before = await transform();
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", buttons: 1, clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x + 35, y: point.y + 20, buttons: 1 });
+  await waitFor('document.getElementById("canvas").classList.contains("is-panning")');
+  if (aig) assert.ok(await evaluate('[...document.querySelectorAll(".aig-node-label")].some(e=>getComputedStyle(e).display==="none")'));
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x + 35, y: point.y + 20, button: "left", buttons: 0, clickCount: 1 });
+  await waitFor('!document.getElementById("canvas").classList.contains("is-panning")');
+  assert.notEqual(await transform(), before);
+  if (aig) assert.ok(await evaluate('[...document.querySelectorAll(".aig-node-label")].every(e=>getComputedStyle(e).display!=="none" && getComputedStyle(e).visibility==="visible")'));
+  const panned = await transform();
+  await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -40 });
+  await waitFor(`document.querySelector("#schematicContent").getAttribute("transform") !== ${JSON.stringify(panned)}`);
+  await waitFor('!document.getElementById("canvas").classList.contains("is-view-interacting")');
+  if (aig) assert.ok(await evaluate('[...document.querySelectorAll(".aig-node-label")].every(e=>getComputedStyle(e).display!=="none" && getComputedStyle(e).visibility==="visible")'));
+  else {
+    const node = await evaluate('(()=>{const n=document.querySelector(".node[data-kind=cell]"),b=n.querySelector(".node-shape").getBoundingClientRect();return {id:n.dataset.nodeId,x:b.x+b.width/2,y:b.y+b.height/2}})()');
+    for (const type of ["mousePressed", "mouseReleased"]) await send("Input.dispatchMouseEvent", { type, x: node.x, y: node.y, button: "left", buttons: type === "mousePressed" ? 1 : 0, clickCount: 1 });
+    await waitFor(`document.querySelector('.node.is-selected')?.dataset.nodeId === ${JSON.stringify(node.id)}`);
+    assert.equal(await evaluate('getComputedStyle(document.querySelector(".node.is-selected .node-selection-outline")).visibility'), "visible");
+    assert.equal(await evaluate('getComputedStyle(document.querySelector(".node.is-selected .node-selection-outline")).pointerEvents'), "stroke");
+  }
+}
 try {
   url = await waitForBrowserTestServer(server);
   browser = spawn(process.env.NGB_CHROMIUM_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe",
@@ -101,6 +128,7 @@ try {
   assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=input]").length') > 0);
   assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=output]").length') > 0);
   assert.equal(await evaluate('document.querySelector("[data-aig-node] text").getAttribute("font-family")'), "Arial");
+  await exerciseViewport(true);
   for (const id of ['fileInput', 'aigFileInput']) {
     assert.ok((await evaluate(`document.getElementById('${id}').accept`)).split(',').includes('.blif'));
   }
@@ -116,9 +144,10 @@ try {
   await writeFile(join(output, "windows-package-aig.png"), Buffer.from(data, "base64"));
   await openFile("#fileInput", "examples/two_equivalent_style_modules.v");
   await waitFor('document.querySelector("#domainToolbar").hidden && document.querySelector("#schematicMount [data-node-id]")');
+  await exerciseViewport(false);
   assert.deepEqual(errors, []);
   assert.deepEqual(externalRequests, []);
-  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/ABC switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
+  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/ABC switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "AIG and Netlist real pointer pan and wheel", "AIG gesture labels restore", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {

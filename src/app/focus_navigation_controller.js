@@ -1,6 +1,7 @@
 import { findCompareNode } from "./compareWorkspace.js";
 import { getFocusedObjectTransform, getAdaptiveMaxScale } from "../ui/viewport.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
+import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -199,6 +200,7 @@ export function createFocusNavigationController({ state, elements, services }) {
   function focusPositionedCell(node, mount, currentTransform, commit) {
     const svg = mount.querySelector("svg");
     if (!svg) return;
+    cancelCanvasGestures(mount);
     const viewport = svg.getBoundingClientRect();
     commit(getFocusedObjectTransform({
       viewBox: svg.viewBox.baseVal,
@@ -221,6 +223,7 @@ export function createFocusNavigationController({ state, elements, services }) {
     const point = services.getEdgeCenter(edge);
     const svg = mount.querySelector("svg");
     if (!point || !svg) return;
+    cancelCanvasGestures(mount);
     const viewport = svg.getBoundingClientRect();
     commit(getFocusedObjectTransform({
       viewBox: svg.viewBox.baseVal,

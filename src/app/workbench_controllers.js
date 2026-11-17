@@ -53,6 +53,9 @@ export function createWorkbenchControllers({ state, getElements, services, route
     }),
     elements: createLegacyPort(getElements, ports.elements),
     services: createLegacyPort(() => services, ports.services),
+    ...(owner === "session-persistence" ? {
+      canPersist: () => !getElements().canvas?.matches?.(".is-panning,.is-node-dragging,.is-view-interacting")
+    } : {}),
     ...(owner === "inspector" ? { netRouting } : {}),
     ...(owner === "cell-config" ? { present: (action) => routeAction("presentCellConfig", action, []) } : {})
   });

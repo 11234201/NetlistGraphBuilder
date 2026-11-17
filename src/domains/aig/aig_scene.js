@@ -14,7 +14,7 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
   function nodePrimitive(positioned) {
     const node = index.nodes.get(positioned.id);
     const style = aigNodeStyle(node, analysis, index, policy);
-    return el("g", { "data-aig-node": node.id, "data-aig-object": node.id, "data-domain-object": node.id, class: "aig-node", tabindex: 0,
+    return el("g", { "data-aig-node": node.id, "data-aig-object": node.id, "data-domain-object": node.id, class: `aig-node${selectedId === node.id ? " is-selected" : ""}`, tabindex: 0,
       role: "button", "aria-label": `${node.kind}: ${node.label}`, "data-neighbor-role": neighbors.get(node.id) }, [title(node.label),
       el("rect", { x: positioned.x - 4, y: positioned.y - 4, width: positioned.width + 8, height: positioned.height + 8,
         rx: 6, "stroke-width": 3, ...neighborStyle(node.id) }),
@@ -53,6 +53,6 @@ function primitive(shape, attributes) {
 }
 
 function labelPrimitive(label) {
-  return el("text", { x: label.x, y: label.y, "font-family": label.fontFamily || "Arial", "font-size": label.fontSize,
+  return el("text", { class: "aig-node-label", x: label.x, y: label.y, "font-family": label.fontFamily || "Arial", "font-size": label.fontSize,
     "text-anchor": label.textAnchor, style: "white-space:pre", fill: "#0f172a", "pointer-events": "none" }, [svgText(label.text)]);
 }

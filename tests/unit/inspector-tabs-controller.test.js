@@ -24,6 +24,7 @@ function fixture() {
   let panels = [element({ inspectorSection: "connections" }), element({ inspectorSection: "timing" })];
   let summary = element({ selectionIdentity: "module-a:u0" });
   let summaryHeight = null;
+  let measurements = 0;
   const label = { textContent: "u0" };
   summary.querySelector = () => label;
   const status = { textContent: "" };
@@ -44,17 +45,22 @@ function fixture() {
   container.querySelectorAll = (selector) => selector === "[data-inspector-section]" ? panels : nav?.buttons || [];
   container.contains = () => true;
   let observer;
+  let frameId = 0;
+  const frames = new Map();
   class Observer {
     constructor(callback) { this.callback = callback; observer = this; }
     observe() { this.observing = true; }
     disconnect() { this.observing = false; }
   }
   return { container, scroll, summaryButton, status, Observer,
+    scheduler: { requestFrame(callback) { frames.set(++frameId, callback); return frameId; }, cancelFrame(id) { frames.delete(id); } },
+    flush() { for (const [id, callback] of [...frames]) { frames.delete(id); callback(); } },
     panels: () => panels, buttons: () => nav?.buttons || [], observer: () => observer,
     summary: () => summary,
+    measurements: () => measurements,
     setSummaryHeight(height) {
       summaryHeight = height;
-      summary.getBoundingClientRect = () => ({ height: summaryHeight });
+      summary.getBoundingClientRect = () => { measurements++; return { height: summaryHeight }; };
     },
     replace(id, available = ["connections", "timing"]) {
       panels = available.map((tab) => element({ inspectorSection: tab }));
@@ -73,16 +79,19 @@ test("inspector keeps an applicable tab and same-object scroll across content re
   const view = fixture();
   const preferences = [];
   const controller = createInspectorTabsController({ container: view.container, scrollContainer: view.scroll,
-    summaryButton: view.summaryButton, initialTab: "timing", onTabChange: (tab) => preferences.push(tab), MutationObserverClass: view.Observer });
+    summaryButton: view.summaryButton, initialTab: "timing", onTabChange: (tab) => preferences.push(tab), MutationObserverClass: view.Observer, ...view.scheduler });
+  view.flush();
   assert.equal(view.panels()[0].hidden, true);
   assert.equal(view.panels()[1].hidden, false);
   assert.equal(view.buttons()[1].attributes["aria-selected"], "true");
   view.scroll.scrollTop = 150;
   view.scroll.listeners.get("scroll")();
   view.replace("module-a:u0");
+  view.flush();
   assert.equal(view.scroll.scrollTop, 150);
   assert.equal(view.panels()[1].hidden, false);
   view.replace("module-b:u0", ["connections"]);
+  view.flush();
   assert.equal(view.scroll.scrollTop, 0);
   assert.equal(view.panels()[0].hidden, false);
   assert.equal(view.summaryButton.textContent, "module-b:u0");
@@ -134,12 +143,15 @@ test("sticky summary height follows resizing without changing the current tab or
   view.setSummaryHeight(88.5);
   const controller = createInspectorTabsController({ container: view.container, scrollContainer: view.scroll,
     initialTab: "timing", MutationObserverClass: view.Observer, ResizeObserverClass: ResizeObserver });
+  assert.equal(view.measurements(), 0, "refresh must not force layout after replacing content");
+  resizeObserver.callback([{ target: view.summary(), borderBoxSize: [{ blockSize: 88.5 }] }]);
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "88.5px");
   assert.equal(resizeObserver.target, view.summary());
   view.scroll.scrollTop = 140;
   view.scroll.listeners.get("scroll")();
   view.setSummaryHeight(124);
-  resizeObserver.callback([{ target: view.summary() }]);
+  resizeObserver.callback([{ target: view.summary(), borderBoxSize: [{ blockSize: 124 }] }]);
+  assert.equal(view.measurements(), 0, "use the delivered border box, including padding/borders");
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "124px");
   assert.equal(view.scroll.scrollTop, 140, "summary reflow must not reset reading position");
   assert.equal(view.panels()[1].hidden, false);
@@ -160,14 +172,15 @@ test("summary replacement and empty selection release old size observation; disp
   const controller = createInspectorTabsController({ container: view.container,
     MutationObserverClass: view.Observer, ResizeObserverClass: ResizeObserver });
   const oldSummary = view.summary();
+  resizeObserver.callback([{ target: oldSummary, borderBoxSize: [{ blockSize: 90 }] }]);
   const disconnects = resizeObserver.disconnects;
   view.replace("module-b:u1");
   assert.equal(resizeObserver.disconnects, disconnects + 1);
   assert.equal(resizeObserver.target, view.summary());
-  assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "0px", "unmeasured mock summary is supported");
+  assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "90px", "retain the last size until the new summary is laid out");
   view.setSummaryHeight(116);
   resizeObserver.callback([{ target: oldSummary }]);
-  assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "0px", "stale observer entries cannot update the new summary");
+  assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "90px", "stale observer entries cannot update the new summary");
   resizeObserver.callback([{ target: view.summary() }]);
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "116px");
   const currentSummary = view.summary();
@@ -182,13 +195,51 @@ test("summary replacement and empty selection release old size observation; disp
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "", "disposal must prevent queued DOM work");
 });
 
-test("summary measurement works on refresh without ResizeObserver or DOM geometry", () => {
+test("without ResizeObserver, summary measurements coalesce after DOM updates and cancel on disposal", () => {
   const view = fixture();
   const controller = createInspectorTabsController({ container: view.container,
-    MutationObserverClass: view.Observer, ResizeObserverClass: null });
+    MutationObserverClass: view.Observer, ResizeObserverClass: null, ...view.scheduler });
+  view.flush();
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "0px");
   view.setSummaryHeight(72);
   controller.refresh();
+  controller.refresh();
+  assert.equal(view.measurements(), 0);
+  view.flush();
+  assert.equal(view.measurements(), 1);
   assert.equal(view.container.style.getPropertyValue("--inspector-summary-height"), "72px");
+  controller.refresh();
+  controller.dispose();
+  view.flush();
+  assert.equal(view.measurements(), 1);
+});
+
+test("panel refresh retains tab focus and restores saved scroll only after layout", () => {
+  const view = fixture();
+  let resizeObserver;
+  class ResizeObserver {
+    constructor(callback) { this.callback = callback; resizeObserver = this; }
+    observe() {}
+    disconnect() {}
+  }
+  const deliver = () => resizeObserver.callback([{ target: view.summary(), borderBoxSize: [{ blockSize: 80 }] }]);
+  const controller = createInspectorTabsController({ container: view.container, scrollContainer: view.scroll,
+    MutationObserverClass: view.Observer, ResizeObserverClass: ResizeObserver });
+  deliver();
+  const button = view.buttons()[0];
+  button.focus();
+  view.scroll.scrollTop = 120;
+  view.scroll.listeners.get("scroll")();
+  controller.refresh();
+  assert.equal(view.buttons()[0], button);
+  assert.equal(button.focused, true);
+  view.scroll.scrollTop = 0;
+  view.scroll.listeners.get("scroll")();
+  deliver();
+  assert.equal(view.scroll.scrollTop, 120, "ignore clamping events while a refresh awaits layout");
+  view.replace("module-b:u1");
+  assert.equal(view.scroll.scrollTop, 120, "refresh itself performs no synchronous scroll write");
+  deliver();
+  assert.equal(view.scroll.scrollTop, 0, "a different selection starts at the top");
   controller.dispose();
 });

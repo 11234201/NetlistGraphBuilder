@@ -1,5 +1,5 @@
 import { toggleFocusedRootNodeId } from "./focusedSelection.js";
-import { startCanvasPan } from "../ui/canvas_pan_controller.js";
+import { startCanvasPan, finishCanvasPan } from "../ui/canvas_pan_controller.js";
 import { findReferencedModule } from "./moduleNavigation.js";
 import { findModuleOccurrences, buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
@@ -36,6 +36,7 @@ export function createCanvasController({ state, elements, services }) {
     if (!svg || event.button !== 0) {
       return;
     }
+    services.wheelGestureController.flush();
 
     const nodeElement = event.target.closest("[data-node-id]");
     if (state.calibrationMode && nodeElement) {
@@ -71,7 +72,7 @@ export function createCanvasController({ state, elements, services }) {
       event,
       target: elements.canvas,
       svg,
-      transform: state.transform,
+      readTransform: () => state.transform,
       commit(transform) {
         services.setSingleTransform(transform);
         services.applyTransform(false);
@@ -190,6 +191,8 @@ export function createCanvasController({ state, elements, services }) {
   }
 
   function fitToView() {
+    finishCanvasPan(elements.canvas);
+    services.wheelGestureController.flush();
     if (state.compare.active) {
       services.setCompareTransform("left", { x: 0, y: 0, scale: 1 }, false);
       services.setCompareTransform("right", { x: 0, y: 0, scale: 1 }, false);
@@ -224,6 +227,6 @@ export const canvasPorts = Object.freeze({
     "handleComparePointerDown", "handleCompareWheel", "commitViewHistory", "runViewHistoryTransaction", "queueWheelGesture",
     "recordViewHistory", "renderCurrentModuleGraph", "renderGraphMount", "replaceSingleFocusedRoots",
     "runAfterNextPaint", "selectModule", "setCompareTransform", "setSelectedNet", "setSelectedNode",
-    "setSingleTransform", "setStatus", "updateCalibrationControls", "updateSingleOverrides"
+    "setSingleTransform", "setStatus", "updateCalibrationControls", "updateSingleOverrides", "wheelGestureController"
   ]
 });

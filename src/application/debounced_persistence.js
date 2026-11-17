@@ -2,10 +2,18 @@
 // readSnapshot runs at flush time so a burst saves the latest committed view.
 export function createDebouncedPersistence({
   readSnapshot, save, onFailure = () => {}, onRecovered = () => {},
-  delayMs = 150, schedule = setTimeout, cancel = clearTimeout
+  delayMs = 150, schedule = setTimeout, cancel = clearTimeout, canFlush = () => true
 }) {
   let timer = null;
   let failed = false;
+
+  function flushWhenIdle() {
+    timer = null;
+    // A previous gesture's delayed save can otherwise fire during the next
+    // gesture. Defer both snapshot construction and storage until it is idle.
+    if (!canFlush()) { timer = schedule(flushWhenIdle, delayMs); return; }
+    flush();
+  }
 
   function flush() {
     if (timer !== null) cancel(timer);
@@ -27,7 +35,7 @@ export function createDebouncedPersistence({
   return Object.freeze({
     request() {
       if (timer !== null) cancel(timer);
-      timer = schedule(flush, delayMs);
+      timer = schedule(flushWhenIdle, delayMs);
     },
     flush,
     cancel() {

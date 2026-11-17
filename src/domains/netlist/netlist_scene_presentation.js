@@ -2,12 +2,28 @@ import { getLeafDisplayName } from "../../layout/nodeGeometry.js";
 import { svgElement, svgText } from "../../render/svg_scene_renderer.js";
 
 export function createNetlistNodePrimitive(node, presentationPolicy = {}) {
+  return withSelectionOutline(createNodePrimitive(node, presentationPolicy));
+}
+
+function createNodePrimitive(node, presentationPolicy) {
   if (node.kind === "input" || node.kind === "focus-input" || node.kind === "output" || node.kind === "focus-output") {
     return createPortPrimitive(node, node.kind);
   }
   if (node.kind === "implicit" || node.kind === "constant") return createSimplePrimitive(node, node.kind);
   if (node.kind === "hub") return createHubPrimitive(node);
   return createCellPrimitive(node, presentationPolicy);
+}
+
+function withSelectionOutline(node) {
+  // Reserve the selection stroke's bounds in the completed scene. Toggling
+  // visibility then changes paint only, instead of relaying out SVG text when
+  // the selected shape's stroke becomes wider.
+  return svgElement(node.tag, node.attributes, node.children.flatMap((child) => {
+    if (child.attributes?.class !== "node-shape") return [child.tag === "g" ? withSelectionOutline(child) : child];
+    return [child, svgElement(child.tag, { ...child.attributes, class: "node-selection-outline",
+      fill: "none", stroke: "var(--selected, #c2410c)", "stroke-width": 2.6,
+      visibility: "hidden", "pointer-events": "none", "aria-hidden": "true" }, child.children)];
+  }));
 }
 
 function createHubPrimitive(node) {

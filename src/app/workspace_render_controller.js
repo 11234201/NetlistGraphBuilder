@@ -5,12 +5,14 @@ import { listLayoutProviders, getLayoutProvider } from "../layout/layoutProvider
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { getNextLayoutProviderId } from "../layout/providerDefaults.js";
 import { createSingleWorkspaceIdentity } from "./workspace_identity.js";
+import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createWorkspaceRenderController({ state, elements, services }) {
   function renderCurrentModuleGraph(options = {}) {
     if (options.signal?.aborted) { options.onCancelled?.(); return; }
+    cancelCanvasGestures(elements.mount);
     options = services.bindViewHistoryCallbacks(options);
     const request = services.renderGeneration.begin();
     const onCancelled = options.onCancelled;
@@ -118,6 +120,7 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     const request = services.renderGeneration.current();
     const isCurrent = () => request.isCurrent() && !renderOptions.signal?.aborted;
     if (!isCurrent()) return Promise.resolve({ cancelled: true });
+    cancelCanvasGestures(mount);
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
       mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell or net to open its Focused neighborhood. Add more roots to trace nearby logic, or choose Whole for an explicit overview.</span></div>`;

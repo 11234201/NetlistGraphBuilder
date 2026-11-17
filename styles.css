@@ -1436,17 +1436,27 @@ body.is-dragging-files .drop-overlay {
   cursor: move;
 }
 
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-label,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .pin-label,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .node-label,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .node-meta,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .timing-badge,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-bridge,
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-bridge-cutout {
+/* Translation can retain text layout. Reattaching thousands of SVG text
+   layouts after a pan is more expensive than restoring their visibility. */
+.canvas.is-panning :is(.wire-label, .pin-label, .node-label, .node-meta,
+  .timing-badge, .gate-kind, .wire-bridge, .wire-bridge-cutout) {
+  visibility: hidden;
+}
+
+/* Scaling must omit text layout, including the gate-type text that remains
+   visible in a low-detail overview. The completed view restores every label. */
+.canvas.is-view-interacting .gate-kind,
+.canvas:is(.is-node-dragging, .is-view-interacting) .wire-label,
+.canvas:is(.is-node-dragging, .is-view-interacting) .pin-label,
+.canvas:is(.is-node-dragging, .is-view-interacting) .node-label,
+.canvas:is(.is-node-dragging, .is-view-interacting) .node-meta,
+.canvas:is(.is-node-dragging, .is-view-interacting) .timing-badge,
+.canvas:is(.is-node-dragging, .is-view-interacting) .wire-bridge,
+.canvas:is(.is-node-dragging, .is-view-interacting) .wire-bridge-cutout {
   display: none;
 }
 
-.canvas:is(.is-panning, .is-node-dragging, .is-view-interacting) .wire-hit-area {
+.canvas:is(.is-node-dragging, .is-view-interacting) .wire-hit-area {
   pointer-events: none;
 }
 
@@ -1469,7 +1479,13 @@ body.is-dragging-files .drop-overlay {
   width: 100%;
   height: 100%;
   user-select: none;
+  /* The capturing canvas owns the pan cursor. Keep that inherited change
+     from invalidating the style of every SVG descendant. */
+  cursor: grab;
 }
+
+.canvas.is-calibrating .schematic-svg { cursor: default; }
+.canvas.is-node-dragging .schematic-svg { cursor: move; }
 
 .wire {
   fill: none;
@@ -1650,9 +1666,14 @@ body.is-dragging-files .drop-overlay {
 }
 
 .node.is-selected .node-shape {
-  stroke: var(--selected);
-  stroke-width: 2.6;
+  stroke-opacity: 0;
 }
+.node.is-selected .node-selection-outline { visibility: visible; pointer-events: stroke; }
+.node.is-compare-unmatched .node-selection-outline { stroke-dasharray: 5 3; }
+.node.gate-conventional .node-selection-outline { stroke-linejoin: round; }
+.node.blackbox .node-selection-outline { stroke-dasharray: 6 3; }
+.node.constant .node-selection-outline, .node.implicit .node-selection-outline { stroke-dasharray: 4 3; }
+.node.focus-input .node-selection-outline, .node.focus-output .node-selection-outline { stroke-dasharray: 5 3; }
 
 .wire.is-selected,
 .edge.is-selected .wire {
@@ -1895,6 +1916,11 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 #domainNavigator th, #domainNavigator td, #domainInspector th, #domainInspector td { padding: 5px; text-align: left; overflow-wrap: anywhere; }
 #domainNavigator code, #domainInspector code, #domainInspector strong { white-space: normal; overflow-wrap: anywhere; }
 .aig-node, .aig-edge { cursor: pointer; }
+/* Keep topology, inversion, analysis colors and selected/focused labels intact.
+   Omit other label layout only during the gesture; restore the complete scene. */
+.canvas:is(.is-panning, .is-view-interacting) .aig-node:not(.is-selected):not(:focus) .aig-node-label {
+  display: none;
+}
 .aig-node:focus, .aig-edge:focus { outline: none; }
 .aig-node:focus .aig-selection-halo, .aig-edge:focus .aig-selection-halo { visibility: visible; }
 .aig-object-list { display: grid; gap: 4px; }

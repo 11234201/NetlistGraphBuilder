@@ -2,10 +2,21 @@ import { createLatestFrameScheduler } from "./frameScheduler.js";
 import { hasPointerDragged } from "./pointerGesture.js";
 import { startPointerSession } from "./pointerSession.js";
 import { getPannedTransform } from "./viewport.js";
+import { registerCanvasGesture } from "./canvas_gesture_lifecycle.js";
 
-export function startCanvasPan({ event, target, svg, transform, commit, onEnd }) {
+const activePans = new WeakMap();
+
+export function finishCanvasPan(target) {
+  activePans.get(target)?.({ type: "pointercancel" });
+}
+
+export function startCanvasPan({ event, target, svg, transform, readTransform, commit, onEnd, onSession }) {
   if (!event || !target || !svg || typeof commit !== "function") return false;
-  const start = { ...clientPoint(event), transform: { ...transform } };
+  finishCanvasPan(target);
+  // Finishing an earlier pan can commit its last queued frame. Read the new
+  // origin afterwards, including when Compare uses independent viewports.
+  const start = { ...clientPoint(event), transform: { ...(readTransform ? readTransform() : transform) } };
+  let releaseGesture;
   let didPan = false;
   const frames = createLatestFrameScheduler((point) => {
     commit(getPannedTransform(
@@ -16,7 +27,7 @@ export function startCanvasPan({ event, target, svg, transform, commit, onEnd })
       svg.getBoundingClientRect()
     ));
   });
-  startPointerSession({
+  const finish = startPointerSession({
     target,
     pointerId: event.pointerId,
     className: "is-panning",
@@ -25,11 +36,23 @@ export function startCanvasPan({ event, target, svg, transform, commit, onEnd })
       didPan ||= hasPointerDragged(start, point);
       frames.schedule(point);
     },
+    beforeEnd() {
+      try { frames.flush(); }
+      finally {
+        if (activePans.get(target) === finish) activePans.delete(target);
+        releaseGesture?.();
+      }
+    },
     onEnd(endEvent) {
-      frames.flush();
       onEnd?.({ didPan, cancelled: endEvent?.type === "pointercancel" });
     }
   });
+  activePans.set(target, finish);
+  releaseGesture = registerCanvasGesture(target, () => {
+    frames.cancel();
+    finish({ type: "pointercancel" });
+  });
+  onSession?.(finish);
   return true;
 }
 

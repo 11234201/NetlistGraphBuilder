@@ -12,8 +12,10 @@ function withCanvas(run) {
   globalThis.cancelAnimationFrame = (id) => frames.delete(id);
   let viewport = { x: 0, y: 0, scale: 1 }, painted = "";
   const listeners = {};
+  const classes = new Set();
+  const saves = [];
   const canvas = {
-    classList: { add() {}, remove() {} },
+    classList: { add(value) { classes.add(value); }, remove(value) { classes.delete(value); } },
     addEventListener(type, handler) { listeners[type] = handler; },
     removeEventListener(type) { delete listeners[type]; },
     setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {}
@@ -22,8 +24,9 @@ function withCanvas(run) {
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }),
     querySelector: () => ({ setAttribute(_name, value) { painted = value; } }) };
   const controller = createDomainCanvas({ canvas, mount: { querySelector: () => svg },
-    readViewport: () => viewport, writeViewport: (value) => { viewport = value; }, select() {}, save() {} });
-  const fixture = { controller, listeners,
+    readViewport: () => viewport, writeViewport: (value) => { viewport = value; }, select() {},
+    save() { saves.push({ viewport: { ...viewport }, classes: [...classes] }); } });
+  const fixture = { controller, listeners, classes, saves,
     read: () => ({ viewport: { ...viewport }, painted }),
     externalViewport(value) { viewport = value; },
     wheel() { controller.wheel({ deltaY: 100, clientX: 100, clientY: 50, preventDefault() {} }); },
@@ -55,12 +58,15 @@ test("explicit Fit, Focus and external viewports supersede queued domain wheel w
 
 test("explicit Fit supersedes queued and subsequent frames from an earlier domain pan", () => withCanvas((fixture) => {
   fixture.pan();
+  const staleMove = fixture.listeners.pointermove, staleUp = fixture.listeners.pointerup;
   fixture.listeners.pointermove({ clientX: 30, clientY: 20 });
   fixture.controller.fit();
   const fitted = fixture.read();
   fixture.flush();
-  fixture.listeners.pointermove({ clientX: 60, clientY: 35 });
-  fixture.listeners.pointerup({ type: "pointerup" });
+  staleMove({ clientX: 60, clientY: 35 });
+  staleUp({ type: "pointerup" });
+  assert.equal(fixture.classes.has("is-panning"), false);
+  assert.deepEqual(Object.keys(fixture.listeners), []);
   assert.deepEqual(fixture.read(), fitted);
 }));
 
@@ -76,16 +82,39 @@ test("starting a pan retains a preceding wheel step that has not reached its fra
 
 test("wheel takes over a painted pan without a late pointer release replacing the zoom", () => withCanvas((fixture) => {
   fixture.pan();
+  const staleMove = fixture.listeners.pointermove, staleUp = fixture.listeners.pointerup;
   fixture.listeners.pointermove({ clientX: 30, clientY: 20 });
   fixture.flush();
   fixture.wheel();
   fixture.flush();
   const zoomed = fixture.read().painted;
-  fixture.listeners.pointermove({ clientX: 60, clientY: 35 });
-  fixture.listeners.pointerup({ type: "pointerup" });
+  staleMove({ clientX: 60, clientY: 35 });
+  staleUp({ type: "pointerup" });
+  assert.equal(fixture.classes.has("is-panning"), false);
   assert.equal(fixture.read().painted, zoomed);
   assert.deepEqual(fixture.read().viewport, { x: 20, y: 10, scale: 1 }, "the pan is committed before the wheel preview");
+  assert.ok(fixture.saves.every(({ classes }) => !classes.includes("is-panning")), "end the pan before saving it");
 }));
+
+test("wheel and a following pan retain the last unpainted movement before taking over", () => {
+  for (const action of ["wheel", "pan"]) withCanvas((fixture) => {
+    fixture.pan();
+    const staleMove = fixture.listeners.pointermove, staleUp = fixture.listeners.pointerup;
+    fixture.listeners.pointermove({ clientX: 30, clientY: 20 });
+    fixture[action]();
+    assert.deepEqual(fixture.read().viewport, { x: 20, y: 10, scale: 1 }, action);
+    assert.equal(fixture.saves.length, 1, "commit the previous pan exactly once");
+    assert.ok(fixture.saves.every(({ classes }) => !classes.includes("is-panning")));
+    staleMove({ clientX: 80, clientY: 60 });
+    staleUp({ type: "pointerup" });
+    fixture.flush();
+    if (action === "pan") {
+      fixture.listeners.pointermove({ clientX: 15, clientY: 15 });
+      fixture.listeners.pointerup({ type: "pointerup" });
+      assert.deepEqual(fixture.read().viewport, { x: 25, y: 15, scale: 1 });
+    } else assert.equal(fixture.controller.viewport().scale, 1 / 1.12);
+  });
+});
 
 test("resize consumers can read wheel and pan previews without persisting or mutating them", () => {
   for (const gesture of ["wheel", "pan"]) withCanvas((fixture) => {
@@ -100,7 +129,7 @@ test("resize consumers can read wheel and pan previews without persisting or mut
     const resized = { x: 12, y: 17, scale: 1.3 };
     fixture.externalViewport(resized);
     fixture.controller.apply();
-    if (gesture === "pan") fixture.listeners.pointerup({ type: "pointerup" });
+    if (gesture === "pan") assert.equal(fixture.classes.has("is-panning"), false);
     fixture.flush();
     assert.deepEqual(fixture.controller.viewport(), resized);
     assert.equal(fixture.read().painted, formatViewportTransform(resized));
@@ -119,4 +148,17 @@ test("published resize previews replace stale gesture frames and become the next
   fixture.wheel();
   fixture.flush();
   assert.equal(fixture.controller.viewport().scale, 1.25 / 1.12);
+}));
+
+test("lost pointer capture restores domain detail classes and commits only once", () => withCanvas((fixture) => {
+  fixture.pan();
+  fixture.listeners.pointermove({ clientX: 30, clientY: 20 });
+  const lost = fixture.listeners.lostpointercapture;
+  lost({ pointerId: 1 });
+  const settled = fixture.read();
+  lost({ pointerId: 1 });
+  fixture.flush();
+  assert.deepEqual(fixture.read(), settled);
+  assert.equal(fixture.classes.has("is-panning"), false);
+  assert.deepEqual(Object.keys(fixture.listeners), []);
 }));

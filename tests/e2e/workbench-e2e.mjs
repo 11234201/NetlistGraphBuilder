@@ -197,6 +197,9 @@ try {
  await clickVisible('#fitButton');
  await clickVisible('#exitCompareButton');
  await page.locator('#schematicMount [data-node-id="cell:u_migrate"]').first().waitFor();
+ // The retained Single SVG can precede its asynchronous workspace commit.
+ await page.waitForFunction(()=>!document.querySelector('#exportSvgButton').disabled
+  && !document.querySelector('#saveGoldenButton').disabled);
  assert.equal(await page.locator('#exportSvgButton').isDisabled(),false);
  // A persisted Focused view must import its roots before the destination graph
  // exists, then resolve canonical refs without a second user command.

@@ -24,6 +24,7 @@
     "benchmark:mapped": "node tools/benchmark-mapped-cases.mjs",
     "benchmark:workspace": "node tools/benchmark-workspace-cache.mjs",
     "benchmark:interaction": "node tools/benchmark-interaction.mjs",
+    "benchmark:frontend": "node tests/e2e/frontend_interaction_performance.mjs",
     "analyze:eq012-layouts": "node tools/compare_eq012_layouts.mjs",
     "analyze:whole-layouts": "node tools/compare_whole_layouts.mjs",
     "analyze:layer-spans": "node tools/inspect_layer_spans.mjs",

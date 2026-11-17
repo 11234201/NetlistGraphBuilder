@@ -3,6 +3,7 @@ import { createLatestFrameScheduler } from "./frameScheduler.js";
 import { getDraggedNodePosition, sameNodePosition } from "./nodeDrag.js";
 import { createNodeDragPreview } from "./nodeDragPreview.js";
 import { startPointerSession } from "./pointerSession.js";
+import { registerCanvasGesture } from "./canvas_gesture_lifecycle.js";
 
 export function startCanvasNodeDrag({
   event,
@@ -43,13 +44,18 @@ export function startCanvasNodeDrag({
     onPreview?.({ position: nextPosition, snap: latestSnap });
   });
 
-  startPointerSession({
+  let releaseGesture;
+  const finish = startPointerSession({
     target,
     pointerId: event.pointerId,
     className: "is-node-dragging",
     onMove: (moveEvent) => frames.schedule(clientPoint(moveEvent)),
+    beforeEnd() {
+      try { frames.flush(); }
+      catch (error) { preview.clear(); throw error; }
+      finally { releaseGesture?.(); }
+    },
     onEnd: (endEvent) => {
-      frames.flush();
       onEnd?.({ moved, cancelled: endEvent?.type === "pointercancel" });
       if (!moved || endEvent?.type === "pointercancel") {
         preview.clear();
@@ -62,6 +68,10 @@ export function startCanvasNodeDrag({
         cancelled: false
       });
     }
+  });
+  releaseGesture = registerCanvasGesture(target, () => {
+    frames.cancel();
+    finish({ type: "pointercancel" });
   });
   return true;
 }

@@ -141,6 +141,57 @@ test("explicit rebase discards gesture and settle state while keeping future obs
   controller.dispose();
 });
 
+test("transform observations synchronize viewport without forcing size reads, then resize from that viewport", () => {
+  const fixture = createFixture();
+  const observers = [];
+  const controller = fixture.create({ MutationObserverClass: class {
+    constructor(callback) { this.callback = callback; observers.push(this); }
+    observe(target) { this.target = target; }
+    disconnect() { this.target = null; }
+  } });
+  const changes = observers.find((observer) => observer.target === fixture.content);
+  const count = fixture.measurements();
+  // View adapters can expose a pane before its mount is available. A content
+  // observation from the live pane must not dereference the missing cache.
+  fixture.views.push({ id: "pending-pane", mount: undefined, viewport: { x: 0, y: 0, scale: 1 } });
+  for (let index = 0; index < 40; index++) {
+    fixture.views[0].viewport = { x: index, y: 12, scale: 3 };
+    fixture.content.setAttribute("transform", formatViewportTransform(fixture.views[0].viewport));
+    changes.callback();
+  }
+  assert.equal(fixture.measurements(), count, "a stable outer SVG box is not measured after content writes");
+  fixture.resize(controller, 500, false);
+  assert.deepEqual(fixture.commits, [["single", { x: -422, y: -226, scale: 6 }]]);
+  controller.dispose();
+  changes.callback();
+  assert.equal(fixture.measurements(), count + 2, "queued callbacks after disposal do no work");
+});
+
+test("a transform observer does not discard our resize preview but accepts a superseding gesture", () => {
+  const fixture = createFixture();
+  const observers = [];
+  const controller = fixture.create({
+    previewViewport(_id, viewport) { fixture.views[0].viewport = viewport; return true; },
+    MutationObserverClass: class {
+      constructor(callback) { this.callback = callback; observers.push(this); }
+      observe(target) { this.target = target; }
+      disconnect() {}
+    }
+  });
+  const changed = () => observers.find((observer) => observer.target === fixture.content).callback();
+  fixture.resize(controller, 500, true);
+  changed();
+  fixture.resize(controller, 500, false);
+  assert.equal(fixture.commits.length, 1);
+  fixture.resize(controller, 400, true);
+  fixture.views[0].viewport = { x: -700, y: -300, scale: 7 };
+  fixture.content.setAttribute("transform", formatViewportTransform(fixture.views[0].viewport));
+  changed();
+  fixture.resize(controller, 400, false);
+  assert.equal(fixture.commits.length, 1, "settlement must not overwrite the newer gesture");
+  controller.dispose();
+});
+
 test("hidden or replaced mounts are skipped and disposal cancels delayed commits", () => {
   const fixture = createFixture();
   const controller = fixture.create();
@@ -159,6 +210,7 @@ test("hidden or replaced mounts are skipped and disposal cancels delayed commits
 
 function createFixture() {
   const size = { width: 1000, height: 600 };
+  let measurementCount = 0;
   const attributes = new Map();
   const content = {
     getAttribute: (name) => attributes.get(name) ?? null,
@@ -166,7 +218,7 @@ function createFixture() {
   };
   const makeSvg = () => ({
     viewBox: { baseVal: { x: 0, y: 0, width: 1000, height: 500 } },
-    getBoundingClientRect: () => ({ ...size }),
+    getBoundingClientRect: () => { measurementCount++; return { ...size }; },
     querySelector: (selector) => selector === "#schematicContent" ? content : null
   });
   let svg = makeSvg();
@@ -177,7 +229,7 @@ function createFixture() {
   const timers = new Map();
   let timerId = 0;
   return {
-    size, content, views, commits,
+    size, content, views, commits, measurements: () => measurementCount,
     replaceSvg: () => { svg = makeSvg(); },
     pendingTimers: () => timers.size,
     create(options = {}) {
