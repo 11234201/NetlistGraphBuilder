@@ -75,6 +75,24 @@ also read `docs/skills/netlist-schematic/SKILL.md` and the documents it routes t
 - The Windows release must remain a self-contained offline package. If release inputs change, run
   `npm run release:windows` and preserve the vendored ELK license in the artifact.
 
+## Error logging and diagnostics
+
+- Every new feature, bug fix, or changed asynchronous use case must include structured failure logging
+  and failure-path verification. Follow `docs/SKILLS_AND_RULES.md` section 7; logging is part of acceptance,
+  not deferred cleanup. Cover the boundaries touched by the change without rewriting unrelated code.
+- Reuse Process Log and the existing bounded diagnostic sanitizer. The owning operation boundary logs
+  the original exception through `details.error`, with an operation/code, relevant document/view/job
+  context, and source location when available. Preserve stack and cause across Worker boundaries.
+  A status message, `console.error`, or message-only rethrow does not satisfy this requirement.
+- Log a failure once at its owning boundary; distinguish errors, recoverable warnings/partial results,
+  expected empty results, cancellation, and superseded work. Never turn a failure into a success or
+  attach an old job's error to the current workspace.
+- Keep logging bounded, sanitized and outside pointer/wheel hot paths. Do not log complete source files,
+  graph/session snapshots or sensitive data. Logging must not change source models, computation results,
+  Simple output, or error propagation; log-sink failures must not mask the original failure.
+- Relevant tests must verify diagnostic fields, original error/Worker context, scope isolation and
+  cancellation/deduplication behavior; verify Log details and JSONL export for changed user workflows.
+
 ## Change hygiene
 
 - Keep `src/app/main.js` as the browser composition boundary. New use cases and computation scheduling

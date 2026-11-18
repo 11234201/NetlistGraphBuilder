@@ -51,6 +51,8 @@ Structural Verilog
 
 ## 5. 需求拆解与完成状态
 
+2026-11-18 新需求与行动顺序见 [BLIF 适配与网表局部路径分析实施计划](plans/blif_focused_show_path_2026_11.md)：先补齐错误日志链路，再依次实现两输入 BLIF、名称映射、UNIT 标题、AIG Focused、两领域当前展示子图重收敛，并独立验收；多端点 Show Path 连同双 level、界面与存档整体放到最后 P7。每项功能须随开发完成详细错误日志和失败路径验证，要求见 [开发规范第 7 节](SKILLS_AND_RULES.md#7-错误日志开发与验收要求)。当前仅更新计划与规范，功能实现尚未开始；AIG Compare 和 Netlist→AIG 转换仍属于独立后续范围。
+
 AIG 主界面接入的 [实施计划](plans/aig_graphviz_integration.md) P0–P5 已完成：支持 ABC AIG DOT / AND-NOT BLIF、保留输入输出名称、统一 Graphviz 曲线与分析高亮，以及现有两侧栏、搜索、导出和恢复。网表回归、离线发布验证与大型压力图的明确超时边界见 [验收记录](reports/aig_integration_acceptance.md)。不包含生产 AIGER 导入，不改变 Simple 冻结范围；既有发布附件不会自动更新。
 
 AIG 的四项 [后续需求](plans/aig_followup_roadmap.md) 独立于基础主界面接入轮次：F-AIG-01（before/after Compare 与默认左右分屏）、F-AIG-02（Netlist → AIG，贯通 cone / Whole / Compare）尚未实施。F-AIG-03（结构重收敛）、F-AIG-04（XOR2/XNOR2/MUX2 识别）已由用户验收，随 `v1.5.2` 提交并推送。当前点相关查询具有见证路径索引限制，N 跳附近查询尚未交付；操作见 [AIG 教程](USER_GUIDE.md#aig-图浏览)，预算与历史验证证据见 [实施计划](plans/aig_structure_analysis.md)。
