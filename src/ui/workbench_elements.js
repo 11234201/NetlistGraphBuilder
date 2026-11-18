@@ -88,6 +88,8 @@ export function createWorkbenchElements(document) {
     rightMount: document.querySelector("#rightSchematicMount"),
     stats: document.querySelector("#designStats"),
     details: document.querySelector("#selectionDetails"),
+    netlistAnalysis: document.querySelector("#netlistAnalysis"),
+    netlistAnalysisDetail: document.querySelector("#netlistAnalysisDetail"),
     diagnostics: document.querySelector("#diagnosticsList"),
     status: document.querySelector("#statusBar"),
     processLogDrawer: document.querySelector("#processLogDrawer"),

@@ -1984,4 +1984,13 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .aig-pin-list small { opacity: .7; }
 .aig-path-a { color: #1776c8; }
 .aig-path-b { color: #c16a16; }
+
+#netlistAnalysisDetail:empty, .has-domain-workspace #netlistAnalysisDetail { display: none; }
+.recon-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0; }
+.recon-result, .recon-wire { margin-block: 0.35rem; overflow-wrap: anywhere; }
+[data-recon-role="a"] { --recon-color: #1776c8; }
+[data-recon-role="b"] { --recon-color: #b45a16; }
+[data-recon-role="shared"] { --recon-color: #833fa4; }
+[data-recon-role="region"] { --recon-color: #368577; }
+.node[data-recon-role] .node-shape, .edge[data-recon-role] .wire { stroke: var(--recon-color); stroke-width: 3.2; }
 .aig-analysis-legend { font-size: 12px; }

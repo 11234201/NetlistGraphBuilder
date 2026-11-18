@@ -19,12 +19,12 @@ export function projectAigDot(model, presentation = {}) {
   const nodeDefaults = `node [fontname=${quote(AIG_FONT)}, fontsize=12, margin="0.12,0.07"];`;
   if (normalizeAigViewStyle(presentation?.viewStyle) === "abc") return projectAbcAigDot(model, AIG_GRAPHVIZ_POLICY, nodeDefaults);
   const used = new Set(model.edges.flatMap((edge) => [edge.source, edge.target]));
-  const nodes = model.nodes.filter((node) => node.kind !== "constant" || used.has(node.id)).sort(byCanonicalId);
+  const nodes = model.nodes.filter((node) => node.kind !== "constant" || model.focused || used.has(node.id)).sort(byCanonicalId);
   const lines = ["digraph AIG {", `graph [rankdir=BT, splines=true, nodesep=0.35, ranksep=0.65, pad=0.2, bgcolor="transparent", nslimit=${AIG_GRAPHVIZ_POLICY.networkSimplexIterationsPerNode}, nslimit1=${AIG_GRAPHVIZ_POLICY.rankIterationsPerNode}];`,
     nodeDefaults, 'edge [arrowsize=0.65];'];
   const ranks = new Map();
   for (const node of nodes) {
-    const shape = { pi: "triangle", po: "invtriangle", and: "ellipse", constant: "box" }[node.kind];
+    const shape = { pi: "triangle", po: "invtriangle", and: "ellipse", constant: "box", boundary: "box" }[node.kind];
     lines.push(`${quote(node.id)} [id=${quote(node.id)}, label=${quote(node.label)}, shape=${shape}];`);
     const rank = node.kind === "po" ? "output" : String(node.level || 0);
     if (!ranks.has(rank)) ranks.set(rank, []);

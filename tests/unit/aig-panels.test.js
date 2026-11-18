@@ -168,3 +168,28 @@ test("AIG edge source details distinguish original literal polarity from alias-n
   assert.match(nodeSource, /Alias polarity<\/dt><dd><code>Inverted/);
   assert.doesNotMatch(nodeSource, /Source edge polarity/);
 });
+
+test("BLIF Names navigation paginates, filters, escapes design names and retains outside-Focused mappings", () => {
+  const signals = Array.from({ length: 120 }, (_, index) => `n${index}`);
+  const comments = signals.map((id) => `# ${id} top/cell[${id}]<&"`);
+  const imported = importAigSource(comments.concat([".model mapped", ".inputs " + signals.join(" "),
+    ".outputs n0", ".end"]).join("\n"), { format: "blif" });
+  const { model, analysis } = imported;
+  const workspace = { document: imported, query: createAigQuery(model, analysis), visibleNodeIds: new Set() };
+  const options = { tab: "names" };
+  const first = renderAigNavigator(workspace, options);
+  assert.equal((first.match(/data-aig-select=/g) || []).length, AIG_PANEL_PAGE_SIZE);
+  assert.match(first, /Page 1 \/ 2/);
+  assert.match(first, /121 mappings/);
+  assert.match(first, /outside Focused/);
+  const last = renderAigNavigator(workspace, { ...options, page: 1 });
+  assert.equal((last.match(/data-aig-select=/g) || []).length, 21);
+  const filtered = renderAigNavigator(workspace, { ...options, nameQuery: "CELL[N0]" });
+  assert.match(filtered, /2 mappings/);
+  assert.match(filtered, /data-aig-copy="top\/cell\[n0\]&lt;&amp;&quot;"/);
+  assert.match(filtered, /Output port/);
+  const driver = model.nameMappings.find((row) => row.signalId === "n0" && row.usage === "driver");
+  const details = renderAigInspector(workspace, { selectedId: driver.nodeId, tab: "source" });
+  assert.match(details, /Mapped names/);
+  assert.match(details, /n0 → top\/cell\[n0\]&lt;&amp;&quot;/);
+});

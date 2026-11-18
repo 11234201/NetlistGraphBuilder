@@ -1,6 +1,7 @@
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createDocumentEnvelope } from "../../contracts/document.js";
 import { importAigSource } from "./aig_import.js";
+import { queryAigView, restoreAigFocus } from "./aig_view_query.js";
 import { buildAigSearchIndex, searchAigIndex, createAigQuery } from "./aig_query.js";
 import { projectAigDot, AIG_DISPLAY_VERSION, AIG_FONT } from "./aig_projection.js";
 import { createAigScene } from "./aig_scene.js";
@@ -18,7 +19,7 @@ let cacheNodes = 0;
 export const aigFeature = defineDomainFeature({
   id: "aig",
   inputFormats: [{ id: "abc-dot", extensions: [".dot"] }, { id: "blif", extensions: [".blif"] }],
-  capabilities: { focused: false, compare: false, timing: false, cellConfig: false, adjust: false,
+  capabilities: { focused: true, compare: false, timing: false, cellConfig: false, adjust: false,
     geometry: "curves", exportSvg: true, whole: true },
   panels: [{ id: "aig-navigator" }, { id: "aig-inspector" }],
   layoutProfiles: [{ id: "graphviz", label: "Graphviz", geometry: "curves" }],
@@ -30,12 +31,18 @@ export const aigFeature = defineDomainFeature({
   listUnits: (document) => [{ id: "whole", label: document.model.name }],
   buildSearchIndex: (document) => buildAigSearchIndex(document.model.model),
   search: searchAigIndex,
-  queryView: (document) => document.model,
+  queryView: queryAigView,
+  restoreFocus: restoreAigFocus,
   projectDiagram: projectAigDiagram,
   normalizePresentation: normalizeAigPresentation,
-  createWorkspaceStages({ layout }) {
+  createWorkspaceStages({ layout, reportScope }) {
     return {
-      query: ({ document }) => document.model,
+      query({ document, session }) {
+        const view = queryAigView(document, session);
+        const real = view.analysisModel || view.model;
+        reportScope?.({ viewScopeId: view.analysisScopeLabel || "whole", visibleNodes: real.nodes.length, visibleEdges: real.edges.length });
+        return view;
+      },
       project: projectAigDiagram,
       measure: (diagram) => diagram,
       async layout(diagram, { document, signal }) {
@@ -57,23 +64,29 @@ export const aigFeature = defineDomainFeature({
         return value;
       },
       applyOverrides: (geometry) => geometry,
-      createScene: (geometry, { document, presentationPolicy }) => createAigScene(document.model.model, document.model.analysis, geometry, presentationPolicy)
+      createScene: (geometry, { presentationPolicy }, view) => createAigScene(view.model, view.analysis, geometry, presentationPolicy)
     };
   },
   describeWorkspace(document, pipeline) {
     const index = buildAigSearchIndex(document.model.model);
     const query = createAigQuery(document.model.model, document.model.analysis);
-    return { geometry: pipeline.graph, scene: pipeline.scene, query, searchIndex: index,
+    const view = pipeline.queryResult;
+    const displayQuery = createAigQuery(view.model, view.analysis);
+    return { geometry: pipeline.graph, scene: pipeline.scene, query, displayQuery, searchIndex: index,
+      displayModel: view.model, displayAnalysis: view.analysis, analysisModel: view.analysisModel || view.model,
+      analysisScopeId: view.analysisScopeId || "whole", analysisScopeLabel: view.analysisScopeLabel || "whole",
+      visibleNodeIds: view.visibleNodeIds, visibleEdgeIds: view.visibleEdgeIds,
+      truncated: view.truncated, hiddenEndpointCount: view.hiddenEndpointCount,
       search: (text, limit) => searchAigIndex(index, text, limit) };
   },
-  createAnalysisService: (document) => createAigStructureRuntime(document.model.model),
+  createAnalysisService: (document, workspace) => createAigStructureRuntime(workspace?.analysisModel || document.model.model),
   queryAnalysis: createStructureQuery,
   analysisPresentation: (workspace, view, policy) => createStructurePresentation(workspace.geometry, view, policy),
-  scene: (workspace, policy, selectedId, structure) => createAigScene(workspace.document.model.model,
-    workspace.document.model.analysis, workspace.geometry, policy, selectedId, structure),
-  nodeStyle: (workspace, node, policy) => aigNodeStyle(node, workspace.document.model.analysis, workspace.query, policy),
-  edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.query, policy),
-  selectionHighlights: (workspace, selectedId, policy) => describeAigSelection(workspace.query, selectedId, policy),
+  scene: (workspace, policy, selectedId, structure) => createAigScene(workspace.displayModel || workspace.document.model.model,
+    workspace.displayAnalysis || workspace.document.model.analysis, workspace.geometry, policy, selectedId, structure),
+  nodeStyle: (workspace, node, policy) => aigNodeStyle(node, workspace.displayAnalysis, workspace.displayQuery, policy),
+  edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.displayQuery, policy),
+  selectionHighlights: (workspace, selectedId, policy) => describeAigSelection(workspace.displayQuery, selectedId, policy),
   selectionHighlightColors: AIG_NEIGHBOR_COLORS
 });
 

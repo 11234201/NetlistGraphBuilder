@@ -2,11 +2,11 @@
 
 Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE_FILE_LAUNCHER.md](docs/LINUX_SINGLE_FILE_LAUNCHER.md)。
 
-**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦 AND/NOT BLIF。
+**Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦两输入组合 BLIF。
 
 - **当前版本**为 `v1.5.3`。AIG 默认使用 Logic View。选中输入、输出或 AND 节点后，可用同一控件设定连接高亮深度，范围外的节点和连线显示为灰色。[版本标签](https://github.com/11234201/NetlistGraphBuilder/tree/v1.5.3) · [更新日志](CHANGELOG.md)
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
-- **AIG 浏览**：`File → Open AIG…` 支持 ABC AIG DOT 和平坦 AND/NOT BLIF，采用本地 Graphviz/WASM 曲线布局，保留输入输出名称、逻辑关键路径与扇出高亮，以及 Navigator / Inspector、搜索、SVG 导出和刷新恢复。首版为 Single / Whole；AIGER、Compare 与网表转 AIG 尚未开放。详见 [AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)。
+- **AIG 浏览**：从 `File → Open AIG…` 打开 ABC AIG DOT 或平坦两输入组合 BLIF。可按映射名查找输入、输出和内部点，查看 XOR/XNOR 分解来源，并用多根 Focused 抽取局部逻辑。Standard、Logic View 和 SVG 导出共用当前展示范围。[AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
 - **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0；`v1.5.0` 发布验收通过 1294 项单元测试、28 项 AIG 浏览器回归、9 项通用工作台回归及 47/47 映射网表严格门禁，历史记录见 [AIG 集成验收报告](docs/reports/aig_integration_acceptance.md)。`v1.5.2` 结构分析验收通过 1301 项单元测试，浏览器验证、映射回归首轮超时与复测、基准波动见 [结构分析验收记录](docs/plans/aig_structure_analysis.md)。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。已退役的早期 Native 算法已从工作树移除（历史追溯见 [retired_native_layered 说明](tests/reference/retired_native_layered/README.md)），不进入离线运行时。
 
@@ -20,7 +20,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ## AIG 快速上手
 
-1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦 AND/NOT `.blif` 文件；无需安装 ABC 或 Graphviz。
+1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦两输入组合 `.blif` 文件；无需安装 ABC 或 Graphviz。
 2. 在 `Navigator → Objects` 按名称或来源 ID 找到节点，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看深度、扇出与相关结构。
 3. 打开左侧 `Navigator → Analysis`，在 `Reconvergence` 查看重汇聚路径，在 `Blocks` 按 XOR2 / XNOR2 / MUX2 筛选逻辑块。点选结果高亮，右侧 `Locate` 才调整视口；`Partial results` 表示结果尚不完整。
 4. 用上下文栏 `View` 切换 Standard / Logic View 画法；默认的 Logic View 让输入输出靠近相关逻辑。`Block labels`、`Dim outside analysis` 控制结构标注。`Highlight connections` 默认追踪端口的全部逻辑锥。选中 AND 时，同时追踪扇入和扇出。指定级数对两个方向分别生效，范围外的节点和连线变灰。该菜单也可关闭高亮。Logical critical path 与 High fanout 默认关闭；红色关键路径按单位 AND 深度计算，不代表 STA 延迟。
@@ -32,7 +32,8 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 | 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
-| **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | Standard / Logic View 曲线图、结构重汇聚、XOR / XNOR / MUX 识别与点相关查询；提供对象追踪、SVG 导出和刷新恢复，当前支持 Single / Whole。 |
+| **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | 在 Whole 或 Focused 中查看 Standard / Logic View 曲线图、当前子图重收敛与 XOR / XNOR / MUX，支持对象追踪、刷新恢复和 SVG 导出。 |
+| **网表重收敛** | Navigator → `Analysis` | 列出当前可见逻辑内的分叉、汇合及两条独立路径，支持高亮、定位和详情。Compare 两侧各自计算。 |
 | **可隐藏的左右面板** | 面板标题 `Hide`、上下文栏 `Navigator` / `Inspector` | 两侧可分别隐藏或恢复，中央画布使用腾出的空间；Single、Focused 与 Compare 共用，保留当前阅读位置与缩放倍率。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复几何布线，同时完整保留引脚连接详情与 Focused 锥体追踪；Single 与 Compare 两侧独立生效。 |
 | **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 加载、替换、取消和卸载文本 `.lib`，使用库方向和布尔 `function` 辅助单元推断；Single/Compare 共用，不占用左侧栏，无库时仍可直接浏览网表。 |
@@ -70,7 +71,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 - **双模块对比（Compare View）**：A/B 身份在上下或左右分屏中保持不变；支持独立控制视口同步与 roots 同步、同名输出锥联动和启发式结构差异高亮。两侧维护独立 roots，Fanin/Fanout 深度共享，Whole 与 Reset 同时作用于两侧。
 - **时序报告导入与标注**：支持符合 EDA 工具习惯的标准列式时序文本（空格/Tab/CSV）与 JSON 双模格式（默认极简 `point at rt slack`，可选详细模式 `delay`、`slew`、`edge`、`kind`），完整覆盖映射前（Pre-map）、映射后（Post-map）与布局后（Post-layout）阶段，驱动源自动沿 `assign` 别名链回溯；Timing 菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 指标过滤，支持自定义 Slack 判定阈值（Threshold，默认 0.0）与默认内置验证时序启动联动。
-- **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用网表/AIG/时序粘贴文本框，自动识别 Liberty 库、Verilog 网表、ABC AIG DOT / AND-NOT BLIF、Layout Golden 与时序日志。`File → Open design…` 和 `Open AIG…` 均接受 `.blif`；`Paste AIG…` 可直接提交 AIG 文本。
+- **便捷多格式输入**：支持文件选择器、任意位置拖放、页面全局 `Ctrl+V` 粘贴及专用网表/AIG/时序粘贴文本框，自动识别 Liberty 库、Verilog 网表、ABC AIG DOT / 两输入组合 BLIF、Layout Golden 与时序日志。`File → Open design…` 和 `Open AIG…` 均接受 `.blif`；`Paste AIG…` 可直接提交 AIG 文本。
 - **自定义单元配置（Cell Config）**：支持在界面内编辑、浏览器本地持久化及 JSON 导入/导出未知单元类型的逻辑门种类与引脚方向。
 - **过程日志与终端日志（Process & Terminal Log）**：底部可折叠 `Log` 面板支持按阶段（Phase）和级别（Level）过滤、一键复制与脱敏导出 JSONL；各平台终端启动器自动按约 2 MiB 轮转运行/错误 JSONL 日志，并在启动时清理超过 14 天的已退出进程旧日志。
 - **跨平台 EDA 启动接口**：Node.js、Python、Windows 离线版与 Linux 单文件启动器共享统一的命令行协议，支持由外部 EDA 脚本指定初始网表、时序、单元配置、目标模块、聚焦实例与追踪深度；Linux 环境提供可复用的 Tcl 集成脚本（`ngb.tcl`）。
@@ -327,6 +328,6 @@ vendor/               本地化的第三方离线运行时资源（elkjs 与 Gra
 - **Liberty 支持边界**：可读取文本 `.lib` 的接口与有限布尔语义，不执行 STA 或解析 `.db` / `.lib.gz`。未知扩展、复杂 bus/bundle 与复杂 function 不承诺完整解释；缺库时仍可通过命名规则、`Cell Config` 或 `Adjust` 指定方向。
 - **超大图浏览策略**：深层 DAG 的 Balanced/Folded 折叠排布仍属暂缓的实验方向；当前针对大型模块优先通过 `AnchorLayered` / `ELK`、`Search-first` 与有限深度的 `Focused` 局部视图进行浏览，不再扩展结构分组折叠（group collapse）。
 - **启发式模块对比**：`Compare` 模式基于端口/线网名称、逻辑门类型及图统计特征提供启发式结构对比，不提供形式化等价性证明。
-- **AIG 支持范围**：已支持 ABC AIG DOT 与平坦 AND/NOT BLIF 的 Single / Whole 浏览；不接受任意 DOT 或一般 BLIF，不支持 AIGER（`.aag` / `.aig`）、Focused、Compare、Adjust、Golden 或真实器件时序分析，也不提供逻辑等价证明。
+- **AIG 支持范围**：ABC AIG DOT 与平坦零至两输入组合 BLIF 支持 Single 工作区的 Whole / Focused。AIGER、AIG Compare 和 Netlist 转 AIG 属于后续范围。
 
 长期路线图详见 [docs/PLAN.md](docs/PLAN.md)；大图性能基线见 [阶段 4 计划](docs/STAGE_4_PLAN.md)，工作台架构重构与审计证据见 [阶段 7 计划](docs/STAGE_7_PLAN.md)，当前阶段功能规划见 [阶段 8 计划](docs/STAGE_8_PLAN.md)。

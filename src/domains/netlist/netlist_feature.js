@@ -5,6 +5,7 @@ import { createDocumentEnvelope, normalizeSourceInput } from "../../contracts/do
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createObjectRef } from "../../contracts/object_ref.js";
 import { createViewQuery } from "../../contracts/view_query.js";
+import { createStructureWorkerRuntime } from "../../analysis/structure_worker_runtime.js";
 import { parseVerilog } from "../../parser/verilogParser.js";
 import { buildDesignSearchIndex, searchDesignIndex } from "../../search/designSearch.js";
 import { analyzeHierarchicalCone, buildModuleConnectivityTemplates, projectHierarchicalCone } from "./hierarchy_connectivity.js";
@@ -16,6 +17,11 @@ const connectivityTemplateCache = new WeakMap();
 
 export const netlistFeature = defineDomainFeature({
   id: NETLIST_DOMAIN_ID,
+  createAnalysisService(_document, workspace) {
+    return createStructureWorkerRuntime(workspace.analysisModel, {
+      workerFactory: () => new Worker(new URL("./reconvergence_worker.js", import.meta.url), { type: "module" })
+    });
+  },
   inputFormats: [
     Object.freeze({ id: "structural-verilog", extensions: Object.freeze([".v", ".sv"]), sourceKinds: Object.freeze(["text"]) })
   ],

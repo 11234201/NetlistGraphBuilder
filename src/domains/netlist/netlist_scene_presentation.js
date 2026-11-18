@@ -135,14 +135,19 @@ function createCellPrimitive(node, presentationPolicy) {
   children.push(...createPortPrimitives(node, x, y, width, useConventionalSymbol));
   const timingBadge = useConventionalSymbol ? null : createTimingBadge(node, x, y, width, height);
   if (timingBadge) children.push(timingBadge);
+  const unitName = node.kind === "cell" && gateKind !== "module"
+    ? /^UNIT_(.+)_GATE$/u.exec(node.ref?.type || node.subtitle)?.[1] : null;
+  const caption = unitName && (node.hasExplicitTitle ? node.title : unitName);
+  const textFit = caption && caption.length * 8 > width - 18
+    ? { textLength: Math.max(1, width - 18), lengthAdjust: "spacingAndGlyphs" } : {};
   if (useConventionalSymbol) {
     children.push(svgElement("text", {
-      class: "gate-kind", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle"
-    }, [svgText(gateKind.toUpperCase())]));
+      class: "gate-kind", x: x + width / 2, y: y + height / 2 + 4, "text-anchor": "middle", ...textFit
+    }, [svgText(caption || gateKind.toUpperCase())]));
   } else children.push(
     svgElement("text", {
-      class: "gate-kind", x: x + width / 2, y: y + 22, "text-anchor": "middle"
-    }, [svgText(node.title || gateKind.toUpperCase())]),
+      class: "gate-kind", x: x + width / 2, y: y + 22, "text-anchor": "middle", ...textFit
+    }, [svgText(caption || node.title || gateKind.toUpperCase())]),
     svgElement("text", {
       class: "node-label", x: x + width / 2, y: y + 42, "text-anchor": "middle"
     }, [svgText(getLeafDisplayName(node.label))])

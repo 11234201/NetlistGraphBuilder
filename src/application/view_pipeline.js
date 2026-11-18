@@ -4,7 +4,7 @@ export function runViewPipeline(stages, request) {
     chain(stages.measure(diagram, request), (measuredGraph) =>
       chain(stages.layout(measuredGraph, request), (autoGraph) =>
         chain(stages.applyOverrides(autoGraph, request), (adjustedGraph) =>
-          chain(stages.createScene(adjustedGraph, request), (scene) => ({
+          chain(stages.createScene(adjustedGraph, request, queried), (scene) => ({
             queryResult: queried,
             diagram,
             measuredGraph,

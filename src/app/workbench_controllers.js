@@ -27,10 +27,13 @@ import { createLegacyPort } from "./legacy_port.js";
 import { SINGLE_NAVIGATION_FIELDS, COMPARE_NAVIGATION_FIELDS } from "./view_navigation_import.js";
 import { SINGLE_VIEW_STATE_FIELDS, COMPARE_VIEW_STATE_FIELDS } from "./view_state_import.js";
 import { createNetRoutingBridge } from "./net_routing_bridge.js";
+import { createNetlistStructureBridge } from "./netlist_structure_bridge.js";
+import { objectRefToNodeId } from "../domains/netlist/graph_object_refs.js";
 
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
 export function createWorkbenchControllers({ state, getElements, services, routeAction = (_name, action, args) => action(...args) }) {
   const actions = Object.create(null);
+  let structure;
   const netRouting = createNetRoutingBridge({
     readContext: (side) => ({
       fullGraph: side ? state.compare.fullGraphs[side] : state.fullGraph,
@@ -56,7 +59,9 @@ export function createWorkbenchControllers({ state, getElements, services, route
     ...(owner === "session-persistence" ? {
       canPersist: () => !getElements().canvas?.matches?.(".is-panning,.is-node-dragging,.is-view-interacting")
     } : {}),
-    ...(owner === "inspector" ? { netRouting } : {}),
+    ...(owner === "inspector" ? { netRouting, refreshAnalysis: () => structure?.refresh(),
+      inspectAnalysis: (side, id) => structure?.inspect(side, id) } : {}),
+    ...(owner === "workspace-render" ? { mounted: (mount) => structure?.refresh(mount) } : {}),
     ...(owner === "cell-config" ? { present: (action) => routeAction("presentCellConfig", action, []) } : {})
   });
   const controllers = [
@@ -83,6 +88,29 @@ export function createWorkbenchControllers({ state, getElements, services, route
     for (const [owner, , ports] of controllers) {
       for (const key of ports.elements) if (!(key in elementTarget)) throw new Error(`Missing element dependency ${key} for ${owner}`);
       for (const key of ports.services) validateWorkbenchServiceDependency(services, key, owner);
+    }
+    const panel = elementTarget.netlistAnalysis, detail = elementTarget.netlistAnalysisDetail;
+    if (panel && detail) {
+      const mountFor = (id) => id === "single" ? elementTarget.mount : id === "left" ? elementTarget.leftMount : elementTarget.rightMount;
+      structure = createNetlistStructureBridge({ panel, detail, jobs: services.workspaceJobs,
+        feature: services.netlistFeature, logProcess: services.logProcess, inCompare: () => state.compare.active,
+        readContext(id) {
+          const single = id === "single", sessionId = single ? "single:primary" : "compare:" + id;
+          const graph = single ? state.graph : state.compare.graphs[id];
+          const unitId = graph?.moduleName;
+          const session = services.viewSessions.get(sessionId);
+          return { document: state.document, sessionId, unitId, sessionReady: Boolean(session && session.documentId === state.document?.documentId && session.unitId === unitId),
+            selectedNode: () => single ? state.selectedNodeId : objectRefToNodeId(session.selectedObjectRef, graph),
+            unitKey: JSON.stringify([unitId, single ? state.occurrenceContext?.occurrencePath : null]),
+            graph, fullGraph: single ? state.fullGraph : state.compare.fullGraphs[id], mount: mountFor(id) };
+        },
+        locate(id, bounds) {
+          const single = id === "single";
+          services.focusPositionedCell(bounds, mountFor(id), single ? state.transform : state.compare.transforms[id], (transform) => {
+            if (single) { services.setSingleTransform(transform); services.applyTransform(); }
+            else { services.setCompareTransform(id, transform, false); services.applyCompareTransforms(); }
+          });
+        } });
     }
   });
   const owners = new Map();

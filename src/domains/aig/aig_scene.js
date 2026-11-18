@@ -18,10 +18,13 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
   function nodePrimitive(positioned) {
     const node = query.nodeById.get(positioned.id);
     const style = aigNodeStyle(node, analysis, query, policy);
+    const names = node.nameMappings?.slice(0, 8).map((row) => `${row.signalId}: ${row.name}${row.inverted ? " (inverted)" : ""}`) || [];
+    const generated = node.sourceRefs?.find((ref) => ref.generatedFor);
+    const tooltip = [node.description || node.label, ...names, ...(generated ? [`Generated for .names ${generated.generatedFor}`] : [])].join("\n");
     return el("g", { "data-aig-node": node.id, "data-aig-object": node.id, "data-domain-object": node.id, class: `aig-node${selectedId === node.id ? " is-selected" : ""}`, tabindex: 0,
       role: "button", "aria-label": `${node.kind}: ${node.label}`, "data-neighbor-role": neighbors.get(node.id),
       "data-aig-analysis-role": structure.nodeRoles.get(node.id), style: traceStyle(node.id),
-      opacity: structure.active && structure.dim && !structure.nodeRoles.has(node.id) ? 0.22 : 1 }, [title(node.label),
+      opacity: structure.active && structure.dim && !structure.nodeRoles.has(node.id) ? 0.22 : 1 }, [title(tooltip),
       el("rect", { x: positioned.x - 4, y: positioned.y - 4, width: positioned.width + 8, height: positioned.height + 8,
         rx: 6, "stroke-width": 3, ...neighborStyle(node.id) }),
       el("rect", { class: "aig-selection-halo", x: positioned.x - 5, y: positioned.y - 5,
@@ -39,7 +42,7 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
       role: "button", "aria-label": `${edge.source} to ${edge.target}, slot ${edge.slot}, ${edge.inverted ? "inverted" : "positive"}`,
       "data-neighbor-role": neighbors.get(edge.id), "data-aig-analysis-role": structure.edgeRoles.get(edge.id), style: traceStyle(edge.id),
       opacity: structure.active && structure.dim && !structure.edgeRoles.has(edge.id) ? 0.22 : 1 }, [
-      title(`${edge.id}: ${edge.inverted ? "inverted" : "positive"}, input ${edge.slot}`),
+      title(edge.description || `${edge.id}: ${edge.inverted ? "inverted" : "positive"}, input ${edge.slot}`),
       ...positioned.paths.map((d) => el("path", { d, "stroke-width": 7, "stroke-dasharray": style["stroke-dasharray"],
         opacity: 0.5, ...neighborStyle(edge.id) })),
       ...positioned.paths.map((d) => el("path", { d, class: "aig-selection-halo", fill: "none", stroke: "#7c3aed",

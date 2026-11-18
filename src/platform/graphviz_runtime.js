@@ -1,3 +1,5 @@
+import { restoreWorkerError } from "../foundation/worker_error.js";
+
 export const GRAPHVIZ_RUNTIME_VERSION = "viz-3.31.0/graphviz-16.1.0";
 export const GRAPHVIZ_DEFAULT_TIMEOUT_MS = 20000;
 
@@ -13,7 +15,7 @@ export function createGraphvizRuntime({ workerFactory = createWorker, timeoutMs 
     const previous = worker;
     worker = null;
     previous?.terminate();
-    for (const request of [...pending.values()]) request.finish(error);
+    for (const request of [...pending.values()]) request.reject(error);
   }
 
   function ensureWorker() {
@@ -24,14 +26,13 @@ export function createGraphvizRuntime({ workerFactory = createWorker, timeoutMs 
       if (worker !== created) return;
       const request = pending.get(data.id);
       if (!request) return;
-      if (data.error) {
-        const error = new Error(data.error.message);
-        error.name = data.error.name || "Error";
-        request.finish(error);
-      } else request.finish(null, data.result);
+      if (data.error) request.reject(restoreWorkerError(data.error));
+      else request.resolve(data.result);
     };
     created.onerror = (event) => {
-      if (worker === created) reset(new Error(event.message || "Graphviz worker failed"));
+      if (worker !== created) return;
+      event.preventDefault?.();
+      reset(event.error ?? new Error(event.message || "Graphviz worker failed"));
     };
     created.onmessageerror = () => {
       if (worker === created) reset(new Error("Invalid Graphviz worker response"));
@@ -49,13 +50,13 @@ export function createGraphvizRuntime({ workerFactory = createWorker, timeoutMs 
       const id = ++sequence;
       const onAbort = () => reset(abortError());
       const timer = setTimeout(() => reset(Object.assign(new Error(`Graphviz exceeded ${timeoutMs} ms`), { name: "TimeoutError" })), timeoutMs);
-      const finish = (error, result) => {
+      function settle(callback, value) {
         if (!pending.delete(id)) return;
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
-        if (error) reject(error); else resolve(result);
-      };
-      pending.set(id, { finish });
+        callback(value);
+      }
+      pending.set(id, { resolve: (result) => settle(resolve, result), reject: (error) => settle(reject, error) });
       signal?.addEventListener("abort", onAbort, { once: true });
       try { ensureWorker().postMessage({ id, dot, format }); }
       catch (error) { reset(error); }

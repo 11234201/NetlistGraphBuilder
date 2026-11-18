@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml, renderDefinitionRows } from "./html.js";
+import { aigObjectLabel } from "./aig_object_label.js";
 import { renderAigStructureNavigator, renderAigStructureInspector, renderAigStructureMembership } from "./aig_structure_panels.js";
 
 export const AIG_PANEL_PAGE_SIZE = 100;
@@ -8,9 +9,12 @@ export const AIG_PANEL_PAGE_SIZE = 100;
 const panelIndexes = new WeakMap();
 
 export function renderAigNavigator(workspace, options = {}) {
-  if (!workspace?.document?.model) return '<p class="details-empty">Open an ABC AIG DOT or AND/NOT BLIF file.</p>';
-  const tab = ["objects", "analysis"].includes(options.tab) ? options.tab : "design";
-  const tabs = renderTabs("nav", [["design", "Design"], ["objects", "Objects"], ["analysis", "Analysis"]], tab);
+  if (!workspace?.document?.model) return '<p class="details-empty">Open an ABC AIG DOT or two-input BLIF file.</p>';
+  const entries = [["design", "Design"], ["objects", "Objects"], ["analysis", "Analysis"]];
+  if (workspace.document.model.nameMappings?.length) entries.push(["names", "Names"]);
+  const tab = entries.some(([id]) => id === options.tab) ? options.tab : "design";
+  const tabs = renderTabs("nav", entries, tab);
+  if (tab === "names") return `${tabs}<section data-aig-nav-content="names">${renderNames(workspace, options)}</section>`;
   return `${tabs}<section data-aig-nav-content="${tab}">${tab === "design"
     ? renderDesign(workspace, options) : tab === "analysis" ? renderAigStructureNavigator(workspace, options.structure) : renderObjects(workspace, options)}</section>`;
 }
@@ -28,7 +32,9 @@ export function renderAigInspector(workspace, options = {}) {
   const type = isEdge ? "Logical edge" : kindLabel(selected.kind);
   const header = `<header class="inspector-object-header" data-aig-inspected-id="${escapeAttr(selected.id)}">
     <div class="inspector-object-name"><strong title="${escapeAttr(name)}">${escapeHtml(name)}</strong>${copyButton(name)}</div>
-    <dl class="stats-list">${renderDefinitionRows([["Type", type], ["File", workspace.document.name], ["Object ID", selected.id]])}</dl>
+    <dl class="stats-list">${renderDefinitionRows([["Type", type], ["File", workspace.document.name], ["Object ID", selected.id],
+      ...(selected.nameMappings?.length ? [["Mapped name", selected.nameMappings[0].name], ["BLIF signal", selected.nameMappings[0].signalId]] : []),
+      ...(selected.sourceRefs?.[0]?.generatedFor ? [["Generated for .names", selected.sourceRefs[0].generatedFor]] : [])])}</dl>
     <button type="button" class="mini-button" data-aig-zoom="${escapeAttr(selected.id)}">Zoom to selection</button>
   </header>`;
   const content = tab === "analysis" ? renderAnalysis(workspace, selected, isEdge, options)
@@ -75,7 +81,7 @@ function renderDesign(workspace, options) {
   }
   const counts = analysis.counts;
   return `<h3 title="${escapeAttr(name)}">${escapeHtml(name)}</h3><dl class="stats-list">${renderDefinitionRows([
-    ["Format", ["dot", "abc-dot"].includes(format) ? "ABC AIG DOT" : "AND/NOT BLIF"], ["Inputs (PI)", counts.pi], ["AND", counts.and],
+    ["Format", ["dot", "abc-dot"].includes(format) ? "ABC AIG DOT" : "Two-input BLIF"], ["Inputs (PI)", counts.pi], ["AND", counts.and],
     ["Outputs (PO)", counts.po], ["Constants", counts.constant], ["Logical edges", counts.edges],
     ["Inverted edges", counts.invertedEdges], ["Maximum AND depth", analysis.depth],
     ["Critical nodes", analysis.criticalNodes.length], ["Critical edges", analysis.criticalEdges.length],
@@ -120,7 +126,7 @@ function renderObjects(workspace, options) {
     const node = context.query.nodeById.get(entry.id);
     const current = entry.id === options.selectedId;
     return `<li><button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-aig-select="${escapeAttr(entry.id)}" title="${escapeAttr(entry.label)}"${current ? ' aria-current="true"' : ""}>
-      <span>${escapeHtml(entry.label)}</span> <small>${escapeHtml(kindLabel(entry.kind))} · depth ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}</small>
+      <span>${escapeHtml(entry.label)}</span> <small>${entry.detail ? escapeHtml(entry.detail) + " · " : ""}${escapeHtml(kindLabel(entry.kind))} · depth ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}${outsideScope(workspace.visibleNodeIds, node.id)}</small>
     </button></li>`;
   }).join("");
   return `<div class="aig-object-filters">
@@ -131,6 +137,35 @@ function renderObjects(workspace, options) {
   </div>${excluded || offPage ? `<p class="details-empty">${excluded ? "Current selection is outside the filter." : "Current selection is on another page."} <button type="button" data-aig-show-selection="${escapeAttr(selected.id)}">Show selection</button></p>` : ""}
   <p>${context.objects.length} objects</p><ul class="module-hierarchy-tree aig-object-list">${rows}</ul>
   ${context.objects.length ? renderPager(context.objects.length, page, "navigator") : '<p class="details-empty">No matching objects.</p>'}`;
+}
+
+function outsideScope(visible, id) {
+  return visible && !visible.has(id) ? " · outside Focused" : "";
+}
+
+function renderNames(workspace, options) {
+  const query = String(options.nameQuery || "").trim().toLowerCase();
+  const context = getIndexes(workspace);
+  if (context.nameQuery !== query) {
+    const words = query.split(/\s+/).filter(Boolean);
+    const all = workspace.document.model.nameMappings;
+    context.names = words.length ? all.filter((row) => {
+      const text = `${row.signalId} ${row.name} ${row.nodeId || ""}`.toLowerCase();
+      return words.every((word) => text.includes(word));
+    }) : all;
+    context.nameQuery = query;
+  }
+  const { names } = context;
+  const { start, end, page } = pageRange(names.length, options.page);
+  const rows = names.slice(start, end).map((row) => {
+    const node = workspace.query.nodeById.get(row.nodeId);
+    const target = node ? `<button type="button" class="selection-link" data-aig-select="${escapeAttr(node.id)}">${escapeHtml(node.id)}</button>${outsideScope(workspace.visibleNodeIds, node.id)}` : "—";
+    const usage = row.usage === "unknown" ? "Undeclared" : row.usage === "output" ? "Output port" : "Driver";
+    return `<tr><td>${escapeHtml(row.signalId)}</td><td>${escapeHtml(row.name)}${copyButton(row.name)}</td><td>${target}</td><td>${usage}${row.inverted ? " · inverted" : ""}${row.conflict ? " · conflicting names" : ""}</td><td>${escapeHtml(row.line)}</td></tr>`;
+  }).join("");
+  return `<label>Filter names <input type="search" data-aig-filter="nameQuery" value="${escapeAttr(options.nameQuery || "")}"></label>
+    <p>${names.length} mappings</p><div class="connection-table-wrap" tabindex="0"><table class="connection-table"><thead><tr><th>BLIF ID</th><th>Mapped name</th><th>Canvas ID</th><th>Use</th><th>Line</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${renderPager(names.length, page, "navigator")}`;
 }
 
 function renderConnections(workspace, object, isEdge, options) {
@@ -145,7 +180,7 @@ function renderConnections(workspace, object, isEdge, options) {
   for (let index = start; index < end; index += 1) {
     const isIncoming = index < incoming.length;
     const edge = query.edgeById.get(isIncoming ? incoming[index] : outgoing[index - incoming.length]);
-    rows += `<tr><td>${isIncoming ? "Fanin" : "Fanout"}</td><td>${nodeButton(query.nodeById.get(edge.source))} → ${nodeButton(query.nodeById.get(edge.target))}</td>
+    rows += `<tr><td>${isIncoming ? "Fanin" : "Fanout"}</td><td>${nodeButton(query.nodeById.get(edge.source))} → ${nodeButton(query.nodeById.get(edge.target))}${outsideScope(workspace.visibleEdgeIds, edge.id)}</td>
       <td><button type="button" class="selection-link" data-aig-select="${escapeAttr(edge.id)}">Slot ${escapeHtml(edge.slot)}</button></td>
       <td>${edge.inverted ? "Inverted" : "Positive"}</td><td>${query.criticalEdges.has(edge.id) ? "Critical" : "—"}</td></tr>`;
   }
@@ -172,15 +207,19 @@ function renderAnalysis(workspace, object, isEdge, options) {
 
 function renderSource(object, isEdge, options) {
   const refs = object.sourceRefs || [];
-  const { page, start, end } = pageRange(refs.length, options.page);
+  const mappings = object.nameMappings || [];
+  const count = Math.max(refs.length, mappings.length);
+  const { page, start, end } = pageRange(count, options.page);
+  const names = mappings.slice(start, end).map((row) => `<li>${escapeHtml(row.signalId)} → ${escapeHtml(row.name)}${copyButton(row.name)} · ${row.inverted ? "Inverted" : "Positive"} · line ${escapeHtml(row.line)}${row.conflict ? " · conflicting names" : ""}</li>`).join("");
   return `<p>Normalized ID <code>${escapeHtml(object.id)}</code>${copyButton(object.id)}</p>${refs.length
     ? `<ul class="aig-source-list">${refs.slice(start, end).map((ref) => `<li><code>${escapeHtml(ref.label || ref.id)}</code>${copyButton(ref.label || ref.id)}
-      <dl class="stats-list">${renderSourceRows(ref, isEdge)}</dl></li>`).join("")}</ul>${renderPager(refs.length, page, "inspector")}`
-    : '<p class="details-empty">No source location is available for this derived object.</p>'}`;
+      <dl class="stats-list">${renderSourceRows(ref, isEdge)}</dl></li>`).join("")}</ul>`
+    : '<p class="details-empty">No source location is available for this derived object.</p>'}${names ? `<h4>Mapped names</h4><ul>${names}</ul>` : ""}${renderPager(count, page, "inspector")}`;
 }
 
 function renderSourceRows(ref, isEdge) {
   const rows = [["Source ID", ref.id]];
+  if (ref.generatedFor) rows.push(["Generated for .names", ref.generatedFor]);
   if (isEdge) rows.push(["Target source ID", ref.targetId], ["Source input slot", ref.slot],
     ["Source edge polarity", ref.sourceInverted ? "Inverted" : "Positive"]);
   rows.push(["Position", ref.line ? `line ${ref.line}${ref.column ? `, column ${ref.column}` : ""}` : "Not supplied"],
@@ -211,7 +250,8 @@ function renderPager(count, page, target) {
 }
 
 function nodeButton(node) {
-  return `<button type="button" class="selection-link" data-aig-select="${escapeAttr(node.id)}" title="${escapeAttr(node.label)}">${escapeHtml(node.label)}</button>`;
+  const label = aigObjectLabel(node);
+  return `<button type="button" class="selection-link" data-aig-select="${escapeAttr(node.id)}" title="${escapeAttr(label)}">${escapeHtml(label)}</button>`;
 }
 
 function copyButton(text) {

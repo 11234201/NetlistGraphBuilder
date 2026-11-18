@@ -111,7 +111,7 @@ Paste AIG 绘图前可选择 Standard / Logic View，初始默认 Logic View。�
 
 Verilog / Timing 粘贴取消会中止实际布局任务及尚未完成的绘制，取消或过期结果不得覆盖新请求。既有网表导入在布局前已应用解析结果，因此取消保留已解析的数据，清除当前取消操作的画布并明确提示可重新绘图；Single / Compare 使用共享的任务取消边界。
 
-Navigator 使用 Design / Objects / Analysis；Inspector 的普通对象使用 Connections / Analysis / Source，选择结构分析结果时展示专用详情。列表、全局搜索和画布共享对象身份，连接按输入槽位展示，列表筛选不裁剪图。新文件准备成功后替换现有视图，失败/取消保留旧视图。AIG 首版仅 Whole，禁用其 Compare、Focused、Timing、Liberty、Cell Config、Adjust、Golden；切回网表恢复既有功能与默认分屏方向。
+Navigator 提供 Design、Objects 和 Analysis，有 BLIF 映射时可从 Names 查看设计名、原始 ID、极性和用途。Inspector 的普通对象使用 Connections、Analysis 和 Source。全局搜索可以按原始 ID 或映射名定位节点。AIG Single 支持 Whole 和多根 Focused，两种样式与 SVG 导出共用当前显示范围，重收敛只使用范围内的真实逻辑。新文件或新的 Focused 布局准备成功后替换画布，失败或取消保留原视图。Compare、Timing、Liberty、Cell Config、Adjust、Golden 仍属于 Netlist 工作区。
 
 Analysis 分为 Reconvergence 与 Blocks。前者列出拥有两条内部节点不相交路径的分叉/汇合对，点选后两条证明路径分别为蓝、橙，分叉与汇合外框为青色；详情按需计算相关路径并集。后者识别 XOR2/XNOR2/MUX2 的全部有限函数变体，列出根节点、边界输入、引脚映射、极性与外部用途；块成员及输入边界为紫色外框。保留原始 AIG，不折叠或替换节点。XOR/XNOR 按正相根函数命名；MUX 采用确定性的引脚/极性规范表示，出边取反不会重复计数。
 

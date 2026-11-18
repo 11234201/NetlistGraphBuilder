@@ -8,6 +8,7 @@ import { buildSchematicGraph } from "../../netlist/graph.js";
 import { annotateGraphTiming } from "../../timing/timingAnnotation.js";
 import { omitUnroutedNets } from "./net_routing.js";
 import { projectAliasRoutingIdentity } from "./alias_routing_identity.js";
+import { rememberReconvergenceAliasSource } from "./reconvergence_scope.js";
 
 export function buildWorkspaceGraph(module, options = {}) {
   const graph = buildSchematicGraph(module, {
@@ -22,6 +23,7 @@ export function buildWorkspaceGraph(module, options = {}) {
     badgePositions: options.timingBadgePositions || {}
   });
   const normalized = normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases === true });
+  rememberReconvergenceAliasSource(normalized, annotatedGraph);
   return applyOccurrenceContext(normalized, options.occurrencePath);
 }
 

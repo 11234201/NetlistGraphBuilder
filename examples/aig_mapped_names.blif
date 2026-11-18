@@ -1,0 +1,17 @@
+# n0 dp_add_2_cp_temp3_combined/in_96
+# n1 dp_add_2_cp_temp3_combined/in_97
+# n2 w_gen_5291
+# n3 u_gen_4388notBoutput
+# n4 dp_add_2_cp_temp3_combined/out
+.model mapped_names
+.inputs n0 n1
+.outputs n3 n4
+.names n0 n1 n2
+-1 1
+1- 1
+.names n2 n3
+0 1
+.names n0 n1 n4
+01 1
+10 1
+.end

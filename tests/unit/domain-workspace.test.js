@@ -37,7 +37,11 @@ test("candidate failure keeps the active document/session/artifact and closes fa
   const state = harness({ layout(value) { if (fail) throw new Error("layout failed"); return value; } });
   const previous = await state.workspace.open("fixture", { name: "working" });
   fail = true;
-  await assert.rejects(state.workspace.open("fixture", { name: "broken" }), /layout failed/);
+  let context;
+  await assert.rejects(state.workspace.open("fixture", { name: "broken" }, null, (value) => { context = value; }), /layout failed/);
+  assert.notEqual(context.documentId, previous.document.documentId);
+  assert.notEqual(context.sessionId, previous.sessionId);
+  assert.ok(context.jobId);
   assert.equal(state.workspace.read(), previous);
   assert.deepEqual(state.documents.list().map((item) => item.source.name), ["working"]);
   assert.equal(state.sessions.list().length, 1);

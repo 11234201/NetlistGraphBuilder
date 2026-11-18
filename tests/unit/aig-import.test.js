@@ -121,6 +121,74 @@ test("zero-input constants, direct outputs and unused constants are supported", 
   assert.equal(direct.analysis.counts.edges, 1);
 });
 
+test("two-input ON and OFF covers implement all sixteen Boolean functions", () => {
+  const assignments = ["00", "01", "10", "11"];
+  for (let mask = 0; mask < 16; mask++) {
+    const expected = assignments.map((_, bit) => (mask >> bit) & 1);
+    for (const phase of [0, 1]) {
+      // BLIF's empty table is always 0; a full don't-care cube expresses the other constant.
+      const cubes = assignments.filter((_, bit) => expected[bit] === phase);
+      const cover = cubes.length ? cubes.map((cube) => cube + " " + phase) : ["-- " + (1 - phase)];
+      const make = (rows, swapped) => importBlif(blif(".names " + (swapped ? "b a" : "a b") + " y\n" + rows.join("\n")));
+      const one = make(cover, false);
+      const two = make([...cover, cover[0]].reverse().map((row) => row[1] + row[0] + row.slice(2)), true);
+      assert.deepEqual(evaluate(one.model), expected);
+      assert.deepEqual(geometryModel(one.model), geometryModel(two.model));
+      if (mask === 6 || mask === 9) {
+        assert.equal(one.analysis.counts.and, 3);
+        assert.equal(one.analysis.depth, 2);
+        assert.equal(one.model.nodes.filter((node) => node.sourceRefs.some((ref) => ref.generatedFor === "y")).length, 2);
+      }
+    }
+  }
+  assert.deepEqual(evaluate(importBlif(blif(".names a b y\n-1 1\n1- 1")).model), [0, 1, 1, 1]);
+  assert.deepEqual(evaluate(importBlif(blif(".names a a y\n01 1\n10 1", "a")).model), [0, 0]);
+});
+
+test("invalid cover, input count and post-expansion budget carry the offending .names location", () => {
+  for (const [body, code, line, inputCount] of [
+    [".names a b y\nxx 1", "blif.cover-value", 5, 2],
+    [".names a b c y\n1-- 1", "blif.input-count", 4, 3]
+  ]) {
+    assert.throws(() => importBlif(blif(body)), (error) =>
+      error.code === code && error.diagnostic.line === line && error.diagnostic.column === 1 &&
+      error.diagnostic.objectId === "y" && error.diagnostic.inputCount === inputCount);
+  }
+  const inputs = Array.from({ length: 99997 }, (_, i) => "a" + i).join(" ");
+  assert.throws(() => adaptAndNotBlif(parseBlifSource(blif(".names a0 a1 y\n01 1\n10 1", inputs))),
+    (error) => error.code === "blif.object-limit" && error.diagnostic.objectId === "y");
+});
+
+test("BLIF source names bind after numbering, preserve alias polarity and distinguish driver and output uses", () => {
+  const source = blif(".names n0 n1\n0 1\n.names n1 n2 n3\n01 1\n10 1", "n0 n2", "n1 n3");
+  const comments = ["# n0 top/input<&>", "# n1 top/inverted", "# n3 out", "# n2 duplicate", "# n2 other", "# n0 top/input<&>", "# n88 unknown", "# ordinary comment"];
+  const imported = importBlif(comments.join("\n") + "\n" + source);
+  const { model } = imported;
+  assert.equal(model.nameMappings.length, 8);
+  const first = model.nodes.find((node) => node.label === "top/input<&>");
+  const alias = model.nameMappings.filter((m) => m.signalId === "n1");
+  assert.deepEqual(alias.map((m) => [m.usage, m.inverted]), [["driver", true], ["output", false]]);
+  assert.equal(alias[0].nodeId, first.id);
+  assert.equal(model.nodes.find((n) => n.id === alias[1].nodeId).kind, "po");
+  const conflicting = model.nodes.find((n) => n.label === "n2");
+  assert.equal(conflicting.nameMappings.length, 2);
+  assert.ok(conflicting.nameMappings.every((m) => m.conflict));
+  assert.equal(model.mappingWarnings.unknownCount, 1);
+  assert.equal(model.mappingWarnings.conflictCount, 1);
+  assert.equal(model.nameMappings.find((m) => m.signalId === "n88").nodeId, null);
+  assert.ok(!model.nameMappings.some((m) => m.signalId === "ordinary"));
+  assert.ok(model.nodes.filter((n) => n.sourceRefs.some((ref) => ref.generatedFor)).every((n) => !n.nameMappings));
+  const search = searchAigIndex(buildAigSearchIndex(model), "inverted");
+  assert.deepEqual(new Set(search.map((hit) => hit.id)), new Set(alias.map((m) => m.nodeId)));
+  assert.ok(search.every((hit) => hit.label === "top/inverted" && hit.detail.includes("n1")));
+  const bare = importBlif(source);
+  assert.deepEqual(model.edges.map((e) => [e.id, e.source, e.target, e.inverted]), bare.model.edges.map((e) => [e.id, e.source, e.target, e.inverted]));
+  assert.deepEqual(model.nodes.map((n) => [n.id, n.kind, n.level]), bare.model.nodes.map((n) => [n.id, n.kind, n.level]));
+  const reordered = importBlif(comments.reverse().join("\n") + "\n" + source);
+  const uses = (graph) => graph.nameMappings.map(({ line, ...binding }) => binding);
+  assert.deepEqual(uses(reordered.model), uses(model));
+});
+
 test("duplicate fanin slots and same-source mixed polarity remain separately addressable", () => {
   const data = importBlif(blif(".names a a y\n10 1", "a"));
   const gate = data.model.nodes.find((node) => node.kind === "and");
@@ -224,7 +292,9 @@ test("unsupported syntax, multiple drivers, missing signals, cycles and conflict
   const cases = [
     [blif(".names a missing y\n11 1"), /Undefined signal/],
     [blif(".names z y\n1 1\n.names y z\n1 1"), /cycle/],
-    [blif(".names a b y\n01 1\n10 1"), /outside/],
+    [blif(".names a y y\n1- 1"), /cycle/],
+    [blif(".names a missing y\n-- 1"), /Undefined signal/],
+    [blif(".names a b c y\n111 1"), /two inputs/],
     [blif(".names a b y\n11 1\n.names a y\n1 1"), /Multiple/],
     [blif(".latch a y"), /Unsupported/],
     [blif(".names a b y\n11 1\n00 0"), /Mixed/],

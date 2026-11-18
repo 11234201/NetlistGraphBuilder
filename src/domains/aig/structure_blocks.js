@@ -26,7 +26,7 @@ export function findStructureBlocks(index, policy) {
     if (!budget.spend()) break;
     rootsChecked++;
     const children = index.incoming.get(root.id).map((edge) => index.byId.get(edge.source));
-    if (!children.every((node) => node.kind === "and")) continue;
+    if (children.length !== 2 || !children.every((node) => node.kind === "and" && index.incoming.get(node.id).length === 2)) continue;
     const leaves = [...new Set(children.flatMap((node) => index.incoming.get(node.id).map((edge) => edge.source)))].filter((id) => index.byId.get(id).kind !== "constant").sort(compareStructureId);
     inspect(root, leaves);
   }
@@ -35,7 +35,7 @@ export function findStructureBlocks(index, policy) {
     if (budget.exhausted) break;
     if (root.kind === "po") continue;
     if (cachedCount >= policy.cachedCuts) { budget.limit("cut-cache-limit"); break; }
-    if (root.kind !== "and") { cuts.set(root.id, [root.kind === "constant" ? [] : [root.id]]); cachedCount++; continue; }
+    if (root.kind !== "and" || index.incoming.get(root.id).length !== 2) { cuts.set(root.id, [root.kind === "constant" ? [] : [root.id]]); cachedCount++; continue; }
     const [first, second] = index.incoming.get(root.id);
     const candidates = new Map();
     for (const left of cuts.get(first.source) || []) {

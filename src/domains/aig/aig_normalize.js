@@ -14,13 +14,16 @@ export function normalizeAig(raw, options = {}) {
   const pending = new Map();
   const users = new Map(raw.nodes.map((node) => [node.id, []]));
   for (const node of raw.nodes) {
-    for (const dependency of node.declaredInputs || node.fanins.map((edge) => edge.source)) {
-      requireAig(bySource.has(dependency), `Undefined signal '${dependency}' used by '${node.id}'`, context, node);
+    // A simplified constant or literal still has to validate all input names
+    // and combinational dependencies declared by its source table.
+    const dependencies = node.declaredInputs || node.fanins.map((edge) => edge.source);
+    for (const dependency of dependencies) {
+      requireAig(bySource.has(dependency), `Undefined signal '${dependency}' used by '${node.generatedFor || node.id}'`, context, node, "aig.undefined-input");
+      users.get(dependency).push(node.id);
     }
-    pending.set(node.id, node.fanins.length);
-    for (const edge of node.fanins) users.get(edge.source).push(node.id);
+    pending.set(node.id, dependencies.length);
   }
-  const queue = raw.nodes.filter((node) => node.fanins.length === 0).map((node) => node.id);
+  const queue = raw.nodes.filter((node) => pending.get(node.id) === 0).map((node) => node.id);
   const signals = new Map();
   const vertices = [];
   let constant = null;
@@ -35,7 +38,13 @@ export function normalizeAig(raw, options = {}) {
   };
   for (let offset = 0; offset < queue.length; offset++) {
     const node = bySource.get(queue[offset]);
-    const literals = node.fanins.map((edge, slot) => ({ vertex: signals.get(edge.source).vertex, inverted: Boolean(signals.get(edge.source).inverted !== edge.inverted), sourceRef: { id: edge.source, targetId: node.id, slot, sourceInverted: edge.inverted, line: edge.line, column: edge.column } }));
+    const literals = node.fanins.map((edge, slot) => {
+      const source = signals.get(edge.source);
+      const generatedFor = node.generatedFor || bySource.get(edge.source).generatedFor;
+      return { vertex: source.vertex, inverted: source.inverted !== edge.inverted,
+        sourceRef: { id: edge.source, targetId: node.id, slot, sourceInverted: edge.inverted, line: edge.line, column: edge.column,
+          ...(generatedFor ? { generatedFor } : {}) } };
+    });
     let signal;
     if (node.kind === "pi") signal = { vertex: vertex({ kind: "pi", label: node.label, level: 0 }), inverted: false };
     else if (node.kind === "constant") {
@@ -48,7 +57,8 @@ export function normalizeAig(raw, options = {}) {
       for (const literal of literals) connect(literal.vertex, result, literal.inverted, literal.sourceRef);
       signal = { vertex: result, inverted: Boolean(node.outputInverted) };
     }
-    signal.vertex.sourceRefs.push({ id: node.id, label: node.label, line: node.line, column: node.column, inverted: signal.inverted });
+    signal.vertex.sourceRefs.push({ id: node.id, label: node.label, line: node.line, column: node.column, inverted: signal.inverted,
+      ...(node.generatedFor ? { generatedFor: node.generatedFor } : {}) });
     signals.set(node.id, signal);
     for (const user of users.get(node.id)) {
       const remaining = pending.get(user) - 1;
@@ -56,7 +66,10 @@ export function normalizeAig(raw, options = {}) {
       if (remaining === 0) queue.push(user);
     }
   }
-  requireAig(signals.size === raw.nodes.length, `Combinational cycle near '${raw.nodes.find((node) => !signals.has(node.id))?.id || ""}'`, context);
+  if (signals.size !== raw.nodes.length) {
+    const node = raw.nodes.find((item) => !signals.has(item.id));
+    requireAig(false, `Combinational cycle near '${node.generatedFor || node.id}'`, context, node, "aig.cycle");
+  }
   for (const output of raw.outputs) {
     const signal = signals.get(output.source);
     requireAig(signal, `Undefined output signal '${output.source}'`, context, output);

@@ -14,6 +14,7 @@
     "test:aig-browser": "node tests/e2e/aig-workbench-e2e.mjs",
     "test:aig-views": "node tests/e2e/aig_views_e2e.mjs",
     "test:aig-structure": "node tests/e2e/aig_structure_e2e.mjs",
+    "test:scoped-logic-browser": "node tests/e2e/blif_names_e2e.mjs && node tests/e2e/aig_focused_e2e.mjs && node tests/e2e/netlist_reconvergence_e2e.mjs",
     "test:graphviz-browser": "node tests/e2e/graphviz-runtime-e2e.mjs",
     "test:docs": "node tools/check_docs_links.mjs",
     "test:architecture": "node tools/check_architecture.mjs",

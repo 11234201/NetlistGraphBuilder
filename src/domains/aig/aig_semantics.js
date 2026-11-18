@@ -1,4 +1,4 @@
-import { requireAig } from "./aig_diagnostics.js";
+import { AIG_IMPORT_LIMITS, requireAig } from "./aig_diagnostics.js";
 
 export function adaptAbcDot(source, options = {}) {
   const context = { ...options, format: "abc-dot" };
@@ -63,21 +63,38 @@ export function adaptAndNotBlif(source, options = {}) {
     } else if (command === ".inputs" || command === ".outputs") {
       if (command === ".inputs") sawInputs = true; else sawOutputs = true;
       const ports = command === ".inputs" ? inputs : outputs;
+      requireAig(nodes.length + inputs.length + outputs.length + args.length <= AIG_IMPORT_LIMITS.objects,
+        `BLIF object count exceeds the ${AIG_IMPORT_LIMITS.objects}-object import limit`, context, declaration, "blif.object-limit");
       for (const label of args) ports.push({ name: label, label, id: label, line: declaration.line, column: declaration.column });
     } else if (command === ".names") {
-      requireAig(args.length >= 1 && args.length <= 3, "AND/NOT BLIF .names requires zero, one or two inputs", context, declaration);
       const id = args.at(-1);
-      requireAig(!drivers.has(id), `Multiple BLIF drivers for '${id}'`, context, declaration);
+      const location = { line: declaration.line, column: declaration.column, id, inputCount: Math.max(0, args.length - 1) };
+      requireAig(args.length >= 1 && args.length <= 3, "BLIF .names requires zero, one or two inputs", context, location, "blif.input-count");
+      requireAig(!drivers.has(id), `Multiple BLIF drivers for '${id}'`, context, location, "blif.multiple-drivers");
       drivers.add(id);
-      const record = { id, label: id, line: declaration.line, column: declaration.column, declaredInputs: args.slice(0, -1) };
-      nodes.push({ ...record, ...classifyCover(declaration, context), fanins: [] });
-      const node = nodes.at(-1);
-      node.fanins = (node.literals || []).map((literal) => ({ source: record.declaredInputs[literal.slot], inverted: literal.inverted, line: declaration.line, column: declaration.column }));
-      delete node.literals;
+      const record = { id, label: id, line: declaration.line, column: declaration.column };
+      const declaredInputs = args.slice(0, -1);
+      const { literals = [], ...gate } = classifyCover(declaration, context, location);
+      const fanin = (source, inverted) => ({ source, inverted, line: record.line, column: record.column });
+      if (gate.kind === "parity") {
+        // Spaces cannot occur inside a BLIF name token. Both terms are symmetric
+        // in their operands, including after source input/cover permutation.
+        const terms = [false, true].map((inverted) => {
+          const termId = `XOR ${Number(inverted)} ${id}`;
+          nodes.push({ ...record, id: termId, label: termId, generatedFor: id, kind: "and",
+            fanins: declaredInputs.map((source) => fanin(source, inverted)) });
+          return fanin(termId, true);
+        });
+        nodes.push({ ...record, kind: "and", outputInverted: gate.outputInverted, fanins: terms });
+      } else {
+        nodes.push({ ...record, ...gate, declaredInputs, fanins: literals.map(({ slot, inverted }) => fanin(declaredInputs[slot], inverted)) });
+      }
+      requireAig(nodes.length + inputs.length + outputs.length <= AIG_IMPORT_LIMITS.objects,
+        `BLIF object count exceeds the ${AIG_IMPORT_LIMITS.objects}-object import limit`, context, location, "blif.object-limit");
     } else if (command === ".end") {
       requireAig(args.length === 0, "Unexpected arguments after .end", context, declaration);
       ended = true;
-    } else requireAig(false, `Unsupported AND/NOT BLIF directive '${command}'`, context, declaration);
+    } else requireAig(false, `Unsupported BLIF directive '${command}'`, context, declaration, "blif.directive");
   }
   requireAig(name && ended, "BLIF requires .model and .end", context);
   requireAig(sawInputs && sawOutputs && outputs.length > 0, "BLIF requires explicit .inputs (possibly empty) and nonempty .outputs", context);
@@ -90,19 +107,20 @@ export function adaptAndNotBlif(source, options = {}) {
   return { name, format: "blif", nodes, outputs: outputs.map((output) => ({ ...output, source: output.name, inverted: false })) };
 }
 
-function classifyCover(declaration, context) {
+function classifyCover(declaration, context, location) {
   const size = declaration.arguments.length - 1;
   const cubes = [];
   const phases = new Set();
   for (const row of declaration.rows) {
-    requireAig(row.fields.length === (size ? 2 : 1), "Invalid BLIF cover row", context, row);
+    const rowLocation = { ...location, line: row.line, column: row.column };
+    requireAig(row.fields.length === (size ? 2 : 1), "Invalid BLIF cover row", context, rowLocation, "blif.cover-row");
     const cube = size ? row.fields[0] : "";
     const phase = row.fields.at(-1);
-    requireAig(cube.length === size && /^[01-]*$/.test(cube) && /^[01]$/.test(phase), "Invalid BLIF cube or output value", context, row);
+    requireAig(cube.length === size && /^[01-]*$/.test(cube) && /^[01]$/.test(phase), "Invalid BLIF cube or output value", context, rowLocation, "blif.cover-value");
     cubes.push(cube);
     phases.add(Number(phase));
   }
-  requireAig(phases.size <= 1, "Mixed ON/OFF BLIF covers are unsupported", context, declaration);
+  requireAig(phases.size <= 1, "Mixed ON/OFF BLIF covers are unsupported", context, location, "blif.cover-phase");
   const phase = [...phases][0] ?? 1;
   const assignments = Array.from({ length: 1 << size }, (_, bits) => Array.from({ length: size }, (_, slot) => (bits >> (size - slot - 1)) & 1));
   const values = assignments.map((bits) => cubes.some((cube) => [...cube].every((character, slot) => character === "-" || Number(character) === bits[slot])) ? phase : 1 - phase);
@@ -115,7 +133,8 @@ function classifyCover(declaration, context) {
       return { kind: "and", outputInverted, literals: [{ slot: 0, inverted: first }, { slot: 1, inverted: second }] };
     }
   }
-  requireAig(false, "BLIF truth table is outside the two-input AND/NOT subset", context, declaration);
+  // After constants, literals and single ANDs, only XOR and XNOR remain.
+  return { kind: "parity", outputInverted: values[0] === 1 };
 }
 
 function checkNames(ports, kind, context) {

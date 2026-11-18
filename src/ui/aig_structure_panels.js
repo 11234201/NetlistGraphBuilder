@@ -1,10 +1,14 @@
 import { escapeAttr as attr, escapeHtml as html, renderDefinitionRows } from "./html.js";
+import { aigObjectLabel } from "./aig_object_label.js";
 
 const PAGE_SIZE = 100;
 const names = { xor: "XOR2", xnor: "XNOR2", mux: "MUX2" };
 const reasonNames = { "work-limit": "work budget", "cut-limit": "cuts per node", "cut-cache-limit": "cut cache",
   "result-limit": "result count", "reach-node-limit": "downstream search size", "witness-limit": "stored paths", "detail-node-limit": "path union size", "block-node-limit": "block size" };
-const label = (workspace, id) => workspace.query.nodeById.get(id)?.label || id;
+function label(workspace, id) {
+  const object = workspace.query.nodeById.get(id);
+  return object ? aigObjectLabel(object) : id;
+}
 const node = (workspace, id, text = label(workspace, id)) => `<button type="button" class="selection-link" data-aig-select="${attr(id)}">${html(text)}</button>`;
 function formulaName(workspace, id) {
   const signal = workspace.query.nodeById.get(id), name = signal?.label || id;

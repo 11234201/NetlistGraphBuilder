@@ -6,11 +6,22 @@ export function parseBlifSource(text, options = {}) {
   requireAig(typeof text === "string", "BLIF source must be text", source);
   requireAig(text.length <= AIG_IMPORT_LIMITS.sourceCharacters, "BLIF source exceeds the 16 MiB import limit", source);
   const declarations = [];
+  const mappingCandidates = [];
   let pending = "";
   let pendingLine = 0;
   let current = null;
   const lines = text.split(/\r?\n/);
   for (let index = 0; index < lines.length; index++) {
+    if (lines[index].trimStart().startsWith("#")) {
+      const match = /^\s*#\s*([^#\s]+)\s+([^\s]+)\s*$/.exec(lines[index]);
+      if (match) {
+        const location = { line: index + 1, column: lines[index].indexOf("#") + 1 };
+        requireAig(mappingCandidates.length < AIG_IMPORT_LIMITS.objects, "BLIF name mapping count exceeds the import limit",
+          source, location, "blif.mapping-limit");
+        mappingCandidates.push({ signalId: match[1], name: match[2], ...location });
+      }
+      continue;
+    }
     let part = lines[index].split("#", 1)[0].trim();
     if (!pending) pendingLine = index + 1;
     if (part.endsWith("\\")) { pending += `${part.slice(0, -1)} `; continue; }
@@ -29,5 +40,5 @@ export function parseBlifSource(text, options = {}) {
     }
   }
   requireAig(!pending, "Unfinished BLIF continuation", source, { line: pendingLine });
-  return { format: "blif", declarations };
+  return { format: "blif", declarations, mappingCandidates };
 }

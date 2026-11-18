@@ -305,6 +305,7 @@ function applyNodePropertyOverrides(node, overrides) {
   for (const key of ["label", "title", "subtitle", "gateKind", "inferenceSource"]) {
     if (propertyOverride[key] !== undefined && propertyOverride[key] !== "") {
       node[key] = String(propertyOverride[key]);
+      if (key === "title") node.hasExplicitTitle = true;
     }
   }
 }

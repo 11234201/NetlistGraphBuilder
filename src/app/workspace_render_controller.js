@@ -9,7 +9,7 @@ import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createWorkspaceRenderController({ state, elements, services }) {
+export function createWorkspaceRenderController({ state, elements, services, mounted }) {
   function renderCurrentModuleGraph(options = {}) {
     if (options.signal?.aborted) { options.onCancelled?.(); return; }
     cancelCanvasGestures(elements.mount);
@@ -124,7 +124,7 @@ export function createWorkspaceRenderController({ state, elements, services }) {
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
       mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell or net to open its Focused neighborhood. Add more roots to trace nearby logic, or choose Whole for an explicit overview.</span></div>`;
-      return Promise.resolve().then(() => ({ cancelled: !isCurrent() }));
+      return Promise.resolve().then(() => { if (isCurrent()) mounted?.(mount); return { cancelled: !isCurrent() }; });
     }
     if (!renderOptions.scene) {
       return Promise.reject(new Error("Graph mount requires a prepared scene"));
@@ -141,7 +141,11 @@ export function createWorkspaceRenderController({ state, elements, services }) {
         }
         renderOptions.onProgress?.(progress);
       }
-    }).then((result) => isCurrent() ? result : { ...result, cancelled: true });
+    }).then((result) => {
+      if (!isCurrent()) return { ...result, cancelled: true };
+      if (!result?.cancelled) mounted?.(mount);
+      return result;
+    });
     if (!renderOptions.signal) return rendering;
     let onAbort;
     const cancelled = new Promise((resolve) => {

@@ -19,6 +19,6 @@ export function analyzeAig(model) {
   const criticalNodes = model.nodes.filter((node) => remaining.has(node.id) && node.level + remaining.get(node.id) === depth).map((node) => node.id);
   const criticalEdges = model.edges.filter((edge) => remaining.has(edge.target) && byId.get(edge.source).level + Number(byId.get(edge.target).kind === "and") + remaining.get(edge.target) === depth).map((edge) => edge.id);
   const counts = { pi: 0, and: 0, po: 0, constant: 0, edges: model.edges.length, invertedEdges: model.edges.filter((edge) => edge.inverted).length };
-  for (const node of model.nodes) counts[node.kind]++;
+  for (const node of model.nodes) counts[node.kind] = (counts[node.kind] || 0) + 1;
   return { depth, fanout: Object.fromEntries(model.nodes.map((node) => [node.id, outgoing[node.id].length])), criticalNodes, criticalEdges, incoming, outgoing, counts };
 }

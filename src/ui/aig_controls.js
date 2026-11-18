@@ -20,9 +20,9 @@ export const aigControls = Object.freeze({
     <span class="aig-fanout-control"><label><input type="checkbox" data-domain-policy="fanout">High fanout</label>
       <label>≥ <input type="number" data-domain-policy="fanoutThreshold" min="1" max="1000000" value="2" aria-label="High fanout threshold"></label></span>
     <span class="context-note aig-legend">Blue: inputs · Green: outputs · Purple: selected · Red: critical · Orange: fanout · Broken line: inverted</span>`,
-  unavailableControls: ["compareButton", "focusedViewButton", "viewMenu", "layoutMenu", "timingMenu", "adjustLayoutButton",
+  unavailableControls: ["compareButton", "viewMenu", "layoutMenu", "timingMenu", "adjustLayoutButton",
     "libertyMenu", "cellConfigMenu", "timingInput", "pasteTimingButton", "saveGoldenButton", "goldenInput",
-    "addFocusedRootButton", "setFocusedRootButton", "editCellDefinitionButton", "moduleBackButton", "moduleForwardButton",
+    "editCellDefinitionButton",
     "diagnosticsDrawer", "toggleDiagnosticsButton"],
   searchPlaceholder: "Find AIG name or source ID…"
 });

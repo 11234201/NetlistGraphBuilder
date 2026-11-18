@@ -325,7 +325,8 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 ## AIG Single 领域接入（2026-11-15）
 
-- `domains/aig/` 拥有 DOT/BLIF 结构解析、AND/NOT 语义、保留 multiplicity 的有界规范化、单位 AND 深度与独立关键边分析、来源/搜索索引、稳定 DOT 投影及惰性 Scene。运行时不导入 Python 研究原型，也不支持生产 AIGER。
+- `domains/aig/` 解析 ABC DOT 和平坦组合 BLIF。parser 保留 cover、注释和源位置，语义层将最多两输入的函数归约为常量、别名、AND 和反相边。XOR/XNOR 的辅助点保留生成声明来源。规范化保留输入槽与极性，以独立索引绑定设计名、driver 与输出端口，搜索和映射表共享该身份。
+- `aig_view_query` 从源模型提取多根 Focused 子图。真实节点与内部边交给结构分析；截断处的显示节点和带极性的边交给 Graphviz、Scene 和 SVG。整个文档的搜索索引仍可定位范围外对象。存档保存规范化版本、roots 与两向深度，恢复时在已重新导入的文档上校验 roots。
 - `bootstrap/default_domains.js` 静态注册 Netlist 与 AIG。AIG 的 `createWorkspaceStages` 贡献通过公共 `runViewPipeline` 执行；应用公共层没有领域 ID 分支。AIG 曲线使用 `curve-geometry.v1` 的中心/边界、三次样条路径、箭头及文字坐标，不进入 `edge.points`、wireRoutes、正交 validator 或 Adjust。
 - `application/domain_workspace.js` 在独立候选 Document/ViewSession 中运行 JobCoordinator，首个 Scene 成功后由装配层在分离 DOM 中渐进挂载并原子提交。展示重新布局使用独立候选 ViewSession，共享当前不可变 Document，并将候选 presentationPolicy 传入流水线；释放旧会话不关闭仍被使用的文档。失败、取消、过期成功或错误不会替换当前视图；候选和旧文档的 jobs、sessions、artifacts 随生命周期释放。
 - `application/import_requests.js` 统一文档输入的请求生命周期，由 `workspace_services` 创建并显式注入 AIG、quick-input 与启动清单控制器。文件选择、拖放和粘贴在读取前使旧请求失效；启动 fetch、后续各导入阶段及错误回退均受同一请求保护，取消候选不清除已提交工作区。`app/workbench_input_bindings.js` 负责 quick-input 接线，通过注入的导入路由与批次优先级，在 AIG 中先成功载入 Netlist 再应用其附件，Netlist 内保留库文件优先策略；`app/workbench_startup.js` 组合存储恢复与领域启动。
@@ -340,9 +341,9 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 - `domain_workbench` 按 Document 身份区分导入与重新布局：同文档提交仅替换画布，保留工具栏和侧栏 DOM、搜索状态与侧栏滚动，并恢复画布对象焦点；不变的详情数据不重绘，以保留异步布局期间的 IME 组合输入。跨文档导入继续清理原搜索状态。连接高亮模式与级数的变更只更新受影响的图元。
 - Logic View（旧存档标识 `abc`）让输入输出自由就近分层，不固定输出行；通过独立 `AIG_ABC_GRAPHVIZ_POLICY` 将 Graphviz crossing-minimization multiplier 设为 0.25，约束深度重汇聚图的交叉优化成本；沿用 network-simplex 上限与 20 秒 Worker 超时。Standard 投影按规范化节点与输入槽编号生成 DOT，使几何与模型数组的排列顺序无关。
 
-### AIG 结构分析（2026-11-17）
+### 当前展示逻辑的结构分析
 
-- `structure_index / structure_blocks / structure_functions / structure_paths / structure_reconvergence` 拥有稳定拓扑索引、固定三 AND 检查、有界小 cut 真值识别、支配关系候选筛选与内部节点不相交的双路径证明。结果保留边 ID、边界、角色和极性，不改写模型。工作、缓存、结果与局部搜索预算统一由 `structure_policy` 归一化，受限结果显式标记 `partial`。
-- `structure_runtime / structure_worker` 在独立 module Worker 保留源索引，依次计算逻辑块及重收敛，按需查询路径并集。取消与 15 秒硬超时终止 Worker；后续请求可重建。`application/workspace_analysis` 使用 JobCoordinator 管理文档、会话及代际，拒绝过期结果，同文档重新布局复用完成的分析。详情缓存最多 8 项。
+- `analysis/reconvergence`、`structure_index` 与 `structure_paths` 负责稳定邻接索引、有界候选筛选和两条内部节点不相交的见证路径。AIG 单独处理 XOR/XNOR/MUX 识别。Netlist 将活动模块或 Compare 一侧的可见真实节点投影为按输出 pin 区分的信号图，保留组合边界。隐藏分支不能构成见证，布线隐藏和 fanout hub 属于几何展示。预算、组合环和歧义会在受影响的结果中标为 `partial`。
+- 各领域的 module Worker 持有该次作用域的索引，按需查询一对已找到端点的路径并集。`application/workspace_analysis` 将运行和详情任务绑定到文档、会话与当前逻辑范围，详情缓存最多 8 项。改变可见拓扑会取消旧请求，等价范围的布局与视口操作可以复用结果。Worker 以有界结构传回异常和原因，操作拥有者将任务、作用域及恢复状态写入 Process Log。
 - `app/aig_structure_bridge` 通过窄读写回调连接可选 DomainFeature 分析贡献、面板状态与 DOM 覆盖层；应用公共层不读取 AIG 模型。`structure_query / structure_presentation` 提供结果索引和展示描述；`ui/aig_structure_panels / aig_structure_canvas` 负责列表及增量高亮。标签分批挂载，点选只更新旧、新成员集合与根级淡化属性，开关标签不重建 SVG 或重新布局。
 - Session 存档仅保存类别、筛选、分页、选中结果 ID、标签和淡化偏好。分析结果含版本、文档/源修订、策略指纹与覆盖诊断，只作为运行时 Artifact；恢复时重新分析后校验结果 ID。SVG 导出与画布使用同一领域展示描述，保留反相虚线。

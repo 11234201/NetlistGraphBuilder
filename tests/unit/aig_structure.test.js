@@ -170,6 +170,10 @@ test("real imported preview fixture has six reconvergences, three blocks and exa
   const imported = importAigSource(readFileSync(new URL("../fixtures/aig/structure_analysis.blif", import.meta.url), "utf8"), { format: "blif" });
   const graph = imported.model, snapshot = JSON.stringify(imported), analysis = checkReconvergence(graph);
   assert.equal(analysis.reconvergence.results.length, 6);
+  // Existing two-input work units cover this entire fixture in 392 visits.
+  const budgeted = analyzeAigStructure(graph, { reconvergenceWork: 392 }).reconvergence;
+  assert.equal(budgeted.status, "complete");
+  assert.deepEqual(budgeted.results, analysis.reconvergence.results);
   assert.equal(analysis.blocks.results.length, 3);
   assert.deepEqual(analysis.blocks.results.map((block) => block.kind).sort(), ["mux", "xnor", "xor"]);
   const a = graph.nodes.find((node) => node.label === "a"), mux = analysis.blocks.results.find((block) => block.kind === "mux");

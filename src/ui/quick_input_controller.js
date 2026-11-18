@@ -158,7 +158,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     elements.textTitle.textContent = timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog";
     elements.textDescription.textContent = timing
       ? "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。"
-      : textKind === "aig" ? "粘贴 ABC AIG DOT 或 AND-NOT BLIF（.model / .names），解析成功后立即画图。"
+      : textKind === "aig" ? "粘贴 ABC AIG DOT 或两输入组合 BLIF（.model / .names），解析成功后立即画图。"
       : "粘贴 structural Verilog，解析成功后立即画图。";
     if (!elements.textDialog.open) elements.textDialog.showModal();
     schedule(() => elements.textInput.focus());

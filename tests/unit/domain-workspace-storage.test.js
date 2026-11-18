@@ -38,3 +38,15 @@ test("archive cleanup failure preserves the save error and identifies both failu
     return true;
   });
 });
+
+test("cleanup retains a non-Error save failure", () => {
+  const storage = createDomainWorkspaceStorage({
+    setItem() { throw null; }, removeItem() { throw "cleanup denied"; }
+  });
+  assert.throws(() => storage.save(archive("new.blif")), (error) => {
+    assert.deepEqual(error.errors, [null, "cleanup denied"]);
+    assert.equal(error.cause, null);
+    assert.match(error.message, /null.*cleanup denied/);
+    return true;
+  });
+});

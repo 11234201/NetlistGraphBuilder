@@ -1,4 +1,5 @@
 import { instance, graphvizVersion } from "./graphviz_vendor.js";
+import { serializeWorkerError } from "../foundation/worker_error.js";
 
 let runtime;
 self.onmessage = async ({ data }) => {
@@ -13,6 +14,6 @@ self.onmessage = async ({ data }) => {
     self.postMessage({ id: data.id, result: JSON.parse(result.output), version: graphvizVersion,
       warnings: result.errors.map((item) => item.message) });
   } catch (error) {
-    self.postMessage({ id: data.id, error: { name: error.name || "Error", message: error.message || String(error) } });
+    self.postMessage({ id: data.id, error: serializeWorkerError(error) });
   }
 };

@@ -88,7 +88,7 @@ export function createWorkbenchShell({
   }
 
   function selectNavigatorTab(tab, persist = true) {
-    if (disposed || !["hierarchy", "design"].includes(tab)) return;
+    if (disposed || !["hierarchy", "design", "analysis"].includes(tab)) return;
     prefs.navigatorTab = tab;
     for (const button of tabs) {
       const selected = button.getAttribute("data-nav-tab") === tab;

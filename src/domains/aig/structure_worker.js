@@ -2,6 +2,7 @@ import { createStructureIndex } from "./structure_index.js";
 import { analyzeStructureIndex } from "./structure_analysis.js";
 import { readReconvergenceDetail } from "./structure_reconvergence.js";
 import { normalizeStructurePolicy } from "./structure_policy.js";
+import { serializeWorkerError } from "../../foundation/worker_error.js";
 
 let index = null;
 globalThis.onmessage = ({ data }) => {
@@ -13,6 +14,6 @@ globalThis.onmessage = ({ data }) => {
       : analyzeStructureIndex(index, policy, (progress) => globalThis.postMessage({ id: data.id, progress }));
     globalThis.postMessage({ id: data.id, result });
   } catch (error) {
-    globalThis.postMessage({ id: data.id, error: { name: error.name, message: error.message } });
+    globalThis.postMessage({ id: data.id, error: serializeWorkerError(error) });
   }
 };

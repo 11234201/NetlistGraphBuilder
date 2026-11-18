@@ -2,7 +2,7 @@ import { compareStructureId } from "./structure_index.js";
 
 // Vertex capacity one permits at most two augmentations and allows rerouting
 // the first path. A greedy path followed by vertex deletion is not sufficient.
-export function findDisjointPaths(index, stemId, mergeId, reachable, budget) {
+export function findDisjointPaths(index, stemId, mergeId, reachable, budget, stepCost) {
   const ancestors = new Set([mergeId]), queue = [mergeId];
   for (let offset = 0; offset < queue.length; offset++) {
     const id = queue[offset];
@@ -24,9 +24,15 @@ export function findDisjointPaths(index, stemId, mergeId, reachable, budget) {
   for (const id of ordered) {
     if (!budget.spend()) return null;
     add(number.get(id), number.get(id) + 1, id === stemId || id === mergeId ? 2 : 1);
+    let directConnection = false;
     for (const edge of index.outgoing.get(id)) {
       if (!budget.spend()) return null;
-      if (ancestors.has(edge.target)) add(number.get(id) + 1, number.get(edge.target), 1, edge.id);
+      if (!ancestors.has(edge.target)) continue;
+      if (id === stemId && edge.target === mergeId) {
+        if (directConnection) continue;
+        directConnection = true;
+      }
+      add(number.get(id) + 1, number.get(edge.target), 1, edge.id);
     }
   }
   const start = number.get(stemId) + 1, end = number.get(mergeId);
@@ -51,7 +57,7 @@ export function findDisjointPaths(index, stemId, mergeId, reachable, budget) {
       arc.capacity++; at = arc.to;
       if (arc.edgeId) { edgeIds.push(arc.edgeId); nodeIds.push(index.edgeById.get(arc.edgeId).target); }
     }
-    paths.push({ nodeIds, edgeIds, andDepth: nodeIds.slice(1).filter((id) => index.byId.get(id).kind === "and").length });
+    paths.push({ nodeIds, edgeIds, depth: nodeIds.slice(1).reduce((sum, id) => sum + stepCost(index.byId.get(id)), 0) });
   }
   return paths.sort((a, b) => compareStructureId(JSON.stringify(a.edgeIds), JSON.stringify(b.edgeIds)));
 }

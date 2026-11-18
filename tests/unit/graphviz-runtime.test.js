@@ -90,6 +90,27 @@ test("timeout and worker failure terminate WASM and permit a fresh worker", asyn
   runtime.dispose();
 });
 
+test("Graphviz worker failures preserve origin stack, diagnostic and cause", async () => {
+  const fixture = fakeWorkers();
+  const runtime = createGraphvizRuntime(fixture);
+  const pending = runtime.render("digraph{}");
+  const worker = fixture.workers[0];
+  worker.onmessage({ data: { id: worker.requests[0].id, error: { name: "LayoutError", message: "Invalid graph",
+    stack: "LayoutError at graphviz_worker.js:71", cause: { message: "provider failed" }, diagnostic: { line: 8 } } } });
+  await assert.rejects(pending, (error) => {
+    assert.equal(error.name, "LayoutError");
+    assert.match(error.stack, /graphviz_worker.js:71/);
+    assert.deepEqual(error.cause, { message: "provider failed" });
+    assert.equal(error.diagnostic.line, 8);
+    return true;
+  });
+  const failed = runtime.render("digraph{}");
+  const original = new Error("worker crash", { cause: new Error("worker initialization") });
+  worker.onerror({ error: original });
+  await assert.rejects(failed, (error) => error === original);
+  runtime.dispose();
+});
+
 test("real embedded WASM preserves parallel curves, labels, orientation and dot_json", async () => {
   const { instance } = await import("../../src/platform/graphviz_vendor.js");
   const viz = await instance();

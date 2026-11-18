@@ -2,7 +2,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
   const activeByKey = new Map();
   let nextJobId = 1;
 
-  function start({ sessionId, kind, run, onProgress = () => {} }) {
+  function start({ sessionId, kind, run, onProgress = () => {}, isScopeCurrent }) {
     if (typeof run !== "function") throw new Error("Job run function is required");
     const session = sessions.require(sessionId);
     const document = documents.require(session.documentId);
@@ -10,7 +10,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     activeByKey.get(key)?.controller.abort();
     const controller = new AbortController();
     const context = createContext({ document, session, sessionId, kind, controller, onProgress });
-    activeByKey.set(key, { context, controller });
+    activeByKey.set(key, { context, controller, isScopeCurrent });
 
     const promise = Promise.resolve().then(() => {
       if (!isCurrent(context)) return SKIPPED_JOB;
@@ -72,7 +72,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     const document = documents.get(context.documentId);
     return Boolean(session && document && !context.signal.aborted &&
       session.documentId === context.documentId &&
-      session.computationRevision === context.computationRevision &&
+      (active.isScopeCurrent ? active.isScopeCurrent() : session.computationRevision === context.computationRevision) &&
       document.sourceRevision === context.sourceRevision);
   }
 

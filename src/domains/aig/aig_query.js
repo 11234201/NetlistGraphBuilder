@@ -30,9 +30,11 @@ export function getAigObject(model, id) {
 
 export function buildAigSearchIndex(model) {
   return Object.freeze(model.nodes.map((node) => Object.freeze({
-    id: node.id, kind: node.kind, label: node.label,
+    id: node.id, kind: node.kind, label: node.label, canFocus: true,
     sourceIds: Object.freeze(node.sourceRefs.map((ref) => ref.id)),
-    text: [node.id, node.label, ...node.sourceRefs.flatMap((ref) => [ref.id, ref.label])].join("\n").toLowerCase()
+    nameMappings: node.nameMappings,
+    text: [node.id, node.label, ...node.sourceRefs.flatMap((ref) => [ref.id, ref.label]),
+      ...(node.nameMappings || []).map((row) => row.name)].join("\n").toLowerCase()
   })));
 }
 
@@ -42,7 +44,11 @@ export function searchAigIndex(index, query = "", limit = 100) {
   const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : index.length;
   for (const entry of index) {
     if (matches.length >= count) break;
-    if (words.every((word) => entry.text.includes(word))) matches.push(entry);
+    if (!words.every((word) => entry.text.includes(word))) continue;
+    if (!entry.nameMappings?.length) { matches.push(entry); continue; }
+    const mapping = entry.nameMappings.find((row) => words.every((word) =>
+      `${row.signalId} ${row.name} ${entry.id}`.toLowerCase().includes(word))) || entry.nameMappings[0];
+    matches.push({ ...entry, label: mapping.name, detail: `${mapping.signalId} → ${entry.id}${mapping.inverted ? " (inverted)" : ""}` });
   }
   return matches;
 }

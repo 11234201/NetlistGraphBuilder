@@ -70,6 +70,17 @@ test("UNIT rules distinguish bitwise inversion from logical and comparison opera
   assert.equal(inferCellKind("UNIT_UNDOCUMENTED").source, "unknown");
 });
 
+test("UNIT captions preserve the entire enclosed type and explicit title in exported scenes", () => {
+  const module = parseVerilog("module m(input a, output q); UNIT_ADFFR_PN_GATE u(.next_state(a), .Q(q)); endmodule").modules[0];
+  const render = (overrides) => {
+    const graph = buildSchematicGraph(module, { overrides });
+    assert.equal(graph.nodes.find((node) => node.id === "cell:u").subtitle, "UNIT_ADFFR_PN_GATE");
+    return renderSchematicSvg(layoutGraph(graph));
+  };
+  assert.match(render({}), />ADFFR_PN<\/text>/);
+  assert.match(render({ nodeProperties: { "cell:u": { title: "Custom caption" } } }), />Custom caption<\/text>/);
+});
+
 test("real tc UNIT netlist connects every concatenated register in graphs, templates and inspection", async () => {
   const source = await readFile(new URL("../fixtures/tc_unit_generic.v", import.meta.url), "utf8");
   const module = parseVerilog(source).modules[0];

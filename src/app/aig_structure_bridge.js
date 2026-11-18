@@ -3,11 +3,14 @@ import { createAigStructureCanvas } from "../ui/aig_structure_canvas.js";
 import { serializeSvgPrimitive } from "../render/svg_scene_renderer.js";
 import { revealAigStructureSelection } from "../ui/aig_structure_panels.js";
 
-export function createAigStructureBridge({ jobs, mount, readWorkspace, readPanelState, readPolicy, renderPanels, persist, focus, onSelectionChange = () => {}, isAnalysisVisible = () => true }) {
+export function createAigStructureBridge({ jobs, logProcess, mount, readWorkspace, readPanelState, readPolicy, renderPanels, persist, focus, onSelectionChange = () => {}, isAnalysisVisible = () => true }) {
   let query = null, lastData = null, attaching = false;
   const canvas = createAigStructureCanvas({ mount, serialize: serializeSvgPrimitive,
-    readBaseEdgeStyle(id) { const workspace = readWorkspace(); return workspace.feature.edgeStyle(workspace, workspace.query.edgeById.get(id), readPolicy()); } });
-  const analysis = createWorkspaceAnalysis({ jobs, schedule: (callback) => requestAnimationFrame(() => setTimeout(callback, 0)), onChange(state) {
+    readBaseEdgeStyle(id) {
+      const workspace = readWorkspace();
+      return workspace.feature.edgeStyle(workspace, (workspace.displayQuery || workspace.query).edgeById.get(id), readPolicy());
+    } });
+  const analysis = createWorkspaceAnalysis({ jobs, logProcess, schedule: (callback) => requestAnimationFrame(() => setTimeout(callback, 0)), onChange(state) {
     const workspace = readWorkspace();
     if (!workspace) return;
     if (state.data !== lastData) { lastData = state.data; query = workspace.feature.queryAnalysis?.(state.data); }

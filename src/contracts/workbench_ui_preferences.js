@@ -17,7 +17,7 @@ export function normalizeWorkbenchUiPreferences(value) {
     inspectorOpen: booleanOrDefault("inspectorOpen"),
     navigatorWidth: width("navigator"),
     inspectorWidth: width("inspector"),
-    navigatorTab: source.navigatorTab === "design" ? "design" : "hierarchy",
+    navigatorTab: ["design", "analysis"].includes(source.navigatorTab) ? source.navigatorTab : "hierarchy",
     inspectorTab: ["connections", "timing", "adjust"].includes(source.inspectorTab)
       ? source.inspectorTab : "connections"
   };

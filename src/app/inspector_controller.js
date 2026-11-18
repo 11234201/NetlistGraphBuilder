@@ -17,8 +17,9 @@ import { renderNetRoutingPanel, bindNetRoutingPanel } from "../ui/net_routing_pa
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createInspectorController({ state, elements, services, netRouting }) {
+export function createInspectorController({ state, elements, services, netRouting, refreshAnalysis, inspectAnalysis }) {
   function renderStats() {
+    refreshAnalysis?.();
     if (state.compare.active && state.compare.analysis) {
       const { left, right, delta, unmatchedPorts, unmatchedNets } = state.compare.analysis;
       const pair = (a, b) => `${a} / ${b}`;
@@ -149,6 +150,7 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function renderCompareSelection(side, node) {
+    inspectAnalysis?.(side, node?.id);
     elements.details.className = "details-block";
     const timingKey = getTimingKey(node);
     const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], timingKey);
@@ -254,6 +256,7 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function renderSelection(node) {
+    inspectAnalysis?.(null, node?.id);
     if (!node) {
       services.updateCellDefinitionControls(null);
       elements.details.className = "details-empty";
@@ -275,6 +278,7 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function renderNetSelection(netName, side = null) {
+    inspectAnalysis?.(side, null);
     services.updateCellDefinitionControls(null);
     elements.details.className = "details-block";
     const activeGraph = side

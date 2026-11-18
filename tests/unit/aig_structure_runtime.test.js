@@ -7,6 +7,7 @@ import { createViewSessionStore } from "../../src/application/view_session_store
 import { createArtifactStore } from "../../src/application/artifact_store.js";
 import { createJobCoordinator } from "../../src/application/job_coordinator.js";
 import { createDocumentEnvelope } from "../../src/contracts/document.js";
+import { serializeWorkerError } from "../../src/foundation/worker_error.js";
 
 test("structure worker cancellation, stale replies, initialization failures and timeout are isolated", async () => {
   const workers = [];
@@ -24,8 +25,17 @@ test("structure worker cancellation, stale replies, initialization failures and 
   workers[1].onmessage({ data: { id: request.id, result: { status: "complete" } } });
   assert.deepEqual(await second, { status: "complete" }); assert.equal(progress.length, 1);
   const third = runtime.detail({ id: "test" });
-  workers[1].onmessage({ data: { error: { name: "Error", message: "initialize failed" } } });
-  await assert.rejects(third, /initialize failed/);
+  const original = Object.assign(new TypeError("initialize failed", { cause: new Error("bad index") }), {
+    code: "bad-input", diagnostic: { line: 23, objectId: "n0", rawText: "private" }
+  });
+  workers[1].onmessage({ data: { error: serializeWorkerError(original) } });
+  await assert.rejects(third, (error) => {
+    assert.equal(error.stack, original.stack);
+    assert.equal(error.cause.stack, original.cause.stack);
+    assert.deepEqual(error.diagnostic, { line: 23, objectId: "n0" });
+    assert.equal(error.code, "bad-input");
+    return true;
+  });
   await assert.rejects(runtime.run(), { name: "TimeoutError" });
   assert.equal(workers[2].terminated, true); runtime.dispose();
 });
@@ -65,7 +75,7 @@ test("analysis jobs survive same-document relayout, reject stale sources and kee
   manager.dispose(); assert.equal(disposed, 2);
 });
 
-function analysisHarness(overrides = {}) {
+function analysisHarness(overrides = {}, logProcess) {
   const documents = createDocumentStore(), sessions = createViewSessionStore(), artifacts = createArtifactStore();
   const jobs = createJobCoordinator({ documents, sessions, artifacts }), scheduled = [];
   const document = documents.open(createDocumentEnvelope({ domainId: "fixture", documentId: "analysis", sourceRevision: 1, source: { name: "analysis", kind: "text" }, model: {} }));
@@ -74,7 +84,7 @@ function analysisHarness(overrides = {}) {
     detail: async ({ id }) => { if (id === "failed") throw new Error("detail failed"); return { id, status: "complete" }; }, dispose() {}, ...overrides };
   const feature = { createAnalysisService: () => service };
   const workspace = () => ({ document, feature, sessionId: sessions.create({ sessionId: `view:${++serial}`, documentId: document.documentId, domainId: "fixture", unitId: "whole" }).sessionId });
-  const manager = createWorkspaceAnalysis({ jobs, schedule: (callback) => scheduled.push(callback) });
+  const manager = createWorkspaceAnalysis({ jobs, logProcess, schedule: (callback) => scheduled.push(callback) });
   manager.bind(workspace());
   return { manager, workspace, runs: () => runs,
     async flush() { for (const callback of scheduled.splice(0)) callback(); await new Promise((resolve) => setImmediate(resolve)); } };
@@ -89,6 +99,47 @@ test("relayout does not silently restart an analysis that was cancelled or faile
   await failed.manager.run(); failed.manager.bind(failed.workspace());
   assert.equal(failed.manager.read().status, "error"); await failed.flush();
   assert.equal(failed.manager.read().error, "analysis failed"); failed.manager.dispose();
+});
+
+test("pending analysis and detail remain valid through geometry changes in the same visible scope", async () => {
+  const documents = createDocumentStore(), sessions = createViewSessionStore(), artifacts = createArtifactStore();
+  const jobs = createJobCoordinator({ documents, sessions, artifacts });
+  const document = documents.open(createDocumentEnvelope({ domainId: "fixture", documentId: "scope", sourceRevision: 1,
+    source: { name: "scope", kind: "text" }, model: {} }));
+  const session = sessions.create({ sessionId: "view", documentId: "scope", domainId: "fixture", unitId: "top" });
+  let finish;
+  const pending = () => new Promise((resolve) => { finish = resolve; });
+  const feature = { createAnalysisService: () => ({ run: pending, detail: pending, dispose() {} }) };
+  const target = { document, sessionId: session.sessionId, analysisScopeId: "visible:1", feature };
+  const manager = createWorkspaceAnalysis({ jobs, schedule() {} });
+  manager.bind(target);
+  for (const operation of ["run", "detail"]) {
+    const task = operation === "run" ? manager.run() : manager.detail({ id: "pair" });
+    await Promise.resolve();
+    sessions.update(session.sessionId, () => ({ layoutPolicy: { marker: operation } }));
+    manager.bind({ ...target });
+    finish({ status: "complete" });
+    await task;
+    assert.equal(manager.read()[operation === "run" ? "status" : "detailStatus"], "complete");
+  }
+  manager.dispose();
+});
+
+test("analysis failures report original reason once, survive sink failure and clear across visible scopes", async () => {
+  const reports = [];
+  const f = analysisHarness({ run() { throw null; } }, (...args) => { reports.push(args); throw new Error("sink"); });
+  const next = { ...f.workspace(), analysisScopeId: "focused:a" };
+  f.manager.bind(next); await f.flush();
+  assert.equal(f.manager.read().error, "null");
+  assert.equal(reports.length, 1);
+  const details = reports[0][3];
+  assert.equal(details.error, null);
+  assert.equal(details.operation, "reconvergence.run");
+  assert.equal(details.viewScopeId, "focused:a");
+  assert.ok(details.jobId);
+  f.manager.bind({ ...next, analysisScopeId: "focused:b" });
+  assert.equal(f.manager.read().status, "idle");
+  f.manager.dispose();
 });
 
 test("cached detail, clearing selection and rerunning analysis discard errors from another result", async () => {

@@ -50,6 +50,20 @@ try {
       await page.waitForFunction((nodeId) => document.querySelector("[data-aig-inspected-id]")?.dataset.aigInspectedId === nodeId, nodeId);
       assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), storageKey), null,
         "using the unsaved view must not revive the old archive");
+      await page.locator("#toggleProcessLogButton").click();
+      const quota = page.locator("#processLogList .level-warning").filter({ hasText: "Workspace could not be saved" });
+      assert.equal(await quota.count(), 1, "repeated failed saves on one document share a warning");
+      await quota.locator("summary").click();
+      assert.match(await quota.locator("pre").innerText(), /aig.workspace.save/);
+      const ready = page.waitForEvent("download");
+      await page.locator("#exportProcessLogButton").click();
+      const entries = (await readFile(await (await ready).path(), "utf8")).trim().split(/\r?\n/).map((line) => JSON.parse(line));
+      const warnings = entries.filter((row) => row.details?.operation === "aig.workspace.save");
+      assert.equal(warnings.length, 1);
+      assert.equal(warnings[0].details.error.name, "QuotaExceededError");
+      assert.ok(warnings[0].details.sessionId && warnings[0].details.viewScopeId && warnings[0].details.error.stack);
+      assert.doesNotMatch(JSON.stringify(warnings), /x{50}/);
+      await page.locator("#closeProcessLogButton").click();
       report.cases.push({ name: currentCase, status: "passed" });
 
       currentCase = "reload-does-not-restore-obsolete-aig";
