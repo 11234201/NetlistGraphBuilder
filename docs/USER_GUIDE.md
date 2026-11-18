@@ -3,14 +3,14 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成，并介绍独立的 AIG 导入、浏览与逻辑分析流程。
 
 - **网表默认布局与降级机制**：当前版本默认启用 `AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- **界面说明**：本教程对应 `v1.5.2`，使用 Navigator、Inspector、File 菜单及新版快捷入口，并提供独立的 AIG 浏览工作区及结构分析；旧 `v1.5.0` / `v1.5.1` 附件不包含全部新增能力，`v1.3.x` 正式发布附件使用旧界面。下载离线附件后，请核对随附的 SHA-256 校验值；更新时完整替换程序包，保留同包的启动器与资源。
+- 本教程对应 `v1.5.3`，涵盖 Navigator、Inspector、File 菜单以及 AIG 的 Logic View、连接高亮和结构分析。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
-| **AIG 导入与分析** | `File → Open AIG…`、Navigator → `Analysis` | 支持 ABC AIG DOT 与平坦 AND/NOT BLIF；提供 Standard / ABC 视图、结构重汇聚、XOR / XNOR / MUX 识别、对象筛选与来源追踪，支持高亮、SVG 导出与刷新恢复。 |
+| **AIG 导入与分析** | `File → Open AIG…`、Navigator → `Analysis` | 支持 ABC AIG DOT 与平坦 AND/NOT BLIF；提供 Standard / Logic View 视图、结构重汇聚、XOR / XNOR / MUX 识别、对象筛选与来源追踪，支持高亮、SVG 导出与刷新恢复。 |
 | **左右面板隐藏与恢复** | 面板标题 `Hide`、顶部 `Navigator` / `Inspector` | 可分别收起两侧面板，为画布让出空间；顶部开关可随时恢复面板，保留当前阅读位置，停靠状态、宽度与页签自动记忆。 |
 | **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 离线加载、替换、取消与卸载文本 `.lib`，利用库方向和有界布尔 `function` 增强单元识别，保留人工配置优先级。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复布线，保留完整连接详情与 Focused 追踪；Single 与 Compare 两侧独立。 |
@@ -976,14 +976,14 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.12 更新后还是旧界面，或面板偏好没有沿用？
 
-- 确认启动的是 `v1.5.2` 程序包，而非仍运行的旧目录副本；以启动器输出的实际 URL 为准。
+- 确认启动器来自 `v1.5.3` 程序包，并在浏览器中打开启动器输出的实际 URL。
 - 源码预览在更新后刷新页面；Windows 离线版需完整替换程序包并重新启动；Linux 单文件版已内嵌界面资源，需重新构建或使用新二进制，再启动服务。仅替换外部文档不会更新界面。
 - 服务更新后刷新当前标签页；若仍加载缓存，可用浏览器的强制刷新。新版工作台应能看到顶部 `Navigator` / `Inspector`，面板标题旁有带方向箭头的 `Hide`。
 - 面板偏好按浏览器及站点地址保存；例如 `127.0.0.1:4173` 与 `127.0.0.1:7724` 不共享偏好。换端口后重新设置一次即可。
 
 ## AIG 图浏览
 
-本节对应 `v1.5.2` 的 AIG 功能：基础浏览自 `v1.5.0` 引入，结构重汇聚、XOR / XNOR / MUX 识别和 Standard / ABC 视图在 `v1.5.2` 汇总交付。“重收敛”和“重汇聚”在本教程中指同一结构，界面名称为 `Reconvergence`。从旧版升级时请完整替换离线包并重新启动。AIG 工作区采用本地离线 Graphviz（Viz.js / WASM）曲线布局，与门级网表的 `AnchorLayered → ELK → Simple` 正交布局流水线相互独立。
+本节介绍当前 AIG 工作区。基础浏览自 `v1.5.0` 引入，结构重汇聚、XOR / XNOR / MUX 识别和双视图在 `v1.5.2` 汇总交付。从 `v1.5.3` 起，原 ABC 视图改名为 Logic View，作为新打开 AIG 的默认视图。“重收敛”和“重汇聚”在本教程中指同一结构，界面名称为 `Reconvergence`。从旧版升级时请完整替换离线包并重新启动。AIG 工作区采用本地离线 Graphviz（Viz.js / WASM）曲线布局，与门级网表的 `AnchorLayered → ELK → Simple` 正交布局流水线相互独立。
 
 ### AIG 导入与阅读流程
 
@@ -997,24 +997,24 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 5. **关键路径与高扇出高亮**：使用上下文栏的 `Logical critical path` 开关高亮所有最长单位 AND 深度路径（注：逻辑深度按单位 AND 级数计算，不代表真实工艺器件的 STA 延时）；使用 `High fanout` 开关及数值阈值高亮高扇出节点：
    - **红色节点填充 / 红色边描边**：位于逻辑关键路径上；
    - **橙色节点外框**：节点扇出引用数达到设定阈值（默认 `≥ 2`，统计每个输入槽位及 PO 引用）；
-   - **紫色外框**：当前选中的对象；蓝色 / 绿色邻接外框分别表示其直接上游 / 下游。
-   切换高亮开关或修改扇出阈值均即时生效，**不会触发重新布局**。
+   - **紫色外框**：当前选中的对象；蓝色 / 绿色外框分别表示上游 / 下游关联逻辑。
+   两个分析高亮开关默认关闭，显式开启后随工作区恢复。切换高亮开关或修改扇出阈值均即时生效，**不会触发重新布局**。
 6. **视口操作与键盘导航**：支持滚轮缩放、空白处拖拽平移、`Fit view` 整图适配以及 `Zoom to selection`（快捷键 `F`）居中定位。左右面板的显隐和宽度沿用工作台界面偏好；AIG 页签同样支持左右方向键与 `Home` / `End` 键盘切换。
 7. **SVG 导出与会话恢复**：点击 `File → Export SVG` 可导出包含当前高亮状态的独立 SVG 文件。在同一标签页刷新页面时，系统会自动从 `sessionStorage` 恢复源文件内容、当前选中项、视口变换与分析高亮开关（若浏览器禁用存储或超出配额，当前会话仍可正常浏览，同时自动清除旧 AIG 存档，防止刷新后误恢复上一份旧图）。
 
 ### AIG 视图与高亮
 
-上下文栏的 `View` 提供两种画法：`Standard` 按逻辑深度安排层次，输入集中在底部；`ABC` 保持输出位于顶部，允许输入靠近使用它的逻辑。两者都采用自下向上的信号方向、相同图元与反相虚线。切换画法会重新布局，但复用同一文档已有的结构分析结果；不需要本机安装 ABC。
+新导入的 AIG 默认使用 `Logic View`。刷新已有会话时沿用保存的画法。上下文栏的 `View` 提供两种画法：`Standard` 按逻辑深度安排层次，输入集中在底部；`Logic View`（原 ABC）允许输入和输出靠近各自关联的逻辑，输出不再统一排在顶层。两者都采用自下向上的信号方向、相同图元与反相虚线。切换画法会重新布局，但复用同一文档已有的结构分析结果；不需要本机安装 ABC。
 
 | 控件 | 用途 |
 | --- | --- |
-| `Highlight neighbors` | 选中节点时，高亮直接输入/输出节点与连接；蓝色为上游，绿色为下游，同时属于两侧时为紫色。选中边时标记两端节点。只追踪一跳，不生成“附近结构”结果列表。 |
+| `Highlight connections` | 默认 `All`。点击输入端口，以绿色向输出追踪；点击输出端口，以蓝色向输入或常量追踪。在同一下拉框选 `1 level`、`2 levels` 等可限制范围，每条连线算一级。选择 `Custom…` 输入正整数时，画布即时预览。按 Enter 或移开焦点后保存有效级数，按 Esc 或输入无效级数会恢复之前的设置。范围外的节点与连线显示为浅灰色。选 `All` 恢复完整追踪，选 `Off` 清除连接高亮与灰显。选中 AND 时，上游显示蓝色，下游显示绿色，两侧从该 AND 各自计算级数。例如选 `2 levels`，会同时看到上游两级与下游两级。选中连线时标记两个端点。 |
 | `Block labels` | 在已识别的逻辑块根附近显示类型标签，保留原始 AND 节点。 |
 | `Dim outside analysis` | 选择结构分析结果后，淡化当前结果之外的节点和边。 |
-| `Logical critical path` | 标记最长单位 AND 深度路径，红色不表示真实时序违例。 |
-| `High fanout` / `≥` | 标记扇出引用达到阈值的节点，默认阈值为 2。 |
+| `Logical critical path` | 默认关闭；标记最长单位 AND 深度路径，红色不表示真实时序违例。 |
+| `High fanout` / `≥` | 默认关闭；标记扇出引用达到阈值的节点，默认阈值为 2。 |
 
-这些高亮和标签开关即时更新，不重新布局。选择结构分析结果时，以结构路径/成员高亮为主，暂停直接邻居高亮；节点角色、路径 A/B 和反相虚线仍可区分。要回到某个节点的普通详情，可直接点击该节点，或先使用 `Clear highlight`。
+这些高亮和标签开关即时更新，不重新布局。选择结构分析结果时，以结构路径/成员高亮为主，暂停连接高亮；节点角色、路径 A/B 和反相虚线仍可区分。要回到某个节点的普通详情，可直接点击该节点，或先使用 `Clear highlight`。
 
 ### AIG 重收敛与逻辑块
 
@@ -1025,7 +1025,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 `candidates` 统计合法边界对应的候选，`distinct roots overall` 统计全部类型中的不同根。一个根可能有多个边界候选，多个块也可能共享节点；这些数量不表示互不重叠的电路分区。根节点的正相和反相用途不重复计作两个物理块。
 
-点选结果不会移动画布；点击详情中的 `Locate` 才定位，`Clear highlight` 清除分析高亮。工具栏 `Block labels` 显示块类型，`Dim outside analysis` 淡化无关部分，两者均不触发布局。原始 AND 节点与反相虚线保留；标准和 ABC 视图、SVG 导出使用一致标注。
+点选结果不会移动画布；点击详情中的 `Locate` 才定位，`Clear highlight` 清除分析高亮。工具栏 `Block labels` 显示块类型，`Dim outside analysis` 淡化无关部分，两者均不触发布局。原始 AND 节点与反相虚线保留；Standard 和 Logic View 视图、SVG 导出使用一致标注。
 
 ### AIG 从节点查找相关结构
 
@@ -1040,7 +1040,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 | 节点的逻辑块 | 节点是块内部 AND 成员或边界输入时关联；仅作为块外负载不自动关联。 |
 | 节点的重汇聚 | 按保存的两条见证路径索引，包含分叉点、汇合点和沿途节点。仅出现在其它路径并集中的节点可能漏关联。 |
 | 一条边 | 合并该边两个端点的关联结果；不表示该边本身一定属于每个结果。 |
-| 节点附近 | 尚不支持上游、下游或周围 N 跳范围筛选；`Highlight neighbors` 只提供直接邻居高亮。 |
+| 节点附近 | 结构结果列表尚不支持按跳数筛选。画布上的 `Highlight connections` 控制端口与 AND 节点的高亮深度。 |
 
 若选中输出端口 PO 后没有相关块，先在 `Connections` 点击它的驱动 AND 节点，再查看 `Analysis`。关联查询只覆盖已发现的全图结果；每个关联列表最多展开前 20 项，数量包含其余关联，更多结果可到 `Navigator → Analysis` 的全图列表继续查找。即使全图分析已完成，见证路径索引的限制仍然存在。
 
@@ -1053,9 +1053,9 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 | `Partial results` | 达到工作量、候选 cut、搜索大小或结果数量等预算；查看 `Reached` 原因，“未列出”不代表不存在。 |
 | `Analysis cancelled` / `Analysis unavailable` | 分析已取消或失败；通过 `Analyze again` 显式重试，原图仍可浏览。 |
 
-结构分析和路径详情的单次任务超时为 15 秒，与 Graphviz 布局的 20 秒超时分别计时。取消或失败后，在同一文档内切换 Standard / ABC 不会自动重启分析。相同图与预算下反复点击 `Analyze again` 不会扩大候选范围；大型图可在外部先提取目标逻辑锥再导入。
+结构分析和路径详情的单次任务超时为 15 秒，与 Graphviz 布局的 20 秒超时分别计时。取消或失败后，在同一文档内切换 Standard / Logic View 不会自动重启分析。相同图与预算下反复点击 `Analyze again` 不会扩大候选范围；大型图可在外部先提取目标逻辑锥再导入。
 
-全图结果与 `Path union` 的完整性分别显示：全图分析完成后，某个结果的路径并集仍可能受限或获取失败，此时保留两条见证路径。刷新时保留筛选和结果选区，结构分析重新计算；已失效的结果选区自动清除。
+全图结果与 `Path union` 的完整性分别显示。单个路径并集计算失败时，仍可查看两条见证路径。切换画法会保留错误提示；再次点击该结果可重试路径并集。刷新后会保留筛选和选区并重新计算结构分析，已失效的结果选区会自动清除。
 
 ### AIG 取消、恢复与功能边界
 
@@ -1069,7 +1069,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### AIG 结构分析练习
 
-打开仓库或文档维护版 Windows 离线包中的 `examples/aig_structure_demo.blif`。该文件在 `v1.5.2` 标签之后补充；原始 `v1.5.2` 包未附带时，可从仓库 README 的“结构分析示例”链接取得。它是由 AND/反相结构构成的小图，不需要综合工具：
+打开仓库或 `v1.5.3` Windows 离线包中的 `examples/aig_structure_demo.blif`。这个示例由 AND 节点和反相边构成，可以直接打开。
 
 | 输出 | 函数 |
 | --- | --- |
@@ -1081,7 +1081,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 2. 点击一条重汇聚结果，观察 Stem / Merge、蓝色路径 A 与橙色路径 B；等待 `Path union` 完成，再点 `Locate` 查看整个高亮范围。
 3. 切到 `Blocks`，依次用 `Type` 选择 XOR2、XNOR2、MUX2，每种应有 1 个候选。核对 `Input mapping`、正相根公式和输出用途；特别注意 MUX 根的反相表达与通往 `y` 的输出边极性共同决定最终函数。
 4. 点击输入节点 `a`，打开右侧 `Inspector → Analysis`，查看相关块和重汇聚；点击关联结果验证列表跳转与高亮。选中 PO `x` 后，可用 `Connections` 找到其驱动根。
-5. 切换 Standard / ABC，检查类型、数量与极性一致；开关 `Block labels`、`Dim outside analysis`，最后通过 `File → Export SVG` 导出当前标注。
+5. 切换 Standard / Logic View，检查类型、数量与极性一致；开关 `Block labels`、`Dim outside analysis`，最后通过 `File → Export SVG` 导出当前标注。
 
 该练习用于核对操作和固定小图结果，不代表任意大图都能完成全部搜索。下面的最小示例只有一个 AND，不会产生上述 6 对 / 3 块。
 
@@ -1106,7 +1106,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 1. 在 `Navigator → Objects` 默认的输入/输出列表中找到 `a`、`b`、`y`、`yn`；将筛选条件 `Type` 切换为 `AND` 可查看内部 AND 节点。
 2. 选中输出 `yn`，在 `Inspector → Connections` 查看其输入槽位的 `Inverted`（反相）极性标记；画布上连接至 `yn` 的边呈现为虚线。原文件中的单输入缓冲/反相规则（`.names n y` 与 `.names n yn`）已被规范化折叠为带极性的输出引用，不会额外绘制冗余的独立 BUF / INV 门节点。
-3. 选中内部 AND 节点，在 `Inspector → Analysis` 核对 `AND depth = 1` 与 `Fanout references = 2`。由于默认高扇出阈值为 `2`，该 AND 节点会呈现橙色高扇出外框；取消勾选顶部 `High fanout` 即可关闭该高亮。
+3. 选中内部 AND 节点，在 `Inspector → Analysis` 核对 `AND depth = 1` 与 `Fanout references = 2`。默认高扇出阈值为 `2`，勾选顶部 `High fanout` 后，该 AND 节点会呈现橙色高扇出外框；此开关初始关闭。
 4. 切换至 `Inspector → Source` 查看原始信号名称与别名链，点击 `Copy` 可复制完整名称；也可在顶部全局 `Search` 中按名称或来源 ID 检索并按 `F` 键居中放大。
 5. 点击 `File → Export SVG` 将当前视图及高亮导出为 SVG 文件（注：导出的 SVG 仅供图像查阅与文档归档，不可作为 AIG 源文件重新导入，请妥善保留原始 `.dot` / `.blif` 文件）。
 

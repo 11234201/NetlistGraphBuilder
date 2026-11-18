@@ -49,7 +49,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.evaluate(() => { window.__oldSvg = document.querySelector("#schematicMount svg"); });
 
     await open();
-    assert.equal(await view.inputValue(), "standard");
+    assert.equal(await view.inputValue(), "abc");
     await input.fill(text);
     await page.evaluate(() => { window.__pasteTest.mode = "hold"; });
     const before = await page.evaluate(() => ({ ...window.__pasteTest }));
@@ -70,12 +70,13 @@ await runBrowserTest(async ({ browser, url }) => {
 
     await open();
     assert.equal(await input.inputValue(), text);
+    await view.selectOption("standard");
     await page.evaluate(() => { window.__pasteTest.mode = "timeout"; });
     await submit.click();
     await page.waitForFunction(() => document.querySelector("[data-text-status]").textContent.includes("Graphviz exceeded"));
     assert.equal(await dialog.isVisible(), true);
     assert.equal(await status.isVisible(), true);
-    assert.match(await status.textContent(), /ABC/);
+    assert.match(await status.textContent(), /Logic View/);
     assert.equal(await submit.isEnabled(), true);
     assert.equal(await view.isEnabled(), true);
     assert.equal(await input.inputValue(), text);
@@ -83,7 +84,7 @@ await runBrowserTest(async ({ browser, url }) => {
     const box = await status.boundingBox();
     assert.ok(box.y >= 0 && box.y + box.height <= 1000, "timeout guidance must be visible inside the modal");
     await page.screenshot({ path: join(artifacts, "timeout.png") });
-    cases.push("timeout appears inside the modal with an ABC retry hint and retains the source");
+    cases.push("timeout appears inside the modal with a Logic View retry hint and retains the source");
 
     await view.selectOption("abc");
     await page.evaluate(() => { window.__pasteTest.mode = "normal"; });
@@ -94,7 +95,7 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.equal(await page.locator("#schematicMount [data-aig-edge]").count(), model.edges.length);
     await page.waitForFunction(() => JSON.parse(sessionStorage.getItem("ngb.domain-workspace.v1"))?.presentationPolicy?.viewStyle === "abc");
     await page.screenshot({ path: join(artifacts, "abc.png") });
-    cases.push("ABC retry completes through real Graphviz, preserves every object and saves the selected view");
+    cases.push("Logic View retry completes through real Graphviz, preserves every object and saves the selected view");
 
     await open();
     await page.evaluate(() => { window.__pasteTest.mode = "hold"; });

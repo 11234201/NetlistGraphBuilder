@@ -1,5 +1,6 @@
 import { svgElement as el, svgText } from "../../render/svg_scene_renderer.js";
 import { SpatialHashIndex } from "../../layout/spatialIndex.js";
+import { nodeBox } from "../../layout/orthogonalRouting.js";
 import { createStructureQuery, AIG_BLOCK_NAMES } from "./structure_query.js";
 
 export const AIG_STRUCTURE_COLORS = Object.freeze({ a: "#1776c8", b: "#c16a16", path: "#087587", stem: "#087587", merge: "#087587", block: "#7950b6", boundary: "#7950b6" });
@@ -10,9 +11,10 @@ function blockLabels(geometry, data, query) {
   let byData = labelCache.get(geometry);
   if (!byData) { byData = new WeakMap(); labelCache.set(geometry, byData); }
   if (byData.has(data)) return byData.get(data);
-  const labels = new Map(), occupied = new SpatialHashIndex(), positions = new Map();
-  for (const node of geometry.nodes) { occupied.insert(node, node); positions.set(node.id, node); }
-  const overlaps = (a, b) => a.x < b.x + b.width + 2 && a.x + a.width + 2 > b.x && a.y < b.y + b.height + 2 && a.y + a.height + 2 > b.y;
+  const labels = new Map();
+  if (!query.uniqueRoots) { byData.set(data, labels); return labels; }
+  const occupied = new SpatialHashIndex(), positions = new Map();
+  for (const node of geometry.nodes) { occupied.insert(node, nodeBox(node)); positions.set(node.id, node); }
   for (const [id, blocks] of query.rootEntries()) {
     const node = positions.get(id);
     if (!node) continue;
@@ -26,11 +28,13 @@ function blockLabels(geometry, data, query) {
     ].map((point) => ({ ...point, width, height }));
     const box = candidates.find((candidate) => {
       if (candidate.x < 0 || candidate.y < 0 || candidate.x + width > geometry.bounds.width || candidate.y + height > geometry.bounds.height) return false;
-      const neighbors = occupied.query(candidate);
-      return neighbors.length <= 256 && !neighbors.some((other) => overlaps(candidate, other));
+      const bounds = nodeBox(candidate, 2);
+      const neighbors = occupied.query(bounds);
+      return neighbors.length <= 256 && !neighbors.some((other) => bounds.left < other.x + other.width &&
+        bounds.right > other.x && bounds.top < other.y + other.height && bounds.bottom > other.y);
     });
     if (!box) continue; // The list remains authoritative when no safe label slot exists.
-    occupied.insert(box, box);
+    occupied.insert(box, nodeBox(box));
     labels.set(id, el("g", { class: "aig-block-label", "pointer-events": "none" }, [
       el("rect", { ...box, rx: 3, fill: "#ffffff", stroke: "#cbd5e1", "stroke-width": 1 }),
       el("text", { x: box.x + width / 2, y: box.y + 12, "text-anchor": "middle", "font-family": "Arial", "font-size": 10, fill: "#334155" }, [svgText(text)])

@@ -10,7 +10,7 @@ export function createAigPanelInteractions({ document, navigatorHost, inspectorH
     const input = event.target;
     const field = input.dataset.aigFilter;
     if (!field || event.isComposing || composing === input || !navigatorHost.contains(input)) return;
-    if (filterValues.get(field) === input.value) return;
+    if (!filterValues.has(field) || filterValues.get(field) === input.value) return;
     filterValues.set(field, input.value);
     onFilter(field, input.value);
   }
@@ -26,7 +26,8 @@ export function createAigPanelInteractions({ document, navigatorHost, inspectorH
       if (event.target.dataset.aigFilter) composing = event.target;
     });
     host.addEventListener("compositionend", (event) => {
-      if (composing === event.target) composing = null;
+      if (composing !== event.target) return;
+      composing = null;
       filter(event);
       if (deferredRender) render(deferredRender);
     });
@@ -55,7 +56,13 @@ export function createAigPanelInteractions({ document, navigatorHost, inspectorH
     for (const input of navigatorHost.querySelectorAll("[data-aig-filter]")) filterValues.set(input.dataset.aigFilter, input.value);
     restore?.();
   }
-  return Object.freeze({ render });
+  function reset() {
+    composing = null;
+    deferredRender = null;
+    filterValues.clear();
+    for (const host of hosts) host.replaceChildren();
+  }
+  return Object.freeze({ render, reset });
 }
 
 function captureFocus(host, active) {

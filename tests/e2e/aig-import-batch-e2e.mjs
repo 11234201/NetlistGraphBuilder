@@ -44,7 +44,7 @@ async function snapshot(page) {
 
 try {
   await runBrowserTest(async ({ browser, url }) => {
-    async function check(name, run) {
+    async function check(name, run, { startInAig = true } = {}) {
       currentCase = name;
       const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
       await context.route("**/*", async (route) => {
@@ -60,7 +60,7 @@ try {
       try {
         await page.goto(url);
         await page.locator("#schematicMount svg").waitFor();
-        await loadAig(page, "original.blif");
+        if (startInAig) await loadAig(page, "original.blif");
         await run(page);
         report.cases.push({ name, status: "passed" });
       } catch (error) {
@@ -68,6 +68,19 @@ try {
         throw error;
       } finally { await context.close(); }
     }
+
+    await check("completed-aig-import-does-not-cancel-remaining-batch-designs", async (page) => {
+      await page.evaluate(({ blif, netlist }) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([blif], "intermediate.blif"));
+        transfer.items.add(new File([netlist], "middle.v"));
+        transfer.items.add(new File([netlist.replace("SPECIAL u(", "SPECIAL u_final(")], "final.v"));
+        window.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer, bubbles: true, cancelable: true }));
+      }, { blif, netlist });
+      await page.locator('#schematicMount [data-node-id="cell:u_final"]').waitFor();
+      assert.equal(await page.locator("#domainToolbar").isVisible(), false);
+      assert.equal(await page.evaluate(() => sessionStorage.getItem("ngb.domain-workspace.v1")), null);
+    }, { startInAig: false });
 
     await check("aig-to-netlist-keeps-batch-library", async (page) => {
       await dropBatch(page);

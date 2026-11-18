@@ -198,7 +198,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const requestId = beginRequest();
     const submittedDialogSession = dialogSession;
     const kind = textKind;
-    const presentationPolicy = kind === "aig" ? { viewStyle: aigView?.value === "abc" ? "abc" : "standard" } : undefined;
+    const presentationPolicy = kind === "aig" && aigView ? { viewStyle: aigView.value } : undefined;
     const submission = { request: importRequest, kind };
     pendingSubmission = submission;
     const finish = () => {
@@ -222,7 +222,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       else if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
         const message = `Paste failed: ${errorMessage(error)}`;
         const hint = error?.name === "TimeoutError" && presentationPolicy?.viewStyle === "standard"
-          ? " 布局超时；请将 View 切换为 ABC 后重试。" : "";
+          ? " 布局超时；请将 View 切换为 Logic View 后重试。" : "";
         showTextStatus(message + hint);
         reportFailure(error, message, { kind, operation: "paste-text" });
         finish();

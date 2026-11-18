@@ -1,14 +1,22 @@
-export function normalizeAigPresentation(value = {}) {
-  return Object.freeze({ critical: value?.critical !== false, fanout: value?.fanout !== false,
-    viewStyle: value?.viewStyle === "abc" ? "abc" : "standard", neighbors: value?.neighbors !== false,
-    structureLabels: value?.structureLabels !== false, structureDim: value?.structureDim !== false,
-    fanoutThreshold: Math.max(1, Math.min(1000000, Math.trunc(Number(value?.fanoutThreshold) || 2))) });
+// "abc" is the persisted identifier for Logic View.
+export const DEFAULT_AIG_VIEW_STYLE = "abc";
+
+export function normalizeAigViewStyle(style) {
+  return style === "standard" ? style : DEFAULT_AIG_VIEW_STYLE;
 }
 
-export function createAigPresentationIndex(model, analysis) {
-  return { nodes: new Map(model.nodes.map((node) => [node.id, node])),
-    edges: new Map(model.edges.map((edge) => [edge.id, edge])),
-    criticalNodes: new Set(analysis.criticalNodes), criticalEdges: new Set(analysis.criticalEdges) };
+function connectionHighlight(policy) {
+  const value = policy?.connectionHighlight ?? (policy?.neighbors === false ? "off" : "all");
+  if (value === "off") return "off";
+  const depth = typeof value === "string" ? Number(value) : value;
+  return Number.isSafeInteger(depth) && depth > 0 ? depth : "all";
+}
+
+export function normalizeAigPresentation(value = {}) {
+  return Object.freeze({ critical: value?.critical === true, fanout: value?.fanout === true,
+    viewStyle: normalizeAigViewStyle(value?.viewStyle), connectionHighlight: connectionHighlight(value),
+    structureLabels: value?.structureLabels !== false, structureDim: value?.structureDim !== false,
+    fanoutThreshold: Math.max(1, Math.min(1000000, Math.trunc(Number(value?.fanoutThreshold) || 2))) });
 }
 
 export function aigNodeStyle(node, analysis, index, policy) {

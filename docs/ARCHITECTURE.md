@@ -335,10 +335,10 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 - AIG Navigator / Inspector 的纯呈现器消费索引与查询回调，列表每页最多 100 项。`ui/aig_panel_interactions.js` 拥有组合输入与重绘后的键盘焦点，使用窄操作/筛选回调接入。选择复用缓存筛选与对象索引；高亮仅改受控图元属性，不解析、分析或布局。样条有独立透明命中路径，反相槽位从不合并。
 - 领域存档 `ngb.domain-workspace.v1` 包含格式/源文本、规范化版本、选区、视口、面板与分析策略；Worker、WASM、Scene 闭包和几何仅存在运行时。旧网表存档独立解码。存储访问失败不阻止网表或 AIG 浏览。
 - Graphviz 结果缓存最多四项/20000 节点，键含文档修订、规范化/显示版本、字体、引擎版本和完整布局请求；选区、高亮、视口不进入布局键。Simple 冻结文件与输出保持原样。
-- Graphviz 曲线转换可接收投影提供的完整纯文本 `nodeLabels`，以原始标签补足 JSON 绘图命令对连续反斜杠的截断，位置、对齐与空行间距仍来自引擎。AIG 投影提供该映射，显示版本为 4；Standard 与 ABC 样式在领域投影边界选择，公共几何层不读取 AIG 模型。
-- AIG 邻接高亮通过 `selection_highlights.js` 查询缓存入边/出边索引，选择时仅遍历关联边。Scene 与 UI 共用角色/颜色定义；UI 只更新旧、新邻居集合的 halo，导出消费相同 Scene，不改写源模型或自动几何。
-- `domain_workbench` 按 Document 身份区分导入与重新布局：同文档提交仅替换画布，保留工具栏和侧栏 DOM、搜索状态与侧栏滚动，并恢复画布对象焦点；不变的详情数据不重绘，以保留异步布局期间的 IME 组合输入。跨文档导入继续清理原搜索状态。邻接高亮开关走局部更新，不进入全图分析样式刷新。
-- ABC 自然分层通过独立 `AIG_ABC_GRAPHVIZ_POLICY` 将 Graphviz crossing-minimization multiplier 设为 0.25，约束深度重汇聚图的交叉优化成本；沿用 network-simplex 上限与 20 秒 Worker 超时。Standard 的 DOT、策略与几何保持原样。
+- Graphviz 曲线转换可接收投影提供的完整纯文本 `nodeLabels`，以原始标签补足 JSON 绘图命令对连续反斜杠的截断，位置、对齐与空行间距仍来自引擎。AIG 投影提供该映射，显示版本为 6；Standard 与 Logic View 样式在领域投影边界选择，公共几何层不读取 AIG 模型。
+- AIG 邻接高亮通过 `selection_highlights.js` 查询缓存入边/出边索引。端口选择按广度优先遍历扇入或扇出，每条连接为一级，共享节点按最短有向距离到达且最多展开一次。展示策略 `connectionHighlight` 默认为 `all`，`off` 关闭高亮，正整数则限制遍历层数。旧存档的 `neighbors` 开关映射为 `all` 或 `off`。选中 AND 时分别沿入边和出边从该节点开始遍历，各自应用同一级数上限。画布与 SVG 导出共用追踪结果，灰显选区外的节点和边。调整深度只更新高亮图元属性。
+- `domain_workbench` 按 Document 身份区分导入与重新布局：同文档提交仅替换画布，保留工具栏和侧栏 DOM、搜索状态与侧栏滚动，并恢复画布对象焦点；不变的详情数据不重绘，以保留异步布局期间的 IME 组合输入。跨文档导入继续清理原搜索状态。连接高亮模式与级数的变更只更新受影响的图元。
+- Logic View（旧存档标识 `abc`）让输入输出自由就近分层，不固定输出行；通过独立 `AIG_ABC_GRAPHVIZ_POLICY` 将 Graphviz crossing-minimization multiplier 设为 0.25，约束深度重汇聚图的交叉优化成本；沿用 network-simplex 上限与 20 秒 Worker 超时。Standard 投影按规范化节点与输入槽编号生成 DOT，使几何与模型数组的排列顺序无关。
 
 ### AIG 结构分析（2026-11-17）
 

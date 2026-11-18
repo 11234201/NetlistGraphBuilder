@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦 AND/NOT BLIF。
 
-- **当前版本**：[`v1.5.2 — AIG 结构分析与交互更新`](https://github.com/11234201/NetlistGraphBuilder/tree/v1.5.2)。新增结构重汇聚、XOR / XNOR / MUX 识别与结果高亮，汇总 Standard / ABC 视图、BLIF / 粘贴导入、取消重试和大图手势修复；完整保留离线网表工作台、Liberty、时序、Golden 与日志功能。更新详情见 [CHANGELOG](CHANGELOG.md)。
+- **当前版本**为 `v1.5.3`。AIG 默认使用 Logic View。选中输入、输出或 AND 节点后，可用同一控件设定连接高亮深度，范围外的节点和连线显示为灰色。[版本标签](https://github.com/11234201/NetlistGraphBuilder/tree/v1.5.3) · [更新日志](CHANGELOG.md)
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
 - **AIG 浏览**：`File → Open AIG…` 支持 ABC AIG DOT 和平坦 AND/NOT BLIF，采用本地 Graphviz/WASM 曲线布局，保留输入输出名称、逻辑关键路径与扇出高亮，以及 Navigator / Inspector、搜索、SVG 导出和刷新恢复。首版为 Single / Whole；AIGER、Compare 与网表转 AIG 尚未开放。详见 [AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)。
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
@@ -12,7 +12,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 完整功能介绍、操作流程、数据格式示例与故障排查请阅读 [完整使用教程](docs/USER_GUIDE.md)（Windows 发布包根目录亦随附 `USER_GUIDE.md`）。
 
-**工作台界面概览（`v1.5.2`）**：从旧版升级时请完整替换离线包并重新启动。顶部全局栏管理 `File`、`Liberty`、`Cell Config` 与全局 `Search`；上下文工具栏管理当前视图、布局与时序策略；左侧 `Navigator` 提供模块层次与设计统计，AIG 模式的 `Analysis` 页提供重汇聚与逻辑块列表；右侧 `Inspector` 提供所选对象摘要及 `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）页签。
+**工作台界面概览（`v1.5.3`）**：从旧版升级时请完整替换离线包并重新启动。顶部全局栏管理 `File`、`Liberty`、`Cell Config` 与全局 `Search`；上下文工具栏管理当前视图、布局与时序策略；左侧 `Navigator` 提供模块层次与设计统计，AIG 模式的 `Analysis` 页提供重汇聚与逻辑块列表；右侧 `Inspector` 提供所选对象摘要及 `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）页签。
 
 **让画布占满宽度**：点击左右面板标题旁的 `Hide`，或点击顶部 `Navigator` / `Inspector` 开关即可收起面板；两侧均隐藏后，中央画布占满工作区宽度。顶部开关始终保留，可随时分别恢复面板（高亮表示已展开）。收起和恢复面板均保持当前图中心与缩放倍率，不触发重新布局。
 
@@ -23,7 +23,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦 AND/NOT `.blif` 文件；无需安装 ABC 或 Graphviz。
 2. 在 `Navigator → Objects` 按名称或来源 ID 找到节点，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看深度、扇出与相关结构。
 3. 打开左侧 `Navigator → Analysis`，在 `Reconvergence` 查看重汇聚路径，在 `Blocks` 按 XOR2 / XNOR2 / MUX2 筛选逻辑块。点选结果高亮，右侧 `Locate` 才调整视口；`Partial results` 表示结果尚不完整。
-4. 用上下文栏 `View` 切换 Standard / ABC 画法；`Block labels`、`Dim outside analysis` 控制结构标注，`Highlight neighbors` 高亮直接邻居。红色关键路径按单位 AND 深度计算，不代表 STA 延迟。
+4. 用上下文栏 `View` 切换 Standard / Logic View 画法；默认的 Logic View 让输入输出靠近相关逻辑。`Block labels`、`Dim outside analysis` 控制结构标注。`Highlight connections` 默认追踪端口的全部逻辑锥。选中 AND 时，同时追踪扇入和扇出。指定级数对两个方向分别生效，范围外的节点和连线变灰。该菜单也可关闭高亮。Logical critical path 与 High fanout 默认关闭；红色关键路径按单位 AND 深度计算，不代表 STA 延迟。
 5. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open design…`。
 
 没有现成输入时，可直接打开 [结构分析示例](examples/aig_structure_demo.blif)，照着 [结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习) 查看 6 对重汇聚与 3 个逻辑块；只想熟悉反相边时可使用 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例)。[点相关查询](docs/USER_GUIDE.md#aig-从节点查找相关结构) 已提供基础关联，尚不支持按节点周围 N 跳查询；完整操作与边界见 [AIG 教程](docs/USER_GUIDE.md#aig-图浏览)。
@@ -32,7 +32,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 | 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
-| **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | Standard / ABC 曲线图、结构重汇聚、XOR / XNOR / MUX 识别与点相关查询；提供对象追踪、SVG 导出和刷新恢复，当前支持 Single / Whole。 |
+| **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | Standard / Logic View 曲线图、结构重汇聚、XOR / XNOR / MUX 识别与点相关查询；提供对象追踪、SVG 导出和刷新恢复，当前支持 Single / Whole。 |
 | **可隐藏的左右面板** | 面板标题 `Hide`、上下文栏 `Navigator` / `Inspector` | 两侧可分别隐藏或恢复，中央画布使用腾出的空间；Single、Focused 与 Compare 共用，保留当前阅读位置与缩放倍率。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复几何布线，同时完整保留引脚连接详情与 Focused 锥体追踪；Single 与 Compare 两侧独立生效。 |
 | **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 加载、替换、取消和卸载文本 `.lib`，使用库方向和布尔 `function` 辅助单元推断；Single/Compare 共用，不占用左侧栏，无库时仍可直接浏览网表。 |
@@ -79,7 +79,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.5.2`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.5.3`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md`、`ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt`、`EXPAT-LICENSE.txt` 和 `app/vendor/graphviz/` 离线资源。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
@@ -278,7 +278,7 @@ npm run test:mapped-cases
 
 - `npm test`：运行完整单元测试，覆盖语法解析、Liberty 与无库推断、图模型提取、布局与正交布线、AIG 解析/分析/Graphviz 几何、时序标注、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
 - `npm run test:aig` / `npm run test:liberty`：专项运行 AIG（DOT/BLIF 解析、分析面板与 Graphviz 适配器）或 Liberty 库语义单元测试。
-- `npm run test:aig-structure` / `npm run test:aig-views`：在已配置 Playwright 的测试环境中运行结构分析、Standard / ABC 切换的真实浏览器回归；测试依赖不属于离线运行时。
+- `npm run test:aig-structure` / `npm run test:aig-views`：在已配置 Playwright 的测试环境中运行结构分析、Standard / Logic View 切换的真实浏览器回归；测试依赖不属于离线运行时。
 - `npm run benchmark:aig-structure`：测量深链、高扇出、重汇聚、奇偶链和 MUX 链的分析耗时及截断状态，不包含 Graphviz 布局时间。
 - `npm run test:architecture`：基于离线 Acorn AST 校验全仓模块依赖方向、跨层边界与无环约束。
 - `npm run test:docs`：校验核心文档与教程中的所有相对路径链接有效性。

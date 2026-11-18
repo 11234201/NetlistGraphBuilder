@@ -1907,8 +1907,10 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .focused-root-activate > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Alternate domain contents share the existing responsive workbench shell. */
-.domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px; border-bottom: 1px solid #dbe2ea; font-size: 12px; background: #fff; }
+.domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid #dbe2ea; font-size: 12px; background: #fff; }
 .domain-toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+.aig-connection-control, .aig-fanout-control { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.domain-toolbar .aig-connection-control > :is(input, select) { width: 86px; }
 .domain-toolbar .aig-legend { flex-basis: 100%; }
 .domain-toolbar input[type=number] { width: 65px; }
 #domainNavigator, #domainInspector { padding: 10px; min-width: 0; overflow: auto; }
@@ -1941,6 +1943,10 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 #domainNavigator button:focus-visible, #domainInspector button:focus-visible { outline: 2px solid #168396; outline-offset: 2px; }
 /* Structure analysis overlays preserve the original AIG geometry and hit areas. */
 #schematicMount svg[data-aig-analysis-active="true"][data-aig-analysis-dim="true"] [data-domain-object]:not([data-aig-analysis-role]) { opacity: .22; }
+#schematicMount svg[data-aig-cone-trace] [data-aig-object]:not(.is-selected):not([data-neighbor-role]) {
+  filter: grayscale(1);
+  opacity: .35;
+}
 #schematicMount svg[data-aig-block-labels="false"] .aig-block-label { display: none; }
 .aig-analysis-status, .aig-analysis-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
 .aig-analysis-status { font-size: 12px; }

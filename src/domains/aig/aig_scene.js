@@ -1,24 +1,27 @@
 import { createSvgScene, svgElement as el, svgText } from "../../render/svg_scene_renderer.js";
-import { normalizeAigPresentation, createAigPresentationIndex, aigNodeStyle, aigEdgeStyle } from "./aig_presentation.js";
+import { normalizeAigPresentation, aigNodeStyle, aigEdgeStyle } from "./aig_presentation.js";
 import { createAigQuery } from "./aig_query.js";
-import { aigSelectionHighlights, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
+import { describeAigSelection, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
 import { createStructurePresentation } from "./structure_presentation.js";
 
 export function createAigScene(model, analysis, geometry, presentation = {}, selectedId = null, structureView = {}) {
   const policy = normalizeAigPresentation(presentation);
-  const index = createAigPresentationIndex(model, analysis);
+  const query = createAigQuery(model, analysis);
   const structure = createStructurePresentation(geometry, structureView, policy);
-  const neighbors = structure.active ? new Map() : aigSelectionHighlights(createAigQuery(model, analysis), selectedId, policy);
+  const { roles: neighbors, dimOutside } = describeAigSelection(query, structure.active ? null : selectedId, policy);
+  // Standalone SVG carries its own appearance; the live canvas uses a root selector.
+  const traceStyle = (id) => dimOutside && id !== selectedId && !neighbors.has(id) ? "filter:grayscale(1);opacity:.35" : null;
   const neighborStyle = (id) => ({ class: "aig-neighbor-halo", fill: "none", "pointer-events": "none",
     stroke: AIG_NEIGHBOR_COLORS[neighbors.get(id)] || AIG_NEIGHBOR_COLORS.input,
     visibility: neighbors.has(id) ? "visible" : "hidden" });
   const title = (text) => el("title", {}, [svgText(text)]);
   function nodePrimitive(positioned) {
-    const node = index.nodes.get(positioned.id);
-    const style = aigNodeStyle(node, analysis, index, policy);
+    const node = query.nodeById.get(positioned.id);
+    const style = aigNodeStyle(node, analysis, query, policy);
     return el("g", { "data-aig-node": node.id, "data-aig-object": node.id, "data-domain-object": node.id, class: `aig-node${selectedId === node.id ? " is-selected" : ""}`, tabindex: 0,
       role: "button", "aria-label": `${node.kind}: ${node.label}`, "data-neighbor-role": neighbors.get(node.id),
-      "data-aig-analysis-role": structure.nodeRoles.get(node.id), opacity: structure.active && structure.dim && !structure.nodeRoles.has(node.id) ? 0.22 : 1 }, [title(node.label),
+      "data-aig-analysis-role": structure.nodeRoles.get(node.id), style: traceStyle(node.id),
+      opacity: structure.active && structure.dim && !structure.nodeRoles.has(node.id) ? 0.22 : 1 }, [title(node.label),
       el("rect", { x: positioned.x - 4, y: positioned.y - 4, width: positioned.width + 8, height: positioned.height + 8,
         rx: 6, "stroke-width": 3, ...neighborStyle(node.id) }),
       el("rect", { class: "aig-selection-halo", x: positioned.x - 5, y: positioned.y - 5,
@@ -30,16 +33,18 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
       ...(structure.labelsVisible && structure.labels.has(node.id) ? [structure.labels.get(node.id)] : [])]);
   }
   function edgePrimitive(positioned) {
-    const edge = index.edges.get(positioned.id);
-    const style = { ...aigEdgeStyle(edge, index, policy), ...structure.edgeStyle(edge.id) };
+    const edge = query.edgeById.get(positioned.id);
+    const style = { ...aigEdgeStyle(edge, query, policy), ...structure.edgeStyle(edge.id) };
     return el("g", { "data-aig-edge": edge.id, "data-aig-object": edge.id, "data-domain-object": edge.id, class: "aig-edge", tabindex: 0,
       role: "button", "aria-label": `${edge.source} to ${edge.target}, slot ${edge.slot}, ${edge.inverted ? "inverted" : "positive"}`,
-      "data-neighbor-role": neighbors.get(edge.id), "data-aig-analysis-role": structure.edgeRoles.get(edge.id),
+      "data-neighbor-role": neighbors.get(edge.id), "data-aig-analysis-role": structure.edgeRoles.get(edge.id), style: traceStyle(edge.id),
       opacity: structure.active && structure.dim && !structure.edgeRoles.has(edge.id) ? 0.22 : 1 }, [
       title(`${edge.id}: ${edge.inverted ? "inverted" : "positive"}, input ${edge.slot}`),
-      ...positioned.paths.map((d) => el("path", { d, "stroke-width": 7, opacity: 0.5, ...neighborStyle(edge.id) })),
+      ...positioned.paths.map((d) => el("path", { d, "stroke-width": 7, "stroke-dasharray": style["stroke-dasharray"],
+        opacity: 0.5, ...neighborStyle(edge.id) })),
       ...positioned.paths.map((d) => el("path", { d, class: "aig-selection-halo", fill: "none", stroke: "#7c3aed",
-        "stroke-width": 8, opacity: 0.6, visibility: selectedId === edge.id ? "visible" : "hidden", "pointer-events": "none" })),
+        "stroke-width": 8, "stroke-dasharray": style["stroke-dasharray"], opacity: 0.6,
+        visibility: selectedId === edge.id ? "visible" : "hidden", "pointer-events": "none" })),
       ...positioned.paths.map((d) => el("path", { d, ...style, fill: "none", class: "aig-edge-path" })),
       ...positioned.arrows.map((shape) => primitive(shape, { class: "aig-edge-arrow", fill: style.stroke, stroke: style.stroke })),
       ...positioned.paths.map((d) => el("path", { d, fill: "none", stroke: "transparent", "stroke-width": 14,

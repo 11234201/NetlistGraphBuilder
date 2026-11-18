@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { DEFAULT_AIG_VIEW_STYLE } from "../../src/domains/aig/aig_presentation.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../../src/layout/providerDefaults.js";
 import { runBrowserTest } from "./browser_test_session.mjs";
 import { installInteractionObserver } from "./interaction_observer.mjs";
@@ -164,9 +165,10 @@ async function load(page, input) {
   await page.locator(input.aig ? "#aigFileInput" : "#fileInput").setInputFiles({ name: input.name, mimeType: "text/plain", buffer: Buffer.from(input.text) });
   await page.waitForFunction((name) => document.querySelector("#statusBar").textContent.includes(`Loaded ${name}`), input.name, { timeout: 60000 });
   if (input.aig) {
-    if (input.style === "abc") {
-      await page.locator('[data-domain-policy="viewStyle"]').selectOption("abc");
-      await page.waitForFunction(() => document.querySelector("#statusBar").textContent === "AIG view: ABC", null, { timeout: 30000 });
+    const style = page.locator('[data-domain-policy="viewStyle"]');
+    if (await style.inputValue() !== input.style) {
+      await style.selectOption(input.style);
+      await page.waitForFunction((id) => JSON.parse(sessionStorage.getItem("ngb.domain-workspace.v1"))?.presentationPolicy?.viewStyle === id, input.style, { timeout: 30000 });
     }
   } else {
     if (provider !== DEFAULT_LAYOUT_PROVIDER_ID) {
@@ -238,7 +240,7 @@ async function scenario(name) {
   if (match[1] === "netlist") return { name: `${name}.v`, label: `u_${Math.floor(size / 2)}`,
     text: `module benchmark(a,z); input a; output z; wire ${Array.from({ length: size - 1 }, (_, i) => `n${i}`).join(",")};\n` +
       Array.from({ length: size }, (_, i) => `BUF_X1 u_${i} (.A(${i ? `n${i - 1}` : "a"}), .Z(${i === size - 1 ? "z" : `n${i}`}));`).join("\n") + "\nendmodule" };
-  return { aig: true, style: match[3] || "standard", name: `${name}.blif`, label: `g${Math.floor(size / 2)}`,
+  return { aig: true, style: match[3] || DEFAULT_AIG_VIEW_STYLE, name: `${name}.blif`, label: `g${Math.floor(size / 2)}`,
     text: `.model benchmark\n.inputs a b\n.outputs ${Array.from({ length: size }, (_, i) => `g${i}`).join(" ")}\n` +
       Array.from({ length: size }, (_, i) => `.names a b g${i}\n11 1`).join("\n") + "\n.end\n" };
 }

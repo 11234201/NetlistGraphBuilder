@@ -6,7 +6,7 @@ import { projectAigDot, AIG_DISPLAY_VERSION, AIG_FONT } from "./aig_projection.j
 import { createAigScene } from "./aig_scene.js";
 import { normalizeAigPresentation, aigNodeStyle, aigEdgeStyle } from "./aig_presentation.js";
 import { graphvizJsonToGeometry } from "../../layout/graphviz_geometry.js";
-import { aigSelectionHighlights, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
+import { describeAigSelection, AIG_NEIGHBOR_COLORS } from "./selection_highlights.js";
 import { createAigStructureRuntime } from "./structure_runtime.js";
 import { createStructureQuery } from "./structure_query.js";
 import { createStructurePresentation } from "./structure_presentation.js";
@@ -73,7 +73,7 @@ export const aigFeature = defineDomainFeature({
     workspace.document.model.analysis, workspace.geometry, policy, selectedId, structure),
   nodeStyle: (workspace, node, policy) => aigNodeStyle(node, workspace.document.model.analysis, workspace.query, policy),
   edgeStyle: (workspace, edge, policy) => aigEdgeStyle(edge, workspace.query, policy),
-  selectionHighlights: (workspace, selectedId, policy) => aigSelectionHighlights(workspace.query, selectedId, policy),
+  selectionHighlights: (workspace, selectedId, policy) => describeAigSelection(workspace.query, selectedId, policy),
   selectionHighlightColors: AIG_NEIGHBOR_COLORS
 });
 

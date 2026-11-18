@@ -102,3 +102,20 @@ test("cached detail, clearing selection and rerunning analysis discard errors fr
   await manager.detail({ id: "failed" }); await manager.run();
   assert.equal(manager.read().detailError, null); manager.dispose();
 });
+
+test("a completed analysis preserves a failed path detail across relayout until explicitly retried", async () => {
+  let attempts = 0;
+  const f = analysisHarness({ detail: async ({ id }) => {
+    if (++attempts === 1) throw new Error("path union timed out");
+    return { id, status: "complete" };
+  } });
+  await f.manager.run();
+  await f.manager.detail({ id: "pair" });
+  f.manager.bind(f.workspace());
+  assert.equal(f.manager.read().detailStatus, "error");
+  assert.equal(f.manager.read().detailError, "path union timed out");
+  await f.manager.detail({ id: "pair" });
+  assert.equal(f.manager.read().detail.id, "pair");
+  assert.equal(f.manager.read().detailError, null);
+  f.manager.dispose();
+});

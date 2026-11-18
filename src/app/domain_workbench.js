@@ -6,7 +6,7 @@ import { createStandaloneSvg } from "../render/svgExport.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { createDomainCanvas } from "../ui/domain_canvas_controller.js";
 import { renderAigNavigator, renderAigInspector, revealAigNavigatorSelection } from "../ui/aig_panels.js";
-import { aigControls } from "../ui/aig_controls.js";
+import { aigControls, bindAigConnectionHighlight } from "../ui/aig_controls.js";
 import { createAigPanelInteractions } from "../ui/aig_panel_interactions.js";
 import { updateAigSelectionHighlights } from "../ui/aig_selection_highlights.js";
 import { handleFocusShortcut } from "../ui/focus_shortcut.js";
@@ -45,6 +45,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   let objectElements = new Map();
   let oldSelectedId = null;
   let neighborHighlights = new Map();
+  let highlightedSelectionId = null;
+  let highlightedDepth = null;
+  let connectionControl = null;
   let switchingStyle = false;
   let inputGeneration = 0;
   let importRequest = null;
@@ -130,11 +133,16 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       for (const element of savedVisibility.keys()) element.hidden = true;
       mount.hidden = false;
       toolbar.innerHTML = present().toolbar;
+      connectionControl = bindAigConnectionHighlight(toolbar, { read: () => policy().connectionHighlight,
+        commit: (value) => changePresentation("connectionHighlight", value), preview: refreshSelectionHighlights });
       get("searchInput").placeholder = present().searchPlaceholder;
       get("exportSvgButton").disabled = false;
       get("wholeViewButton").classList.add("is-active");
       get("focusedViewButton").classList.remove("is-active");
     } else {
+      panelInteractions.reset();
+      connectionControl?.closeEditor();
+      connectionControl = null;
       for (const [element, hidden] of savedVisibility) element.hidden = hidden;
       savedVisibility.clear();
       get("searchInput").placeholder = "Find cell, net, port…";
@@ -160,6 +168,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   }
   function syncPolicyControls() {
     get("cancelDomainImportButton").textContent = switchingStyle ? "Cancel AIG layout" : "Cancel AIG import";
+    connectionControl?.sync(policy().connectionHighlight, switchingStyle);
     for (const input of toolbar.querySelectorAll("[data-domain-policy]")) {
       // Keep the requested style visible and keyboard-accessible while preparing
       // it. Choosing the active style cancels the pending replacement.
@@ -169,18 +178,28 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       input.disabled = switchingStyle;
     }
   }
+  function selectionPolicy() {
+    const saved = policy(), depth = connectionControl?.previewDepth();
+    return depth == null ? saved : { ...saved, connectionHighlight: depth };
+  }
   function refreshSelectionHighlights() {
-    const next = structure.view().query?.get(panels.analysis.selectedId) ? new Map()
-      : workspace.feature.selectionHighlights?.(workspace, selectedId(), policy()) || new Map();
+    if (!workspace) return;
+    const options = selectionPolicy();
+    const analysisSelected = structure.view().query?.get(panels.analysis.selectedId);
+    const selectionId = options.connectionHighlight !== "off" && !analysisSelected ? selectedId() : null;
+    if (highlightedSelectionId === selectionId && highlightedDepth === options.connectionHighlight) return;
+    const highlight = selectionId && workspace.feature.selectionHighlights?.(workspace, selectionId, options);
+    const next = highlight?.roles || new Map();
+    mount.querySelector("svg")?.toggleAttribute("data-aig-cone-trace", Boolean(highlight?.dimOutside));
     updateAigSelectionHighlights(objectElements, neighborHighlights, next, workspace.feature.selectionHighlightColors);
+    highlightedSelectionId = selectionId;
+    highlightedDepth = options.connectionHighlight;
     neighborHighlights = next;
   }
   const useCase = createDomainWorkspace({ documents, sessions, jobs, registry, layout: runtime,
     async onCommit(next, restore, isCurrent) {
       const candidateMount = document.createElement("div");
-      const restoredPolicy = sessions.require(next.sessionId).presentationPolicy;
-      const scene = next.feature.scene(next, restoredPolicy);
-      const result = await renderSvgSceneIntoMount(candidateMount, scene, { isCurrent });
+      const result = await renderSvgSceneIntoMount(candidateMount, next.scene, { isCurrent });
       if (result.cancelled || !isCurrent()) return false;
       // Retain selections made on the still-visible graph while layout was running.
       const sameDocument = workspace?.document === next.document;
@@ -199,6 +218,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       workspace.positionedNodes = new Map(next.geometry.nodes.map((node) => [node.id, node]));
       panels = normalizePanels(nextPanels);
       oldSelectedId = null;
+      highlightedSelectionId = null;
+      highlightedDepth = null;
       neighborHighlights = new Map();
       if (!sameDocument) switchShell(true);
       mount.replaceChildren(...candidateMount.childNodes);
@@ -215,15 +236,24 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       return true;
     } });
   function beginImport(request = importRequests.begin()) {
+    if (!request.isCurrent()) return request;
     importRequest = request;
-    request.signal.addEventListener("abort", () => {
-      inputGeneration += 1;
-      useCase.cancel();
-      switchingStyle = false;
-      syncPolicyControls();
-      get("cancelDomainImportButton").hidden = true;
-    }, { once: true });
+    request.signal.addEventListener("abort", abortImport, { once: true });
     return request;
+  }
+  function abortImport() {
+    importRequest = null;
+    inputGeneration += 1;
+    useCase.cancel();
+    switchingStyle = false;
+    syncPolicyControls();
+    get("cancelDomainImportButton").hidden = true;
+  }
+  function finishImport(request) {
+    if (importRequest !== request) return;
+    request.signal.removeEventListener("abort", abortImport);
+    importRequest = null;
+    get("cancelDomainImportButton").hidden = true;
   }
   async function open(domainId, input, restore = null, request = beginImport(), propagateErrors = false) {
     if (!request.isCurrent()) return null;
@@ -244,7 +274,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (ticket === inputGeneration) report(new Error(`${input.name}: ${error.message}`));
       return null;
     }
-    finally { if (ticket === inputGeneration) get("cancelDomainImportButton").hidden = true; }
+    finally { if (ticket === inputGeneration) finishImport(request); }
   }
   function leave() {
     importRequest?.cancel();
@@ -294,17 +324,24 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     if (!field || !workspace) return;
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
     if (field === "viewStyle") { changeViewStyle(value); return; }
-    sessions.update(workspace.sessionId, () => ({ presentationPolicy: workspace.feature.normalizePresentation({ ...policy(), [field]: value }) }), { invalidateComputation: false });
-    if (field === "neighbors") refreshSelectionHighlights();
+    changePresentation(field, value);
+  });
+  function changePresentation(field, value) {
+    const next = workspace.feature.normalizePresentation({ ...policy(), [field]: value });
+    sessions.update(workspace.sessionId, () => ({ presentationPolicy: next }), { invalidateComputation: false });
+    if (field === "connectionHighlight") {
+      connectionControl.sync(next.connectionHighlight, switchingStyle);
+      refreshSelectionHighlights();
+    }
     else if (field === "structureLabels" || field === "structureDim") structure.refresh();
     else refreshPolicy();
     persist();
-  });
+  }
   async function changeViewStyle(viewStyle) {
     if (viewStyle === policy().viewStyle) {
       if (switchingStyle) {
         importRequest?.cancel();
-        setStatus(`AIG view: ${viewStyle === "abc" ? "ABC" : "Standard"}`);
+        setStatus(`AIG view: ${viewStyle === "abc" ? "Logic View" : "Standard"}`);
       }
       return;
     }
@@ -317,21 +354,21 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     syncPolicyControls();
     toolbar.querySelector('[data-domain-policy="viewStyle"]').value = viewStyle;
     get("cancelDomainImportButton").hidden = false;
-    setStatus(`Switching AIG view to ${viewStyle === "abc" ? "ABC" : "Standard"}…`);
+    setStatus(`Switching AIG view to ${viewStyle === "abc" ? "Logic View" : "Standard"}…`);
     try {
       const result = await useCase.relayout(restore);
       if (!result || !request.isCurrent() || ticket !== inputGeneration) return;
       source = savedSource;
       canvas.fit();
       persist();
-      setStatus(`AIG view: ${viewStyle === "abc" ? "ABC" : "Standard"}`);
+      setStatus(`AIG view: ${viewStyle === "abc" ? "Logic View" : "Standard"}`);
     } catch (error) {
       if (ticket === inputGeneration) report(error);
     } finally {
       if (ticket === inputGeneration) {
         switchingStyle = false;
         syncPolicyControls();
-        get("cancelDomainImportButton").hidden = true;
+        finishImport(request);
       }
     }
   }
@@ -348,17 +385,24 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (readGeneration !== inputGeneration) return;
       await open(event.target.dataset.domainId, { text, name: file.name }, null, request);
     } catch (error) {
-      if (readGeneration === inputGeneration) { get("cancelDomainImportButton").hidden = true; report(error); }
+      if (readGeneration === inputGeneration) { finishImport(request); report(error); }
     }
   });
   get("cancelDomainImportButton").addEventListener("click", () => {
     const operation = switchingStyle ? "Layout" : "Import";
     importRequest?.cancel(); setStatus(`${operation} cancelled; previous view retained.`);
   });
-  mount.addEventListener("keydown", (event) => {
-    if (!workspace || !["Enter", " "].includes(event.key)) return;
+  function activateCanvasObject(event) {
+    if (!workspace) return;
     const object = event.target.closest("[data-domain-object]");
     if (object) { event.preventDefault(); select(object.dataset.domainObject, false); }
+  }
+  mount.addEventListener("keydown", (event) => {
+    if (["Enter", " "].includes(event.key)) activateCanvasObject(event);
+  });
+  mount.addEventListener("click", (event) => {
+    // Pointer activation is handled on pointerdown. Assistive clicks can arrive on their own.
+    if (event.detail === 0) activateCanvasObject(event);
   });
   windowTarget.addEventListener("beforeunload", persist);
   return Object.freeze({
@@ -410,7 +454,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
         handleWheel: canvas.wheel, handlePointerDown: canvas.pointerDown, fitToView: canvas.fit,
         focusSelectedCell: focusSelection, activateSearchResult: (result) => select(result.id),
         persistSession: persist,
-        exportCurrentSvg: () => download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, policy(), selectedId(), structure.view()))),
+        exportCurrentSvg: () => download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, selectionPolicy(), selectedId(), structure.view()))),
           `${sanitizeDownloadFileName(workspace.document.source.name)}.svg`, "image/svg+xml"),
         handleFocusSelectedShortcut: (event) => handleFocusShortcut(event, focusSelection, Boolean(selectedId() || panels.analysis.selectedId))
       };

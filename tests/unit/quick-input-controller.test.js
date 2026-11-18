@@ -21,7 +21,7 @@ function inputElements() {
   const makeTarget = () => ({ ...eventTarget(), value: "", focus() {}, setSelectionRange() {} });
   const controls = Object.fromEntries(["text-submit", "text-status", "aig-input-options", "aig-input-view", "bulk-text-expand", "bulk-text-clear"]
     .map((name) => [`[data-${name}]`, { ...makeTarget(), hidden: true, disabled: false }]));
-  controls["[data-aig-input-view]"].value = "standard";
+  controls["[data-aig-input-view]"].value = "abc";
   return {
     netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
     pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(), pasteAigButton: makeTarget(),
@@ -426,7 +426,7 @@ test("paste dialog shows progress and prevents repeated submissions until comple
   assert.match(status.textContent, /正在解析并布局/);
   await elements.textForm.listeners.submit({ preventDefault() {} });
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].options.presentationPolicy, { viewStyle: "standard" });
+  assert.deepEqual(calls[0].options.presentationPolicy, { viewStyle: "abc" });
   finish();
   await pending;
   assert.equal(elements.textDialog.open, false);
@@ -436,7 +436,7 @@ test("paste dialog shows progress and prevents repeated submissions until comple
   assert.equal(calls[0].options.request.signal.aborted, false, "success must not cancel the committed workspace");
 });
 
-test("an AIG timeout is visible in the dialog and permits ABC retry with the same source", async () => {
+test("an AIG timeout is visible in the dialog and permits Logic View retry with the same source", async () => {
   const elements = inputElements(), policies = [];
   const controller = createQuickInputController({ elements, windowTarget: eventTarget(), setStatus() {}, schedule: (run) => run(),
     loadText: async (text, options) => {
@@ -446,14 +446,15 @@ test("an AIG timeout is visible in the dialog and permits ABC retry with the sam
     } });
   controller.openDialog("aig");
   elements.textInput.value = ".model m\n.inputs a\n.outputs a\n.end";
-  await elements.textForm.listeners.submit({ preventDefault() {} });
   const view = elements.textForm.querySelector("[data-aig-input-view]");
+  view.value = "standard";
+  await elements.textForm.listeners.submit({ preventDefault() {} });
   const status = elements.textForm.querySelector("[data-text-status]");
   assert.equal(elements.textDialog.open, true);
   assert.equal(view.disabled, false);
   assert.equal(view.value, "standard");
   assert.equal(status.hidden, false);
-  assert.match(status.textContent, /Graphviz exceeded 20000 ms.*ABC/);
+  assert.match(status.textContent, /Graphviz exceeded 20000 ms.*Logic View/);
   view.value = "abc";
   await elements.textForm.listeners.submit({ preventDefault() {} });
   assert.deepEqual(policies, [{ viewStyle: "standard" }, { viewStyle: "abc" }]);

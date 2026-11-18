@@ -15,7 +15,9 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, schedule = 
     if (!next?.feature.createAnalysisService) { publish({ status: "idle" }); return; }
     service ||= next.feature.createAnalysisService(next.document);
     if (same && ["complete", "partial", "cancelled", "error"].includes(state.status)) {
-      publish({ detailStatus: state.detail ? state.detail.status : "idle", detailError: null }); return;
+      // Only an in-flight detail needs a new session job. Keep settled results and errors.
+      publish(state.detailStatus === "running" ? { detailStatus: "idle" } : {});
+      return;
     }
     publish({ status: "idle", detail: null, detailStatus: "idle", detailError: null });
     const ticket = generation;

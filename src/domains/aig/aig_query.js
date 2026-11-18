@@ -5,12 +5,15 @@ export function createAigQuery(model, analysis) {
   if (existing?.analysis === analysis) return existing.query;
   const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
   const edgeById = new Map(model.edges.map((edge) => [edge.id, edge]));
+  const incomingEdges = (id) => (analysis.incoming[id] || []).map((edgeId) => edgeById.get(edgeId));
+  const outgoingEdges = (id) => (analysis.outgoing[id] || []).map((edgeId) => edgeById.get(edgeId));
   const query = Object.freeze({
     nodeById, edgeById,
     criticalNodes: new Set(analysis.criticalNodes),
     criticalEdges: new Set(analysis.criticalEdges),
     getObject(id) { return nodeById.get(id) || edgeById.get(id) || null; },
-    connections(id) { return { incoming: (analysis.incoming[id] || []).map((edgeId) => edgeById.get(edgeId)), outgoing: (analysis.outgoing[id] || []).map((edgeId) => edgeById.get(edgeId)) }; }
+    incomingEdges, outgoingEdges,
+    connections(id) { return { incoming: incomingEdges(id), outgoing: outgoingEdges(id) }; }
   });
   queryCache.set(model, { analysis, query });
   return query;

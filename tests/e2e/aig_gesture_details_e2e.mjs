@@ -28,7 +28,7 @@ await runBrowserTest(async ({ browser, url }) => {
   for (const value of ["standard", "abc"]) {
     if (await style.inputValue() !== value) {
       await style.selectOption(value);
-      await page.waitForFunction(() => document.querySelector("#statusBar").textContent === "AIG view: ABC");
+      await page.waitForFunction((label) => document.querySelector("#statusBar").textContent === `AIG view: ${label}`, value === "abc" ? "Logic View" : "Standard");
     }
     const selected = page.locator("#schematicMount [data-aig-node]").nth(2);
     const id = await selected.getAttribute("data-aig-node");

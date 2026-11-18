@@ -22,8 +22,8 @@ test("neighbor updates change direction, clear old highlights and leave base sha
   // Deliberately expose indexed lookup only: a selection must not enumerate
   // every rendered object in a potentially large graph.
   const elements = { get(id) { visits.push(id); return objects.get(id); } };
-  const before = new Map([["input", "input"], ["old-edge", "input"]]);
-  const after = new Map([["input", "output"], ["output", "output"], ["unrendered", "input"]]);
+  const before = new Map([["input", "input"], ["old-edge", "input"], ["shared", "input"]]);
+  const after = new Map([["input", "output"], ["output", "output"], ["unrendered", "input"], ["shared", "input"]]);
   updateAigSelectionHighlights(elements, before, after, colors);
   assert.deepEqual(new Set(visits), new Set(["input", "old-edge", "output", "unrendered"]));
   assert.equal(input.attributes.get("data-neighbor-role"), "output");

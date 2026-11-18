@@ -1,6 +1,7 @@
 export function updateAigSelectionHighlights(elements, previous, next, colors) {
   for (const id of new Set([...previous.keys(), ...next.keys()])) {
     const role = next.get(id);
+    if (role === previous.get(id)) continue;
     const element = elements.get(id);
     if (!element) continue;
     if (role) element.setAttribute("data-neighbor-role", role);

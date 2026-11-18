@@ -5,7 +5,33 @@ import { importAigSource } from "../../src/domains/aig/aig_import.js";
 import { createAigQuery } from "../../src/domains/aig/aig_query.js";
 import { analyzeAigStructure } from "../../src/domains/aig/structure_analysis.js";
 import { createStructureQuery } from "../../src/domains/aig/structure_query.js";
+import { createStructurePresentation } from "../../src/domains/aig/structure_presentation.js";
 import { renderAigStructureNavigator, renderAigStructureInspector } from "../../src/ui/aig_structure_panels.js";
+
+test("block labels clear nodes across index cells and avoid labels already placed", () => {
+  const nodes = [
+    { id: "first", x: 100, y: 149, width: 14, height: 20 },
+    { id: "second", x: 126, y: 149, width: 14, height: 20 },
+    // The upper candidates start in the next 128-unit cell, just one unit away.
+    { id: "obstacle", x: 95, y: 107, width: 50, height: 20 }
+  ];
+  const results = nodes.slice(0, 2).map(({ id }) => ({ id: "block:" + id, kind: "xor", category: "block",
+    rootId: id, nodeIds: [id], boundaryIds: [] }));
+  const view = { data: { blocks: { results }, reconvergence: { results: [] } } };
+  const positions = (ordered) => {
+    const { labels } = createStructurePresentation({ bounds: { width: 256, height: 256 }, nodes: ordered }, view);
+    return [...labels.values()].map((label) => label.children[0].attributes);
+  };
+  const rects = positions(nodes);
+  assert.equal(rects.length, 2);
+  assert.deepEqual(positions([...nodes].reverse()), rects);
+  const occupied = [...nodes];
+  for (const box of rects) {
+    for (const other of occupied) assert.ok(box.x >= other.x + other.width + 2 || other.x >= box.x + box.width + 2 ||
+      box.y >= other.y + other.height + 2 || other.y >= box.y + box.height + 2, "label needs two units of clearance");
+    occupied.push(box);
+  }
+});
 
 test("structure panels escape source names, explain polarity, and expose partial coverage", () => {
   const imported = importAigSource(readFileSync(new URL("../fixtures/aig/structure_analysis.blif", import.meta.url), "utf8"), { name: "test.blif" });

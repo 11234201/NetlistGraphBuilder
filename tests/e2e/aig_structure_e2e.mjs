@@ -14,7 +14,7 @@ await runBrowserTest(async ({ browser, url }) => {
   const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, acceptDownloads: true }), errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    window.__structureTest = { layouts: 0, analyses: 0, hold: false };
+    window.__structureTest = { layouts: 0, analyses: 0, details: 0, hold: false, failDetail: false };
     const NativeWorker = window.Worker;
     window.Worker = new Proxy(NativeWorker, { construct(target, args) {
       const worker = Reflect.construct(target, args), send = worker.postMessage.bind(worker);
@@ -23,6 +23,10 @@ await runBrowserTest(async ({ browser, url }) => {
         if (String(args[0]).includes("structure_worker.js") && value.type === "analyze") {
           window.__structureTest.analyses++;
           if (window.__structureTest.hold) return;
+        }
+        if (String(args[0]).includes("structure_worker.js") && value.type === "detail") {
+          window.__structureTest.details++;
+          if (window.__structureTest.failDetail) throw new Error("Test path union timeout");
         }
         return send(value);
       }; return worker;
@@ -78,15 +82,15 @@ await runBrowserTest(async ({ browser, url }) => {
     const download = await downloadEvent, svg = await readFile(await download.path(), 'utf8');
     assert.match(svg, /aig-block-label/); assert.match(svg, /data-aig-analysis-role="block"/); assert.match(svg, /stroke-dasharray="5 4"/); assert.match(svg, /opacity="0.22"/);
     cases.push("XOR/XNOR/MUX list, pin mapping, labels, dimming, inverted edges and exported analysis");
-    await page.locator('[data-domain-policy="viewStyle"]').selectOption('abc');
-    await page.waitForFunction(() => document.querySelector('#statusBar').textContent.includes('AIG view: ABC'));
+    await page.locator('[data-domain-policy="viewStyle"]').selectOption('standard');
+    await page.waitForFunction(() => document.querySelector('#statusBar').textContent.includes('AIG view: Standard'));
     assert.equal(await page.locator('[data-aig-analysis-inspected]').getAttribute('data-aig-analysis-inspected'), muxId);
     assert.equal(await page.evaluate(() => window.__structureTest.analyses), calls.analyses);
     const saved = await page.evaluate(() => JSON.parse(sessionStorage.getItem('ngb.domain-workspace.v1')));
     assert.equal(saved.panels.analysis.selectedId, muxId); assert.doesNotMatch(JSON.stringify(saved.panels), /truthTable|edgeIds|nodeIds/);
     await page.reload(); await page.locator('[data-aig-analysis-status="complete"]').waitFor();
     assert.equal(await page.locator('[data-aig-analysis-inspected]').getAttribute('data-aig-analysis-inspected'), muxId);
-    cases.push("ABC reuses results and reload restores selection without serializing analysis artifacts");
+    cases.push("Standard reuses results and reload restores selection without serializing analysis artifacts");
     await page.locator('[data-aig-analysis-action="clear"]').click();
     await page.evaluate(() => { window.__structureTest.hold = true; });
     await page.locator('[data-aig-analysis-action="run"]').click(); await page.locator('[data-aig-analysis-status="running"]').waitFor();
@@ -102,14 +106,28 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.waitForFunction(() => window.__structureTest.analyses > 0);
     await page.locator('[data-aig-analysis-action="cancel"]').click();
     const cancelledCalls = await page.evaluate(() => window.__structureTest.analyses);
-    await page.locator('[data-domain-policy="viewStyle"]').selectOption('abc');
-    await page.waitForFunction(() => document.querySelector('#statusBar').textContent.includes('AIG view: ABC'));
+    await page.locator('[data-domain-policy="viewStyle"]').selectOption('standard');
+    await page.waitForFunction(() => document.querySelector('#statusBar').textContent.includes('AIG view: Standard'));
     await page.locator('[data-aig-analysis-status="cancelled"]').waitFor();
     assert.equal(await page.evaluate(() => window.__structureTest.analyses), cancelledCalls);
     await page.evaluate(() => { window.__structureTest.hold = false; });
     await page.locator('[data-aig-analysis-action="run"]').click(); await page.locator('[data-aig-analysis-status="complete"]').waitFor();
     assert.equal(await page.locator("#domainNavigator [data-aig-analysis-select]").count(), 6);
-    assert.deepEqual(errors, []); cases.push("cancelling before first results remains cancelled across an ABC relayout until explicit retry");
+    cases.push("cancelling before first results remains cancelled across a Standard relayout until explicit retry");
+    await page.evaluate(() => { window.__structureTest.failDetail = true; });
+    await pair.click();
+    await page.getByText("Test path union timeout", { exact: true }).waitFor();
+    const failedAttempts = await page.evaluate(() => window.__structureTest.details);
+    await page.locator('[data-domain-policy="viewStyle"]').selectOption("abc");
+    await page.waitForFunction(() => document.querySelector("#statusBar").textContent === "AIG view: Logic View");
+    assert.equal(await page.evaluate(() => window.__structureTest.details), failedAttempts);
+    assert.equal(await page.getByText("Test path union timeout", { exact: true }).isVisible(), true);
+    await page.evaluate(() => { window.__structureTest.failDetail = false; });
+    await pair.click();
+    await page.waitForFunction(() => /nodes · \d+ edges \(complete\)/.test(document.querySelector("#domainInspector").textContent));
+    assert.equal(await page.evaluate(() => window.__structureTest.details), failedAttempts + 1);
+    assert.deepEqual(errors, []);
+    cases.push("switching views preserves a path detail error, and selecting the pair again retries once");
     await writeFile(join(artifacts, 'results.json'), JSON.stringify({ cases, errors }, null, 2));
     console.log(JSON.stringify({ cases, errors }, null, 2));
   } finally { await page.close(); }

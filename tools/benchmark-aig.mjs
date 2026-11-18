@@ -4,6 +4,7 @@ import { analyzeAig } from "../src/domains/aig/aig_analysis.js";
 import { AIG_IMPORT_LIMITS } from "../src/domains/aig/aig_diagnostics.js";
 import { projectAigDot, AIG_GRAPHVIZ_POLICY } from "../src/domains/aig/aig_projection.js";
 import { AIG_ABC_GRAPHVIZ_POLICY } from "../src/domains/aig/abc_projection.js";
+import { DEFAULT_AIG_VIEW_STYLE } from "../src/domains/aig/aig_presentation.js";
 import { createAigScene } from "../src/domains/aig/aig_scene.js";
 import { graphvizJsonToGeometry } from "../src/layout/graphviz_geometry.js";
 import { instance } from "../src/platform/graphviz_vendor.js";
@@ -23,7 +24,7 @@ const policies = {
   simplex0_mincross025: "nslimit=0,nslimit1=0,mclimit=0.25"
 };
 const policy = process.env.AIG_BENCHMARK_POLICY || "default";
-const viewStyle = process.env.AIG_BENCHMARK_VIEW || "standard";
+const viewStyle = process.env.AIG_BENCHMARK_VIEW || DEFAULT_AIG_VIEW_STYLE;
 if (!["standard", "abc"].includes(viewStyle)) throw new Error(`Unknown AIG_BENCHMARK_VIEW '${viewStyle}'`);
 if (!(policy in policies)) throw new Error(`Unknown AIG_BENCHMARK_POLICY '${policy}'`);
 const kinds = ["wide", "chain", "reconvergent", "high-fanout"];
@@ -98,9 +99,9 @@ function verifyGeometry(model, geometry) {
   const nodes = new Map(geometry.nodes.map((node) => [node.id, node]));
   const ranks = new Map();
   for (const node of model.nodes) {
-    // Standard fixes every logical level. ABC allows consumers to rank their
-    // inputs freely; only the PO row is fixed. Both retain directed BT flow.
-    if (viewStyle === "abc" && node.kind !== "po") continue;
+    // Standard fixes every logical level. Logic View lets ports rank with their
+    // connected logic. Both retain directed BT flow.
+    if (viewStyle === "abc") continue;
     const rank = node.kind === "po" ? "output" : node.level;
     const y = nodes.get(node.id).center.y;
     if (ranks.has(rank)) assert.equal(y, ranks.get(rank), `Inconsistent rank ${rank}`);

@@ -11,6 +11,7 @@ function fixture() {
       addEventListener(type, handler) { handlers.set(type, handler); },
       emit(type, event) { handlers.get(type)?.(event); },
       contains(element) { return controls.includes(element); },
+      replaceChildren() { controls = []; },
       querySelectorAll(selector) {
         if (selector === "[data-aig-filter]") return controls.filter((control) => control.dataset.aigFilter);
         if (selector === '[role="tab"]') return controls.filter((control) => control.role === "tab");
@@ -96,6 +97,26 @@ test("composition keeps its input alive until completion and applies the final f
   f.navigatorHost.emit("input", { target: input });
   f.navigatorHost.emit("change", { target: input });
   assert.deepEqual(f.filters, [["query", "雪"]]);
+});
+
+test("document replacement discards deferred panels and ignores the previous composition's late events", () => {
+  const f = fixture();
+  const filter = (value) => ({ type: "search", value, dataset: { aigFilter: "query" } });
+  f.controller.render({ navigator: [filter("old")], inspector: [] });
+  const old = f.navigatorHost.querySelectorAll("controls")[0];
+  f.navigatorHost.emit("compositionstart", { target: old });
+  f.controller.render({ navigator: [filter("deferred")], inspector: [] });
+  f.controller.reset();
+  f.controller.render({ navigator: [filter("new")], inspector: [] });
+  const current = f.navigatorHost.querySelectorAll("controls")[0];
+  f.navigatorHost.emit("compositionstart", { target: current });
+  f.navigatorHost.emit("compositionend", { target: old });
+  f.navigatorHost.emit("input", { target: old });
+  assert.equal(current.value, "new");
+  assert.deepEqual(f.filters, []);
+  current.value = "新";
+  f.navigatorHost.emit("compositionend", { target: current });
+  assert.deepEqual(f.filters, [["query", "新"]]);
 });
 
 test("panel arrow, Home and End keys retain their tab navigation behavior", () => {

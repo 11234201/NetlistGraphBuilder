@@ -117,12 +117,12 @@ try {
     assert.equal(await evaluate('document.querySelectorAll("[data-aig-edge]").length'), 19, format);
   }
   assert.equal(snapshots[0], snapshots[1]);
-  assert.equal(await evaluate('document.querySelector("[data-domain-policy=viewStyle]").value'), "standard");
-  assert.equal(await evaluate('document.querySelector("[data-domain-policy=neighbors]").checked'), true);
+  assert.equal(await evaluate('document.querySelector("[data-domain-policy=viewStyle]").value'), "abc");
+  assert.equal(await evaluate('document.querySelector("#aigConnectionHighlight").value'), "all");
   await evaluate(`document.querySelector('[data-aig-node][aria-label^="and:"]').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
     const search = document.getElementById('searchInput'); search.value = 'shared'; search.dispatchEvent(new Event('input', {bubbles:true}));
-    const style = document.querySelector('[data-domain-policy=viewStyle]'); style.focus(); style.value = 'abc'; style.dispatchEvent(new Event('change', {bubbles:true}));`);
-  await waitFor('document.querySelector("#statusBar").textContent === "AIG view: ABC"');
+    const style = document.querySelector('[data-domain-policy=viewStyle]'); style.focus(); style.value = 'standard'; style.dispatchEvent(new Event('change', {bubbles:true}));`);
+  await waitFor('document.querySelector("#statusBar").textContent === "AIG view: Standard"');
   assert.equal(await evaluate('document.getElementById("searchInput").value'), "shared");
   assert.equal(await evaluate('document.activeElement.dataset.domainPolicy'), "viewStyle");
   assert.ok(await evaluate('document.querySelectorAll("[data-neighbor-role=input]").length') > 0);
@@ -147,7 +147,7 @@ try {
   await exerciseViewport(false);
   assert.deepEqual(errors, []);
   assert.deepEqual(externalRequests, []);
-  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/ABC switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "AIG and Netlist real pointer pan and wheel", "AIG gesture labels restore", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
+  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/Logic View switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "AIG and Netlist real pointer pan and wheel", "AIG gesture labels restore", "BLIF file filters and generic picker", "AIG paste real WASM", "Netlist restoration", "No external requests or page errors"], errors, externalRequests };
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {
