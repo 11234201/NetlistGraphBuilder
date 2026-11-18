@@ -137,7 +137,14 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
   // the visible domain, even when the Navigator was already on another tab.
   observer.observe(panel.ownerDocument.body, { attributes: true, attributeFilter: ["class"] });
   refresh();
-  return { refresh, inspect(id, nodeId) {
+  return { refresh, markExport(markup, id) {
+    const record = records.get(id || "single");
+    if (!active || !record?.selected) return markup;
+    const copy = panel.ownerDocument.createElement("div");
+    copy.innerHTML = markup;
+    highlightNetlistReconvergence(copy, record);
+    return copy.innerHTML;
+  }, inspect(id, nodeId) {
     if (!active) return;
     const previousSide = selectedSide();
     if (id && inCompare()) side = id;

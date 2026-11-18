@@ -3,6 +3,9 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { sourceIdentitiesMatch } from "../persistence/source_identity.js";
 
 export function resolveLayoutGoldenModule(design, imported, currentIdentity = null) {
+  if (imported.display?.showPath && currentIdentity && !imported.identity?.sourceIdentity?.fingerprint) {
+    throw new Error("Show Path Golden requires its source fingerprint");
+  }
   validateGoldenIdentity(imported.identity, currentIdentity);
   const module = design?.modules?.find((item) => item.name === imported.moduleName);
   if (!module) {
@@ -35,7 +38,7 @@ export function applyLayoutGoldenState(state, imported, restoreNavigation = (val
 
   const display = imported.display;
   const viewMode = normalizeSingleViewMode(display.viewMode);
-  const query = {
+  const query = { showPath: display.showPath || null,
     ...(display.coneDepth ? { coneDepth: clamp(display.coneDepth, 1, 99) } : {}),
     ...(display.faninDepth !== null ? { faninDepth: clamp(display.faninDepth, 0, 99) } : {}),
     ...(display.fanoutDepth !== null ? { fanoutDepth: clamp(display.fanoutDepth, 0, 99) } : {})

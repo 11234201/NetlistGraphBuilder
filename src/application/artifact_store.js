@@ -7,17 +7,16 @@ function artifactKey(sessionId, kind) {
 
 export function createArtifactStore() {
   const records = new Map();
+  function prepare(record) {
+    if (!record?.context?.sessionId || !record.kind) throw new Error("Artifact record requires context and kind");
+    const key = artifactKey(record.context.sessionId, record.kind);
+    const artifact = Object.freeze({ ...record, context: Object.freeze({ ...record.context }),
+      value: immutableSnapshot(record.value, { allowFunctions: true }) });
+    return { artifact, publish() { records.set(key, artifact); return artifact; } };
+  }
   return Object.freeze({
-    put(record) {
-      if (!record?.context?.sessionId || !record.kind) throw new Error("Artifact record requires context and kind");
-      const frozen = Object.freeze({
-        ...record,
-        context: Object.freeze({ ...record.context }),
-        value: immutableSnapshot(record.value, { allowFunctions: true })
-      });
-      records.set(artifactKey(record.context.sessionId, record.kind), frozen);
-      return frozen;
-    },
+    prepare,
+    put: (record) => prepare(record).publish(),
     get(sessionId, kind) {
       return records.get(artifactKey(sessionId, kind)) || null;
     },

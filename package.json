@@ -1,6 +1,6 @@
 {
   "name": "netlist-graph-builder",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,8 @@
     "test:aig-browser": "node tests/e2e/aig-workbench-e2e.mjs",
     "test:aig-views": "node tests/e2e/aig_views_e2e.mjs",
     "test:aig-structure": "node tests/e2e/aig_structure_e2e.mjs",
-    "test:scoped-logic-browser": "node tests/e2e/blif_names_e2e.mjs && node tests/e2e/aig_focused_e2e.mjs && node tests/e2e/netlist_reconvergence_e2e.mjs",
+    "test:show-path-browser": "node tests/e2e/show_path_e2e.mjs",
+    "test:scoped-logic-browser": "node tests/e2e/blif_names_e2e.mjs && node tests/e2e/aig_search_first_e2e.mjs && node tests/e2e/aig_focused_e2e.mjs && node tests/e2e/netlist_reconvergence_e2e.mjs",
     "test:graphviz-browser": "node tests/e2e/graphviz-runtime-e2e.mjs",
     "test:docs": "node tools/check_docs_links.mjs",
     "test:architecture": "node tools/check_architecture.mjs",

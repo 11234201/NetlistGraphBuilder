@@ -1,3 +1,4 @@
+import { normalizeShowPath } from "../../contracts/show_path.js";
 import { analyzeLayoutQuality, compareLayoutQuality } from "../../layout/layoutQuality.js";
 import { cloneNetRoutingOverrides } from "./net_routing.js";
 import { normalizeLayoutPolicy } from "../../layout/layoutPolicy.js";
@@ -8,7 +9,7 @@ export function createLayoutGolden(graph, options = {}) {
   const identity = options.identity || {};
   return {
     kind: "netlist-layout-golden",
-    version: 3,
+    version: options.layoutOptions?.display?.showPath ? 4 : 3,
     domainId: identity.domainId || "netlist",
     documentId: identity.documentId || null,
     unitId: identity.unitId || graph.moduleName,
@@ -58,13 +59,13 @@ export function parseLayoutGolden(value) {
     throw new Error("Not a Netlist Graph Builder layout Golden");
   }
   const version = Number(golden.version);
-  if (!Number.isInteger(version) || version < 1 || version > 3) {
+  if (!Number.isInteger(version) || version < 1 || version > 4) {
     throw new Error(`Unsupported Golden version: ${golden.version ?? "missing"}`);
   }
   if (typeof golden.moduleName !== "string" || golden.moduleName.length === 0) {
     throw new Error("Golden moduleName is missing");
   }
-  if (!Array.isArray(golden.nodes) || golden.nodes.length === 0) {
+  if (!Array.isArray(golden.nodes) || (golden.nodes.length === 0 && !(version === 4 && golden.layoutOptions?.display?.showPath?.enabled))) {
     throw new Error("Golden does not contain layout nodes");
   }
   return golden;
@@ -84,7 +85,7 @@ export function getLayoutGoldenState(value) {
     const height = finiteNumber(node.height);
     if (width !== null && height !== null) nodeSizes.set(node.id, { width, height });
   }
-  if (nodePositions.size === 0) {
+  if (nodePositions.size === 0 && golden.nodes.length) {
     throw new Error("Golden does not contain valid node positions");
   }
 
@@ -124,6 +125,9 @@ export function getLayoutGoldenState(value) {
     timingBadgeChoices: cloneJsonRecord(layoutOptions.timingBadgeChoices),
     timingBadgePositions: cloneStringRecord(layoutOptions.timingBadgePositions),
     display: {
+      ...(golden.version === 4 ? { showPath: normalizeShowPath(display.showPath), occurrenceContext: typeof display.occurrenceContext?.rootModuleName === "string" &&
+        Array.isArray(display.occurrenceContext.occurrencePath) && display.occurrenceContext.occurrencePath.every((part) => typeof part === "string")
+        ? { rootModuleName: display.occurrenceContext.rootModuleName, occurrencePath: [...display.occurrenceContext.occurrencePath] } : null } : {}),
       viewMode: normalizeViewMode(display.viewMode),
       coneRootNodeId: typeof display.coneRootNodeId === "string" ? display.coneRootNodeId : null,
       focusedRootNodeIds,

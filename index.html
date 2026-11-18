@@ -17,6 +17,7 @@
             <span class="menu-heading">Import</span>
             <label class="menu-action" tabindex="0"><input id="fileInput" type="file" accept=".v,.sv,.dot,.blif,.txt,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
             <label class="menu-action" tabindex="0"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif,.txt,text/plain">Open AIG… <span class="help-text">ABC AIG DOT / two-input BLIF</span></label>
+            <label class="alias-toggle aig-import-mode"><input id="aigSearchFirstInput" type="checkbox">Open AIG in Search-first</label>
             <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
             <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
             <button id="pasteAigButton" class="menu-action" type="button">Paste AIG…</button>
@@ -26,36 +27,63 @@
             <button id="exportSvgButton" class="menu-action" type="button" title="Export the current Single view">Export SVG</button>
             <button id="saveGoldenButton" class="menu-action" type="button" title="Save the current Single view and overrides">Save Golden</button>
             <label class="menu-action" tabindex="0" title="Restore a matching Single workspace; exits Compare"><input id="goldenInput" type="file" accept=".json,application/json">Load Golden…</label>
-            <p class="menu-note">Golden restores a layout snapshot. SVG and snapshot export require Single view.</p>
+            <p class="menu-note">Golden saves a Single view. In Compare, export a side from its Show Path report.</p>
           </div>
         </details>
-        <details id="libertyMenu" class="toolbar-menu liberty-menu">
-          <summary id="libertyMenuSummary" aria-controls="libertyPanel" title="Manage the optional cell library">Liberty</summary>
-          <section id="libertyPanel" class="toolbar-menu-popover liberty-popover" aria-labelledby="libertyPanelTitle">
-            <h2 id="libertyPanelTitle">Liberty library</h2>
-            <p class="help-text">Optional cell and pin definitions. Browsing also works without a library.</p>
-            <div class="liberty-actions">
-              <label class="file-button compact-button liberty-load-button" tabindex="0"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
-              <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel import</button>
-              <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
-            </div>
-            <p id="libertySummary" role="status">No library loaded.</p><pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
-            <p class="help-text">Select one process corner. Reload the library after refreshing the page.</p>
-          </section>
-        </details>
-        <details id="cellConfigMenu" class="toolbar-menu cell-config-menu">
-          <summary>Cell Config</summary>
-          <section class="toolbar-menu-popover settings-popover">
-            <h2>Cell type definitions</h2><p class="help-text">Saved rules apply to every instance of the same cell type. Instance overrides live in Inspector → Adjust.</p>
-            <label class="menu-action" tabindex="0"><input id="cellConfigInput" type="file" accept=".json,application/json">Import definitions…</label>
-            <button id="exportCellConfigButton" class="menu-action" type="button">Export definitions</button>
-            <button id="resetCellConfigButton" class="menu-action danger-action" type="button">Reset all definitions</button>
-          </section>
+        <details id="settingsMenu" class="toolbar-menu">
+          <summary>Settings</summary>
+          <div class="toolbar-menu-popover workbench-settings">
+            <details id="viewMenu" name="workbench-settings" class="settings-section">
+              <summary>Display</summary><div class="settings-section-body settings-popover">
+                <label class="alias-toggle"><input id="showAliasesInput" type="checkbox">Show aliases</label><label class="alias-toggle"><input id="fanoutHubsInput" type="checkbox" checked>Fanout hubs</label>
+                <label class="panel-field"><span>Gate symbols</span><select id="gateSymbolModeSelect"><option value="rectangle">Rectangles</option><option value="conventional">Conventional</option></select></label>
+                <p class="help-text">Aliases and hubs change the displayed graph. Symbols preserve node geometry.</p>
+              </div>
+            </details>
+            <details id="layoutMenu" name="workbench-settings" class="settings-section">
+              <summary>Layout</summary><div class="settings-section-body settings-popover">
+                <label class="panel-field layout-provider-field"><span>Provider</span><select id="layoutProviderSelect"></select></label>
+                <label class="panel-field"><span>Wire spacing</span><span class="range-control"><input id="wireSpacingInput" type="range" min="4" max="96" step="4" value="24"><input id="wireSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="96" step="4" value="24" aria-label="Wire spacing value"><output id="wireSpacingValue" class="sr-only">24</output></span></label>
+                <label class="panel-field"><span>Cell spacing</span><span class="range-control"><input id="cellSpacingInput" type="range" min="4" max="320" step="4" value="8"><input id="cellSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="320" step="4" value="8" aria-label="Cell spacing value"><output id="cellSpacingValue" class="sr-only">8</output></span></label>
+                <button id="resetLayoutButton" class="mini-button danger-action" type="button">Reset view overrides</button><p class="help-text">Resets positions, sizes, instance properties, pin directions and unrouted nets. Applies to both sides in Compare.</p>
+              </div>
+            </details>
+            <details id="timingMenu" name="workbench-settings" class="settings-section">
+              <summary>Timing</summary><div class="settings-section-body settings-popover timing-policy-panel">
+                <label><span>Metric</span><select id="timingMetricSelect"><option value="slack">Worst Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option><option value="none">None</option></select></label>
+                <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Slack below this threshold is critical"></label><p class="help-text">Applies to Single, both Compare views and SVG export. Per-object badges are in Inspector → Timing.</p>
+              </div>
+            </details>
+            <details id="libertyMenu" name="workbench-settings" class="settings-section liberty-menu">
+              <summary id="libertyMenuSummary" aria-controls="libertyPanel" title="Manage the optional cell library">Liberty</summary>
+              <section id="libertyPanel" class="settings-section-body liberty-popover" aria-labelledby="libertyPanelTitle">
+                <h2 id="libertyPanelTitle">Liberty library</h2>
+                <p class="help-text">Optional cell and pin definitions. Browsing also works without a library.</p>
+                <div class="liberty-actions">
+                  <label class="file-button compact-button liberty-load-button" tabindex="0"><input id="libertyInput" type="file" accept=".lib,text/plain">Load .lib</label>
+                  <button id="cancelLibertyButton" class="mini-button" type="button" disabled>Cancel import</button>
+                  <button id="clearLibertyButton" class="mini-button" type="button" disabled>Unload</button>
+                </div>
+                <p id="libertySummary" role="status">No library loaded.</p><pre id="libertyDiagnostics" class="liberty-diagnostics"></pre>
+                <p class="help-text">Select one process corner. Reload the library after refreshing the page.</p>
+              </section>
+            </details>
+            <details id="cellConfigMenu" name="workbench-settings" class="settings-section">
+              <summary>Cell Config</summary>
+              <section class="settings-section-body settings-popover">
+                <h2>Cell type definitions</h2><p class="help-text">Saved rules apply to every instance of the same cell type. Instance overrides live in Inspector → Adjust.</p>
+                <label class="menu-action" tabindex="0"><input id="cellConfigInput" type="file" accept=".json,application/json">Import definitions…</label>
+                <button id="exportCellConfigButton" class="menu-action" type="button">Export definitions</button>
+                <button id="resetCellConfigButton" class="menu-action danger-action" type="button">Reset all definitions</button>
+              </section>
+            </details>
+            <section id="aigOverlaySettings" class="settings-section-body" aria-label="AIG overlays" hidden></section>
+          </div>
         </details>
         <div class="topbar-search">
           <label class="topbar-search-label" for="searchInput">Search</label>
-          <div class="search-box"><input id="searchInput" type="search" placeholder="Find cell, net, port…" autocomplete="off" aria-controls="searchResults" aria-autocomplete="list"><kbd class="search-shortcut">/</kbd><button id="searchClearButton" class="search-clear" type="button" title="Clear search" aria-label="Clear search" hidden>×</button></div>
-          <div id="searchResults" class="search-results" role="listbox" hidden></div>
+          <div class="search-box"><input id="searchInput" type="search" placeholder="Find cell, net, port…" autocomplete="off" aria-controls="searchResults"><kbd class="search-shortcut">/</kbd><button id="searchClearButton" class="search-clear" type="button" title="Clear search" aria-label="Clear search" hidden>×</button></div>
+          <div id="searchResults" class="search-results" role="list" aria-label="Search results" hidden></div>
         </div>
         <span id="sourceBadge" class="source-badge" title="Current source">Sample</span>
         <button id="compareButton" class="icon-button mode-button" type="button" title="Compare two modules">Compare</button>
@@ -66,28 +94,18 @@
         <div class="history-controls"><button id="moduleBackButton" class="square-button" type="button" title="Back through view history (Ctrl+Z / Alt+Left)" aria-label="Back through view history" disabled>←</button><button id="moduleForwardButton" class="square-button" type="button" title="Forward through view history (Ctrl+Shift+Z / Alt+Right)" aria-label="Forward through view history" disabled>→</button></div>
         <div class="workspace-heading"><span id="workspaceTitle">No module</span><span id="workspaceMode" class="mode-indicator">Whole</span></div>
         <div class="view-mode-control" role="group" aria-label="Schematic view mode"><button id="wholeViewButton" type="button">Whole</button><button id="focusedViewButton" type="button">Focused</button></div>
+        <details id="showPathMenu" class="toolbar-menu path-menu">
+          <summary>Show Path</summary>
+          <section class="toolbar-menu-popover path-popover" aria-label="Show Path">
+            <header class="path-heading"><strong>Show Path</strong><select id="pathSide" aria-label="Compare side" hidden><option value="left">A</option><option value="right">B</option></select><span id="pathScope"></span></header>
+            <div class="path-editor"><label>Find an endpoint <input id="pathFind" type="search" placeholder="Name or ID" autocomplete="off"></label>
+            <div id="pathCandidates"></div><div id="pathDraft"></div></div>
+            <div class="path-actions"><button class="primary-action" type="button" data-path-action="apply">Apply</button><button type="button" data-path-action="toggle">Turn off</button><button type="button" data-path-action="clear">Clear</button><button type="button" data-path-action="cancel" hidden>Cancel</button></div>
+            <p id="pathMessage" role="status"></p>
+            <details id="pathReport" open hidden><summary>Path information</summary><div id="pathReportBody"></div></details>
+          </section>
+        </details>
         <button id="fitButton" class="mini-button" type="button" title="Fit the view; fits both views in Compare">Fit view</button>
-        <details id="viewMenu" class="toolbar-menu compact-menu">
-          <summary>View</summary><div class="toolbar-menu-popover settings-popover">
-            <h2>Display</h2><label class="alias-toggle"><input id="showAliasesInput" type="checkbox">Show aliases</label><label class="alias-toggle"><input id="fanoutHubsInput" type="checkbox" checked>Fanout hubs</label>
-            <label class="panel-field"><span>Gate symbols</span><select id="gateSymbolModeSelect"><option value="rectangle">Rectangles</option><option value="conventional">Conventional</option></select></label>
-            <p class="help-text">Aliases and hubs change the displayed graph. Symbols preserve node geometry.</p>
-          </div>
-        </details>
-        <details id="layoutMenu" class="toolbar-menu compact-menu">
-          <summary>Layout</summary><div class="toolbar-menu-popover settings-popover">
-            <h2>Layout settings</h2><label class="panel-field layout-provider-field"><span>Provider</span><select id="layoutProviderSelect"></select></label>
-            <label class="panel-field"><span>Wire spacing</span><span class="range-control"><input id="wireSpacingInput" type="range" min="4" max="96" step="4" value="24"><input id="wireSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="96" step="4" value="24" aria-label="Wire spacing value"><output id="wireSpacingValue" class="sr-only">24</output></span></label>
-            <label class="panel-field"><span>Cell spacing</span><span class="range-control"><input id="cellSpacingInput" type="range" min="4" max="320" step="4" value="8"><input id="cellSpacingNumberInput" class="spacing-number-input" type="number" min="4" max="320" step="4" value="8" aria-label="Cell spacing value"><output id="cellSpacingValue" class="sr-only">8</output></span></label>
-            <button id="resetLayoutButton" class="mini-button danger-action" type="button">Reset view overrides</button><p class="help-text">Resets positions, sizes, instance properties, pin directions and unrouted nets. Applies to both sides in Compare.</p>
-          </div>
-        </details>
-        <details id="timingMenu" class="toolbar-menu compact-menu">
-          <summary>Timing</summary><div class="toolbar-menu-popover settings-popover timing-policy-panel">
-            <h2>Timing across the graph</h2><label><span>Metric</span><select id="timingMetricSelect"><option value="slack">Worst Slack</option><option value="at">AT</option><option value="rt">RT</option><option value="delay">Delay</option><option value="slew">Slew</option><option value="all">All</option><option value="none">None</option></select></label>
-            <label><span>Threshold</span><input id="timingSlackThresholdInput" type="number" step="0.01" value="0.0" title="Slack below this threshold is critical"></label><p class="help-text">Applies to Single, both Compare views and SVG export. Per-object badges are in Inspector → Timing.</p>
-          </div>
-        </details>
         <button id="adjustLayoutButton" class="mini-button" type="button" aria-pressed="false" title="Drag nodes to create instance overrides">Adjust</button>
         <button id="selectionSummaryButton" class="selection-summary-button" type="button" title="Open the selected object in Inspector">No selection</button>
         <button id="toggleInspectorButton" class="mini-button panel-toggle" type="button" aria-controls="inspectorPanel" aria-expanded="true"><svg class="panel-toggle-icon" viewBox="0 0 18 16" aria-hidden="true"><rect x="1" y="1" width="16" height="14" rx="2"/><path d="M12 1v14"/><path class="panel-icon-region" d="M13 2h3v12h-3z"/></svg>Inspector</button>
@@ -128,6 +146,7 @@
         <aside id="inspectorPanel" class="inspector-panel" aria-label="Inspector">
           <header class="panel-title"><h2>Inspector <span id="inspectorScope" class="context-note"></span></h2><button class="panel-collapse-button" data-close-panel="inspector" type="button" title="Hide Inspector to expand the canvas" aria-label="Hide Inspector">Hide <span aria-hidden="true">›</span></button></header>
           <div class="inspector-actions"><button id="focusSelectedButton" class="mini-button" type="button" title="Center the selection; a hidden cell opens its neighborhood (F)" disabled>Zoom to selection</button><button id="addFocusedRootButton" class="mini-button" type="button" title="Append the selected cell or net to Focused" disabled>Add to Focused</button><button id="setFocusedRootButton" class="mini-button" type="button" title="Replace all Focused roots with the selection" disabled>Replace roots</button></div>
+          <div id="pathSelection" class="path-selection" hidden><span>Show Path</span><button type="button" data-path-selection="starts">Add as start</button><button type="button" data-path-selection="ends">Add as end</button></div>
           <div id="selectionDetails" class="details-empty">Select a cell, net or port to inspect its connections.</div>
           <section id="netlistAnalysisDetail" class="panel-section"></section>
           <footer class="inspector-footer"><button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the saved rule for every instance of this cell type" disabled>Edit cell type…</button><span class="help-text">Type-level definitions</span></footer>
@@ -141,7 +160,7 @@
       <footer class="status-bar"><span id="statusBar" role="status">Ready</span><span id="providerStatus" class="context-note"></span><button id="toggleDiagnosticsButton" type="button" aria-controls="diagnosticsDrawer" aria-expanded="false">Diagnostics <span id="diagnosticsCount">0</span></button><button id="toggleProcessLogButton" type="button" aria-controls="processLogDrawer" aria-expanded="false">Log <span id="processLogCount">0</span></button></footer>
     </main>
     <p id="narrowWindowNotice" hidden>Widen this window for the full workbench.</p>
-    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. Liberty and timing are optional.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Export SVG and Save Golden require Single. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
+    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. Liberty and timing are optional.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Use the Show Path report to export one Compare side. Save Golden records the Single view. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
     <dialog id="netlistTextDialog" class="text-input-dialog" aria-labelledby="netlistTextTitle">
       <form id="netlistTextForm" class="text-input-form">
         <header>
@@ -154,6 +173,7 @@
         <label class="bulk-text-tools" data-aig-input-options hidden>View
           <select data-aig-input-view aria-label="AIG view style">
             <option value="abc">Logic View · 输入输出就近排列</option>
+            <option value="search-first">Search-first · 先筛选再布局</option>
             <option value="standard">Standard · 按深度分层</option>
           </select>
         </label>

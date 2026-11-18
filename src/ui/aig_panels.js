@@ -88,7 +88,7 @@ function renderDesign(workspace, options) {
     ["Inverted edges", counts.invertedEdges], ["Maximum AND depth", analysis.depth],
     ["Critical nodes", analysis.criticalNodes.length], ["Critical edges", analysis.criticalEdges.length],
     [`Fanout ≥ ${threshold}`, highFanout]
-  ])}</dl><p class="details-empty">Logical critical paths use unit AND depth. Fanout counts input references and outputs.</p>`;
+  ])}</dl>`;
 }
 
 function getObjectView(workspace, options) {
@@ -128,7 +128,7 @@ function renderObjects(workspace, options) {
     const node = context.query.nodeById.get(entry.id);
     const current = entry.id === options.selectedId;
     return `<li><button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-aig-select="${escapeAttr(entry.id)}" title="${escapeAttr(entry.label)}"${current ? ' aria-current="true"' : ""}>
-      <span>${escapeHtml(entry.label)}</span> <small>${entry.detail ? escapeHtml(entry.detail) + " · " : ""}${escapeHtml(kindLabel(entry.kind))} · depth ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}${outsideScope(workspace.visibleNodeIds, node.id)}</small>
+      <span>${escapeHtml(entry.label)}</span> <small>${entry.detail ? escapeHtml(entry.detail) + " · " : ""}${escapeHtml(kindLabel(entry.kind))} · depth ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}${outsideScope(workspace.visibleNodeIds, node.id, workspace.path?.nodeIds)}</small>
     </button></li>`;
   }).join("");
   return `<div class="aig-object-filters">
@@ -141,7 +141,8 @@ function renderObjects(workspace, options) {
   ${context.objects.length ? renderPager(context.objects.length, page, "navigator") : '<p class="details-empty">No matching objects.</p>'}`;
 }
 
-function outsideScope(visible, id) {
+function outsideScope(visible, id, path) {
+  if (path && !path.has(id)) return " · outside Show Path";
   return visible && !visible.has(id) ? " · outside Focused" : "";
 }
 
@@ -161,7 +162,7 @@ function renderNames(workspace, options) {
   const { start, end, page } = pageRange(names.length, options.page);
   const rows = names.slice(start, end).map((row) => {
     const node = workspace.query.nodeById.get(row.nodeId);
-    const target = node ? `<button type="button" class="selection-link" data-aig-select="${escapeAttr(node.id)}">${escapeHtml(node.id)}</button>${outsideScope(workspace.visibleNodeIds, node.id)}` : "—";
+    const target = node ? `<button type="button" class="selection-link" data-aig-select="${escapeAttr(node.id)}">${escapeHtml(node.id)}</button>${outsideScope(workspace.visibleNodeIds, node.id, workspace.path?.nodeIds)}` : "—";
     const usage = row.usage === "unknown" ? "Undeclared" : row.usage === "output" ? "Output port" : "Driver";
     return `<tr><td>${escapeHtml(row.signalId)}</td><td>${escapeHtml(row.name)}${copyButton(row.name)}</td><td>${target}</td><td>${usage}${row.inverted ? " · inverted" : ""}${row.conflict ? " · conflicting names" : ""}</td><td>${escapeHtml(row.line)}</td></tr>`;
   }).join("");
@@ -182,7 +183,7 @@ function renderConnections(workspace, object, isEdge, options) {
   for (let index = start; index < end; index += 1) {
     const isIncoming = index < incoming.length;
     const edge = query.edgeById.get(isIncoming ? incoming[index] : outgoing[index - incoming.length]);
-    rows += `<tr><td>${isIncoming ? "Fanin" : "Fanout"}</td><td>${nodeButton(query.nodeById.get(edge.source))} → ${nodeButton(query.nodeById.get(edge.target))}${outsideScope(workspace.visibleEdgeIds, edge.id)}</td>
+    rows += `<tr><td>${isIncoming ? "Fanin" : "Fanout"}</td><td>${nodeButton(query.nodeById.get(edge.source))} → ${nodeButton(query.nodeById.get(edge.target))}${outsideScope(workspace.visibleEdgeIds, edge.id, workspace.path?.edgeIds)}</td>
       <td><button type="button" class="selection-link" data-aig-select="${escapeAttr(edge.id)}">Slot ${escapeHtml(edge.slot)}</button></td>
       <td>${edge.inverted ? "Inverted" : "Positive"}</td><td>${query.criticalEdges.has(edge.id) ? "Critical" : "—"}</td></tr>`;
   }
@@ -204,7 +205,7 @@ function renderAnalysis(workspace, object, isEdge, options) {
     ["Source depth", query.nodeById.get(object.source).level], ["Target depth", query.nodeById.get(object.target).level], ["Polarity", object.inverted ? "Inverted" : "Positive"]]
     : [["AND depth", object.level], ["Fanout references", analysis.fanout[object.id] || 0], ["Logical critical path", query.criticalNodes.has(object.id) ? "Yes" : "No"],
       ["High fanout threshold", threshold], ["Threshold reached", (analysis.fanout[object.id] || 0) >= threshold ? "Yes" : "No"]];
-  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl><p class="details-empty">Unit AND depth is a logical metric, not cell timing. Fanout includes each input slot and PO reference.</p>${renderAigStructureMembership(workspace, object, isEdge, options.structure)}`;
+  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl>${renderAigStructureMembership(workspace, object, isEdge, options.structure)}`;
 }
 
 function renderSource(object, isEdge, options) {

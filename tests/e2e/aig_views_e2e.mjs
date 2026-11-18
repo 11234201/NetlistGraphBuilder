@@ -395,6 +395,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await svgPage.setContent(exportedCone);
     assert.deepEqual(await greyObjects(svgPage), outside(y, outputTwo));
     await svgPage.close();
+    await page.locator("#settingsMenu > summary").click();
     await page.locator('[data-domain-policy="critical"]').check();
     await page.locator('[data-domain-policy="fanout"]').check();
     await page.reload();

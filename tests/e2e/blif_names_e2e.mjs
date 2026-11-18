@@ -26,6 +26,15 @@ await runBrowserTest(async ({ browser, url }) => {
       window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
     }, example);
     await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded names.txt"));
+    for (const style of ["abc", "standard"]) {
+      const control = page.locator('[data-domain-policy="viewStyle"]');
+      if (await control.inputValue() !== style) {
+        await control.selectOption(style);
+        await page.waitForFunction(() => document.querySelector("#statusBar").textContent === "AIG view: Standard");
+      }
+      assert.deepEqual((await page.locator('#schematicMount [aria-label^="pi:"] .aig-node-label').allTextContents()).sort(), ["n0", "n1"]);
+      assert.deepEqual((await page.locator('#schematicMount [aria-label^="po:"] .aig-node-label').allTextContents()).sort(), ["n3", "n4"]);
+    }
     await page.locator("#searchInput").fill("in_96");
     const result = page.locator("#searchResults .search-result-main").filter({ hasText: "in_96" });
     assert.match(await result.textContent(), /n0 → n\d+/);
@@ -44,10 +53,15 @@ await runBrowserTest(async ({ browser, url }) => {
     const helper = page.locator("#schematicMount [data-aig-node]").filter({
       has: page.locator("title", { hasText: "Generated for .names n4" })
     }).first();
+    await page.locator("#fitButton").click();
     await helper.click();
     assert.match(await page.locator("#domainInspector").textContent(), /Generated for .names/);
     await page.locator("#fileMenu summary").click();
     const svg = await downloadText("#exportSvgButton");
+    const texts = await page.evaluate((xml) => [...new DOMParser().parseFromString(xml, "image/svg+xml")
+      .querySelectorAll(".aig-node-label")].map((el) => el.textContent), svg);
+    assert.ok(texts.includes("n0") && texts.includes("n4"));
+    assert.ok(texts.every((label) => !label.includes("combined/")));
     assert.match(svg, /in_96/);
     assert.match(svg, /Generated for .names n4/);
 

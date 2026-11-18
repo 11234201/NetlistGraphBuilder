@@ -49,7 +49,7 @@ export function searchAigIndex(index, query = "", limit = 100) {
   for (const entry of index) {
     if (entry.text.includes(field)) {
       const namedPort = (entry.kind === "pi" || entry.kind === "po") &&
-        (entry.label.toLowerCase() === term || entry.sourceRefs.some((ref) =>
+        (entry.label.toLowerCase() === term || entry.primaryNameMapping?.name.toLowerCase() === term || entry.sourceRefs.some((ref) =>
           !ref.alias && (ref.id.toLowerCase() === term || ref.label?.toLowerCase() === term)));
       if (namedPort) {
         ports.push(entry);
@@ -86,5 +86,5 @@ function describeBindings(entry, bindings) {
   const origins = bindings.slice(0, 3).map((ref) => (ref.signalId || ref.id) +
     (ref.inverted ? " (inverted)" : "") + (ref.conflict ? ` / ${ref.name} (conflicting names)` : ""));
   if (bindings.length > origins.length) origins.push(`+${bindings.length - origins.length} more`);
-  return { ...entry, label: first.name || first.label || first.id, detail: `${origins.join(", ")} → ${entry.id}` };
+  return { ...entry, bindings, label: first.name || first.label || first.id, detail: `${origins.join(", ")} → ${entry.id}` };
 }

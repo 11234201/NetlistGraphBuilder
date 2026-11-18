@@ -32,6 +32,7 @@ function migrateVersion1(value) {
     ...value,
     version: SESSION_CODEC_VERSION,
     domainId: "netlist",
+    showPath: null, comparePathView: null,
     documentId: null,
     unitId: value.moduleName || null,
     sourceIdentity: createSourceIdentity(value.sourceLabel, value.source)
@@ -41,6 +42,7 @@ function migrateVersion1(value) {
 function normalizeVersion2(value) {
   return {
     ...value,
+    ...((value.showPath || value.comparePathView) && !value.sourceIdentity?.fingerprint ? { pathSourceUnverified: true } : {}),
     version: SESSION_CODEC_VERSION,
     domainId: typeof value.domainId === "string" && value.domainId ? value.domainId : "netlist",
     documentId: optionalString(value.documentId),

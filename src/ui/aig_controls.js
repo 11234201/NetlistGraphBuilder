@@ -13,7 +13,8 @@ export const aigControls = Object.freeze({
         <option data-current-depth hidden></option><option value="custom">Custom…</option>
       </select>
       <input hidden type="number" min="1" step="1" aria-label="Custom highlight levels" placeholder="Levels">
-    </span>
+    </span>`,
+  overlays: `<h2>AIG overlays</h2>
     <label title="Show the block type at each positive root, before outgoing edge inversion."><input type="checkbox" data-domain-policy="structureLabels" checked>Block labels</label>
     <label title="Select a block or reconvergence result in Analysis to fade nodes and edges outside it."><input type="checkbox" data-domain-policy="structureDim" checked>Dim outside selected result</label>
     <label><input type="checkbox" data-domain-policy="critical">Logical critical path</label>

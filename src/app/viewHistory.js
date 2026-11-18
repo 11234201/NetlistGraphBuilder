@@ -21,6 +21,7 @@ export function createViewHistoryEntry(state, metadata = {}) {
       rootModuleName: state.occurrenceContext.rootModuleName || null,
       occurrencePath: [...(state.occurrenceContext.occurrencePath || [])]
     } : null,
+    showPath: state.showPath || null,
     viewMode: normalizeSingleViewMode(state.viewMode),
     focusedRootNodeIds,
     focusedRootRefs: cloneObjectRefs(state.focusedRootRefs),
@@ -35,6 +36,7 @@ export function createViewHistoryEntry(state, metadata = {}) {
     presentationPolicy: state.presentationPolicy ? { ...state.presentationPolicy } : null,
     overrides: snapshotOverrides(state),
     compare: state.compare?.active ? {
+      showPath: { ...state.compare.showPath },
       leftModuleName: state.compare.leftModuleName || null,
       rightModuleName: state.compare.rightModuleName || null,
       layout: state.compare.layout || "vertical",
@@ -98,6 +100,7 @@ function cloneEntry(entry = {}) {
       occurrencePath: Array.isArray(entry.occurrenceContext.occurrencePath)
         ? [...entry.occurrenceContext.occurrencePath] : []
     } : null,
+    showPath: entry.showPath || null,
     viewMode: normalizeSingleViewMode(entry.viewMode),
     focusedRootNodeIds: [...roots],
     focusedRootRefs: cloneObjectRefs(entry.focusedRootRefs),
@@ -111,6 +114,7 @@ function cloneEntry(entry = {}) {
     presentationPolicy: entry.presentationPolicy ? { ...entry.presentationPolicy } : null,
     overrides: cloneOverrides(entry.overrides),
     compare: entry.compare ? {
+      showPath: { ...entry.compare.showPath },
       leftModuleName: entry.compare.leftModuleName || null,
       rightModuleName: entry.compare.rightModuleName || null,
       layout: entry.compare.layout === "horizontal" ? "horizontal" : "vertical",

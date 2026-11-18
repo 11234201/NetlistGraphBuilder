@@ -51,6 +51,7 @@ export function createCompareViewSessionBridge({
 
   function project(side, session, select = false) {
     ensureProjectionContainers(state.compare);
+    state.compare.showPath = { ...state.compare.showPath, [side]: session.showPath || null };
     projectCompareViewState(state.compare, side, session);
     const value = projectNavigation(session, graphFor(side), pendingNavigation.get(side));
     for (const key of ["focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId"]) {
@@ -158,6 +159,10 @@ export function createCompareViewSessionBridge({
   }
 
   return Object.freeze({
+    setShowPath(side, showPath) {
+      const s = ensure(side);
+      project(side, sessions.update(s.sessionId, () => ({ showPath })));
+    },
     sessions, ensure, replaceRoots, dispatch, refreshNavigation, importState, readState: ensure,
     isWorkspaceReady: () => Boolean(!state.compare.layoutAbortController && state.compare.workspaceIdentity && state.compare.graphs?.left && state.compare.graphs?.right),
     resetState() {
@@ -184,6 +189,7 @@ export function createCompareViewSessionBridge({
         const snapshot = snapshotNavigationImport(importedSide(value, side));
         const graph = graphFor(side);
         const next = sessions.update(current.sessionId, () => ({
+          showPath: value.showPath?.[side] || null,
           ...resolveNavigationImport(snapshot, current, graph),
           viewMode: snapshot.focusedRootNodeIds.length ? "focused" : "whole",
           ...importViewState(compareSideViewState(value, side), current)

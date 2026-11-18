@@ -138,6 +138,7 @@ async function search(page, name, { add = false, kind = "instance", moduleName =
   }).filter({ has: page.locator(".search-result-kind", { hasText: new RegExp(`^${kind}$`, "i") }) });
   if (moduleName) row = row.filter({ has: page.locator(".search-result-context", { hasText: new RegExp(` / ${moduleName}$`) }) });
   assert.equal(await row.count(), 1, `Unique ${kind} result for ${name}`);
+  if (add) await row.locator("[data-search-actions]").click();
   await row.locator(add ? "[data-search-add-index]" : "[data-search-index]").click();
   await page.locator("#searchResults").waitFor({ state: "hidden" });
 }

@@ -2,7 +2,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
   const activeByKey = new Map();
   let nextJobId = 1;
 
-  function start({ sessionId, kind, run, onProgress = () => {}, isScopeCurrent }) {
+  function start({ sessionId, kind, run, onProgress = () => {}, isScopeCurrent, prepareOnly = false }) {
     if (typeof run !== "function") throw new Error("Job run function is required");
     const session = sessions.require(sessionId);
     const document = documents.require(session.documentId);
@@ -21,9 +21,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
           release(context);
           return Object.freeze({ status: "stale", context });
         }
-        release(context);
-        const artifact = artifacts.put({ kind, context, value });
-        return Object.freeze({ status: "committed", context, artifact });
+        return finish(context, value, prepareOnly);
       },
       (error) => {
         if (!isCurrent(context)) {
@@ -37,7 +35,7 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
     return Object.freeze({ context, promise, cancel: () => cancelContext(context) });
   }
 
-  function runSync({ sessionId, kind, run, onProgress = () => {} }) {
+  function runSync({ sessionId, kind, run, onProgress = () => {}, prepareOnly = false }) {
     if (typeof run !== "function") throw new Error("Job run function is required");
     const session = sessions.require(sessionId);
     const document = documents.require(session.documentId);
@@ -56,13 +54,31 @@ export function createJobCoordinator({ documents, sessions, artifacts }) {
         release(context);
         return Object.freeze({ status: "stale", context });
       }
-      release(context);
-      const artifact = artifacts.put({ kind, context, value });
-      return Object.freeze({ status: "committed", context, artifact });
+      return finish(context, value, prepareOnly);
     } catch (error) {
       release(context);
       throw error;
     }
+  }
+
+  function finish(context, value, prepareOnly) {
+    const record = { kind: context.kind, context, value };
+    if (!prepareOnly) {
+      release(context);
+      return Object.freeze({ status: "committed", context, artifact: artifacts.put(record) });
+    }
+    let staged;
+    try { staged = artifacts.prepare(record); }
+    catch (error) { release(context); throw error; }
+    return Object.freeze({ status: "prepared", context, artifact: staged.artifact, cancel: () => cancelContext(context),
+      publish() {
+        if (!isCurrent(context)) {
+          release(context);
+          return Object.freeze({ status: "stale", context });
+        }
+        release(context);
+        return Object.freeze({ status: "committed", context, artifact: staged.publish() });
+      } });
   }
 
   function isCurrent(context) {

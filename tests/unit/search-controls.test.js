@@ -18,6 +18,9 @@ test("search controls dispatch Enter and explicit Add and clear persisted query"
     onAdd: (result) => actions.push(["add", result.label]),
     onChange: (state) => { query = state.searchQuery; }
   });
+  controls.handleSearchInput({ openResults: false });
+  assert.equal(elements.searchResults.hidden, true);
+  assert.equal(query, "unique_cell");
   controls.handleSearchInput();
   assert.equal(elements.searchResults.hidden, false);
   controls.handleSearchKeydown({ key: "Enter", preventDefault() {} });

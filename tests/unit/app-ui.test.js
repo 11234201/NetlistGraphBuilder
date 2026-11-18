@@ -193,9 +193,9 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(topbar, /id="cellConfigMenu"/);
   assert.match(topbar, /class="topbar-search"[\s\S]*id="searchInput"/);
   assert.doesNotMatch(html, /class="panel-section search-panel"/);
-  assert.doesNotMatch(topbar, /id="layoutProviderSelect"|id="timingSnapshotSelect"|id="wireSpacingInput"/);
-  assert.match(contextbar, /id="layoutMenu"[\s\S]*id="layoutProviderSelect"/);
-  assert.match(contextbar, /id="timingMenu"[\s\S]*id="timingMetricSelect"/);
+  assert.doesNotMatch(contextbar, /id="layoutProviderSelect"|id="timingSnapshotSelect"|id="wireSpacingInput"/);
+  assert.match(topbar, /id="settingsMenu"[\s\S]*id="layoutMenu"[\s\S]*id="layoutProviderSelect"/);
+  assert.match(topbar, /id="settingsMenu"[\s\S]*id="timingMenu"[\s\S]*id="timingMetricSelect"/);
 });
 
 test("app forwards both Focused depths into the module workspace", async () => {

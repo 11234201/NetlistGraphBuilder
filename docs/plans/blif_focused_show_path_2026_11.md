@@ -1,8 +1,8 @@
 # BLIF 适配与网表局部路径分析实施计划
 
-2026-11-18 已实现 R1–R5。P6 的验证记录见第 16 节。P7 保留多端点 Show Path、两种 level、界面与存档。
+2026-11-18 已实现 R1–R6。第 16 节分别记录 P6 先行验收和 P7 Show Path 验收。
 
-本计划让 BLIF 能导入完整的两输入逻辑并追溯设计名称，为 AIG 增加 Focused，并在 Netlist 和 AIG 中提供可与 Focused 配合的 Show Path。两侧重收敛均限定于当前展示的逻辑子图。路径信息同时列出起点、终点、源图 level 和相对 level。
+本计划让 BLIF 能导入完整的两输入逻辑并追溯设计名称，为 AIG 增加 Focused，并在 Netlist 和 AIG 中提供可与 Focused 配合的 Show Path。两侧重收敛均限定于当前展示的逻辑子图。路径信息同时列出起点、终点、到本次终点及从起点计算的逻辑级数。
 
 ## 1 已确认需求与交付边界
 
@@ -47,7 +47,7 @@ P0 先核对日志与失败基线，P6 独立验收前五项。P7 只能在 P6 �
 
 | 图 | 内容与用途 |
 | --- | --- |
-| `sourceLogicalGraph` | 当前模块/occurrence 或 AIG 的完整语义连接。用于端点解析、Show Path、源图 level；不含布局 dummy、hub 等装饰节点 |
+| `sourceLogicalGraph` | 当前模块/occurrence 或 AIG 的完整语义连接。用于端点解析、Show Path、到查询终点的距离；不含布局 dummy、hub 等装饰节点 |
 | `pathLogicalGraph` | Show Path 开启时，源图中满足查询的路径并集或单端 cone；关闭时等于源图 |
 | `visibleLogicalGraph` | 在路径结果上应用 Focused 后，实际选入当前视图的真实节点和连接。重收敛只消费此图 |
 
@@ -176,8 +176,8 @@ Focused 截断处单列“当前显示边界”，不能替换或冒充用户指
 
 | 字段 | 定义 |
 | --- | --- |
-| 源图 level | 当前完整源图组合区段中，从合法源边界到对象的最长逻辑深度；裁剪、布局、显示模式变化均不重编号 |
-| 相对 level | 从指定或自动确定的实际起点到对象，合法路径上的最小/最大逻辑深度；显示为 `min…max`，相等时显示一个数 |
+| To selected end(s) / To auto end(s) | 从该点到本次所选或自动识别的终点的最短和最长逻辑级数。计算在 Focused 裁剪之前完成 |
+| From start | 从指定或自动确定的实际起点到对象，合法路径上的最小/最大逻辑深度；显示为 `min…max`，相等时显示一个数 |
 
 AIG 的 PI/常量为 0，AND 增加 1，反相边和 PO 增加 0，保持现有 `AND depth` 口径。XOR 分解后按实际 AND 深度计数，通常为两级，不能按原 `.names` 数量计成一级。
 
@@ -257,7 +257,7 @@ Netlist 在 Navigator 增加 Analysis/Reconvergence，在 Inspector 提供结果
 
 分析作用域键至少包括 document/source revision、unit/occurrence、有效连接配置版本、当前真实节点/边成员及分析策略版本。详情缓存不能只用 `(stem, merge)`，还须包含作用域。拓扑相同的布局变化复用分析；Show Path 变化而 Focused 后成员未变时，可复用重收敛，但路径 level/端点信息按新路径查询更新。
 
-源图 level 缓存不随 Focused 失效；相对 level 缓存按完整 Path 查询失效；重收敛缓存按 visible scope 失效。名称显示或面板分页不触发这些计算。成员指纹使用稳定顺序，不依赖 parser 数组或 DOM 挂载顺序。
+两个方向的级数按完整 Path 查询缓存，不随 Focused 失效；重收敛缓存按 visible scope 失效。名称显示或面板分页不触发这些计算。成员指纹使用稳定顺序，不依赖 parser 数组或 DOM 挂载顺序。
 
 新增查询状态使用可序列化数组和对象，不保存计算索引 Map、Worker、闭包或 Scene；不扩大既有快照工具的拒绝范围。Artifact 的快照仍允许已有惰性 Scene 读者，不能将 Session 的严格规则套到渲染产物上。
 
@@ -369,11 +369,11 @@ P6 是前五项的独立验收门禁，不代表必须先发布版本或推送�
 
 **P7 Show Path 最后实施**
 
-- [ ] **S71 路径与双 level**：落实第 6、7 节的多源/多终点可达并集、单端 cone、端点展开、组合边界与 min/max；增加独立路径 oracle 和访问/内存预算验证。
-- [ ] **S72 组合查询**：在两领域实现 Path→Focused→visible scope，复用已有 Focused 与重收敛范围边界；此时才接入 `pathLogicalGraph` 和相关缓存键。
-- [ ] **S73 独立操作界面**：接入起终点搜索/Add as start/end、Apply/Clear、Whole 与 Path 独立状态、端点/双 level 信息区和范围外搜索行为；不逐键布局。
-- [ ] **S74 历史与导出**：此时扩展 ViewSession、Netlist/AIG 存档、Compare 独立 Path、Golden 格式和 SVG 查询说明，迁移 P4 已交付的 Focused 存档。
-- [ ] **S75 最终验收**：运行 R6 及所有组合/回归/离线验证；实际触发无路径、非法/歧义端点、预算、取消、存档和导出失败并检查日志。R1–R5 与 Simple 冻结对照继续有效。
+- [x] **S71 路径与双 level**：落实第 6、7 节的多源/多终点可达并集、单端 cone、端点展开、组合边界与 min/max；增加独立路径 oracle 和访问/内存预算验证。
+- [x] **S72 组合查询**：在两领域实现 Path→Focused→visible scope，复用已有 Focused 与重收敛范围边界；此时才接入 `pathLogicalGraph` 和相关缓存键。
+- [x] **S73 独立操作界面**：接入起终点搜索/Add as start/end、Apply/Clear、Whole 与 Path 独立状态、端点/双 level 信息区和范围外搜索行为；不逐键布局。
+- [x] **S74 历史与导出**：此时扩展 ViewSession、Netlist/AIG 存档、Compare 独立 Path、Golden 格式和 SVG 查询说明，迁移 P4 已交付的 Focused 存档。
+- [x] **S75 最终验收**：运行 R6 及所有组合/回归/离线验证；实际触发无路径、非法/歧义端点、预算、取消、存档和导出失败并检查日志。R1–R5 与 Simple 冻结对照继续有效。
 
 ### 12.4 每项功能必须交付的日志证据
 
@@ -402,7 +402,7 @@ P6 是前五项的独立验收门禁，不代表必须先发布版本或推送�
 | 顺序无关 | 节点/边/声明/cover/映射行/起终点/roots 排列；输入与 cover 列同步交换 | 逻辑、结果成员、规范化身份、见证选择及布局满足各自确定性约束 |
 | AIG Focused | PI/PO/AND 多根，深度 0/1/多级，重叠、边界极性、搜索追加/替换、Whole | 真正只布局目标子图，两种 AIG View 与导出范围一致，源模型未变 |
 | Show Path | 多起多终、交叉与重叠路径、单端 cone、S=T、部分/全部不可达、Path 外搜索 | 成员与小 DAG 的独立全路径 oracle 一致；不把路径列表穷举带入生产实现 |
-| level | 长短分支、多个来源、仅终点、起点为内部逻辑门、XOR、BUF/INV、寄存器/黑盒边界 | 源图 level 和相对 min/max 单位准确，Focus 前后不变，未知/partial 不伪装精确 |
+| level | 长短分支、多个来源、仅终点、起点为内部逻辑门、XOR、BUF/INV、寄存器/黑盒边界 | 到本次终点及从起点的 min/max 单位准确，Focus 前后不变，未知/partial 不伪装精确 |
 | 组合边界 | 多输出 cell、不同源 pin、层次边界、DFF 数据/时钟/复位、未知/inout、多驱动、组合环 | 不穿越禁止边界、不合并独立来源，异常范围和完整性明确 |
 | 重收敛正确性 | 两条独立路径、嵌套/重叠、公共尾段、退化重复输入、同 cell 不同 pin、常量 | 当前子图 oracle 一致，两条见证真实且内部独立，额外路径详情限同一 scope |
 | 范围负例 | 全图有重收敛但一条支路/分叉点被裁掉；只在隐藏区能连通；切换范围 | 不报告全图结果；缩放/平移不改变结果，改变查询才正确失效 |
@@ -466,7 +466,7 @@ mapped 执行前在 Linux 设置 `MAPPED_CASE_NO_COLLAPSE=1`，正式记录所�
 
 每阶段记录以本文件为唯一实施进度入口，已有 AIG 专项计划保留历史验收。只有当 R1–R6 功能、回归、离线验证及明确的性能边界都有证据时，才可标记本轮完成。
 
-R1–R5 的先行完成状态由 P6 独立记录，允许在 R6 尚未开始时明确交付前五项；不能为了等待 Show Path 而推迟已有功能的日志、文档和离线验证。本次开发范围以 P6 为终点。
+R1–R5 的先行完成状态由 P6 独立记录，允许在 R6 尚未开始时明确交付前五项；不能为了等待 Show Path 而推迟已有功能的日志、文档和离线验证。先行交付以 P6 为终点。后续 P7 的交付单独记录在第 16 节。
 
 ## 16 当前交付记录
 
@@ -506,4 +506,36 @@ R1–R5 的先行完成状态由 P6 独立记录，允许在 R6 尚未开始时�
 首轮共享内核在相同 8M 工作预算下，99k 重收敛样例从 642 对降至 385 对。修复对有界双输入的重复计费后，20 个 AIG 样例各 3 次的状态、块数、重收敛数均与基线一致。99k 重收敛与 parity 分别保留 642 和 643 对，预算耗尽的结果继续标注 partial。原始轮次见 `perf_{base,work}_*`，修正后的结构分析见 `revised_work_structure_{1,2,3}.*`。新用例可用 `node --expose-gc tools/benchmark_blif_focused.mjs` 配合 `blif-import`、`blif-focused`、`netlist-chain` 或 `netlist-fanout` 复现，结果在 `extra_*.json`。
 
 Windows 使用本机 .NET Framework 编译启动器，执行 `npm run release:windows -- -SkipTests -PackageSuffix p6-3132ddc`。完整单测已在 Linux 独立运行。使用 `tests/e2e/windows-aig-release-smoke.mjs` 验证包内 EXE、离线 WASM、映射 OR/XOR、Focused 裁剪后重收敛清零、UNIT 标题及 Netlist 分析 Worker。打包程序核对 vendored Graphviz 清单并携带 ELK/Graphviz 许可证。ZIP 与 SHA-256 位于本机 `dist/`，浏览器报告在 `dc_runs/windows_p6_3132ddc/report.json`。 已验证 15 项，页面异常及外部请求均为 0。逐字节比对 ZIP 内的 354 个运行时 JavaScript 文件与实现提交，差异为 0。包 SHA-256 为 `79eb94827c685b30e8b9c28fcfa0a2dcb1b8d68833999cc2dc1d67877c929ffb`。
+
+### 2026-11-18 P7 Show Path 验收
+
+从 `3018045` 开始实施。Netlist Single、Compare A/B 和 AIG Single 均支持 Show Path。打开[映射 BLIF 样例](../../examples/aig_mapped_names.blif)，选择 PI `in_96` 到 PO `n4`，即可复现两级 XOR。详细操作见[使用指南](../USER_GUIDE.md)。
+
+| 任务 | 实现与验证 |
+| --- | --- |
+| S71 路径与 level | 在 64 个四节点 DAG 上独立枚举路径，核对并集、真实线及相对最短/最长级数。另测自动边界超过 32、S=T、环、多驱动、Liberty 多输出、独立 pin、BUF/INV、寄存器和层次边界。重排声明及选择顺序后核对路径报告与默认 provider 布线。 |
+| S72 Focused 与分析 | 两领域均先求完整路径，再裁剪 Focused。检验裁掉分支后重收敛见证消失、旁路显示边界保留、源图及相对级数保持一致。 |
+| S73 端点操作 | 浏览器覆盖多起多终、单端、无路径、partial、两侧独立与切换。取消或注入离屏 SVG 渲染失败均保留原 SVG。预算异常和多驱动分别记录有上下文的 warning，可展开 Log 详情及导出 JSONL。 |
+| S74 历史与导出 | Apply、启停、Clear、撤销、刷新、Golden v4 往返、AIG 存档 v2、来源或端点过期、Compare 单侧 SVG 及下载错误均有验证。候选计算产物在各侧渲染成功后一起发布。同步和异步模式均测试了失败、取消与被新任务取代。 |
+| S75 全量回归 | Linux 完整单测、架构、映射网表、AIG、浏览器、性能，以及 Windows EXE 离线烟测分别执行。 |
+
+Linux 日志位于 `mfs-remote:/home/wzh/my_code/netlistGraphBuilder/show_path_UuNgv4/logs/`。使用 Node 24.16.0 和 Chrome 146.0.7680.164。
+
+- `npm test` 通过 1,361 项，包含布局 determinism 和 fixture invariants。`test:architecture` 检查 362 个模块、881 条依赖，未解析依赖、越层依赖和循环均为 0。`test:aig` 通过 103 项。原始输出见 `complete-unit.log`、`delivered-unit.log`。
+- `MAPPED_CASE_NO_COLLAPSE=1 MAPPED_HARD_INVARIANTS=1 npm run test:mapped-cases` 通过 47/47，使用默认 `native-layered`，硬违规为 0。末轮最长布局 35.006 秒，最高堆 596 MiB。见 `final-mapped.log`。用显式 Simple 重算 `tc_unit_generic.v` 的 209 个节点、560 条边，开发前后的几何、布线、状态和诊断摘要同为 `0bd211bd4df62c1bd143c42b0f79fc774ad244d91524fdfc858850234282a1b0`。
+- `test:show-path-browser`、`test:scoped-logic-browser`、`test:workbench`、`test:ui-workbench`、`test:process-log`、`test:aig-browser`、`test:aig-views`、`test:aig-structure` 和 AIG storage E2E 通过。见 `complete-browser.log`。早期架构接线及存档恢复测试的失败输出保留在同目录。
+- 策略上限为每侧 32 个显式端点、源图索引 400,000 个对象，每端最多报告 4,096 个展开项，每页 20 行。每个来源的距离按需计算。自动边界使用独立的报告上限。源图索引与单次查询同步执行。取消覆盖布局和渐进渲染阶段。
+
+专项基准使用 `node --expose-gc tools/benchmark_blif_focused.mjs blif-path` 和 `netlist-path`，各预热 1 次、测量 5 次。下表为毫秒中位数 / P95（nearest-rank），RSS 为整个 Node 进程峰值。计数统计正反向可达遍历对逻辑顶点和弧的访问次数，门内引脚弧也计入。
+
+| 输入 | 建索引 | 路径查询 | 查询规模与访问 | 峰值 RSS |
+| --- | ---: | ---: | --- | ---: |
+| AIG 12,289 节点、12,288 边，32 起点/32 终点 | 64.1 / 73.3 | 5.1 / 7.2 | 结果 65 节点、64 线，访问 8,321 点、8,319 弧 | 221 MiB |
+| Netlist 12,292 节点、20,482 边，4,096 个串接菱形，2 起点/1 终点 | 330.1 / 344.6 | 349.3 / 362.2 | 覆盖全部真实线，访问 90,120 个逻辑顶点、106,500 条弧 | 384 MiB |
+
+常规 `npm run benchmark` 在同机固定 CPU 12–15，默认 `native-layered`，每个尺寸预热后测 3 次。开发前后各开 3 个独立进程，以 8,192-cell 管线中位数汇总中位数 / P95。先跑基线的轮次为基线 4.917 / 5.695 秒、P7 5.588 / 5.789 秒。反转先后顺序复测为基线 4.813 / 5.820 秒、P7 4.892 / 5.819 秒，两版峰值 RSS 分别为 564 和 593 MiB。两个轮次的三个尺寸均为零违规。各进程测量见 `{baseline,work}_perf_*.log`、`quiet_{baseline,work}_*.log`。
+
+专项基准原始样本见 `released-blif.log`、`released-net.log`。`npm run benchmark:aig` 和 `benchmark:aig-structure` 也已执行，99k 重收敛和 parity 分别保留 642 和 643 对，见 `aig-perf.log`。
+
+Windows 在本机执行 `npm run release:windows -- -SkipTests -PackageSuffix p7-show-path`，完整单测在 Linux 执行。使用 `tests/e2e/windows-aig-release-smoke.mjs` 启动包内 EXE，通过 16 项检查，包括离线 Graphviz、映射 XOR 的 Path 与双 level。外部请求和页面异常均为 0。报告在 `dc_runs/windows_p7_show_path/report.json`。ZIP 内 361 个运行时 JavaScript、HTML、CSS、使用指南和样例均与工作区逐字节一致，包含 ELK/Graphviz 许可证。ZIP 的 SHA-256 为 `c8fe2fb5ffd33df0e9a899b2ff4efc06077baa9e5241257681075099afda5b34`。
 

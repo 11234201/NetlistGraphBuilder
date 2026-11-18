@@ -1,3 +1,4 @@
+import { aigPathIndex } from "./show_path.js";
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createDocumentEnvelope } from "../../contracts/document.js";
 import { importAigSource } from "./aig_import.js";
@@ -32,6 +33,7 @@ export const aigFeature = defineDomainFeature({
   buildSearchIndex: (document) => buildAigSearchIndex(document.model.model),
   search: searchAigIndex,
   queryView: queryAigView,
+  pathIndex: aigPathIndex,
   restoreFocus: restoreAigFocus,
   projectDiagram: projectAigDiagram,
   normalizePresentation: normalizeAigPresentation,
@@ -46,9 +48,10 @@ export const aigFeature = defineDomainFeature({
       project: projectAigDiagram,
       measure: (diagram) => diagram,
       async layout(diagram, { document, signal }) {
+        if (signal?.aborted) throw Object.assign(new Error("AIG layout cancelled"), { name: "AbortError" });
+        if (diagram.dot === null) return { kind: "curve-geometry.v1", bounds: { width: 1, height: 1 }, nodes: [], edges: [] };
         const key = JSON.stringify([document.documentId, document.sourceRevision, document.model.model.normalizationVersion,
           AIG_DISPLAY_VERSION, AIG_FONT, layout.version, diagram.dot]);
-        if (signal?.aborted) throw Object.assign(new Error("AIG layout cancelled"), { name: "AbortError" });
         if (cache.has(key)) {
           const value = cache.get(key); cache.delete(key); cache.set(key, value); return value;
         }
@@ -72,7 +75,7 @@ export const aigFeature = defineDomainFeature({
     const query = createAigQuery(document.model.model, document.model.analysis);
     const view = pipeline.queryResult;
     const displayQuery = createAigQuery(view.model, view.analysis);
-    return { geometry: pipeline.graph, scene: pipeline.scene, query, displayQuery, searchIndex: index,
+    return { searchFirst: Boolean(view.searchFirst), path: view.path || null, outsideRoots: view.outsideRoots || [], geometry: pipeline.graph, scene: pipeline.scene, query, displayQuery, searchIndex: index,
       displayModel: view.model, displayAnalysis: view.analysis, analysisModel: view.analysisModel || view.model,
       analysisScopeId: view.analysisScopeId || "whole", analysisScopeLabel: view.analysisScopeLabel || "whole",
       visibleNodeIds: view.visibleNodeIds, visibleEdgeIds: view.visibleEdgeIds,
@@ -91,6 +94,7 @@ export const aigFeature = defineDomainFeature({
 });
 
 function projectAigDiagram(imported, { presentationPolicy } = {}) {
+  if (!imported.model.nodes.length) return { dot: null };
   return { dot: projectAigDot(imported.model, presentationPolicy),
     nodeLabels: new Map(imported.model.nodes.map((node) => [node.id, node.label])) };
 }

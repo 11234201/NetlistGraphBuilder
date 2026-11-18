@@ -1,3 +1,6 @@
+import { svgElement, svgText, serializeSvgPrimitive } from "./svg_scene_renderer.js";
+import { levelText } from "../contracts/show_path.js";
+
 const EXPORT_CSS = `
 :root { --wire: #64748b; --selected: #c2410c; }
 .schematic-svg { background: #f4f6f8; font-family: "Segoe UI", Arial, sans-serif; }
@@ -15,6 +18,11 @@ const EXPORT_CSS = `
 .node.focus-input .node-shape, .node.focus-output .node-shape { fill: #f5f3ff; stroke: #7c3aed; stroke-dasharray: 5 3; }
 .node.focused-root .node-shape { stroke: #7c3aed; stroke-width: 2.8; }
 .node.focused-root-active .node-shape { stroke: #5b21b6; stroke-width: 4; }
+[data-recon-role="a"] { --recon-color: #1776c8; }
+[data-recon-role="b"] { --recon-color: #b45a16; }
+[data-recon-role="shared"] { --recon-color: #833fa4; }
+[data-recon-role="region"] { --recon-color: #368577; }
+.node[data-recon-role] .node-shape, .edge[data-recon-role] .wire { stroke: var(--recon-color); stroke-width: 3.2; }
 .gate-kind { font-size: 12px; font-weight: 700; fill: #111827; }
 .node-label { font-size: 11px; fill: #475569; }
 .node-meta { font-size: 8px; fill: #687789; }
@@ -27,8 +35,9 @@ const EXPORT_CSS = `
 .pin-critical { fill: #b91c1c; stroke: #b91c1c; }
 `;
 
-export function createStandaloneSvg(svgMarkup) {
-  const markup = String(svgMarkup || "");
+export function createStandaloneSvg(svgMarkup, path, scope = "", display = {}) {
+  let markup = String(svgMarkup || "");
+  if (path) markup = appendPathReport(markup, path, scope, display);
   const openingEnd = markup.indexOf(">");
   if (!markup.startsWith("<svg") || openingEnd < 0) {
     throw new Error("Expected SVG markup");
@@ -36,4 +45,26 @@ export function createStandaloneSvg(svgMarkup) {
   const opening = markup.slice(0, openingEnd)
     .replace(/\sxmlns="[^"]*"/, "") + ' xmlns="http://www.w3.org/2000/svg">';
   return `<?xml version="1.0" encoding="UTF-8"?>\n${opening}<style>${EXPORT_CSS}</style>${markup.slice(openingEnd + 1)}`;
+}
+
+function appendPathReport(markup, path, scope, display) {
+  const bounds = /viewBox="0 0 (\d+) (\d+)"/.exec(markup);
+  if (!bounds) throw new Error("Show Path SVG requires scene bounds");
+  const lines = ["Show Path · " + scope, [path.status, ...path.reasons,
+    path.nodeIds.size + " nodes", path.edgeIds.size + " wires"].join(" · ")];
+  if (display.boundaries) lines.push("Display boundaries: " + display.boundaries.length);
+  if (display.truncated) lines.push("Focused budget reached");
+  for (const [title, rows, count, automatic] of [["Starts", path.starts, path.startCount, path.automaticStarts],
+    ["Ends", path.ends, path.endCount, path.automaticEnds]]) {
+    lines.push(title + " (" + count + (automatic ? ", automatic)" : ")"));
+    for (const row of rows) lines.push((row.name && row.name !== row.label ? row.name + " → " : "") +
+      row.label + " · " + levelText(row) + (!row.reachable ? " · unreachable" : display.visible && !display.visible.has(row.displayId) ? " · outside Focused" : ""));
+    if (rows.length < count) lines.push("Endpoint list truncated at " + rows.length);
+  }
+  const width = lines.reduce((w, line) => Math.max(w, 32 + 14 * line.length), Number(bounds[1]));
+  const height = Number(bounds[2]), lineHeight = 19;
+  const text = lines.map((line, i) => svgElement("text", { x: 16, y: height + (i + 1) * lineHeight }, [svgText(line)]));
+  const report = serializeSvgPrimitive(svgElement("g", { "aria-label": "Show Path", fill: "#213247", "font-size": 13 }, text));
+  return markup.replace(bounds[0], `viewBox="0 0 ${width} ${height + (lines.length + 1) * lineHeight}"`)
+    .replace(/<\/svg>$/, () => report + "</svg>");
 }

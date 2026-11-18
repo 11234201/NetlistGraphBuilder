@@ -5,8 +5,34 @@ import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createSearchNavigationController({ state, elements, services }) {
+export function createSearchNavigationController({ state, elements, services, comparePathScope = () => null }) {
+  function handleComparePath(result, add) {
+    const scope = comparePathScope(result);
+    if (!scope || result.kind === "module") return false;
+    const target = result.target;
+    if (!scope.graph.path.searchKeys.has(JSON.stringify([target.kind, target.name]))) {
+      services.setStatus("Outside Show Path · Add as start or end to edit the query.");
+      return true;
+    }
+    elements.searchResults.hidden = true;
+    if (!add && resolveSearchTargetAction(target, scope.graph) === "locate") scope.select();
+    else runFocusedViewCommand({
+      command: { type: "focus.add", objectRef: scope.ref }, dispatch: scope.dispatch,
+      readGraph: () => scope.graph, isReady: scope.ready, rebuild: scope.rebuild,
+      resetViewport: () => {}, onRendered: scope.select, onRejected: () => services.setStatus("Focused root limit reached")
+    });
+    return true;
+  }
+
+  function outsidePath(result) {
+    const path = state.graph?.moduleName === result?.moduleName && state.graph?.path;
+    if (path && result?.target && result.target.kind !== "module") return !path.searchKeys.has(JSON.stringify([result.target.kind, result.target.name]));
+    return Boolean(result?.outsidePath && state.currentModule?.name !== result?.moduleName);
+  }
+
   function activateSearchResult(result) {
+    if (handleComparePath(result, false)) return;
+    if (outsidePath(result)) { services.setStatus("Outside Show Path · Add as start or end to edit the query."); return; }
     if (!result) {
       return;
     }
@@ -58,8 +84,9 @@ export function createSearchNavigationController({ state, elements, services }) 
     }
 
     const fullNode = findSearchTargetNode(target, state.fullGraph);
-    if (target.kind === "cell" && fullNode) {
-      const action = resolveSearchTargetAction(target, state.graph, state.fullGraph);
+    if ((target.kind === "cell" || (state.graph?.path && target.kind === "port")) && fullNode) {
+      const action = state.graph?.path && target.kind === "port" && !findSearchTargetNode(target, state.graph) ? "focus"
+        : resolveSearchTargetAction(target, state.graph, state.fullGraph);
       const positioned = action === "locate" ? findSearchTargetNode(target, state.graph) : null;
       if (action === "locate" && positioned) {
         services.setSelectedNode(positioned.id, false);
@@ -106,6 +133,8 @@ export function createSearchNavigationController({ state, elements, services }) 
   }
 
   function addSearchResultToFocus(result) {
+    if (handleComparePath(result, true)) return;
+    if (outsidePath(result)) { services.setStatus("Outside Show Path · Add as start or end to edit the query."); return; }
     if (!result || !["cell", "net"].includes(result.target?.kind)) return;
     if (state.currentModule?.name !== result.moduleName) {
       services.selectModule(result.moduleName, { onRendered: () => addSearchResultToFocus(result) });

@@ -75,6 +75,7 @@ await runBrowserTest(async ({ browser, url }) => {
     const outside = page.locator("#schematicMount [data-domain-object]:not([data-aig-analysis-role])").first();
     const opacity = (element) => getComputedStyle(element).opacity;
     assert.equal(await outside.evaluate(opacity), "0.22");
+    await page.locator("#settingsMenu > summary").click();
     await dim.uncheck();
     assert.equal(await outside.evaluate(opacity), "1");
     assert.ok(await page.locator('[data-aig-analysis-role="block"]').count());
@@ -85,6 +86,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator('[data-domain-policy="structureLabels"]').check();
     assert.deepEqual(await geometry(page), before);
     assert.equal(await page.evaluate(() => window.__structureTest.layouts), calls.layouts);
+    await page.keyboard.press("Escape");
     await page.screenshot({ path: join(artifacts, "mux.png") });
     const downloadEvent = page.waitForEvent('download');
     for (const menu of await page.locator('#exportSvgButton').locator('xpath=ancestor::details').all()) {

@@ -134,6 +134,7 @@ try {
         assert.ok(Number.isFinite(observed.layoutMs) && Number.isFinite(observed.firstVisibleSvgMs));
         const geometryBefore = await page.locator("#schematicMount .aig-edge-path").evaluateAll((paths) => paths.map((path) => path.getAttribute("d")));
         const highlights = [];
+        await page.locator("#settingsMenu > summary").click();
         for (let index = 0; index < 6; index += 1) {
           const start = await page.evaluate(() => performance.now());
           await page.locator('[data-domain-policy="critical"]').setChecked(index % 2 === 1);
@@ -141,6 +142,7 @@ try {
         }
         assert.equal(await page.evaluate(() => window.__aigPerf.calls.length), observed.calls);
         assert.deepEqual(await page.locator("#schematicMount .aig-edge-path").evaluateAll((paths) => paths.map((path) => path.getAttribute("d"))), geometryBefore);
+        await page.keyboard.press("Escape");
         report.samples.push({ name: scenario.name, run, totalMs, ...observed, ...memory,
           highlightRoundTripMs: highlights, note: "Highlight timings include Playwright action overhead; no layout request or path change" });
       }

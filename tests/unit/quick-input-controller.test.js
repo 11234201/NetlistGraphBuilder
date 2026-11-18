@@ -467,6 +467,24 @@ test("paste dialog shows progress and prevents repeated submissions until comple
   assert.equal(calls[0].options.request.signal.aborted, false, "success must not cancel the committed workspace");
 });
 
+test("the File Search-first default does not overwrite the last explicit paste choice", () => {
+  const elements = inputElements();
+  elements.aigSearchFirstInput = { checked: false };
+  const controller = createQuickInputController({ elements, windowTarget: eventTarget(), schedule: (run) => run() });
+  const view = elements.textForm.querySelector("[data-aig-input-view]");
+  controller.openDialog("aig");
+  view.value = "standard";
+  view.listeners.change();
+  controller.closeDialog();
+  elements.aigSearchFirstInput.checked = true;
+  controller.openDialog("aig");
+  assert.equal(view.value, "search-first");
+  controller.closeDialog();
+  elements.aigSearchFirstInput.checked = false;
+  controller.openDialog("aig");
+  assert.equal(view.value, "standard");
+});
+
 test("an AIG timeout is visible in the dialog and permits Logic View retry with the same source", async () => {
   const elements = inputElements(), policies = [];
   const controller = createQuickInputController({ elements, windowTarget: eventTarget(), setStatus() {}, schedule: (run) => run(),

@@ -79,6 +79,9 @@ export function prepareCompareWorkspace(options = {}) {
     searchFirstThreshold: options.searchFirstThreshold,
     forceWhole: options.forceWhole
   });
+  for (const side of ["left", "right"]) {
+    if (options.showPath?.[side]?.enabled && workspaceInputs[side]?.viewMode === "search-first") workspaceInputs[side] = { viewMode: "whole" };
+  }
   return { fullGraphs, workspaceInputs };
 }
 
@@ -122,6 +125,7 @@ export function buildCompareSideWorkspace(options = {}) {
       artifactCache,
       artifactIdentity: artifactIdentity && { ...artifactIdentity, sessionId: `compare:${side}`, unitId: module?.name },
       ...workspaceInput,
+      showPath: options.showPath?.[side],
       signal: activeSignal
     });
     const finish = (value) => {

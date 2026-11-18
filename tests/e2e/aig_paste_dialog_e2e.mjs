@@ -110,6 +110,13 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.equal(await status.isVisible(), false);
     await page.locator("#closeNetlistTextButton").click();
     cases.push("Escape cancels a pending layout and the next dialog opens ready for retry");
+    await open();
+    await view.selectOption("search-first");
+    const beforeIndex = await page.evaluate(() => window.__pasteTest.calls);
+    await submit.click();
+    await page.locator("#schematicMount .search-first-empty").waitFor();
+    assert.equal(await page.evaluate(() => window.__pasteTest.calls), beforeIndex);
+    cases.push("pasted AIG opens in Search-first with zero Graphviz requests");
     assert.deepEqual(errors, []);
     await writeFile(join(artifacts, "report.json"), JSON.stringify({ cases, errors }, null, 2));
     console.log(JSON.stringify({ cases, errors, artifacts }));

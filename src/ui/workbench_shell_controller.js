@@ -177,7 +177,9 @@ export function createWorkbenchShell({
   });
   listen(helpButton, "click", () => { if (helpDialog && !helpDialog.open) helpDialog.showModal(); });
   listen(document.querySelector("#closeHelpButton"), "click", () => helpDialog?.close());
-  listen(helpDialog, "close", () => helpButton?.focus());
+  listen(helpDialog, "close", () => {
+    if (document.activeElement === document.body) helpButton?.focus();
+  });
   listen(document, "keydown", (event) => {
     if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
     if (document.querySelector("dialog[open]")) return;

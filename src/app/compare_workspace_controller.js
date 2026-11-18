@@ -1,3 +1,4 @@
+import { preparePathCandidate } from "./path_candidate_render.js";
 import { recommendModulePair, compareModules } from "../analysis/moduleCompare.js";
 import { saveCompareWorkspace, restoreCompareWorkspace } from "./appState.js";
 import { createCompareWorkspaceIdentity } from "./workspace_identity.js";
@@ -152,11 +153,19 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     state.compare.layoutAbortController = layoutController;
     const request = services.renderGeneration.begin();
     const onCancelled = options.onCancelled;
+    const onFailed = options.onFailed;
+    function retainPrevious() {
+      if (!options.commitPath || state.compare.layoutAbortController !== layoutController) return;
+      layoutController.abort();
+      state.compare.layoutAbortController = null;
+      updateCompareSideStatus("left", leftModule, "ready");
+      updateCompareSideStatus("right", rightModule, "ready");
+    }
     let cancellationReported = false;
-    options = { ...options, onCancelled: () => {
+    options = { ...options, onFailed: (error) => { retainPrevious(); onFailed?.(error); }, onCancelled: () => {
       if (options.signal && cancellationReported) return;
       cancellationReported = true;
-      if (options.signal?.aborted && request.isCurrent() && state.compare.active) {
+      if (!options.commitPath && options.signal?.aborted && request.isCurrent() && state.compare.active) {
         layoutController.abort();
         if (state.compare.layoutAbortController === layoutController) state.compare.layoutAbortController = null;
         for (const mount of [elements.leftMount, elements.rightMount]) {
@@ -170,6 +179,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         updateCompareSideStatus("left", leftModule, "cancelled");
         updateCompareSideStatus("right", rightModule, "cancelled");
       }
+      retainPrevious();
       onCancelled?.();
     } };
     const requestId = request.id;
@@ -183,6 +193,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       rightModule,
       layoutProvider: compareLayoutProvider,
       layoutPolicy: state.layoutPolicy,
+      showPath: { ...state.compare.showPath, ...options.pathCandidate },
       outputName: state.compare.outputName,
       coneDepth: query.coneDepth,
       faninDepth: query.faninDepth,
@@ -223,9 +234,12 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       // layout/override/Scene work then runs under one JobCoordinator boundary
       // per compare side so a stale side cannot commit through its peer.
       const prepared = prepareCompareWorkspace(workspaceOptions);
-      state.compare.fullGraphs = prepared.fullGraphs;
-      services.compareViewSessions.importQuery(query, prepared.workspaceInputs);
-      for (const side of ["left", "right"]) services.compareViewSessions.refreshNavigation(side);
+      const projectInputs = () => {
+        state.compare.fullGraphs = prepared.fullGraphs;
+        services.compareViewSessions.importQuery(query, prepared.workspaceInputs);
+        for (const side of ["left", "right"]) services.compareViewSessions.refreshNavigation(side);
+      };
+      if (!options.commitPath) projectInputs();
       renderOptions.workspaceIdentity = createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
       const sides = ["left", "right"];
       const buildSide = (side, contextSignal) => buildCompareSideWorkspace({
@@ -237,20 +251,25 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         signal: layoutController.signal,
         sideSignal: contextSignal
       });
-      const commitResults = (results) => {
+      const commitResults = (results, presentation) => {
         if (results.some((result) => result.status !== "committed")) return;
         const [leftResult, rightResult] = results;
-        commitCompareWorkspace({
+        const value = {
           fullGraphs: prepared.fullGraphs,
           autoGraphs: { left: leftResult.artifact.value.autoGraph, right: rightResult.artifact.value.autoGraph },
           graphs: { left: leftResult.artifact.value.graph, right: rightResult.artifact.value.graph },
           scenes: { left: leftResult.artifact.value.scene, right: rightResult.artifact.value.scene },
           analysis: compareModules(leftModule, rightModule, prepared.fullGraphs.left, prepared.fullGraphs.right)
-        }, leftModule, rightModule, renderOptions);
+        };
+        if (options.commitPath) { options.commitPath(); projectInputs(); }
+        commitCompareWorkspace(value, leftModule, rightModule, { ...renderOptions, alreadyMounted: Boolean(presentation) });
       };
       services.workspaceExecution.execute({
         provider: compareLayoutProvider,
         signal: options.signal,
+        preparePresentation: options.commitPath && ((results) => preparePathCandidate(
+          sides.map((side, index) => ({ target: side === "left" ? elements.leftMount : elements.rightMount, workspace: results[index].artifact.value })),
+          () => request.isCurrent() && state.compare.active && !layoutController.signal.aborted && !options.signal?.aborted && options.pathCurrent())),
         tasks: sides.map((side) => ({
           beginComputation: () => services.compareViewSessions.beginComputation(side),
           kind: `compare-${side}-workspace`,
@@ -266,10 +285,11 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         onSettled: (results) => {
           if (results.some((result) => result.status !== "committed")) renderOptions.onCancelled?.();
         },
-        onError: (error) => services.handleLayoutFailure(error, renderOptions)
+        onError: (error) => options.commitPath ? options.onFailed(error) : services.handleLayoutFailure(error, renderOptions)
       });
     } catch (error) {
-      services.handleLayoutFailure(error, renderOptions);
+      if (options.commitPath) options.onFailed(error);
+      else services.handleLayoutFailure(error, renderOptions);
     }
   }
 
@@ -295,14 +315,14 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     updateCompareSideStatus("right", rightModule, "ready");
     renderCompareOutputOptions(leftModule, rightModule);
     Promise.all([
-      services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left, signal: options.signal }),
-      services.renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right, signal: options.signal })
+      services.renderGraphMount(elements.leftMount, state.compare.graphs.left, { scene: state.compare.scenes.left, alreadyMounted: options.alreadyMounted, signal: options.signal }),
+      services.renderGraphMount(elements.rightMount, state.compare.graphs.right, { scene: state.compare.scenes.right, alreadyMounted: options.alreadyMounted, signal: options.signal })
     ]).then((results) => {
       if (options.signal?.aborted || !renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
         options.onCancelled?.(); return;
       }
       if (results.some((result) => result?.cancelled)) { options.onCancelled?.(); return; }
-      state.compare.workspaceIdentity = options.workspaceIdentity || null;
+      state.compare.workspaceIdentity = options.pathCandidate ? createCompareWorkspaceIdentity(state, services.readCellLibrary?.()) : options.workspaceIdentity || null;
       services.applyCompareHighlights();
       services.applyCompareTransforms();
       services.logProcess("info", "render", "Compare render completed", {
@@ -360,7 +380,7 @@ export const compareWorkspacePorts = Object.freeze({
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "design", "document",
     "expandedGroupIds", "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs",
     "fullGraph", "graph", "graphOverrides", "layoutPolicy", "moduleWorkspaces", "nodePositions",
-    "nodeSizes", "occurrenceContext", "presentationPolicy", "restoringViewHistory", "scene",
+    "nodeSizes", "occurrenceContext", "presentationPolicy", "restoringViewHistory", "scene", "showPath",
     "searchResults", "selectedNet", "selectedNodeId", "showAliases", "sourceIdentity", "timing",
     "timingBadgeChoices", "timingBadgePositions", "timingDisplayPolicy", "useFanoutHubs", "viewHistory",
     "viewMode", "workspaceArtifactCache"

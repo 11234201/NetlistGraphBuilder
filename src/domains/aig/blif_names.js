@@ -45,11 +45,9 @@ export function bindBlifNames(model, candidates) {
     if (!rows) return node;
     const definingId = node.sourceRefs.find((ref) => !ref.alias)?.id;
     const primaryNameMapping = rows.find((row) => row.signalId === definingId && !row.conflict);
-    const port = node.kind === "pi" || node.kind === "po";
     const names = primaryNameMapping && primaryNameMapping !== rows[0]
       ? [primaryNameMapping, ...rows.filter((row) => row !== primaryNameMapping)] : rows;
-    return { ...node, label: port && primaryNameMapping ? primaryNameMapping.name : node.label,
-      nameMappings: names, ...(primaryNameMapping ? { primaryNameMapping } : {}) };
+    return { ...node, nameMappings: names, ...(primaryNameMapping ? { primaryNameMapping } : {}) };
   });
   return { ...model, nodes, nameMappings,
     ...(warnings.conflictCount || warnings.unknownCount ? { mappingWarnings: warnings } : {}) };

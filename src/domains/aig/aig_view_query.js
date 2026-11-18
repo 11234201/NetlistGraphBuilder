@@ -1,3 +1,4 @@
+import { aigPathIndex } from "./show_path.js";
 import { analyzeFocusedNeighborhood } from "../../analysis/graphCone.js";
 import { DEFAULT_FOCUSED_VIEW_POLICY, normalizeFocusedRootIds } from "../../foundation/view_policy.js";
 import { normalizeViewDepth } from "../../contracts/view_query.js";
@@ -12,24 +13,42 @@ export function restoreAigFocus(document, unitId, value) {
   const ids = normalizeFocusedRootIds(requested).filter((id) => query.nodeById.has(id));
   const focusedRootRefs = ids.map((id) => createObjectRef({ documentId: document.documentId, unitId,
     localId: id, kind: query.nodeById.get(id).kind }));
-  return { viewMode: ids.length ? "focused" : "whole", focusedRootRefs,
+  const deferWholeLayout = value?.deferWholeLayout === true || value?.viewMode === "search-first";
+  return { showPath: value?.showPath || null, viewMode: ids.length ? "focused" : deferWholeLayout ? "search-first" : "whole",
+    layoutPolicy: { deferWholeLayout }, focusedRootRefs,
     activeFocusedRootRef: focusedRootRefs.find((ref) => ref.localId === value?.activeFocusedRootNodeId) || focusedRootRefs[0] || null,
     faninDepth: normalizeViewDepth(value?.faninDepth), fanoutDepth: normalizeViewDepth(value?.fanoutDepth) };
 }
 
 export function queryAigView(document, session = {}) {
   const imported = document.model;
-  if (session.viewMode !== "focused" && session.mode !== "focused") return imported;
+  const focused = session.viewMode === "focused" || session.mode === "focused";
+  if (!focused && !session.showPath?.enabled) {
+    if ((session.viewMode || session.mode) !== "search-first") return imported;
+    const model = { nodes: [], edges: [] };
+    return { searchFirst: true, model, analysis: analyzeAig(model),
+      analysisScopeId: "search-first", analysisScopeLabel: "search-first" };
+  }
   const { model, analysis } = imported;
+  const path = session.showPath?.enabled ? aigPathIndex(model).query(session.showPath) : null;
+  const pathGraph = path ? { nodes: model.nodes.filter((n) => path.nodeIds.has(n.id)),
+    edges: model.edges.filter((e) => path.edgeIds.has(e.id)) } : model;
   const rootNodeIds = normalizeFocusedRootIds(session.focusedRootRefs?.map((ref) => ref.localId) ?? session.rootNodeIds);
-  const focus = analyzeFocusedNeighborhood(model, rootNodeIds, { rootNodeIds, ...DEFAULT_FOCUSED_VIEW_POLICY,
-    faninDepth: normalizeViewDepth(session.faninDepth), fanoutDepth: normalizeViewDepth(session.fanoutDepth) });
+  const focus = focused ? analyzeFocusedNeighborhood(pathGraph, rootNodeIds, { rootNodeIds, ...DEFAULT_FOCUSED_VIEW_POLICY,
+    faninDepth: normalizeViewDepth(session.faninDepth), fanoutDepth: normalizeViewDepth(session.fanoutDepth) }) : { nodeIds: pathGraph.nodes.map((n) => n.id),
+      edgeIds: pathGraph.edges.map((e) => e.id), cutEdges: [], truncated: false, hiddenEndpointCount: 0 };
   const full = createAigQuery(model, analysis);
   const visibleNodeIds = new Set(focus.nodeIds.sort());
   const visibleEdgeIds = new Set(focus.edgeIds.sort());
   const analysisModel = { nodes: [...visibleNodeIds].map((id) => full.nodeById.get(id)),
     edges: [...visibleEdgeIds].map((id) => full.edgeById.get(id)) };
   const boundary = projectCut(focus, visibleNodeIds, full);
+  if (path) {
+    const cutEdges = model.edges.filter((edge) => visibleNodeIds.has(edge.target) && !path.edgeIds.has(edge.id));
+    const inputs = projectCut({ cutEdges }, visibleNodeIds, full, true);
+    boundary.nodes = boundary.nodes.concat(inputs.nodes);
+    boundary.edges = boundary.edges.concat(inputs.edges);
+  }
   const displayModel = { focused: true, nodes: [...analysisModel.nodes, ...boundary.nodes], edges: [...analysisModel.edges, ...boundary.edges] };
   const displayAnalysis = analyzeAig(displayModel);
   // The logical critical path and fanout refer to the source design. Only
@@ -37,18 +56,18 @@ export function queryAigView(document, session = {}) {
   displayAnalysis.fanout = analysis.fanout;
   displayAnalysis.criticalNodes = focus.nodeIds.filter((id) => full.criticalNodes.has(id));
   displayAnalysis.criticalEdges = focus.edgeIds.filter((id) => full.criticalEdges.has(id));
-  return { model: displayModel, analysis: displayAnalysis, analysisModel, visibleNodeIds, visibleEdgeIds,
-    analysisScopeId: visibleNodeIds.size === model.nodes.length ? "whole" : JSON.stringify(focus.nodeIds),
-    analysisScopeLabel: `focused(${rootNodeIds.join(",")}) in=${focus.faninDepth} out=${focus.fanoutDepth}`,
+  return { path, outsideRoots: path ? rootNodeIds.filter((id) => !path.nodeIds.has(id)) : [], model: displayModel, analysis: displayAnalysis, analysisModel, visibleNodeIds, visibleEdgeIds,
+    analysisScopeId: visibleNodeIds.size === model.nodes.length && visibleEdgeIds.size === model.edges.length ? "whole" : JSON.stringify([focus.nodeIds, focus.edgeIds]),
+    analysisScopeLabel: (focused ? `focused(${rootNodeIds.join(",")}) in=${focus.faninDepth} out=${focus.fanoutDepth}` : "whole") + (path ? " · Show Path" : ""),
     truncated: focus.truncated, hiddenEndpointCount: focus.hiddenEndpointCount };
 }
 
-function projectCut(focus, visible, query) {
+function projectCut(focus, visible, query, pathInput = false) {
   const groups = new Map();
   for (const edge of focus.cutEdges) {
-    const outgoing = visible.has(edge.source);
-    const depth = outgoing ? focus.fanout.depthByNode.get(edge.source) : focus.fanin.depthByNode.get(edge.target);
-    const reason = depth < (outgoing ? focus.fanoutDepth : focus.faninDepth) ? "budget" : "depth";
+    const outgoing = !pathInput && visible.has(edge.source);
+    const depth = pathInput ? 0 : outgoing ? focus.fanout.depthByNode.get(edge.source) : focus.fanin.depthByNode.get(edge.target);
+    const reason = pathInput ? "path" : depth < (outgoing ? focus.fanoutDepth : focus.faninDepth) ? "budget" : "depth";
     // An AND has two input slots. Preserve each cut input and collect external
     // loads of one output by polarity so a high-fanout cut stays compact.
     const key = outgoing ? `out:${edge.source}:${Number(edge.inverted)}:${reason}` : `in:${edge.id}`;
@@ -60,11 +79,11 @@ function projectCut(focus, visible, query) {
   for (const key of [...groups.keys()].sort()) {
     const { outgoing, edge, reason, count } = groups.get(key);
     const driver = query.nodeById.get(edge.source);
-    const ref = driver.nameMappings?.[0] || driver.sourceRefs?.[0];
-    const name = (ref?.inverted ? "¬" : "") + (ref?.name || ref?.label || driver.label || driver.id);
+    const ref = driver.primaryNameMapping || driver.sourceRefs?.[0];
+    const name = (ref?.inverted ? "¬" : "") + (ref?.signalId || ref?.label || driver.label || driver.id);
     const id = `cut:${key}`;
     const label = outgoing ? `Out · ${name} ×${count}` : `In · ${name}`;
-    const description = `${outgoing ? "Downstream" : "Upstream"} · ${label} · ${edge.inverted ? "inverted" : "positive"} · Focused ${reason} boundary`;
+    const description = `${outgoing ? "Downstream" : "Upstream"} · ${label} · ${edge.inverted ? "inverted" : "positive"} · ${pathInput ? "Show Path input" : "Focused " + reason} boundary`;
     nodes.push({ id, kind: "boundary", label, description, level: driver.level + Number(outgoing), sourceRefs: [] });
     edges.push({ id: `cut-edge:${key}`, source: outgoing ? edge.source : id, target: outgoing ? id : edge.target,
       slot: outgoing ? 0 : edge.slot, inverted: edge.inverted, description, sourceRefs: [] });

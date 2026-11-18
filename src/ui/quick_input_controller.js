@@ -42,6 +42,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   const textStatus = formControl("[data-text-status]");
   const aigOptions = formControl("[data-aig-input-options]");
   const aigView = formControl("[data-aig-input-view]");
+  let pasteView = aigView?.value;
   const showTextStatus = (message = "") => {
     if (!textStatus) return;
     textStatus.textContent = message;
@@ -49,11 +50,19 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   };
   const setSubmitting = (busy) => {
     elements.textForm?.setAttribute?.("aria-busy", String(busy));
-    if (submitButton) { submitButton.disabled = busy; submitButton.textContent = busy ? "Drawing…" : "Draw"; }
+    if (submitButton) {
+      const indexOnly = textKind === "aig" && aigView?.value === "search-first";
+      submitButton.disabled = busy;
+      submitButton.textContent = indexOnly ? (busy ? "Indexing…" : "Index") : (busy ? "Drawing…" : "Draw");
+    }
     for (const control of [elements.textInput, aigView, formControl("[data-bulk-text-expand]"), formControl("[data-bulk-text-clear]")]) {
       if (control) control.disabled = busy;
     }
   };
+  aigView?.addEventListener?.("change", () => {
+    pasteView = aigView.value;
+    setSubmitting(Boolean(pendingSubmission));
+  });
   const textBuffer = createBulkTextInput({
     input: elements.textInput,
     notice: elements.textForm?.querySelector?.("[data-bulk-text-notice]"),
@@ -165,11 +174,13 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     textKind = ["timing", "aig"].includes(kind) ? kind : "netlist";
     showTextStatus();
     if (aigOptions) aigOptions.hidden = textKind !== "aig";
+    if (textKind === "aig" && aigView) aigView.value = elements.aigSearchFirstInput?.checked ? "search-first" : pasteView;
+    setSubmitting(false);
     const timing = textKind === "timing";
     elements.textTitle.textContent = timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog";
     elements.textDescription.textContent = timing
       ? "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。"
-      : textKind === "aig" ? "粘贴 ABC AIG DOT 或两输入组合 BLIF（.model / .names），解析成功后立即画图。"
+      : textKind === "aig" ? "粘贴 ABC AIG DOT 或两输入组合 BLIF（.model / .names）。大图可选 Search-first，在布局前筛选逻辑。"
       : "粘贴 structural Verilog，解析成功后立即画图。";
     if (!elements.textDialog.open) elements.textDialog.showModal();
     schedule(() => elements.textInput.focus());
@@ -210,7 +221,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const submittedDialogSession = dialogSession;
     const kind = textKind;
     const details = { kind, operation: "paste-text" };
-    const presentationPolicy = kind === "aig" && aigView ? { viewStyle: aigView.value } : undefined;
+    const deferLayout = kind === "aig" && aigView?.value === "search-first";
+    const presentationPolicy = kind === "aig" && aigView ? { viewStyle: deferLayout ? "abc" : aigView.value } : undefined;
     const submission = { request: importRequest, kind };
     pendingSubmission = submission;
     const finish = () => {
@@ -225,16 +237,16 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     };
     submission.request.signal.addEventListener("abort", onAbort, { once: true });
     setSubmitting(true);
-    showTextStatus(kind === "aig" ? "正在解析并布局 AIG…可以点击 Cancel 取消。" : "正在处理文本…");
+    showTextStatus(kind === "aig" ? (deferLayout ? "正在建立 AIG 索引…" : "正在解析并布局 AIG…可以点击 Cancel 取消。") : "正在处理文本…");
     try {
-      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy } : {}) });
+      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy, deferLayout } : {}) });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
     } catch (error) {
       if (error?.name === "AbortError") onAbort();
       else if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
         const message = `Paste failed: ${errorMessage(error)}`;
-        const hint = error?.name === "TimeoutError" && presentationPolicy?.viewStyle === "standard"
-          ? " 布局超时；请将 View 切换为 Logic View 后重试。" : "";
+        const hint = error?.name === "TimeoutError" && kind === "aig"
+          ? " 选择 Search-first 可先筛选再布局，也可选择 Logic View 重试。" : "";
         showTextStatus(message + hint);
         reportFailure(error, message, details);
         finish();

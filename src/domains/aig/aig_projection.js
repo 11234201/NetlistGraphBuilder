@@ -2,7 +2,7 @@ import { projectAbcAigDot } from "./abc_projection.js";
 import { normalizeAigViewStyle } from "./aig_presentation.js";
 import { quoteDot as quote } from "./dot_attributes.js";
 
-export const AIG_DISPLAY_VERSION = 6;
+export const AIG_DISPLAY_VERSION = 7;
 export const AIG_FONT = "Arial";
 // Graphviz otherwise permits INT_MAX network-simplex iterations. These named
 // quality/cost limits supplement the Worker's hard timeout; they do not change

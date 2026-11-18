@@ -1,3 +1,12 @@
+import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
+import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
+import { buildModuleFullGraph } from "./moduleWorkspace.js";
+import { normalizeShowPath } from "../contracts/show_path.js";
+import { comparePathSnapshot } from "./sessionState.js";
+import { copyBrowserText } from "../platform/browser_clipboard.js";
+import { bindShowPath } from "../ui/show_path_controller.js";
+import { netlistPathContext } from "./show_path_context.js";
+import { netPathKey } from "../domains/netlist/show_path.js";
 import { createSessionPersistenceController, sessionPersistencePorts } from "./session_persistence_controller.js";
 import { createInputController, inputPorts } from "./input_controller.js";
 import { createSidebarController, sidebarPorts } from "./sidebar_controller.js";
@@ -30,6 +39,11 @@ import { createNetRoutingBridge } from "./net_routing_bridge.js";
 import { createNetlistStructureBridge } from "./netlist_structure_bridge.js";
 import { objectRefToNodeId } from "../domains/netlist/graph_object_refs.js";
 
+export function createViewSessionBridges(state, sessions, onDispatch) {
+  const options = { state, sessions, onDispatch, getDocumentId: () => state.document?.documentId || null };
+  return { singleViewSession: createSingleViewSessionBridge(options), compareViewSessions: createCompareViewSessionBridge(options) };
+}
+
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
 export function createWorkbenchControllers({ state, getElements, services, routeAction = (_name, action, args) => action(...args) }) {
   const actions = Object.create(null);
@@ -47,6 +61,14 @@ export function createWorkbenchControllers({ state, getElements, services, route
         : actions.setSelectedNode(state.selectedNodeId, false)
     })
   });
+  function validateSavedPath(value, module, occurrence, graphOverrides = state.graphOverrides) {
+    if (!value) return;
+    const query = normalizeShowPath(value);
+    if (!query) return;
+    const full = buildModuleFullGraph({ module, moduleLibrary: state.design.modules, graphOverrides, cellConfig: state.cellConfig,
+      cellLibrary: services.readCellLibrary?.(), showAliases: state.showAliases, occurrencePath: occurrence?.occurrencePath });
+    services.netlistFeature.pathIndex(full).query({ ...query, enabled: true });
+  }
   const wire = (owner, factory, ports) => factory({
     state: createLegacyPort(() => state, ports.state, {
       writable: true,
@@ -56,7 +78,36 @@ export function createWorkbenchControllers({ state, getElements, services, route
     }),
     elements: createLegacyPort(getElements, ports.elements),
     services: createLegacyPort(() => services, ports.services),
-    ...(owner === "session-persistence" ? {
+    ...(owner === "search-navigation" ? { comparePathScope(result) {
+      if (!state.compare.active) return null;
+      const side = [state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result?.moduleName);
+      const graph = state.compare.graphs[side];
+      if (!graph?.path) return null;
+      const bridge = services.compareViewSessions;
+      const target = result.target;
+      const ref = bridge.objectRef(side, target.kind === "port" ? target.direction : target.kind, target.name);
+      return { graph, ref, select: () => actions.selectCompareObject(target.kind, target.name, true, side),
+        dispatch: (command) => bridge.dispatch(side, command), ready: bridge.isWorkspaceReady,
+        rebuild: (options) => actions.renderCompareGraphs({ ...options, onCommitted: options.onRendered }) };
+    } } : {}),
+    ...(owner === "golden" ? { validateSavedPath, markExport: (markup, side) => structure?.markExport(markup, side) ?? markup } : {}),
+    ...(owner === "input" ? { validateSavedPath, restoreComparePath(entry) {
+      const compare = entry.compare;
+      if (!compare?.showPath) return;
+      const showPath = { ...compare.showPath };
+      for (const side of ["left", "right"]) {
+        const module = state.design.modules.find((item) => item.name === compare[side + "ModuleName"]);
+        if (!module) return;
+        try { validateSavedPath(showPath[side], module, null, compare.overrides?.[side]?.graphOverrides); }
+        catch (error) {
+          showPath[side] = null;
+          services.logProcess("warning", "persistence", "Saved Show Path could not be restored", {
+            operation: "show-path.restore", code: error.code, error, side, documentId: state.document.documentId, moduleName: module.name });
+        }
+      }
+      return actions.restoreViewHistoryEntry({ ...entry, compare: { ...compare, showPath } });
+    } } : {}),
+    ...(owner === "session-persistence" ? { readComparePath: () => comparePathSnapshot(state),
       canPersist: () => !getElements().canvas?.matches?.(".is-panning,.is-node-dragging,.is-view-interacting")
     } : {}),
     ...(owner === "inspector" ? { netRouting, refreshAnalysis: () => structure?.refresh(),
@@ -89,6 +140,50 @@ export function createWorkbenchControllers({ state, getElements, services, route
       for (const key of ports.elements) if (!(key in elementTarget)) throw new Error(`Missing element dependency ${key} for ${owner}`);
       for (const key of ports.services) validateWorkbenchServiceDependency(services, key, owner);
     }
+    if (elementTarget.pathMenu) bindShowPath(elementTarget.pathMenu, {
+      copyText: (text) => copyBrowserText(text, elementTarget.pathMenu.ownerDocument.defaultView.navigator.clipboard),
+      async navigateResult(result, preferred) {
+        if (!result?.target || !result.moduleName) return preferred;
+        const switchModule = state.currentModule?.name !== result.moduleName;
+        if (state.compare.active) {
+          const side = [preferred, state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result.moduleName);
+          if (side) return side;
+          actions.exitCompareView({ deferSingleRender: true });
+        } else if (!switchModule) return undefined;
+        const rendered = await new Promise((resolve, reject) => {
+          const callbacks = { onRendered: () => resolve(true), onFailed: reject, onCancelled: () => resolve(false) };
+          if (switchModule) actions.selectModule(result.moduleName, callbacks);
+          else services.renderCurrentModuleGraph(callbacks);
+        });
+        return rendered ? undefined : null;
+      },
+      exportSvg: (side) => actions.exportCurrentSvg(side),
+      log: services.logProcess, subscribe: (listener) => services.viewSessions.subscribe(listener),
+      read: (preferredSide) => routeAction("readShowPath", () => {
+        const side = state.compare.active ? preferredSide || state.compare.selectedSide || "left" : null;
+        const sessionId = side ? "compare:" + side : "single:primary";
+        const session = services.viewSessions.get(sessionId);
+        const graph = side ? state.compare.graphs[side] : state.graph;
+        const full = side ? state.compare.fullGraphs[side] : state.fullGraph;
+        const ref = session?.selectedObjectRef;
+        return netlistPathContext({ document: state.document, session, side, graph, full,
+          occurrence: side ? null : state.occurrenceContext?.occurrencePath,
+          selectedKey: ref?.kind === "net" ? netPathKey(ref.localId) : side ? ref && objectRefToNodeId(ref, full) : state.selectedNodeId,
+          feature: services.netlistFeature, render: side ? services.renderCompareGraphs : services.renderCurrentModuleGraph,
+          commit: (candidate) => side ? services.compareViewSessions.setShowPath(side, candidate) : services.singleViewSession.setShowPath(candidate),
+          remember: () => services.commitViewHistory({ label: "Show Path", affectedSessionIds: [sessionId] }),
+          locate(id) {
+            const node = graph.nodes.find((n) => n.id === id);
+            if (!node) return;
+            const mount = side === "left" ? elementTarget.leftMount : side === "right" ? elementTarget.rightMount : elementTarget.mount;
+            if (!side) services.setSelectedNode(id, false);
+            services.focusPositionedCell(node, mount, side ? state.compare.transforms[side] : state.transform, (t) => {
+              if (side) { services.setCompareTransform(side, t, false); services.applyCompareTransforms(); }
+              else { services.setSingleTransform(t); services.applyTransform(); }
+            });
+          } });
+      }, [])
+    });
     const panel = elementTarget.netlistAnalysis, detail = elementTarget.netlistAnalysisDetail;
     if (panel && detail) {
       const mountFor = (id) => id === "single" ? elementTarget.mount : id === "left" ? elementTarget.leftMount : elementTarget.rightMount;
@@ -133,7 +228,7 @@ export function createWorkbenchControllers({ state, getElements, services, route
 }
 
 const ALL_COMPARE_FIELDS = Object.freeze([
-  "active", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
+  "active", "showPath", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
   "focusedRootsSynchronized", "fullGraphs", "graphOverrides", "graphs", "layout", "layoutAbortController",
   "leftModuleName", "nodePositions", "nodeSizes", "outputName", "rightModuleName", "scenes", "selectedKind",
   "selectedName", "selectedSide", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
@@ -147,7 +242,7 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "compare-workspace": ALL_COMPARE_FIELDS,
   "focus-navigation": ["active", "graphs", "selectedKind", "selectedName", "selectedSide", "synchronized", "transforms"],
   "focused-roots": ["active", "activeFocusedRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "focusedRootsSynchronized", "fullGraphs", "graphs", "outputName", "selectedKind", "selectedName", "selectedSide", "transforms"],
-  "golden": ["active", "graphs", "selectedKind", "selectedName", "selectedSide", "singleWorkspaceInvalidated"],
+  "golden": ["active", "scenes", "workspaceIdentity", "graphs", "selectedKind", "selectedName", "selectedSide", "singleWorkspaceInvalidated"],
   "helpers": ["graphOverrides", "nodePositions", "nodeSizes"],
   "history": ALL_COMPARE_FIELDS,
   "input": ["active", "layoutAbortController"],

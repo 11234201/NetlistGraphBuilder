@@ -215,7 +215,8 @@ test("BLIF source names bind after numbering, preserve alias polarity and distin
   const imported = importBlif(comments.join("\n") + "\n" + source);
   const { model } = imported;
   assert.equal(model.nameMappings.length, 8);
-  const first = model.nodes.find((node) => node.label === "top/input<&>");
+  const first = model.nodes.find((node) => node.kind === "pi" && node.label === "n0");
+  assert.equal(first.primaryNameMapping.name, "top/input<&>");
   const alias = model.nameMappings.filter((m) => m.signalId === "n1");
   assert.deepEqual(alias.map((m) => [m.usage, m.inverted]), [["driver", true], ["output", false]]);
   assert.equal(alias[0].nodeId, first.id);
@@ -233,7 +234,7 @@ test("BLIF source names bind after numbering, preserve alias polarity and distin
   assert.ok(search.every((hit) => hit.label === "top/inverted" && hit.detail.includes("n1")));
   const bare = importBlif(source);
   assert.deepEqual(model.edges.map((e) => [e.id, e.source, e.target, e.inverted]), bare.model.edges.map((e) => [e.id, e.source, e.target, e.inverted]));
-  assert.deepEqual(model.nodes.map((n) => [n.id, n.kind, n.level]), bare.model.nodes.map((n) => [n.id, n.kind, n.level]));
+  assert.deepEqual(model.nodes.map((n) => [n.id, n.kind, n.level, n.label]), bare.model.nodes.map((n) => [n.id, n.kind, n.level, n.label]));
   const reordered = importBlif(comments.reverse().join("\n") + "\n" + source);
   const uses = (graph) => graph.nameMappings.map(({ line, ...binding }) => binding);
   assert.deepEqual(uses(reordered.model), uses(model));

@@ -51,7 +51,7 @@ Structural Verilog
 
 ## 5. 需求拆解与完成状态
 
-2026-11-18 新需求与行动顺序见 [BLIF 适配与网表局部路径分析实施计划](plans/blif_focused_show_path_2026_11.md)：先补齐错误日志链路，再依次实现两输入 BLIF、名称映射、UNIT 标题、AIG Focused、两领域当前展示子图重收敛，并独立验收；多端点 Show Path 连同双 level、界面与存档整体放到最后 P7。每项功能须随开发完成详细错误日志和失败路径验证，要求见 [开发规范第 7 节](SKILLS_AND_RULES.md#7-错误日志开发与验收要求)。本次已实现 R1–R5，P6 验收记录见该计划第 16 节。AIG Compare 和 Netlist→AIG 转换仍属于独立后续范围。
+2026-11-18 新需求与行动顺序见 [BLIF 适配与网表局部路径分析实施计划](plans/blif_focused_show_path_2026_11.md)：先补齐错误日志链路，再依次实现两输入 BLIF、名称映射、UNIT 标题、AIG Focused、两领域当前展示子图重收敛，并独立验收；多端点 Show Path 连同双 level、界面与存档整体放到最后 P7。每项功能须随开发完成详细错误日志和失败路径验证，要求见 [开发规范第 7 节](SKILLS_AND_RULES.md#7-错误日志开发与验收要求)。R1–R6 已实现，P6 和 P7 的验证记录见该计划第 16 节。AIG Compare 和 Netlist→AIG 转换仍属于独立后续范围。
 
 AIG 主界面接入的 [实施计划](plans/aig_graphviz_integration.md) P0–P5 已完成：支持 ABC AIG DOT / AND-NOT BLIF、保留输入输出名称、统一 Graphviz 曲线与分析高亮，以及现有两侧栏、搜索、导出和恢复。网表回归、离线发布验证与大型压力图的明确超时边界见 [验收记录](reports/aig_integration_acceptance.md)。不包含生产 AIGER 导入，不改变 Simple 冻结范围；既有发布附件不会自动更新。
 

@@ -3,7 +3,7 @@ import { createLibertyController } from "../ui/liberty_controller.js";
 import { createLibertyLibraryService } from "../domains/netlist/liberty_import.js";
 import { runCooperativeTask } from "../application/cooperative_task.js";
 import { createLibraryWorkspaceRefresh } from "./library_workspace_refresh.js";
-import { createWorkbenchControllers } from "./workbench_controllers.js";
+import { createWorkbenchControllers, createViewSessionBridges } from "./workbench_controllers.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { createRenderGeneration } from "../render/renderGeneration.js";
 import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
@@ -22,8 +22,6 @@ import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cas
 import { createAppState } from "./appState.js";
 import { createSessionSnapshot } from "./sessionState.js";
 import { initializeWorkbench } from "./workbench_startup.js";
-import { createSingleViewSessionBridge } from "./single_view_session_bridge.js";
-import { createCompareViewSessionBridge } from "./compare_view_session_bridge.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
 import { createWorkspaceServices } from "./workspace_services.js";
 import { createWorkbenchCommandRouter } from "./workbench_command_router.js";
@@ -324,18 +322,7 @@ const domainRegistry = createDefaultDomainRegistry();
 const netlistFeature = domainRegistry.require("netlist");
 const { documents, viewSessions, workspaceJobs, workspaceExecution, importRequests } = createWorkspaceServices();
 const renderGeneration = createRenderGeneration();
-const singleViewSession = createSingleViewSessionBridge({
-  state,
-  getDocumentId: () => state.document?.documentId || null,
-  sessions: viewSessions,
-  onDispatch: noteViewCommandDispatch
-});
-const compareViewSessions = createCompareViewSessionBridge({
-  state,
-  getDocumentId: () => state.document?.documentId || null,
-  sessions: viewSessions,
-  onDispatch: noteViewCommandDispatch
-});
+const { singleViewSession, compareViewSessions } = createViewSessionBridges(state, viewSessions, noteViewCommandDispatch);
 const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
 const libertyService = createLibertyLibraryService({ execute: runCooperativeTask });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
@@ -343,6 +330,9 @@ const SEARCH_FIRST_NODE_THRESHOLD = 500;
 const elements = createWorkbenchElements(document);
 const domainWorkbench = createDomainWorkbench({ document, windowTarget: window, registry: domainRegistry,
   documents, sessions: viewSessions, jobs: workspaceJobs, download: browserDownload,
+  netlistSearchGraph: (moduleName) => state.compare.active
+    ? [state.compare.graphs.left, state.compare.graphs.right].find((g) => g?.moduleName === moduleName)
+    : state.graph?.moduleName === moduleName ? state.graph : null,
   importRequests, clearSearch: () => clearSearch(),
   setStatus, logProcess, suspendLegacy: () => workspaceJobs.cancelDocument(state.document?.documentId) });
 domainRouter.connect(domainWorkbench.routeCommand);
@@ -444,6 +434,7 @@ const workbenchUi = createWorkbenchUi({
     moduleLabel: elements.moduleHierarchyCurrent.textContent || state.currentModule?.displayName || "Workspace",
     sourceLabel: state.currentSourceLabel || "Sample", viewMode: state.graph?.view?.mode || state.viewMode,
     leftModuleName: state.compare.leftModuleName, rightModuleName: state.compare.rightModuleName,
+    pathEnabled: Boolean(state.graph?.path), leftPath: Boolean(state.compare.graphs.left?.path), rightPath: Boolean(state.compare.graphs.right?.path),
     leftMode: state.compare.graphs.left?.view?.mode, rightMode: state.compare.graphs.right?.view?.mode,
     ...domainWorkbench.context()
   }),

@@ -97,11 +97,40 @@ async function netlist() {
   return stats;
 }
 
-assert.ok(["blif-import", "blif-focused", "netlist-chain", "netlist-fanout"].includes(mode));
-const stats = mode.startsWith("blif-") ? await blif() : await netlist();
+async function showPath() {
+  const aig = mode === "blif-path";
+  const { aigPathIndex } = await import("../src/domains/aig/show_path.js");
+  const { netlistPathIndex } = await import("../src/domains/netlist/show_path.js");
+  const { SHOW_PATH_POLICY } = await import("../src/contracts/show_path.js");
+  const text = aig ? mappedBlif() : netlistSource(true);
+  const source = aig ? importAigSource(text, { name: "benchmark.blif" }).model : buildSchematicGraph(parseVerilog(text).modules[0]);
+  const ends = aig ? source.nodes.filter((n) => n.kind === "po").slice(-32).map((n) => n.id) : ["output:y"];
+  const starts = aig ? source.nodes.filter((n) => n.kind === "pi").slice(0, 32).map((n) => n.id) : ["input:a", "input:b"];
+  let stats;
+  for (let iteration = 0; iteration < 6; iteration++) {
+    globalThis.gc?.();
+    const sample = {};
+    // A new source identity builds a cold index. Changing Focused on the same source reuses it.
+    const index = measure(sample, "indexMs", () => (aig ? aigPathIndex : netlistPathIndex)({ ...source }));
+    const query = { enabled: true, starts, ends };
+    const path = measure(sample, "queryMs", () => index.query(query));
+    const end = path.ends[0];
+    assert.ok(end.reachable && end.max >= 1 && path.status === "complete");
+    assert.equal(index.query(query), path);
+    measure(sample, "detailMs", () => path.fromStart(path.starts[0].id));
+    const alternate = measure(sample, "coneMs", () => index.query({ ...query, ends: [] }));
+    assert.ok(alternate.nodeIds.size >= path.nodeIds.size);
+    stats = { nodes: source.nodes.length, edges: source.edges.length, starts: starts.length, ends: ends.length,
+      pathNodes: path.nodeIds.size, pathWires: path.edgeIds.size, visits: path.work, cone: alternate.work, policy: SHOW_PATH_POLICY };
+    if (iteration) samples.push(sample);
+  }
+  return stats;
+}
+assert.ok(["blif-import", "blif-focused", "netlist-chain", "netlist-fanout", "blif-path", "netlist-path"].includes(mode));
+const stats = mode.endsWith("-path") ? await showPath() : mode.startsWith("blif-") ? await blif() : await netlist();
 const milliseconds = Object.fromEntries(Object.keys(samples[0]).map((key) => {
   const sorted = samples.map((sample) => sample[key]).sort((a, b) => a - b);
   return [key, { median: sorted[2], p95: sorted[4] }];
 }));
 console.log(JSON.stringify({ mode, node: process.version, runs: samples.length, warmups: 1, stats, milliseconds,
-  maxRssKiB: process.resourceUsage().maxRSS, budget: DEFAULT_FOCUSED_VIEW_POLICY, samples }));
+  maxRssKiB: process.resourceUsage().maxRSS, budget: stats.policy || DEFAULT_FOCUSED_VIEW_POLICY, samples }));

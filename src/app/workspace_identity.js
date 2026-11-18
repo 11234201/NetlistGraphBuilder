@@ -3,6 +3,7 @@ import { createWorkspaceArtifactKey, workspaceArtifactReference } from "./worksp
 export function createSingleWorkspaceIdentity(state, cellLibrary = null) {
   return createWorkspaceArtifactKey({
     document: [state.document?.documentId || null, state.document?.sourceRevision || 0],
+    showPath: state.showPath || null,
     module: state.currentModule?.name || null,
     occurrence: state.occurrenceContext || null,
     viewMode: state.viewMode,
@@ -23,6 +24,7 @@ export function createSingleWorkspaceIdentity(state, cellLibrary = null) {
 export function createCompareWorkspaceIdentity(state, cellLibrary = null) {
   return createWorkspaceArtifactKey({
     document: [state.document?.documentId || null, state.document?.sourceRevision || 0],
+    showPath: state.compare.showPath,
     modules: [state.compare.leftModuleName, state.compare.rightModuleName],
     output: [state.compare.outputName, state.compare.wholeRequested],
     roots: [state.compare.focusedRootNodeIds, state.compare.focusedRootRefs, state.compare.activeFocusedRootNodeId],

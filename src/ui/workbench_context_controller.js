@@ -19,7 +19,8 @@ export function createWorkbenchContextController({ document, windowTarget, readC
     const title = compare ? `${context.leftModuleName || "A"} / ${context.rightModuleName || "B"}` : context.moduleLabel;
     text("workspaceTitle", title);
     get("workspaceTitle").title = title;
-    text("workspaceMode", compare ? `A: ${modeName(context.leftMode)} · B: ${modeName(context.rightMode)}` : modeName(context.viewMode));
+    const mode = (view, path) => modeName(view) + (path ? " · Show Path" : "");
+    text("workspaceMode", compare ? `A: ${mode(context.leftMode, context.leftPath)} · B: ${mode(context.rightMode, context.rightPath)}` : mode(context.viewMode, context.pathEnabled));
     const focused = get("focusedViewButton").classList.contains("is-active");
     if (!focused && get("focusedToolbar").contains(document.activeElement)) get("wholeViewButton").focus();
     get("focusedToolbar").hidden = !focused;

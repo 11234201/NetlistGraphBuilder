@@ -36,7 +36,9 @@ await runBrowserTest(async ({ browser, url }) => {
       await page.waitForFunction((label) => document.querySelector("#statusBar").textContent === `AIG view: ${label}`, value === "abc" ? "Logic View" : "Standard");
     }
     await page.getByLabel("Highlight connections", { exact: true }).selectOption("1");
+    await page.locator("#settingsMenu > summary").click();
     await page.getByLabel("Logical critical path").setChecked(value === "standard");
+    await page.keyboard.press("Escape");
     const selected = page.locator(`[data-aig-node="${gate.id}"]`);
     const id = await selected.getAttribute("data-aig-node");
     await selected.press("Enter");

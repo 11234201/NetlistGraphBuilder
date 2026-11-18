@@ -1,3 +1,4 @@
+import { netlistPathIndex } from "./show_path.js";
 import { buildWorkspaceGraph } from "./netlist_graph_projection.js";
 import { queryNetlistView } from "./netlist_view_query.js";
 import { graphNodeToObjectRef } from "./graph_object_refs.js";
@@ -17,6 +18,7 @@ const connectivityTemplateCache = new WeakMap();
 
 export const netlistFeature = defineDomainFeature({
   id: NETLIST_DOMAIN_ID,
+  pathIndex: netlistPathIndex,
   createAnalysisService(_document, workspace) {
     return createStructureWorkerRuntime(workspace.analysisModel, {
       workerFactory: () => new Worker(new URL("./reconvergence_worker.js", import.meta.url), { type: "module" })
@@ -106,7 +108,7 @@ export const netlistFeature = defineDomainFeature({
       showAliases: options.showAliases,
       occurrencePath: options.occurrencePath
     });
-    const { visibleGraph } = queryNetlistView(fullGraph, {
+    const { visibleGraph, path } = queryNetlistView(fullGraph, {
       ...normalizedQuery,
       preserveLegacyProjection: options.preserveLegacyProjection === true
     }, {
@@ -115,7 +117,7 @@ export const netlistFeature = defineDomainFeature({
     });
     return {
       fullGraph,
-      visibleGraph,
+      visibleGraph: path ? { ...visibleGraph, path, pathEdgeIds: path.edgeIds } : visibleGraph, path,
       projectionMap: createProjectionMap(document.documentId, module.name, fullGraph, visibleGraph)
     };
   },

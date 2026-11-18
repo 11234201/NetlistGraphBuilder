@@ -60,7 +60,7 @@ export function buildModuleWorkspace(options) {
     artifactCache,
     artifactIdentity
   });
-  if (viewMode === "search-first") {
+  if (viewMode === "search-first" && !options.showPath?.enabled) {
     const { visibleGraph: emptyGraph } = queryNetlistView(fullGraph, { mode: "search-first" });
     return {
       fullGraph,
@@ -73,6 +73,7 @@ export function buildModuleWorkspace(options) {
   const autoIdentity = artifactIdentity && {
     ...artifactIdentity,
     stage: "positioned-auto",
+    showPath: options.showPath?.enabled ? options.showPath : null,
     fullGraph: workspaceArtifactReference(fullGraph),
     providerInstance: workspaceArtifactReference(layoutProvider),
     moduleName: module?.name || null,
@@ -123,6 +124,7 @@ export function buildModuleWorkspace(options) {
   const pipeline = runViewPipeline({
     query: () => queryNetlistView(fullGraph, {
       mode: viewMode,
+      showPath: options.showPath,
       rootNodeIds: focusedRootNodeIds ?? coneRootNodeId,
       rootNetIds: focusedRootNetIds,
       rootNodeId: coneRootNodeId,
@@ -156,7 +158,7 @@ export function buildModuleWorkspace(options) {
   const finalize = (result) => {
     const cached = {
       sourceGraph: result.diagram,
-      autoGraph: result.autoGraph
+      autoGraph: withPath(result.autoGraph, result.queryResult.path)
     };
     if (artifactCache && autoIdentity) artifactCache.put(
       createWorkspaceArtifactKey(autoIdentity),
@@ -166,8 +168,8 @@ export function buildModuleWorkspace(options) {
     return {
       fullGraph: result.queryResult.fullGraph,
       sourceGraph: result.diagram,
-      autoGraph: result.autoGraph,
-      graph: result.graph,
+      autoGraph: cached.autoGraph,
+      graph: withPath(result.graph, result.queryResult.path),
       scene: result.scene
     };
   };
@@ -224,6 +226,10 @@ export function buildModuleFullGraph(options = {}) {
     sessionId: artifactIdentity.sessionId
   });
   return graph;
+}
+
+function withPath(graph, path) {
+  return path ? { ...graph, path, pathEdgeIds: path.edgeIds } : graph;
 }
 
 function isPromise(value) {

@@ -9,15 +9,19 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(url);
   await page.locator("#schematicMount svg").waitFor();
+  const settings = page.locator("#settingsMenu");
+  const showSettings = async () => { if (!await settings.evaluate((el) => el.open)) await settings.locator(":scope > summary").click(); };
   const menu = page.locator("#libertyMenu");
   const menuSummary = page.locator("#libertyMenuSummary");
   const openLibrary = async () => {
+    await showSettings();
     if (!await menu.evaluate((element) => element.open)) await menuSummary.click();
     await page.locator("#libertyPanel").waitFor({ state: "visible" });
   };
   assert.equal(await page.locator(".side-panel #libertyInput").count(), 0);
   assert.equal(await menu.evaluate((element) => element.open), false);
   const canvasBounds = await page.locator("#canvas").boundingBox();
+  await showSettings();
   await menuSummary.focus();
   await page.keyboard.press("Enter");
   await page.locator("#libertyPanel").waitFor({ state: "visible" });
@@ -38,7 +42,7 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded Liberty demo.lib"));
   assert.equal(await menu.evaluate((element) => element.open), true);
   await page.locator('#schematicMount [data-node-id="cell:u"] .node-shape').first().click();
-  assert.equal(await menu.evaluate((element) => element.open), false);
+  assert.equal(await settings.evaluate((element) => element.open), false);
   assert.match(await page.locator("#selectionDetails").innerText(), /library/);
   assert.match(await page.locator("#selectionDetails").innerText(), /demo.lib/);
   await openLibrary();
@@ -71,6 +75,7 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded timing drop_timing.json"));
   await openLibrary();
   assert.match(await page.locator("#libertySummary").innerText(), /drop.lib/);
+  await page.keyboard.press("Escape");
   await page.locator('#schematicMount [data-node-id="cell:u"] .node-shape').first().click();
   await page.locator('[data-inspector-tab="timing"]').click();
   assert.match(await page.locator("#selectionDetails").innerText(), /-0\.25/);

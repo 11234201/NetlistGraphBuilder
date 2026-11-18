@@ -13,7 +13,7 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
   let pending = null;
   function snapshot() {
     const session = readSession();
-    return { viewMode: session.viewMode, focusedRootNodeIds: session.focusedRootRefs.map((ref) => ref.localId),
+    return { ...(session.layoutPolicy?.deferWholeLayout ? { deferWholeLayout: true } : {}), showPath: session.showPath, viewMode: session.viewMode, focusedRootNodeIds: session.focusedRootRefs.map((ref) => ref.localId),
       activeFocusedRootNodeId: session.activeFocusedRootRef?.localId || null, faninDepth: session.faninDepth,
       fanoutDepth: session.fanoutDepth };
   }
@@ -34,7 +34,7 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
     const state = snapshot(), roots = state.focusedRootNodeIds;
     const focused = state.viewMode === "focused";
     const selection = readSession().selectedObjectRef?.localId;
-    get("wholeViewButton").classList.toggle("is-active", !focused);
+    get("wholeViewButton").classList.toggle("is-active", state.viewMode === "whole");
     get("focusedViewButton").classList.toggle("is-active", focused);
     get("focusedViewButton").disabled = !focused && !ws.query.nodeById.has(selection);
     get("wholeViewButton").disabled = false;
@@ -77,11 +77,12 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
         const checkpoint = replaceCurrentViewHistory(history, before);
         history = options.history || pushViewHistory(checkpoint, entry());
       }
+      return result;
     } finally {
       if (request === pending) { pending = null; sync(); }
     }
   }
-  function rootsAction(type, ids, selectedId) {
+  function rootsAction(type, ids, selectedId, requestWhole = false) {
     const state = pending?.focus || snapshot();
     let root = { rootNodeIds: state.focusedRootNodeIds, activeRootNodeId: state.activeFocusedRootNodeId };
     for (const id of ids) {
@@ -90,7 +91,7 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
       if (root.rejected) { setStatus("Focused root limit reached. Remove a root before adding another."); return; }
     }
     const changed = JSON.stringify(root.rootNodeIds) !== JSON.stringify(state.focusedRootNodeIds);
-    if (!changed && !pending) {
+    if (!changed && !pending && !(requestWhole && state.deferWholeLayout)) {
       const before = entry();
       const activated = root.activeRootNodeId !== state.activeFocusedRootNodeId;
       if (activated) activateRoot(root.activeRootNodeId);
@@ -98,12 +99,13 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
       if (activated) history = pushViewHistory(replaceCurrentViewHistory(history, before), entry());
       sync(); return;
     }
-    const next = { ...state, viewMode: root.rootNodeIds.length ? "focused" : "whole",
+    const deferWholeLayout = Boolean(state.deferWholeLayout && !requestWhole);
+    const next = { ...state, deferWholeLayout, viewMode: root.rootNodeIds.length ? "focused" : deferWholeLayout ? "search-first" : "whole",
       focusedRootNodeIds: root.rootNodeIds, activeFocusedRootNodeId: root.activeRootNodeId };
     if (pending && sameFocus(next, snapshot()) && !hasPendingStyle()) {
       pending = null; cancelPending(); if (selectedId) select(selectedId); sync(); return;
     }
-    return apply(next, { selectedId });
+    return apply(next, { selectedId }, requestWhole ? "aig.whole.layout" : "aig.focused.layout");
   }
   function selectedAction(type) {
     const id = readSession().selectedObjectRef?.localId;
@@ -111,7 +113,10 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
   }
   function reveal(id) {
     const ws = readWorkspace();
-    if (!ws.visibleNodeIds || ws.visibleNodeIds.has(id) || ws.visibleEdgeIds.has(id)) return false;
+    if (ws.path && !ws.path.nodeIds.has(id) && !ws.path.edgeIds.has(id)) {
+      setStatus("Outside Show Path · Add as start or end to edit the query."); return true;
+    }
+    if (!ws.searchFirst && (!ws.visibleNodeIds || ws.visibleNodeIds.has(id) || ws.visibleEdgeIds.has(id))) return false;
     const edge = ws.query.edgeById.get(id);
     const ids = edge ? [edge.source, edge.target] : [id];
     rootsAction("add", ids, id); return true;
@@ -146,18 +151,19 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
   }
   const commands = {
     setViewMode(mode) {
-      if (mode === "whole") return rootsAction("clear", [null]);
+      if (mode === "whole") return rootsAction("clear", [null], undefined, true);
       if (pending?.focus.viewMode === "whole" && readSession().viewMode === "focused") {
         if (hasPendingStyle()) return apply(snapshot());
         pending = null; cancelPending(); sync(); return;
       }
-      if ((pending?.focus.viewMode || readSession().viewMode) === "whole") return selectedAction("set");
+      if ((pending?.focus.viewMode || readSession().viewMode) !== "focused") return selectedAction("set");
     },
     setSelectedAsFocusedRoot: () => selectedAction("set"),
     addSelectedAsFocusedRoot: () => selectedAction("add"),
     removeSelectedFromFocusedRoots: () => selectedAction("remove"),
     clearFocusedRoots: () => rootsAction("clear", [null]),
-    addSearchResultToFocus: (result) => rootsAction("add", [result.id], result.id),
+    addSearchResultToFocus: (result) => readWorkspace().path && !readWorkspace().path.nodeIds.has(result.id)
+      ? setStatus("Outside Show Path · Add as start or end to edit the query.") : rootsAction("add", [result.id], result.id),
     handleFocusedRootListClick(event) {
       const item = event.target.closest("[data-focused-root-activate], [data-focused-root-remove]");
       if (item?.dataset.focusedRootRemove) return rootsAction("remove", [item.dataset.focusedRootRemove]);
@@ -174,11 +180,12 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
     navigateViewHistory: navigate,
     handleViewHistoryShortcut: shortcut
   };
-  return { commands, reset, sync, snapshot, reveal, changeStyle };
+  return { commands, reset, sync, snapshot, reveal, changeStyle,
+    changePath: (showPath) => apply({ ...(pending?.focus || snapshot()), showPath }, {}, "show-path.apply") };
 }
 
 function sameFocus(left, right) {
-  return left.viewMode === right.viewMode && left.activeFocusedRootNodeId === right.activeFocusedRootNodeId &&
+  return Boolean(left.deferWholeLayout) === Boolean(right.deferWholeLayout) && JSON.stringify(left.showPath) === JSON.stringify(right.showPath) && left.viewMode === right.viewMode && left.activeFocusedRootNodeId === right.activeFocusedRootNodeId &&
     left.faninDepth === right.faninDepth && left.fanoutDepth === right.fanoutDepth &&
     left.focusedRootNodeIds.length === right.focusedRootNodeIds.length &&
     left.focusedRootNodeIds.every((id, index) => id === right.focusedRootNodeIds[index]);

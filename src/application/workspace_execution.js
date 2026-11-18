@@ -2,7 +2,7 @@
 // and presentation callbacks; this boundary owns sync/async and stale commits.
 export function createWorkspaceExecution({ jobs }) {
   return Object.freeze({
-    execute({ provider, tasks, signal, onStarted = () => {}, onCommit, onError, onSettled = () => {} }) {
+    execute({ provider, tasks, signal, preparePresentation, onStarted = () => {}, onCommit, onError, onSettled = () => {} }) {
       const executions = [];
       let active = true;
       const cancel = () => {
@@ -21,12 +21,22 @@ export function createWorkspaceExecution({ jobs }) {
         cancel();
         onError(error);
       };
-      const commit = (results) => {
+      const commit = (results, presentation) => {
         if (!active) return;
         signal?.removeEventListener("abort", abort);
-        if (results.every((result) => result.status === "committed")) onCommit(results);
+        if (results.every((result) => result.status === "committed")) onCommit(results, presentation);
         onSettled(results);
       };
+      const finish = preparePresentation ? async (results) => {
+        if (!active) return;
+        if (!results.every((result) => result.status === "prepared")) { abort(); return; }
+        const presentation = await preparePresentation(results);
+        if (!active) return;
+        if (!presentation || !results.every((result) => jobs.isCurrent(result.context))) { abort(); return; }
+        // Install all prepared views before publishing any artifact or query.
+        if (presentation.install && !presentation.install()) { abort(); return; }
+        commit(results.map((result) => result.publish()), presentation);
+      } : commit;
       if (signal?.aborted) { abort(); return; }
       signal?.addEventListener("abort", abort, { once: true });
       try {
@@ -34,7 +44,7 @@ export function createWorkspaceExecution({ jobs }) {
         for (const task of tasks) {
           if (!active) break;
           const session = task.beginComputation();
-          const request = { sessionId: session.sessionId, kind: task.kind, run: task.run };
+          const request = { sessionId: session.sessionId, kind: task.kind, run: task.run, prepareOnly: Boolean(preparePresentation) };
           const execution = asynchronous ? jobs.start(request) : jobs.runSync(request);
           executions.push(execution);
           // A later task may fail during startup before Promise.all is attached.
@@ -44,10 +54,11 @@ export function createWorkspaceExecution({ jobs }) {
         if (!active) return;
         if (asynchronous) {
           const completion = Promise.all(executions.map((execution) => execution.promise));
-          const handled = completion.then(commit).catch(fail);
+          const handled = completion.then(finish).catch(fail);
           try { onStarted(executions); } catch (error) { fail(error); }
           return handled;
         }
+        if (preparePresentation) return finish(executions).catch(fail);
         commit(executions);
       } catch (error) { fail(error); }
     }

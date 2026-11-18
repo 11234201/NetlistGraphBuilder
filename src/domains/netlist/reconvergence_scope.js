@@ -17,10 +17,10 @@ export function preserveAliasDriverAmbiguity(normalized, raw) {
   return ambiguous.size ? { ...normalized, ambiguousAliasInputs: [...ambiguous].sort() } : normalized;
 }
 
-const fixedOutput = (node, pin) => node?.kind === "constant" || node?.libraryInfo?.logicStatus === "constant" ||
+export const fixedOutput = (node, pin) => node?.kind === "constant" || node?.libraryInfo?.logicStatus === "constant" ||
   /^[01]$/.test(node?.libraryInfo?.functions?.[pin]?.trim?.() || "");
 
-function sourceIndex(graph) {
+export function sourceIndex(graph) {
   let index = sourceIndexes.get(graph);
   if (index) return index;
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -80,7 +80,7 @@ function sourceIndex(graph) {
   return index;
 }
 
-function cellRole(node) {
+export function cellRole(node) {
   if (node.kind !== "cell") return node.kind;
   return !node.referencedModuleName && ["and", "nand", "or", "nor", "inv", "buf", "xor", "xnor", "mux"].includes(node.gateKind)
     ? "gate" : "boundary";
@@ -105,7 +105,7 @@ export function createNetlistReconvergenceScope(fullGraph, graph) {
   for (const id of included) {
     const node = source.nodes.get(id), role = cellRole(node);
     for (const edge of source.outgoing.get(id) || []) {
-      if (!included.has(edge.target)) continue;
+      if (!included.has(edge.target) || (graph.pathEdgeIds && !graph.pathEdgeIds.has(edge.id))) continue;
       visibleEdgeCount++;
       if (source.uncertain(edge)) { reasons.add("multiple-drivers"); continue; }
       const target = source.nodes.get(edge.target);

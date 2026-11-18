@@ -172,6 +172,7 @@ async function load(page, input) {
     }
   } else {
     if (provider !== DEFAULT_LAYOUT_PROVIDER_ID) {
+      await page.locator("#settingsMenu > summary").click();
       await page.locator("#layoutMenu > summary").click();
       await page.locator("#layoutProviderSelect").selectOption(provider);
       await page.keyboard.press("Escape");

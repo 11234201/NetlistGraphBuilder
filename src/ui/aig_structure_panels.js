@@ -11,7 +11,8 @@ function label(workspace, id) {
 }
 const node = (workspace, id, text = label(workspace, id)) => `<button type="button" class="selection-link" data-aig-select="${attr(id)}">${html(text)}</button>`;
 function formulaName(workspace, id) {
-  const signal = workspace.query.nodeById.get(id), name = signal?.label || id;
+  const signal = workspace.query.nodeById.get(id);
+  const name = (signal?.kind === "pi" && signal.primaryNameMapping?.name) || signal?.label || id;
   if (signal?.kind !== "pi" && /^\d+$/.test(name)) return name;
   return /^[\p{L}_$][\p{L}\p{N}_$./\[\]-]*$/u.test(name) ? name : JSON.stringify(name);
 }
@@ -75,7 +76,7 @@ function blockDetails(workspace, result, view) {
   const formulaNames = new Set([...signalIds].map((id) => formulaName(workspace, id)));
   const ambiguous = formulaNames.size < signalIds.size;
   const signalLabel = (id) => ambiguous ? id : formulaName(workspace, id);
-  const pinLabel = (id) => ambiguous ? id + " · " + label(workspace, id) : signalLabel(id);
+  const pinLabel = (id) => ambiguous ? id + " · " + formulaName(workspace, id) : signalLabel(id);
   const root = signalLabel(result.rootId);
   const positive = view.query.functionAtUse(result), negative = view.query.functionAtUse(result, true);
   const formula = view.query.formula(positive, signalLabel);

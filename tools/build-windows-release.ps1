@@ -89,7 +89,27 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\graphviz\README.md") -Destin
 Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
-Copy-Item -LiteralPath (Join-Path $repoRoot "docs\USER_GUIDE.md") -Destination $packageRoot
+# Keep the repository layout for offline guide links, plus the traditional root guide.
+foreach ($relative in @("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md")) {
+  $destination = Join-Path $packageRoot $relative
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+  Copy-Item -LiteralPath (Join-Path $repoRoot $relative) -Destination $destination
+}
+$guide = [IO.File]::ReadAllText((Join-Path $packageRoot "docs\USER_GUIDE.md"))
+$guide = $guide.Replace("](../examples/", "](examples/").Replace("](design/", "](docs/design/").Replace("](LINUX_SINGLE_FILE_LAUNCHER.md", "](docs/LINUX_SINGLE_FILE_LAUNCHER.md")
+[IO.File]::WriteAllText((Join-Path $packageRoot "USER_GUIDE.md"), $guide)
+# Development references outside the offline package point to this release's source.
+foreach ($relative in @("README.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md")) {
+  $page = Join-Path $packageRoot $relative
+  $content = [regex]::Replace([IO.File]::ReadAllText($page), '(?<=\]\()([\w./-]+\.md)(?=[)#])', {
+    param($link)
+    $target = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $page) $link.Value))
+    if (Test-Path -LiteralPath $target) { return $link.Value }
+    $repoPath = $target.Substring($packageRoot.Length + 1).Replace('\', '/')
+    return "https://github.com/11234201/NetlistGraphBuilder/blob/v$version/$repoPath"
+  })
+  [IO.File]::WriteAllText($page, $content)
+}
 Copy-Item -LiteralPath (Join-Path $repoRoot "vendor\elkjs-0.11.1\LICENSE.md") -Destination (Join-Path $packageRoot "ELKJS-LICENSE.md")
 foreach ($notice in @("VIZ-LICENSE.txt", "GRAPHVIZ-LICENSE.txt", "EXPAT-LICENSE.txt")) {
   Copy-Item -LiteralPath (Join-Path $graphvizTarget $notice) -Destination $packageRoot

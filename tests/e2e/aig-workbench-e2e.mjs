@@ -205,7 +205,7 @@ try {
         await click(page, '[data-aig-inspector-tab="source"]');
         assert.match(await page.locator("#domainInspector").innerText(), /Source ID/);
         await click(page, '[data-aig-inspector-tab="analysis"]');
-        assert.match(await page.locator("#domainInspector").innerText(), /Unit AND depth/);
+        assert.match(await page.locator('[data-aig-inspector-content="analysis"]').innerText(), /AND depth\s+\d+/);
         await click(page, '[data-aig-inspector-tab="connections"]');
         await click(page, "#fitButton");
         await screenshot(page, "objects-connections");
@@ -244,6 +244,7 @@ try {
         await page.locator("#searchInput").press("ArrowDown");
         assert.equal(await page.locator("#searchResults").isVisible(), true, "arrow navigation can reopen the current results");
         await page.locator("#searchInput").press("Escape");
+        await page.locator("#settingsMenu > summary").click();
         await page.locator('[data-domain-policy="critical"]').uncheck();
         await page.locator('[data-domain-policy="fanout"]').uncheck();
         assert.equal(await page.locator('#schematicMount .aig-edge-path[stroke="#dc2626"]').count(), 0);
@@ -510,7 +511,9 @@ try {
         await page.locator('#schematicMount [data-node-id="cell:u_and"]').waitFor();
         assert.equal(await page.locator("#domainToolbar").isVisible(), false);
         assert.equal(await page.locator("#compareButton").isVisible(), true);
+        await page.locator("#settingsMenu > summary").click();
         assert.equal(await page.locator("#libertyMenu").isVisible(), true);
+        await page.keyboard.press("Escape");
         assert.equal(await page.locator("#layoutProviderSelect").inputValue(), DEFAULT_LAYOUT_PROVIDER_ID);
         assert.equal(await storage(page), null);
         await page.reload();

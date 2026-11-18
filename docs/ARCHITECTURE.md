@@ -341,6 +341,14 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 - `domain_workbench` 按 Document 身份区分导入与重新布局：同文档提交仅替换画布，保留工具栏和侧栏 DOM、搜索状态与侧栏滚动，并恢复画布对象焦点；不变的详情数据不重绘，以保留异步布局期间的 IME 组合输入。跨文档导入继续清理原搜索状态。连接高亮模式与级数的变更只更新受影响的图元。
 - Logic View（旧存档标识 `abc`）让输入输出自由就近分层，不固定输出行；通过独立 `AIG_ABC_GRAPHVIZ_POLICY` 将 Graphviz crossing-minimization multiplier 设为 0.25，约束深度重汇聚图的交叉优化成本；沿用 network-simplex 上限与 20 秒 Worker 超时。Standard 投影按规范化节点与输入槽编号生成 DOT，使几何与模型数组的排列顺序无关。
 
+### Show Path 查询边界
+
+`analysis/path_query.js` 在领域适配器提供的有向连通图上做多源正向、反向可达和拓扑动态规划。Netlist 的输出 pin 独立计价，AIG 的反相属性及名称绑定保留在领域投影中。源图身份限定索引的生命周期，显式端点限定一次结果复用。每次查询从所选 Ends 或解析出的 Auto ends 反向计算各点到本次终点的最短和最长级数。查询提取路径成员并正向计算从起点到各点的级数，两种距离都先于 Focused 生成。布局使用真实可见成员与显示边界，结构分析仅使用可见的真实连接。
+
+AIG Search-first 会话保留完整源索引，空显示图跳过 DOT 投影与 Graphviz 调用。会话的布局策略记录是否延迟全图布局，清空筛选和刷新时按该策略恢复。
+
+`ViewSession.showPath` 独立于 Whole/Focused。候选工作区通过当前文档、会话和请求代次校验，渲染成功后提交查询和历史。Netlist Compare 左右侧分别持有端点。含路径的 Netlist Golden 使用 v4，AIG 刷新存档使用 v2。恢复路径时核对来源指纹。旧格式默认关闭路径。
+
 ### 当前展示逻辑的结构分析
 
 - `analysis/reconvergence`、`structure_index` 与 `structure_paths` 负责稳定邻接索引、有界候选筛选和两条内部节点不相交的见证路径。AIG 单独处理 XOR/XNOR/MUX 识别。Netlist 将活动模块或 Compare 一侧的可见真实节点投影为按输出 pin 区分的信号图，保留组合边界。隐藏分支不能构成见证，布线隐藏和 fanout hub 属于几何展示。预算、组合环和歧义会在受影响的结果中标为 `partial`。

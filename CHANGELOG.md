@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-19
+
+- Show Path 支持网表 Single、Compare 两侧及 AIG。可指定多个起点和终点，报告显示到本次终点及从起点计算的最短和最长逻辑级数。Focused 裁剪后的范围外端点仍可在报告及 SVG 中查看。
+- 大型 AIG 可在 File 中勾选 Open AIG in Search-first，先建立索引，再用 Focused 或 Show Path 选择交给 Graphviz 布局的子图。索引视图支持刷新恢复。
+- 扩展平坦两输入 BLIF 的组合逻辑与名称映射。画布和 SVG 显示原始端口名，搜索和 Inspector 可查设计名、极性与来源。AIG 和网表的重汇聚分析跟随当前可见逻辑。
+- 显示、布局、时序及库配置集中到 Settings。改进 Show Path 取消、重试、Compare 导出及会话恢复，修复从 Compare 返回 Single 后沿用旧画布和粘贴框误沿用 Search-first 的问题。
+
 ## [1.5.3] - 2026-11-18
 
 - AIG 默认使用 Logic View（原 ABC 视图）。输入和输出靠近各自连接的逻辑。逻辑关键路径与高扇出标记默认关闭，已保存的视图和设置可继续恢复。

@@ -4,9 +4,9 @@ import { saveSessionStateResult } from "../persistence/session_storage.js";
 import { errorMessage } from "../foundation/log_details.js";
 
 // Saving a snapshot never changes the operation timeline or command metadata.
-export function createSessionPersistenceController({ state, services, canPersist }) {
+export function createSessionPersistenceController({ state, services, canPersist, readComparePath = () => null }) {
   const persistence = createDebouncedPersistence({
-    readSnapshot: () => createSessionSnapshot(state),
+    readSnapshot: () => createSessionSnapshot(state, readComparePath()),
     save: saveSessionStateResult,
     canFlush: canPersist,
     onRecovered: () => services.logProcess("info", "persistence", "Session saving recovered", {
@@ -24,7 +24,7 @@ export function createSessionPersistenceController({ state, services, canPersist
 
 export const sessionPersistencePorts = Object.freeze({
   state: ["currentSource", "currentSourceLabel", "sourceIdentity", "document", "currentModule", "occurrenceContext",
-    "viewMode", "coneRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "activeFocusedRootNodeId", "coneDepth",
+    "showPath", "viewMode", "coneRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "activeFocusedRootNodeId", "coneDepth",
     "faninDepth", "fanoutDepth", "transform", "showAliases", "layoutProviderId", "layoutFallbackFromProviderId",
     "layoutPolicy", "presentationPolicy", "useFanoutHubs", "graphOverrides", "timing", "timingDisplayPolicy", "searchQuery"],
   elements: [],

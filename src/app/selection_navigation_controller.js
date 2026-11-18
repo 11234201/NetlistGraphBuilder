@@ -82,6 +82,7 @@ export function createSelectionNavigationController({ state, elements, services 
         });
       });
     }
+    if (outsidePath(state.graph, target)) { services.setStatus("Connection outside Show Path"); return; }
     if (focusSingleSelectionTarget(target)) return;
     if (!selectionTargetExists(state.fullGraph, target)) {
       services.setStatus("Connected object is no longer available in this module");
@@ -205,6 +206,7 @@ export function createSelectionNavigationController({ state, elements, services 
   function navigateCompareSelectionTarget(target) {
     const side = state.compare.selectedSide || "left";
     const graph = state.compare.graphs[side];
+    if (outsidePath(graph, target)) { services.setStatus("Connection outside Show Path"); return; }
     if (target.kind === "net") {
       if (!graph?.edges.some((edge) => edge.net === target.name) && !graph?.unroutedNets?.includes(target.name)) {
         services.setStatus("Connected net is outside the current compare cone");
@@ -226,6 +228,10 @@ export function createSelectionNavigationController({ state, elements, services 
   }
 
   return Object.freeze({ handleSingleNodeSelection, handleSingleNetSelection, setSelectedNode, setSelectedNet, clearSchematicSelection, handleSelectionNavigationClick, navigateSingleSelectionTarget, selectionTargetChangesHierarchyContext, replaceFocusWithSelectionTarget, focusSingleSelectionTarget, selectionTargetExists, navigateCompareSelectionTarget });
+}
+
+function outsidePath(graph, target) {
+  return graph?.path && !(target.kind === "net" ? graph.path.nets.has(target.name) : graph.path.nodeIds.has(target.id));
 }
 
 export const selectionNavigationPorts = Object.freeze({

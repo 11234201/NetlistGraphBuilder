@@ -3,34 +3,37 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成，并介绍独立的 AIG 导入、浏览与逻辑分析流程。
 
 - **网表默认布局与降级机制**：当前版本默认启用 `AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- 本教程对应 `v1.5.3`，涵盖 Navigator、Inspector、File 菜单以及 AIG 的 Logic View、连接高亮和结构分析。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
+- 本教程对应 `v1.6.0`。大型 AIG 可先索引再布局；Show Path 可比较各输入到指定终点的级数。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
+| **Show Path** | 工具栏 `Show Path → Apply → Path information` | 设置单个或多个终点，查看各输入和内部节点到终点的逻辑级数。Focused 视图仍可识别画面外端点。 |
 | **AIG 导入与分析** | `File → Open AIG…`、Navigator → `Analysis` | 支持 ABC AIG DOT 与平坦两输入组合 BLIF；提供 Standard / Logic View 视图、结构重汇聚、XOR / XNOR / MUX 识别、对象筛选与来源追踪，支持高亮、SVG 导出与刷新恢复。 |
 | **左右面板隐藏与恢复** | 面板标题 `Hide`、顶部 `Navigator` / `Inspector` | 可分别收起两侧面板，为画布让出空间；顶部开关可随时恢复面板，保留当前阅读位置，停靠状态、宽度与页签自动记忆。 |
-| **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 离线加载、替换、取消与卸载文本 `.lib`，利用库方向和有界布尔 `function` 增强单元识别，保留人工配置优先级。 |
+| **Liberty 标准单元库** | `Settings → Liberty`、拖放与全局粘贴 | 离线加载、替换、取消与卸载文本 `.lib`，利用库方向和有界布尔 `function` 增强单元识别，保留人工配置优先级。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复布线，保留完整连接详情与 Focused 追踪；Single 与 Compare 两侧独立。 |
-| **标准 STA 时序与 Metric 过滤** | 上下文栏 `Timing`、Inspector 的 `Timing` 页签 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 `assign` 链回溯；全局菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式，支持自定义 Slack 判定阈值（默认 0.0）；对象页签提供详情及徽标覆盖。 |
+| **标准 STA 时序与 Metric 过滤** | `Settings → Timing`、Inspector 的 `Timing` 页签 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 `assign` 链回溯；全局菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式，支持自定义 Slack 判定阈值（默认 0.0）；对象页签提供详情及徽标覆盖。 |
 | **Cell / Net 聚焦视图** | 顶部 Search、Inspector 操作区 | 支持将 Cell 或 Net 设为聚焦根节点（root）；点击未绘制的搜索结果默认追加为 root，`Add to Focused` 显式追加，`Replace roots` 显式替换全部 roots。 |
 | **Focused roots 管理** | 画布上方 `Roots` 菜单 | 可筛选 root chips；点击 chip 激活并居中对应 root，点击 `×` 或 `Remove selected` 移除单个 root，`Clear roots` 清空全部 roots（最多 32 个）。 |
 | **分层连接展示** | Inspector 的 `Connections` 页签 | `Connections / Current module` 仅展示当前模块定义内的连接；`Hierarchy / Parent occurrence` 独立展示穿过当前模块端口边界延伸至父层实例的连接，长表分页显示。 |
-| **标准逻辑门符号切换** | 上下文栏 `View > Gate symbols` | 支持在 `Rectangles`（标准矩形）与 `Conventional`（约定逻辑门符号，含反相气泡）之间一键切换，不改变节点边界、引脚坐标或布线路径。 |
+| **标准逻辑门符号切换** | `Settings → Display > Gate symbols` | 支持在 `Rectangles`（标准矩形）与 `Conventional`（约定逻辑门符号，含反相气泡）之间一键切换，不改变节点边界、引脚坐标或布线路径。 |
 | **UNIT 门标题** | 画布门中心、Inspector | `UNIT_ADFFR_PN_GATE` 的画布标题为 `ADFFR_PN`；内部下划线与数字保留。实例的显式标题优先，详情保留完整 cell type。 |
 | **统一视图历史** | 顶部 `←` / `→`、`Ctrl+Z` / `Ctrl+Y` | 事务化记录并恢复模块切换、视图模式、Focused roots 与深度、当前选中项、视口缩放平移及手工布局微调。 |
 | **Compare roots 同步** | Compare 配置行 `Sync & cone` | `Sync Focus roots` 控制对一侧聚焦根节点的追加、移除和清空操作是否自动同步至另一侧匹配的单元，与视口同步独立。 |
 | **模块层次树导航** | `Navigator > Hierarchy` | 按模块或实例筛选，按实例层次展开并点击切换模块；上下文栏显示模块与实例路径。遇到递归或超大层次时有界截断（最多 2000 节点、深度 64）。 |
-| **间距数字输入与引脚转角** | 上下文栏 `Layout` 与布线器 | `Wire spacing` 与 `Cell spacing` 除滑块外支持直接输入数字（提交后自动吸附至最近的 4 的倍数）；连接单元顶部/底部引脚的末段连线预留可见转角，近距离走线依然清晰可辨。 |
-| **高可靠恢复与批量导入** | Golden、Session、快速输入 | Golden v3 校验网表内容指纹（fingerprint）并恢复聚焦深度；多文件拖放/粘贴严格按“Liberty（如有）→ 网表 → 时序 → Golden”依赖顺序串行完成。 |
+| **间距数字输入与引脚转角** | `Settings → Layout` 与布线器 | `Wire spacing` 与 `Cell spacing` 除滑块外支持直接输入数字（提交后自动吸附至最近的 4 的倍数）；连接单元顶部/底部引脚的末段连线预留可见转角，近距离走线依然清晰可辨。 |
+| **高可靠恢复与批量导入** | Golden、Session、快速输入 | Golden v3/v4 校验网表内容指纹（fingerprint）并恢复聚焦深度；多文件拖放/粘贴严格按“Liberty（如有）→ 网表 → 时序 → Golden”依赖顺序串行完成。 |
 
 ## 目录
 
 - [近期核心功能速览](#近期核心功能速览)
 - [隐藏、恢复与调整左右面板](#21-隐藏恢复与调整左右面板)
 - [新版入口速查](#23-新版入口速查)
+- [在布局前筛选 AIG](#在布局前筛选-aig)
+- [Show Path 路径与逻辑级数](#show-path-路径与逻辑级数)
 - [AIG 图浏览](#aig-图浏览)（含 [结构分析](#aig-重收敛与逻辑块)、[点相关查询](#aig-从节点查找相关结构)、[结构分析练习](#aig-结构分析练习)、[最小示例](#aig-最小示例) 与 [常见问题](#aig-常见问题)）
 
 1. [软件定位与运行方式](#1-软件定位与运行方式)
@@ -110,8 +113,8 @@ Node.js、Python、Windows 离线版与 Linux 单文件启动器共享相同的�
 
 网表工作台按全局操作、当前视图与对象详情分区；打开 AIG 后会切换为专用工具栏和面板：
 
-- **全局栏**：`File` 汇集导入、导出 SVG 与 Golden 存取；`Liberty` 管理可选库，`Cell Config` 管理类型定义；Search、Compare/Single 和 `?` 帮助入口保持可见。
-- **上下文工具栏**：显示模块/实例路径和视图模式，提供历史 `←` / `→`、Whole/Focused、Fit view、View、Layout、Timing、Adjust、对象摘要及 Navigator/Inspector 开关。
+- **全局栏**：`File` 汇集导入、导出 SVG 与 Golden 存取；`Settings` 集中管理显示、布局、时序、Liberty 库和单元类型定义；Search、Compare/Single 和 `?` 帮助入口保持可见。
+- **上下文工具栏**：显示模块/实例路径和视图模式，提供历史 `←` / `→`、Whole/Focused、Show Path、Fit view、Adjust、对象摘要及 Navigator/Inspector 开关。
 - **Navigator**：左侧的 `Hierarchy` 页签用于筛选和浏览模块实例树，`Design` 页签显示当前设计或 A/B 对比统计。
 - **Inspector**：右侧显示所选对象的名称、类型和 Single/A/B 来源。`Connections`、`Timing`、`Adjust` 页签分别显示连接、对象时序和实例覆盖；`Edit cell type…` 打开类型级定义编辑器。
 - **中央主画布**：渲染当前模块的交互式 SVG 原理图，或在 Compare 模式下分屏展示两个模块的画布。
@@ -161,16 +164,16 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 | --- | --- |
 | 原 Import 菜单的文件和文本导入 | 全局栏 `File` 的 `Import` 分组 |
 | 打开或取消 AIG 图导入 | 全局栏 `File` → `Open AIG…` / `Cancel AIG import` |
-| 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；SVG 导出与 Golden 保存需处于 Single（AIG 模式亦支持 `Export SVG`） |
-| Liberty 标准单元库管理 | 全局栏 `Liberty` → `Load .lib` / `Cancel import` / `Unload` |
+| 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；Compare 可从已启用的 Show Path 报告导出所选侧 |
+| Liberty 标准单元库管理 | 全局栏 `Settings → Liberty` → `Load .lib` / `Cancel import` / `Unload` |
 | 模块层次、设计统计 | 顶部 `Navigator` → `Hierarchy` / `Design`（AIG 模式下为 `Design` / `Objects`） |
 | 原 Selection 对象详情、对象时序与实例调整 | 顶部 `Inspector` → `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）；实例调整需开启上下文栏 `Adjust` |
 | 指定某条 net 不布线 | 选中线网后在 `Inspector` → `Connections` → `Net routing` 取消勾选 `Route net` |
-| 布局引擎、间距、恢复手工覆盖 | 上下文栏 `Layout` |
-| 别名与门符号显示 | 上下文栏 `View` |
-| 全局时序指标与违例阈值 | 上下文栏 `Timing` |
+| 布局引擎、间距、恢复手工覆盖 | `Settings → Layout` |
+| 别名与门符号显示 | `Settings → Display` |
+| 全局时序指标与违例阈值 | `Settings → Timing` |
 | 聚焦根与扇入/扇出深度 | Focused 画布上方的 `Roots`、`Fanin`、`Fanout` |
-| Cell Config 类型定义 | 全局栏 `Cell Config`；选中单元后也可点 Inspector 的 `Edit cell type…` |
+| Cell Config 类型定义 | 全局栏 `Settings → Cell Config`；选中单元后也可点 Inspector 的 `Edit cell type…` |
 | 诊断与过程日志 | 底部状态栏 `Diagnostics` / `Log` |
 | Compare 配对与同步 | Compare 画布上方的 A/B 选择器、`Apply`、`Split`、`Sync & cone` |
 
@@ -202,7 +205,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 - 布局快照文件（Layout Golden `.json`）
 - Liberty 文本库（`.lib`）
 
-自定义单元配置（Cell Config）请通过全局栏 `Cell Config > Import definitions…` 或命令行启动参数载入；AIG 文件（`.dot` / `.blif`）及文本也支持拖放和全局粘贴，或使用 `File → Open AIG…` / `Paste AIG…`。
+自定义单元配置（Cell Config）请通过全局栏 `Settings → Cell Config > Import definitions…` 或命令行启动参数载入；AIG 文件（`.dot` / `.blif`）及文本也支持拖放和全局粘贴，或使用 `File → Open AIG…` / `Paste AIG…`。
 
 ### 3.3 支持的 Verilog 语法范围
 
@@ -229,7 +232,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 ### 3.5 Liberty 库
 
-顶部工具栏的 `Liberty` 入口展开独立库管理面板（不占用左侧导航栏），用于加载、替换、取消和卸载标准单元库（`.lib`）：
+`Settings → Liberty`展开独立库管理面板（不占用左侧导航栏），用于加载、替换、取消和卸载标准单元库（`.lib`）：
 
 - **导入与生命周期**：
   - 点击 `Load .lib` 选择文件，或直接将 `.lib` 拖入页面、在非输入框位置粘贴 `library(...) { ... }` 文本；支持先加载库再加载网表。
@@ -278,7 +281,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 ### 4.5 逻辑门符号切换（Gate symbols）
 
-上下文栏 `View > Gate symbols` 可在两种渲染符号风格之间无缝切换：
+`Settings → Display > Gate symbols` 可在两种渲染符号风格之间无缝切换：
 
 - `Rectangles`：所有单元统一使用标准矩形框绘制。
 - `Conventional`：将已识别的 `BUF` / `INV`、`AND` / `NAND`、`OR` / `NOR`、`XOR` / `XNOR` 绘制为标准数字电路逻辑门图形（反相输出自动绘制小圆圈 bubble），其余子模块、黑盒（Blackbox）、寄存器（Register）及未知单元继续使用矩形框。
@@ -312,7 +315,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 - **点击结果主体或按 `Enter`**：
   - 若目标对象已经存在于当前画布的已绘制图中，则**仅选中并将视口居中定位到该对象**，不会改写现有的聚焦根节点。
   - 若目标单元未在当前画布中绘制（例如处于 `Search-first` 空画布或当前 `Focused` 邻域之外），则自动进入 `Focused` 视图，并将该对象**追加**到现有的 Focused roots 集合中（保留此前已聚焦的根节点）。
-- **点击结果右侧的 `Add to Focused` 按钮**：无论目标对象当前是否已绘制，均显式将其追加至 Focused roots 并进入 `Focused` 视图（若已在 roots 集合中则不重复添加）。
+- **点击结果右侧的 `Add…` → `Add to Focused`**：无论目标对象当前是否已绘制，均显式将其追加至 Focused roots 并进入 `Focused` 视图（若已在 roots 集合中则不重复添加）。
 - **跨模块结果隔离**：激活位于其他模块的搜索结果时，系统会先切换至目标模块的工作区；原模块的 Focused roots、选中状态和手工布局微调不会串入目标模块。若目标模块此前已访问过，会自动恢复其自身的独立工作区状态。
 
 ---
@@ -436,7 +439,7 @@ Focused 裁掉一条支路后，对应结果会从列表中移除。平移、缩
 
 ### 9.1 布局引擎选择（Layout Provider）
 
-上下文栏的 `Layout` 菜单提供三种完全离线运行的布局引擎：
+`Settings → Layout`提供三种完全离线运行的布局引擎：
 
 - **`AnchorLayered`（默认）**：项目内置的高性能物理锚点分层布局与正交布线引擎（原称 H08），Single 与 Compare 视图共用同一流水线。若遇到超出支持范围的拓扑，会输出明确诊断并自动依次尝试降级至 `ELK` 与 `Simple`。
 - **`ELK Layered (Experimental)`**：本地化集成的 Eclipse Layout Kernel（vendored `elkjs 0.11.1`），适合对比或尝试不同的大图初始排布；若失败则自动回退至 `Simple`。
@@ -567,7 +570,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 ### 11.3 全图时序显示策略（Timing Display Policy）
 
-上下文栏的 `Timing` 菜单提供全图级别的 `Metric` 指标选择与 `Threshold` 阈值配置：
+`Settings → Timing`提供全图级别的 `Metric` 指标选择与 `Threshold` 阈值配置：
 - **Metric 指标过滤**：可选 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None`。
   - `Worst Slack`：默认模式，展示输出引脚最差 Slack 与输入引脚到达时间（AT）；
   - `AT` / `RT` / `Delay` / `Slew`：整图仅展示单一指定物理维度，避免海量文字密集遮挡；
@@ -610,7 +613,7 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 ### 12.2 删除与全部重置
 
 - `Delete saved`：仅删除当前选中单元类型的自定义配置，使其恢复使用内置推断规则。
-- 全局栏 `Cell Config > Reset all definitions`：清空浏览器本地保存的全部自定义 `Cell Config`。
+- 全局栏 `Settings → Cell Config > Reset all definitions`：清空浏览器本地保存的全部自定义 `Cell Config`。
 
 ### 12.3 浏览器本地持久化
 
@@ -690,7 +693,7 @@ Compare A/B 两侧各自维护 `Focused roots`、激活根、选中对象与视�
 
 在 Compare 模式下，`Roots` 菜单的 root chips 带有 `A:` 或 `B:` 前缀；点击 chip 激活并居中对应侧的该根节点，点击 `×` 将其移除。`Fanin` / `Fanout` 深度是两侧共享设置，不因关闭 roots 同步而变成单侧设置。
 
-上下文栏的 `Focused` 以活动侧为起点；`Whole` 则清除两侧 roots 和 Output cone 并返回两侧整图，与单侧根操作的范围不同。`Layout > Reset view overrides` 同时清除两侧实例覆盖。SVG 导出与 Save Golden 仅在 Single 中可用。
+上下文栏的 `Focused` 以活动侧为起点；`Whole` 则清除两侧 roots 和 Output cone 并返回两侧整图，与单侧根操作的范围不同。`Layout > Reset view overrides` 同时清除两侧实例覆盖。Compare 可在 `Show Path → Path information → Export SVG` 导出所选侧。Save Golden 保存 Single 工作区。
 
 ### 13.5 同名输出逻辑锥对比（Output cone）
 
@@ -704,7 +707,7 @@ Compare 配置行 `Sync & cone > Output cone` 列出了 A/B 两侧模块共有�
 
 ### 14.1 导出独立 SVG（Export SVG）
 
-在 Single 视图下点击 `File > Export SVG`，即可将当前画布（整图或 Focused 局部图）导出为自包含的 `.svg` 文件。导出的文件内嵌了完整的导线、跨线桥、文本标签、时序徽标与 CSS 样式，无需联网或外部字体即可在任意浏览器或矢量图工具中打开（Compare 模式专用于双屏交互对比；如需导出对比中的某个模块，请先切回 `Single` 选择对应模块后再执行导出）。
+在 Single 视图下点击 `File > Export SVG`，即可将当前画布（整图或 Focused 局部图）导出为自包含的 `.svg` 文件。导出的文件内嵌了完整的导线、跨线桥、文本标签、时序徽标与 CSS 样式，无需联网或外部字体即可在任意浏览器或矢量图工具中打开。Compare 中打开 Show Path，选 A 或 B，应用端点后在 Path information 点 Export SVG 导出该侧。
 
 ### 14.2 Layout Golden 的保存与恢复
 
@@ -712,7 +715,7 @@ Compare 配置行 `Sync & cone > Output cone` 列出了 A/B 两侧模块共有�
 - `File > Load Golden`：加载本地 Golden JSON 文件（请先载入与之对应的网表设计）；在 Compare 中加载会退出对比，恢复对应的 Single 工作区。
 - `Layout > Reset view overrides`：清除位置、尺寸、实例属性、引脚方向及不布线 net 覆盖，恢复自动输出；Compare 中作用于两侧。
 
-**Golden v3 内容指纹校验**：当前版本生成的 Golden v3 文件会记录网表源码的内容指纹（Source fingerprint）。若网表内容发生实质变化，即使文件名与文件大小碰巧相同，系统也会拒绝错配旧布局；反之，若网表文件仅被重命名但内容未变，仍可正常匹配加载。系统同时向后兼容导入旧版 v1 / v2 Golden 文件。请注意：Layout Golden（保存单模块几何布局与实例显示覆盖）与 `Cell Config`（保存可跨网表复用的单元类型语义）是两种用途不同的独立 JSON 格式。
+**Golden 版本与内容指纹**　含 Show Path 端点的查询保存为 v4，其他布局保存为 v3。两种格式都记录网表源码的内容指纹。若网表内容发生实质变化，即使文件名与文件大小碰巧相同，系统也会拒绝错配旧布局；反之，若网表文件仅被重命名但内容未变，仍可正常匹配加载。系统同时向后兼容导入旧版 v1 / v2 Golden 文件。请注意：Layout Golden（保存单模块几何布局与实例显示覆盖）与 `Cell Config`（保存可跨网表复用的单元类型语义）是两种用途不同的独立 JSON 格式。
 
 ### 14.3 浏览器标签页会话恢复
 
@@ -893,7 +896,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 ### 18.2 排查负 Slack 关键路径周边的门级结构
 
 1. 先导入 Verilog 网表，再导入配套的 Timing 时序报告。
-2. 在上下文栏的 `Timing` 菜单将 `Metric` 设为 `Worst Slack`，按需设置 `Threshold`（默认 0.0）。
+2. 在`Settings → Timing`将 `Metric` 设为 `Worst Slack`，按需设置 `Threshold`（默认 0.0）。
 3. 在顶部搜索框检索时序报告中的关键违例单元或端口。
 4. 使用 `Focused` 视图观察局部连接（若只需向驱动侧回溯，可将 `Fanout depth` 设为 `0`）。
 5. 选中关键单元，在 Inspector 的 `Timing` 页签核对各引脚的 `AT`、`RT`、`Slack` 与 `worst pin`。
@@ -948,7 +951,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.4 导入 Timing 文件后画布上没有任何时序徽标？
 请依次排查以下几项：
-- 检查上下文栏 `Timing` 菜单中的 `Metric` 是否被设为了 `None`（`None` 模式会隐藏全图所有画布时序徽标），或当前画布缩放倍率是否低于 `0.65`（触发了低倍率 LOD 文字隐藏）。
+- 检查`Settings → Timing` 菜单中的 `Metric` 是否被设为了 `None`（`None` 模式会隐藏全图所有画布时序徽标），或当前画布缩放倍率是否低于 `0.65`（触发了低倍率 LOD 文字隐藏）。
 - 检查时序文件中的 `@module` 指令（或 JSON 中的 `"module"` / `"modules"` 键名）是否与当前打开的网表模块名一致。
 - 检查时序数据行中的 `point`（端口、单元引脚 `inst/pin` 或线网名）是否能在当前模块中找到对应项。
 - 列式文本格式下，确认表头行（如 `point at rt slack`）与数据行的列数对齐，且至少提供了可展示的时序数值。
@@ -961,7 +964,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 **不是**。Compare 模式仅根据端口/线网名称、方向、逻辑门类别及图统计量进行启发式结构对比，并非形式化等价验证（LEC）。红色仅提示“该结构对象在命名或门类型分布上存在差异”，绿色也不代表两侧逻辑功能完全等价。
 
 ### 19.7 为什么 Layout Golden 文件无法载入？
-请确保已先加载了与该 Golden 对应的网表文件。Golden v3 会严格校验领域标识、模块名以及网表内容指纹（fingerprint）：一旦网表内容发生修改，即使文件名相同也会被安全拒绝，防止将旧坐标错配到新网表上。状态栏与 `Process Log` 会给出拒绝的具体原因。
+请确保已先加载了与该 Golden 对应的网表文件。Golden v3/v4 会严格校验领域标识、模块名以及网表内容指纹（fingerprint）：一旦网表内容发生修改，即使文件名相同也会被安全拒绝，防止将旧坐标错配到新网表上。状态栏与 `Process Log` 会给出拒绝的具体原因。
 
 ### 19.8 刷新页面与关闭标签页后，哪些数据会保留？
 在同一标签页内按 `F5` 刷新，会自动从 `sessionStorage` 恢复当前网表、模块、聚焦视图与视口状态；关闭标签页后，`sessionStorage` 中的网表会话会由浏览器自动清理。`Cell Config` 类型定义与工作台面板偏好分别保存在 `localStorage`，关闭浏览器后仍保留；清除站点数据会移除二者。`Delete saved` / `Reset all definitions` 仅管理 Cell Config。Liberty 只保存在页面内存，刷新后需重新加载。
@@ -987,7 +990,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.12 更新后还是旧界面，或面板偏好没有沿用？
 
-- 确认启动器来自 `v1.5.3` 程序包，并在浏览器中打开启动器输出的实际 URL。
+- 确认启动器来自 `v1.6.0` 程序包，并在浏览器中打开启动器输出的实际 URL。
 - 源码预览在更新后刷新页面；Windows 离线版需完整替换程序包并重新启动；Linux 单文件版已内嵌界面资源，需重新构建或使用新二进制，再启动服务。仅替换外部文档不会更新界面。
 - 服务更新后刷新当前标签页；若仍加载缓存，可用浏览器的强制刷新。新版工作台应能看到顶部 `Navigator` / `Inspector`，面板标题旁有带方向箭头的 `Hide`。
 - 面板偏好按浏览器及站点地址保存；例如 `127.0.0.1:4173` 与 `127.0.0.1:7724` 不共享偏好。换端口后重新设置一次即可。
@@ -1005,7 +1008,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
    - `Connections`：展示独立的输入槽位（Input slots）、边极性及上下游邻接节点，点击具体输入槽位可单独选中对应连线；
    - `Analysis`：展示当前节点的单位 AND 逻辑深度、扇出引用统计及已发现的相关块/重汇聚；左侧 Navigator 的同名页签用于浏览当前展示子图的结构结果，两者作用不同；
    - `Source`：展示原始来源 ID、归一化折叠的 BUF/NOT 别名链、极性及可用的源文件行列位置（支持一键复制完整名称）。
-5. **关键路径与高扇出高亮**：使用上下文栏的 `Logical critical path` 开关高亮所有最长单位 AND 深度路径（注：逻辑深度按单位 AND 级数计算，不代表真实工艺器件的 STA 延时）；使用 `High fanout` 开关及数值阈值高亮高扇出节点：
+5. **关键路径与高扇出高亮**：使用`Settings → AIG overlays` 中的 `Logical critical path` 开关高亮所有最长单位 AND 深度路径（注：逻辑深度按单位 AND 级数计算，不代表真实工艺器件的 STA 延时）；使用 `High fanout` 开关及数值阈值高亮高扇出节点：
    - **红色节点填充 / 红色边描边**：位于逻辑关键路径上；
    - **橙色节点外框**：节点扇出引用数达到设定阈值（默认 `≥ 2`，统计每个输入槽位及 PO 引用）；
    - **紫色外框**：当前选中的对象；蓝色 / 绿色外框分别表示上游 / 下游关联逻辑。
@@ -1015,7 +1018,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### AIG Focused 局部逻辑
 
-BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻辑。选中一个节点后点击 `Focused` 或 Inspector 中的 `Replace roots`。在搜索结果或 Inspector 点击 `Add to Focused` 可追加 root。根列表支持定位、移除和清空，最多同时保留 32 个 root。点击 `Whole` 恢复整图。
+BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻辑。选中一个节点后点击 `Focused` 或 Inspector 中的 `Replace roots`。在搜索结果或 Inspector 点击 `Add to Focused` 可追加 root。根列表支持定位、移除和清空，最多同时保留 32 个 root。点击 `Whole` 清除 Focused 裁剪。若正在使用 Show Path，画布显示该查询覆盖的逻辑。
 
 `Fanin` 与 `Fanout` 分别控制沿输入和输出连接扩展的步数。两项均设为 0 时只保留 roots 及它们之间的连接。带 `In` 或 `Out` 的方框标出跨越当前范围的输入或输出，虚线表示反相。相同信号和极性的下游边界会列出负载数量。单次抽取最多显示 512 个真实节点，达到预算时状态栏和 Log 会提示截断。
 
@@ -1046,7 +1049,7 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 `candidates` 统计合法边界对应的候选，`distinct roots overall` 统计全部类型中的不同根。一个根可能有多个边界候选，多个块也可能共享节点；这些数量不表示互不重叠的电路分区。根节点的正相和反相用途不重复计作两个物理块。
 
-点击详情中的 `Locate` 可定位所选结果，`Clear highlight` 清除分析高亮并恢复外围亮度。工具栏 `Block labels` 显示正相根的块类型。Standard、Logic View 与 SVG 导出使用相同标注。
+点击详情中的 `Locate` 可定位所选结果，`Clear highlight` 清除分析高亮并恢复外围亮度。`Settings` 中的 `Block labels` 显示正相根的块类型。Standard、Logic View 与 SVG 导出使用相同标注。
 
 ### AIG 从节点查找相关结构
 
@@ -1080,7 +1083,7 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 ### AIG 取消、恢复与功能边界
 
-- **原子替换与超时取消**：导入新文件时，系统会先在后台完成独立解析与首帧场景构建，成功后再替换当前视图；若格式错误、布局超时或中途点击 `File → Cancel AIG import` 取消，均安全保留上一个可用视图。Graphviz 在独立 Web Worker 中运行，单次布局超过 **20 秒**会自动终止并报错；遇到超大图超时请先在外部拆分逻辑锥后重试，系统不会将 AIG 回退至网表正交布局器。
+- **原子替换与超时取消**：导入新文件时，系统会先在后台完成独立解析与首帧场景构建，成功后再替换当前视图；若格式错误、布局超时或中途点击 `File → Cancel AIG import` 取消，均安全保留上一个可用视图。Graphviz 在独立 Web Worker 中运行，单次布局超过 **20 秒**会自动终止并报错；预计全图会超时时，可在 File 中勾选 Open AIG in Search-first，导入后用 Focused 或 Show Path 选择局部逻辑，系统不会将 AIG 回退至网表正交布局器。
 - **工作区能力**：AIG 提供 Single 工作区的 Whole 和 Focused 浏览。加载 Verilog 后可使用网表工作台的 Compare、Adjust、Timing、Liberty、Cell Config 和 Golden。二进制/ASCII AIGER（`.aig` / `.aag`）直接导入、网表转 AIG 及 AIG 双图对比属于后续规划范围。
 - **BLIF 与 DOT 语法及配额边界**：
   - BLIF 支持 `.model`、`.inputs`、`.outputs`、`.names`、`.end`、注释、`\` 续行，以及所有零、一、两输入组合函数的同相 ON 或 OFF 积项表（cover）。`-` 表示该输入任意，XOR/XNOR 按三个 AND 与反相边表示。遇到一般多输入逻辑、`.gate` / `.subckt` / `.latch` / `.exdc`、无驱动信号、多驱动冲突或组合逻辑环路时，系统会拒绝导入并给出明确诊断。
@@ -1090,7 +1093,7 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 ### AIG 结构分析练习
 
-打开仓库或 `v1.5.3` Windows 离线包中的 `examples/aig_structure_demo.blif`。这个示例由 AND 节点和反相边构成，可以直接打开。
+打开仓库或 `v1.6.0` Windows 离线包中的 `examples/aig_structure_demo.blif`。这个示例由 AND 节点和反相边构成，可以直接打开。
 
 | 输出 | 函数 |
 | --- | --- |
@@ -1106,15 +1109,23 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 该练习用于核对操作和固定小图结果，不代表任意大图都能完成全部搜索。下面的最小示例只有一个 AND，不会产生上述 6 对 / 3 块。
 
+### 在布局前筛选 AIG
+
+在 `File` 中勾选 **Open AIG in Search-first**，再打开或拖入 DOT / BLIF。粘贴文本时也可在 `Paste AIG` 的 View 下拉框中选择 **Search-first**。导入后即可按原始 ID 或设计名搜索，此时 Graphviz 调用次数为零。
+
+- 要看局部邻域，点选搜索结果进入 **Focused**，再调整 Fanin / Fanout 深度。
+- 要看两点之间的逻辑，在 **Show Path** 中添加起点与终点并点 **Apply**。Graphviz 只布局筛选出来的子图。
+- 从 Search-first 打开的文件清空 roots 或关闭最后一个路径筛选后会回到索引视图。要布局完整源图，先清除 Show Path，再点击 **Whole**。局部布局失败时仍可修改筛选并重试。
+
 ### BLIF 设计名称和两输入逻辑
 
 打开[带名称映射的 BLIF 示例](../examples/aig_mapped_names.blif)。`n0`、`n1` 是输入，`n2` 是 OR 的输出，`n3` 是它的反相输出，`n4` 是 XOR 的输出。
 
-1. 在顶部 Search 输入 `in_96`，选择显示 `dp_add_2_cp_temp3_combined/in_96` 的 PI。搜索结果同时列出 BLIF 原始 ID 和画布节点 ID。输入、输出在画布上优先使用映射名。
+1. 在顶部 Search 输入 `in_96`，选择显示 `dp_add_2_cp_temp3_combined/in_96` 的 PI。搜索结果同时列出 BLIF 原始 ID 和画布节点 ID。输入、输出在画布和导出 SVG 上使用 BLIF 声明的原始信号名。本例的端口标签为 `n0`、`n1`、`n3`、`n4`。
 2. 在 Navigator 的 **Names** 页输入 `n3`。映射表分别列出驱动节点和输出端口。点击 Canvas ID 定位对应点，在 Inspector 的 **Source** 页查看原始 ID、设计名、极性及注释行号。**Objects** 页的类型筛选可单独浏览内部 AND。
 3. 查询 XOR 输出的上游连接。输入不同值的两行 cover `01 1`、`10 1` 会产生三个 AND，其中两个辅助点的来源注明 `Generated for .names n4`。短数字标签、搜索与 SVG 使用同一个画布节点 ID。
 
-使用独立注释行 `# <BLIF信号ID> <设计名称>` 写映射，保留名称中的层次分隔符和方括号。映射名重复时根据原始 ID、节点 ID 和用途选择。一个信号存在多个不同映射名时，Names 列出全部候选，端口标签回退到原始名。Log 中可查看冲突和未声明编号信号的汇总。
+使用独立注释行 `# <BLIF信号ID> <设计名称>` 写映射，保留名称中的层次分隔符和方括号。映射名重复时根据原始 ID、节点 ID 和用途选择。一个信号存在多个不同映射名时，Names 列出全部候选。Log 中可查看冲突和未声明编号信号的汇总。
 
 ### AIG 最小示例
 
@@ -1137,9 +1148,22 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 1. 在 `Navigator → Objects` 默认的输入/输出列表中找到 `a`、`b`、`y`、`yn`；将筛选条件 `Type` 切换为 `AND` 可查看内部 AND 节点。
 2. 选中输出 `yn`，在 `Inspector → Connections` 查看其输入槽位的 `Inverted`（反相）极性标记；画布上连接至 `yn` 的边呈现为虚线。原文件中的单输入缓冲/反相规则（`.names n y` 与 `.names n yn`）已被规范化折叠为带极性的输出引用，不会额外绘制冗余的独立 BUF / INV 门节点。
-3. 选中内部 AND 节点，在 `Inspector → Analysis` 核对 `AND depth = 1` 与 `Fanout references = 2`。默认高扇出阈值为 `2`，勾选顶部 `High fanout` 后，该 AND 节点会呈现橙色高扇出外框；此开关初始关闭。
+3. 选中内部 AND 节点，在 `Inspector → Analysis` 核对 `AND depth = 1` 与 `Fanout references = 2`。默认高扇出阈值为 `2`，勾选 `Settings → AIG overlays → High fanout` 后，该 AND 节点会呈现橙色高扇出外框；此开关初始关闭。
 4. 切换至 `Inspector → Source` 查看原始信号名称与别名链，点击 `Copy` 可复制完整名称；也可在顶部全局 `Search` 中按名称或来源 ID 检索并按 `F` 键居中放大。
 5. 点击 `File → Export SVG` 将当前视图及高亮导出为 SVG 文件（注：导出的 SVG 仅供图像查阅与文档归档，不可作为 AIG 源文件重新导入，请妥善保留原始 `.dot` / `.blif` 文件）。
+
+### Show Path 路径与逻辑级数
+
+打开工具栏的 **Show Path**，搜索对象，逐项加入 **Starts** 或 **Ends**，再点 **Apply**。全局搜索结果右侧的 `Add…` 和 Inspector 均提供 `Add as start` 与 `Add as end`。Netlist 支持当前模块的端口、net、cell 和明确的 pin。AIG 支持节点、原始信号和 BLIF 映射名。遇到同名项时按对象类型、规范化 ID 和极性选择。每端最多指定 32 项。Compare 用面板中的 A/B 选择器指定操作侧。
+
+- 两端都指定时，画布显示从任一起点能到达任一终点的路径并集。只指定起点可追踪扇出，只指定终点可回溯扇入。报告分别列出自动边界、不可达端点和截断情况。
+- 要比较各输入到某个输出的距离，把该输出加到 **Ends**，留空 **Starts**，点 **Apply**。在 **Path information → Auto starts** 看每个输入的 **To selected end**。对于多个终点或长短不同的路径，报告显示到本次终点集合的最短…最长级数。只指定起点时，**To auto end** 或 **To auto ends** 使用报告列出的 **Auto ends**，包括组合逻辑追踪停下的边界。找不到连接时显示 `unreachable`，组合环或歧义使距离无法确定时显示 `unknown`。
+- 要看某个输入到指定输出的距离，把该输出加到 **Ends**，点 **Apply**，在该输入行点 **Distances**。终点行的 **From start** 给出从该输入到这个终点的最短及最长级数。**Object levels** 可查看中间对象。两种距离均从当前起算点之后计数。AIG 每经过一个 AND 加 1，反相边为 0；网表每经过一个组合单元加 1，含显式 BUF/INV。
+- **Focused** 可进一步裁剪已经提取的结果。端点和级数仍可在报告中查看。**Display boundaries** 列出当前画布的截断点和旁路输入。**Turn off** 保留端点，**Clear** 清除查询。两种操作都可撤销。**Export SVG** 在图下方附上当前查询摘要。Compare 可分别导出两侧。
+
+**复现 XOR 深度。** 打开 [examples/aig_mapped_names.blif](../examples/aig_mapped_names.blif)，搜索 `in_96` 并将 PI 加为起点，再搜索 `n4` 并将 PO 加为终点。点击 **Apply**。在 **Starts** 中，该输入显示 `To selected end 2 · From start 0`。同时把 `n3` 加入 **Ends** 并重新应用后，级数变为 `1…2`。切到 **Ends**，`n4` 显示距起点 2 级。将 PO 设为 Focused 根、前后深度都设为 0，仍能在报告中读到相同的级数。
+
+**核对单个输出。** 打开 [aig_structure_demo.blif](../examples/aig_structure_demo.blif)，只把输出 `y` 加入 **Ends**。报告列出 `a = 4`、`b = 4`、`c = 4`、`s = 2`。Focused 可只显示一个输入，其余端点仍保留在报告里，标为 `outside Focused`。
 
 ### AIG 常见问题
 
@@ -1156,7 +1180,7 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 - **在 `Navigator → Objects` 中筛选后，为什么中央画布没有变小？**
   `Objects` 筛选器控制左侧列表。若要抽取局部逻辑，在画布或搜索结果选中节点后点击 `Focused`。点击列表上方的 `Show selection` 会展开当前选中对象所在页。
 - **遇到 Graphviz 布局超时怎么办？**
-  可在导入期间点击 `File → Cancel AIG import` 取消等待，或在外部综合工具（如 ABC）中先提取目标局部逻辑锥后再导出 `.dot` / `.blif`。超时或取消后会安全保留上一个可用视图，不会自动降级到网表正交布局引擎。
+  正在布局时可点击 `File → Cancel AIG import`。勾选 `File → Open AIG in Search-first` 后重新打开文件，或在粘贴对话框选择 `Search-first`，即可直接搜索并用 Focused 或 Show Path 布局局部逻辑。若子图仍然超时，可缩小邻域深度或补充路径另一端，再试一次。
 - **为什么 Timing、Golden、Compare、Liberty 或 Cell Config 按钮不可用？**
   这些能力专属于门级 Verilog 网表工作区。通过 `File → Open design…` 重新载入 Verilog 网表后即可恢复全部网表功能；网表时序报告与 Layout Golden 不能跨领域套用到 AIG 图上。
 - **标签页刷新恢复是否等同于保存了文件？**

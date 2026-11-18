@@ -139,6 +139,7 @@ test("AIG inspector renders bounded connections, full source aliases, analysis a
   assert.match(escaped, /data-aig-copy="input&lt;&amp;&quot;雪"/);
   assert.doesNotMatch(escaped, /<pi>/);
   const analysis = renderAigInspector(workspace, { selectedId: "and:0", tab: "analysis", fanoutThreshold: 222 });
+  assert.doesNotMatch(analysis, /not cell timing|PO reference/);
   assert.match(analysis, /Fanout references<\/dt><dd><code>221/);
   assert.match(analysis, /Threshold reached<\/dt><dd><code>No/);
   const empty = renderAigInspector(workspace, { selectedId: "missing" });

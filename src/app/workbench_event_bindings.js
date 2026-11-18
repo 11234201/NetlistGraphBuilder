@@ -53,6 +53,19 @@ export function bindWorkbenchEvents({ elements, commands, compare, search, windo
   elements.searchInput.addEventListener("focus", handleSearchInput);
   elements.searchClearButton.addEventListener("click", clearSearch);
   elements.searchResults.addEventListener("click", handleSearchResultClick);
+  const searchBox = elements.searchInput.closest(".topbar-search");
+  searchBox.addEventListener("focusout", (event) => {
+    if (event.relatedTarget && !searchBox.contains(event.relatedTarget)) elements.searchResults.hidden = true;
+  });
+  windowTarget.addEventListener("pointerdown", (event) => {
+    if (!elements.searchResults.hidden && !searchBox.contains(event.target)) elements.searchResults.hidden = true;
+  });
+  elements.searchResults.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.isComposing) return;
+    event.preventDefault();
+    elements.searchInput.focus();
+    elements.searchResults.hidden = true;
+  });
   elements.details.addEventListener("click", handleSelectionNavigationClick);
   elements.moduleOccurrenceChoices.addEventListener("click", handleOccurrenceChoiceClick);
   elements.wholeViewButton.addEventListener("click", () => setViewMode("whole"));

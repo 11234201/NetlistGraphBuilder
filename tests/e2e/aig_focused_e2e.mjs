@@ -34,6 +34,11 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.waitForFunction(({ key, count }) => JSON.parse(sessionStorage.getItem(key))?.focus?.focusedRootNodeIds.length === count &&
       document.querySelector("#cancelDomainImportButton").hidden, { key, count });
   };
+  async function addResult(term) {
+    const row = await resultFor(term);
+    await row.locator("[data-search-actions]").click();
+    await row.locator(".search-result-add").click();
+  }
   async function resultFor(term) {
     await page.locator("#searchInput").fill(term);
     const result = page.locator("#searchResults .search-result").filter({ hasText: term }).first();
@@ -66,7 +71,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator("#focusedViewButton").click();
     await page.waitForFunction((count) => window.layoutTest.count > count + 1, originalCalls);
     await page.evaluate(() => { window.layoutTest.hold = false; });
-    await (await resultFor("island_input")).locator(".search-result-add").click();
+    await addResult("island_input");
     await waitRoots(2);
     assert.ok((await archive()).focus.focusedRootNodeIds.includes(firstRoot), "rapid roots additions compose");
     await page.locator("#searchInput").fill("");
@@ -163,7 +168,7 @@ await runBrowserTest(async ({ browser, url }) => {
 
     await fresh("fast_history.blif");
     await page.locator("#focusedViewButton").click(); await waitRoots(1);
-    await (await resultFor("island_input")).locator(".search-result-add").click(); await waitRoots(2);
+    await addResult("island_input"); await waitRoots(2);
     await page.evaluate(() => { const back = document.querySelector("#moduleBackButton"); back.click(); back.click(); });
     await page.waitForFunction(() => document.querySelector("#cancelDomainImportButton").hidden);
     const fastBack = await archive();

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createWorkspaceExecution } from "../../src/application/workspace_execution.js";
 import { createArtifactStore } from "../../src/application/artifact_store.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
 import { createJobCoordinator } from "../../src/application/job_coordinator.js";
@@ -20,6 +21,38 @@ function setup() {
   const artifacts = createArtifactStore();
   return { documents, sessions, artifacts, jobs: createJobCoordinator({ documents, sessions, artifacts }) };
 }
+
+test("presentation failure, cancellation and supersession preserve both published workspace artifacts", async () => {
+  for (const mode of ["sync", "async"]) {
+    const { jobs, sessions, artifacts } = setup();
+    sessions.create({ sessionId: "view:2", documentId: "doc:1", domainId: "netlist", unitId: "peer" });
+    const ids = ["view:1", "view:2"];
+    const values = () => ids.map((id) => artifacts.get(id, "layout").value);
+    for (const id of ids) jobs.runSync({ sessionId: id, kind: "layout", run: () => "previous" });
+    const execute = createWorkspaceExecution({ jobs }).execute;
+    for (const outcome of ["failure", "install-error", "cancel", "superseded", "success"]) {
+      const ready = deferred(), finish = deferred(), signal = new AbortController();
+      let failure, commits = 0;
+      const run = execute({ provider: { executionMode: mode }, signal: signal.signal,
+        tasks: ids.map((id) => ({ kind: "layout", beginComputation: () => sessions.require(id), run: () => "candidate" })),
+        preparePresentation() { ready.resolve(); return finish.promise; },
+        onCommit() { commits++; }, onError(error) { failure = error; } });
+      await ready.promise;
+      assert.deepEqual(values(), ["previous", "previous"]);
+      if (outcome === "cancel") signal.abort();
+      if (outcome === "superseded") jobs.runSync({ sessionId: ids[0], kind: "layout", run: () => "previous" });
+      if (outcome === "failure") finish.reject(new Error("detached render failed"));
+      else finish.resolve({ install() {
+        if (outcome === "install-error") throw new Error("live mount failed");
+        return true;
+      } });
+      await run;
+      assert.equal(commits, Number(outcome === "success"));
+      assert.equal(Boolean(failure), outcome === "failure" || outcome === "install-error");
+      assert.deepEqual(values(), Array(2).fill(outcome === "success" ? "candidate" : "previous"));
+    }
+  }
+});
 
 test("new jobs suppress old success, failure, and progress for the same session stage", async () => {
   const { jobs, artifacts } = setup();
@@ -153,6 +186,14 @@ test("compare side jobs cancel independently and retain the peer artifact", asyn
   assert.equal((await right.promise).status, "committed");
   assert.equal(state.artifacts.get("compare:left", "compare-left-workspace"), null);
   assert.equal(state.artifacts.get("compare:right", "compare-right-workspace").value, "ready-right");
+});
+
+test("publishing an invalidated prepared job releases its session slot", () => {
+  const state = setup();
+  const staged = state.jobs.runSync({ sessionId: "view:1", kind: "layout", prepareOnly: true, run: () => "old" });
+  state.sessions.update("view:1", () => ({ viewMode: "focused" }));
+  assert.equal(staged.publish().status, "stale");
+  assert.equal(state.jobs.cancelSession("view:1"), 0);
 });
 
 test("a job cancelled before its microtask never enters user code", async () => {

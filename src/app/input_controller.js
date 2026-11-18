@@ -16,7 +16,7 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createInputController({ state, elements, services }) {
+export function createInputController({ state, elements, services, restoreComparePath, validateSavedPath }) {
   async function initializeApplication(session) {
     const request = services.importRequests.begin();
     try {
@@ -24,6 +24,7 @@ export function createInputController({ state, elements, services }) {
       if (!request.isCurrent()) return;
       if (!manifest) {
         await loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
+        if (session?.comparePathView && !session.pathSourceUnverified && request.isCurrent() && session.sourceIdentity?.fingerprint === state.sourceIdentity?.fingerprint) await restoreComparePath?.(session.comparePathView);
         return;
       }
       services.logProcess("info", "launcher", "Applying EDA startup manifest");
@@ -170,6 +171,11 @@ export function createInputController({ state, elements, services }) {
       state.currentSource = source;
       state.currentSourceLabel = label;
       state.sourceIdentity = createSourceIdentity(label, source);
+      if ((restore?.showPath || restore?.comparePathView) && (restore.pathSourceUnverified || restore.sourceIdentity?.fingerprint !== state.sourceIdentity.fingerprint)) {
+        services.logProcess("warning", "persistence", "Source changed; saved Show Path endpoints cleared", {
+          operation: "show-path.restore", code: "show-path.source-mismatch", moduleName: restore.moduleName, documentId: state.document.documentId });
+        restore = { ...restore, showPath: null, comparePathView: null, occurrenceContext: null };
+      }
       resetDesignWorkspace(state, () => services.singleViewSession.resetNavigation());
       services.compareViewSessions.resetState();
       state.currentModule = null;
@@ -189,7 +195,7 @@ export function createInputController({ state, elements, services }) {
       if (restore?.searchQuery) {
         state.searchQuery = restore.searchQuery;
         elements.searchInput.value = restore.searchQuery;
-        services.handleSearchInput();
+        services.handleSearchInput({ openResults: false });
       }
       services.renderModuleOptions();
       const firstModule = state.design.modules.find((module) =>
@@ -198,7 +204,16 @@ export function createInputController({ state, elements, services }) {
       const readyMessage = state.timing
         ? `Loaded ${label}: ${state.design.modules.length} module(s), timing: ${state.timing.instanceCount} instance(s)`
         : `Loaded ${label}: ${state.design.modules.length} module(s)`;
-      services.selectModule(firstModule.name, { historyMode: "restore", deferRender: true });
+      services.selectModule(firstModule.name, { historyMode: "restore", deferRender: true,
+        ...(restore?.occurrenceContext || {}) });
+      if (restore?.showPath) {
+        try { validateSavedPath?.(restore.showPath, firstModule, restore.occurrenceContext); }
+        catch (error) {
+          services.logProcess("warning", "persistence", "Saved Show Path could not be restored", {
+            operation: "show-path.restore", code: error.code, error, documentId: state.document.documentId, moduleName: firstModule.name });
+          restore = { ...restore, showPath: null };
+        }
+      }
       const restoredFocusedRoots = normalizeFocusedRootNodeIds(
         restore?.focusedRootNodeIds,
         restore?.coneRootNodeId
@@ -210,7 +225,7 @@ export function createInputController({ state, elements, services }) {
       const restoredViewMode = restore?.viewMode ? normalizeSingleViewMode(restore.viewMode) : null;
       if (restoredViewMode && (restoredViewMode !== "focused" || restoredFocusedRoots.length > 0)) {
         services.singleViewSession.importNavigation({
-          ...restoredQuery, viewMode: restoredViewMode,
+          ...restoredQuery, showPath: restore.showPath || null, viewMode: restoredViewMode,
           focusedRootNodeIds: restoredViewMode === "focused" ? restoredFocusedRoots : [],
           focusedRootRefs: restore?.focusedRootRefs,
           activeFocusedRootNodeId: restore.activeFocusedRootNodeId

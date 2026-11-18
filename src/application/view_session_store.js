@@ -1,3 +1,4 @@
+import { normalizeShowPath } from "../contracts/show_path.js";
 import { createObjectRef, isObjectRef, objectRefKey } from "../contracts/object_ref.js";
 import { immutableSnapshot } from "../foundation/immutable_snapshot.js";
 import { normalizeViewQuery } from "../contracts/view_query.js";
@@ -24,6 +25,7 @@ export function createViewSession(value) {
     sessionRevision: normalizeRevision(value.sessionRevision, "sessionRevision"),
     computationRevision: normalizeRevision(value.computationRevision, "computationRevision"),
     ...normalizeViewQuery(value),
+    showPath: normalizeShowPath(value.showPath),
     focusedRootRefs,
     activeFocusedRootRef,
     selectedObjectRef,

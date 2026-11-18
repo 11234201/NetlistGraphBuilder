@@ -1,3 +1,4 @@
+import { preparePathCandidate, renderSearchFirstPlaceholder } from "./path_candidate_render.js";
 import { createSingleWorkspaceInput } from "./workspace_inputs.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
 import { cancelSchematicRender, renderSvgSceneIntoMount } from "../render/progressiveSvgRenderer.js";
@@ -20,7 +21,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     options = { ...options, onCancelled: () => {
       if (options.signal && cancellationReported) return;
       cancellationReported = true;
-      if (options.signal?.aborted && request.isCurrent() && !state.compare.active) {
+      if (!options.commitPath && options.signal?.aborted && request.isCurrent() && !state.compare.active) {
         cancelSchematicRender(elements.mount);
         elements.mount.replaceChildren();
         state.autoGraph = state.graph = state.scene = null;
@@ -31,7 +32,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
       }
       onCancelled?.();
     } };
-    state.singleWorkspaceIdentity = null;
+    if (!options.commitPath) state.singleWorkspaceIdentity = null;
     const requestId = request.id;
     const layoutProvider = services.getCurrentLayoutProvider();
     services.logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
@@ -40,11 +41,14 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     });
     const workspaceOptions = createSingleWorkspaceInput(state, layoutProvider,
       services.singleViewSession.readQuery(), services.readCellLibrary?.());
+    workspaceOptions.showPath = Object.hasOwn(options, "pathCandidate") ? options.pathCandidate : state.showPath;
     const workspaceIdentity = createSingleWorkspaceIdentity(state, services.readCellLibrary?.());
     const isCurrentSingleRequest = () => request.isCurrent() && !state.compare.active && !options.signal?.aborted;
     services.workspaceExecution.execute({
       provider: layoutProvider,
       signal: options.signal,
+      preparePresentation: options.commitPath && (([result]) => preparePathCandidate([{ target: elements.mount, workspace: result.artifact.value }],
+        () => isCurrentSingleRequest() && options.pathCurrent())),
       tasks: [{
         beginComputation: () => services.singleViewSession.beginComputation(),
         kind: "single-workspace",
@@ -56,8 +60,11 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         services.logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId, jobId: job.context.jobId });
         services.setStatus(`Layout (${layoutProvider.label})…`);
       },
-      onCommit: ([result]) => {
-        if (isCurrentSingleRequest()) commitCurrentWorkspace(result.artifact.value, { ...options, workspaceIdentity });
+      onCommit: ([result], presentation) => {
+        if (!isCurrentSingleRequest()) return;
+        const value = result.artifact.value;
+        options.commitPath?.();
+        commitCurrentWorkspace(value, { ...options, alreadyMounted: Boolean(presentation), workspaceIdentity });
       },
       onSettled: (results) => {
         if (results.some((result) => result.status !== "committed") || !isCurrentSingleRequest()) {
@@ -65,7 +72,8 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         }
       },
       onError: (error) => {
-        if (isCurrentSingleRequest()) handleLayoutFailure(error, { ...options, requestId });
+        if (isCurrentSingleRequest() && options.commitPath) options.onFailed(error);
+        else if (isCurrentSingleRequest()) handleLayoutFailure(error, { ...options, requestId });
         else options.onCancelled?.();
       }
     });
@@ -91,7 +99,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     services.renderStats();
     services.renderDiagnostics();
     const renderRequest = services.renderGeneration.current();
-    renderGraphMount(elements.mount, graph, { scene, signal: options.signal }).then((result) => {
+    renderGraphMount(elements.mount, graph, { scene, alreadyMounted: options.alreadyMounted, signal: options.signal }).then((result) => {
       if (result?.cancelled || options.signal?.aborted || !renderRequest.isCurrent() || state.compare.active) {
         options.onCancelled?.(); return;
       }
@@ -121,9 +129,13 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     const isCurrent = () => request.isCurrent() && !renderOptions.signal?.aborted;
     if (!isCurrent()) return Promise.resolve({ cancelled: true });
     cancelCanvasGestures(mount);
+    if (renderOptions.alreadyMounted) {
+      mounted?.(mount);
+      return Promise.resolve({ cancelled: false });
+    }
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
-      mount.innerHTML = `<div class="search-first-empty"><strong>Search-first mode</strong><span>${Number(graph.view.totalNodes) || 0} nodes are indexed. Search for a cell or net to open its Focused neighborhood. Add more roots to trace nearby logic, or choose Whole for an explicit overview.</span></div>`;
+      renderSearchFirstPlaceholder(mount, graph);
       return Promise.resolve().then(() => { if (isCurrent()) mounted?.(mount); return { cancelled: !isCurrent() }; });
     }
     if (!renderOptions.scene) {
@@ -182,6 +194,15 @@ export function createWorkspaceRenderController({ state, elements, services, mou
 
   function handleLayoutFailure(error, options = {}) {
     if (error?.name === "AbortError") { options.onCancelled?.(); return; }
+    if (error?.code?.startsWith("show-path.")) {
+      const message = `Show Path query failed: ${error.message}`;
+      services.logProcess(error.code === "show-path.budget" ? "warning" : "error", "graph", message, {
+        error, ...error.pathContext, operation: "show-path.query", code: error.code,
+        moduleName: state.currentModule?.name, view: state.compare.active ? "compare" : "single", requestId: options.requestId });
+      services.setStatus(message);
+      options.onFailed?.(error);
+      return;
+    }
     const failedProvider = getLayoutProvider(state.layoutProviderId);
     const nextProviderId = getNextLayoutProviderId(state.layoutProviderId);
     const details = { error, provider: failedProvider.id, fallbackProvider: nextProviderId,
@@ -216,7 +237,7 @@ export const workspaceRenderPorts = Object.freeze({
     "currentModule", "design", "document", "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs",
     "fullGraph", "graph", "graphOverrides", "layoutFallbackFromProviderId", "layoutPolicy",
     "layoutProviderId", "nodePositions", "nodeSizes", "occurrenceContext", "presentationPolicy",
-    "scene", "showAliases", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
+    "scene", "showPath", "showAliases", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
     "timingDisplayPolicy", "useFanoutHubs", "viewMode", "workspaceArtifactCache"
   ],
   elements: [

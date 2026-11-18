@@ -31,6 +31,7 @@ export function createSingleViewSessionBridge({
   function project(session, graph = currentGraph()) {
     initialState = Object.freeze({ viewport: session.viewport, layoutPolicy: session.layoutPolicy,
       presentationPolicy: session.presentationPolicy, overrides: session.overrides });
+    state.showPath = session.showPath;
     projectViewState(state, session);
     initialQuery = normalizeViewQuery(session);
     Object.assign(state, initialQuery);
@@ -98,7 +99,7 @@ export function createSingleViewSessionBridge({
     const current = synchronizeSession();
     const snapshot = snapshotNavigationImport(value);
     const graph = currentGraph();
-    const patch = { ...resolveNavigationImport(snapshot, context(), graph), ...importViewQuery(value, readQuery()),
+    const patch = { ...(Object.hasOwn(value, "showPath") ? { showPath: value.showPath } : {}), ...resolveNavigationImport(snapshot, context(), graph), ...importViewQuery(value, readQuery()),
       ...importViewState(value, current) };
     const next = sessions.update(current.sessionId, () => patch);
     pendingNavigation = graph ? null : snapshot;
@@ -118,6 +119,11 @@ export function createSingleViewSessionBridge({
   }
 
   return Object.freeze({
+    setShowPath(showPath) {
+      const s = synchronizeSession();
+      project(sessions.update(s.sessionId, () => ({ showPath,
+        ...(showPath?.enabled && s.viewMode === "search-first" ? { viewMode: "whole" } : {}) })));
+    },
     sessions, importNavigation, refreshNavigation, importQuery, readQuery, readState, importState,
     isWorkspaceReady: () => Boolean(state.graph && state.singleWorkspaceIdentity),
     resetNavigation() {
@@ -127,6 +133,7 @@ export function createSingleViewSessionBridge({
       sessions.close("single:primary");
       projectViewState(state, initialState);
       pendingNavigation = null;
+      state.showPath = null;
       Object.assign(state, initialQuery);
       Object.assign(state, projectNavigation({ focusedRootRefs: [] }, null));
     },

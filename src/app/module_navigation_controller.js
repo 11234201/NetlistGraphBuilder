@@ -77,6 +77,7 @@ export function createModuleNavigationController({ state, elements, services }) 
     if (switchingModule && !hasExplicitOccurrencePath) state.occurrenceContext = null;
     if (switchingModule) services.logProcess("info", "navigation", `Opened module ${module.displayName}`, { moduleName: module.name });
     const restoredWorkspace = switchingModule && restoreModuleWorkspace(state, module.name, (value) => services.singleViewSession.importNavigation(value));
+    const previousOccurrence = state.occurrenceContext?.occurrencePath || [];
     if (hasExplicitOccurrencePath) {
       state.occurrenceContext = options.occurrencePath.length
         ? {
@@ -87,6 +88,7 @@ export function createModuleNavigationController({ state, elements, services }) 
     }
     if (hasExplicitOccurrencePath) {
       services.singleViewSession.importNavigation({
+        ...(JSON.stringify(previousOccurrence) !== JSON.stringify(options.occurrencePath) ? { showPath: null } : {}),
         focusedRootNodeIds: state.focusedRootNodeIds, activeFocusedRootNodeId: state.activeFocusedRootNodeId
       });
     }
@@ -129,7 +131,7 @@ export const moduleNavigationPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
     "coneRootNodeId", "currentModule", "design", "expandedGroupIds", "faninDepth", "fanoutDepth",
-    "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "moduleWorkspaces",
+    "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "showPath", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "restoringViewHistory", "scene", "searchResults",
     "selectedNet", "selectedNodeId", "timing", "timingBadgeChoices", "timingBadgePositions",
     "viewHistory", "viewMode", "workspaceArtifactCache"

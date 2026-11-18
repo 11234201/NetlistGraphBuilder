@@ -4,8 +4,8 @@
 
 本项目是面向芯片综合与验证工程师的专业分析工具，而非营销展示页。打开页面后的第一屏即直接进入可操作的工作台：
 
-- **全局栏**：`File` 管理导入、SVG 导出及 Golden 存取；`Liberty` 和 `Cell Config` 分别管理库与类型定义，保留全局 Search、Compare/Single 切换及帮助入口。
-- **上下文工具栏**：展示当前模块/实例与视图状态，提供历史、Whole/Focused、Fit view、View、Layout、Timing、Adjust、选中对象摘要和两侧面板开关。
+- **全局栏**：`File` 管理导入、SVG 导出及 Golden 存取；`Settings` 集中显示、布局、时序、Liberty 库和单元定义，保留全局 Search、Compare/Single 切换及帮助入口。
+- **上下文工具栏**：展示当前模块/实例与视图状态，提供历史、Whole/Focused、Show Path、Fit view、Adjust、选中对象摘要和两侧面板开关。
 - **Navigator**：左侧导航区以 `Hierarchy` / `Design` 页签组织模块实例树、筛选、实例上下文选择和设计统计。
 - **Inspector**：右侧检查区保留对象摘要、Single 或 A/B 来源、完整名称与复制入口；以 `Connections` / `Timing` / `Adjust` 页签组织对象详情，清楚区分实例覆盖与 `Edit cell type…` 类型定义。
 - **中央主画布**：最大化呈现交互式 SVG 原理图。
@@ -95,11 +95,11 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 
 ## Liberty 导入交互
 
-全局栏 `Liberty` 展开独立浮层，提供 Load .lib、扫描期间 Cancel import 和 Unload。复用工具栏展开/互斥、点击外部及 Escape 收起行为；收起仅隐藏面板，不取消导入或卸载库。摘要显示文件、cell 数与告警数，文本安全写入。文件选择、拖放和非输入区粘贴走同一导入用例。新导入准备完成前保留上次有效库；语法失败不清空旧快照。提交后刷新活动 Single/Compare 工作区，保留既有视口与显式布局覆盖；刷新失败与库解析失败分别报告。库来源与原始 function 在 Inspector 中可见；缺失接口和配置冲突在 Diagnostics 中可见。页面刷新需重载库。
+从全局栏 `Settings` 展开 `Liberty` 分区，提供 Load .lib、扫描期间 Cancel import 和 Unload。复用工具栏展开/互斥、点击外部及 Escape 收起行为；收起仅隐藏面板，不取消导入或卸载库。摘要显示文件、cell 数与告警数，文本安全写入。文件选择、拖放和非输入区粘贴走同一导入用例。新导入准备完成前保留上次有效库；语法失败不清空旧快照。提交后刷新活动 Single/Compare 工作区，保留既有视口与显式布局覆盖；刷新失败与库解析失败分别报告。库来源与原始 function 在 Inspector 中可见；缺失接口和配置冲突在 Diagnostics 中可见。页面刷新需重载库。
 
 ## AIG 图形与工作台（2026-11-15）
 
-AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 原名与内部稳定编号分开。工具栏 View 默认 Logic View（原 ABC），让输入、输出靠近各自关联逻辑自然分层。Standard 按逻辑深度分层。两种模式统一使用 Arial 12 字体、浅蓝输入、浅绿输出、深灰轮廓与灰色连线，反相边均为虚线，分析与选中高亮使用同一策略。仅布局方式不同；两种视图保留同一拓扑与对象身份，切换失败或取消保留旧图。
+AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧栏。输入格式为 ABC AIG DOT / 平坦组合 AND-NOT BLIF，采用 BT Graphviz 曲线：PI 正三角、PO 倒三角、AND 椭圆；PI/PO 使用源端口名，BLIF 注释映射保存在信息栏、Names 页与搜索索引中。工具栏 View 默认 Logic View（原 ABC），让输入、输出靠近各自关联逻辑自然分层。Standard 按逻辑深度分层。两种模式统一使用 Arial 12 字体、浅蓝输入、浅绿输出、深灰轮廓与灰色连线，反相边均为虚线，分析与选中高亮使用同一策略。仅布局方式不同；两种视图保留同一拓扑与对象身份，切换失败或取消保留旧图。
 
 关键节点红色填充、关键边红色加粗、扇出橙色边框与选中对象紫色外框可叠加。Logical critical path 与 High fanout 默认关闭，用户显式开启后随工作区恢复。Highlight connections 在 AIG 中提供 Off、All 和指定级数，默认为 All。点击输出端口以蓝色向输入或常量追踪，点击输入端口以绿色向输出追踪。在同一控件中指定正整数 N 时最多追踪 N 条连续的有向连接，范围外的节点与连线灰显。清除选择或关闭连接高亮后恢复。选中内部 AND 时，沿扇入（蓝色）与扇出（绿色）分别追踪相同级数，选中边时标记其两个端点。深度、选区和分析开关只更新图元属性。视图样式切换才重新布局。样式、连接高亮设置和选区随工作区恢复，SVG 导出使用相同展示策略。Netlist 不启用该邻接高亮。
 
@@ -111,9 +111,11 @@ Paste AIG 绘图前可选择 Standard / Logic View，初始默认 Logic View。�
 
 Verilog / Timing 粘贴取消会中止实际布局任务及尚未完成的绘制，取消或过期结果不得覆盖新请求。既有网表导入在布局前已应用解析结果，因此取消保留已解析的数据，清除当前取消操作的画布并明确提示可重新绘图；Single / Compare 使用共享的任务取消边界。
 
-Navigator 提供 Design、Objects 和 Analysis，有 BLIF 映射时可从 Names 查看设计名、原始 ID、极性和用途。Inspector 的普通对象使用 Connections、Analysis 和 Source。全局搜索可以按原始 ID 或映射名定位节点。AIG Single 支持 Whole 和多根 Focused，两种样式与 SVG 导出共用当前显示范围，重收敛只使用范围内的真实逻辑。新文件或新的 Focused 布局准备成功后替换画布，失败或取消保留原视图。Compare、Timing、Liberty、Cell Config、Adjust、Golden 仍属于 Netlist 工作区。
+Navigator 提供 Design、Objects 和 Analysis，有 BLIF 映射时可从 Names 查看设计名、原始 ID、极性和用途。Inspector 的普通对象使用 Connections、Analysis 和 Source。全局搜索可以按原始 ID 或映射名定位节点。AIG 导入可选择 Search-first 先建索引，在选定邻域或路径后才调用 Graphviz。AIG Single 支持 Whole 和多根 Focused，两种样式与 SVG 导出共用当前显示范围，重收敛只使用范围内的真实逻辑。新文件或新的 Focused 布局准备成功后替换画布，失败或取消保留原视图。Compare、Timing、Liberty、Cell Config、Adjust、Golden 仍属于 Netlist 工作区。
 
 Analysis 分为 Reconvergence 与 Blocks。前者列出拥有两条内部节点不相交路径的分叉/汇合对，点选后两条证明路径分别为蓝、橙，分叉与汇合外框为青色；详情按需计算相关路径并集。后者识别 XOR2/XNOR2/MUX2 的全部有限函数变体，列出根节点、边界输入、引脚映射、极性与外部用途；块成员及输入边界为紫色外框。保留原始 AIG，不折叠或替换节点。XOR/XNOR 按正相根函数命名；MUX 采用确定性的引脚/极性规范表示，出边取反不会重复计数。
+
+Netlist Single、Compare 两侧及 AIG Single 均支持独立的 Show Path。双端查询保留所有合法连接，单端查询自动列出另一端的组合边界。报告按端点展示到本次所选终点（或 Auto ends）的剩余级数，以及从查询起点到该点的级数（From start）。两者都给出最短和最长值。Focused 和画法只改变可见范围，导出 SVG 附带当前查询和端点摘要。无路径、歧义、组合环及预算超限按各自状态报告。
 
 Inspector 在正相根公式与引脚映射中统一展示等效输入极性。Root output uses 按接收端口或门输入槽列出该边传递的函数。MUX 的出边取反时翻转 D0、D1，保留选择信号。内部节点的外接支路单列。
 

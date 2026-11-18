@@ -1,7 +1,7 @@
 // Windows-only package smoke. Uses installed Chrome's CDP and Node built-ins;
 // no package installation, browser download or network dependency is required.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createServer } from "node:net";
@@ -12,6 +12,9 @@ const root = resolve(import.meta.dirname, "../..");
 const version = JSON.parse(await readFile(join(root, "package.json"), "utf8")).version;
 const packageRoot = resolve(process.env.NGB_WINDOWS_PACKAGE || join(root, `dist/NetlistGraphBuilder-v${version}-win-x64`));
 const output = resolve(process.env.NGB_WINDOWS_AIG_ARTIFACT_DIR || join(root, "dc_runs/aig_windows_release"));
+assert.equal((await readFile(join(packageRoot, "VERSION"), "utf8")).trim(), version);
+const guides = ["README.md", "USER_GUIDE.md", "CHANGELOG.md", "docs/USER_GUIDE.md", "docs/LINUX_SINGLE_FILE_LAUNCHER.md"];
+execFileSync(process.execPath, [join(root, "tools/check_docs_links.mjs"), ...guides.map((guide) => join(packageRoot, guide))], { stdio: "inherit" });
 const profile = join(output, "chrome_profile");
 await mkdir(output, { recursive: true });
 const port = await new Promise((done) => {
@@ -142,8 +145,13 @@ try {
   assert.ok(await evaluate('document.querySelectorAll("[data-aig-node]").length') > 0);
   const { data } = await send("Page.captureScreenshot", { format: "png" });
   await writeFile(join(output, "windows-package-aig.png"), Buffer.from(data, "base64"));
+  await evaluate('document.getElementById("aigSearchFirstInput").checked = true');
   await openFile("#aigFileInput", join(packageRoot, "examples/aig_mapped_names.blif"));
   await waitFor('document.getElementById("statusBar").textContent.includes("Loaded aig_mapped_names.blif")');
+  await waitFor('document.querySelector("#schematicMount .search-first-empty")');
+  await evaluate('document.getElementById("wholeViewButton").click()');
+  await waitFor('document.querySelector("#schematicMount [data-aig-node]")');
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(\'#schematicMount [aria-label^="po:"] .aig-node-label\')].map(n => n.textContent).sort()'), ["n3", "n4"]);
   await evaluate('document.querySelector("[data-aig-nav-tab=analysis]").click()');
   await waitFor('document.querySelector("[data-aig-analysis-status=complete]") && document.querySelector("[data-aig-analysis-select]")');
   await evaluate('{ const search = document.getElementById("searchInput"); search.value = "in_96"; search.dispatchEvent(new Event("input",{bubbles:true})); }');
@@ -155,6 +163,15 @@ try {
   await evaluate('document.querySelector("[data-aig-nav-tab=analysis]").click()');
   await waitFor('document.querySelector("[data-aig-analysis-status=complete]") && document.querySelector("[data-aig-analysis-category=reconvergence]")?.textContent === "Reconvergence (0)"');
   assert.ok(await evaluate('[...document.querySelectorAll("[data-aig-node]")].some(n => n.dataset.aigNode.startsWith("cut:"))'));
+  await evaluate('document.getElementById("showPathMenu").open = true');
+  for (const [term, kind, role] of [["in_96", "pi", "starts"], ["n4", "po", "ends"]]) {
+    await evaluate(`{const field=document.getElementById("pathFind");field.value=${JSON.stringify(term)};field.dispatchEvent(new Event("input",{bubbles:true}));}`);
+    await evaluate(`[...document.querySelectorAll("#pathCandidates .path-row")].find(el=>el.textContent.includes("· ${kind}")).querySelector('[data-path-action="${role}"]').click()`);
+  }
+  await evaluate('document.querySelector("[data-path-action=apply]").click()');
+  await waitFor('document.querySelector("#showPathMenu[data-enabled]") && document.getElementById("pathReportBody").textContent.includes("To selected end 2 · From start 0")');
+  await evaluate('document.querySelector("[data-path-action=tab-ends]").click()');
+  await waitFor('document.querySelector("#pathReportBody .path-row").innerText.includes("To selected end 0 · From start 2") && document.querySelector("#pathReportBody .path-row").innerText.includes("outside Focused")');
   await openFile("#fileInput", "examples/two_equivalent_style_modules.v");
   await waitFor('document.querySelector("#domainToolbar").hidden && document.querySelector("#schematicMount [data-node-id]")');
   await exerciseViewport(false);
@@ -164,7 +181,7 @@ try {
   await waitFor('document.querySelector("#netlistAnalysis [data-recon-status=complete], #netlistAnalysis [data-recon-status=partial]")');
   assert.deepEqual(errors, []);
   assert.deepEqual(externalRequests, []);
-  const report = { packageRoot, checks: ["Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/Logic View switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "AIG and Netlist real pointer pan and wheel", "AIG gesture labels restore", "BLIF file filters and generic picker", "AIG paste real WASM", "Packaged mapped OR/XOR and design-name search", "Focused cut removes Whole reconvergence", "Netlist restoration", "UNIT caption and Netlist reconvergence Worker", "No external requests or page errors"], errors, externalRequests };
+  const report = { packageRoot, checks: ["Package version and offline guide links", "Windows executable startup", "Netlist startup", "BLIF real WASM", "DOT same geometry", "Standard/Logic View switch and default neighbor highlighting", "Style switch retains search and keyboard focus", "AIG and Netlist real pointer pan and wheel", "AIG gesture labels restore", "BLIF file filters and generic picker", "AIG paste real WASM", "Indexed AIG import, explicit Whole and short BLIF port labels", "Packaged mapped OR/XOR and design-name search", "Focused cut removes Whole reconvergence", "Selected-end distances outside the Focused canvas", "Netlist restoration", "UNIT caption and Netlist reconvergence Worker", "No external requests or page errors"], errors, externalRequests };
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {

@@ -12,10 +12,10 @@ export function importViewQuery(value, current) {
 
 export const SINGLE_NAVIGATION_FIELDS = Object.freeze([
   "focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId", "coneRootNodeId", "selectedNodeId", "selectedNet",
-  "viewMode", "coneDepth", "faninDepth", "fanoutDepth"
+  "showPath", "viewMode", "coneDepth", "faninDepth", "fanoutDepth"
 ]);
 export const COMPARE_NAVIGATION_FIELDS = Object.freeze([
-  "focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId", "selectedKind", "selectedName", "selectedSide"
+  "showPath", "focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId", "selectedKind", "selectedName", "selectedSide"
 ]);
 
 // Old archives can contain graph IDs without canonical refs. Keep that explicit

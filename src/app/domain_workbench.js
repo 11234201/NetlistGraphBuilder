@@ -1,3 +1,4 @@
+import { aigPathContext, pathDisplayBoundaries } from "./show_path_context.js";
 import { createDomainWorkspace } from "../application/domain_workspace.js";
 import { createDomainWorkspaceStorage } from "../persistence/domain_workspace_storage.js";
 import { createGraphvizRuntime } from "../platform/graphviz_runtime.js";
@@ -25,7 +26,7 @@ const presentations = new Map([[aigControls.domainId, { ...aigControls,
 const passthrough = new Set(["setStatus", "logProcess", "cssEscape", "clamp", "round", "signed", "isPromise"]);
 
 export function createDomainWorkbench({ document, windowTarget, registry, documents, sessions, jobs, download,
-  setStatus, logProcess, suspendLegacy, clearSearch, importRequests }) {
+  setStatus, logProcess, suspendLegacy, clearSearch, importRequests, netlistSearchGraph }) {
   const get = (id) => document.getElementById(id);
   const mount = get("schematicMount");
   const runtime = createGraphvizRuntime();
@@ -33,6 +34,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const navigatorHost = document.createElement("div");
   const inspectorHost = document.createElement("div");
   const toolbar = document.createElement("div");
+  const overlays = get("aigOverlaySettings");
   navigatorHost.id = "domainNavigator";
   inspectorHost.id = "domainInspector";
   toolbar.id = "domainToolbar";
@@ -70,7 +72,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const focused = createAigFocusedController({ get, readWorkspace: () => workspace, readSession: session, select, resolveFocusedRootAction,
     readSelectionRevision: () => selectionRevision,
     relayout: (focus, options, operation) => replaceView({ ...options, focus }, operation), setStatus,
-    cancelPending() { importRequest?.cancel(); setStatus(`AIG view: ${session().viewMode === "focused" ? "Focused" : "Whole"}`); },
+    cancelPending() { importRequest?.cancel(); setStatus(`AIG view: ${aigScopeLabel(session())}`); },
     activateRoot: (id) => sessions.update(workspace.sessionId, (s) => ({ activeFocusedRootRef: s.focusedRootRefs.find((ref) => ref.localId === id) }), { invalidateComputation: false }) });
   function persist() {
     if (!workspace || !source) return;
@@ -93,7 +95,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     if (!workspace) return;
     const object = workspace.query.getObject(id);
     const boundary = !object && workspace.displayQuery.getObject(id);
-    if (boundary) { setStatus(boundary.description); return; }
+    if (boundary) { if (focus) focusSelection(id); setStatus(boundary.description); return; }
     if (focus && object && focused.reveal(id)) return;
     if (!preserveAnalysis) { selectionRevision++; structure.clearSelection(); }
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
@@ -143,6 +145,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       for (const element of savedVisibility.keys()) element.hidden = true;
       mount.hidden = false;
       toolbar.innerHTML = present().toolbar;
+      overlays.innerHTML = present().overlays;
       connectionControl = bindAigConnectionHighlight(toolbar, { read: () => policy().connectionHighlight,
         commit: (value) => changePresentation("connectionHighlight", value), preview: refreshSelectionHighlights });
       get("searchInput").placeholder = present().searchPlaceholder;
@@ -157,7 +160,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       savedVisibility.clear();
       get("searchInput").placeholder = "Find cell, net, port…";
     }
-    for (const host of [navigatorHost, inspectorHost, toolbar]) host.hidden = !active;
+    for (const host of [navigatorHost, inspectorHost, toolbar, overlays]) host.hidden = !active;
     document.body.classList.toggle("has-domain-workspace", active);
     clearSearch();
   }
@@ -179,7 +182,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   function syncPolicyControls() {
     get("cancelDomainImportButton").textContent = switchingStyle ? "Cancel AIG layout" : "Cancel AIG import";
     connectionControl?.sync(policy().connectionHighlight, switchingStyle);
-    for (const input of toolbar.querySelectorAll("[data-domain-policy]")) {
+    for (const input of [...toolbar.querySelectorAll("[data-domain-policy]"), ...overlays.querySelectorAll("[data-domain-policy]")]) {
       // Keep the requested style visible and keyboard-accessible while preparing
       // it. Choosing the active style cancels the pending replacement.
       if (input.dataset.domainPolicy === "viewStyle" && switchingStyle) continue;
@@ -209,8 +212,13 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const useCase = createDomainWorkspace({ documents, sessions, jobs, registry, layout: runtime,
     async onCommit(next, restore, isCurrent) {
       const candidateMount = document.createElement("div");
-      const result = await renderSvgSceneIntoMount(candidateMount, next.scene, { isCurrent });
-      if (result.cancelled || !isCurrent()) return false;
+      if (next.searchFirst) {
+        candidateMount.innerHTML = '<div class="search-first-empty"><strong>Search-first</strong><span>Search for a signal to open its Focused neighborhood, or use Show Path to choose endpoints. Choose Whole to lay out the full graph.</span></div>';
+      } else {
+        const result = await renderSvgSceneIntoMount(candidateMount, next.scene, { isCurrent });
+        if (result.cancelled) return false;
+      }
+      if (!isCurrent()) return false;
       // Retain selections made on the still-visible graph while layout was running.
       const sameDocument = workspace?.document === next.document;
       const keepCurrentSelection = sameDocument && (!restore?.restoreSelection || restore.selectionRevision !== selectionRevision);
@@ -235,6 +243,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       neighborHighlights = new Map();
       if (!sameDocument) { switchShell(true); focused.reset(); }
       else if (scopeChanged) panels.analysis.selectedId = null;
+      get("exportSvgButton").disabled = next.searchFirst;
       mount.replaceChildren(...candidateMount.childNodes);
       objectElements = new Map([...mount.querySelectorAll("[data-domain-object]")].map((element) => [element.dataset.domainObject, element]));
       canvas.apply();
@@ -284,17 +293,23 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     setStatus(`Opening ${input.name}…`);
     get("cancelDomainImportButton").hidden = false;
     try {
+      if (!restore?.source && !restore?.focus && get("aigSearchFirstInput").checked) {
+        restore = { ...restore, focus: { viewMode: "search-first" } };
+      }
       const result = await useCase.open(domainId, input, restore, (value) => { candidateContext = value; });
       if (!result || ticket !== inputGeneration) return null;
       source = { ...input };
       persist();
       const restoredSelectionMissing = restore?.selectedId && !result.query.getObject(restore.selectedId);
       const partial = budgetNotice(result, "aig.focused.restore");
-      setStatus(`Loaded ${input.name} · ${result.geometry.nodes.length} nodes · Graphviz${partial}${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
+      const summary = result.searchFirst ? `${result.query.nodeById.size} nodes indexed · Search-first` : `${result.geometry.nodes.length} nodes · Graphviz`;
+      setStatus(`Loaded ${input.name} · ${summary}${partial}${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
       diagnostics.emit("info", "import", `Loaded ${input.name}`, { domainId, provider: runtime.version });
       const mappingWarnings = result.document.model.model.mappingWarnings;
       if (mappingWarnings) diagnostics.emit("warning", "import", "Some BLIF name mappings need attention",
         { ...mappingWarnings, ...diagnostics.context(), operation: "blif.names.bind", code: "blif.mapping-warnings", fileName: input.name });
+      if (restore?.pathSourceMismatch) diagnostics.emit("warning", "persistence", "Source changed; saved Show Path endpoints cleared", {
+        ...diagnostics.context(), operation: "show-path.restore", code: "show-path.source-mismatch" });
       const restoredRoots = restore?.focus?.focusedRootNodeIds;
       if (Array.isArray(restoredRoots) && restoredRoots.length !== session().focusedRootRefs.length) {
         diagnostics.emit("warning", "persistence", "Some saved Focused roots could not be restored", { ...diagnostics.context(),
@@ -305,6 +320,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     } catch (error) {
       const details = { fileName: input.name, retainedPreviousView: Boolean(workspace),
         previousDocumentId: workspace?.document.documentId };
+      if (ticket === inputGeneration && request.isCurrent() && restore?.source && restore.focus?.showPath && error?.code?.startsWith("show-path.")) {
+        diagnostics.failure(error, "persistence", "show-path.restore", { ...details, code: error.code }, "warning", candidateContext);
+        return open(domainId, input, { ...restore, focus: { ...restore.focus, showPath: null } }, request);
+      }
       if (forwardFailure) {
         try { forwardFailure({ ...candidateContext, ...details }); } catch { /* Preserve the original input failure. */ }
         throw error;
@@ -358,7 +377,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     else return;
     renderPanels(); persist();
   }
-  toolbar.addEventListener("change", (event) => {
+  for (const host of [toolbar, overlays]) host.addEventListener("change", (event) => {
     const field = event.target.dataset.domainPolicy;
     if (!field || !workspace) return;
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
@@ -390,7 +409,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     syncPolicyControls();
     toolbar.querySelector('[data-domain-policy="viewStyle"]').value = viewStyle;
     get("cancelDomainImportButton").hidden = false;
-    const label = operation === "aig.style.layout" ? (viewStyle === "abc" ? "Logic View" : "Standard") : restore.focus.viewMode === "focused" ? "Focused" : "Whole";
+    const scope = aigScopeLabel(restore.focus);
+    const label = operation === "aig.style.layout" ? (viewStyle === "abc" ? "Logic View" : "Standard") : scope;
     setStatus(`Switching AIG view to ${label}…`);
     try {
       const result = await useCase.relayout(restore, (value) => { candidateContext = value; });
@@ -401,6 +421,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       setStatus(`AIG view: ${label}${budgetNotice(result, operation, previousPartialScope)}`);
       return result;
     } catch (error) {
+      if (ticket === inputGeneration && operation === "show-path.apply") {
+        const failure = error instanceof Error ? error : new Error(String(error), { cause: error });
+        throw Object.assign(failure, { pathContext: { ...candidateContext, ...failure.pathContext } });
+      }
       if (ticket === inputGeneration) diagnostics.failure(error, "layout", operation, { roots: restore.focus.focusedRootNodeIds,
         faninDepth: restore.focus.faninDepth, fanoutDepth: restore.focus.fanoutDepth, retainedPreviousView: true,
         previousScope: workspace.analysisScopeLabel }, "error", candidateContext);
@@ -463,8 +487,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       await fallback();
     },
     imports: Object.freeze({
-      openAigText(text, { label, request, presentationPolicy, onFailureContext = () => {} }) {
-        return open("aig", { text, name: label }, { presentationPolicy }, beginImport(request), onFailureContext);
+      openAigText(text, { label, request, presentationPolicy, deferLayout, onFailureContext = () => {} }) {
+        const focus = deferLayout === undefined ? undefined : { viewMode: deferLayout ? "search-first" : "whole" };
+        return open("aig", { text, name: label }, { presentationPolicy, focus }, beginImport(request), onFailureContext);
       },
       route(kind, run) {
         if (workspace && kind !== "netlist" && kind !== "aig") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
@@ -475,10 +500,14 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       priority: (kind) => workspace && kind === "netlist" ? -2 : getQuickInputPriority(kind)
     }),
     search(index, query) {
-      if (!workspace) return searchDesignIndex(index, query);
+      if (!workspace) return searchDesignIndex(index, query).map((hit) => {
+        const path = netlistSearchGraph?.(hit.moduleName)?.path;
+        if (!path || hit.kind === "module" || path.searchKeys.has(JSON.stringify([hit.target.kind, hit.target.name]))) return hit;
+        return { ...hit, detail: [hit.detail, "Outside Show Path"].filter(Boolean).join(" · "), outsidePath: true };
+      });
       const matches = workspace.search(query, 100);
       return workspace.visibleNodeIds ? matches.map((match) => workspace.visibleNodeIds.has(match.id) ? match
-        : { ...match, detail: [match.detail, "Outside Focused"].filter(Boolean).join(" · ") }) : matches;
+        : { ...match, detail: [match.detail, workspace.path && !workspace.path.nodeIds.has(match.id) ? "Outside Show Path" : "Outside Focused"].filter(Boolean).join(" · ") }) : matches;
     },
     viewport: Object.freeze({
       read: () => workspace ? [{ id: "domain", mount, viewport: canvas.viewport() }] : null,
@@ -492,7 +521,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       }
     }),
     context: () => workspace ? { compareActive: false, moduleLabel: workspace.document.model.name,
-      sourceLabel: workspace.document.source.name, viewMode: session().viewMode, providerLabel: "Graphviz" } : {},
+      sourceLabel: workspace.document.source.name, viewMode: session().viewMode, pathEnabled: Boolean(workspace.path), providerLabel: "Graphviz" } : {},
     routeCommand(name, action, args) {
       if (name === "loadDesign" || name === "loadQuickInputText" && args[1]?.kind === "netlist") {
         if (workspace) registry.require("netlist").importSource({ text: args[0], name: args[1]?.label || args[1] });
@@ -501,12 +530,19 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (!workspace || passthrough.has(name)) return action(...args);
       const commands = {
         ...focused.commands,
+        readShowPath: () => aigPathContext(workspace, session(), select, (candidate, signal) => {
+          const result = focused.changePath(candidate);
+          const request = importRequest;
+          const cancel = () => request?.cancel();
+          signal.addEventListener("abort", cancel, { once: true });
+          return result.finally(() => signal.removeEventListener("abort", cancel));
+        }),
         handleWheel: canvas.wheel, handlePointerDown: canvas.pointerDown, fitToView: canvas.fit,
         focusSelectedCell: focusSelection, activateSearchResult: (result) => select(result.id),
         persistSession: persist,
         exportCurrentSvg() {
           const fileName = `${sanitizeDownloadFileName(workspace.document.source.name)}.svg`;
-          try { download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, selectionPolicy(), selectedId(), structure.view()))),
+          try { download.text(createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, selectionPolicy(), selectedId(), structure.view())), workspace.path, workspace.analysisScopeLabel, workspace.path ? { boundaries: pathDisplayBoundaries(workspace.displayModel), visible: workspace.positionedNodes, truncated: workspace.truncated } : {}),
             fileName, "image/svg+xml"); }
           catch (error) { diagnostics.failure(error, "export", "aig.svg.export", { format: "svg", fileName }); }
         },
@@ -515,6 +551,11 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       return commands[name]?.(...args);
     }
   });
+}
+
+function aigScopeLabel(focus) {
+  if (focus.showPath?.enabled) return "Show Path";
+  return focus.viewMode === "search-first" ? "Search-first" : focus.viewMode === "focused" ? "Focused" : "Whole";
 }
 
 function setAttributes(element, values) {

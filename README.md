@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦两输入组合 BLIF。
 
-- **当前版本**为 `v1.5.3`。AIG 默认使用 Logic View。选中输入、输出或 AND 节点后，可用同一控件设定连接高亮深度，范围外的节点和连线显示为灰色。[版本标签](https://github.com/11234201/NetlistGraphBuilder/tree/v1.5.3) · [更新日志](CHANGELOG.md)
+- **v1.6.0** 新增 Show Path。选择终点后可直接比较各输入到该终点的逻辑级数。大型 AIG 可以先建立索引，再布局选中的子图。[下载 Windows / Linux 版](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.6.0) · [更新日志](CHANGELOG.md)
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
 - **AIG 浏览**：从 `File → Open AIG…` 打开 ABC AIG DOT 或平坦两输入组合 BLIF。可按映射名查找输入、输出和内部点，查看 XOR/XNOR 分解来源，并用多根 Focused 抽取局部逻辑。Standard、Logic View 和 SVG 导出共用当前展示范围。[AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
@@ -12,7 +12,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 完整功能介绍、操作流程、数据格式示例与故障排查请阅读 [完整使用教程](docs/USER_GUIDE.md)（Windows 发布包根目录亦随附 `USER_GUIDE.md`）。
 
-**工作台界面概览（`v1.5.3`）**：从旧版升级时请完整替换离线包并重新启动。顶部全局栏管理 `File`、`Liberty`、`Cell Config` 与全局 `Search`；上下文工具栏管理当前视图、布局与时序策略；左侧 `Navigator` 提供模块层次与设计统计，AIG 模式的 `Analysis` 页提供重汇聚与逻辑块列表；右侧 `Inspector` 提供所选对象摘要及 `Connections` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）页签。
+**工作台入口**　`File` 负责导入、导出和 Golden。`Settings` 集中管理显示、布局、时序和库配置。上下文栏可切换 Whole / Focused、打开 Show Path；左侧 Navigator 查找对象和分析结果，右侧 Inspector 查看连接、名称映射及来源。
 
 **让画布占满宽度**：点击左右面板标题旁的 `Hide`，或点击顶部 `Navigator` / `Inspector` 开关即可收起面板；两侧均隐藏后，中央画布占满工作区宽度。顶部开关始终保留，可随时分别恢复面板（高亮表示已展开）。收起和恢复面板均保持当前图中心与缩放倍率，不触发重新布局。
 
@@ -20,11 +20,11 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ## AIG 快速上手
 
-1. 启动工作台，选择 `File → Open AIG…`，打开 ABC AIG `.dot` 或平坦两输入组合 `.blif` 文件；无需安装 ABC 或 Graphviz。
+1. 选择 `File → Open AIG…` 打开 DOT 或 BLIF。大型 AIG 可先勾选 `Open AIG in Search-first`。导入完成后先搜索，选定 Focused 邻域或应用 Show Path 时才布局。
 2. 在 `Navigator → Objects` 按名称或来源 ID 找到节点，点击后在 `Inspector → Connections` 追踪连接，在 `Analysis` 查看深度、扇出与相关结构。
 3. 打开左侧 `Navigator → Analysis`，在 `Reconvergence` 查看重汇聚路径，在 `Blocks` 按 XOR2 / XNOR2 / MUX2 筛选逻辑块。点选结果高亮，右侧 `Locate` 才调整视口；`Partial results` 表示结果尚不完整。
-4. 用上下文栏 `View` 切换 Standard / Logic View 画法；默认的 Logic View 让输入输出靠近相关逻辑。`Block labels`、`Dim outside analysis` 控制结构标注。`Highlight connections` 默认追踪端口的全部逻辑锥。选中 AND 时，同时追踪扇入和扇出。指定级数对两个方向分别生效，范围外的节点和连线变灰。该菜单也可关闭高亮。Logical critical path 与 High fanout 默认关闭；红色关键路径按单位 AND 深度计算，不代表 STA 延迟。
-5. 通过 `File → Export SVG` 保存当前图；需要继续网表操作时，选择 `File → Open design…`。
+4. 在上下文栏用 `View` 切换 Standard / Logic View，用 `Highlight connections` 设置追踪深度。在 `Settings → AIG overlays` 设置逻辑块标签、关键路径和高扇出标记。
+5. 打开随包的 `examples/aig_structure_demo.blif`，在 `Show Path` 搜索 `y`，选 `po` 行的 `End +`，点 `Apply`。`Path information → Auto starts` 显示到 `y` 的级数为 `a = 4、b = 4、c = 4、s = 2`。用 `File → Export SVG` 保存当前图和端点报告。
 
 没有现成输入时，可直接打开 [结构分析示例](examples/aig_structure_demo.blif)，照着 [结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习) 查看 6 对重汇聚与 3 个逻辑块；只想熟悉反相边时可使用 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例)。[点相关查询](docs/USER_GUIDE.md#aig-从节点查找相关结构) 已提供基础关联，尚不支持按节点周围 N 跳查询；完整操作与边界见 [AIG 教程](docs/USER_GUIDE.md#aig-图浏览)。
 
@@ -32,25 +32,26 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 | 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
+| **Show Path 路径级数** | 工具栏 `Show Path → Apply → Path information` | 在 Starts 查看每个输入到所选 Ends 的最短和最长级数。仅指定起点时，使用报告中的 Auto ends。在 Ends 查看从查询起点到指定终点的级数（From start）。[教程与 BLIF 示例](docs/USER_GUIDE.md#show-path-路径与逻辑级数) |
 | **离线 AIG 工作区** | `File → Open AIG…`、Navigator → `Analysis` | 在 Whole 或 Focused 中查看 Standard / Logic View 曲线图、当前子图重收敛与 XOR / XNOR / MUX，支持对象追踪、刷新恢复和 SVG 导出。 |
 | **网表重收敛** | Navigator → `Analysis` | 列出当前可见逻辑内的分叉、汇合及两条独立路径，支持高亮、定位和详情。Compare 两侧各自计算。 |
 | **可隐藏的左右面板** | 面板标题 `Hide`、上下文栏 `Navigator` / `Inspector` | 两侧可分别隐藏或恢复，中央画布使用腾出的空间；Single、Focused 与 Compare 共用，保留当前阅读位置与缩放倍率。 |
 | **指定 Net 不布线** | `Inspector → Connections → Net routing` | 支持为 `clk`、`reset` 或任意选定线网单独关闭/恢复几何布线，同时完整保留引脚连接详情与 Focused 锥体追踪；Single 与 Compare 两侧独立生效。 |
-| **Liberty 标准单元库** | 顶部 `Liberty` 菜单、拖放与全局粘贴 | 加载、替换、取消和卸载文本 `.lib`，使用库方向和布尔 `function` 辅助单元推断；Single/Compare 共用，不占用左侧栏，无库时仍可直接浏览网表。 |
-| **标准 STA 时序与 Metric 过滤** | 上下文栏 `Timing`、`Inspector → Timing` 与全局输入 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 `assign` 链回溯；`Timing` 菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式；支持自定义 Slack 违例判定阈值（Threshold，默认 0.0）；内置验证时序默认联动呈现负 Slack 违例关键路径。 |
+| **Liberty 标准单元库** | `Settings → Liberty`、拖放与全局粘贴 | 加载、替换、取消和卸载文本 `.lib`，使用库方向和布尔 `function` 辅助单元推断；Single/Compare 共用，不占用左侧栏，无库时仍可直接浏览网表。 |
+| **标准 STA 时序与 Metric 过滤** | `Settings → Timing`、`Inspector → Timing` 与全局输入 | 全面支持工业级标准 STA 表格与 JSON 格式导入，驱动源自动沿 `assign` 链回溯；`Timing` 菜单提供 `Worst Slack`、`AT`、`RT`、`Delay`、`Slew`、`All` 与 `None` 模式；支持自定义 Slack 违例判定阈值（Threshold，默认 0.0）；内置验证时序默认联动呈现负 Slack 违例关键路径。 |
 | **Cell / Net 多根节点聚焦** | 顶部 `Search`、Inspector 操作区与 `Roots` 菜单 | 支持以 Cell 或 Net 作为聚焦根节点（最多保留 32 个）。点击未在当前画布绘制的搜索结果会追加为新 root 而不替换既有 roots；`Add to Focused` 为显式追加，`Replace roots` 为显式替换。 |
 | **跨层次连接与模块树** | `Navigator → Hierarchy` 与 `Inspector → Connections` | 可筛选模块/实例并点击切换，遇到递归或超大层次时有界截断。Inspector 将连接明确划分为 `Current module`（本层连接）与 `Parent occurrence`（跨边界父层连接），长表分页显示，完整名称可查看与复制。 |
-| **可切换逻辑门符号** | 上下文栏 `View → Gate symbols` | 支持在 `Rectangles`（矩形框）与 `Conventional`（标准逻辑门符号，含反相气泡）之间即时切换，不影响节点尺寸、引脚端点或布线几何。 |
+| **可切换逻辑门符号** | `Settings → Display → Gate symbols` | 支持在 `Rectangles`（矩形框）与 `Conventional`（标准逻辑门符号，含反相气泡）之间即时切换，不影响节点尺寸、引脚端点或布线几何。 |
 | **统一视图历史（View History）** | 顶部 `←` / `→`、`Ctrl+Z` / `Ctrl+Y`、`Alt+方向键` | 事务化记录并恢复模块切换、视图模式、Focused roots 与深度、选中项、视口缩放平移及手动布局调整。 |
-| **间距精确输入与垂直引脚转角** | 上下文栏 `Layout` 与自动/手动布线 | `Wire spacing` 与 `Cell spacing` 支持滑块调节与数字直接输入（提交后自动吸附至最近的 4 的倍数）。连接顶部/底部引脚（top/bottom pin）的末段连线会预留可见转角，避免近距离折线重叠难辨。 |
-| **恢复校验、大图渐进渲染与日志** | Session、Layout Golden、渐进渲染与 `Log` | Golden v3 采用内容指纹（fingerprint）校验网表一致性并恢复聚焦深度；批量导入严格按“Liberty（如有）→ 网表 → 时序 → Golden”顺序执行。大图渐进渲染完成后完整恢复线桥（wire bridge）、标签与点击热区；浏览器与终端启动器分别提供结构化 JSONL 日志与 14 天自动清理。 |
+| **间距精确输入与垂直引脚转角** | `Settings → Layout` 与自动/手动布线 | `Wire spacing` 与 `Cell spacing` 支持滑块调节与数字直接输入（提交后自动吸附至最近的 4 的倍数）。连接顶部/底部引脚（top/bottom pin）的末段连线会预留可见转角，避免近距离折线重叠难辨。 |
+| **恢复校验、大图渐进渲染与日志** | Session、Layout Golden、渐进渲染与 `Log` | Golden v3/v4 采用内容指纹（fingerprint）校验网表一致性并恢复聚焦深度；批量导入严格按“Liberty（如有）→ 网表 → 时序 → Golden”顺序执行。大图渐进渲染完成后完整恢复线桥（wire bridge）、标签与点击热区；浏览器与终端启动器分别提供结构化 JSONL 日志与 14 天自动清理。 |
 
 ## 主要功能
 
 ### 浏览与逻辑追踪
 
 - **结构化 Verilog 解析**：支持 `module`、`port`、`wire`、`assign`、单元实例（cell instance）、转义标识符（escaped identifier）、向量切片及拼接表达式（concatenation）。
-- **可选 Liberty 库读取**：顶部 `Liberty` 菜单支持加载、替换、取消和卸载文本 `.lib`，使用库声明改善引脚方向及常见门识别；Single/Compare 共用，保留用户配置优先级。使用说明见 [Liberty 导入](docs/USER_GUIDE.md#35-liberty-库)。
+- **可选 Liberty 库读取**：`Settings → Liberty`支持加载、替换、取消和卸载文本 `.lib`，使用库声明改善引脚方向及常见门识别；Single/Compare 共用，保留用户配置优先级。使用说明见 [Liberty 导入](docs/USER_GUIDE.md#35-liberty-库)。
 - **无 `.lib` 智能推断**：在缺乏 Liberty 库文件时，根据单元与引脚命名自动推断逻辑门类型（gate kind）与引脚方向（pin direction）；未识别单元安全显示为黑盒（blackbox）。
 - **全局搜索与定位**：支持按 module、port、net、instance 及 cell type（AIG 模式下按对象名称或来源 ID）搜索并高亮定位目标对象；非编辑状态下按 `/` 聚焦搜索。
 - **层次化浏览**：在 `Navigator > Hierarchy` 查看和筛选实例层次路径，点击节点或双击画布中的子模块实例进入对应模块上下文。
@@ -65,7 +66,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 - **指定 Net 不布线（Net routing）**：在 `Inspector > Connections > Net routing` 取消勾选 `Route net`，可单独隐藏 `clk`、`reset` 等高扇出全局网络或指定线网的几何连线，同时完整保留引脚连接关系与 Focused 追踪能力。
 - **Adjust 手工校准模式**：支持拖拽微调节点位置，在 `Inspector > Adjust` 修改尺寸、实例显示属性与单实例引脚方向；释放鼠标后仅对受影响导线做局部正交重布线。`Layout > Reset view overrides` 清除位置、尺寸、实例属性、引脚方向及不布线 net 覆盖，Compare 中同时作用于两侧。
 - **大图渲染优化**：支持渐进式分批渲染、高扇出中继节点（Fanout Hub）及低倍率缩放自动隐藏细节文字；后续性能演进均面向完整图与局部聚焦视图，不再使用结构分组折叠。
-- **Golden 快照与离线 SVG 导出**：通过 `File` 保存、校验并重载布局 Golden JSON，或导出带内嵌样式的独立 SVG。`Save Golden` 与网表 `Export SVG` 仅在 Single 可用（AIG 工作区亦支持 `Export SVG`），加载 Golden 会返回对应 Single 工作区。
+- **Golden 快照与离线 SVG 导出**：通过 `File` 保存、校验并重载布局 Golden JSON，或导出带内嵌样式的独立 SVG。Single 使用 File 菜单导出。Compare 可从 A/B 侧的 Show Path 报告导出该侧 SVG。Golden 保存 Single 工作区，含路径查询时使用 v4。
 
 ### 模块对比、时序标注与工具链集成
 
@@ -80,7 +81,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.5.3`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.6.0`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md`、`ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt`、`EXPAT-LICENSE.txt` 和 `app/vendor/graphviz/` 离线资源。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
@@ -199,7 +200,7 @@ Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共�
 1. **载入网表**：点击顶部 `File > Open design`、将文件直接拖入页面，或在页面空白处按 `Ctrl+V` 粘贴 Verilog 文本，均可快速加载设计。
 2. **代码片段直绘**：`File > Paste netlist` 适合直接复制一小段结构化 Verilog 代码并立即成图，无需先保存为本地文件。
 3. **多文件智能识别**：拖放与全局粘贴会自动区分 Liberty、Verilog 网表、Layout Golden 与时序日志；同时拖入多个文件时，严格按“Liberty（如有）→ 网表 → Timing → Golden”的顺序等待执行。
-4. **Golden 布局存取**：通过 `File > Save Golden` 保存当前模块的布局与手动微调结果；下次先载入相同网表，再点击 `File > Load Golden` 即可恢复布局（Golden v3 会自动校验目标模块名与网表内容指纹）。
+4. **Golden 布局存取**：通过 `File > Save Golden` 保存当前模块的布局与手动微调结果；下次先载入相同网表，再点击 `File > Load Golden` 即可恢复布局（Golden v3/v4 会自动校验目标模块名与网表内容指纹）。
 5. **层次化跳转**：双击画布中的子模块实例进入其模块上下文；也可通过 `Navigator > Hierarchy` 或全局 Search 选择模块。
 6. **模块实例树**：在 `Navigator > Hierarchy` 按模块/实例名筛选，查看实例路径并点击切换上下文；上下文栏显示当前模块和路径。
 
@@ -225,7 +226,7 @@ node tools/generate-large-example.mjs
 2. 单击画布中的单元（node）、端口（port）或导线（wire），在 Inspector 的 `Connections` 页签查看详细连接；若面板已隐藏，先点击顶部 `Inspector` 或对象名称摘要打开。点击面板内的关联 net、`Connected`、`Fanin` 或 `Fanout` 按钮可快速跳转并居中目标对象。选中长导线后可按住画布拖动追踪至远端（平移操作不会清除当前高亮，单击空白区域才会取消选择）。
 3. 双击子模块实例可直接进入对应的子模块定义视图。
 4. 点击上下文栏 `Whole` 查看完整模块图；对于大型模块，搜索未绘制的单元会进入或追加至 `Focused` 局部视图。画布上方的 `Fanin` / `Fanout` 控制展开层数，`Roots` 管理根集合；搜索或 Inspector 中的 `Add to Focused` 追加根，Inspector 的 `Replace roots` 替换全部根。
-5. 在 `View` 菜单切换 `Show aliases` 控制 `assign` 别名连线；`Gate symbols` 在矩形框与标准逻辑门符号之间切换。
+5. 在 `Settings → Display` 切换 `Show aliases` 控制 `assign` 别名连线；`Gate symbols` 在矩形框与标准逻辑门符号之间切换。
 6. 开启 `Adjust` 后可自由拖拽节点位置或修改尺寸；通过 `File > Save Golden` 保存校准结果，通过 `File > Load Golden` 恢复。
 7. 点击 `File > Export SVG` 可将当前完整模块或局部聚焦原理图导出为独立 SVG 文件。
 

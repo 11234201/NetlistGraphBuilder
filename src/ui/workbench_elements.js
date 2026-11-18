@@ -6,6 +6,7 @@ export function createWorkbenchElements(document) {
     cancelLibertyButton: document.querySelector("#cancelLibertyButton"),
     clearLibertyButton: document.querySelector("#clearLibertyButton"),
     fileInput: document.querySelector("#fileInput"),
+    aigSearchFirstInput: document.querySelector("#aigSearchFirstInput"),
     pasteNetlistButton: document.querySelector("#pasteNetlistButton"),
     pasteAigButton: document.querySelector("#pasteAigButton"),
     pasteTimingButton: document.querySelector("#pasteTimingButton"),
@@ -88,6 +89,7 @@ export function createWorkbenchElements(document) {
     rightMount: document.querySelector("#rightSchematicMount"),
     stats: document.querySelector("#designStats"),
     details: document.querySelector("#selectionDetails"),
+    pathMenu: document.querySelector("#showPathMenu"),
     netlistAnalysis: document.querySelector("#netlistAnalysis"),
     netlistAnalysisDetail: document.querySelector("#netlistAnalysisDetail"),
     diagnostics: document.querySelector("#diagnosticsList"),
@@ -109,6 +111,7 @@ export function createWorkbenchElements(document) {
 export function createQuickInputElements(elements, body) {
   return {
     netlistInput: elements.fileInput,
+    aigSearchFirstInput: elements.aigSearchFirstInput,
     libertyInput: elements.libertyInput,
     cancelLibertyButton: elements.cancelLibertyButton,
     clearLibertyButton: elements.clearLibertyButton,

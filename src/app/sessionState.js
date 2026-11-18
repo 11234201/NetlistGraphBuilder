@@ -1,3 +1,4 @@
+import { createViewHistoryEntry } from "./viewHistory.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 export { SESSION_STATE_KEY, LEGACY_SESSION_STATE_KEY, loadSessionState, saveSessionState } from "../persistence/session_storage.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
@@ -15,7 +16,12 @@ export function getSessionLayoutProviderId(session) {
     ? providerId : DEFAULT_LAYOUT_PROVIDER_ID;
 }
 
-export function createSessionSnapshot(state) {
+export function comparePathSnapshot(state) {
+  if (!state.compare?.active || !(state.compare.showPath?.left || state.compare.showPath?.right)) return null;
+  return createViewHistoryEntry(state, { kind: "compare" });
+}
+
+export function createSessionSnapshot(state, compareEntry = comparePathSnapshot(state)) {
   const focusedRootNodeIds = normalizeFocusedRootNodeIds(
     state.focusedRootNodeIds,
     state.coneRootNodeId
@@ -31,6 +37,8 @@ export function createSessionSnapshot(state) {
     source: state.currentSource,
     sourceLabel: state.currentSourceLabel,
     moduleName: state.currentModule?.name || null,
+    ...(compareEntry ? { comparePathView: compareEntry } : {}),
+    showPath: state.showPath, occurrenceContext: state.occurrenceContext,
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
     focusedRootNodeIds,

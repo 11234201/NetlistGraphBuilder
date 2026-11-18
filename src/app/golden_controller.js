@@ -1,3 +1,4 @@
+import { pathDisplayBoundaries } from "./show_path_context.js";
 import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
@@ -10,29 +11,33 @@ import { errorMessage } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createGoldenController({ state, elements, services }) {
-  function exportCurrentSvg() {
-    if (state.compare.active || state.compare.singleWorkspaceInvalidated) {
+export function createGoldenController({ state, elements, services, markExport = (markup) => markup, validateSavedPath }) {
+  function exportCurrentSvg(requestedSide) {
+    const side = state.compare.active && ["left", "right"].includes(requestedSide) ? requestedSide : null;
+    if (!side && (state.compare.active || state.compare.singleWorkspaceInvalidated)) {
       services.setStatus("Exit Compare before exporting the Single SVG");
       return;
     }
-    if (!state.graph || !state.currentModule || !state.singleWorkspaceIdentity) {
+    const graph = side ? state.compare.graphs[side] : state.graph;
+    if (!graph || (side ? !state.compare.workspaceIdentity : !state.currentModule || !state.singleWorkspaceIdentity)) {
       services.setStatus("Wait for the current Single workspace before exporting SVG");
       return;
     }
-    const viewSuffix = state.viewMode === "whole"
-      ? "whole"
-      : `${state.viewMode}-depth-${state.coneDepth}`;
-    const fileName = `${sanitizeDownloadFileName(state.currentModule.name)}-${viewSuffix}.svg`;
+    const unit = side ? graph.moduleName : state.currentModule.name;
+    const mode = side ? graph.view?.mode || "whole" : state.viewMode;
+    const viewSuffix = side ? side + "-" + mode : mode === "whole" ? "whole" : mode + "-depth-" + state.coneDepth;
+    const fileName = `${sanitizeDownloadFileName(unit)}-${viewSuffix}.svg`;
     try {
-      services.browserDownload.text(createStandaloneSvg(renderSvgScene(state.scene)), fileName, "image/svg+xml");
+      const scene = renderSvgScene(side ? state.compare.scenes[side] : state.scene);
+      const display = graph.path ? { boundaries: pathDisplayBoundaries(graph), visible: new Set(graph.nodes.map((n) => n.id)), truncated: graph.view?.truncated } : {};
+      const svg = createStandaloneSvg(markExport(scene, side), graph.path, [unit, side, mode].filter(Boolean).join(" · "), display);
+      services.browserDownload.text(svg, fileName, "image/svg+xml");
     } catch (error) {
-      reportExportFailure(error, "export-svg", fileName);
+      reportExportFailure(error, "export-svg", fileName, { side, moduleName: unit, view: mode });
       return;
     }
     services.logProcess("info", "export", `Exported SVG: ${fileName}`, {
-      nodeCount: state.graph.nodes.length,
-      edgeCount: state.graph.edges.length
+      nodeCount: graph.nodes.length, edgeCount: graph.edges.length, side
     });
     services.setStatus(`Exported SVG: ${fileName}`);
   }
@@ -84,8 +89,13 @@ export function createGoldenController({ state, elements, services }) {
   function loadLayoutGoldenImpl(imported, label) {
     const module = resolveLayoutGoldenModule(state.design, imported, currentPersistenceIdentity());
 
+    if (imported.display.showPath) validateSavedPath?.(imported.display.showPath, module, imported.display.occurrenceContext, imported.graphOverrides);
     if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
-    if (state.currentModule?.name !== module.name) services.selectModule(module.name, { deferRender: true });
+    const occurrence = imported.display.occurrenceContext;
+    if (state.currentModule?.name !== module.name || imported.display.showPath) {
+      services.selectModule(module.name, { deferRender: true, ...(imported.display.showPath
+        ? { occurrencePath: occurrence?.occurrencePath || [], rootModuleName: occurrence?.rootModuleName } : {}) });
+    }
     applyLayoutGoldenState(state, imported, (value) => services.singleViewSession.importNavigation(value));
     elements.coneDepthInput.value = String(state.coneDepth);
     elements.faninDepthInput.value = String(state.faninDepth);
@@ -130,7 +140,7 @@ export function createGoldenController({ state, elements, services }) {
         timingBadgeChoices: state.timingBadgeChoices,
         timingBadgePositions: state.timingBadgePositions,
         display: {
-          viewMode: state.viewMode,
+          ...(state.showPath ? { showPath: state.showPath, occurrenceContext: state.occurrenceContext } : {}), viewMode: state.viewMode,
           coneRootNodeId: state.coneRootNodeId,
           focusedRootNodeIds: state.focusedRootNodeIds,
           focusedRootRefs: state.focusedRootRefs,
@@ -157,10 +167,10 @@ export function createGoldenController({ state, elements, services }) {
     services.setStatus(`Saved layout golden: ${diff.movedNodeCount} moved node(s), max move ${diff.maxMove}px`);
   }
 
-  function reportExportFailure(error, operation, fileName) {
+  function reportExportFailure(error, operation, fileName, scope = {}) {
     const message = `${operation === "export-svg" ? "SVG" : "Layout Golden"} export failed: ${errorMessage(error)}`;
     services.logProcess("error", "export", message, {
-      error, operation, fileName, moduleName: state.currentModule?.name, view: state.viewMode
+      error, operation, fileName, moduleName: state.currentModule?.name, view: state.viewMode, ...scope
     });
     services.setStatus(message);
   }
@@ -213,7 +223,7 @@ export const goldenPorts = Object.freeze({
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "calibrationMode",
     "collapseLargeGroups", "compare", "compareWorkspaces", "coneDepth", "coneRootNodeId",
     "currentModule", "currentSource", "currentSourceLabel", "design", "document", "expandedGroupIds",
-    "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph",
+    "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "showPath",
     "graphOverrides", "layoutPolicy", "moduleWorkspaces", "nodePositions", "nodeSizes",
     "occurrenceContext", "restoringViewHistory", "scene", "searchResults", "selectedNet",
     "selectedNodeId", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",

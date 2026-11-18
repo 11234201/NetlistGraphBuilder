@@ -25,6 +25,7 @@ export function createAppState(layoutPolicy) {
     selectedNet: null,
     viewMode: "whole",
     coneRootNodeId: null,
+    showPath: null,
     focusedRootNodeIds: [],
     focusedRootRefs: [],
     activeFocusedRootNodeId: null,
@@ -91,6 +92,7 @@ export function createCompareState() {
     timingBadgePositions: { left: {}, right: {} },
     outputName: null,
     wholeRequested: false,
+    showPath: { left: null, right: null },
     focusedRootNodeIds: { left: [], right: [] },
     focusedRootRefs: { left: [], right: [] },
     activeFocusedRootNodeId: { left: null, right: null },
@@ -126,6 +128,7 @@ export function saveModuleWorkspace(state, moduleName) {
     nodePositions: new Map(state.nodePositions),
     nodeSizes: new Map(state.nodeSizes),
     graphOverrides: cloneGraphOverrides(state.graphOverrides),
+    showPath: state.showPath,
     viewMode: state.viewMode,
     coneRootNodeId: state.coneRootNodeId,
     focusedRootNodeIds: normalizeFocusedRootNodeIds(state.focusedRootNodeIds, state.coneRootNodeId),
@@ -151,7 +154,7 @@ export function restoreModuleWorkspace(state, moduleName, restoreNavigation = (v
     rootModuleName: saved.occurrenceContext.rootModuleName || null,
     occurrencePath: [...(saved.occurrenceContext.occurrencePath || [])]
   } : null;
-  restoreNavigation({ nodePositions: new Map(saved.nodePositions), nodeSizes: new Map(saved.nodeSizes),
+  restoreNavigation({ showPath: saved.showPath || null, nodePositions: new Map(saved.nodePositions), nodeSizes: new Map(saved.nodeSizes),
     graphOverrides: cloneGraphOverrides(saved.graphOverrides), viewMode: normalizeSingleViewMode(saved.viewMode),
     faninDepth: normalizeDepth(saved.faninDepth, state.faninDepth),
     fanoutDepth: normalizeDepth(saved.fanoutDepth, state.fanoutDepth),
@@ -186,6 +189,7 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName, 
     right: { ...fresh.timingBadgePositions.right }
   };
   restoreNavigation({
+    showPath: fresh.showPath,
     transforms: {
       left: { ...fresh.transforms.left },
       right: { ...fresh.transforms.right }
@@ -208,7 +212,7 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName, 
 export function resetModuleWorkspace(state, restoreNavigation = (value) => Object.assign(state, value)) {
   state.expandedGroupIds = new Set();
   restoreNavigation({ nodePositions: new Map(), nodeSizes: new Map(), graphOverrides: createEmptyGraphOverrides(),
-    viewMode: "whole", coneRootNodeId: null, focusedRootNodeIds: [], focusedRootRefs: [], activeFocusedRootNodeId: null,
+    showPath: null, viewMode: "whole", coneRootNodeId: null, focusedRootNodeIds: [], focusedRootRefs: [], activeFocusedRootNodeId: null,
     selectedNodeId: null, selectedNet: null });
   state.occurrenceContext = null;
   resetTimingPresentation(state);
@@ -232,6 +236,7 @@ function compareWorkspaceKey(left, right) {
 
 function cloneCompareAdjustments(compare) {
   return {
+    showPath: { ...compare.showPath },
     outputName: compare.outputName || null,
     wholeRequested: compare.wholeRequested === true,
     transforms: {

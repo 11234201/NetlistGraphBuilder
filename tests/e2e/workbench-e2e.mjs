@@ -79,6 +79,7 @@ try {
  const workflowSource='module top(input a, output y, output z); wire n,b; assign n=a; BUF u_upstream (.A(n),.Y(b)); BUF u_migrate (.A(b),.Y(y)); INV u_top_other (.A(a),.Y(z)); endmodule\nmodule alt(input a, output y, output z); wire b; BUF u_alt_upstream (.A(a),.Y(b)); BUF u_alt (.A(b),.Y(y)); INV u_alt_other (.A(a),.Y(z)); endmodule';
  await page.locator('#fileInput').setInputFiles({name:'migration.v',mimeType:'text/plain',buffer:Buffer.from(workflowSource)});
  await page.locator('#schematicMount [data-node-id="cell:u_migrate"]').first().waitFor();
+ await page.locator('#settingsMenu > summary').click();
  await page.locator('#viewMenu > summary').click();
  await page.locator('#showAliasesInput').check();
  await page.keyboard.press('Escape');
