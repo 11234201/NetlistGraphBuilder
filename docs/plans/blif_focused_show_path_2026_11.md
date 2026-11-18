@@ -1,6 +1,6 @@
 # BLIF 适配与网表局部路径分析实施计划
 
-日期：2026-11-18。需求已对齐，实施尚未开始。按本次调整，先完成并独立验收 R1–R5，Show Path 连同双 level、界面和存档变更整体放到最后。当前只更新计划与开发规范，不修改功能代码。
+2026-11-18 已实现 R1–R5。P6 的验证记录见第 16 节。P7 保留多端点 Show Path、两种 level、界面与存档。
 
 本计划让 BLIF 能导入完整的两输入逻辑并追溯设计名称，为 AIG 增加 Focused，并在 Netlist 和 AIG 中提供可与 Focused 配合的 Show Path。两侧重收敛均限定于当前展示的逻辑子图。路径信息同时列出起点、终点、源图 level 和相对 level。
 
@@ -21,7 +21,7 @@ P0 先核对日志与失败基线，P6 独立验收前五项。P7 只能在 P6 �
 
 继续遵守离线原生 ES modules、源模型不可变和 Simple 冻结约束，不引入 group collapse。后续 AIG Compare 与转换仍由[原后续路线图](aig_followup_roadmap.md)管理。
 
-## 2 当前实现与改动依据
+## 2 立项基线与改动依据
 
 计划基线为 `master` 的 `ab908ac`。需求核对时工作树干净。以下是代码观察与最小导入结果，不代表新增能力已经实现。
 
@@ -293,13 +293,13 @@ Show Path 的并集提取及单次 DAG level 计算目标为 `O(V+E)`；不能�
 
 ## 12 具体行动规划
 
-本节取代上一版 P0–P7 的排序与依赖，所有功能实现任务当前均未开始。顺序为：**日志与基线 → BLIF 两输入 → 名称映射 → UNIT 标题 → AIG Focused → 两侧当前子图重收敛 → 先行验收 → 最后实现 Show Path**。每个任务完成后填写实际变更、验证命令、日志位置、结果和偏差，不提前标记交付。
+本节记录 P0–P7 的依赖和交付情况。顺序为：**日志与基线 → BLIF 两输入 → 名称映射 → UNIT 标题 → AIG Focused → 两侧当前子图重收敛 → 先行验收 → 最后实现 Show Path**。每个任务完成后填写实际变更、验证命令、日志位置、结果和偏差，不提前标记交付。
 
 ### 12.1 日志现状与统一要求
 
 已有 [Process Log](../../src/app/processLog.js)、[详情快照](../../src/foundation/log_details.js)、[日志控制器](../../src/ui/process_log_controller.js)及 [failure logging 测试](../../tests/unit/failure_logging.test.js)，支持错误展开、去重、JSONL 导出、脱敏和有界存储。新增开发硬要求已写入 [AGENTS.md](../../AGENTS.md) 和 [SKILLS_AND_RULES 第 7 节](../SKILLS_AND_RULES.md#7-错误日志开发与验收要求)。
 
-本次代码检查发现的具体补齐点：AIG `structure_worker.js` 只返回 `name/message`，`structure_runtime.js` 仅据此重建 Error；`workspace_analysis.js` 失败状态只保留 `error.message`；AIG 工作台部分保存/清理失败只记录消息，缺少原异常。P0 先打通这些本次会用到的链路；其他日志覆盖随对应功能任务完成，不做全仓无关的 catch 重写。
+立项时的代码检查发现：AIG `structure_worker.js` 只返回 `name/message`，`structure_runtime.js` 仅据此重建 Error；`workspace_analysis.js` 失败状态只保留 `error.message`；AIG 工作台部分保存/清理失败只记录消息，缺少原异常。P0 先打通这些本次会用到的链路；其他日志覆盖随对应功能任务完成，不做全仓无关的 catch 重写。
 
 沿用现有日志 phase，BLIF 语法归 `parse`、导入归 `import`、Focused/重收敛/未来 Path 归 `graph`，持久化/导出分别归 `persistence`/`export`；业务动作放 `details.operation`，例如 `blif.adapt`、`aig.focused.query`、`reconvergence.run`。不得直接使用未注册的 `analysis` 阶段而被日志归一化悄悄改写。
 
@@ -326,46 +326,46 @@ P6 是前五项的独立验收门禁，不代表必须先发布版本或推送�
 
 **P0 日志与基线**
 
-- [ ] **L01 固定基线与失败清单**：在 `mfs-remote` 核对现有项目状态，建立隔离任务目录及 `logs/`；记录 commit、环境、默认 provider。选定 OR/XOR、带映射、UNIT、可裁掉一支的重收敛等小样例，保存既有导入/分析错误和 Simple 只读对照。
-- [ ] **L02 打通异常上下文**：修改 `domains/aig/structure_worker.js`、`structure_runtime.js`，保留跨线程错误信息；在 `application/workspace_analysis.js` 通过窄回调向操作拥有者报告原异常与 scope；补 `app/domain_workbench.js` 本次涉及的持久化失败上下文。不改变算法、超时、重试或 Simple 输出。
-- [ ] **L03 日志失败验证**：扩展现有 `aig_structure_runtime`、`failure_logging`、存储/Process Log 测试，注入 Worker 错误、初始化/消息错误、超时、非 Error 抛出值和存储失败；验证 Log 展开和 JSONL 中的原始诊断、归属、去重、取消及记录器故障处理。
+- [x] **L01 固定基线与失败清单**：在 `mfs-remote` 核对现有项目状态，建立隔离任务目录及 `logs/`；记录 commit、环境、默认 provider。选定 OR/XOR、带映射、UNIT、可裁掉一支的重收敛等小样例，保存既有导入/分析错误和 Simple 只读对照。
+- [x] **L02 打通异常上下文**：修改 `domains/aig/structure_worker.js`、`structure_runtime.js`，保留跨线程错误信息；在 `application/workspace_analysis.js` 通过窄回调向操作拥有者报告原异常与 scope；补 `app/domain_workbench.js` 本次涉及的持久化失败上下文。不改变算法、超时、重试或 Simple 输出。
+- [x] **L03 日志失败验证**：扩展现有 `aig_structure_runtime`、`failure_logging`、存储/Process Log 测试，注入 Worker 错误、初始化/消息错误、超时、非 Error 抛出值和存储失败；验证 Log 展开和 JSONL 中的原始诊断、归属、去重、取消及记录器故障处理。
 
 **P1 BLIF 两输入**
 
-- [ ] **B11 补函数分类与分解**：在 AIG semantics 边界补 XOR/XNOR，保留 parser 纯结构和已有函数归约；新增内部 ID/生成来源规则并计入对象预算。
-- [ ] **B12 完整逻辑回归**：在 `tests/unit/aig-import.test.js` 及必要的小型 BLIF fixtures 覆盖 16 种真值、ON/OFF cover、`-`、重复/置换、常量/别名和真实 OR/XOR 样例；使用独立求值器。
-- [ ] **B13 导入错误闭环**：在 `aig_diagnostics.js`/导入边界提供稳定诊断 code、`.names` 输出 ID、行列、输入数量和限额原因；验证三输入拒绝、坏 cover、缺失信号、分解超限，日志和旧画布状态均正确。
+- [x] **B11 补函数分类与分解**：在 AIG semantics 边界补 XOR/XNOR，保留 parser 纯结构和已有函数归约；新增内部 ID/生成来源规则并计入对象预算。
+- [x] **B12 完整逻辑回归**：在 `tests/unit/aig-import.test.js` 及必要的小型 BLIF fixtures 覆盖 16 种真值、ON/OFF cover、`-`、重复/置换、常量/别名和真实 OR/XOR 样例；使用独立求值器。
+- [x] **B13 导入错误闭环**：在 `aig_diagnostics.js`/导入边界提供稳定诊断 code、`.names` 输出 ID、行列、输入数量和限额原因；验证三输入拒绝、坏 cover、缺失信号、分解超限，日志和旧画布状态均正确。
 
 **P2 名称映射**
 
-- [ ] **N21 保存与绑定映射**：`blif_parser.js` 保存候选注释，semantics/normalize 绑定真实声明；新增有界反查索引，覆盖 NOT/PO 用途、XOR 辅助点来源与冲突记录。
-- [ ] **N22 接入用户入口**：`aig_query.js`、`ui/aig_panels.js` 和相关面板控制器提供设计名称搜索、分页 Names 表、复制、定位、Inspector 和端口显示；SVG 使用同一安全显示文本。
-- [ ] **N23 名称和诊断验收**：补重名、冲突、无匹配、特殊字符、声明/注释置换、搜索到同一规范化点但极性不同的用例；冲突日志按导入汇总计数和有界样本，不能每行刷 warning。
+- [x] **N21 保存与绑定映射**：`blif_parser.js` 保存候选注释，semantics/normalize 绑定真实声明；新增有界反查索引，覆盖 NOT/PO 用途、XOR 辅助点来源与冲突记录。
+- [x] **N22 接入用户入口**：`aig_query.js`、`ui/aig_panels.js` 和相关面板控制器提供设计名称搜索、分页 Names 表、复制、定位、Inspector 和端口显示；SVG 使用同一安全显示文本。
+- [x] **N23 名称和诊断验收**：补重名、冲突、无匹配、特殊字符、声明/注释置换、搜索到同一规范化点但极性不同的用例；冲突日志按导入汇总计数和有界样本，不能每行刷 warning。
 
 **P3 UNIT 标题**
 
-- [ ] **U31 局部显示规则**：在 `domains/netlist/` 的 presentation 边界解析固定包装，尊重实例显式标题；不改 parser、gate kind 或共享 provider 输入。
-- [ ] **U32 展示与冻结验收**：补 AND/ADFFR_PN/数字/多下划线及非匹配样例，检查 Single/Compare、矩形/符号、详情和导出；执行冻结输出对照。未知类型正常回退不报错，真实渲染失败复用既有 render 日志。
+- [x] **U31 局部显示规则**：在 `domains/netlist/` 的 presentation 边界解析固定包装，尊重实例显式标题；不改 parser、gate kind 或共享 provider 输入。
+- [x] **U32 展示与冻结验收**：补 AND/ADFFR_PN/数字/多下划线及非匹配样例，检查 Single/Compare、矩形/符号、详情和导出；执行冻结输出对照。未知类型正常回退不报错，真实渲染失败复用既有 render 日志。
 
 **P4 AIG Focused**
 
-- [ ] **F41 实现独立子图查询**：新增 `aig_view_query.js`，接入 `aig_feature.js` 的 query/project，保留 sourceRefs/level/极性；按已有 Focused 预算输出截断边界和真实可见成员。
-- [ ] **F42 接入控件和状态**：通过既有 view commands/roots 帮助器开放 Add/Replace/Remove、Fanin/Fanout 和 Whole；`domain_workbench` 只保留窄桥接，必要的新控制器放 `ui/`。搜索只在 Focused 范围语义内 reveal，此时没有 Path 过滤。
-- [ ] **F43 完成首版恢复链路**：本阶段同时接入 Focused 历史、刷新恢复、Standard/Logic View、Inspector、SVG 导出和失败/取消回滚；只增加所需 Focused 存档字段。
-- [ ] **F44 验证范围与日志**：多根/零深度/预算截断、过期 roots、切换查询、Graphviz 失败和恢复错误；验证节点/边数、scope、roots 有界摘要及保留旧画布信息可读，取消不报错。
+- [x] **F41 实现独立子图查询**：新增 `aig_view_query.js`，接入 `aig_feature.js` 的 query/project，保留 sourceRefs/level/极性；按已有 Focused 预算输出截断边界和真实可见成员。
+- [x] **F42 接入控件和状态**：通过既有 view commands/roots 帮助器开放 Add/Replace/Remove、Fanin/Fanout 和 Whole；`domain_workbench` 只保留窄桥接，必要的新控制器放 `ui/`。搜索只在 Focused 范围语义内 reveal，此时没有 Path 过滤。
+- [x] **F43 完成首版恢复链路**：本阶段同时接入 Focused 历史、刷新恢复、Standard/Logic View、Inspector、SVG 导出和失败/取消回滚；只增加所需 Focused 存档字段。
+- [x] **F44 验证范围与日志**：多根/零深度/预算截断、过期 roots、切换查询、Graphviz 失败和恢复错误；验证节点/边数、scope、roots 有界摘要及保留旧画布信息可读，取消不报错。
 
 **P5 两侧当前子图重收敛**
 
-- [ ] **C51 提取必要拓扑内核**：从现有 AIG 重收敛中抽取中性邻接/候选/两条见证和固定两端详情算法到 `analysis/`；不提取或提前实现任意端点 Show Path 或全图双 level。
-- [ ] **C52 接入 Netlist 适配**：将当前可见真实逻辑节点和连接投影到分析内核，处理多输出 pin、寄存器/黑盒/层次边界、重复输入及环诊断；补当前子图的独立小图 oracle。
-- [ ] **C53 统一作用域与入口**：改 `workspace_analysis.js` 和领域 feature/分析桥接，以 document revision + unit/occurrence + visible scope + policy 标识服务和详情；接 Netlist Navigator/Inspector，保留 AIG 现有入口，保证 Compare 独立。
-- [ ] **C54 范围和故障验收**：验证裁掉一支后不再报告全图重收敛、隐藏区绕路不算、平移/缩放不重算；注入分析/详情 Worker 失败和乱序响应，检查 partial/budget/timeout、scope 和旧 job 隔离日志。
+- [x] **C51 提取必要拓扑内核**：从现有 AIG 重收敛中抽取中性邻接/候选/两条见证和固定两端详情算法到 `analysis/`；不提取或提前实现任意端点 Show Path 或全图双 level。
+- [x] **C52 接入 Netlist 适配**：将当前可见真实逻辑节点和连接投影到分析内核，处理多输出 pin、寄存器/黑盒/层次边界、重复输入及环诊断；补当前子图的独立小图 oracle。
+- [x] **C53 统一作用域与入口**：改 `workspace_analysis.js` 和领域 feature/分析桥接，以 document revision + unit/occurrence + visible scope + policy 标识服务和详情；接 Netlist Navigator/Inspector，保留 AIG 现有入口，保证 Compare 独立。
+- [x] **C54 范围和故障验收**：验证裁掉一支后不再报告全图重收敛、隐藏区绕路不算、平移/缩放不重算；注入分析/详情 Worker 失败和乱序响应，检查 partial/budget/timeout、scope 和旧 job 隔离日志。
 
 **P6 前五项独立验收**
 
-- [ ] **A61 正确性与回归**：运行单元/架构、AIG、相关 determinism/fixture、全节点 mapped 和真实工作区/Compare 浏览器链路，逐项标记 R1–R5，保留现有失败证据。
-- [ ] **A62 性能和错误可诊断性**：远端做同机 benchmark；逐项实际打开 Log 并导出 JSONL，核对第 12.4 节场景。前五项没有 Show Path 也能独立通过，不以 R6 未完成阻止验收。
-- [ ] **A63 文档与离线包**：更新已实现的 BLIF/映射/Focused/重收敛/UNIT 用户说明和实际契约；构建并验证受影响的 Windows 离线包。报告明确“R1–R5 已验收，R6 尚未开始”，不提前更新 Show Path 的用户能力描述。
+- [x] **A61 正确性与回归**：运行单元/架构、AIG、相关 determinism/fixture、全节点 mapped 和真实工作区/Compare 浏览器链路，逐项标记 R1–R5，保留现有失败证据。
+- [x] **A62 性能和错误可诊断性**：远端做同机 benchmark；逐项实际打开 Log 并导出 JSONL，核对第 12.4 节场景。前五项没有 Show Path 也能独立通过，不以 R6 未完成阻止验收。
+- [x] **A63 文档与离线包**：更新已实现的 BLIF/映射/Focused/重收敛/UNIT 用户说明和实际契约；构建并验证受影响的 Windows 离线包。报告明确“R1–R5 已验收，R6 尚未开始”，不提前更新 Show Path 的用户能力描述。
 
 **P7 Show Path 最后实施**
 
@@ -421,7 +421,7 @@ P7 在上述已通过流程中加入多起终点 Show Path、单端 cone、双 l
 
 遵循 `linux-ssh-workspace` 技能：后续完整构建、测试、benchmark 和浏览器计算优先在 `mfs-remote` 的 `/home/wzh/my_code/netlistGraphBuilder` 下执行。写入前检查远端目录/Git 状态，保留已有工作；日志、依赖、临时数据和大产物留远端，仅带回小型结果摘要。Windows 发布构建和平台 GUI 烟测使用本地是平台能力需要，执行前记录理由和输出范围。
 
-本轮仅更新 Markdown 计划、开发规范与索引入口，允许本地运行轻量文档链接检查；不为此运行完整单元、mapped、benchmark 或发布构建。
+文档基线提交为 `f76f9e6`。P6 完整功能回归在远端执行，Windows 原生离线包在本机验证。
 
 实施阶段的基础验证命令：
 
@@ -466,12 +466,44 @@ mapped 执行前在 Linux 设置 `MAPPED_CASE_NO_COLLAPSE=1`，正式记录所�
 
 每阶段记录以本文件为唯一实施进度入口，已有 AIG 专项计划保留历史验收。只有当 R1–R6 功能、回归、离线验证及明确的性能边界都有证据时，才可标记本轮完成。
 
-R1–R5 的先行完成状态由 P6 独立记录，允许在 R6 尚未开始时明确交付前五项；不能为了等待 Show Path 而推迟已有功能的日志、文档和离线验证。下一次实际开发从 **L01 → L02 → L03** 开始，再按第 12 节任务顺序执行。
+R1–R5 的先行完成状态由 P6 独立记录，允许在 R6 尚未开始时明确交付前五项；不能为了等待 Show Path 而推迟已有功能的日志、文档和离线验证。本次开发范围以 P6 为终点。
 
 ## 16 当前交付记录
 
 - 2026-11-18：用户确认两输入 BLIF、两领域当前子图重收敛、多起终点 Show Path 与 Focused 组合、两种 level 同时展示，其他按已对齐需求执行。
 - 2026-11-18 首版：完成现状检查及实施计划；当次两个文档的 27 个相对链接缺失 0，差异格式检查通过，未执行实现阶段。
 - 2026-11-18 调整：用户要求 Show Path 最后实施，并将详细错误日志落实为开发要求。已将前五项改为 P0–P6 独立任务与验收，R6 全部移到 P7，加入 L/B/N/U/F/C/A/S 任务清单及日志证据矩阵；更新 `AGENTS.md`、`docs/SKILLS_AND_RULES.md` 和路线图入口。本次未修改运行时代码、测试或发布产物，全部实现任务仍未开始。
-- 本次文档验证：`node tools/check_docs_links.mjs AGENTS.md docs/SKILLS_AND_RULES.md docs/plans/blif_focused_show_path_2026_11.md docs/PLAN.md` 检查 36 个相对链接，缺失 0；`git diff --check` 通过。内容复核确认前五项不依赖 Show Path，日志要求和各任务失败验收对应，所有任务仍未勾选。仅四份 Markdown 文档有变更，未运行功能测试或基准，未暂存、提交或发布。
+- 立项文档验证检查 36 个相对链接，缺失 0。该阶段的规划与日志规范已提交为 `f76f9e6`。
+
+### 2026-11-18 P0–P6 验收
+
+功能提交为 `3132ddc`。R1–R5 已验收，R6 尚未开始。可用[带映射的 OR/XOR 样例](../../examples/aig_mapped_names.blif)复现搜索和局部分析。操作说明见[使用指南](../USER_GUIDE.md)。
+
+| 阶段 | 实测内容 | 结果 |
+| --- | --- | --- |
+| P0 诊断 | 注入解析、Worker、布局、路径详情、存储与 SVG 下载失败，展开 Process Log 并导出 JSONL | 保留可用的原始 stack、cause、诊断位置及候选任务或已提交视图身份。取消、旧响应、重复存储故障均有覆盖 |
+| P1–P2 BLIF | 独立求值器逐一验证 16 个两输入函数的四个输入组合。真实浏览器导入 OR/XOR，搜索 `in_96`，定位映射行并导出 SVG | XOR/XNOR 在两层内使用三个 AND。重名、反相别名、driver/PO 用途及辅助点可区分，错误导入保留原图 |
+| P3 UNIT | 矩形、约定符号、显式标题、完整下划线门名，以及真实 UNIT fixture 渲染 | 两种符号与 SVG 均使用完整中段。`tc_unit_generic.v` 的 Simple 几何、路由状态及诊断对照哈希同为 `abf2e332a67eb68676202b7a8707009d1a5ecec62789fb4e84e90629f28774ce` |
+| P4 Focused | 在途切回 Whole、快速追加、多根、深度 0、范围外搜索、两种画法、撤销重做、刷新恢复、导出和布局失败 | 画布与 SVG 成员一致，截断连接保留极性。预算限制分别为 32 个根、512 个真实节点和 1024 个前沿节点 |
+| P5 重收敛 | AIG 与 Netlist 均从 Whole 裁掉分支。Netlist 再检查寄存器、层次、黑盒、常量、assign、多驱动、组合环、Compare 两侧及懒加载详情 | 隐藏路线无法形成见证，结果与独立小图 oracle 一致。换范围可取消，纯几何调整复用结果，部分覆盖记录原因 |
+
+完整验证在 `mfs-remote:/home/wzh/my_code/netlistGraphBuilder/p6_f76f9e6_01` 的隔离副本执行。原始输出在其 `logs/`，浏览器取证在 `work/dc_runs/`。Linux 使用 Node 24.16.0、Chrome 146.0.7680.164 和离线 Graphviz 16.1.0。
+
+- `npm test` 通过 1,342 项，包括 determinism 和 fixture invariants。`test:aig` 通过 96 项。`test:architecture` 检查 355 个模块和 848 条依赖，未解析导入、越层依赖、循环均为 0。见 `unit-final.log`、`arch-final.log`。
+- `MAPPED_CASE_NO_COLLAPSE=1 MAPPED_HARD_INVARIANTS=1 npm run test:mapped-cases` 两次均通过 47/47，硬违规为 0。默认 `native-layered`，每例 45 秒。末轮最长 36.504 秒，最大堆 651 MiB。见 `mapped.log`、`mapped-final.log`。
+- `npm run test:scoped-logic-browser`、`test:aig-browser`、`test:aig-views`、`test:aig-structure`、`test:ui-workbench`、`test:workbench`、`test:process-log` 及 `node tests/e2e/aig-storage-e2e.mjs` 通过。见 `p6-browser-final.log`、`legacy-final.log`。早期集成捕捉到 AIG 比较函数引用及模块分层错误，原始输出保存在 `unit-first.log`。
+
+常规性能基准在同机固定 CPU 集合 12–15，基线与候选各跑 3 个独立进程，使用各脚本的预热设置。下列时间为中位数 / P95，P95 取 nearest-rank，3 次或 5 次测量时等于样本最大值。RSS 为进程峰值；时间和内存限于上述机器及样例。
+
+| 可复现测量 | 基线 `f76f9e6` | P6 |
+| --- | --- | --- |
+| `npm run benchmark`，8,192 cell，默认 provider，秒 | 5.403 / 6.207 | 5.612 / 6.572，三个尺寸均零违规。整套峰值 RSS 530.8 MiB，基线 527.8 MiB |
+| `npm run benchmark:aig`，323 节点 481 边的重收敛样例，Graphviz 布局秒数 | 2.028 / 2.095 | 2.027 / 2.035，几何复算一致 |
+| `npm run benchmark:aig-structure`，整套秒数 | 42.8 / 42.9 | 43.98 / 44.15。整套峰值 RSS 342.8 MiB，基线 346.5 MiB |
+| 8,193 条映射、12,289 节点，导入毫秒，1 次预热及 5 次测量 | 386 / 419，读取后丢弃注释 | 436 / 455，绑定 12,289 行。独立测试按设计名搜索为 2.3 / 3.3 ms，Focused 查询为 54.8 / 68.3 ms |
+| 12,292 节点、20,482 边网表，局部重收敛，1 次预热及 5 次测量 | 此版本没有该查询 | 深链可见 98 点，分析 16.40 / 26.00 ms，94 对。高扇出可见 512 点，分析 1.56 / 2.43 ms，0 对 |
+
+首轮共享内核在相同 8M 工作预算下，99k 重收敛样例从 642 对降至 385 对。修复对有界双输入的重复计费后，20 个 AIG 样例各 3 次的状态、块数、重收敛数均与基线一致。99k 重收敛与 parity 分别保留 642 和 643 对，预算耗尽的结果继续标注 partial。原始轮次见 `perf_{base,work}_*`，修正后的结构分析见 `revised_work_structure_{1,2,3}.*`。新用例可用 `node --expose-gc tools/benchmark_blif_focused.mjs` 配合 `blif-import`、`blif-focused`、`netlist-chain` 或 `netlist-fanout` 复现，结果在 `extra_*.json`。
+
+Windows 使用本机 .NET Framework 编译启动器，执行 `npm run release:windows -- -SkipTests -PackageSuffix p6-3132ddc`。完整单测已在 Linux 独立运行。使用 `tests/e2e/windows-aig-release-smoke.mjs` 验证包内 EXE、离线 WASM、映射 OR/XOR、Focused 裁剪后重收敛清零、UNIT 标题及 Netlist 分析 Worker。打包程序核对 vendored Graphviz 清单并携带 ELK/Graphviz 许可证。ZIP 与 SHA-256 位于本机 `dist/`，浏览器报告在 `dc_runs/windows_p6_3132ddc/report.json`。 已验证 15 项，页面异常及外部请求均为 0。逐字节比对 ZIP 内的 354 个运行时 JavaScript 文件与实现提交，差异为 0。包 SHA-256 为 `79eb94827c685b30e8b9c28fcfa0a2dcb1b8d68833999cc2dc1d67877c929ffb`。
 
