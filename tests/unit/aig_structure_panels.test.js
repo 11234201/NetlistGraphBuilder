@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { importAigSource } from "../../src/domains/aig/aig_import.js";
 import { createAigQuery } from "../../src/domains/aig/aig_query.js";
+import { queryAigView } from "../../src/domains/aig/aig_view_query.js";
 import { analyzeAigStructure } from "../../src/domains/aig/structure_analysis.js";
 import { createStructureQuery } from "../../src/domains/aig/structure_query.js";
 import { createStructurePresentation } from "../../src/domains/aig/structure_presentation.js";
@@ -37,7 +38,7 @@ test("structure panels escape source names, explain polarity, and expose partial
   const imported = importAigSource(readFileSync(new URL("../fixtures/aig/structure_analysis.blif", import.meta.url), "utf8"), { name: "test.blif" });
   const data = analyzeAigStructure(imported.model), query = createStructureQuery(data);
   const source = structuredClone(imported);
-  for (const node of source.model.nodes) node.label = '<img src=x onerror="bad()">';
+  for (const node of source.model.nodes) node.label = `<img src=${node.id} onerror="bad()">`;
   const workspace = { document: source, query: createAigQuery(source.model, source.analysis) };
   const selected = data.blocks.results.find((result) => result.kind === "mux");
   const inspector = renderAigStructureInspector(workspace, { query, selectedId: selected.id });
@@ -97,6 +98,14 @@ test("Inspector resolves each receiving port and gate input, keeping internal ta
   assert.match(parity, /input \d+ · inverted edge<br><code>XOR2 · a ⊕ b<\/code>/);
   assert.match(parity, /External uses of internal signals \(1\)/);
   assert.match(parity, />internal<\/button> · output port · positive edge<\/li>/);
+  const [root] = query.list("block", "xnor");
+  const focused = queryAigView({ model: source }, { mode: "focused", rootNodeIds: [root.rootId], faninDepth: 3, fanoutDepth: 0 });
+  const scopedQuery = createStructureQuery(analyzeAigStructure(focused.analysisModel));
+  const [scoped] = scopedQuery.list("block", "xnor");
+  const scopedDetails = renderAigStructureInspector({ ...workspace, displayAnalysis: focused.analysis, visibleEdgeIds: focused.visibleEdgeIds },
+    { query: scopedQuery, selectedId: scoped.id });
+  assert.match(scopedDetails, /Root output uses \(0\)/);
+  assert.doesNotMatch(scopedDetails, /External uses of internal signals|>direct<|>internal<|>neg</);
   const mux = inspect("mux");
   assert.match(mux, / = s \? b : a<\/p>/);
   assert.match(mux, />posmux<\/button> · output port · positive edge<br><code>MUX2 · s \? b : a<\/code>/);

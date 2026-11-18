@@ -53,7 +53,8 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
     if (!workspace?.feature.createAnalysisService) return;
     cancelWork();
     const target = workspace, ticket = generation, startedAt = performance.now();
-    publish({ status: "running", error: null, progress: null, detail: null, detailStatus: "idle", detailError: null });
+    detailCache.clear();
+    publish({ status: "running", data: null, error: null, progress: null, detail: null, detailStatus: "idle", detailError: null });
     try {
       service ||= target.feature.createAnalysisService(target.document, target);
       job = jobs.start({ sessionId: target.sessionId, kind: "structure-analysis",
@@ -65,7 +66,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
       if (ticket !== generation || workspace !== target) return;
       if (result.status !== "committed") { job = null; publish({ status: "cancelled", progress: null }); return; }
       reportPartial(target, job, "reconvergence.run", result.artifact.value, startedAt);
-      job = null; detailCache.clear();
+      job = null;
       publish({ status: result.artifact.value.status, data: result.artifact.value, progress: null });
     } catch (error) {
       if (ticket !== generation) return;
@@ -77,7 +78,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
   }
   async function detail(result) {
     detailJob?.cancel(); detailJob = null;
-    if (!result || !service || !workspace || state.status === "running") { publish({ detail: null, detailStatus: "idle", detailError: null }); return; }
+    if (!result || !service || !workspace || !["partial", "complete"].includes(state.status)) { publish({ detail: null, detailStatus: "idle", detailError: null }); return; }
     if (detailCache.has(result.id)) { publish({ detail: detailCache.get(result.id), detailStatus: detailCache.get(result.id).status, detailError: null }); return; }
     const target = workspace, ticket = generation, startedAt = performance.now();
     publish({ detail: null, detailStatus: "running", detailError: null });

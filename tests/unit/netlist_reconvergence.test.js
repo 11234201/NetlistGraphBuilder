@@ -8,6 +8,12 @@ import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { normalizeStructurePolicy } from "../../src/analysis/structure_policy.js";
 import { readReconvergenceDetail } from "../../src/analysis/reconvergence.js";
 import { analyzeAigStructure } from "../../src/domains/aig/structure_analysis.js";
+import { createArtifactStore } from "../../src/application/artifact_store.js";
+import { buildModuleWorkspace } from "../../src/app/moduleWorkspace.js";
+import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../../src/layout/providerDefaults.js";
+import { parseLiberty } from "../../src/parser/liberty_parser.js";
+import { buildLibertyModel } from "../../src/infer/liberty_model.js";
 
 function parse(source) {
   const { modules } = parseVerilog(source);
@@ -101,15 +107,51 @@ test("constant aliases cannot fork even when Focused hides their source", () => 
   assert.deepEqual(run(graph, clipped).results, []);
 });
 
-test("collapsed aliases preserve ambiguous upstream driver provenance", () => {
+test("committed Single workspace retains ambiguous driver provenance through alias folding and snapshots", async () => {
   const { modules } = parseVerilog(`module top(input s, output z); wire p,q,x,t;
     BUF a(.A(s),.Y(x)); INV b(.A(s),.Y(x)); assign t=x;
     BUF p1(.A(t),.Y(p)); INV q1(.A(t),.Y(q)); NAND2 m(.A(p),.B(q),.Y(z)); endmodule`);
-  for (const showAliases of [true, false]) {
-    const graph = buildWorkspaceGraph(modules[0], { showAliases, occurrencePath: ["outer", "u_top"] });
-    const result = run(graph);
+  const options = { module: modules[0], occurrencePath: ["outer", "u_top"] };
+  const workspace = await buildModuleWorkspace({ ...options, showAliases: false, layoutProvider: getLayoutProvider(DEFAULT_LAYOUT_PROVIDER_ID) });
+  const { value } = createArtifactStore().put({ kind: "single-workspace", context: { sessionId: "single:primary" }, value: workspace });
+  assert.notEqual(value.fullGraph.edges, workspace.fullGraph.edges);
+  const explicit = buildWorkspaceGraph(modules[0], { showAliases: true, occurrencePath: options.occurrencePath });
+  for (const result of [run(explicit), run(value.fullGraph, value.graph)]) {
     assert.ok(result.reasons.includes("multiple-drivers"));
     assert.deepEqual(result.results, []);
+  }
+});
+
+test("explicit aliases retain missing and ambiguous source boundaries even when their driver is clipped", () => {
+  for (const [header, issue] of [
+    ["module top(inout s,output z); wire p,q,t; assign t=s;", "ambiguous-pin-direction"],
+    ["module top(input s,output z); wire p,q,t,x; CUSTOM u(.A(s),.X(x)); assign t=x;", "ambiguous-pin-direction"],
+    ["module top(output z); wire p,q,t,x; assign t=x;", "missing-driver"]
+  ]) {
+    const { modules } = parseVerilog(header + " BUF a(.A(t),.Y(p)); INV b(.A(t),.Y(q)); NAND2 m(.A(p),.B(q),.Y(z)); endmodule");
+    for (const showAliases of [true, false]) {
+      const graph = buildWorkspaceGraph(modules[0], { showAliases });
+      const alias = graph.nodes.find((node) => node.kind === "assign");
+      const views = [graph];
+      if (alias) views.push(queryNetlistView(graph, { mode: "focused", rootNodeIds: [alias.id], faninDepth: 0, fanoutDepth: 2 }).visibleGraph);
+      for (const view of views) {
+        const result = run(graph, view);
+        assert.deepEqual(result.results, []);
+        assert.equal(result.status, "partial");
+        assert.ok(result.reasons.includes(issue));
+      }
+    }
+  }
+});
+
+test("proved Liberty constants cannot fork through a pin or an alias", () => {
+  const cellLibrary = buildLibertyModel(parseLiberty('library(demo) { cell(TIE) { pin(Y) { direction: output; function: "(!0)"; } } }'));
+  assert.equal(cellLibrary.cells.TIE.logic.status, "constant");
+  const { modules } = parseVerilog("module top(output z); wire x,t,p,q; TIE u(.Y(x)); assign t=x; BUF a(.A(t),.Y(p)); INV b(.A(t),.Y(q)); NAND2 m(.A(p),.B(q),.Y(z)); endmodule");
+  for (const showAliases of [true, false]) {
+    const graph = buildWorkspaceGraph(modules[0], { showAliases, cellLibrary });
+    const result = run(graph);
+    assert.equal(result.status, "complete"); assert.deepEqual(result.results, []);
   }
 });
 

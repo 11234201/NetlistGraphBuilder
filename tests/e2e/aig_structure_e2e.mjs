@@ -107,6 +107,8 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.evaluate(() => { window.__structureTest.hold = true; });
     await page.locator('[data-aig-analysis-action="run"]').click(); await page.locator('[data-aig-analysis-status="running"]').waitFor();
     await page.locator('[data-aig-analysis-action="cancel"]').click(); await page.locator('[data-aig-analysis-status="cancelled"]').waitFor();
+    assert.equal(await page.locator("#domainNavigator [data-aig-analysis-select]").count(), 0);
+    assert.equal(await page.getByText("No results in the current analysis.").count(), 0);
     await page.evaluate(() => { window.__structureTest.hold = false; });
     await page.locator('[data-aig-analysis-action="run"]').click(); await page.locator('[data-aig-analysis-status="complete"]').waitFor();
     cases.push("cancellation and retry preserve the visible graph without runtime errors");

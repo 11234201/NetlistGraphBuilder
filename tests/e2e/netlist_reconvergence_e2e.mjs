@@ -50,7 +50,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator('#schematicMount [data-node-id="cell:b1"]').waitFor();
     await clickVisible('[data-nav-tab="analysis"]'); await status("complete");
     assert.equal(await result.count(), 1);
-    const viewport = () => page.locator("#schematicMount svg").getAttribute("viewBox");
+    const viewport = () => page.locator("#schematicMount #schematicContent").getAttribute("transform");
     const before = await viewport();
     await result.click();
     await page.waitForFunction(() => /Connections between endpoints\s*complete/.test(document.querySelector("#netlistAnalysisDetail").textContent));
@@ -61,9 +61,12 @@ await runBrowserTest(async ({ browser, url }) => {
     await button("locate").click();
     assert.equal(await page.evaluate(() => window.reconTest.analyses), calls);
     await button("clear").click();
+    await page.locator('#schematicMount [data-node-id="cell:b1"] .node-shape').first().click();
+    await detail.locator("[data-recon-result]").first().waitFor();
 
     await page.evaluate(() => { window.reconTest.fail = "analyze"; });
     await button("run").click(); await status("error");
+    assert.equal(await detail.locator("[data-recon-result]").count(), 0);
     await page.evaluate(() => { window.reconTest.fail = "detail"; });
     await button("run").click(); await status("complete");
     await result.click();
@@ -74,6 +77,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.evaluate(() => { window.reconTest.hold = true; });
     await button("run").click(); await status("running");
     await button("cancel").click(); await status("cancelled");
+    assert.equal(await detail.locator("[data-recon-result]").count(), 0);
     await page.evaluate(() => { window.reconTest.hold = false; });
 
     await page.locator('#schematicMount [data-node-id="cell:b1"] .node-shape').first().click();
@@ -99,6 +103,13 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.match(await panel.textContent(), /combinational-cycle/);
     assert.equal(await result.count(), 0);
     assert.doesNotMatch(await detail.textContent(), /Side A/);
+    const peerNode = page.locator('#rightSchematicMount [data-node-id="cell:out1"] .node-shape').first();
+    await peerNode.click();
+    await button("left").click();
+    await panel.getByText(/Side A · top/).waitFor();
+    await peerNode.click();
+    await panel.getByText(/Side B · peer/).waitFor();
+    assert.equal(await result.count(), 0);
 
     if (!await page.locator("#exportProcessLogButton").isVisible()) await clickVisible("#toggleProcessLogButton");
     const logEntry = page.locator("#processLogList .level-error").filter({ hasText: "Injected netlist detail failure" }).first();

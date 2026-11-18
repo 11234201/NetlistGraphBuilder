@@ -1,13 +1,15 @@
 import { LIBERTY_LIMITS } from "../contracts/liberty.js";
-import { detectQuickInputKind, getQuickInputPriority } from "../app/quickInput.js";
+import { detectQuickInputKind, getQuickInputPriority, isIncompleteBlifHeader } from "../app/quickInput.js";
 import { createBulkTextInput } from "./bulk_text_input.js";
-import { errorMessage } from "../foundation/log_details.js";
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 export function createQuickInputController({ elements, windowTarget, loadText, setStatus, logProcess,
   importRequests, getInputPriority = getQuickInputPriority, schedule = defaultSchedule }) {
   const reportFailure = (error, message, context = {}) => {
-    if (error?.name === "AbortError") return;
-    logProcess?.("error", "import", message, { error, ...context });
+    if (readErrorField(error, "name") === "AbortError") return;
+    try {
+      logProcess?.("error", "import", message, { error, code: readErrorField(error, "code") || context.operation + ".failed", ...context });
+    } catch { /* The failed input and its status remain available if logging fails. */ }
     setStatus(message);
   };
   let dragDepth = 0;
@@ -25,7 +27,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     return latestFileRequest;
   };
   const isCurrent = (requestId) => requestId === latestFileRequest && importRequest?.isCurrent();
-  const requestOptions = (kind) => kind === "liberty" ? { signal: importRequest?.signal } : { request: importRequest };
+  function requestOptions(kind, details) {
+    if (kind === "liberty") return { signal: importRequest?.signal };
+    if (kind === "aig") return { request: importRequest, onFailureContext: (context) => Object.assign(details, context) };
+    return { request: importRequest };
+  }
   const checkFileSize = (file, kind) => {
     if (kind === "liberty" && file.size > LIBERTY_LIMITS.maxBytes) throw new Error("Liberty maxBytes exceeded (64 MiB)");
   };
@@ -75,11 +81,13 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         try {
           kind = detectQuickInputKind("", { name: file.name });
         } catch {
-          // Sniff unknown formats cheaply, but classify JSON from the complete
-          // object: root fields may occur after the prefix or use escaped keys.
-          classificationText = file.slice ? await file.slice(0, 65536).text() : await file.text();
+          // JSON root fields and the first directive after a BLIF name table
+          // can both fall outside the sample.
+          const sampleBytes = 65536;
+          classificationText = file.slice ? await file.slice(0, sampleBytes).text() : await file.text();
           if (!isCurrent(requestId)) return;
-          if (file.slice && (/\.json$/i.test(file.name) || classificationText.trimStart().startsWith("{"))) {
+          if (file.slice && (/\.json$/i.test(file.name) || classificationText.trimStart().startsWith("{") ||
+              file.size > sampleBytes && isIncompleteBlifHeader(classificationText))) {
             classificationText = await file.text();
             if (!isCurrent(requestId)) return;
           }
@@ -108,16 +116,17 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         setStatus(`Skipped ${entry.name}: no netlist in this batch loaded successfully`);
         continue;
       }
+      const details = { fileName: entry.name, kind: entry.kind, operation: "import-batch" };
       try {
         checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
         if (!isCurrent(requestId)) return;
-        await loadText(text, { kind: entry.kind, label: entry.name, ...requestOptions(entry.kind) });
+        await loadText(text, { kind: entry.kind, label: entry.name, ...requestOptions(entry.kind, details) });
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
         if (error?.name === "AbortError") return;
         if (!isCurrent(requestId)) return;
-        reportFailure(error, `Load failed ${entry.name}: ${errorMessage(error)}`, { fileName: entry.name, kind: entry.kind, operation: "import-batch" });
+        reportFailure(error, `Load failed ${entry.name}: ${errorMessage(error)}`, details);
       }
     }
   };
@@ -126,14 +135,16 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const file = input.files?.[0];
     if (!file) return;
     const requestId = beginRequest();
+    const details = { fileName: file.name, kind: preferredKind, operation: "import-file" };
     try {
       checkFileSize(file, preferredKind);
       const text = await file.text();
       if (!isCurrent(requestId)) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
-      await loadText(text, { kind, label: file.name, ...requestOptions(kind) });
+      details.kind = kind;
+      await loadText(text, { kind, label: file.name, ...requestOptions(kind, details) });
     } catch (error) {
-      if (isCurrent(requestId)) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, { fileName: file.name, kind: preferredKind, operation: "import-file" });
+      if (isCurrent(requestId)) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, details);
     } finally {
       input.value = "";
     }
@@ -187,8 +198,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   elements.textForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (pendingSubmission) return;
-    const source = textBuffer.getValue().trim();
-    if (!source) {
+    const source = textBuffer.getValue();
+    if (!source.trim()) {
       const message = `Paste failed: ${textKind} text is empty`;
       showTextStatus(message);
       reportFailure(undefined, message, { kind: textKind, operation: "paste-text" });
@@ -198,6 +209,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const requestId = beginRequest();
     const submittedDialogSession = dialogSession;
     const kind = textKind;
+    const details = { kind, operation: "paste-text" };
     const presentationPolicy = kind === "aig" && aigView ? { viewStyle: aigView.value } : undefined;
     const submission = { request: importRequest, kind };
     pendingSubmission = submission;
@@ -215,7 +227,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     setSubmitting(true);
     showTextStatus(kind === "aig" ? "正在解析并布局 AIG…可以点击 Cancel 取消。" : "正在处理文本…");
     try {
-      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind), ...(presentationPolicy ? { presentationPolicy } : {}) });
+      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy } : {}) });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
     } catch (error) {
       if (error?.name === "AbortError") onAbort();
@@ -224,7 +236,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         const hint = error?.name === "TimeoutError" && presentationPolicy?.viewStyle === "standard"
           ? " 布局超时；请将 View 切换为 Logic View 后重试。" : "";
         showTextStatus(message + hint);
-        reportFailure(error, message, { kind, operation: "paste-text" });
+        reportFailure(error, message, details);
         finish();
         elements.textInput.focus();
       }
@@ -273,9 +285,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     event.preventDefault();
     const requestId = beginRequest();
     const label = pastedLabel(kind);
-    try { await loadText(text, { kind, label, ...requestOptions(kind) }); }
+    const details = { kind, operation: "paste-text" };
+    try { await loadText(text, { kind, label, ...requestOptions(kind, details) }); }
     catch (error) {
-      if (isCurrent(requestId)) reportFailure(error, `Paste failed: ${errorMessage(error)}`, { kind, operation: "paste-text" });
+      if (isCurrent(requestId)) reportFailure(error, `Paste failed: ${errorMessage(error)}`, details);
     }
   });
 

@@ -4,6 +4,7 @@ import { createQuickInputController as createController, isEditableInputTarget }
 import { createProcessLog } from "../../src/app/processLog.js";
 import { createImportRequests } from "../../src/application/import_requests.js";
 import { getQuickInputPriority } from "../../src/app/quickInput.js";
+import { importAigSource } from "../../src/domains/aig/aig_import.js";
 
 function createQuickInputController(options) {
   return createController({ importRequests: createImportRequests(), ...options });
@@ -80,6 +81,36 @@ test("file read, detection, batch and paste failures log context and preserve ca
   rejectOld(failure);
   await old;
   assert.equal(log.size, currentCount);
+});
+
+test("a dropped text BLIF is recognized beyond a large mapping header or leading whitespace", async () => {
+  const imports = [], failures = [];
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (text, options) => imports.push([options.kind, text]), setStatus: (text) => failures.push(text) });
+  // The first sample ends inside .model or before the first nonblank line.
+  const sources = ["# n0 " + "x".repeat(65528), "\n".repeat(65536)].map((prefix) =>
+    prefix + "\n.model top\n.inputs n0\n.outputs n0\n.end");
+  for (const source of sources) {
+    const file = new Blob([source]);
+    file.name = "mapped.txt";
+    await controller.loadFiles([file]);
+  }
+  assert.deepEqual(failures, []);
+  assert.deepEqual(imports, sources.map((source) => ["aig", source]));
+});
+
+test("pasted BLIF diagnostics retain the line numbers in the editable source", async () => {
+  const elements = inputElements(), log = createProcessLog();
+  createQuickInputController({ elements, windowTarget: eventTarget(), setStatus() {}, schedule: (fn) => fn(),
+    loadText: (text) => importAigSource(text),
+    logProcess: (level, phase, message, details) => log.append({ level, phase, message, details }) });
+  elements.pasteAigButton.listeners.click();
+  elements.textInput.value = "\n\n# a name\n.model m\n.inputs a\n.outputs y\n.names a y\nx 1\n.end";
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  const failure = JSON.parse(log.toJsonLines());
+  assert.equal(failure.details.error.diagnostic.line, 8);
+  assert.equal(failure.details.error.diagnostic.code, "blif.cover-value");
+  assert.equal(elements.textDialog.open, true);
 });
 
 test("Liberty files load before designs, oversize files are rejected before reading, paste shares import", async () => {

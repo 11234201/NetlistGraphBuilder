@@ -60,7 +60,7 @@ export function renderAigStructureNavigator(workspace, view = {}) {
       <p>${results.length} candidates · ${view.query?.uniqueRoots || 0} distinct roots overall</p>` : `<p>${results.length} stem / merge pairs</p>`}
     ${limits(category === "block" ? block : recon)}
     <ul class="aig-analysis-list">${results.slice(start, end).map((result) => `<li>${resultLink(workspace, result, view.selectedId)}</li>`).join("")}</ul>
-    ${!results.length && status !== "running" ? '<p class="details-empty">No results in the current analysis.</p>' : ""}${pager(results.length, view.page)}`;
+    ${!results.length && ["complete", "partial"].includes(status) ? '<p class="details-empty">No results in the current analysis.</p>' : ""}${pager(results.length, view.page)}`;
 }
 
 export function renderAigStructureInspector(workspace, view) {
@@ -71,15 +71,20 @@ export function renderAigStructureInspector(workspace, view) {
     ${selected.category === "block" ? blockDetails(workspace, selected, view) : reconDetails(workspace, selected, view)}</section>`;
 }
 function blockDetails(workspace, result, view) {
-  const signalLabel = (id) => formulaName(workspace, id), root = signalLabel(result.rootId);
+  const signalIds = new Set([result.rootId, ...result.inputIds]);
+  const formulaNames = new Set([...signalIds].map((id) => formulaName(workspace, id)));
+  const ambiguous = formulaNames.size < signalIds.size;
+  const signalLabel = (id) => ambiguous ? id : formulaName(workspace, id);
+  const pinLabel = (id) => ambiguous ? id + " · " + label(workspace, id) : signalLabel(id);
+  const root = signalLabel(result.rootId);
   const positive = view.query.functionAtUse(result), negative = view.query.functionAtUse(result, true);
   const formula = view.query.formula(positive, signalLabel);
   return `<h4>Function at the positive root</h4><p class="aig-analysis-formula">${html(root)} = ${html(formula)}</p>
     <dl class="stats-list">${renderDefinitionRows([["Root type", names[positive.kind]],
       ["AND members", result.nodeIds.length], ["Boundary signals", result.boundaryIds.length], ["Effective inputs", result.inputIds.length]])}</dl>
-    <h4>Input mapping at the positive root</h4><ul class="aig-pin-list">${Object.entries(positive.pins).map(([role, pin]) => `<li><code>${html(role.toUpperCase())}</code> ${pin.inverted ? "¬" : ""}${node(workspace, pin.nodeId, signalLabel(pin.nodeId))} <small>${pin.inverted ? "inverted" : "positive"}</small></li>`).join("")}</ul>
+    <h4>Input mapping at the positive root</h4><ul class="aig-pin-list">${Object.entries(positive.pins).map(([role, pin]) => `<li><code>${html(role.toUpperCase())}</code> ${pin.inverted ? "¬" : ""}${node(workspace, pin.nodeId, pinLabel(pin.nodeId))} <small>${pin.inverted ? "inverted" : "positive"}</small></li>`).join("")}</ul>
     ${result.kind === "mux" ? '<p class="details-empty">D0 and D1 show the values selected at the root. An inverted outgoing edge complements both data values and preserves S.</p>' : ""}
-    ${renderBlockUses(workspace, view.query.blockUses(result, workspace.document.analysis.outgoing), view.detailPage, {
+    ${renderBlockUses(workspace, view.query.blockUses(result, (workspace.displayAnalysis || workspace.document.analysis).outgoing, workspace.visibleEdgeIds), view.detailPage, {
       positive: `${names[positive.kind]} · ${html(formula)}`,
       inverted: `${names[negative.kind]} · ${html(view.query.formula(negative, signalLabel))}`
     })}

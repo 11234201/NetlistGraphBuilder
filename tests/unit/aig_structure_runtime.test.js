@@ -170,3 +170,26 @@ test("a completed analysis preserves a failed path detail across relayout until 
   assert.equal(f.manager.read().detailError, null);
   f.manager.dispose();
 });
+
+test("a failed rerun discards previous results and cached details until retry succeeds", async () => {
+  let runs = 0, details = 0;
+  const f = analysisHarness({
+    async run() { if (++runs === 2) throw new Error("rerun failed"); return { status: "complete" }; },
+    async detail({ id }) { return { id, details: ++details, status: "complete" }; }
+  });
+  await f.manager.run();
+  await f.manager.detail({ id: "old" });
+  const pending = f.manager.run();
+  assert.equal(f.manager.read().data, null);
+  await pending;
+  for (const id of ["old", "uncached"]) {
+    await f.manager.detail({ id });
+    assert.equal(f.manager.read().detail, null);
+    assert.equal(f.manager.read().status, "error");
+  }
+  assert.equal(details, 1);
+  await f.manager.run();
+  await f.manager.detail({ id: "old" });
+  assert.equal(f.manager.read().detail.details, 2);
+  f.manager.dispose();
+});

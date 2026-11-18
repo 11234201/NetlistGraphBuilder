@@ -19,17 +19,21 @@ export function createStructureQuery(data) {
   let lastUses = null;
   const query = Object.freeze({
     formula: structureFormula, functionAtUse: structureFunctionAtUse, typeNames: AIG_BLOCK_NAMES,
-    blockUses(block, outgoing) {
-      if (lastUses?.block === block && lastUses.outgoing === outgoing) return lastUses.uses;
+    blockUses(block, outgoing, visibleEdges) {
+      if (lastUses?.block === block && lastUses.outgoing === outgoing && lastUses.visibleEdges === visibleEdges) return lastUses.uses;
+      const realOutputs = (id) => {
+        const edges = outgoing[id] || [];
+        return visibleEdges ? edges.filter((edge) => visibleEdges.has(edge)) : edges;
+      };
       const inside = new Set(block.edgeIds), taps = [];
       for (const id of block.nodeIds) {
         if (id === block.rootId) continue;
-        for (const edgeId of outgoing[id] || []) {
+        for (const edgeId of realOutputs(id)) {
           if (!inside.has(edgeId)) taps.push(edgeId);
         }
       }
-      const uses = { rootEdges: outgoing[block.rootId] || [], taps };
-      lastUses = { block, outgoing, uses };
+      const uses = { rootEdges: realOutputs(block.rootId), taps };
+      lastUses = { block, outgoing, visibleEdges, uses };
       return uses;
     },
     get: (id) => byId.get(id) || null,

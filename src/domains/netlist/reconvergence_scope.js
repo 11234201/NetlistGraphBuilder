@@ -1,10 +1,9 @@
 // Focused commits an induced subgraph. Recover its logical connections from
 // the source adjacency so routing exclusions and fanout hubs stay geometric.
 const sourceIndexes = new WeakMap();
-const ambiguousAliasInputs = new WeakMap();
 
-export function rememberReconvergenceAliasSource(normalized, raw) {
-  if (!normalized.aliases?.length || !raw.diagnostics?.some((entry) => entry.driverCount > 1)) return;
+export function preserveAliasDriverAmbiguity(normalized, raw) {
+  if (!normalized.aliases?.length || !raw.diagnostics?.some((entry) => entry.driverCount > 1)) return normalized;
   const aliases = new Set(normalized.aliases.map((alias) => alias.nodeId));
   const first = new Map(), ambiguous = new Set();
   for (const edge of raw.edges) {
@@ -13,18 +12,19 @@ export function rememberReconvergenceAliasSource(normalized, raw) {
     if (first.has(edge.target) && first.get(edge.target) !== driver) ambiguous.add(edge.net);
     first.set(edge.target, driver);
   }
-  // Occurrence and Compare projections retain this logical edge array. Keep
-  // only ambiguous signal names, allowing the entire raw graph to be released.
-  if (ambiguous.size) ambiguousAliasInputs.set(normalized.edges, ambiguous);
+  // Workspace artifacts snapshot the graph. Persist only the names needed to
+  // qualify folded wires, independent of any object or array identity.
+  return ambiguous.size ? { ...normalized, ambiguousAliasInputs: [...ambiguous].sort() } : normalized;
 }
 
-const fixedOutput = (node, pin) => node?.kind === "constant" || /^[01]$/.test(node?.libraryInfo?.functions?.[pin]?.trim?.() || "");
+const fixedOutput = (node, pin) => node?.kind === "constant" || node?.libraryInfo?.logicStatus === "constant" ||
+  /^[01]$/.test(node?.libraryInfo?.functions?.[pin]?.trim?.() || "");
 
 function sourceIndex(graph) {
   let index = sourceIndexes.get(graph);
   if (index) return index;
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
-  const outgoing = new Map(), drivers = new Map(), ambiguous = new Set(ambiguousAliasInputs.get(graph.edges));
+  const outgoing = new Map(), drivers = new Map(), ambiguous = new Set(graph.ambiguousAliasInputs);
   for (const edge of graph.edges) {
     const endpoint = JSON.stringify([edge.source, edge.sourcePin]);
     if (drivers.has(edge.net) && drivers.get(edge.net) !== endpoint) ambiguous.add(edge.net);
@@ -35,6 +35,23 @@ function sourceIndex(graph) {
   const uncertain = (edge) => ambiguousAliases.has(edge.source) || ambiguous.has(edge.net) ||
     (ambiguous.size > 0 && edge.collapsedAliasNodeIds?.some((id) => ambiguous.has(aliasInput.get(id))));
   const aliasDrivers = new Map(), pending = [];
+  const ports = new Map();
+  function canUse(node, pin, expected) {
+    if (node.ref?.direction === "inout") return false;
+    if (node.kind !== "cell") return true;
+    let rule = node.pinDirections?.[pin];
+    if (!rule) {
+      if (!ports.has(node.id)) ports.set(node.id, new Map((node.portDescriptors || []).map((port) => [port.pin, port])));
+      const port = ports.get(node.id).get(pin);
+      rule = node.pinDirections?.[port?.rawPin] || port;
+    }
+    return rule?.source !== "fallback-guarantee" && rule?.direction === expected;
+  }
+  function driverIssue(node, pin) {
+    if (node.kind === "implicit") return "missing-driver";
+    if (node.kind === "assign") return aliasDrivers.get(node.id)?.issue;
+    return canUse(node, pin, "output") ? null : "ambiguous-pin-direction";
+  }
   function propagate(edge, signal) {
     if (nodes.get(edge.target)?.kind !== "assign" || aliasDrivers.has(edge.target) || uncertain(edge)) return;
     aliasDrivers.set(edge.target, signal); pending.push(edge.target);
@@ -42,11 +59,14 @@ function sourceIndex(graph) {
   for (const edge of graph.edges) {
     if (!outgoing.has(edge.source)) outgoing.set(edge.source, []);
     outgoing.get(edge.source).push(edge);
-    if (nodes.get(edge.target)?.kind === "assign" && uncertain(edge) && !ambiguousAliases.has(edge.target)) {
+    if (nodes.get(edge.target)?.kind !== "assign") continue;
+    if (uncertain(edge) && !ambiguousAliases.has(edge.target)) {
       ambiguousAliases.add(edge.target); ambiguousQueue.push(edge.target);
     }
-    if (nodes.get(edge.target)?.kind === "assign" && nodes.get(edge.source)?.kind !== "assign") {
-      propagate(edge, { key: JSON.stringify([edge.source, edge.sourcePin]), fixed: fixedOutput(nodes.get(edge.source), edge.sourcePin) });
+    const source = nodes.get(edge.source);
+    if (source.kind !== "assign") {
+      propagate(edge, { key: JSON.stringify([edge.source, edge.sourcePin]), fixed: fixedOutput(source, edge.sourcePin),
+        issue: driverIssue(source, edge.sourcePin) });
     }
   }
   for (let i = 0; i < ambiguousQueue.length; i++) for (const edge of outgoing.get(ambiguousQueue[i]) || []) {
@@ -55,7 +75,7 @@ function sourceIndex(graph) {
     }
   }
   for (let i = 0; i < pending.length; i++) for (const edge of outgoing.get(pending[i]) || []) propagate(edge, aliasDrivers.get(pending[i]));
-  index = { nodes, outgoing, uncertain, aliasDrivers };
+  index = { nodes, outgoing, uncertain, aliasDrivers, driverIssue, canUse };
   sourceIndexes.set(graph, index);
   return index;
 }
@@ -71,20 +91,15 @@ export function createNetlistReconvergenceScope(fullGraph, graph) {
   const nodes = [], edges = [], reasons = new Set();
   const displayNodes = new Map(), displayEdges = new Map();
   const included = new Set(graph.nodes.map((node) => node.id).filter((id) => source.nodes.has(id)));
-  const ports = new Map();
   for (const id of [...included].sort()) {
-    const node = source.nodes.get(id), role = cellRole(node);
-    nodes.push({ id, role: source.aliasDrivers.get(id)?.fixed ? "constant" : role });
+    const node = source.nodes.get(id);
+    let role = cellRole(node);
+    const alias = source.aliasDrivers.get(id);
+    if (role === "assign" && (!alias || alias.issue)) role = "boundary";
+    if (alias?.fixed) role = "constant";
+    nodes.push({ id, role });
     displayNodes.set(id, { id, label: node.label || id });
-    if (node.kind === "cell") ports.set(id, new Map((node.portDescriptors || []).map((port) => [port.pin, port])));
   }
-  const canUse = (node, pin, expected) => {
-    if (node.ref?.direction === "inout") return false;
-    if (node.kind !== "cell") return true;
-    const port = ports.get(node.id).get(pin);
-    const rule = node.pinDirections?.[pin] || node.pinDirections?.[port?.rawPin];
-    return rule?.source !== "fallback-guarantee" && (port?.direction || rule?.direction) === expected;
-  };
   const outputs = new Set(), mergeInputs = new Map();
   let visibleEdgeCount = 0;
   for (const id of included) {
@@ -94,9 +109,9 @@ export function createNetlistReconvergenceScope(fullGraph, graph) {
       visibleEdgeCount++;
       if (source.uncertain(edge)) { reasons.add("multiple-drivers"); continue; }
       const target = source.nodes.get(edge.target);
-      if (!canUse(node, edge.sourcePin, "output") || !canUse(target, edge.targetPin, "input")) {
-        reasons.add("ambiguous-pin-direction"); continue;
-      }
+      const issue = source.driverIssue(node, edge.sourcePin);
+      if (issue) { reasons.add(issue); continue; }
+      if (!source.canUse(target, edge.targetPin, "input")) { reasons.add("ambiguous-pin-direction"); continue; }
       let driver = id;
       if (node.kind === "cell") {
         driver = "driver:" + JSON.stringify([id, edge.sourcePin]);

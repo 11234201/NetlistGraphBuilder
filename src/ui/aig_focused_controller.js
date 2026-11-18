@@ -7,7 +7,7 @@ import { isEditableInputTarget } from "./quick_input_controller.js";
 const { pushViewHistory, replaceCurrentViewHistory, stepViewHistory } = createHistoryOperations(
   (entry) => ({ ...entry }), (left, right) => JSON.stringify(left) === JSON.stringify(right));
 
-export function createAigFocusedController({ get, readWorkspace, readSession, select, relayout, cancelPending, activateRoot, setStatus, resolveFocusedRootAction }) {
+export function createAigFocusedController({ get, readWorkspace, readSession, readSelectionRevision, select, relayout, cancelPending, activateRoot, setStatus, resolveFocusedRootAction }) {
   let history = createViewHistory();
   let rootListKey = null;
   let pending = null;
@@ -46,8 +46,9 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     get("addFocusedRootButton").disabled = !ws.query.nodeById.has(selection) || roots.includes(selection);
     get("removeFocusedRootButton").disabled = !roots.includes(selection);
     get("clearFocusedRootsButton").disabled = !roots.length;
-    get("moduleBackButton").disabled = history.index <= 0;
-    get("moduleForwardButton").disabled = history.index >= history.entries.length - 1;
+    const timeline = pending?.options.history || history;
+    get("moduleBackButton").disabled = timeline.index <= 0;
+    get("moduleForwardButton").disabled = timeline.index >= timeline.entries.length - 1;
     const filter = get("focusedRootsFilter").value.trim().toLowerCase();
     const key = JSON.stringify([ws.document.documentId, roots, state.activeFocusedRootNodeId, filter]);
     if (key === rootListKey) return;
@@ -63,13 +64,16 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     list.innerHTML = chips || (roots.length ? "No matching roots" : "No roots");
     restoreFocus();
   }
-  async function apply(next, options = {}) {
+  async function apply(next, options = {}, operation = "aig.focused.layout") {
     const before = entry();
-    const request = { focus: next };
+    const remember = operation !== "aig.style.layout" || pending?.remember;
+    const request = { focus: next, remember, options: { presentationPolicy: pending?.options.presentationPolicy,
+      selectionRevision: readSelectionRevision(), ...options } };
     pending = request;
+    if (options.history) sync();
     try {
-      const result = await relayout(next, options);
-      if (result && request === pending) {
+      const result = await relayout(next, request.options, operation);
+      if (result && request === pending && remember) {
         const checkpoint = replaceCurrentViewHistory(history, before);
         history = options.history || pushViewHistory(checkpoint, entry());
       }
@@ -96,7 +100,7 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     }
     const next = { ...state, viewMode: root.rootNodeIds.length ? "focused" : "whole",
       focusedRootNodeIds: root.rootNodeIds, activeFocusedRootNodeId: root.activeRootNodeId };
-    if (pending && JSON.stringify(next) === JSON.stringify(snapshot())) {
+    if (pending && sameFocus(next, snapshot()) && !hasPendingStyle()) {
       pending = null; cancelPending(); if (selectedId) select(selectedId); sync(); return;
     }
     return apply(next, { selectedId });
@@ -113,10 +117,23 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     rootsAction("add", ids, id); return true;
   }
   function navigate(delta) {
-    const saved = replaceCurrentViewHistory(history, entry());
+    const saved = pending?.options.history || replaceCurrentViewHistory(history, entry());
     const result = stepViewHistory(saved, delta);
-    if (result.entry) return apply(result.entry, { history: result.history, selectedId: result.entry.selectedNodeId,
+    if (result.entry) return apply(result.entry, { history: result.history, selectedId: result.entry.selectedNodeId ?? null,
       viewport: result.entry.transform, presentationPolicy: result.entry.presentationPolicy });
+  }
+  function hasPendingStyle() {
+    const style = pending?.options.presentationPolicy?.viewStyle;
+    return style !== undefined && style !== readSession().presentationPolicy.viewStyle;
+  }
+  function changeStyle(viewStyle) {
+    const current = readSession().presentationPolicy;
+    const requested = pending?.options.presentationPolicy || current;
+    if (viewStyle === requested.viewStyle) return;
+    if (pending && viewStyle === current.viewStyle && sameFocus(pending.focus, snapshot()) && !pending.options.history) {
+      pending = null; cancelPending(); sync(); return;
+    }
+    return apply(pending?.focus || snapshot(), { ...pending?.options, presentationPolicy: { ...requested, viewStyle } }, "aig.style.layout");
   }
   function shortcut(event) {
     if (isEditableInputTarget(event.target)) return;
@@ -128,7 +145,14 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     if (direction) { event.preventDefault(); navigate(direction); }
   }
   const commands = {
-    setViewMode: (mode) => mode === "whole" ? rootsAction("clear", [null]) : readSession().viewMode === "whole" && selectedAction("set"),
+    setViewMode(mode) {
+      if (mode === "whole") return rootsAction("clear", [null]);
+      if (pending?.focus.viewMode === "whole" && readSession().viewMode === "focused") {
+        if (hasPendingStyle()) return apply(snapshot());
+        pending = null; cancelPending(); sync(); return;
+      }
+      if ((pending?.focus.viewMode || readSession().viewMode) === "whole") return selectedAction("set");
+    },
     setSelectedAsFocusedRoot: () => selectedAction("set"),
     addSelectedAsFocusedRoot: () => selectedAction("add"),
     removeSelectedFromFocusedRoots: () => selectedAction("remove"),
@@ -150,5 +174,12 @@ export function createAigFocusedController({ get, readWorkspace, readSession, se
     navigateViewHistory: navigate,
     handleViewHistoryShortcut: shortcut
   };
-  return { commands, reset, sync, snapshot, reveal };
+  return { commands, reset, sync, snapshot, reveal, changeStyle };
+}
+
+function sameFocus(left, right) {
+  return left.viewMode === right.viewMode && left.activeFocusedRootNodeId === right.activeFocusedRootNodeId &&
+    left.faninDepth === right.faninDepth && left.fanoutDepth === right.fanoutDepth &&
+    left.focusedRootNodeIds.length === right.focusedRootNodeIds.length &&
+    left.focusedRootNodeIds.every((id, index) => id === right.focusedRootNodeIds[index]);
 }

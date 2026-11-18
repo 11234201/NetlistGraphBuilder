@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { renderAigNavigator, renderAigInspector, revealAigNavigatorSelection, AIG_PANEL_PAGE_SIZE } from "../../src/ui/aig_panels.js";
 import { importAigSource } from "../../src/domains/aig/aig_import.js";
 import { createAigQuery } from "../../src/domains/aig/aig_query.js";
+import { analyzeAigStructure } from "../../src/domains/aig/structure_analysis.js";
+import { createStructureQuery } from "../../src/domains/aig/structure_query.js";
 
 function createWorkspace(extraNodes = 0) {
   const nodes = [
@@ -192,4 +194,28 @@ test("BLIF Names navigation paginates, filters, escapes design names and retains
   const details = renderAigInspector(workspace, { selectedId: driver.nodeId, tab: "source" });
   assert.match(details, /Mapped names/);
   assert.match(details, /n0 → top\/cell\[n0\]&lt;&amp;&quot;/);
+});
+
+test("Inspector distinguishes the defining signal from an earlier inverse alias in the mapping summary", () => {
+  const document = importAigSource(["# a first_alias", "# z primary_input", ".model names",
+    ".inputs z", ".outputs a", ".names z a", "0 1", ".end"].join("\n"), { format: "blif" });
+  const query = createAigQuery(document.model, document.analysis);
+  const pi = document.model.nodes.find((node) => node.kind === "pi");
+  const html = renderAigInspector({ document, query }, { selectedId: pi.id, tab: "source" });
+  assert.match(html, /Mapped name<\/dt><dd><code>primary_input/);
+  assert.match(html, /BLIF signal<\/dt><dd><code>z/);
+  assert.match(html, /Mapping polarity<\/dt><dd><code>Positive/);
+  assert.match(html, /a → first_alias.*?Inverted/);
+});
+
+test("block formulas and input mappings distinguish different PI signals with the same BLIF design name", () => {
+  const document = importAigSource(["# p shared", "# q shared", ".model names", ".inputs p q", ".outputs y",
+    ".names p q y", "01 1", "10 1", ".end"].join("\n"), { format: "blif" });
+  const result = analyzeAigStructure(document.model);
+  const block = result.blocks.results[0];
+  const workspace = { document, query: createAigQuery(document.model, document.analysis) };
+  const html = renderAigInspector(workspace, { structure: { query: createStructureQuery(result), selectedId: block.id } });
+  const [first, second] = block.inputIds;
+  assert.ok(html.includes(`${block.rootId} = ${first} ⊕ ${second}`));
+  for (const id of block.inputIds) assert.ok(html.includes(`${id} · shared`));
 });

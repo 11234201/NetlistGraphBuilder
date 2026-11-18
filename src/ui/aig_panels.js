@@ -30,10 +30,12 @@ export function renderAigInspector(workspace, options = {}) {
   const isEdge = context.query.edgeById.has(selected.id);
   const name = isEdge ? edgeLabel(selected, context) : selected.label;
   const type = isEdge ? "Logical edge" : kindLabel(selected.kind);
+  const mapping = selected.primaryNameMapping || selected.nameMappings?.[0];
   const header = `<header class="inspector-object-header" data-aig-inspected-id="${escapeAttr(selected.id)}">
     <div class="inspector-object-name"><strong title="${escapeAttr(name)}">${escapeHtml(name)}</strong>${copyButton(name)}</div>
     <dl class="stats-list">${renderDefinitionRows([["Type", type], ["File", workspace.document.name], ["Object ID", selected.id],
-      ...(selected.nameMappings?.length ? [["Mapped name", selected.nameMappings[0].name], ["BLIF signal", selected.nameMappings[0].signalId]] : []),
+      ...(mapping ? [[mapping.conflict ? "Conflicting mapped name" : selected.primaryNameMapping ? "Mapped name" : "Mapped alias", mapping.name],
+        ["BLIF signal", mapping.signalId], ["Mapping polarity", mapping.inverted ? "Inverted" : "Positive"]] : []),
       ...(selected.sourceRefs?.[0]?.generatedFor ? [["Generated for .names", selected.sourceRefs[0].generatedFor]] : [])])}</dl>
     <button type="button" class="mini-button" data-aig-zoom="${escapeAttr(selected.id)}">Zoom to selection</button>
   </header>`;

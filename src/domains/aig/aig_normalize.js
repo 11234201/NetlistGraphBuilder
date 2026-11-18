@@ -58,6 +58,7 @@ export function normalizeAig(raw, options = {}) {
       signal = { vertex: result, inverted: Boolean(node.outputInverted) };
     }
     signal.vertex.sourceRefs.push({ id: node.id, label: node.label, line: node.line, column: node.column, inverted: signal.inverted,
+      ...(node.kind === "alias" ? { alias: true } : {}),
       ...(node.generatedFor ? { generatedFor: node.generatedFor } : {}) });
     signals.set(node.id, signal);
     for (const user of users.get(node.id)) {

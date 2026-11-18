@@ -19,8 +19,13 @@ await runBrowserTest(async ({ browser, url }) => {
   }
   try {
     await page.goto(url);
-    await page.locator("#aigFileInput").setInputFiles(file("names.blif", "# n93 missing_signal\n" + example));
-    await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded names.blif"));
+    await page.evaluate((sample) => {
+      const transfer = new DataTransfer();
+      const header = "# n0 dp_add_2_cp_temp3_combined/in_96\n".repeat(2000);
+      transfer.items.add(new File([header, "# n93 missing_signal\n", sample], "names.txt", { type: "text/plain" }));
+      window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    }, example);
+    await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded names.txt"));
     await page.locator("#searchInput").fill("in_96");
     const result = page.locator("#searchResults .search-result-main").filter({ hasText: "in_96" });
     assert.match(await result.textContent(), /n0 → n\d+/);
@@ -51,12 +56,26 @@ await runBrowserTest(async ({ browser, url }) => {
     const entry = page.locator("#processLogList .level-error").filter({ hasText: "bad_cover.blif" }).first();
     await entry.locator("summary").click();
     assert.match(await entry.locator("pre").innerText(), /blif.cover-value/);
+    const badPaste = "\n\n.model paste\n.inputs a\n.outputs y\n.names a y\nx 1\n.end";
+    await page.locator("#pasteAigButton").evaluate((button) => button.click());
+    await page.locator("#netlistTextInput").fill(badPaste);
+    await page.locator("[data-text-submit]").click();
+    await page.waitForFunction(() => document.querySelector("[data-text-status]").textContent.includes("Paste failed"));
+    assert.equal(await page.locator("#netlistTextInput").inputValue(), badPaste);
+    await page.locator("#cancelNetlistTextButton").click();
     const lines = (await downloadText("#exportProcessLogButton")).trim().split(/\r?\n/).map(JSON.parse);
-    const invalid = lines.filter((row) => row.details?.error?.diagnostic?.code === "blif.cover-value");
+    const invalid = lines.filter((row) => row.details?.fileName === "bad_cover.blif" && row.details?.error?.diagnostic?.code === "blif.cover-value");
     assert.equal(invalid.length, 1);
     assert.equal(invalid[0].details.error.diagnostic.line, 5);
     assert.equal(invalid[0].details.error.diagnostic.objectId, "y");
     assert.ok(invalid[0].details.error.stack);
+    const pasteFailures = lines.filter((row) => row.details?.operation === "paste-text");
+    assert.equal(pasteFailures.length, 1);
+    const paste = pasteFailures[0].details;
+    assert.equal(paste.error.diagnostic.line, 7);
+    assert.equal(paste.code, "blif.cover-value");
+    assert.equal(paste.retainedPreviousView, true);
+    assert.ok(paste.documentId && paste.previousDocumentId && paste.documentId !== paste.previousDocumentId);
     const warning = lines.filter((row) => row.details?.code === "blif.mapping-warnings");
     assert.equal(warning.length, 1);
     assert.equal(warning[0].details.unknownCount, 1);

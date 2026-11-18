@@ -159,6 +159,56 @@ test("invalid cover, input count and post-expansion budget carry the offending .
     (error) => error.code === "blif.object-limit" && error.diagnostic.objectId === "y");
 });
 
+test("indented BLIF diagnostics locate the first conflicting row following a continued declaration", () => {
+  const header = ["    .names a \\", "   b y"].join("\n");
+  const source = blif(header + "\n  01 1\n      10 0");
+  assert.throws(() => importBlif(source), ({ diagnostic }) => diagnostic.code === "blif.cover-phase" &&
+    diagnostic.line === 7 && diagnostic.column === 7 && diagnostic.objectId === "y");
+  const declaration = parseBlifSource(source).declarations.find((row) => row.directive === ".names");
+  assert.deepEqual([declaration.line, declaration.column], [4, 5]);
+});
+
+test("BLIF search uses the matched signal polarity and the port's own mapping among folded aliases", () => {
+  const text = ["# a top/not_z", "# z top/input", "# pos shared", "# neg shared"].join("\n") + "\n" +
+    blif(".names z a\n0 1\n.names z raw\n0 1\n.names z pos\n1 1\n.names z neg\n0 1", "z", "raw");
+  const { model } = importBlif(text);
+  const index = buildAigSearchIndex(model);
+  const pi = (term) => searchAigIndex(index, term).find((row) => row.kind === "pi");
+  assert.equal(pi("").label, "top/input");
+  assert.equal(pi("a").label, "top/not_z");
+  assert.match(pi("a").detail, /a \(inverted\)/);
+  assert.equal(pi("raw").label, "raw");
+  assert.match(pi("raw").detail, /raw \(inverted\)/);
+  assert.match(pi("shared").detail, /neg \(inverted\), pos →/);
+  const ambiguous = importBlif("# a z\n" + blif(".names z a\n0 1", "z", "z")).model;
+  const hit = searchAigIndex(buildAigSearchIndex(ambiguous), "z").find((row) => row.kind === "pi");
+  assert.match(hit.detail, /a \(inverted\), z →/);
+});
+
+test("exact port names are visible even when substring matches exceed the global search limit", () => {
+  const names = Array.from({ length: 110 }, (_, index) => "a" + index);
+  const comments = names.map((id) => `# ${id} block/out[${id}]`).concat("# z block/out");
+  const imported = importBlif(comments.join("\n") + "\n" + blif("", names.concat("z").join(" "), "z"));
+  const hits = searchAigIndex(buildAigSearchIndex(imported.model), "BLOCK/OUT", 2);
+  assert.deepEqual(hits.map((row) => [row.kind, row.label]), [["pi", "block/out"], ["po", "block/out"]]);
+});
+
+test("an output port's own exact name precedes its folded driver in raw and mapped name searches", () => {
+  const logic = blif(".names island_input island_output\n0 1", "island_input", "island_output");
+  for (const prefix of ["", "# island_output design/out\n"]) {
+    const { model } = importBlif(prefix + logic);
+    const index = buildAigSearchIndex(model);
+    const outputId = model.nodes.find((node) => node.kind === "po").id;
+    const driverId = model.nodes.find((node) => node.kind === "pi").id;
+    for (const term of prefix ? ["island_output", "design/out"] : ["island_output"]) {
+      assert.deepEqual(searchAigIndex(index, term, 1).map((row) => row.id), [outputId]);
+      const both = searchAigIndex(index, term, 2);
+      assert.deepEqual(both.map((row) => row.id), [outputId, driverId]);
+      assert.match(both[1].detail, /island_output \(inverted\)/);
+    }
+  }
+});
+
 test("BLIF source names bind after numbering, preserve alias polarity and distinguish driver and output uses", () => {
   const source = blif(".names n0 n1\n0 1\n.names n1 n2 n3\n01 1\n10 1", "n0 n2", "n1 n3");
   const comments = ["# n0 top/input<&>", "# n1 top/inverted", "# n3 out", "# n2 duplicate", "# n2 other", "# n0 top/input<&>", "# n88 unknown", "# ordinary comment"];

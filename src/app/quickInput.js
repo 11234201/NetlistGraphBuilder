@@ -48,6 +48,12 @@ function skipCommentTrivia(source, start) {
   return offset;
 }
 
+// A text file may start with a BLIF signal-name table larger than the file
+// picker's sample. The first directive might also straddle the sample boundary.
+export function isIncompleteBlifHeader(sample) {
+  return ".model".startsWith(sample.slice(skipCommentTrivia(sample, 0)));
+}
+
 function hasLibertyHeader(source) {
   const start = skipCommentTrivia(source, 0);
   return source.startsWith("library", start) && source[skipCommentTrivia(source, start + 7)] === "(";

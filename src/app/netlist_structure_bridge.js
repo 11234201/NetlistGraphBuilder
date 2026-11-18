@@ -139,8 +139,10 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
   refresh();
   return { refresh, inspect(id, nodeId) {
     if (!active) return;
+    const previousSide = selectedSide();
     if (id && inCompare()) side = id;
     const record = records.get(id || "single");
     if (record && record.nodeId !== nodeId) { record.nodeId = nodeId; record.relatedPage = 0; paint(); }
+    else if (previousSide !== selectedSide()) paint();
   } };
 }

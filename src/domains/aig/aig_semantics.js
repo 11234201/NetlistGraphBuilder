@@ -109,21 +109,22 @@ export function adaptAndNotBlif(source, options = {}) {
 
 function classifyCover(declaration, context, location) {
   const size = declaration.arguments.length - 1;
-  const cubes = [];
-  const phases = new Set();
+  const cubes = new Set();
+  let phase;
   for (const row of declaration.rows) {
     const rowLocation = { ...location, line: row.line, column: row.column };
     requireAig(row.fields.length === (size ? 2 : 1), "Invalid BLIF cover row", context, rowLocation, "blif.cover-row");
     const cube = size ? row.fields[0] : "";
-    const phase = row.fields.at(-1);
-    requireAig(cube.length === size && /^[01-]*$/.test(cube) && /^[01]$/.test(phase), "Invalid BLIF cube or output value", context, rowLocation, "blif.cover-value");
-    cubes.push(cube);
-    phases.add(Number(phase));
+    const output = row.fields.at(-1);
+    requireAig(cube.length === size && /^[01-]*$/.test(cube) && /^[01]$/.test(output), "Invalid BLIF cube or output value", context, rowLocation, "blif.cover-value");
+    requireAig(phase === undefined || phase === Number(output), "Mixed ON/OFF BLIF covers are unsupported", context, rowLocation, "blif.cover-phase");
+    cubes.add(cube);
+    phase = Number(output);
   }
-  requireAig(phases.size <= 1, "Mixed ON/OFF BLIF covers are unsupported", context, location, "blif.cover-phase");
-  const phase = [...phases][0] ?? 1;
+  phase ??= 1;
+  const cover = [...cubes];
   const assignments = Array.from({ length: 1 << size }, (_, bits) => Array.from({ length: size }, (_, slot) => (bits >> (size - slot - 1)) & 1));
-  const values = assignments.map((bits) => cubes.some((cube) => [...cube].every((character, slot) => character === "-" || Number(character) === bits[slot])) ? phase : 1 - phase);
+  const values = assignments.map((bits) => cover.some((cube) => [...cube].every((character, slot) => character === "-" || Number(character) === bits[slot])) ? phase : 1 - phase);
   if (values.every((value) => value === values[0])) return { kind: "constant", value: values[0] };
   for (let slot = 0; slot < size; slot++) for (const inverted of [false, true]) {
     if (values.every((value, index) => value === (assignments[index][slot] ^ Number(inverted)))) return { kind: "alias", literals: [{ slot, inverted }] };

@@ -53,6 +53,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   let connectionControl = null;
   let switchingStyle = false;
   let inputGeneration = 0;
+  let selectionRevision = 0;
   let importRequest = null;
   const panelInteractions = createAigPanelInteractions({ document, navigatorHost, inspectorHost, onAction: panelEvent,
     onFilter(field, value) {
@@ -67,7 +68,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   const present = () => presentations.get(workspace?.document.domainId);
   const diagnostics = createDomainWorkspaceDiagnostics({ readWorkspace: () => workspace, readSession: session, setStatus, logProcess });
   const focused = createAigFocusedController({ get, readWorkspace: () => workspace, readSession: session, select, resolveFocusedRootAction,
-    relayout: (focus, options) => replaceView({ ...options, focus }, "aig.focused.layout"), setStatus,
+    readSelectionRevision: () => selectionRevision,
+    relayout: (focus, options, operation) => replaceView({ ...options, focus }, operation), setStatus,
     cancelPending() { importRequest?.cancel(); setStatus(`AIG view: ${session().viewMode === "focused" ? "Focused" : "Whole"}`); },
     activateRoot: (id) => sessions.update(workspace.sessionId, (s) => ({ activeFocusedRootRef: s.focusedRootRefs.find((ref) => ref.localId === id) }), { invalidateComputation: false }) });
   function persist() {
@@ -93,7 +95,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const boundary = !object && workspace.displayQuery.getObject(id);
     if (boundary) { setStatus(boundary.description); return; }
     if (focus && object && focused.reveal(id)) return;
-    if (!preserveAnalysis) structure.clearSelection();
+    if (!preserveAnalysis) { selectionRevision++; structure.clearSelection(); }
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
       unitId: session().unitId, kind: workspace.query.edgeById.has(id) ? "edge" : object.kind, localId: id }) : null;
     sessions.update(workspace.sessionId, () => ({ selectedObjectRef: selection }), { invalidateComputation: false });
@@ -211,7 +213,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (result.cancelled || !isCurrent()) return false;
       // Retain selections made on the still-visible graph while layout was running.
       const sameDocument = workspace?.document === next.document;
-      const nextSelectedId = sameDocument && !restore?.restoreSelection ? selectedId() : restore?.selectedId;
+      const keepCurrentSelection = sameDocument && (!restore?.restoreSelection || restore.selectionRevision !== selectionRevision);
+      const nextSelectedId = keepCurrentSelection ? selectedId() : restore?.selectedId;
       const scopeChanged = workspace?.analysisScopeId !== next.analysisScopeId;
       const nextPanels = sameDocument ? panels : restore?.panels;
       const focusedObjectId = sameDocument ? document.activeElement?.closest("[data-domain-object]")?.dataset.domainObject : null;
@@ -267,7 +270,14 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     importRequest = null;
     get("cancelDomainImportButton").hidden = true;
   }
-  async function open(domainId, input, restore = null, request = beginImport(), propagateErrors = false) {
+  function budgetNotice(result, operation, previousScope) {
+    if (!result.truncated) return "";
+    if (previousScope !== result.analysisScopeLabel) diagnostics.emit("warning", "graph", "Focused budget reached", {
+      ...diagnostics.context(), operation, code: "aig.focused.partial", hiddenEndpointCount: result.hiddenEndpointCount,
+      roots: focused.snapshot().focusedRootNodeIds });
+    return " · Focused budget reached";
+  }
+  async function open(domainId, input, restore = null, request = beginImport(), forwardFailure) {
     if (!request.isCurrent()) return null;
     const ticket = ++inputGeneration;
     let candidateContext = { domainId };
@@ -279,7 +289,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       source = { ...input };
       persist();
       const restoredSelectionMissing = restore?.selectedId && !result.query.getObject(restore.selectedId);
-      setStatus(`Loaded ${input.name} · ${result.geometry.nodes.length} nodes · Graphviz${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
+      const partial = budgetNotice(result, "aig.focused.restore");
+      setStatus(`Loaded ${input.name} · ${result.geometry.nodes.length} nodes · Graphviz${partial}${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
       diagnostics.emit("info", "import", `Loaded ${input.name}`, { domainId, provider: runtime.version });
       const mappingWarnings = result.document.model.model.mappingWarnings;
       if (mappingWarnings) diagnostics.emit("warning", "import", "Some BLIF name mappings need attention",
@@ -292,10 +303,14 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       }
       return result;
     } catch (error) {
-      if (propagateErrors) throw error;
+      const details = { fileName: input.name, retainedPreviousView: Boolean(workspace),
+        previousDocumentId: workspace?.document.documentId };
+      if (forwardFailure) {
+        try { forwardFailure({ ...candidateContext, ...details }); } catch { /* Preserve the original input failure. */ }
+        throw error;
+      }
       if (ticket === inputGeneration) diagnostics.failure(error, restore?.source ? "persistence" : "import",
-        restore?.source ? "aig.workspace.restore" : "aig.import", { fileName: input.name, retainedPreviousView: Boolean(workspace),
-          previousDocumentId: workspace?.document.documentId }, "error", candidateContext);
+        restore?.source ? "aig.workspace.restore" : "aig.import", details, "error", candidateContext);
       return null;
     }
     finally { if (ticket === inputGeneration) finishImport(request); }
@@ -347,7 +362,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const field = event.target.dataset.domainPolicy;
     if (!field || !workspace) return;
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
-    if (field === "viewStyle") { changeViewStyle(value); return; }
+    if (field === "viewStyle") { focused.changeStyle(value); return; }
     changePresentation(field, value);
   });
   function changePresentation(field, value) {
@@ -361,20 +376,12 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     else refreshPolicy();
     persist();
   }
-  async function changeViewStyle(viewStyle) {
-    if (viewStyle === policy().viewStyle) {
-      if (switchingStyle) {
-        importRequest?.cancel();
-        setStatus(`AIG view: ${viewStyle === "abc" ? "Logic View" : "Standard"}`);
-      }
-      return;
-    }
-    return replaceView({ focus: focused.snapshot(), presentationPolicy: { ...policy(), viewStyle } }, "aig.style.layout");
-  }
+
   async function replaceView(options, operation) {
     const request = beginImport();
     const ticket = ++inputGeneration;
     const savedSource = source;
+    const previousPartialScope = workspace.truncated ? workspace.analysisScopeLabel : null;
     let candidateContext = {};
     const restore = { ...options, panels, restoreSelection: options.selectedId !== undefined || Boolean(options.history),
       presentationPolicy: workspace.feature.normalizePresentation(options.presentationPolicy || policy()) };
@@ -389,11 +396,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       const result = await useCase.relayout(restore, (value) => { candidateContext = value; });
       if (!result || !request.isCurrent() || ticket !== inputGeneration) return null;
       source = savedSource;
-      if (!restore.viewport) { canvas.fit(); if (restore.selectedId) focusSelection(restore.selectedId); }
+      if (!restore.viewport) { canvas.fit(); if (restore.selectedId && selectedId()) focusSelection(); }
       persist();
-      setStatus(`AIG view: ${label}${result.truncated ? " · Focused budget reached" : ""}`);
-      if (result.truncated) diagnostics.emit("warning", "graph", "Focused budget reached", { ...diagnostics.context(),
-        operation, code: "aig.focused.partial", hiddenEndpointCount: result.hiddenEndpointCount, roots: restore.focus.focusedRootNodeIds });
+      setStatus(`AIG view: ${label}${budgetNotice(result, operation, previousPartialScope)}`);
       return result;
     } catch (error) {
       if (ticket === inputGeneration) diagnostics.failure(error, "layout", operation, { roots: restore.focus.focusedRootNodeIds,
@@ -458,8 +463,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       await fallback();
     },
     imports: Object.freeze({
-      openAigText(text, { label, request, presentationPolicy }) {
-        return open("aig", { text, name: label }, { presentationPolicy }, beginImport(request), true);
+      openAigText(text, { label, request, presentationPolicy, onFailureContext = () => {} }) {
+        return open("aig", { text, name: label }, { presentationPolicy }, beginImport(request), onFailureContext);
       },
       route(kind, run) {
         if (workspace && kind !== "netlist" && kind !== "aig") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }

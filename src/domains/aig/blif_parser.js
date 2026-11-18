@@ -9,6 +9,7 @@ export function parseBlifSource(text, options = {}) {
   const mappingCandidates = [];
   let pending = "";
   let pendingLine = 0;
+  let pendingColumn = 1;
   let current = null;
   const lines = text.split(/\r?\n/);
   for (let index = 0; index < lines.length; index++) {
@@ -23,13 +24,13 @@ export function parseBlifSource(text, options = {}) {
       continue;
     }
     let part = lines[index].split("#", 1)[0].trim();
-    if (!pending) pendingLine = index + 1;
+    if (!pending) { pendingLine = index + 1; pendingColumn = lines[index].search(/\S/) + 1; }
     if (part.endsWith("\\")) { pending += `${part.slice(0, -1)} `; continue; }
     part = `${pending}${part}`.trim();
     pending = "";
     if (!part) continue;
     const fields = part.split(/\s+/);
-    const location = { line: pendingLine, column: 1 };
+    const location = { line: pendingLine, column: pendingColumn };
     if (fields[0].startsWith(".")) {
       current = { directive: fields[0], arguments: fields.slice(1), rows: [], ...location };
       declarations.push(current);
