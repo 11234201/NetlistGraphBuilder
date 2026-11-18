@@ -5,7 +5,12 @@ const names = { xor: "XOR2", xnor: "XNOR2", mux: "MUX2" };
 const reasonNames = { "work-limit": "work budget", "cut-limit": "cuts per node", "cut-cache-limit": "cut cache",
   "result-limit": "result count", "reach-node-limit": "downstream search size", "witness-limit": "stored paths", "detail-node-limit": "path union size", "block-node-limit": "block size" };
 const label = (workspace, id) => workspace.query.nodeById.get(id)?.label || id;
-const node = (workspace, id) => `<button type="button" class="selection-link" data-aig-select="${attr(id)}">${html(label(workspace, id))}</button>`;
+const node = (workspace, id, text = label(workspace, id)) => `<button type="button" class="selection-link" data-aig-select="${attr(id)}">${html(text)}</button>`;
+function formulaName(workspace, id) {
+  const signal = workspace.query.nodeById.get(id), name = signal?.label || id;
+  if (signal?.kind !== "pi" && /^\d+$/.test(name)) return name;
+  return /^[\p{L}_$][\p{L}\p{N}_$./\[\]-]*$/u.test(name) ? name : JSON.stringify(name);
+}
 const action = (id, text) => `<button type="button" class="mini-button" data-aig-analysis-action="${id}">${text}</button>`;
 const heading = (workspace, result) => result.category === "block" ? `${names[result.kind]} · ${label(workspace, result.rootId)}`
   : `${label(workspace, result.stemId)} → ${label(workspace, result.mergeId)}`;
@@ -25,14 +30,15 @@ function range(count, requested) {
 function pager(count, requested, detail = false) {
   if (count <= PAGE_SIZE) return "";
   const { page, pages } = range(count, requested), field = detail ? "detail-page" : "page";
-  return `<nav class="inspection-pager" aria-label="Analysis pages"><button type="button" data-aig-analysis-${field}="${page - 1}"${page ? "" : " disabled"}>Previous</button>
-    <span>${page + 1} / ${pages}</span><button type="button" data-aig-analysis-${field}="${page + 1}"${page + 1 < pages ? "" : " disabled"}>Next</button></nav>`;
+  const target = detail ? "analysis-details" : "analysis-results";
+  return `<nav class="inspection-pager" aria-label="Analysis pages"><button type="button" data-aig-page-target="${target}" data-aig-analysis-${field}="${page - 1}"${page ? "" : " disabled"}>Previous</button>
+    <span>${page + 1} / ${pages}</span><button type="button" data-aig-page-target="${target}" data-aig-analysis-${field}="${page + 1}"${page + 1 < pages ? "" : " disabled"}>Next</button></nav>`;
 }
 function limits(data) { return data?.reasons?.length ? `<p class="details-empty">Reached: ${html(data.reasons.map((key) => reasonNames[key] || key).join(", "))}. Results are partial.</p>` : ""; }
 function resultLink(workspace, result, selectedId) {
   return `<button type="button" class="aig-analysis-result${result.id === selectedId ? " is-current" : ""}" data-aig-analysis-select="${attr(result.id)}"${result.id === selectedId ? ' aria-current="true"' : ""}>
     <strong>${html(heading(workspace, result))}</strong><small>${result.category === "block"
-      ? `${result.nodeIds.length} AND nodes · ${result.outputInverted ? "complemented" : "positive"} root`
+      ? `${result.nodeIds.length} AND nodes`
       : `Path A: ${result.paths[0].edgeIds.length} edges · Path B: ${result.paths[1].edgeIds.length} edges`}</small></button>`;
 }
 
@@ -45,8 +51,8 @@ export function renderAigStructureNavigator(workspace, view = {}) {
     ${view.error ? `<p class="details-empty">${html(view.error)}</p>` : ""}
     <div class="aig-panel-tabs" role="tablist" aria-label="Structure analysis">${[["reconvergence", `Reconvergence (${recon?.results.length ?? "—"})`], ["block", `Blocks (${block?.results.length ?? "—"})`]].map(([id, text]) =>
       `<button type="button" role="tab" data-aig-analysis-category="${id}" aria-selected="${category === id}"${category === id ? ' class="is-active"' : ""}>${text}</button>`).join("")}</div>
-    <p class="details-empty">${category === "block" ? "Exact 2 / 3-input functions. Original AIG retained." : "Structural paths; input activation is not evaluated."}</p>
-    ${category === "block" ? `<label class="aig-analysis-filter">Type <select data-aig-filter="structureType">${[["all", "All types"], ...Object.entries(names)].map(([id, text]) => `<option value="${id}"${view.type === id ? " selected" : ""}>${text}</option>`).join("")}</select></label>
+    <p class="details-empty">${category === "block" ? "Blocks are named at the positive root. Select a block to see what each outgoing edge carries." : "Structural paths; input activation is not evaluated."}</p>
+    ${category === "block" ? `<label class="aig-analysis-filter">Root type <select data-aig-filter="structureType">${[["all", "All types"], ...Object.entries(names)].map(([id, text]) => `<option value="${id}"${view.type === id ? " selected" : ""}>${text}</option>`).join("")}</select></label>
       <p>${results.length} candidates · ${view.query?.uniqueRoots || 0} distinct roots overall</p>` : `<p>${results.length} stem / merge pairs</p>`}
     ${limits(category === "block" ? block : recon)}
     <ul class="aig-analysis-list">${results.slice(start, end).map((result) => `<li>${resultLink(workspace, result, view.selectedId)}</li>`).join("")}</ul>
@@ -61,22 +67,34 @@ export function renderAigStructureInspector(workspace, view) {
     ${selected.category === "block" ? blockDetails(workspace, selected, view) : reconDetails(workspace, selected, view)}</section>`;
 }
 function blockDetails(workspace, result, view) {
-  const root = label(workspace, result.rootId), formula = view.query.formula(result, (id) => label(workspace, id), true);
-  const members = new Set(result.nodeIds), insideEdges = new Set(result.edgeIds);
-  const outgoing = workspace.document.analysis.outgoing;
-  const loads = result.nodeIds.flatMap((id) => (outgoing[id] || []).filter((edgeId) => !insideEdges.has(edgeId)));
-  const { start, end } = range(loads.length, view.detailPage);
+  const signalLabel = (id) => formulaName(workspace, id), root = signalLabel(result.rootId);
+  const positive = view.query.functionAtUse(result), negative = view.query.functionAtUse(result, true);
+  const formula = view.query.formula(positive, signalLabel);
   return `<h4>Function at the positive root</h4><p class="aig-analysis-formula">${html(root)} = ${html(formula)}</p>
-    <dl class="stats-list">${renderDefinitionRows([["Type", names[result.kind]], ["Root", root], ["Root polarity", result.outputInverted ? "Complement of canonical function" : "Positive"],
+    <dl class="stats-list">${renderDefinitionRows([["Root type", names[positive.kind]],
       ["AND members", result.nodeIds.length], ["Boundary signals", result.boundaryIds.length], ["Effective inputs", result.inputIds.length]])}</dl>
-    <h4>Input mapping</h4><ul class="aig-pin-list">${Object.entries(result.pins).map(([role, pin]) => `<li><code>${html(role.toUpperCase())}</code> ${pin.inverted ? "¬" : ""}${node(workspace, pin.nodeId)} <small>${pin.inverted ? "inverted" : "positive"}</small></li>`).join("")}</ul>
-    <p class="details-empty">A dashed outgoing edge uses the complement of this root function. It is not counted as a second block. Inputs are independent at this boundary.</p>
-    <h4>External uses (${loads.length})</h4><ul class="aig-source-list">${loads.slice(start, end).map((id) => {
-      const edge = workspace.query.edgeById.get(id);
-      return `<li>${node(workspace, edge.source)} → ${node(workspace, edge.target)} · ${edge.inverted ? "inverted" : "positive"}${members.has(edge.target) ? " · boundary use" : ""}</li>`;
-    }).join("")}</ul>${pager(loads.length, view.detailPage, true)}
+    <h4>Input mapping at the positive root</h4><ul class="aig-pin-list">${Object.entries(positive.pins).map(([role, pin]) => `<li><code>${html(role.toUpperCase())}</code> ${pin.inverted ? "¬" : ""}${node(workspace, pin.nodeId, signalLabel(pin.nodeId))} <small>${pin.inverted ? "inverted" : "positive"}</small></li>`).join("")}</ul>
+    ${result.kind === "mux" ? '<p class="details-empty">D0 and D1 show the values selected at the root. An inverted outgoing edge complements both data values and preserves S.</p>' : ""}
+    ${renderBlockUses(workspace, view.query.blockUses(result, workspace.document.analysis.outgoing), view.detailPage, {
+      positive: `${names[positive.kind]} · ${html(formula)}`,
+      inverted: `${names[negative.kind]} · ${html(view.query.formula(negative, signalLabel))}`
+    })}
     ${related(workspace, view, [...result.nodeIds, ...result.boundaryIds], "reconvergence", result.id)}
     ${related(workspace, view, [result.rootId], "block", result.id)}`;
+}
+function renderBlockUses(workspace, { rootEdges, taps }, page, formulas) {
+  const count = rootEdges.length + taps.length, { start, end } = range(count, page);
+  const rows = (ids, rootUse) => ids.map((id) => {
+    const edge = workspace.query.edgeById.get(id), phase = edge.inverted ? "inverted" : "positive";
+    const port = workspace.query.nodeById.get(edge.target).kind === "po" ? "output port" : `input ${edge.slot}`;
+    const source = rootUse ? "" : `${node(workspace, edge.source)} → `;
+    return `<li>${source}${node(workspace, edge.target)} · ${port} · ${phase} edge${rootUse ? `<br><code>${formulas[phase]}</code>` : ""}</li>`;
+  }).join("");
+  const rootRows = rows(rootEdges.slice(start, end), true);
+  const tapRows = rows(taps.slice(Math.max(0, start - rootEdges.length), Math.max(0, end - rootEdges.length)), false);
+  return `${rootRows || !rootEdges.length ? `<h4>Root output uses (${rootEdges.length})</h4><ul class="aig-source-list">${rootRows}</ul>` : ""}
+    ${tapRows ? `<h4>External uses of internal signals (${taps.length})</h4><ul class="aig-source-list">${tapRows}</ul>` : ""}
+    ${pager(count, page, true)}`;
 }
 function reconDetails(workspace, result, view) {
   const detail = view.detail?.id === result.id ? view.detail : null;

@@ -1943,9 +1943,27 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 #domainNavigator button:focus-visible, #domainInspector button:focus-visible { outline: 2px solid #168396; outline-offset: 2px; }
 /* Structure analysis overlays preserve the original AIG geometry and hit areas. */
 #schematicMount svg[data-aig-analysis-active="true"][data-aig-analysis-dim="true"] [data-domain-object]:not([data-aig-analysis-role]) { opacity: .22; }
+/* The directional halo already carries the curve and its inversion pattern.
+   Draw it once during gestures, retaining the red centerline for critical edges. */
+.canvas:is(.is-panning, .is-view-interacting) .aig-edge[data-neighbor-role] {
+  & > .aig-neighbor-halo { opacity: 1; stroke-width: 4; }
+  & > .aig-edge-path:not([data-aig-critical]) { stroke: none; }
+}
 #schematicMount svg[data-aig-cone-trace] [data-aig-object]:not(.is-selected):not([data-neighbor-role]) {
   filter: grayscale(1);
   opacity: .35;
+
+  /* Paint muted primitives directly while the viewport moves. Thousands of
+     individually filtered, translucent SVG groups are costly to composite. */
+  .canvas:is(.is-panning, .is-view-interacting) & {
+    filter: none;
+    opacity: 1;
+
+    & .aig-node-shape, & .aig-block-label rect { fill: #f5f5f5; stroke: #b8b8b8; }
+    & .aig-node-label, & .aig-block-label text { fill: #aaa; }
+    & .aig-edge-path, & .aig-selection-halo { stroke: #c0c0c0; }
+    & .aig-edge-arrow { fill: #c0c0c0; stroke: #c0c0c0; }
+  }
 }
 #schematicMount svg[data-aig-block-labels="false"] .aig-block-label { display: none; }
 .aig-analysis-status, .aig-analysis-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 10px 0; }

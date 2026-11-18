@@ -30,5 +30,5 @@ export function aigNodeStyle(node, analysis, index, policy) {
 export function aigEdgeStyle(edge, index, policy) {
   const critical = policy.critical && index.criticalEdges.has(edge.id);
   return { stroke: critical ? "#dc2626" : "#64748b", "stroke-width": critical ? 2.8 : 1.5,
-    "stroke-dasharray": edge.inverted ? "5 4" : null };
+    "stroke-dasharray": edge.inverted ? "5 4" : null, "data-aig-critical": critical ? "" : null };
 }

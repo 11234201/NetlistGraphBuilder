@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { analyzeAigStructure, getAigStructureDetail } from "../../src/domains/aig/structure_analysis.js";
 import { classifyStructureFunction } from "../../src/domains/aig/structure_functions.js";
+import { structureFunctionAtUse } from "../../src/domains/aig/structure_query.js";
 import { importAigSource } from "../../src/domains/aig/aig_import.js";
 
 function builder(names = ["a", "b", "c"]) {
@@ -27,7 +28,7 @@ function evaluate(model, root, inputs) {
 function represented(block, assignment) {
   const pin = (role) => assignment[block.pins[role].nodeId] ^ Number(block.pins[role].inverted);
   const result = block.kind === "xor" ? pin("a") ^ pin("b") : block.kind === "xnor" ? 1 ^ pin("a") ^ pin("b") : pin("s") ? pin("d1") : pin("d0");
-  return result ^ Number(block.outputInverted);
+  return result ^ Number(block.outputInverted ?? false);
 }
 function verifyPins(block, graph) {
   for (let row = 0; row < (1 << block.inputIds.length); row++) {
@@ -49,9 +50,10 @@ test("XOR/XNOR exhaust all 16 input/output transformations and preserve output-u
     graph.edges.push({ id: "out:0", source: "root", target: "out", inverted: Boolean(output), slot: 0 });
     const result = analyzeAigStructure(graph), block = result.blocks.results.find((block) => block.rootId === "root" && block.inputIds.length === 2);
     assert.ok(block); verifyPins(block, graph); functions.add(block.truthTable); checked++;
+    const atUse = structureFunctionAtUse(block, Boolean(output));
     for (let row = 0; row < 4; row++) {
       const assignment = { a: row & 1, b: (row >> 1) & 1 };
-      assert.equal(represented(block, assignment) ^ output, assignment[a] ^ assignment[b] ^ Boolean(mask & 1) ^ Boolean(mask & 2) ^ output);
+      assert.equal(represented(atUse, assignment), assignment[a] ^ assignment[b] ^ Boolean(mask & 1) ^ Boolean(mask & 2) ^ output);
     }
   }
   assert.equal(checked, 16); assert.equal(functions.size, 2);
@@ -67,10 +69,13 @@ test("MUX exhausts all 96 transformations, recovers pins, and classifies exactly
     graph.and("root", ["p", true], ["q", true]);
     const block = analyzeAigStructure(graph).blocks.results.find((block) => block.rootId === "root" && block.kind === "mux");
     assert.ok(block); verifyPins(block, graph); functions.add(block.truthTable); checked++;
+    const atUse = structureFunctionAtUse(block, Boolean(output));
+    assert.deepEqual(atUse.pins.s, block.pins.s);
     for (let row = 0; row < 8; row++) {
       const assignment = { a: row & 1, b: (row >> 1) & 1, c: (row >> 2) & 1 };
       const expected = (assignment[s] ^ Boolean(mask & 1)) ? assignment[d1] ^ Boolean(mask & 4) : assignment[d0] ^ Boolean(mask & 2);
-      assert.equal(represented(block, assignment) ^ 1 ^ output, expected ^ output);
+      // The AIG root is the NOR of the two product terms.
+      assert.equal(represented(atUse, assignment), expected ^ 1 ^ output);
     }
   }
   assert.equal(checked, 96); assert.equal(functions.size, 24);

@@ -14,8 +14,8 @@ export const aigControls = Object.freeze({
       </select>
       <input hidden type="number" min="1" step="1" aria-label="Custom highlight levels" placeholder="Levels">
     </span>
-    <label><input type="checkbox" data-domain-policy="structureLabels" checked>Block labels</label>
-    <label><input type="checkbox" data-domain-policy="structureDim" checked>Dim outside analysis</label>
+    <label title="Show the block type at each positive root, before outgoing edge inversion."><input type="checkbox" data-domain-policy="structureLabels" checked>Block labels</label>
+    <label title="Select a block or reconvergence result in Analysis to fade nodes and edges outside it."><input type="checkbox" data-domain-policy="structureDim" checked>Dim outside selected result</label>
     <label><input type="checkbox" data-domain-policy="critical">Logical critical path</label>
     <span class="aig-fanout-control"><label><input type="checkbox" data-domain-policy="fanout">High fanout</label>
       <label>≥ <input type="number" data-domain-policy="fanoutThreshold" min="1" max="1000000" value="2" aria-label="High fanout threshold"></label></span>

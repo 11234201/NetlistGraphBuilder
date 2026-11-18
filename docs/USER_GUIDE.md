@@ -1010,7 +1010,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 | --- | --- |
 | `Highlight connections` | 默认 `All`。点击输入端口，以绿色向输出追踪；点击输出端口，以蓝色向输入或常量追踪。在同一下拉框选 `1 level`、`2 levels` 等可限制范围，每条连线算一级。选择 `Custom…` 输入正整数时，画布即时预览。按 Enter 或移开焦点后保存有效级数，按 Esc 或输入无效级数会恢复之前的设置。范围外的节点与连线显示为浅灰色。选 `All` 恢复完整追踪，选 `Off` 清除连接高亮与灰显。选中 AND 时，上游显示蓝色，下游显示绿色，两侧从该 AND 各自计算级数。例如选 `2 levels`，会同时看到上游两级与下游两级。选中连线时标记两个端点。 |
 | `Block labels` | 在已识别的逻辑块根附近显示类型标签，保留原始 AND 节点。 |
-| `Dim outside analysis` | 选择结构分析结果后，淡化当前结果之外的节点和边。 |
+| `Dim outside selected result` | 在 Analysis 中选中一个逻辑块或一对重收敛路径后，淡化结果之外的节点和边。关闭后，外围逻辑恢复原亮度，选中结果的彩色标记仍可见。 |
 | `Logical critical path` | 默认关闭；标记最长单位 AND 深度路径，红色不表示真实时序违例。 |
 | `High fanout` / `≥` | 默认关闭；标记扇出引用达到阈值的节点，默认阈值为 2。 |
 
@@ -1021,11 +1021,13 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 导入后打开 `Navigator → Analysis`，后台分析完成后可以查看：
 
 - **Reconvergence**：列出 `Stem`（分叉点）到 `Merge`（汇合点）的结构重收敛。点击一行高亮两条仅共享起点和终点的见证路径 A/B（蓝色 / 橙色），详情显示端点、AND 深度与沿途节点。列表中的 `edges` 是边数，不是时间延迟；按需计算完成后，`Path union` 给出通往同一汇合点的路径并集，额外路径以青色显示。嵌套和重叠结果分别保留，不判断输入条件能否同时激活这些路径。
-- **Blocks**：识别 XOR2、XNOR2 和二选一 MUX 的输入交换、输入/输出取反变体。用 `Type` 筛选，点击结果高亮成员与边界输入。`Function at the positive root` 是原始 AND 根节点正相的布尔表达式；`Input mapping` 给出 A/B 或 S/D0/D1 的对应信号与反相标记；`External uses` 展示块外用途及边极性。输出虚线取该根函数的反相，因此不能仅凭输出信号名推断块类型。
+- **Blocks** 识别 XOR2、XNOR2 和二选一 MUX。用 `Root type` 按正相根函数筛选，点击结果可高亮块成员和边界输入。`Function at the positive root` 显示根节点在出边取反前的函数，引脚映射中的符号与该公式一致。`Root output uses` 逐条列出输出端口或下游门的输入槽、边极性以及接收端得到的函数。如果同一个 XNOR 根同时驱动实线和反相虚线，实线送出 XNOR，虚线送出 XOR。块内中间节点引出的支路另列在 `External uses of internal signals`。
+
+  MUX 的公式把反相写在对应数据项上。例如正相根为 `s ? ¬b : ¬a` 时，反相出边传递 `s ? b : a`。D0、D1 表示从块边界到观察点的等效数据值，画布上的虚线表示某一条具体 AIG 边取反。公式和引脚映射为容易混淆的输入名加双引号，例如 `"¬b"` 表示原名为 `¬b` 的输入，`¬"¬b"` 表示该输入取反。
 
 `candidates` 统计合法边界对应的候选，`distinct roots overall` 统计全部类型中的不同根。一个根可能有多个边界候选，多个块也可能共享节点；这些数量不表示互不重叠的电路分区。根节点的正相和反相用途不重复计作两个物理块。
 
-点选结果不会移动画布；点击详情中的 `Locate` 才定位，`Clear highlight` 清除分析高亮。工具栏 `Block labels` 显示块类型，`Dim outside analysis` 淡化无关部分，两者均不触发布局。原始 AND 节点与反相虚线保留；Standard 和 Logic View 视图、SVG 导出使用一致标注。
+点击详情中的 `Locate` 可定位所选结果，`Clear highlight` 清除分析高亮并恢复外围亮度。工具栏 `Block labels` 显示正相根的块类型。Standard、Logic View 与 SVG 导出使用相同标注。
 
 ### AIG 从节点查找相关结构
 
@@ -1079,9 +1081,9 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 1. 通过 `File → Open AIG…` 导入，进入 `Navigator → Analysis`。默认预算下应显示 `Analysis complete`、`Reconvergence (6)` 和 `Blocks (3)`。
 2. 点击一条重汇聚结果，观察 Stem / Merge、蓝色路径 A 与橙色路径 B；等待 `Path union` 完成，再点 `Locate` 查看整个高亮范围。
-3. 切到 `Blocks`，依次用 `Type` 选择 XOR2、XNOR2、MUX2，每种应有 1 个候选。核对 `Input mapping`、正相根公式和输出用途；特别注意 MUX 根的反相表达与通往 `y` 的输出边极性共同决定最终函数。
+3. 切到 `Blocks`，依次用 `Root type` 选择 XOR2、XNOR2、MUX2，每种应有 1 个候选。选中 MUX，在正相根公式中可看到 D0、D1 都带反相。再看 `Root output uses` 中的输出端口 `y`，通往它的虚线使两个数据项恢复正相。
 4. 点击输入节点 `a`，打开右侧 `Inspector → Analysis`，查看相关块和重汇聚；点击关联结果验证列表跳转与高亮。选中 PO `x` 后，可用 `Connections` 找到其驱动根。
-5. 切换 Standard / Logic View，检查类型、数量与极性一致；开关 `Block labels`、`Dim outside analysis`，最后通过 `File → Export SVG` 导出当前标注。
+5. 切换 Standard / Logic View，检查类型、数量与极性一致。开关 `Block labels`、`Dim outside selected result`，最后通过 `File → Export SVG` 导出当前标注。
 
 该练习用于核对操作和固定小图结果，不代表任意大图都能完成全部搜索。下面的最小示例只有一个 AND，不会产生上述 6 对 / 3 块。
 
@@ -1115,7 +1117,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 - **为什么点选节点后看不到相关结构，或只看到部分关联？**
   先确认右侧打开的是 `Inspector → Analysis`，再查看左侧全图分析是否完成。PO 需要转到驱动根查询；重汇聚索引只含两条见证路径，且列表最多展开前 20 项。详见 [点相关查询](#aig-从节点查找相关结构)。
 - **块标签与输出名称的 XOR / XNOR 含义不同？**
-  类型与公式以规范化根及边界信号为准，输出连线可能取反。先核对 `Function at the positive root`、`Input mapping` 和输出边极性；名称本身不参与识别。
+  块标签以正相根的函数为准。查看 `Root output uses` 中相应输出端口的公式即可确认该端口实际得到 XOR 还是 XNOR。
 - **分析显示完成，为什么 Path union 还在计算或显示 partial？**
   全图识别与按需路径并集是两个任务，使用各自预算和状态。见证路径已证明该结构存在，并集受限不影响这两条路径的有效性。
 - **文件后缀正确但导入失败？**

@@ -15,8 +15,23 @@ export function createStructureQuery(data) {
     if (!types.has(result.kind)) types.set(result.kind, []);
     types.get(result.kind).push(result);
   }
+  // Retain only the inspected cut. Overlapping cuts can share large fanouts.
+  let lastUses = null;
   const query = Object.freeze({
-    formula: structureFormula, typeNames: AIG_BLOCK_NAMES,
+    formula: structureFormula, functionAtUse: structureFunctionAtUse, typeNames: AIG_BLOCK_NAMES,
+    blockUses(block, outgoing) {
+      if (lastUses?.block === block && lastUses.outgoing === outgoing) return lastUses.uses;
+      const inside = new Set(block.edgeIds), taps = [];
+      for (const id of block.nodeIds) {
+        if (id === block.rootId) continue;
+        for (const edgeId of outgoing[id] || []) {
+          if (!inside.has(edgeId)) taps.push(edgeId);
+        }
+      }
+      const uses = { rootEdges: outgoing[block.rootId] || [], taps };
+      lastUses = { block, outgoing, uses };
+      return uses;
+    },
     get: (id) => byId.get(id) || null,
     list(category = "reconvergence", type = "all") { return category === "block" ? type === "all" ? data.blocks.results : types.get(type) || [] : data.reconvergence.results; },
     rootEntries: () => roots.entries(), uniqueRoots: roots.size,
@@ -29,8 +44,22 @@ export function createStructureQuery(data) {
   cache.set(data, query); return query;
 }
 
+// A complemented MUX flips both data literals and leaves the selector alone.
+// Only the receiving edge determines which phase of the positive root is used.
+export function structureFunctionAtUse(result, inverted = false) {
+  const complement = Boolean(result.outputInverted) !== inverted;
+  let { kind, pins } = result;
+  if (complement && kind === "mux") {
+    pins = { ...pins, d0: { ...pins.d0, inverted: !pins.d0.inverted }, d1: { ...pins.d1, inverted: !pins.d1.inverted } };
+  } else if (complement) {
+    kind = kind === "xor" ? "xnor" : "xor";
+  }
+  return { kind, pins };
+}
+
 export function structureFormula(result, label = (id) => id, root = false) {
-  const pin = (key) => `${result.pins[key].inverted ? "¬" : ""}${label(result.pins[key].nodeId)}`;
-  const expression = result.kind === "mux" ? `${pin("s")} ? ${pin("d1")} : ${pin("d0")}` : `${pin("a")} ⊕ ${pin("b")}`;
-  return (result.kind === "xnor" || root && result.outputInverted) ? `¬(${expression})` : expression;
+  const { kind, pins } = root ? structureFunctionAtUse(result) : result;
+  const pin = (key) => `${pins[key].inverted ? "¬" : ""}${label(pins[key].nodeId)}`;
+  const expression = kind === "mux" ? `${pin("s")} ? ${pin("d1")} : ${pin("d0")}` : `${pin("a")} ⊕ ${pin("b")}`;
+  return kind === "xnor" ? `¬(${expression})` : expression;
 }

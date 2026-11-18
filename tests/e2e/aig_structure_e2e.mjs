@@ -60,14 +60,26 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator('[data-aig-filter="structureType"]').selectOption("mux");
     assert.equal(await page.locator("#domainNavigator [data-aig-analysis-select]").count(), 1);
     await page.locator("#domainNavigator [data-aig-analysis-select]").click();
-    assert.match(await page.locator(".aig-analysis-formula").textContent(), /\?.*:/);
+    const rootFormula = await page.locator(".aig-analysis-formula").textContent();
+    const [, d1, d0] = rootFormula.match(/ = s \? ¬(\d+) : ¬(\d+)$/);
+    assert.equal(await page.locator(".aig-source-list code").textContent(), `MUX2 · s ? ${d1} : ${d0}`);
+    assert.match(await page.locator(".aig-source-list li").textContent(), /y · output port · inverted edge/);
     assert.equal(await page.locator('.aig-pin-list li').count(), 3);
+    for (const [role, id] of [["D1", d1], ["D0", d0]]) {
+      assert.match(await page.locator(".aig-pin-list li").filter({ hasText: role }).textContent(), new RegExp(`${role} ¬${id} inverted`));
+    }
     assert.ok(await page.locator('.aig-edge-path[stroke-dasharray="5 4"]').count());
     assert.ok(await page.locator('.aig-block-label').count());
     const muxId = await page.locator('[data-aig-analysis-inspected]').getAttribute('data-aig-analysis-inspected');
-    await page.locator('[data-domain-policy="structureDim"]').uncheck();
-    assert.equal(await page.locator('#schematicMount svg').getAttribute('data-aig-analysis-dim'), 'false');
-    await page.locator('[data-domain-policy="structureDim"]').check();
+    const dim = page.getByRole("checkbox", { name: "Dim outside selected result" });
+    const outside = page.locator("#schematicMount [data-domain-object]:not([data-aig-analysis-role])").first();
+    const opacity = (element) => getComputedStyle(element).opacity;
+    assert.equal(await outside.evaluate(opacity), "0.22");
+    await dim.uncheck();
+    assert.equal(await outside.evaluate(opacity), "1");
+    assert.ok(await page.locator('[data-aig-analysis-role="block"]').count());
+    await dim.check();
+    assert.equal(await outside.evaluate(opacity), "0.22");
     await page.locator('[data-domain-policy="structureLabels"]').uncheck();
     assert.equal(await page.locator('.aig-block-label').first().isVisible(), false);
     await page.locator('[data-domain-policy="structureLabels"]').check();
@@ -126,8 +138,26 @@ await runBrowserTest(async ({ browser, url }) => {
     await pair.click();
     await page.waitForFunction(() => /nodes · \d+ edges \(complete\)/.test(document.querySelector("#domainInspector").textContent));
     assert.equal(await page.evaluate(() => window.__structureTest.details), failedAttempts + 1);
-    assert.deepEqual(errors, []);
     cases.push("switching views preserves a path detail error, and selecting the pair again retries once");
+    const ports = Array.from({ length: 201 }, (_, i) => `y${i}`);
+    const fanout = [".model fanout", ".inputs a b", `.outputs ${ports.join(" ")}`,
+      ".names a b p", "10 1", ".names a b q", "01 1", ".names p q root", "00 1",
+      ...ports.flatMap((name) => [`.names root ${name}`, "1 1"]), ".end"].join("\n");
+    await page.locator("#aigFileInput").setInputFiles({ name: "fanout.blif", mimeType: "text/plain", buffer: Buffer.from(fanout) });
+    await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded fanout.blif"));
+    await page.locator('[data-aig-nav-tab="analysis"]').click();
+    await page.locator('[data-aig-analysis-status="complete"]').waitFor();
+    await page.locator('[data-aig-analysis-category="block"]').click();
+    await page.locator("#domainNavigator [data-aig-analysis-select]").click();
+    const pager = page.locator("#domainInspector .inspection-pager");
+    await pager.getByRole("button", { name: "Next" }).focus();
+    for (const [indicator, direction] of [["2 / 3", "Next"], ["3 / 3", "Previous"], ["2 / 3", "Previous"]]) {
+      await page.keyboard.press("Enter");
+      assert.equal(await pager.locator("span").textContent(), indicator);
+      assert.equal(await page.evaluate(() => document.activeElement.textContent), direction);
+    }
+    cases.push("keyboard paging through 201 block output uses retains direction and reverses at the boundary");
+    assert.deepEqual(errors, []);
     await writeFile(join(artifacts, 'results.json'), JSON.stringify({ cases, errors }, null, 2));
     console.log(JSON.stringify({ cases, errors }, null, 2));
   } finally { await page.close(); }

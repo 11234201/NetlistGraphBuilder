@@ -65,6 +65,19 @@ test("AIG Scene preserves literal whitespace in names without depending on page 
   assert.match(renderSvgScene(value.scene), />a  b<\/text>/);
 });
 
+test("only enabled critical edge strokes are marked for retention during gestures", async () => {
+  const { useCase } = setup();
+  const workspace = await useCase.open("aig", { text: fixture("shared_cone.blif"), name: "gestures.blif" });
+  const { model, analysis } = workspace.document.model;
+  for (const critical of [false, true]) {
+    const scene = createAigScene(model, analysis, workspace.geometry, { critical });
+    const marked = scene.readEdges(0, scene.edgeCount).filter((edge) => edge.children.some((child) =>
+      child.attributes?.class === "aig-edge-path" && child.attributes["data-aig-critical"] === ""));
+    assert.deepEqual(new Set(marked.map((edge) => edge.attributes["data-aig-edge"])),
+      new Set(critical ? analysis.criticalEdges : []));
+  }
+});
+
 test("connection and selection halos preserve polarity while hit areas stay continuous", async () => {
   const { useCase } = setup();
   const workspace = await useCase.open("aig", { text: fixture("shared_cone.blif"), name: "polarity.blif" });
