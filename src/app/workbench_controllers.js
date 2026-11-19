@@ -61,6 +61,11 @@ export function createWorkbenchControllers({ state, getElements, services, route
         : actions.setSelectedNode(state.selectedNodeId, false)
     })
   });
+  const refreshCompareSelection = () => {
+    if (state.compare.active && state.compare.selectedName && state.compare.selectedKind) {
+      actions.selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false, state.compare.selectedSide, false);
+    }
+  };
   function validateSavedPath(value, module, occurrence, graphOverrides = state.graphOverrides) {
     if (!value) return;
     const query = normalizeShowPath(value);
@@ -91,7 +96,14 @@ export function createWorkbenchControllers({ state, getElements, services, route
         rebuild: (options) => actions.renderCompareGraphs({ ...options, onCommitted: options.onRendered }) };
     } } : {}),
     ...(owner === "golden" ? { validateSavedPath, markExport: (markup, side) => structure?.markExport(markup, side) ?? markup } : {}),
-    ...(owner === "input" ? { validateSavedPath, restoreComparePath(entry) {
+    ...(owner === "input" ? { validateSavedPath,
+      compareSideActions: {
+        setCompareSideTiming: (side, timing, label, opts) => actions.setCompareSideTiming(side, timing, label, opts),
+        updateCompareSideTimingControls: () => actions.updateCompareSideTimingControls(),
+        applyMergedCompareModules: (opts) => actions.assignCompareSideModule(opts),
+        refreshCompareSelection
+      },
+      restoreComparePath(entry) {
       const compare = entry.compare;
       if (!compare?.showPath) return;
       const showPath = { ...compare.showPath };
@@ -140,8 +152,10 @@ export function createWorkbenchControllers({ state, getElements, services, route
       for (const key of ports.elements) if (!(key in elementTarget)) throw new Error(`Missing element dependency ${key} for ${owner}`);
       for (const key of ports.services) validateWorkbenchServiceDependency(services, key, owner);
     }
-    if (elementTarget.pathMenu) bindShowPath(elementTarget.pathMenu, {
-      copyText: (text) => copyBrowserText(text, elementTarget.pathMenu.ownerDocument.defaultView.navigator.clipboard),
+    elementTarget.compareLeftClearTimingButton?.addEventListener("click", () => actions.clearCompareSideTiming("left", { onCommitted: refreshCompareSelection }));
+    elementTarget.compareRightClearTimingButton?.addEventListener("click", () => actions.clearCompareSideTiming("right", { onCommitted: refreshCompareSelection }));
+    if (elementTarget.pathPanel) bindShowPath(elementTarget.pathPanel, {
+      copyText: (text) => copyBrowserText(text, elementTarget.pathPanel.ownerDocument.defaultView.navigator.clipboard),
       async navigateResult(result, preferred) {
         if (!result?.target || !result.moduleName) return preferred;
         const switchModule = state.currentModule?.name !== result.moduleName;
@@ -231,7 +245,7 @@ const ALL_COMPARE_FIELDS = Object.freeze([
   "active", "showPath", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
   "focusedRootsSynchronized", "fullGraphs", "graphOverrides", "graphs", "layout", "layoutAbortController",
   "leftModuleName", "nodePositions", "nodeSizes", "outputName", "rightModuleName", "scenes", "selectedKind",
-  "selectedName", "selectedSide", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
+  "selectedName", "selectedSide", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
   "timingBadgePositions", "transforms", "wholeRequested", "workspaceIdentity"
 ]);
 
@@ -245,8 +259,8 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "golden": ["active", "scenes", "workspaceIdentity", "graphs", "selectedKind", "selectedName", "selectedSide", "singleWorkspaceInvalidated"],
   "helpers": ["graphOverrides", "nodePositions", "nodeSizes"],
   "history": ALL_COMPARE_FIELDS,
-  "input": ["active", "layoutAbortController"],
-  "inspector": ["active", "analysis", "fullGraphs", "graphs", "selectedKind", "selectedName", "selectedSide", "timingBadgeChoices", "timingBadgePositions", "transforms"],
+  "input": ["active", "layoutAbortController", "leftModuleName", "rightModuleName", "sideTiming", "sideTimingLabels"],
+  "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "timingBadgeChoices", "timingBadgePositions", "transforms"],
   "module-navigation": ["active"],
   "presentation": ["active", "graphs", "scenes"],
   "selection-navigation": ["active", "graphs", "selectedSide"],

@@ -14,6 +14,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   };
   let dragDepth = 0;
   let textKind = "netlist";
+  let textOptions = { append: false, compareSide: null };
   let latestFileRequest = 0;
   let importRequest = null;
   const cancelPendingLoad = () => {
@@ -79,7 +80,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     elements.body?.classList.add("is-dragging-files");
     elements.dropOverlay?.setAttribute("aria-hidden", "false");
   };
-  const loadFiles = async (files) => {
+  const loadFiles = async (files, batchOptions = {}) => {
     const requestId = beginRequest();
     const entries = [];
     for (const [order, file] of [...files].entries()) {
@@ -88,7 +89,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       let kind;
       try {
         try {
-          kind = detectQuickInputKind("", { name: file.name });
+          kind = detectQuickInputKind("", { name: file.name, ...(batchOptions.preferredKind ? { preferredKind: batchOptions.preferredKind } : {}) });
         } catch {
           // JSON root fields and the first directive after a BLIF name table
           // can both fall outside the sample.
@@ -100,7 +101,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
             classificationText = await file.text();
             if (!isCurrent(requestId)) return;
           }
-          kind = detectQuickInputKind(classificationText, { name: file.name });
+          kind = detectQuickInputKind(classificationText, { name: file.name, ...(batchOptions.preferredKind ? { preferredKind: batchOptions.preferredKind } : {}) });
           // Re-read real Files at import time instead of retaining every JSON
           // source in a batch. Test doubles without slice() reuse their only read.
           if (file.slice) classificationText = null;
@@ -118,7 +119,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       return;
     }
     entries.sort((a, b) => getInputPriority(a.kind) - getInputPriority(b.kind) || a.order - b.order);
-    let designLoaded = !entries.some((entry) => entry.kind === "netlist");
+    let designLoaded = Boolean(batchOptions.append) || !entries.some((entry) => entry.kind === "netlist");
+    const seenKind = { netlist: false, timing: false };
     for (const entry of entries) {
       if (!isCurrent(requestId)) return;
       if (entry.kind !== "netlist" && entry.kind !== "aig" && entry.kind !== "liberty" && !designLoaded) {
@@ -130,7 +132,14 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
         if (!isCurrent(requestId)) return;
-        await loadText(text, { kind: entry.kind, label: entry.name, ...requestOptions(entry.kind, details) });
+        const appendable = entry.kind === "netlist" || entry.kind === "timing";
+        const shouldAppend = appendable && (Boolean(batchOptions.append) || seenKind[entry.kind]);
+        const extra = {
+          ...(shouldAppend ? { append: true } : {}),
+          ...(batchOptions.compareSide ? { compareSide: batchOptions.compareSide } : {})
+        };
+        await loadText(text, { kind: entry.kind, label: entry.name, ...requestOptions(entry.kind, details), ...extra });
+        if (appendable) seenKind[entry.kind] = true;
         if (entry.kind === "netlist") designLoaded = true;
       } catch (error) {
         if (error?.name === "AbortError") return;
@@ -139,10 +148,19 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       }
     }
   };
-  const loadInputFile = async (event, preferredKind) => {
+  const loadInputFile = async (event, preferredKind, extraOptions = {}) => {
     const input = event.target;
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = [...(input.files || [])];
+    if (files.length === 0) return;
+    if (files.length > 1) {
+      try {
+        await loadFiles(files, { ...(preferredKind ? { preferredKind } : {}), ...extraOptions });
+      } finally {
+        input.value = "";
+      }
+      return;
+    }
+    const file = files[0];
     const requestId = beginRequest();
     const details = { fileName: file.name, kind: preferredKind, operation: "import-file" };
     try {
@@ -151,7 +169,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       if (!isCurrent(requestId)) return;
       const kind = detectQuickInputKind(text, { name: file.name, preferredKind });
       details.kind = kind;
-      await loadText(text, { kind, label: file.name, ...requestOptions(kind, details) });
+      const extra = {
+        ...(extraOptions.append ? { append: true } : {}),
+        ...(extraOptions.compareSide ? { compareSide: extraOptions.compareSide } : {})
+      };
+      await loadText(text, { kind, label: file.name, ...requestOptions(kind, details), ...extra });
     } catch (error) {
       if (isCurrent(requestId)) reportFailure(error, `Load failed ${file.name}: ${errorMessage(error)}`, details);
     } finally {
@@ -160,6 +182,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   };
   const closeDialog = () => {
     dialogSession += 1;
+    textOptions = { append: false, compareSide: null };
     if (pendingSubmission) {
       const kind = pendingSubmission.kind;
       pendingSubmission.request.cancel();
@@ -168,16 +191,21 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     showTextStatus();
     if (elements.textDialog?.open) elements.textDialog.close();
   };
-  const openDialog = (kind) => {
+  const openDialog = (kind, extraOptions = {}) => {
     beginRequest();
     dialogSession += 1;
     textKind = ["timing", "aig"].includes(kind) ? kind : "netlist";
+    textOptions = {
+      append: Boolean(extraOptions.append),
+      compareSide: extraOptions.compareSide || null
+    };
     showTextStatus();
     if (aigOptions) aigOptions.hidden = textKind !== "aig";
     if (textKind === "aig" && aigView) aigView.value = elements.aigSearchFirstInput?.checked ? "search-first" : pasteView;
     setSubmitting(false);
     const timing = textKind === "timing";
-    elements.textTitle.textContent = timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog";
+    const sideSuffix = textOptions.compareSide === "left" ? " for A" : textOptions.compareSide === "right" ? " for B" : "";
+    elements.textTitle.textContent = (timing ? "Paste timing" : textKind === "aig" ? "Paste AIG" : "Paste Verilog") + sideSuffix;
     elements.textDescription.textContent = timing
       ? "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。"
       : textKind === "aig" ? "粘贴 ABC AIG DOT 或两输入组合 BLIF（.model / .names）。大图可选 Search-first，在布局前筛选逻辑。"
@@ -191,11 +219,21 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   elements.cancelLibertyButton?.addEventListener("click", cancelPendingLoad);
   elements.clearLibertyButton?.addEventListener("click", cancelPendingLoad);
   elements.netlistInput?.addEventListener("change", (event) => loadInputFile(event));
+  elements.addDesignInput?.addEventListener("change", (event) => loadInputFile(event, "netlist", { append: true }));
   elements.timingInput?.addEventListener("change", (event) => loadInputFile(event, "timing"));
+  elements.addTimingInput?.addEventListener("change", (event) => loadInputFile(event, "timing", { append: true }));
   elements.goldenInput?.addEventListener("change", (event) => loadInputFile(event, "golden"));
   elements.pasteNetlistButton?.addEventListener("click", () => openDialog("netlist"));
   elements.pasteAigButton?.addEventListener("click", () => openDialog("aig"));
   elements.pasteTimingButton?.addEventListener("click", () => openDialog("timing"));
+  elements.compareLeftNetlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist", { append: true, compareSide: "left" }));
+  elements.compareRightNetlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist", { append: true, compareSide: "right" }));
+  elements.compareLeftTimingInput?.addEventListener("change", (event) => loadInputFile(event, "timing", { compareSide: "left" }));
+  elements.compareRightTimingInput?.addEventListener("change", (event) => loadInputFile(event, "timing", { compareSide: "right" }));
+  elements.compareLeftPasteNetlistButton?.addEventListener("click", () => openDialog("netlist", { append: true, compareSide: "left" }));
+  elements.compareRightPasteNetlistButton?.addEventListener("click", () => openDialog("netlist", { append: true, compareSide: "right" }));
+  elements.compareLeftPasteTimingButton?.addEventListener("click", () => openDialog("timing", { compareSide: "left" }));
+  elements.compareRightPasteTimingButton?.addEventListener("click", () => openDialog("timing", { compareSide: "right" }));
   elements.closeTextButton?.addEventListener("click", closeDialog);
   elements.cancelTextButton?.addEventListener("click", closeDialog);
   elements.textDialog?.addEventListener?.("cancel", (event) => { event.preventDefault(); closeDialog(); });
@@ -223,6 +261,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const details = { kind, operation: "paste-text" };
     const deferLayout = kind === "aig" && aigView?.value === "search-first";
     const presentationPolicy = kind === "aig" && aigView ? { viewStyle: deferLayout ? "abc" : aigView.value } : undefined;
+    const submitExtra = {
+      ...(textOptions.append ? { append: true } : {}),
+      ...(textOptions.compareSide ? { compareSide: textOptions.compareSide } : {})
+    };
     const submission = { request: importRequest, kind };
     pendingSubmission = submission;
     const finish = () => {
@@ -239,7 +281,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     setSubmitting(true);
     showTextStatus(kind === "aig" ? (deferLayout ? "正在建立 AIG 索引…" : "正在解析并布局 AIG…可以点击 Cancel 取消。") : "正在处理文本…");
     try {
-      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy, deferLayout } : {}) });
+      await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy, deferLayout } : {}), ...submitExtra });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
     } catch (error) {
       if (error?.name === "AbortError") onAbort();

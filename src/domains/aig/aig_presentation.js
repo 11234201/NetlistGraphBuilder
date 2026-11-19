@@ -20,6 +20,15 @@ export function normalizeAigPresentation(value = {}) {
 }
 
 export function aigNodeStyle(node, analysis, index, policy) {
+  if (node.kind === "boundary") {
+    return {
+      fill: "#f1f5f9",
+      "fill-opacity": 0.55,
+      stroke: "#94a3b8",
+      "stroke-width": 1.25,
+      "stroke-dasharray": "4 3"
+    };
+  }
   const critical = policy.critical && index.criticalNodes.has(node.id);
   const highFanout = policy.fanout && (analysis.fanout[node.id] || 0) >= policy.fanoutThreshold;
   return { fill: critical ? "#fee2e2" : node.kind === "pi" ? "#e0f2fe" : node.kind === "po" ? "#ecfdf5" : "#ffffff",

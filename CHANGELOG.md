@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-20
+
+- 结构化 Verilog 注释属性解析（`module`、`port`/`bus port`、`net`/`bus net`、`instance`）：左侧 `Navigator → Design` 展示当前模块属性，右侧 `Inspector` 升级为 `Connections | Attributes | Analysis | Timing | Adjust` 五页签（子模块实例 `hinst` 同时展示实例属性与引用模块属性，折叠 `assign` 别名链自动合并线网属性）。
+- 多文件 Verilog 网表与 Timing 叠加导入（`File → Add design files…` / `Add timing files…`）：同名模块按 `[filename]` 自动区分且保留原始模块名用于层次化引用、Compare 自动配对与 `@module` 时序匹配；Compare 默认改为左右分屏（`Left / Right`），新增 `A files` / `B files` 独立导入或粘贴网表与侧别专属 Timing（含 `Clear A/B timing override`）及 `_cpy` / `_cpy_loc` / `_copy` / `_loc` 副本后缀自动配对。
+- 严格时序模块作用域隔离：移除时序标注在模块不匹配时的全量回退与单 `@module` 跨模块回退，确保无匹配时返回空集，防止全局/其它模块时序误挂到同名叶子实例。
+- `Show Path` 整合至左侧 `Navigator → Path` 页签（Netlist 与 AIG 共用），并在画布上方提供紧凑 `#pathToolbar` 状态条；AIG `Focused` 视图的 `boundary` 裁剪虚线框改为半透明浅灰蓝弱化样式（`fill-opacity: 0.55`、`stroke-dasharray: 4 3`）。
+
 ## [1.6.0] - 2026-11-19
 
 - Show Path 支持网表 Single、Compare 两侧及 AIG。可指定多个起点和终点，报告显示到本次终点及从起点计算的最短和最长逻辑级数。Focused 裁剪后的范围外端点仍可在报告及 SVG 中查看。

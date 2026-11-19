@@ -1,4 +1,5 @@
 import { analyzeGraphCone } from "./graphCone.js";
+import { createGraphAliasIndex, expandGraphAliases } from "./aliasNormalizer.js";
 import { getPinConnectionEndpoints } from "../netlist/pin_connections.js";
 
 export function inspectGraphNode(graph, node, options = {}) {
@@ -7,6 +8,23 @@ export function inspectGraphNode(graph, node, options = {}) {
   }
   const hierarchyContext = createHierarchyInspectionContext(options.hierarchyContext);
   const connections = getNodeConnections(graph, node);
+  const attributes = Array.isArray(node.ref?.attributes) ? node.ref.attributes : [];
+  const referencedModuleName = node.referencedModuleName || null;
+  const moduleAttributes = referencedModuleName
+    ? (node.referencedModuleAttributes || hierarchyContext?.moduleByName?.get(referencedModuleName)?.attributes || [])
+    : [];
+  const compactLibraryRows = node.libraryInfo
+    ? [["Library", `${node.libraryInfo.name} (${node.libraryInfo.sourceName})`]]
+    : [];
+  const definitionRows = [
+    ...(node.inferenceSource ? [["Inference", node.inferenceSource]] : []),
+    ...(node.libraryInfo ? [
+      ["Library", node.libraryInfo.name],
+      ["Library file", node.libraryInfo.sourceName],
+      ["Library logic", node.libraryInfo.logicStatus],
+      ...Object.entries(node.libraryInfo.functions || {}).map(([pin, expression]) => [`Function ${pin}`, expression])
+    ] : [])
+  ];
 
   return {
     kind: node.kind,
@@ -16,9 +34,13 @@ export function inspectGraphNode(graph, node, options = {}) {
       ["Gate", node.gateKind || node.title || "-"],
       ["Cell type", node.subtitle || "-"],
       ["Inference", node.inferenceSource || "-"],
-      ...(node.libraryInfo ? [["Library", node.libraryInfo.name], ["Library file", node.libraryInfo.sourceName],
-        ["Library logic", node.libraryInfo.logicStatus], ...Object.entries(node.libraryInfo.functions).map(([pin, expression]) => [`Function ${pin}`, expression])] : [])
+      ...compactLibraryRows
     ],
+    attributes,
+    referencedModuleName,
+    referencedModuleDisplayName: node.referencedModuleDisplayName || referencedModuleName,
+    moduleAttributes,
+    definitionRows,
     connections,
     hierarchyConnections: inspectParentHierarchyConnections(connections, hierarchyContext),
     traversal: inspectTraversal(graph, node)
@@ -30,11 +52,12 @@ function createHierarchyInspectionContext(context) {
   const occurrencePath = [...(context.occurrencePath || [])];
   const moduleByName = new Map(context.design.modules.map((module) => [module.name, module]));
   return {
+    moduleByName,
     currentModule: context.currentModule,
     rootModuleName: context.rootModuleName || context.currentModule.name,
     occurrencePath,
     parent: occurrencePath.length
-      ? resolveParentOccurrence(moduleByName, context.rootModuleName || context.currentModule.name, occurrencePath)
+      ? resolveParentOccurrence(moduleByName, context.rootModuleName || context.currentModule.name, occurrencePath, context.design.modules)
       : null,
     portByName: new Map((context.currentModule.ports || []).map((port) => [port.name, port]))
   };
@@ -97,14 +120,20 @@ function hierarchyFlow(direction) {
   return "Both";
 }
 
-function resolveParentOccurrence(moduleByName, rootModuleName, occurrencePath) {
+function resolveParentOccurrence(moduleByName, rootModuleName, occurrencePath, modules = null) {
   let module = moduleByName.get(rootModuleName);
   if (!module) return null;
+  const moduleList = Array.isArray(modules) ? modules : [...moduleByName.values()];
   for (let index = 0; index < occurrencePath.length; index += 1) {
     const cell = module.cells?.find((item) => item.instance === occurrencePath[index]);
     if (!cell) return null;
     if (index === occurrencePath.length - 1) return { module, cell };
-    module = moduleByName.get(cell.type);
+    const localMatch = module.sourceFile
+      ? moduleList.find((item) =>
+        item.sourceFile === module.sourceFile
+        && (item.originalName === cell.type || item.name === cell.type))
+      : null;
+    module = localMatch || moduleByName.get(cell.type);
     if (!module) return null;
   }
   return null;
@@ -178,11 +207,38 @@ export function inspectGraphNet(graph, netName, options = {}) {
       ["Loads", loads.join(", ") || "-"],
       ["Fanout", edges.length]
     ],
+    attributes: collectNetInspectionAttributes(graph, netName),
     connections,
     hierarchyConnections: inspectParentHierarchyConnections([
       { net: edges[0]?.label || netName, netTarget }
     ], hierarchyContext)
   };
+}
+
+function collectNetInspectionAttributes(graph, netName) {
+  const netAttributes = graph?.netAttributes;
+  if (!netAttributes || !netName) return [];
+  const names = graph?.aliases?.length
+    ? [...expandGraphAliases([netName], createGraphAliasIndex(graph))]
+    : [netName];
+  const collected = [];
+  const seen = new Set();
+  const pushUnique = (entries) => {
+    for (const entry of entries || []) {
+      const signature = `${entry.category || ""}\u0000${entry.key || ""}\u0000${entry.value ?? ""}\u0000${entry.bitTarget || ""}\u0000${entry.line ?? ""}`;
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+      collected.push(entry);
+    }
+  };
+  for (const name of names) {
+    pushUnique(netAttributes[name]);
+    const bitMatch = String(name).match(/^(.*)\[-?\d+\]$/);
+    if (bitMatch) {
+      pushUnique((netAttributes[bitMatch[1]] || []).filter((entry) => !entry.bitTarget || entry.bitTarget === name));
+    }
+  }
+  return collected;
 }
 
 function uniqueNetEndpoints(endpoints) {

@@ -39,7 +39,7 @@ export function createViewHistoryEntry(state, metadata = {}) {
       showPath: { ...state.compare.showPath },
       leftModuleName: state.compare.leftModuleName || null,
       rightModuleName: state.compare.rightModuleName || null,
-      layout: state.compare.layout || "vertical",
+      layout: state.compare.layout || "horizontal",
       outputName: state.compare.outputName || null,
       wholeRequested: state.compare.wholeRequested === true,
       viewModes: {
@@ -117,7 +117,7 @@ function cloneEntry(entry = {}) {
       showPath: { ...entry.compare.showPath },
       leftModuleName: entry.compare.leftModuleName || null,
       rightModuleName: entry.compare.rightModuleName || null,
-      layout: entry.compare.layout === "horizontal" ? "horizontal" : "vertical",
+      layout: entry.compare.layout === "vertical" ? "vertical" : "horizontal",
       outputName: entry.compare.outputName || null,
       wholeRequested: entry.compare.wholeRequested === true,
       viewModes: {

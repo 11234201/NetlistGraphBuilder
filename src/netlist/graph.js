@@ -7,11 +7,20 @@ import { getPinConnectionEndpoints } from "./pin_connections.js";
 
 export function buildSchematicGraph(module, options = {}) {
   const overrides = normalizeGraphOverrides(options.overrides);
+  const moduleList = Array.isArray(options.moduleLibrary)
+    ? options.moduleLibrary
+    : Array.isArray(options.design?.modules)
+      ? options.design.modules
+      : options.moduleLibrary instanceof Map
+        ? [...options.moduleLibrary.values()]
+        : [];
   const moduleByName = normalizeModuleLibrary(options.moduleLibrary || options.design?.modules);
   const cellConfig = options.cellConfig || null;
   const graph = {
     moduleName: module.name,
     moduleDisplayName: module.displayName,
+    ...(module.originalName ? { timingModuleName: module.originalName } : {}),
+    ...(module.attributes?.length ? { moduleAttributes: module.attributes } : {}),
     nodes: [],
     edges: [],
     diagnostics: [...module.diagnostics],
@@ -93,7 +102,7 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   for (const cell of module.cells) {
-    const referencedModule = moduleByName.get(cell.type);
+    const referencedModule = resolveReferencedModule(cell.type, module, moduleByName, moduleList);
     const { kind: cellKind, pinDirections, libraryCell, diagnostics } = resolveCellSemantics(cell, {
       moduleDefinition: referencedModule, cellConfig, cellLibrary: options.cellLibrary,
       overrides: overrides.cellPinDirections[cell.instance] || {}
@@ -125,6 +134,8 @@ export function buildSchematicGraph(module, options = {}) {
       }),
       outputBubble: isInvertingOutputGate(cellKind.kind),
       referencedModuleName: referencedModule?.name || null,
+      referencedModuleDisplayName: referencedModule?.displayName || referencedModule?.name || null,
+      ...(referencedModule?.attributes?.length ? { referencedModuleAttributes: referencedModule.attributes } : {}),
       navigationTarget: referencedModule ? { kind: "unit", id: referencedModule.name } : null,
       ref: cell
     });
@@ -207,6 +218,10 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   annotateGraphMetadata(graph, module);
+  const netAttributes = collectNetAttributes(module);
+  if (Object.keys(netAttributes).length > 0) {
+    graph.netAttributes = netAttributes;
+  }
 
   return graph;
 }
@@ -227,9 +242,14 @@ function expandPortEndpoints(port, referencedNets) {
   const step = range.msb <= range.lsb ? 1 : -1;
   const bits = [];
   for (let index = range.msb; ; index += step) {
+    const bitName = `${port.name}[${index}]`;
+    const bitAttributes = Array.isArray(port.attributes) && port.attributes.length
+      ? port.attributes.filter((attr) => !attr.bitTarget || attr.bitTarget === bitName)
+      : null;
     bits.push({
       ...port,
-      name: `${port.name}[${index}]`,
+      ...(bitAttributes ? { attributes: bitAttributes } : {}),
+      name: bitName,
       displayName: `${port.displayName}[${index}]`,
       parentName: port.name,
       bitIndex: index
@@ -278,6 +298,27 @@ function normalizeModuleLibrary(value) {
   if (value instanceof Map) return value;
   const modules = Array.isArray(value) ? value : value?.modules || [];
   return new Map(modules.map((item) => [item.name, item]));
+}
+
+function resolveReferencedModule(typeName, ownerModule, moduleByName, moduleList) {
+  if (ownerModule?.sourceFile && Array.isArray(moduleList)) {
+    const localMatch = moduleList.find((item) =>
+      item.sourceFile === ownerModule.sourceFile &&
+      (item.originalName === typeName || item.name === typeName)
+    );
+    if (localMatch) return localMatch;
+  }
+  return moduleByName.get(typeName) || null;
+}
+
+function collectNetAttributes(module) {
+  const result = {};
+  for (const net of module.nets || []) {
+    if (Array.isArray(net.attributes) && net.attributes.length > 0) {
+      result[net.name] = net.attributes;
+    }
+  }
+  return result;
 }
 
 function getCellTitle(cell, cellKind) {

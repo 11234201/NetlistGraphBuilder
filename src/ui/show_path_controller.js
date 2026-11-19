@@ -1,21 +1,35 @@
 import { normalizeShowPath, SHOW_PATH_POLICY, levelText } from "../contracts/show_path.js";
 import { escapeHtml } from "./html.js";
 
-export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, navigateResult }) {
-  const doc = menu.ownerDocument, get = (id) => doc.getElementById(id);
+export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg, navigateResult }) {
+  const doc = panel.ownerDocument, get = (id) => doc.getElementById(id);
   const sidePicker = get("pathSide"), search = get("pathFind"), message = get("pathMessage");
+  const showPathButton = get("showPathButton"), pathToolbar = get("pathToolbar"), pathToolbarSummary = get("pathToolbarSummary");
   let current, scope, saved, draft, explicitSide, pending, matches = [], rows = [], sourceLevels;
   let page = 0, searchPage = 0, section = "starts", frame = null, lastGraph, selection;
   const sideDrafts = new Map();
   let activeSide, lastPath, navigation = 0;
   const pageSize = SHOW_PATH_POLICY.pageSize;
   function context() { return read(explicitSide); }
+  function openPanel(focusSearch = false) {
+    const EventCtor = doc.defaultView?.CustomEvent || globalThis.CustomEvent;
+    if (EventCtor) doc.dispatchEvent(new EventCtor("workbench-open-path", { detail: { focusSearch } }));
+    if (panel.hidden) panel.hidden = false;
+    sync(true);
+    if (focusSearch) doc.defaultView?.requestAnimationFrame?.(() => search?.focus?.());
+  }
   function reportFailure(error, operation, owner = current) {
     const details = { ...owner?.diagnostic, ...error?.pathContext, operation, code: error?.code || operation + ".failed", error,
       retainedPreviousView: true, startCount: draft?.starts.length, endCount: draft?.ends.length };
     const text = error?.message || String(error);
     try { log(error?.code === "show-path.budget" ? "warning" : "error", "graph", text, details); } catch {}
     if (owner?.scope === context()?.scope) message.textContent = text;
+  }
+  function formatToolbarSummary(state) {
+    const side = state?.side ? (state.side === "left" ? "A · " : "B · ") : "";
+    const q = state?.query;
+    const counts = q ? `${q.starts.length} start(s) → ${q.ends.length} end(s)` : "";
+    return counts ? `Show Path · ${side}${counts}` : "Show Path";
   }
   function sync(force = false) {
     current = context();
@@ -24,7 +38,18 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
     const selected = (explicitSide ? read() : current)?.selectedKey;
     get("pathSelection").hidden = !selected;
     selection = selected;
-    menu.toggleAttribute("data-enabled", Boolean(current?.query?.enabled));
+    const enabled = Boolean(current?.query?.enabled);
+    panel.toggleAttribute("data-enabled", enabled);
+    if (showPathButton) {
+      showPathButton.toggleAttribute("data-enabled", enabled);
+      showPathButton.setAttribute("aria-pressed", String(enabled));
+    }
+    if (pathToolbar) {
+      pathToolbar.hidden = !enabled;
+      if (pathToolbarSummary) pathToolbarSummary.textContent = formatToolbarSummary(current);
+      const toolbarToggle = pathToolbar.querySelector?.('[data-path-action="toggle"]');
+      if (toolbarToggle) toolbarToggle.textContent = enabled ? "Turn off" : "Turn on";
+    }
     sidePicker.hidden = !current?.side;
     if (current?.side) sidePicker.value = current.side;
     else explicitSide = undefined;
@@ -46,7 +71,7 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
       sourceLevels = null; page = 0; lastPath = current?.path;
     }
     lastGraph = current?.graph;
-    if (!menu.open || !(changed || changedQuery || graphChanged || force)) return;
+    if (panel.hidden || !(changed || changedQuery || graphChanged || force)) return;
     get("pathScope").textContent = current?.label || "Open a design";
     try { candidates(); drawDraft(); drawReport(); }
     catch (error) { reportFailure(error, "show-path.inspect"); }
@@ -84,11 +109,11 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
       });
       return `<section><h4>${side === "starts" ? "Starts" : "Ends"} (${keys.length})</h4>${rows.join("")}</section>`;
     }).join("");
-    const toggle = menu.querySelector('[data-path-action="toggle"]');
-    menu.querySelector('[data-path-action="clear"]').hidden = !current?.query && !draft?.starts.length && !draft?.ends.length;
+    const toggle = panel.querySelector('[data-path-action="toggle"]');
+    panel.querySelector('[data-path-action="clear"]').hidden = !current?.query && !draft?.starts.length && !draft?.ends.length;
     toggle.hidden = !current?.query;
     toggle.textContent = current?.query?.enabled ? "Turn off" : "Turn on";
-    menu.querySelector('[data-path-action="cancel"]').hidden = !pending;
+    panel.querySelector('[data-path-action="cancel"]').hidden = !pending;
   }
   function drawReport() {
     const path = current?.path;
@@ -130,7 +155,7 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
     const keys = [...new Set([...draft[side], key])];
     normalizeShowPath({ ...draft, [side]: keys });
     draft = { ...draft, [side]: keys };
-    message.textContent = ""; menu.open = true; drawDraft();
+    message.textContent = ""; openPanel(false); drawDraft();
   }
   async function commit(action) {
     const owner = current;
@@ -168,6 +193,7 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
     sync();
     const type = el.dataset.pathAction, i = Number(el.dataset.index);
     try {
+      if (type === "open") { openPanel(true); return; }
       if (["apply", "clear", "toggle"].includes(type)) return await commit(type);
       if (type === "cancel") { pending?.controller.abort(); message.textContent = "Cancelled"; return; }
       if (type === "starts" || type === "ends") return add(matches[i]?.key, type);
@@ -190,8 +216,12 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
       drawReport();
     } catch (error) { reportFailure(error, "show-path." + type); }
   }
-  menu.addEventListener("click", action);
-  menu.addEventListener("toggle", () => sync(true));
+  panel.addEventListener("click", action);
+  showPathButton?.addEventListener("click", () => openPanel(true));
+  pathToolbar?.addEventListener("click", action);
+  new doc.defaultView.MutationObserver(() => {
+    if (!panel.hidden) sync(true);
+  }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   search.addEventListener("input", () => {
     searchPage = 0;
     try { sync(); candidates(); } catch (error) { reportFailure(error, "show-path.inspect"); }
@@ -200,7 +230,7 @@ export function bindShowPath(menu, { read, log, subscribe, copyText, exportSvg, 
   doc.addEventListener("show-path-add", async (event) => {
     sync(); const { result, side } = event.detail;
     const owner = current, ticket = ++navigation;
-    menu.open = true;
+    openPanel(false);
     try {
       const sideResult = await navigateResult(result, explicitSide);
       const document = context()?.diagnostic;

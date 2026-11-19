@@ -88,7 +88,7 @@ export function createWorkbenchShell({
   }
 
   function selectNavigatorTab(tab, persist = true) {
-    if (disposed || !["hierarchy", "design", "analysis"].includes(tab)) return;
+    if (disposed || !["hierarchy", "design", "analysis", "path"].includes(tab)) return;
     prefs.navigatorTab = tab;
     for (const button of tabs) {
       const selected = button.getAttribute("data-nav-tab") === tab;
@@ -170,10 +170,18 @@ export function createWorkbenchShell({
     if (!drawerPanel || helpDialog?.open) return;
     const { panel, toggle } = elements[drawerPanel];
     if (panel?.contains(event.target) || toggle?.contains(event.target) || selectionButton?.contains(event.target)) return;
-    // An anchored toolbar popover may extend outside its owning drawer.
-    if (event.target?.closest?.(".toolbar-menu-popover")) return;
+    // An anchored toolbar popover or Show Path trigger may extend outside its drawer.
+    if (event.target?.closest?.(".toolbar-menu-popover, #showPathButton, #pathToolbar")) return;
     drawerPanel = null;
     render();
+  });
+  listen(document, "workbench-open-path", (event) => {
+    if (disposed) return;
+    setPanelOpen("navigator", true);
+    if (!document.body?.classList?.contains?.("has-domain-workspace")) {
+      selectNavigatorTab("path");
+      if (event.detail?.focusSearch) document.querySelector("#pathFind")?.focus?.();
+    }
   });
   listen(helpButton, "click", () => { if (helpDialog && !helpDialog.open) helpDialog.showModal(); });
   listen(document.querySelector("#closeHelpButton"), "click", () => helpDialog?.close());
@@ -209,7 +217,7 @@ export function createWorkbenchShell({
     selectNavigatorTab,
     getPreferences: () => ({ ...prefs }),
     setInspectorTab(tab) {
-      if (disposed || !["connections", "timing", "adjust"].includes(tab) || tab === prefs.inspectorTab) return;
+      if (disposed || !["connections", "attributes", "analysis", "timing", "adjust"].includes(tab) || tab === prefs.inspectorTab) return;
       prefs.inspectorTab = tab;
       save();
     },

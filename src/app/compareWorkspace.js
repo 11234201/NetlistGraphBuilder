@@ -10,6 +10,7 @@ export function prepareCompareWorkspace(options = {}) {
     rightModule,
     showAliases = false,
     timing = null,
+    sideTiming = null,
     timingDisplayPolicy = null,
     timingBadgeChoices = {},
     timingBadgePositions = {},
@@ -26,10 +27,12 @@ export function prepareCompareWorkspace(options = {}) {
     signal = null
   } = options;
   throwIfAborted(signal);
+  const leftTiming = sideTiming?.left || timing;
+  const rightTiming = sideTiming?.right || timing;
   const fullGraphs = {
     left: buildModuleFullGraph({
       module: leftModule,
-      showAliases, timing, timingDisplayPolicy,
+      showAliases, timing: leftTiming, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.left || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.left || timingBadgePositions,
       graphOverrides: graphOverrides.left,
@@ -41,7 +44,7 @@ export function prepareCompareWorkspace(options = {}) {
     }),
     right: buildModuleFullGraph({
       module: rightModule,
-      showAliases, timing, timingDisplayPolicy,
+      showAliases, timing: rightTiming, timingDisplayPolicy,
       timingBadgeChoices: timingBadgeChoices.right || timingBadgeChoices,
       timingBadgePositions: timingBadgePositions.right || timingBadgePositions,
       graphOverrides: graphOverrides.right,

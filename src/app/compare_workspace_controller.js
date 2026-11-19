@@ -6,6 +6,7 @@ import { prepareCompareWorkspace, buildCompareSideWorkspace } from "./compareWor
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
+import { mergeImportedTiming } from "../domains/netlist/timing_import.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -97,6 +98,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     elements.compareLayoutSelect.value = state.compare.layout;
     elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized !== false;
     applyCompareLayout();
+    updateCompareSideTimingControls();
     elements.coneDepthInput.disabled = !state.compare.outputName;
     if (!options.deferRender) renderCompareGraphs();
     services.renderStats();
@@ -203,6 +205,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       showAliases: state.showAliases,
       presentationPolicy: state.presentationPolicy,
       timing: state.timing,
+      sideTiming: state.compare.sideTiming,
       timingDisplayPolicy: state.timingDisplayPolicy,
       timingBadgeChoices: state.compare.timingBadgeChoices,
       timingBadgePositions: state.compare.timingBadgePositions,
@@ -306,6 +309,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     state.compare.analysis = workspace.analysis;
     state.compare.workspaceIdentity = null;
     const renderRequest = services.renderGeneration?.current?.() || { isCurrent: () => true };
+    services.renderStats();
     services.renderDiagnostics();
     services.logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
       leftModule: leftModule.name,
@@ -346,12 +350,85 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   function updateCompareSideStatus(side, module, status) {
     const header = elements.compareMount.querySelector(`[data-compare-side="${side}"] > header`);
     if (!header) return;
-    const label = `${side === "left" ? "A" : "B"} · ${module?.displayName || module?.name || side}`;
-    header.title = module?.name && module.name !== module.displayName ? `${label}\n${module.name}` : label;
+    const timingLabel = state.compare.sideTiming?.[side]
+      ? (state.compare.sideTimingLabels?.[side] || "timing override")
+      : null;
+    const base = `${side === "left" ? "A" : "B"} · ${module?.displayName || module?.name || side}`;
+    const label = timingLabel ? `${base} · ${timingLabel}` : base;
+    const rawDetail = module?.name && module.name !== module.displayName ? `${base}\n${module.name}` : base;
+    header.title = timingLabel ? `${rawDetail}\nTiming (${side === "left" ? "A" : "B"}): ${timingLabel}` : rawDetail;
     header.textContent = status === "loading"
       ? `${label} · Loading…`
       : status === "failed" ? `${label} · Failed`
         : status === "cancelled" ? `${label} · Cancelled` : label;
+  }
+
+  function updateCompareSideTimingControls() {
+    for (const [side, statusEl, clearBtn] of [
+      ["left", elements.compareLeftTimingStatus, elements.compareLeftClearTimingButton],
+      ["right", elements.compareRightTimingStatus, elements.compareRightClearTimingButton]
+    ]) {
+      const sideTiming = state.compare.sideTiming?.[side];
+      const label = state.compare.sideTimingLabels?.[side];
+      if (statusEl) {
+        statusEl.textContent = sideTiming
+          ? `${label || "override"} (${sideTiming.instanceCount})`
+          : state.timing ? `shared (${state.timing.instanceCount})` : "none";
+      }
+      if (clearBtn) clearBtn.hidden = !sideTiming;
+    }
+  }
+
+  function setCompareSideTiming(side, timing, label, { append = false } = {}) {
+    if (side !== "left" && side !== "right") return null;
+    const prev = state.compare.sideTiming?.[side] || null;
+    const next = append && prev ? mergeImportedTiming(prev, timing) : timing;
+    const prevLabel = state.compare.sideTimingLabels?.[side];
+    state.compare.sideTiming[side] = next;
+    state.compare.sideTimingLabels[side] = append && prev && prevLabel ? `${prevLabel} + ${label}` : label;
+    state.compare.timingBadgeChoices[side] = {};
+    state.compare.timingBadgePositions[side] = {};
+    updateCompareSideTimingControls();
+    return next;
+  }
+
+  function clearCompareSideTiming(side, { render = true, onCommitted = null } = {}) {
+    if (side !== "left" && side !== "right") return;
+    if (!state.compare.sideTiming?.[side]) return;
+    state.compare.sideTiming[side] = null;
+    state.compare.sideTimingLabels[side] = null;
+    state.compare.timingBadgeChoices[side] = {};
+    state.compare.timingBadgePositions[side] = {};
+    updateCompareSideTimingControls();
+    if (render && state.compare.active) {
+      renderCompareGraphs({
+        onCommitted: () => {
+          services.renderStats();
+          services.setStatus(`Cleared ${side === "left" ? "A" : "B"} timing override`);
+          onCommitted?.();
+        }
+      });
+    }
+  }
+
+  function assignCompareSideModule(options = {}) {
+    renderCompareModuleOptions();
+    if (options.leftModuleName) elements.leftModuleSelect.value = options.leftModuleName;
+    if (options.rightModuleName) elements.rightModuleSelect.value = options.rightModuleName;
+    const left = state.design.modules.find((m) => m.name === elements.leftModuleSelect.value);
+    const right = state.design.modules.find((m) => m.name === elements.rightModuleSelect.value);
+    if (!left || !right || left === right) {
+      services.setStatus("Choose two different modules to compare");
+      options.onFailed?.(new Error("Choose two different modules to compare"));
+      return;
+    }
+    applyCompareSelectionImpl({ historyMode: "restore", deferRender: true });
+    renderCompareGraphs({
+      signal: options.signal,
+      onCommitted: options.onCommitted,
+      onFailed: options.onFailed,
+      onCancelled: options.onCancelled
+    });
   }
 
   function renderCompareOutputOptions(left, right) {
@@ -367,7 +444,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     return state.design?.modules.find((module) => module.name === state.compare[`${side}ModuleName`]);
   }
 
-  return Object.freeze({ renderCompareModuleOptions, handleCompareOutputChange, enterCompareView, applyCompareSelection, applyCompareSelectionImpl, exitCompareView, applyCompareLayout, renderCompareGraphs, commitCompareWorkspace, updateCompareSideStatus, renderCompareOutputOptions, getCompareModule });
+  return Object.freeze({ renderCompareModuleOptions, handleCompareOutputChange, enterCompareView, applyCompareSelection, applyCompareSelectionImpl, exitCompareView, applyCompareLayout, renderCompareGraphs, commitCompareWorkspace, updateCompareSideStatus, renderCompareOutputOptions, getCompareModule, updateCompareSideTimingControls, setCompareSideTiming, clearCompareSideTiming, assignCompareSideModule });
 }
 
 export const compareWorkspacePorts = Object.freeze({
@@ -386,9 +463,10 @@ export const compareWorkspacePorts = Object.freeze({
     "viewMode", "workspaceArtifactCache"
   ],
   elements: [
-    "compareButton", "compareLayoutSelect", "compareMount", "compareOutputSelect", "comparePanel",
-    "coneDepthInput", "leftModuleSelect", "leftMount", "mount", "rightModuleSelect", "rightMount",
-    "syncCompareFocusInput"
+    "compareButton", "compareLayoutSelect", "compareLeftClearTimingButton", "compareLeftTimingStatus",
+    "compareMount", "compareOutputSelect", "comparePanel", "compareRightClearTimingButton",
+    "compareRightTimingStatus", "coneDepthInput", "leftModuleSelect", "leftMount", "mount",
+    "rightModuleSelect", "rightMount", "syncCompareFocusInput"
   ],
   services: [
     "singleViewSession",

@@ -41,6 +41,7 @@ export const netlistFeature = defineDomainFeature({
     if (source.kind !== "text") throw new Error("Structural Verilog input must be text");
     const model = parseVerilog(source.text);
     if (model.modules.length === 0) throw new Error("No module declarations found");
+    disambiguateSingleSourceModules(model.modules);
     const documentId = context.documentId || `netlist:${encodeURIComponent(source.name)}`;
     return createDocumentEnvelope({
       documentId,
@@ -182,4 +183,28 @@ function getConnectivityTemplates(document, options = {}) {
   connectivityTemplateCache.set(document, { templates, cellLibrary: options.cellLibrary,
     cellConfig: options.cellConfig, graphOverrides: options.graphOverrides });
   return templates;
+}
+
+function disambiguateSingleSourceModules(modules) {
+  if (!Array.isArray(modules) || modules.length < 2) return;
+  const counts = new Map();
+  for (const module of modules) {
+    counts.set(module.name, (counts.get(module.name) || 0) + 1);
+  }
+  const hasDuplicates = [...counts.values()].some((count) => count > 1);
+  if (!hasDuplicates) return;
+  const usedNames = new Set(modules.filter((module) => counts.get(module.name) === 1).map((module) => module.name));
+  const nextIndexByName = new Map();
+  for (const module of modules) {
+    const rawName = module.name;
+    if ((counts.get(rawName) || 0) <= 1) continue;
+    const rawDisplayName = module.displayName || rawName;
+    module.originalName = rawName;
+    let suffix = (nextIndexByName.get(rawName) || 0) + 1;
+    while (usedNames.has(`${rawName} #${suffix}`)) suffix += 1;
+    nextIndexByName.set(rawName, suffix);
+    module.name = `${rawName} #${suffix}`;
+    module.displayName = `${rawDisplayName} #${suffix}`;
+    usedNames.add(module.name);
+  }
 }

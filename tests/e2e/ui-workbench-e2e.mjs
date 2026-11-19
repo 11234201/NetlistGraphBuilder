@@ -479,11 +479,8 @@ async function analysisWorkflow(browser, url) {
       assert.equal(await page.locator("#exportSvgButton").isDisabled(), true);
       assert.equal(await page.locator("#saveGoldenButton").isDisabled(), true);
       await click(page, "#fitButton");
-      const initialVerticalCanvases = await expectCompareCanvasGeometry(page, "vertical", { checkNodes: true });
-      await page.locator("#compareLayoutSelect").selectOption("horizontal");
       await page.locator("#compareMount.is-horizontal").waitFor();
-      await click(page, "#fitButton");
-      const horizontalCanvases = await expectCompareCanvasGeometry(page, "horizontal", { checkNodes: true });
+      const initialHorizontalCanvases = await expectCompareCanvasGeometry(page, "horizontal", { checkNodes: true });
       await node(page, "u_first", "#leftSchematicMount").click();
       await expectInsideViewport(page, page.locator("[data-inspector-summary]"), "Compare selected summary");
       assert.match(await page.locator(".inspector-object-scope").innerText(), /^A · Compare · top/);
@@ -493,6 +490,7 @@ async function analysisWorkflow(browser, url) {
       await expectCompareCanvasGeometry(page, "horizontal", { checkNodes: true });
       await screenshot(page, "compare-horizontal");
       await page.locator("#compareLayoutSelect").selectOption("vertical");
+      await page.locator("#compareMount.is-vertical").waitFor();
       await click(page, "#fitButton");
       const verticalCanvases = await expectCompareCanvasGeometry(page, "vertical", { checkNodes: true });
       await node(page, "u_first", "#rightSchematicMount").click();
@@ -502,6 +500,10 @@ async function analysisWorkflow(browser, url) {
       await click(page, "#fitButton");
       await expectCompareCanvasGeometry(page, "vertical", { checkNodes: true });
       await screenshot(page, "compare-vertical");
+      await page.locator("#compareLayoutSelect").selectOption("horizontal");
+      await page.locator("#compareMount.is-horizontal").waitFor();
+      await click(page, "#fitButton");
+      const horizontalCanvases = await expectCompareCanvasGeometry(page, "horizontal", { checkNodes: true });
       await expectNoHorizontalOverflow(page);
       await click(page, "#exitCompareButton");
       await page.locator("#schematicMount svg").waitFor();
@@ -513,7 +515,7 @@ async function analysisWorkflow(browser, url) {
       await expectInsideViewport(page, page.locator("#toggleProcessLogButton"), "log toggle after failure");
       await screenshot(page, "library-error-log");
       await click(page, "#toggleProcessLogButton");
-      return { rootOperations: ["zoom", "add", "append-search", "replace", "history"], compare: ["vertical", "horizontal", "vertical", "A", "B"], initialVerticalCanvases, horizontalCanvases, verticalCanvases };
+      return { rootOperations: ["zoom", "add", "append-search", "replace", "history"], compare: ["horizontal", "vertical", "horizontal", "A", "B"], initialHorizontalCanvases, verticalCanvases, horizontalCanvases };
     } catch (error) { await captureFailure(page, error); throw error; }
     finally { await context.close(); }
   });
@@ -617,7 +619,7 @@ async function compactCases(browser, url) {
         for (const id of ["leftModuleSelect", "rightModuleSelect", "applyCompareButton", "compareLayoutSelect"]) {
           await expectInsideViewport(page, page.locator(`#${id}`), `compact Compare ${id}`);
         }
-        await expectCompareCanvasGeometry(page, "vertical");
+        await expectCompareCanvasGeometry(page, "horizontal");
         await expectNoHorizontalOverflow(page);
         await screenshot(page, `compact-compare-${width}`);
         await click(page, "#exitCompareButton");

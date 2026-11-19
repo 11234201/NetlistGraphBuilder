@@ -13,9 +13,10 @@ await runBrowserTest(async ({ browser, url }) => {
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, acceptDownloads: true });
   const errors = [];
   page.on("pageerror", (error) => { errors.push(error.message); console.error(error); });
-  const menu = page.locator("#showPathMenu");
-  async function open() { if (!await menu.evaluate((el) => el.open)) await menu.locator(":scope > summary").click(); }
-  const action = (name) => menu.locator(`[data-path-action="${name}"]`);
+  const panel = page.locator("#pathPanel");
+  const pathButton = page.locator("#showPathButton");
+  async function open() { if (!await panel.isVisible()) await pathButton.click(); }
+  const action = (name) => panel.locator(`[data-path-action="${name}"]`);
   const file = (name, text) => ({ name, mimeType: "text/plain", buffer: Buffer.from(text) });
   async function add(term, side, match) {
     await open(); await page.locator("#pathFind").fill(term);
@@ -23,8 +24,8 @@ await runBrowserTest(async ({ browser, url }) => {
   }
   async function apply() {
     await action("apply").click();
-    await page.waitForFunction(() => document.querySelector("#showPathMenu").hasAttribute("data-enabled") &&
-      document.querySelector('[data-path-action="cancel"]').hidden);
+    await page.waitForFunction(() => document.querySelector("#pathPanel").hasAttribute("data-enabled") &&
+      document.querySelector('#pathPanel [data-path-action="cancel"]').hidden);
   }
   async function download(id) {
     const waiting = page.waitForEvent("download");
@@ -52,6 +53,8 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.waitForFunction(() => document.querySelector("#pathDraft").textContent.includes("Starts (1)"));
     await add("output:z", "ends", /z · output/);
     await apply();
+    assert.equal(await page.locator("#pathToolbar").isHidden(), false);
+    assert.equal(await pathButton.getAttribute("data-enabled"), "");
     assert.equal(await page.locator('#schematicMount [data-node-id="cell:isolated"]').count(), 0);
     assert.match(await page.locator("#pathReportBody").textContent(), /To selected end 2 · From start 0/);
     await action("tab-ends").click();
@@ -60,10 +63,11 @@ await runBrowserTest(async ({ browser, url }) => {
     await add("input:b", "starts", /b · input/);
     await action("toggle").click();
     await page.locator('#schematicMount [data-node-id="cell:isolated"]').waitFor();
+    assert.equal(await page.locator("#pathToolbar").isHidden(), true);
     assert.match(await page.locator("#pathDraft").textContent(), /Starts \(2\)/);
     await action("toggle").click();
-    await page.waitForFunction(() => document.querySelector("#showPathMenu").hasAttribute("data-enabled") &&
-      document.querySelector('[data-path-action="cancel"]').hidden);
+    await page.waitForFunction(() => document.querySelector("#pathPanel").hasAttribute("data-enabled") &&
+      document.querySelector('#pathPanel [data-path-action="cancel"]').hidden);
     assert.match(await page.locator("#pathReportBody").textContent(), /Starts \(1\)/);
     await page.locator('#pathDraft button[aria-label="Remove b"]').click();
     const goldenText = await download("#saveGoldenButton");
@@ -104,16 +108,16 @@ await runBrowserTest(async ({ browser, url }) => {
     const detail = page.locator("#processLogList li").filter({ hasText: "injected detached Path render" }).last();
     await detail.locator("summary").evaluate((el) => el.click());
     assert.match(await detail.locator("pre").textContent(), /show-path.apply/);
-    await page.reload(); await page.locator("#showPathMenu[data-enabled]").waitFor();
+    await page.reload(); await page.locator("#pathPanel[data-enabled]").waitFor();
     await open(); await action("toggle").click();
     await page.locator('#schematicMount [data-node-id="cell:isolated"]').waitFor();
     await page.locator("#moduleBackButton").evaluate((el) => el.click());
-    await page.locator("#showPathMenu[data-enabled]").waitFor();
+    await page.locator("#pathPanel[data-enabled]").waitFor();
     await open(); await action("clear").click();
     await page.locator('#schematicMount [data-node-id="cell:isolated"]').waitFor();
     await page.locator("#goldenInput").setInputFiles(file("path-golden.json", goldenText));
     await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded Golden"));
-    await page.locator("#showPathMenu[data-enabled]").waitFor();
+    await page.locator("#pathPanel[data-enabled]").waitFor();
     assert.equal(await page.locator('#schematicMount [data-node-id="cell:isolated"]').count(), 0);
     await page.locator("#compareButton").evaluate((el) => el.click());
     await page.locator('#rightSchematicMount [data-node-id="cell:g3"]').waitFor();
@@ -132,7 +136,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.waitForFunction(() => document.querySelector("#pathMessage").textContent.includes("injected Compare mount failure"));
     assert.ok(await page.evaluate(() => ["left", "right"].every((side, i) =>
       document.querySelector("#" + side + "SchematicMount").firstChild === window.previousCompareViews[i])));
-    assert.equal(await menu.getAttribute("data-enabled"), null);
+    assert.equal(await panel.getAttribute("data-enabled"), null);
     const compareErrors = (await download("#exportProcessLogButton")).trim().split(/\r?\n/).map(JSON.parse)
       .filter((row) => row.details?.error?.message === "injected Compare mount failure");
     assert.equal(compareErrors.length, 1);
@@ -190,8 +194,8 @@ await runBrowserTest(async ({ browser, url }) => {
       document.querySelector("#exportSvgButton").click();
     });
     assert.ok((await download("#exportProcessLogButton")).includes("injected Show Path SVG download"));
-    await page.reload(); await page.locator("#showPathMenu[data-enabled]").waitFor();
-    await open(); await action("clear").click(); await page.waitForFunction(() => !document.querySelector("#showPathMenu").hasAttribute("data-enabled"));
+    await page.reload(); await page.locator("#pathPanel[data-enabled]").waitFor();
+    await open(); await action("clear").click(); await page.waitForFunction(() => !document.querySelector("#pathPanel").hasAttribute("data-enabled"));
     await add("a", "starts", /^a · pi/); await add("w", "ends", /^w · po/); await apply();
     assert.match(await page.locator("#pathReportBody").textContent(), /No path.*unreachable/);
     await page.addInitScript(() => {
@@ -200,7 +204,7 @@ await runBrowserTest(async ({ browser, url }) => {
     });
     await page.reload();
     await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded path.blif"));
-    await page.waitForFunction(() => !document.querySelector("#showPathMenu").hasAttribute("data-enabled"));
+    await page.waitForFunction(() => !document.querySelector("#pathPanel").hasAttribute("data-enabled"));
     assert.match(await download("#exportProcessLogButton"), /show-path.restore/);
     await page.locator("#fileInput").setInputFiles(file("ambiguous.v",
       "module m(input a,input b,output z,output ok); BUF X(.A(a),.Y(z)); BUF Y(.A(b),.Y(z)); BUF V(.A(a),.Y(ok)); endmodule"));

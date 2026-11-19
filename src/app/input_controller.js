@@ -4,7 +4,10 @@ import { sampleTiming } from "./sampleTiming.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { parseCellConfig } from "../infer/cellConfig.js";
 import { getLayoutGoldenState } from "../domains/netlist/layout_golden.js";
-import { importTimingSource } from "../domains/netlist/timing_import.js";
+import { importTimingSource, mergeImportedTiming } from "../domains/netlist/timing_import.js";
+import { mergeNetlistSources, formatMergedSourceLabel } from "../domains/netlist/design_merge.js";
+import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
+import { recommendModulePair } from "../analysis/moduleCompare.js";
 import {
   resetTimingPresentation,
   resetDesignWorkspace,
@@ -16,14 +19,19 @@ import { normalizeSingleViewMode } from "./singleViewMode.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createInputController({ state, elements, services, restoreComparePath, validateSavedPath }) {
+export function createInputController({ state, elements, services, restoreComparePath, validateSavedPath, compareSideActions = null }) {
   async function initializeApplication(session) {
     const request = services.importRequests.begin();
     try {
       const manifest = await fetchStartupManifest(globalThis.location?.search || "", undefined, { signal: request.signal });
       if (!request.isCurrent()) return;
       if (!manifest) {
-        await loadDesign(session?.source || sampleNetlist, session?.sourceLabel || "built-in sample", session);
+        const firstRestoredFile = Array.isArray(session?.sourceFiles)
+          ? session.sourceFiles.find((entry) => entry && typeof entry.text === "string")
+          : null;
+        const startupSource = firstRestoredFile?.text || session?.source || sampleNetlist;
+        const startupLabel = firstRestoredFile?.name || session?.sourceLabel || "built-in sample";
+        await loadDesign(startupSource, startupLabel, session);
         if (session?.comparePathView && !session.pathSourceUnverified && request.isCurrent() && session.sourceIdentity?.fingerprint === state.sourceIdentity?.fingerprint) await restoreComparePath?.(session.comparePathView);
         return;
       }
@@ -83,31 +91,60 @@ export function createInputController({ state, elements, services, restoreCompar
     const kind = options.kind;
     const label = options.label || options.name || "quick input";
     const signal = options.request?.signal;
+    const append = Boolean(options.append);
+    const compareSide = options.compareSide || null;
     if (signal?.aborted) return Promise.reject(createStartupCancellationError("Input cancelled"));
     if (kind === "netlist") {
-      return loadDesign(text, label, null, { signal }).then(() => kind);
+      return loadDesign(text, label, null, { signal, append, compareSide }).then(() => kind);
     }
     if (kind === "golden") {
       return Promise.resolve(services.loadLayoutGolden(getLayoutGoldenState(text), label)).then(() => kind);
     }
 
-    return Promise.resolve(loadTimingText(text, label, { signal })).then(() => kind);
+    return Promise.resolve(loadTimingText(text, label, { signal, append, compareSide })).then(() => kind);
   }
 
-  function loadTimingText(text, label, { signal } = {}) {
+  function loadTimingText(text, label, { signal, append = false, compareSide = null } = {}) {
     services.logProcess("info", "timing", `Parsing timing ${label}`);
     let imported;
     try {
       imported = importTimingSource(text, { name: label });
     } catch (error) {
-      services.logProcess("error", "timing", `Timing parse failed: ${error.message}`, { label, error });
+      services.logProcess("error", "timing", `Timing parse failed: ${error.message}`, {
+        operation: "timing.import", code: "timing.parse-failed", label, compareSide, append, error
+      });
       throw error;
     }
-    state.timing = imported.timing;
+    if (compareSide === "left" || compareSide === "right") {
+      const sideTiming = compareSideActions?.setCompareSideTiming
+        ? compareSideActions.setCompareSideTiming(compareSide, imported.timing, label, { append })
+        : assignFallbackSideTiming(state, compareSide, imported.timing, label, append);
+      const sideLabel = compareSide === "left" ? "A" : "B";
+      services.logProcess("info", "timing", `Loaded ${sideLabel} timing (${imported.summary.recordCount} scope(s))`, {
+        label, compareSide, append, format: imported.summary.format, diagnostics: imported.summary.diagnosticCount
+      });
+      const count = sideTiming?.instanceCount ?? imported.summary.instanceCount;
+      if (state.compare.active) {
+        return new Promise((resolve, reject) => services.renderCompareGraphs({
+          signal,
+          onCommitted: (graphs) => {
+            services.renderStats();
+            compareSideActions?.refreshCompareSelection?.();
+            services.setStatus(`Loaded ${sideLabel} timing ${label}: ${count} instance(s)`);
+            resolve(graphs);
+          },
+          onFailed: reject,
+          onCancelled: () => reject(createStartupCancellationError("Timing render was cancelled"))
+        }));
+      }
+      services.setStatus(`Loaded ${sideLabel} timing ${label}: ${count} instance(s)`);
+      return Promise.resolve(null);
+    }
+
+    state.timing = append ? mergeImportedTiming(state.timing, imported.timing) : imported.timing;
+    compareSideActions?.updateCompareSideTimingControls?.();
     services.logProcess("info", "timing", `Loaded ${imported.summary.recordCount} timing scope(s)`, {
-      label,
-      format: imported.summary.format,
-      diagnostics: imported.summary.diagnosticCount
+      label, append, format: imported.summary.format, diagnostics: imported.summary.diagnosticCount
     });
     resetTimingPresentation(state);
     if (state.compare.active) {
@@ -115,6 +152,7 @@ export function createInputController({ state, elements, services, restoreCompar
         signal,
         onCommitted: (graphs) => {
           services.renderStats();
+          compareSideActions?.refreshCompareSelection?.();
           services.setStatus(`Loaded timing ${label}: ${state.timing.instanceCount} instance(s)`);
           resolve(graphs);
         },
@@ -138,17 +176,35 @@ export function createInputController({ state, elements, services, restoreCompar
     return Promise.resolve(null);
   }
 
-  function loadDesign(source, label, restore = null, { signal } = {}) {
+  function loadDesign(source, label, restore = null, { signal, append = false, compareSide = null } = {}) {
     services.logProcess("info", "import", `Loading design ${label}`);
+    const validRestoredFiles = Array.isArray(restore?.sourceFiles)
+      ? restore.sourceFiles.filter((entry) => entry && typeof entry.text === "string")
+      : [];
+    const restoreMulti = validRestoredFiles.length > 1;
+    const canAppend = Boolean(!restoreMulti && (append || compareSide) && state.design && state.currentSourceLabel !== "built-in sample");
+    const existingFiles = state.sourceFiles?.length
+      ? state.sourceFiles
+      : (state.currentSource ? [{ name: state.currentSourceLabel || "Verilog", text: state.currentSource }] : []);
+    const nextSourceFiles = restoreMulti
+      ? validRestoredFiles.map((entry) => ({ name: entry.name || "Verilog", text: entry.text }))
+      : canAppend
+        ? [...existingFiles, { name: label, text: source }]
+        : [{ name: label, text: source }];
+    const effectiveLabel = nextSourceFiles.length > 1 ? formatMergedSourceLabel(nextSourceFiles) : label;
+    const revision = (state.document?.sourceRevision || 0) + 1;
+
     let documentEnvelope;
     try {
-      documentEnvelope = importDesignSource(source, {
-        name: label,
-        documentId: "document:primary",
-        sourceRevision: (state.document?.sourceRevision || 0) + 1
-      });
+      documentEnvelope = nextSourceFiles.length > 1
+        ? mergeNetlistSources(nextSourceFiles, { documentId: "document:primary", sourceRevision: revision })
+        : importDesignSource(source, { name: label, documentId: "document:primary", sourceRevision: revision });
     } catch (error) {
-      services.logProcess("error", "parse", `Design parse failed: ${error.message}`, { label, error });
+      services.logProcess("error", "parse", `Design parse failed: ${error.message}`, {
+        operation: canAppend ? "import.merge-netlist" : "import.netlist",
+        code: canAppend ? "netlist.merge-parse-failed" : "netlist.parse-failed",
+        label, compareSide, append: canAppend, error
+      });
       services.setStatus(`Parse failed: ${error.message}`);
       throw error;
     }
@@ -160,29 +216,49 @@ export function createInputController({ state, elements, services, restoreCompar
         throw new Error(`Startup module not found: ${restore.moduleName}`);
       }
       services.logProcess("info", "parse", `Parsed ${design.modules.length} module(s)`, {
-        label,
-        diagnostics: design.diagnostics?.length || 0
+        label: effectiveLabel, append: canAppend, compareSide,
+        fileCount: nextSourceFiles.length, diagnostics: design.diagnostics?.length || 0
       });
+
+      const prevCurrentSnapshot = snapshotModuleIdentity(state.currentModule);
+      const prevLeftSnapshot = snapshotModuleIdentity(
+        state.design?.modules.find((m) => m.name === state.compare.leftModuleName)
+      );
+      const prevRightSnapshot = snapshotModuleIdentity(
+        state.design?.modules.find((m) => m.name === state.compare.rightModuleName)
+      );
+      const preservedTiming = canAppend ? state.timing : null;
+
+      if (canAppend && (compareSide || state.compare.active)) {
+        return applyCompareDesignMerge({
+          design, documentEnvelope, nextSourceFiles, effectiveLabel, compareSide,
+          prevCurrentSnapshot, prevLeftSnapshot, prevRightSnapshot, signal
+        });
+      }
+
       if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
       if (state.document?.documentId) services.workspaceJobs.cancelDocument(state.document.documentId);
       state.document = services.documents.open(documentEnvelope);
       services.viewSessions.closeByDocument(documentEnvelope.documentId);
       state.design = design;
-      state.currentSource = source;
-      state.currentSourceLabel = label;
-      state.sourceIdentity = createSourceIdentity(label, source);
+      state.currentSource = nextSourceFiles.length === 1 ? source : null;
+      state.currentSourceLabel = effectiveLabel;
+      state.sourceIdentity = createSourceIdentity(effectiveLabel, sourcePayloadForIdentity(nextSourceFiles, source));
       if ((restore?.showPath || restore?.comparePathView) && (restore.pathSourceUnverified || restore.sourceIdentity?.fingerprint !== state.sourceIdentity.fingerprint)) {
         services.logProcess("warning", "persistence", "Source changed; saved Show Path endpoints cleared", {
           operation: "show-path.restore", code: "show-path.source-mismatch", moduleName: restore.moduleName, documentId: state.document.documentId });
         restore = { ...restore, showPath: null, comparePathView: null, occurrenceContext: null };
       }
       resetDesignWorkspace(state, () => services.singleViewSession.resetNavigation());
+      state.sourceFiles = nextSourceFiles;
       services.compareViewSessions.resetState();
       state.currentModule = null;
       state.searchIndex = services.netlistFeature.buildSearchIndex(documentEnvelope);
       services.clearSearch();
       if (restore?.timing) {
         state.timing = restore.timing;
+      } else if (preservedTiming) {
+        state.timing = preservedTiming;
       } else if (label === "built-in sample" && !restore?.timingDisabled) {
         try {
           const imported = importTimingSource(sampleTiming, { name: "built-in sample timing" });
@@ -192,18 +268,20 @@ export function createInputController({ state, elements, services, restoreCompar
           state.timing = null;
         }
       }
+      compareSideActions?.updateCompareSideTimingControls?.();
       if (restore?.searchQuery) {
         state.searchQuery = restore.searchQuery;
         elements.searchInput.value = restore.searchQuery;
         services.handleSearchInput({ openResults: false });
       }
       services.renderModuleOptions();
-      const firstModule = state.design.modules.find((module) =>
-        module.name === restore?.moduleName || module.displayName === restore?.moduleName)
+      const firstModule = (canAppend && remapModule(design.modules, prevCurrentSnapshot))
+        || state.design.modules.find((module) =>
+          module.name === restore?.moduleName || module.displayName === restore?.moduleName)
         || state.design.modules[0];
       const readyMessage = state.timing
-        ? `Loaded ${label}: ${state.design.modules.length} module(s), timing: ${state.timing.instanceCount} instance(s)`
-        : `Loaded ${label}: ${state.design.modules.length} module(s)`;
+        ? `Loaded ${effectiveLabel}: ${state.design.modules.length} module(s), timing: ${state.timing.instanceCount} instance(s)`
+        : `Loaded ${effectiveLabel}: ${state.design.modules.length} module(s)`;
       services.selectModule(firstModule.name, { historyMode: "restore", deferRender: true,
         ...(restore?.occurrenceContext || {}) });
       if (restore?.showPath) {
@@ -266,7 +344,120 @@ export function createInputController({ state, elements, services, restoreCompar
     }
   }
 
+  function applyCompareDesignMerge({
+    design, documentEnvelope, nextSourceFiles, effectiveLabel, compareSide,
+    prevCurrentSnapshot, prevLeftSnapshot, prevRightSnapshot, signal
+  }) {
+    if (state.document?.documentId) services.workspaceJobs.cancelDocument(state.document.documentId);
+    state.document = services.documents.open(documentEnvelope);
+    services.viewSessions.closeByDocument(documentEnvelope.documentId);
+    state.design = design;
+    state.sourceFiles = nextSourceFiles;
+    state.currentSource = null;
+    state.currentSourceLabel = effectiveLabel;
+    state.sourceIdentity = createSourceIdentity(effectiveLabel, sourcePayloadForIdentity(nextSourceFiles, ""));
+    state.searchIndex = services.netlistFeature.buildSearchIndex(documentEnvelope);
+    services.clearSearch();
+    const remappedCurrent = remapModule(design.modules, prevCurrentSnapshot) || design.modules[0];
+    state.currentModule = remappedCurrent;
+    services.renderModuleOptions();
+
+    const latestSourceFile = design.modules[design.modules.length - 1]?.sourceFile || null;
+    const addedModules = latestSourceFile
+      ? design.modules.filter((m) => m.sourceFile === latestSourceFile)
+      : [];
+    let leftModule = remapModule(design.modules, prevLeftSnapshot);
+    let rightModule = remapModule(design.modules, prevRightSnapshot);
+    if (compareSide === "left") {
+      leftModule = pickAddedCompareModule(addedModules, rightModule) || leftModule;
+    } else if (compareSide === "right") {
+      rightModule = pickAddedCompareModule(addedModules, leftModule) || rightModule;
+    }
+    const readyMessage = `Loaded ${effectiveLabel}: ${design.modules.length} module(s)`;
+
+    if (compareSideActions?.applyMergedCompareModules) {
+      return new Promise((resolve, reject) => compareSideActions.applyMergedCompareModules({
+        leftModuleName: leftModule?.name || null,
+        rightModuleName: rightModule?.name || null,
+        signal,
+        readyMessage,
+        onCommitted: (graphs) => {
+          services.renderStats();
+          services.setStatus(readyMessage);
+          resolve(graphs);
+        },
+        onFailed: reject,
+        onCancelled: () => reject(createStartupCancellationError("Compare merge render was cancelled"))
+      }));
+    }
+    if (leftModule) state.compare.leftModuleName = leftModule.name;
+    if (rightModule) state.compare.rightModuleName = rightModule.name;
+    services.renderStats();
+    return new Promise((resolve, reject) => services.renderCompareGraphs({
+      signal,
+      onCommitted: (graphs) => {
+        services.setStatus(readyMessage);
+        resolve(graphs);
+      },
+      onFailed: reject,
+      onCancelled: () => reject(createStartupCancellationError("Compare merge render was cancelled"))
+    }));
+  }
+
   return Object.freeze({ initializeApplication, createStartupHandlers, loadQuickInputText, loadTimingText, loadDesign });
+}
+
+function assignFallbackSideTiming(state, side, timing, label, append) {
+  const prev = state.compare.sideTiming?.[side] || null;
+  const prevLabel = state.compare.sideTimingLabels?.[side];
+  const next = append && prev ? mergeImportedTiming(prev, timing) : timing;
+  if (state.compare.sideTiming) state.compare.sideTiming[side] = next;
+  if (state.compare.sideTimingLabels) {
+    state.compare.sideTimingLabels[side] = append && prev && prevLabel ? `${prevLabel} + ${label}` : label;
+  }
+  return next;
+}
+
+function sourcePayloadForIdentity(sourceFiles, singleSource) {
+  if (sourceFiles.length <= 1) return singleSource;
+  return sourceFiles.map((entry) => `${entry.name}\u0000${entry.text}`).join("\u0001");
+}
+
+function snapshotModuleIdentity(module) {
+  if (!module) return null;
+  return {
+    name: module.name,
+    originalName: module.originalName || module.name,
+    sourceFile: module.sourceFile || null
+  };
+}
+
+function remapModule(modules, snapshot) {
+  if (!snapshot) return null;
+  const exact = modules.find((item) => item.name === snapshot.name);
+  if (exact) return exact;
+  if (snapshot.sourceFile) {
+    const bySource = modules.find((item) =>
+      item.sourceFile === snapshot.sourceFile
+      && (item.originalName || item.name) === snapshot.originalName);
+    if (bySource) return bySource;
+  }
+  return modules.find((item) => (item.originalName || item.name) === snapshot.originalName) || null;
+}
+
+function pickAddedCompareModule(addedModules, peerModule) {
+  if (!Array.isArray(addedModules) || addedModules.length === 0) return null;
+  if (addedModules.length === 1) return addedModules[0];
+  if (peerModule) {
+    const peerRaw = peerModule.originalName || peerModule.name;
+    const sameRaw = addedModules.find((m) => (m.originalName || m.name) === peerRaw);
+    if (sameRaw) return sameRaw;
+    const paired = recommendModulePair([peerModule, ...addedModules], peerModule.name);
+    if (paired && addedModules.includes(paired)) return paired;
+  }
+  const hierarchy = buildModuleHierarchy({ modules: addedModules });
+  const rootName = hierarchy[0]?.moduleName;
+  return addedModules.find((m) => m.name === rootName) || addedModules[0];
 }
 
 function createStartupCancellationError(message = "Startup render was cancelled") {
@@ -283,7 +474,7 @@ export const inputPorts = Object.freeze({
     "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "layoutFallbackFromProviderId",
     "layoutProviderId", "moduleWorkspaces", "nodePositions", "nodeSizes", "occurrenceContext",
     "restoringViewHistory", "scene", "searchIndex", "searchQuery", "searchResults", "selectedNet",
-    "selectedNodeId", "singleWorkspaceIdentity", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
+    "selectedNodeId", "singleWorkspaceIdentity", "sourceFiles", "sourceIdentity", "timing", "timingBadgeChoices", "timingBadgePositions",
     "viewHistory", "viewMode", "workspaceArtifactCache"
   ],
   elements: [

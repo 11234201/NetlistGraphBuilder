@@ -39,7 +39,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   inspectorHost.id = "domainInspector";
   toolbar.id = "domainToolbar";
   toolbar.className = "domain-toolbar";
-  get("navigatorPanel").append(navigatorHost);
+  const pathPanel = get("pathPanel");
+  if (pathPanel) pathPanel.before(navigatorHost);
+  else get("navigatorPanel").append(navigatorHost);
   get("inspectorPanel").append(inspectorHost);
   get("canvas").before(toolbar);
   for (const host of [navigatorHost, inspectorHost, toolbar]) host.hidden = true;
@@ -85,6 +87,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const options = { selectedId: selectedId(), fanoutThreshold: policy().fanoutThreshold, structure: structure.view() };
     panelInteractions.render({ navigator: present().navigator(workspace.presentation, { ...panels.navigator, ...options }),
       inspector: present().inspector(workspace.presentation, { ...panels.inspector, ...options }) });
+    const pathSection = get("pathPanel");
+    if (pathSection) pathSection.hidden = panels.navigator.tab !== "path";
     const object = workspace.query.getObject(selectedId());
     const result = options.structure.query?.get(options.structure.selectedId);
     get("selectionSummaryButton").textContent = result ? result.category === "block" ? `${result.kind.toUpperCase()} block` : "Reconvergence paths" : object?.label || object?.id || "No selection";
@@ -471,6 +475,13 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   mount.addEventListener("click", (event) => {
     // Pointer activation is handled on pointerdown. Assistive clicks can arrive on their own.
     if (event.detail === 0) activateCanvasObject(event);
+  });
+  document.addEventListener("workbench-open-path", (event) => {
+    if (!workspace) return;
+    panels.navigator.tab = "path";
+    renderPanels();
+    persist();
+    if (event.detail?.focusSearch) get("pathFind")?.focus?.();
   });
   windowTarget.addEventListener("beforeunload", persist);
   return Object.freeze({

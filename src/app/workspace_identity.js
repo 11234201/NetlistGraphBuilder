@@ -35,7 +35,14 @@ export function createCompareWorkspaceIdentity(state, cellLibrary = null) {
     showAliases: state.showAliases,
     useFanoutHubs: state.useFanoutHubs,
     layout: [state.layoutProviderId, state.layoutPolicy],
-    timing: [state.timing, state.timingDisplayPolicy, state.compare.timingBadgeChoices, state.compare.timingBadgePositions],
+    timing: [
+      state.timing,
+      state.compare.sideTiming?.left || null,
+      state.compare.sideTiming?.right || null,
+      state.timingDisplayPolicy,
+      state.compare.timingBadgeChoices,
+      state.compare.timingBadgePositions
+    ],
     cellLibrary: workspaceArtifactReference(cellLibrary),
     cellConfig: state.cellConfig
   });

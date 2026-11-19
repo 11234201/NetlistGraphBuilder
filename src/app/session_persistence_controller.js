@@ -19,11 +19,11 @@ export function createSessionPersistenceController({ state, services, canPersist
       services.setStatus("Session save failed; changes may not survive a refresh");
     }
   });
-  return Object.freeze({ persistSession() { if (state.currentSource) persistence.request(); } });
+  return Object.freeze({ persistSession() { if (state.currentSource || state.sourceFiles?.length) persistence.request(); } });
 }
 
 export const sessionPersistencePorts = Object.freeze({
-  state: ["currentSource", "currentSourceLabel", "sourceIdentity", "document", "currentModule", "occurrenceContext",
+  state: ["currentSource", "currentSourceLabel", "sourceFiles", "sourceIdentity", "document", "currentModule", "occurrenceContext",
     "showPath", "viewMode", "coneRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "activeFocusedRootNodeId", "coneDepth",
     "faninDepth", "fanoutDepth", "transform", "showAliases", "layoutProviderId", "layoutFallbackFromProviderId",
     "layoutPolicy", "presentationPolicy", "useFanoutHubs", "graphOverrides", "timing", "timingDisplayPolicy", "searchQuery"],

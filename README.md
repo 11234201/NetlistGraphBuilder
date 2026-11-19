@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦两输入组合 BLIF。
 
-- **v1.6.0** 新增 Show Path。选择终点后可直接比较各输入到该终点的逻辑级数。大型 AIG 可以先建立索引，再布局选中的子图。[下载 Windows / Linux 版](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.6.0) · [更新日志](CHANGELOG.md)
+- **v1.6.1** 新增 Verilog 注释属性解析与 Inspector 分页，支持多文件网表/时序合并及 Compare A/B 独立导入，默认左右对比与副本自动配对，并将 Show Path 整合至左侧 Navigator。[下载 Windows / Linux 版](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.6.1) · [更新日志](CHANGELOG.md)
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
 - **AIG 浏览**：从 `File → Open AIG…` 打开 ABC AIG DOT 或平坦两输入组合 BLIF。可按映射名查找输入、输出和内部点，查看 XOR/XNOR 分解来源，并用多根 Focused 抽取局部逻辑。Standard、Logic View 和 SVG 导出共用当前展示范围。[AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
@@ -81,7 +81,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.6.0`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.6.1`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md`、`ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt`、`EXPAT-LICENSE.txt` 和 `app/vendor/graphviz/` 离线资源。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 

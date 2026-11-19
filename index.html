@@ -15,13 +15,15 @@
           <summary>File</summary>
           <div class="toolbar-menu-popover">
             <span class="menu-heading">Import</span>
-            <label class="menu-action" tabindex="0"><input id="fileInput" type="file" accept=".v,.sv,.dot,.blif,.txt,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
+            <label class="menu-action" tabindex="0"><input id="fileInput" type="file" multiple accept=".v,.sv,.dot,.blif,.txt,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
+            <label class="menu-action" tabindex="0"><input id="addDesignInput" type="file" multiple accept=".v,.sv,.txt,text/plain">Add design file(s)… <span class="help-text">Merge modules</span></label>
             <label class="menu-action" tabindex="0"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif,.txt,text/plain">Open AIG… <span class="help-text">ABC AIG DOT / two-input BLIF</span></label>
             <label class="alias-toggle aig-import-mode"><input id="aigSearchFirstInput" type="checkbox">Open AIG in Search-first</label>
             <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
             <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
             <button id="pasteAigButton" class="menu-action" type="button">Paste AIG…</button>
-            <label class="menu-action" tabindex="0"><input id="timingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing…</label>
+            <label class="menu-action" tabindex="0"><input id="timingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing…</label>
+            <label class="menu-action" tabindex="0"><input id="addTimingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Add timing file(s)…</label>
             <button id="pasteTimingButton" class="menu-action" type="button">Paste timing…</button>
             <span class="menu-heading">Export & snapshots</span>
             <button id="exportSvgButton" class="menu-action" type="button" title="Export the current Single view">Export SVG</button>
@@ -94,26 +96,37 @@
         <div class="history-controls"><button id="moduleBackButton" class="square-button" type="button" title="Back through view history (Ctrl+Z / Alt+Left)" aria-label="Back through view history" disabled>←</button><button id="moduleForwardButton" class="square-button" type="button" title="Forward through view history (Ctrl+Shift+Z / Alt+Right)" aria-label="Forward through view history" disabled>→</button></div>
         <div class="workspace-heading"><span id="workspaceTitle">No module</span><span id="workspaceMode" class="mode-indicator">Whole</span></div>
         <div class="view-mode-control" role="group" aria-label="Schematic view mode"><button id="wholeViewButton" type="button">Whole</button><button id="focusedViewButton" type="button">Focused</button></div>
-        <details id="showPathMenu" class="toolbar-menu path-menu">
-          <summary>Show Path</summary>
-          <section class="toolbar-menu-popover path-popover" aria-label="Show Path">
-            <header class="path-heading"><strong>Show Path</strong><select id="pathSide" aria-label="Compare side" hidden><option value="left">A</option><option value="right">B</option></select><span id="pathScope"></span></header>
-            <div class="path-editor"><label>Find an endpoint <input id="pathFind" type="search" placeholder="Name or ID" autocomplete="off"></label>
-            <div id="pathCandidates"></div><div id="pathDraft"></div></div>
-            <div class="path-actions"><button class="primary-action" type="button" data-path-action="apply">Apply</button><button type="button" data-path-action="toggle">Turn off</button><button type="button" data-path-action="clear">Clear</button><button type="button" data-path-action="cancel" hidden>Cancel</button></div>
-            <p id="pathMessage" role="status"></p>
-            <details id="pathReport" open hidden><summary>Path information</summary><div id="pathReportBody"></div></details>
-          </section>
-        </details>
+        <button id="showPathButton" class="mini-button path-toggle-button" type="button" title="Open Show Path panel in Navigator" aria-pressed="false">Show Path</button>
         <button id="fitButton" class="mini-button" type="button" title="Fit the view; fits both views in Compare">Fit view</button>
         <button id="adjustLayoutButton" class="mini-button" type="button" aria-pressed="false" title="Drag nodes to create instance overrides">Adjust</button>
         <button id="selectionSummaryButton" class="selection-summary-button" type="button" title="Open the selected object in Inspector">No selection</button>
         <button id="toggleInspectorButton" class="mini-button panel-toggle" type="button" aria-controls="inspectorPanel" aria-expanded="true"><svg class="panel-toggle-icon" viewBox="0 0 18 16" aria-hidden="true"><rect x="1" y="1" width="16" height="14" rx="2"/><path d="M12 1v14"/><path class="panel-icon-region" d="M13 2h3v12h-3z"/></svg>Inspector</button>
       </section>
       <section id="comparePanel" class="compare-panel compare-config" aria-label="Compare configuration" hidden>
-        <label><span class="side-badge">A</span><select id="leftModuleSelect" aria-label="Module A"></select></label><label><span class="side-badge">B</span><select id="rightModuleSelect" aria-label="Module B"></select></label>
+        <label><span class="side-badge">A</span><select id="leftModuleSelect" aria-label="Module A"></select></label>
+        <details id="compareLeftFilesMenu" class="toolbar-menu compact-menu compare-side-menu"><summary>A files</summary><div class="toolbar-menu-popover">
+          <span class="menu-heading">Side A Verilog</span>
+          <label class="menu-action" tabindex="0"><input id="compareLeftNetlistInput" type="file" accept=".v,.sv,.txt,text/plain">Load Verilog for A…</label>
+          <button id="compareLeftPasteNetlistButton" class="menu-action" type="button">Paste Verilog for A…</button>
+          <span class="menu-heading">Side A timing</span>
+          <label class="menu-action" tabindex="0"><input id="compareLeftTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Load timing for A…</label>
+          <button id="compareLeftPasteTimingButton" class="menu-action" type="button">Paste timing for A…</button>
+          <span id="compareLeftTimingStatus" class="menu-note compare-side-timing-status">Timing: none</span>
+          <button id="compareLeftClearTimingButton" class="menu-action" type="button" hidden>Clear A timing override</button>
+        </div></details>
+        <label><span class="side-badge">B</span><select id="rightModuleSelect" aria-label="Module B"></select></label>
+        <details id="compareRightFilesMenu" class="toolbar-menu compact-menu compare-side-menu"><summary>B files</summary><div class="toolbar-menu-popover">
+          <span class="menu-heading">Side B Verilog</span>
+          <label class="menu-action" tabindex="0"><input id="compareRightNetlistInput" type="file" accept=".v,.sv,.txt,text/plain">Load Verilog for B…</label>
+          <button id="compareRightPasteNetlistButton" class="menu-action" type="button">Paste Verilog for B…</button>
+          <span class="menu-heading">Side B timing</span>
+          <label class="menu-action" tabindex="0"><input id="compareRightTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Load timing for B…</label>
+          <button id="compareRightPasteTimingButton" class="menu-action" type="button">Paste timing for B…</button>
+          <span id="compareRightTimingStatus" class="menu-note compare-side-timing-status">Timing: none</span>
+          <button id="compareRightClearTimingButton" class="menu-action" type="button" hidden>Clear B timing override</button>
+        </div></details>
         <button id="applyCompareButton" class="mini-button primary-action" type="button">Apply</button><span id="compareDraftStatus" class="help-text" role="status"></span>
-        <label class="compare-orientation"><span>Split</span><select id="compareLayoutSelect"><option value="vertical">Top / Bottom</option><option value="horizontal">Left / Right</option></select></label>
+        <label class="compare-orientation"><span>Split</span><select id="compareLayoutSelect"><option value="horizontal">Left / Right</option><option value="vertical">Top / Bottom</option></select></label>
         <details id="compareOptionsMenu" class="toolbar-menu compact-menu"><summary>Sync & cone</summary><div class="toolbar-menu-popover settings-popover">
           <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked>Sync pan / zoom</label><label class="alias-toggle"><input id="syncCompareFocusInput" type="checkbox" checked>Sync Focus roots</label>
           <label class="panel-field"><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label><label class="panel-field"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
@@ -124,23 +137,41 @@
       <section class="workspace">
         <aside id="navigatorPanel" class="side-panel navigation-panel" aria-label="Navigator">
           <header class="panel-title"><h2>Navigator</h2><button class="panel-collapse-button" data-close-panel="navigator" type="button" title="Hide Navigator to expand the canvas" aria-label="Hide Navigator"><span aria-hidden="true">‹</span> Hide</button></header>
-          <div class="panel-tabs" role="tablist" aria-label="Navigator pages"><button type="button" role="tab" data-nav-tab="hierarchy" aria-selected="true">Hierarchy</button><button type="button" role="tab" data-nav-tab="design" aria-selected="false">Design</button><button type="button" role="tab" data-nav-tab="analysis" aria-selected="false">Analysis</button></div>
+          <div class="panel-tabs" role="tablist" aria-label="Navigator pages"><button type="button" role="tab" data-nav-tab="hierarchy" aria-selected="true">Hierarchy</button><button type="button" role="tab" data-nav-tab="design" aria-selected="false">Design</button><button type="button" role="tab" data-nav-tab="analysis" aria-selected="false">Analysis</button><button type="button" role="tab" data-nav-tab="path" aria-selected="false">Path</button></div>
           <div data-nav-panel="hierarchy">
             <details id="moduleHierarchyMenu" class="navigation-hierarchy" open><summary id="moduleHierarchySummary" title="Browse module hierarchy"><span id="moduleHierarchyCurrent">No module</span></summary>
               <div class="hierarchy-content"><label class="module-hierarchy-filter-label" for="moduleHierarchyFilter">Find module or instance</label><input id="moduleHierarchyFilter" class="module-hierarchy-filter" type="search" placeholder="Module or instance…" autocomplete="off" aria-controls="moduleHierarchyTree"><div id="moduleHierarchyTree" class="module-hierarchy-body" aria-live="polite">No modules</div><div id="moduleOccurrenceChoices" class="module-occurrence-choices-host" aria-live="polite"></div></div>
             </details><p id="compareNavigationNote" class="help-text" hidden>Choose A and B above the canvas. Return to Single to browse the hierarchy.</p>
           </div>
-          <section data-nav-panel="design" class="panel-section" hidden><h2>Design summary</h2><dl id="designStats" class="stats-list"></dl></section>
+          <section data-nav-panel="design" class="panel-section" hidden><h2>Design summary</h2><dl id="designStats" class="stats-list"></dl><div id="moduleAttributes" class="module-attributes-section"></div></section>
           <section id="netlistAnalysis" data-nav-panel="analysis" class="panel-section" hidden></section>
+          <section id="pathPanel" data-nav-panel="path" class="panel-section path-panel" aria-label="Show Path" hidden>
+            <header class="path-heading"><strong>Show Path</strong><select id="pathSide" aria-label="Compare side" hidden><option value="left">A</option><option value="right">B</option></select><span id="pathScope"></span></header>
+            <div class="path-editor"><label>Find an endpoint <input id="pathFind" type="search" placeholder="Name or ID" autocomplete="off"></label>
+            <div id="pathCandidates"></div><div id="pathDraft"></div></div>
+            <div class="path-actions"><button class="primary-action" type="button" data-path-action="apply">Apply</button><button type="button" data-path-action="toggle">Turn off</button><button type="button" data-path-action="clear">Clear</button><button type="button" data-path-action="cancel" hidden>Cancel</button></div>
+            <p id="pathMessage" role="status"></p>
+            <details id="pathReport" open hidden><summary>Path information</summary><div id="pathReportBody"></div></details>
+          </section>
         </aside>
         <div id="navigatorResizeHandle" class="panel-resize-handle" role="separator" aria-label="Resize navigator" aria-orientation="vertical" tabindex="0"></div>
         <section class="canvas-workspace">
-          <div id="focusedToolbar" class="focused-toolbar" aria-label="Focused neighborhood" hidden>
-            <details id="focusedRootsMenu" class="toolbar-menu compact-menu"><summary>Roots <output id="focusedRootCount">0</output></summary><div class="toolbar-menu-popover roots-popover"><label for="focusedRootsFilter" class="help-text">Find a root</label><input id="focusedRootsFilter" type="search" placeholder="Filter roots…"><div id="focusedRootsList" class="focused-roots-list" aria-live="polite">No roots</div><div class="focused-roots-actions"><button id="removeFocusedRootButton" class="mini-button" type="button" disabled>Remove selected</button><button id="clearFocusedRootsButton" class="mini-button" type="button" disabled>Clear roots</button></div></div></details>
-            <span id="focusedRootPreview" class="focused-root-preview">No roots</span>
-            <div class="focused-depth-fields"><label><span>Fanin</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanin depth"></label><label><span>Fanout</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanout depth"></label></div><span id="focusedDepthScope" class="context-note"></span>
+          <div class="canvas-toolbars">
+            <div id="focusedToolbar" class="focused-toolbar" aria-label="Focused neighborhood" hidden>
+              <details id="focusedRootsMenu" class="toolbar-menu compact-menu"><summary>Roots <output id="focusedRootCount">0</output></summary><div class="toolbar-menu-popover roots-popover"><label for="focusedRootsFilter" class="help-text">Find a root</label><input id="focusedRootsFilter" type="search" placeholder="Filter roots…"><div id="focusedRootsList" class="focused-roots-list" aria-live="polite">No roots</div><div class="focused-roots-actions"><button id="removeFocusedRootButton" class="mini-button" type="button" disabled>Remove selected</button><button id="clearFocusedRootsButton" class="mini-button" type="button" disabled>Clear roots</button></div></div></details>
+              <span id="focusedRootPreview" class="focused-root-preview">No roots</span>
+              <div class="focused-depth-fields"><label><span>Fanin</span><input id="faninDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanin depth"></label><label><span>Fanout</span><input id="fanoutDepthInput" type="number" min="0" max="99" step="1" value="3" aria-label="Fanout depth"></label></div><span id="focusedDepthScope" class="context-note"></span>
+            </div>
+            <div id="pathToolbar" class="path-toolbar" aria-label="Active Show Path" hidden>
+              <span id="pathToolbarSummary" class="path-toolbar-summary">Show Path</span>
+              <div class="path-toolbar-actions">
+                <button class="mini-button" type="button" data-path-action="open">Open Path</button>
+                <button class="mini-button" type="button" data-path-action="toggle">Turn off</button>
+                <button class="mini-button" type="button" data-path-action="clear">Clear</button>
+              </div>
+            </div>
           </div>
-          <section id="canvas" class="canvas" aria-label="schematic canvas"><div id="schematicMount" class="schematic-mount"></div><div id="compareMount" class="compare-mount" hidden><section class="compare-side" data-compare-side="left"><header>A · Top</header><div id="leftSchematicMount" class="schematic-mount"></div></section><section class="compare-side" data-compare-side="right"><header>B · Bottom</header><div id="rightSchematicMount" class="schematic-mount"></div></section></div></section>
+          <section id="canvas" class="canvas" aria-label="schematic canvas"><div id="schematicMount" class="schematic-mount"></div><div id="compareMount" class="compare-mount" hidden><section class="compare-side" data-compare-side="left"><header>A · Left</header><div id="leftSchematicMount" class="schematic-mount"></div></section><section class="compare-side" data-compare-side="right"><header>B · Right</header><div id="rightSchematicMount" class="schematic-mount"></div></section></div></section>
         </section>
         <div id="inspectorResizeHandle" class="panel-resize-handle" role="separator" aria-label="Resize inspector" aria-orientation="vertical" tabindex="0"></div>
         <aside id="inspectorPanel" class="inspector-panel" aria-label="Inspector">

@@ -1,6 +1,12 @@
 import { createLatestFrameScheduler } from "./frameScheduler.js";
 
-const TAB_LABELS = Object.freeze({ connections: "Connections", timing: "Timing", adjust: "Adjust" });
+const TAB_LABELS = Object.freeze({
+  connections: "Connections",
+  attributes: "Attributes",
+  analysis: "Analysis",
+  timing: "Timing",
+  adjust: "Adjust"
+});
 
 export function createInspectorTabsController({
   container,

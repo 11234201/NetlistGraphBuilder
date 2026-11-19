@@ -16,7 +16,7 @@ import {
   annotateGraphTiming,
   normalizeTimingDisplayPolicy
 } from "../../src/timing/timingAnnotation.js";
-import { parseTimingLog } from "../../src/timing/timingParser.js";
+import { parseTimingLog, mergeTimingDatasets } from "../../src/timing/timingParser.js";
 import { renderNetTimingPanel, renderTimingPanel } from "../../src/ui/timingPanel.js";
 
 test("tabular timing parser supports simple 4-column, missing values, and slack auto-inference", () => {
@@ -317,4 +317,47 @@ test("default startup opens built-in sample module with timing initialized and v
   }));
   const baselineSvgRelaxed = renderSchematicSvg(baselineGraphRelaxed);
   assert.doesNotMatch(baselineSvgRelaxed, /timing-critical/);
+});
+
+test("single or unscoped timing records never bleed into mismatched local or copy modules via leaf suffix fallback", () => {
+  const singleScopeTiming = parseTimingLog(`
+@module ModKerWrapper_tc_1049
+point at rt slack
+HinstModKerWrapper_tc_1049_gen_18638/ConeKernel_0/l_resyn0_u_gen_0/A1 0.500 0.400 -0.100
+`);
+  const unscopedTiming = parseTimingLog(`
+point at rt slack
+HinstModKerWrapper_tc_1049_gen_18638/ConeKernel_0/l_resyn0_u_gen_0/A1 0.500 0.400 -0.100
+`);
+  const verilog = `
+module ModKerWrapper_tc_1049_cpy (input a, output y);
+  BUF l_resyn0_u_gen_0 (.A1(a), .Z(y));
+endmodule
+module ModKerWrapper_tc_1049_cpy_loc (input a, output y);
+  BUF l_resyn0_u_gen_0 (.A1(a), .Z(y));
+endmodule`;
+  const modules = parseVerilog(verilog).modules;
+  for (const mod of modules) {
+    for (const timing of [singleScopeTiming, unscopedTiming]) {
+      const graph = buildWorkspaceGraph(mod, { timing });
+      const cell = graph.nodes.find((node) => node.kind === "cell");
+      assert.equal(cell.timing, undefined, `${mod.name} must not receive mismatched global timing`);
+    }
+  }
+});
+
+test("mixed unscoped global records and named @module scope never leak global timing into the named module", () => {
+  const globalDs = parseTimingLog("point at rt slack\nother_block/l_resyn0_u_gen_0/A 0.8 0.2 -0.600");
+  const localDs = parseTimingLog("@module local_mod\npoint at rt slack\nu_local/A 0.3 0.5 0.200");
+  const merged = mergeTimingDatasets([globalDs, localDs]);
+  const [mod] = parseVerilog(`
+module local_mod (input a, input b, output y, output z);
+  BUF l_resyn0_u_gen_0 (.A(a), .Y(y));
+  BUF u_local (.A(b), .Y(z));
+endmodule`).modules;
+  const graph = buildWorkspaceGraph(mod, { timing: merged });
+  const leakedCell = graph.nodes.find((n) => n.id === "cell:l_resyn0_u_gen_0");
+  const localCell = graph.nodes.find((n) => n.id === "cell:u_local");
+  assert.equal(leakedCell.timing, undefined, "unscoped global record must not match local module via suffix");
+  assert.equal(localCell.timing.pins.A.slack, 0.2);
 });

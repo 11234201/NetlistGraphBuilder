@@ -163,13 +163,13 @@ try {
   await evaluate('document.querySelector("[data-aig-nav-tab=analysis]").click()');
   await waitFor('document.querySelector("[data-aig-analysis-status=complete]") && document.querySelector("[data-aig-analysis-category=reconvergence]")?.textContent === "Reconvergence (0)"');
   assert.ok(await evaluate('[...document.querySelectorAll("[data-aig-node]")].some(n => n.dataset.aigNode.startsWith("cut:"))'));
-  await evaluate('document.getElementById("showPathMenu").open = true');
+  await evaluate('document.getElementById("showPathButton").click()');
   for (const [term, kind, role] of [["in_96", "pi", "starts"], ["n4", "po", "ends"]]) {
     await evaluate(`{const field=document.getElementById("pathFind");field.value=${JSON.stringify(term)};field.dispatchEvent(new Event("input",{bubbles:true}));}`);
     await evaluate(`[...document.querySelectorAll("#pathCandidates .path-row")].find(el=>el.textContent.includes("· ${kind}")).querySelector('[data-path-action="${role}"]').click()`);
   }
-  await evaluate('document.querySelector("[data-path-action=apply]").click()');
-  await waitFor('document.querySelector("#showPathMenu[data-enabled]") && document.getElementById("pathReportBody").textContent.includes("To selected end 2 · From start 0")');
+  await evaluate('document.querySelector("#pathPanel [data-path-action=apply]").click()');
+  await waitFor('document.querySelector("#pathPanel[data-enabled]") && document.getElementById("pathReportBody").textContent.includes("To selected end 2 · From start 0")');
   await evaluate('document.querySelector("[data-path-action=tab-ends]").click()');
   await waitFor('document.querySelector("#pathReportBody .path-row").innerText.includes("To selected end 0 · From start 2") && document.querySelector("#pathReportBody .path-row").innerText.includes("outside Focused")');
   await openFile("#fileInput", "examples/two_equivalent_style_modules.v");

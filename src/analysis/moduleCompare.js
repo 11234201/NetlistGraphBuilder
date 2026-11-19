@@ -1,4 +1,4 @@
-const PAIR_SUFFIX = /(?:_Flex|_orig|_new)$/i;
+const PAIR_SUFFIX = /(?:_Flex|_orig|_new|_cpy(?:_loc)?|_copy(?:_loc)?|_loc)$/i;
 
 export function normalizePairName(name) {
   return String(name || "").replace(PAIR_SUFFIX, "");
@@ -9,8 +9,8 @@ export function recommendModulePair(modules, moduleName) {
   if (!source) {
     return null;
   }
-  const base = normalizePairName(source.name);
-  return modules.find((item) => item !== source && normalizePairName(item.name) === base) || null;
+  const base = normalizePairName(source.originalName || source.name);
+  return modules.find((item) => item !== source && normalizePairName(item.originalName || item.name) === base) || null;
 }
 
 export function alignModulePorts(leftModule, rightModule) {

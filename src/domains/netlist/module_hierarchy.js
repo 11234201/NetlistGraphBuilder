@@ -3,10 +3,12 @@ export const DEFAULT_MODULE_HIERARCHY_LIMITS = Object.freeze({ maximumNodes: 200
 export function buildModuleHierarchy(design, options = {}) {
   const modules = [...(design?.modules || [])];
   const moduleByName = new Map(modules.map((module) => [module.name, module]));
+  const sameSourceMap = buildSameSourceMap(modules);
   const instantiated = new Set();
   for (const module of modules) {
     for (const cell of module.cells || []) {
-      if (moduleByName.has(cell.type)) instantiated.add(cell.type);
+      const target = resolveChildModule(cell.type, module, moduleByName, sameSourceMap);
+      if (target) instantiated.add(target.name);
     }
   }
   const roots = modules.filter((module) => !instantiated.has(module.name));
@@ -23,10 +25,29 @@ export function buildModuleHierarchy(design, options = {}) {
       context.truncated = true;
       break;
     }
-    result.push(buildNode(module, null, [], [], [], module.name, moduleByName, context));
+    result.push(buildNode(module, null, [], [], [], module.name, moduleByName, sameSourceMap, context));
   }
   Object.defineProperty(result, "truncated", { value: context.truncated, enumerable: false });
   return Object.freeze(result);
+}
+
+function buildSameSourceMap(modules) {
+  const map = new Map();
+  for (const module of modules) {
+    if (!module?.sourceFile) continue;
+    const rawName = module.originalName || module.name;
+    map.set(`${module.sourceFile}::${rawName}`, module);
+    map.set(`${module.sourceFile}::${module.name}`, module);
+  }
+  return map;
+}
+
+function resolveChildModule(typeName, ownerModule, moduleByName, sameSourceMap) {
+  if (ownerModule?.sourceFile && sameSourceMap) {
+    const local = sameSourceMap.get(`${ownerModule.sourceFile}::${typeName}`);
+    if (local) return local;
+  }
+  return moduleByName.get(typeName) || null;
 }
 
 /** Return bounded occurrence contexts for a module definition in a hierarchy tree. */
@@ -47,30 +68,33 @@ export function findModuleOccurrences(roots, moduleName) {
   return Object.freeze(matches);
 }
 
-function buildNode(module, instance, moduleAncestry, instancePath, canonicalPath, rootModuleName, moduleByName, context) {
+function buildNode(module, instance, moduleAncestry, instancePath, canonicalPath, rootModuleName, moduleByName, sameSourceMap, context) {
   context.nodeCount += 1;
   const cycle = moduleAncestry.includes(module.name);
   const nextModuleAncestry = [...moduleAncestry, module.name];
   const segment = instance ? `${instance.instance}:${module.name}` : module.name;
   const nextInstancePath = [...instancePath, segment];
   const nextCanonicalPath = instance ? [...canonicalPath, instance.instance] : [...canonicalPath];
-  const childInstances = cycle ? [] : (module.cells || []).filter((cell) => moduleByName.has(cell.type));
+  const childPairs = cycle ? [] : (module.cells || [])
+    .map((cell) => ({ cell, target: resolveChildModule(cell.type, module, moduleByName, sameSourceMap) }))
+    .filter((pair) => Boolean(pair.target));
   const children = [];
   let truncated = false;
-  for (const cell of childInstances) {
+  for (const { cell, target } of childPairs) {
     if (nextInstancePath.length > context.maximumDepth || context.nodeCount >= context.maximumNodes) {
       context.truncated = true;
       truncated = true;
       break;
     }
     children.push(buildNode(
-      moduleByName.get(cell.type),
+      target,
       cell,
       nextModuleAncestry,
       nextInstancePath,
       nextCanonicalPath,
       rootModuleName,
       moduleByName,
+      sameSourceMap,
       context
     ));
   }

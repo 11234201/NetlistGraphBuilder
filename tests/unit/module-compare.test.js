@@ -19,6 +19,23 @@ test("module pairing recognizes compare suffixes", () => {
   const modules = parseVerilog(source).modules;
   assert.equal(recommendModulePair(modules, "root").name, "root_Flex");
   assert.equal(recommendModulePair(modules, "root_Flex").name, "root");
+
+  const copyModules = parseVerilog(`
+    module ModKerWrapper_tc_1049(input a, output y); BUF u0(.A(a),.Z(y)); endmodule
+    module ModKerWrapper_tc_1049_cpy(input a, output y); BUF u0(.A(a),.Z(y)); endmodule
+    module ModKerWrapper_tc_1049_cpy_loc(input a, output y); BUF u0(.A(a),.Z(y)); endmodule
+    module ModA_copy(input a, output y); BUF u0(.A(a),.Z(y)); endmodule
+    module ModA(input a, output y); BUF u0(.A(a),.Z(y)); endmodule
+  `).modules;
+  assert.equal(recommendModulePair(copyModules, "ModKerWrapper_tc_1049").name, "ModKerWrapper_tc_1049_cpy");
+  assert.equal(recommendModulePair(copyModules, "ModKerWrapper_tc_1049_cpy_loc").name, "ModKerWrapper_tc_1049");
+  assert.equal(recommendModulePair(copyModules, "ModA").name, "ModA_copy");
+
+  const multiFileModules = [
+    { name: "tc", originalName: "tc" },
+    { name: "tc [post.v]", originalName: "tc" }
+  ];
+  assert.equal(recommendModulePair(multiFileModules, "tc").name, "tc [post.v]");
 });
 
 test("port alignment gives common ports stable order and marks unmatched ports", () => {

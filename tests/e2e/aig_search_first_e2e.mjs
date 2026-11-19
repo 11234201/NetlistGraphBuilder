@@ -29,7 +29,7 @@ await runBrowserTest(async ({ browser, url }) => {
   const calls = () => page.evaluate(() => window.graphvizCalls.length);
   const idle = () => page.waitForFunction(() => document.querySelector("#cancelDomainImportButton").hidden);
   const indexed = page.locator("#schematicMount .search-first-empty");
-  const action = (name) => page.locator(`#showPathMenu [data-path-action="${name}"]`);
+  const action = (name) => page.locator(`#pathPanel [data-path-action="${name}"]`);
   try {
     await page.goto(url);
     await page.locator("#fileMenu > summary").click();
@@ -63,12 +63,12 @@ await runBrowserTest(async ({ browser, url }) => {
     await indexed.waitFor(); await idle();
     assert.equal(await calls(), 2, "clearing roots does not request Whole");
 
-    await page.locator("#showPathMenu > summary").click();
+    await page.locator("#showPathButton").click();
     for (const [term, match, role] of [["in_96", /· pi/, "starts"], ["4388notBoutput", /· po/, "ends"]]) {
       await page.locator("#pathFind").fill(term);
       await page.locator("#pathCandidates .path-row").filter({ hasText: match }).first().locator(`[data-path-action="${role}"]`).click();
     }
-    await action("apply").click(); await page.locator("#showPathMenu[data-enabled]").waitFor(); await idle();
+    await action("apply").click(); await page.locator("#pathPanel[data-enabled]").waitFor(); await idle();
     assert.match(await page.locator("#pathReportBody").innerText(), /To selected end 1 · From start 0/);
     const labels = await page.locator("#schematicMount .aig-node-label").allTextContents();
     assert.ok(labels.includes("n0") && labels.includes("n3") && !labels.includes("n4"));

@@ -25,7 +25,8 @@ export function annotateGraphTiming(graph, timing, options = {}) {
   const unit = timing.unit || "ns";
   const stage = timing.stage || "post_map";
 
-  const scopedRecords = selectModuleRecords(timing, graph.moduleName);
+  const targetModuleName = graph.timingModuleName || graph.moduleName;
+  const scopedRecords = selectModuleRecords(timing, targetModuleName);
   if (scopedRecords.length === 0) {
     return graph;
   }
@@ -41,7 +42,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
   let unmatchedRecordCount = 0;
 
   for (const record of scopedRecords) {
-    const candidates = getPointCandidates(record.point, graph.moduleName);
+    const candidates = getPointCandidates(record.point, targetModuleName);
     const explicitKind = record.kind || null;
 
     if (explicitKind === "pin") {
@@ -193,7 +194,7 @@ function selectModuleRecords(timing, moduleName) {
     if (matchedScopeKeys.length > 0) {
       const selected = [];
       if (Array.isArray(scopes.__default__)) {
-        selected.push(...scopes.__default__);
+        selected.push(...filterRecordsByModulePath(scopes.__default__, normModule));
       }
       for (const key of matchedScopeKeys) {
         selected.push(...scopes[key]);
@@ -202,11 +203,10 @@ function selectModuleRecords(timing, moduleName) {
     }
 
     const namedScopeKeys = Object.keys(scopes).filter((key) => key !== "__default__");
-    if (namedScopeKeys.length > 0 && Array.isArray(scopes.__default__)) {
-      return filterRecordsByModulePath(scopes.__default__, normModule);
-    }
-    if (namedScopeKeys.length > 1) {
-      return [];
+    if (namedScopeKeys.length > 0) {
+      return Array.isArray(scopes.__default__)
+        ? filterRecordsByModulePath(scopes.__default__, normModule)
+        : [];
     }
   }
 
@@ -219,10 +219,9 @@ function filterRecordsByModulePath(records, normModule) {
     `(?:^|/|of_module_)${escapeRegExp(normModule)}(?:_ConeInst|_gen_\\d+)?/`,
     "i"
   );
-  const matching = records.filter((record) =>
+  return records.filter((record) =>
     modulePattern.test(normalizeHierarchicalName(record.point))
   );
-  return matching.length > 0 ? matching : records;
 }
 
 function matchesModuleWrapper(scopeName, normModule) {

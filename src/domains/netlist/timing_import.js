@@ -1,4 +1,4 @@
-import { parseTimingLog } from "../../timing/timingParser.js";
+import { mergeTimingDatasets, parseTimingLog } from "../../timing/timingParser.js";
 
 export function importTimingSource(text, options = {}) {
   if (typeof text !== "string") throw new Error("Timing source must be text");
@@ -8,13 +8,24 @@ export function importTimingSource(text, options = {}) {
   return Object.freeze({
     timing,
     source: Object.freeze({ name: String(options.name || "timing"), kind: "text", size: text.length }),
-    summary: Object.freeze({
-      recordCount,
-      instanceCount: timing.instanceCount || 0,
-      format: timing.format,
-      stage: timing.stage || "post_map",
-      unit: timing.unit || "ns",
-      diagnosticCount: timing.diagnostics?.length || 0
-    })
+    summary: summarizeTimingDataset(timing)
   });
+}
+
+export function summarizeTimingDataset(timing) {
+  const recordCount = timing?.recordCount || timing?.instanceCount || 0;
+  return Object.freeze({
+    recordCount,
+    instanceCount: timing?.instanceCount || 0,
+    format: timing?.format || "auto",
+    stage: timing?.stage || "post_map",
+    unit: timing?.unit || "ns",
+    diagnosticCount: timing?.diagnostics?.length || 0
+  });
+}
+
+export function mergeImportedTiming(existingTiming, nextTiming) {
+  if (!existingTiming) return nextTiming || null;
+  if (!nextTiming) return existingTiming;
+  return mergeTimingDatasets([existingTiming, nextTiming]);
 }

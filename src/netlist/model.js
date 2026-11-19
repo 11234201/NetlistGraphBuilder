@@ -117,6 +117,17 @@ export function addAssign(module, assign) {
     assign.rhsKind === "literal" ? "literal" : "implicit");
 }
 
+export function addEntityAttributes(entity, entries = []) {
+  if (!entity || !Array.isArray(entries) || entries.length === 0) return entity;
+  if (!Array.isArray(entity.attributes)) {
+    entity.attributes = [];
+  }
+  for (const entry of entries) {
+    entity.attributes.push({ ...entry });
+  }
+  return entity;
+}
+
 export function getNetDisplayName(module, name) {
   const net = getModuleIndexes(module).netByName.get(name);
   return net?.displayName || name;

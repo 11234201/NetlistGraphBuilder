@@ -329,3 +329,32 @@ test("alias normalization preserves unresolved cyclic aliases", () => {
   assert.equal(normalized.nodes.length, 2);
   assert.equal(normalized.edges.length, 2);
 });
+
+test("graph inspector includes node, bus net, and hinst referenced-module attributes", () => {
+  const design = parseVerilog(`
+    // module: leaf, type = param, WIDTH = 8
+    module leaf(input a, output y);
+      // net: a, type = design_constraint, dont_touch = true
+      wire a;
+      BUF u0(.A(a), .Z(y));
+    endmodule
+    module top(input [1:0] bus, output y);
+      // net: bus, type = attr, bus_tag = "yes"
+      wire [1:0] bus;
+      // instance: u_leaf, type = attr, line_no = "42"
+      leaf u_leaf(.a(bus[0]), .y(y));
+    endmodule
+  `);
+  const top = design.modules[1];
+  const graph = buildSchematicGraph(top, { moduleLibrary: design.modules });
+  const hinstNode = graph.nodes.find((item) => item.id === "cell:u_leaf");
+  const nodeInspection = inspectGraphNode(graph, hinstNode, {
+    hierarchyContext: { design, currentModule: top, rootModuleName: "top", occurrencePath: [] }
+  });
+  assert.equal(nodeInspection.referencedModuleName, "leaf");
+  assert.deepEqual(nodeInspection.attributes.map((a) => [a.key, a.value]), [["line_no", "42"]]);
+  assert.deepEqual(nodeInspection.moduleAttributes.map((a) => [a.key, a.value]), [["WIDTH", "8"]]);
+
+  const netInspection = inspectGraphNet(graph, "bus[0]");
+  assert.deepEqual(netInspection.attributes.map((a) => [a.key, a.value]), [["bus_tag", "yes"]]);
+});

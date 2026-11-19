@@ -13,6 +13,7 @@ export function createAppState(layoutPolicy) {
     document: null,
     currentSource: null,
     currentSourceLabel: null,
+    sourceFiles: [],
     sourceIdentity: null,
     currentModule: null,
     fullGraph: null,
@@ -81,7 +82,7 @@ export function createCompareState() {
     },
     synchronized: true,
     focusedRootsSynchronized: true,
-    layout: "vertical",
+    layout: "horizontal",
     selectedName: null,
     selectedKind: null,
     selectedSide: null,
@@ -90,6 +91,8 @@ export function createCompareState() {
     graphOverrides: { left: createEmptyGraphOverrides(), right: createEmptyGraphOverrides() },
     timingBadgeChoices: { left: {}, right: {} },
     timingBadgePositions: { left: {}, right: {} },
+    sideTiming: { left: null, right: null },
+    sideTimingLabels: { left: null, right: null },
     outputName: null,
     wholeRequested: false,
     showPath: { left: null, right: null },
@@ -106,6 +109,7 @@ export function createCompareState() {
 export function resetDesignWorkspace(state, resetNavigation = (value) => Object.assign(state, value)) {
   state.compare?.layoutAbortController?.abort();
   state.compare = createCompareState();
+  state.sourceFiles = [];
   resetModuleWorkspace(state, resetNavigation);
   state.fullGraph = null;
   state.autoGraph = null;

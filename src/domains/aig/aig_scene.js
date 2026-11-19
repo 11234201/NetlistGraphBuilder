@@ -21,7 +21,7 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
     const names = node.nameMappings?.slice(0, 8).map((row) => `${row.signalId}: ${row.name}${row.inverted ? " (inverted)" : ""}`) || [];
     const generated = node.sourceRefs?.find((ref) => ref.generatedFor);
     const tooltip = [node.description || node.label, ...names, ...(generated ? [`Generated for .names ${generated.generatedFor}`] : [])].join("\n");
-    return el("g", { "data-aig-node": node.id, "data-aig-object": node.id, "data-domain-object": node.id, class: `aig-node${selectedId === node.id ? " is-selected" : ""}`, tabindex: 0,
+    return el("g", { "data-aig-node": node.id, "data-aig-kind": node.kind, "data-aig-object": node.id, "data-domain-object": node.id, class: `aig-node${selectedId === node.id ? " is-selected" : ""}`, tabindex: 0,
       role: "button", "aria-label": `${node.kind}: ${node.label}`, "data-neighbor-role": neighbors.get(node.id),
       "data-aig-analysis-role": structure.nodeRoles.get(node.id), style: traceStyle(node.id),
       opacity: structure.active && structure.dim && !structure.nodeRoles.has(node.id) ? 0.22 : 1 }, [title(tooltip),
@@ -31,7 +31,7 @@ export function createAigScene(model, analysis, geometry, presentation = {}, sel
         width: positioned.width + 10, height: positioned.height + 10, rx: 6, fill: "none", stroke: "#7c3aed",
         "stroke-width": 3, visibility: selectedId === node.id ? "visible" : "hidden", "pointer-events": "none" }),
       ...positioned.shapes.map((shape) => primitive(shape, { ...style, class: "aig-node-shape" })),
-      ...positioned.labels.map(labelPrimitive),
+      ...positioned.labels.map((label) => labelPrimitive(label, node.kind === "boundary")),
       el("g", { class: "aig-structure-selection" }, structure.nodeOverlay(positioned)),
       ...(structure.labelsVisible && structure.labels.has(node.id) ? [structure.labels.get(node.id)] : [])]);
   }
@@ -66,7 +66,7 @@ function primitive(shape, attributes) {
   throw new Error(`Unsupported curve shape: ${shape.type}`);
 }
 
-function labelPrimitive(label) {
+function labelPrimitive(label, muted = false) {
   return el("text", { class: "aig-node-label", x: label.x, y: label.y, "font-family": label.fontFamily || "Arial", "font-size": label.fontSize,
-    "text-anchor": label.textAnchor, style: "white-space:pre", fill: "#0f172a", "pointer-events": "none" }, [svgText(label.text)]);
+    "text-anchor": label.textAnchor, style: "white-space:pre", fill: muted ? "#64748b" : "#0f172a", "pointer-events": "none" }, [svgText(label.text)]);
 }

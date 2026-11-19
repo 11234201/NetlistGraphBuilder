@@ -175,7 +175,7 @@ export function createHistoryController({ state, elements, services }) {
     if (entry.presentationPolicy) services.singleViewSession.importState({ presentationPolicy: entry.presentationPolicy });
     state.compare.leftModuleName = compare.leftModuleName;
     state.compare.rightModuleName = compare.rightModuleName;
-    state.compare.layout = compare.layout || "vertical";
+    state.compare.layout = compare.layout || "horizontal";
     state.compare.outputName = compare.outputName || null;
     state.compare.wholeRequested = compare.wholeRequested === true;
     services.singleViewSession.importQuery({ coneDepth: entry.coneDepth, faninDepth: entry.faninDepth, fanoutDepth: entry.fanoutDepth });

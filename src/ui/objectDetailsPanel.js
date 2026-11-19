@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml, renderDefinitionRows } from "./html.js";
+import { renderObjectAttributesSection } from "./attributesPanel.js";
 
 export const INSPECTION_ROW_PAGE_SIZE = 100;
 export const INSPECTION_TARGET_PAGE_SIZE = 20;
@@ -15,6 +16,9 @@ export function renderObjectDetails(inspection, options = {}) {
     const count = inspection.connections?.filter((item) => item.pin === role).length || 0;
     return [key, `${count} connection(s); see Connections`];
   });
+  const traversalSection = inspection.traversal?.length
+    ? `<section data-inspector-section="analysis" data-object-analysis aria-label="Analysis">${renderTraversal(inspection.traversal, options.pages)}</section>`
+    : "";
   return `<header class="inspector-object-header" data-inspector-summary data-selection-identity="${escapeAttr(options.identity || `${inspection.kind}:${canonicalName}`)}">
     ${options.scope ? `<div class="inspector-object-scope">${escapeHtml(options.scope)}</div>` : ""}
     <div class="inspector-object-name"><strong data-selection-label title="${escapeAttr(label)}">${escapeHtml(label)}</strong>
@@ -23,8 +27,8 @@ export function renderObjectDetails(inspection, options = {}) {
     <dl class="stats-list inspector-object-summary">${renderDefinitionRows(summary)}</dl>
     <span class="inspector-copy-status" data-inspector-copy-status role="status"></span>
   </header><section data-inspector-section="connections" data-object-connections aria-label="Connections">
-    ${options.connectionTools || ""}${renderConnections(inspection.connections, options.pages)}${renderHierarchyConnections(inspection.hierarchyConnections, options.pages)}${renderTraversal(inspection.traversal, options.pages)}
-    ${inspection.connections?.length ? "" : "<p class=\"details-empty\">No connections available in this view.</p>"}</section>`;
+    ${options.connectionTools || ""}${renderConnections(inspection.connections, options.pages)}${renderHierarchyConnections(inspection.hierarchyConnections, options.pages)}
+    ${inspection.connections?.length ? "" : "<p class=\"details-empty\">No connections available in this view.</p>"}</section>${renderObjectAttributesSection(inspection)}${traversalSection}`;
 }
 
 function renderTraversal(traversal, pages = {}) {
@@ -128,33 +132,38 @@ function renderPager(total, group, page, size) {
 }
 
 export function bindObjectDetailsPanel(container, inspection) {
-  const panel = container.querySelector?.("[data-object-connections]");
-  if (!panel?.querySelector || !panel?.addEventListener) return;
+  const panels = [
+    container.querySelector?.("[data-object-connections]"),
+    container.querySelector?.("[data-object-analysis]")
+  ].filter((panel) => panel?.querySelector && panel?.addEventListener);
+  if (panels.length === 0) return;
   const pages = {};
-  panel.addEventListener("click", (event) => {
-    const button = event.target.closest?.("[data-inspection-page-group]");
-    if (!button || !panel.contains(button)) return;
-    const group = button.dataset.inspectionPageGroup;
-    const page = Number(button.dataset.inspectionPage);
-    if (!Number.isInteger(page) || page < 0) return;
-    pages[group] = page;
-    const list = [...panel.querySelectorAll("[data-inspection-list]")].find((item) => item.dataset.inspectionList === group);
-    if (!list) return;
-    // Pagination owns these read-only lists; routing and edit controls retain their bindings.
-    if (group === "connections" || group === "hierarchy") {
-      const render = group === "connections" ? renderConnections : renderHierarchyConnections;
-      list.parentElement.outerHTML = render(group === "connections" ? inspection.connections : inspection.hierarchyConnections, pages);
-    } else {
-      const [kind, rawIndex] = group.split(":");
-      const index = Number(rawIndex);
-      const item = kind === "peers" ? inspection.connections?.[index] : kind === "traversal" ? inspection.traversal?.[index] : null;
-      if (!item) return;
-      list.innerHTML = kind === "peers" ? renderTargets(item.peerTargets, item.peers, group, pages)
-        : renderTargets(item.immediateTargets, item.immediate.join(", ") || "-", group, pages);
-    }
-    const updated = [...panel.querySelectorAll("[data-inspection-list]")].find((item) => item.dataset.inspectionList === group);
-    const focusTarget = [...(updated?.querySelectorAll("[data-inspection-page-group]") || [])]
-      .find((item) => item.dataset.inspectionPageGroup === group && !item.disabled);
-    focusTarget?.focus({ preventScroll: true });
-  });
+  for (const panel of panels) {
+    panel.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-inspection-page-group]");
+      if (!button || !panel.contains(button)) return;
+      const group = button.dataset.inspectionPageGroup;
+      const page = Number(button.dataset.inspectionPage);
+      if (!Number.isInteger(page) || page < 0) return;
+      pages[group] = page;
+      const list = [...panel.querySelectorAll("[data-inspection-list]")].find((item) => item.dataset.inspectionList === group);
+      if (!list) return;
+      // Pagination owns these read-only lists; routing and edit controls retain their bindings.
+      if (group === "connections" || group === "hierarchy") {
+        const render = group === "connections" ? renderConnections : renderHierarchyConnections;
+        list.parentElement.outerHTML = render(group === "connections" ? inspection.connections : inspection.hierarchyConnections, pages);
+      } else {
+        const [kind, rawIndex] = group.split(":");
+        const index = Number(rawIndex);
+        const item = kind === "peers" ? inspection.connections?.[index] : kind === "traversal" ? inspection.traversal?.[index] : null;
+        if (!item) return;
+        list.innerHTML = kind === "peers" ? renderTargets(item.peerTargets, item.peers, group, pages)
+          : renderTargets(item.immediateTargets, item.immediate.join(", ") || "-", group, pages);
+      }
+      const updated = [...panel.querySelectorAll("[data-inspection-list]")].find((item) => item.dataset.inspectionList === group);
+      const focusTarget = [...(updated?.querySelectorAll("[data-inspection-page-group]") || [])]
+        .find((item) => item.dataset.inspectionPageGroup === group && !item.disabled);
+      focusTarget?.focus({ preventScroll: true });
+    });
+  }
 }

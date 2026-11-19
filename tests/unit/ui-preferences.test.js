@@ -21,8 +21,13 @@ test("UI storage uses its own key and tolerates unavailable localStorage access"
   const entries = new Map();
   const storage = { getItem: (key) => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) };
   const store = createUiPreferencesStore({ storage });
-  store.save({ navigatorOpen: true, inspectorTab: "adjust" });
+  store.save({ navigatorOpen: true, inspectorTab: "attributes" });
   assert.deepEqual([...entries.keys()], [UI_PREFERENCES_KEY]);
+  assert.equal(store.load().inspectorTab, "attributes");
+  store.save({ navigatorOpen: true, inspectorTab: "analysis" });
+  assert.equal(store.load().inspectorTab, "analysis");
+  store.save({ navigatorOpen: true, navigatorTab: "path", inspectorTab: "adjust" });
+  assert.equal(store.load().navigatorTab, "path");
   assert.equal(store.load().inspectorTab, "adjust");
   const failures = [];
   const broken = createUiPreferencesStore({

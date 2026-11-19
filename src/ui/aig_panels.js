@@ -10,10 +10,11 @@ const panelIndexes = new WeakMap();
 
 export function renderAigNavigator(workspace, options = {}) {
   if (!workspace?.document?.model) return '<p class="details-empty">Open an ABC AIG DOT or two-input BLIF file.</p>';
-  const entries = [["design", "Design"], ["objects", "Objects"], ["analysis", "Analysis"]];
+  const entries = [["design", "Design"], ["objects", "Objects"], ["analysis", "Analysis"], ["path", "Path"]];
   if (workspace.document.model.nameMappings?.length) entries.push(["names", "Names"]);
   const tab = entries.some(([id]) => id === options.tab) ? options.tab : "design";
   const tabs = renderTabs("nav", entries, tab);
+  if (tab === "path") return tabs;
   if (tab === "names") return `${tabs}<section data-aig-nav-content="names">${renderNames(workspace, options)}</section>`;
   return `${tabs}<section data-aig-nav-content="${tab}">${tab === "design"
     ? renderDesign(workspace, options) : tab === "analysis" ? renderAigStructureNavigator(workspace, options.structure) : renderObjects(workspace, options)}</section>`;

@@ -33,7 +33,7 @@ test("app state reset helpers keep lifecycle boundaries explicit", () => {
   assert.equal(state.compare.active, false);
   assert.equal(state.compare.synchronized, true);
   assert.equal(state.compare.focusedRootsSynchronized, true);
-  assert.equal(state.compare.layout, "vertical");
+  assert.equal(state.compare.layout, "horizontal");
   assert.equal(state.scene, null);
   assert.deepEqual(state.compare.scenes, { left: null, right: null });
   assert.equal(state.layoutProviderId, "native-layered");

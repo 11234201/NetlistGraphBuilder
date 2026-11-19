@@ -46,6 +46,9 @@ test("AIG navigator escapes source names and defaults to bounded PI/PO browsing"
   assert.match(objects, /input&lt;&amp;&quot;雪/);
   assert.doesNotMatch(objects, /data-aig-select="and:0"/);
   assert.match(objects, /Page 1 \/ 2/);
+  const pathNav = renderAigNavigator(workspace, { tab: "path" });
+  assert.match(pathNav, /data-aig-nav-tab="path"[^>]*aria-selected="true"/);
+  assert.doesNotMatch(pathNav, /data-aig-nav-content=/);
   const next = renderAigNavigator(workspace, { tab: "objects", page: 1 });
   assert.equal((next.match(/data-aig-select=/g) || []).length, 32);
   assert.equal(workspace.searches, 1, "pagination reuses the query result");

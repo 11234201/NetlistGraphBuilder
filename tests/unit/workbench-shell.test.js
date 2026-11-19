@@ -106,6 +106,15 @@ test("search shortcut leaves editable targets alone and Escape returns drawer fo
   controller.selectNavigatorTab("design");
   assert.equal(fixture.elements.designPanel.hidden, false);
   assert.equal(fixture.elements.hierarchyPanel.hidden, true);
+  assert.equal(fixture.elements.pathPanel.hidden, true);
+  fixture.controller = controller;
+  controller.setPanelOpen("navigator", false);
+  assert.equal(fixture.elements.navigatorPanel.hidden, true);
+  fixture.document.dispatch("workbench-open-path", { detail: { focusSearch: true } });
+  assert.equal(fixture.elements.navigatorPanel.hidden, false);
+  assert.equal(fixture.elements.pathPanel.hidden, false);
+  assert.equal(fixture.elements.pathTab.getAttribute("aria-selected"), "true");
+  assert.equal(fixture.document.activeElement, fixture.elements.pathFind);
   controller.dispose();
 });
 
@@ -142,16 +151,17 @@ function createFixture(width) {
   const windowTarget = new Target();
   windowTarget.innerWidth = width;
   windowTarget.innerHeight = 900;
-  const names = ["shell", "workspace", "navigatorPanel", "inspectorPanel", "toggleNavigatorButton", "toggleInspectorButton", "selectionSummaryButton", "navigatorResizeHandle", "inspectorResizeHandle", "searchInput", "hierarchyTab", "designTab", "hierarchyPanel", "designPanel", "moduleHierarchyMenu"];
+  const names = ["shell", "workspace", "navigatorPanel", "inspectorPanel", "toggleNavigatorButton", "toggleInspectorButton", "selectionSummaryButton", "navigatorResizeHandle", "inspectorResizeHandle", "searchInput", "hierarchyTab", "designTab", "pathTab", "hierarchyPanel", "designPanel", "pathPanel", "pathFind", "moduleHierarchyMenu"];
   const elements = Object.fromEntries(names.map((name) => [name, new Target(document)]));
-  for (const tab of ["hierarchy", "design"]) {
+  document.body = new Target(document);
+  for (const tab of ["hierarchy", "design", "path"]) {
     elements[`${tab}Tab`].setAttribute("data-nav-tab", tab);
     elements[`${tab}Panel`].setAttribute("data-nav-panel", tab);
   }
   document.querySelector = (selector) => selector === ".app-shell" ? elements.shell
     : selector === ".workspace" ? elements.workspace : elements[selector.slice(1)] || null;
-  document.querySelectorAll = (selector) => selector === "[data-nav-tab]" ? [elements.hierarchyTab, elements.designTab]
-    : selector === "[data-nav-panel]" ? [elements.hierarchyPanel, elements.designPanel] : [];
+  document.querySelectorAll = (selector) => selector === "[data-nav-tab]" ? [elements.hierarchyTab, elements.designTab, elements.pathTab]
+    : selector === "[data-nav-panel]" ? [elements.hierarchyPanel, elements.designPanel, elements.pathPanel] : [];
   const frames = new Frames();
   const saved = [], resizeEvents = [];
   return {
@@ -173,7 +183,7 @@ class Target {
     this.listeners = new Map();
     this.attributes = new Map();
     this.style = { setProperty() {}, removeProperty() {} };
-    this.classList = { add() {}, remove() {}, toggle() {} };
+    this.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
     this.captured = null;
   }
   addEventListener(type, listener) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(listener); }

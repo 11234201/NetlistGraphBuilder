@@ -10,6 +10,7 @@ import {
   updateTimingBadgeChoices
 } from "../ui/timingPanel.js";
 import { renderObjectDetails, bindObjectDetailsPanel } from "../ui/objectDetailsPanel.js";
+import { renderModuleAttributesSummary } from "../ui/attributesPanel.js";
 import { inspectGraphNode, inspectGraphNet } from "../analysis/graphInspector.js";
 import { renderAdjustPanel, bindAdjustPanel } from "../ui/adjustPanel.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
@@ -35,6 +36,17 @@ export function createInspectorController({ state, elements, services, netRoutin
         ["Unmatched ports", unmatchedPorts.length],
         ["Unmatched nets A/B", pair(unmatchedNets.left.length, unmatchedNets.right.length)]
       ]);
+      if (elements.moduleAttributes) {
+        const leftGraph = state.compare.fullGraphs?.left || state.compare.graphs?.left;
+        const rightGraph = state.compare.fullGraphs?.right || state.compare.graphs?.right;
+        elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({
+          compareActive: true,
+          leftModule: state.design?.modules.find((item) => item.name === state.compare.leftModuleName) || null,
+          rightModule: state.design?.modules.find((item) => item.name === state.compare.rightModuleName) || null,
+          leftGraph,
+          rightGraph
+        });
+      }
       return;
     }
     const module = state.currentModule;
@@ -44,6 +56,9 @@ export function createInspectorController({ state, elements, services, netRoutin
         ["Module", module?.displayName || "-"],
         ["Layout", "Pending"]
       ]);
+      if (elements.moduleAttributes) {
+        elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({ currentModule: module, graph });
+      }
       return;
     }
     elements.stats.innerHTML = statsRows([
@@ -56,6 +71,9 @@ export function createInspectorController({ state, elements, services, netRoutin
       ["Graph nodes", graph.nodes.length],
       ["Graph edges", graph.edges.length]
     ]);
+    if (elements.moduleAttributes) {
+      elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({ currentModule: module, graph });
+    }
   }
 
   function signed(value) { return value > 0 ? `+${value}` : String(value); }
@@ -471,7 +489,7 @@ export const inspectorPorts = Object.freeze({
     "occurrenceContext", "timing", "timingBadgeChoices", "timingBadgePositions", "transform"
   ],
   elements: [
-    "compareMount", "details", "diagnostics", "leftMount", "rightMount", "stats"
+    "compareMount", "details", "diagnostics", "leftMount", "moduleAttributes", "rightMount", "stats"
   ],
   services: [
     "applyCompareTransforms", "applyTransform", "clamp", "compareViewSessions", "cssEscape",

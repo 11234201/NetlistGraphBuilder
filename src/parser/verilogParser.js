@@ -1,22 +1,25 @@
 ﻿import {
   addAssign,
   addCell,
+  addEntityAttributes,
   createDesign,
   createModule,
   ensureNet,
   ensurePort
 } from "../netlist/model.js";
+import { parseAttributeComment } from "./netlistAttributes.js";
 
 const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}"]);
 const DECLARATION_QUALIFIERS = new Set(["wire", "reg", "logic", "signed", "supply0", "supply1"]);
 
 export function parseVerilog(source) {
-  const tokens = tokenize(source);
-  const parser = new StructuralParser(tokens);
+  const attributeComments = [];
+  const tokens = tokenize(source, attributeComments);
+  const parser = new StructuralParser(tokens, attributeComments);
   return parser.parseDesign();
 }
 
-export function tokenize(source) {
+export function tokenize(source, attributeComments = null) {
   const tokens = [];
   let index = 0;
   let line = 1;
@@ -54,8 +57,16 @@ export function tokenize(source) {
     }
 
     if (char === "/" && source[index + 1] === "/") {
+      const startLine = line;
+      advance();
+      advance();
+      let commentText = "";
       while (index < source.length && source[index] !== "\n") {
-        advance();
+        commentText += advance();
+      }
+      if (attributeComments) {
+        const parsed = parseAttributeComment(commentText.replace(/\r$/, ""), startLine);
+        if (parsed) attributeComments.push(parsed);
       }
       continue;
     }
@@ -139,8 +150,10 @@ export function tokenize(source) {
 }
 
 class StructuralParser {
-  constructor(tokens) {
+  constructor(tokens, attributeComments = []) {
     this.tokens = tokens;
+    this.attributeComments = attributeComments;
+    this.lastModuleEndLine = 0;
     this.position = 0;
     this.design = createDesign();
   }
@@ -208,7 +221,13 @@ class StructuralParser {
       }
     }
 
-    this.matchValue("endmodule");
+    const scopeStartLine = this.lastModuleEndLine + 1;
+    const moduleStartLine = moduleToken.line;
+    const matchedEnd = this.matchValue("endmodule");
+    const endToken = matchedEnd ? this.tokens[this.position - 1] : this.peek();
+    const moduleEndLine = endToken?.line ?? moduleStartLine;
+    this.lastModuleEndLine = moduleEndLine;
+    bindModuleAttributeComments(module, this.attributeComments, scopeStartLine, moduleStartLine, moduleEndLine);
     return module;
   }
 
@@ -488,4 +507,69 @@ function parseRangeToken(value) {
     lsb,
     width: Math.abs(msb - lsb) + 1
   };
+}
+
+function bindModuleAttributeComments(module, comments, scopeStartLine, moduleStartLine, moduleEndLine) {
+  if (!Array.isArray(comments) || comments.length === 0) return;
+  const scoped = comments.filter((item) => {
+    const line = item.entries[0]?.line;
+    return Number.isInteger(line) && line >= scopeStartLine && line <= moduleEndLine;
+  });
+  if (scoped.length === 0) return;
+
+  const portByName = new Map(module.ports.map((port) => [port.name, port]));
+  const netByName = new Map(module.nets.map((net) => [net.name, net]));
+  const cellByInstance = new Map(module.cells.map((cell) => [cell.instance, cell]));
+
+  for (const comment of scoped) {
+    const t = comment.target;
+    if (comment.targetKind === "module") {
+      if (t.targetName === module.name || t.displayName === module.displayName) {
+        addEntityAttributes(module, comment.entries);
+      }
+      continue;
+    }
+
+    if (comment.targetKind === "port") {
+      const port = portByName.get(t.targetName) ||
+        (t.baseName ? portByName.get(t.baseName) : null) ||
+        (t.bitBaseName ? portByName.get(t.bitBaseName) : null) ||
+        (t.rangeFallbackBase ? portByName.get(t.rangeFallbackBase) : null);
+      if (port) {
+        const entries = t.isBitTarget && port.name !== t.targetName
+          ? comment.entries.map((entry) => ({ ...entry, bitTarget: t.targetName }))
+          : comment.entries;
+        addEntityAttributes(port, entries);
+      }
+      continue;
+    }
+
+    if (comment.targetKind === "net") {
+      const net = netByName.get(t.targetName) ||
+        (t.baseName ? netByName.get(t.baseName) : null) ||
+        (t.bitBaseName ? netByName.get(t.bitBaseName) : null) ||
+        (t.rangeFallbackBase ? netByName.get(t.rangeFallbackBase) : null);
+      if (net) {
+        const entries = t.isBitTarget && net.name !== t.targetName
+          ? comment.entries.map((entry) => ({ ...entry, bitTarget: t.targetName }))
+          : comment.entries;
+        addEntityAttributes(net, entries);
+      } else if (t.baseName || t.bitBaseName) {
+        const base = t.baseName || t.bitBaseName;
+        for (const candidate of module.nets) {
+          if (t.isBitTarget ? candidate.name === t.targetName : candidate.name.startsWith(`${base}[`)) {
+            addEntityAttributes(candidate, comment.entries);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (comment.targetKind === "instance") {
+      const cell = cellByInstance.get(t.targetName);
+      if (cell) {
+        addEntityAttributes(cell, comment.entries);
+      }
+    }
+  }
 }

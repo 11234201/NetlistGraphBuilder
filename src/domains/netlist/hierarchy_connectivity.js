@@ -18,15 +18,27 @@ export const DEFAULT_HIERARCHY_CONE_LIMITS = Object.freeze({
 export function buildModuleConnectivityTemplates(design, options = {}) {
   const modules = [...(design?.modules || [])];
   const moduleByName = new Map(modules.map((module) => [module.name, module]));
+  const sameSourceMap = buildSameSourceModuleMap(modules);
   const templates = new Map();
 
   for (const module of modules.toSorted(compareNamed)) {
-    templates.set(module.name, createModuleConnectivityTemplate(module, moduleByName, options));
+    templates.set(module.name, createModuleConnectivityTemplate(module, moduleByName, options, sameSourceMap));
   }
   return templates;
 }
 
-export function createModuleConnectivityTemplate(module, moduleByName = new Map(), options = {}) {
+function buildSameSourceModuleMap(modules) {
+  const map = new Map();
+  for (const module of modules) {
+    if (!module?.sourceFile) continue;
+    const rawName = module.originalName || module.name;
+    map.set(`${module.sourceFile}::${rawName}`, module);
+    map.set(`${module.sourceFile}::${module.name}`, module);
+  }
+  return map;
+}
+
+export function createModuleConnectivityTemplate(module, moduleByName = new Map(), options = {}, sameSourceMap = null) {
   const ports = [...(module?.ports || [])].toSorted(compareNamed).map((port) => ({
     name: port.name,
     displayName: port.displayName || port.name,
@@ -35,7 +47,8 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
   }));
   const portByName = new Map(ports.map((port) => [port.name, port]));
   const cells = [...(module?.cells || [])].toSorted(compareNamed).map((cell) => {
-    const childModule = moduleByName.get(cell.type) || null;
+    const childModule = (module?.sourceFile && sameSourceMap?.get(`${module.sourceFile}::${cell.type}`))
+      || moduleByName.get(cell.type) || null;
     const semantics = resolveCellSemantics(cell, { ...options, moduleDefinition: childModule,
       overrides: options.graphOverrides?.cellPinDirections?.[cell.instance] || {} });
     const pins = [...(cell.pins || [])].flatMap((pin) => {

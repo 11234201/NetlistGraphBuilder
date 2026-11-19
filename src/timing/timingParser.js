@@ -405,6 +405,41 @@ function buildTimingDataset({ format, module, stage, unit, records, diagnostics 
   };
 }
 
+export function mergeTimingDatasets(datasets = []) {
+  const valid = (Array.isArray(datasets) ? datasets : [datasets])
+    .filter((dataset) => dataset && Array.isArray(dataset.records));
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0];
+
+  const records = [];
+  const diagnostics = [];
+  const formats = new Set();
+  const stages = new Set();
+  const units = new Set();
+  const modules = new Set();
+
+  for (const dataset of valid) {
+    if (dataset.format) formats.add(dataset.format);
+    if (dataset.stage) stages.add(dataset.stage);
+    if (dataset.unit) units.add(dataset.unit);
+    if (Array.isArray(dataset.diagnostics)) diagnostics.push(...dataset.diagnostics);
+    for (const record of dataset.records) {
+      const moduleName = record.module || dataset.module || null;
+      if (moduleName) modules.add(moduleName);
+      records.push(moduleName && !record.module ? { ...record, module: moduleName } : record);
+    }
+  }
+
+  return buildTimingDataset({
+    format: formats.size === 1 ? [...formats][0] : "merged",
+    module: modules.size === 1 ? [...modules][0] : null,
+    stage: stages.size === 1 ? [...stages][0] : ([...stages].join(", ") || null),
+    unit: units.size === 1 ? [...units][0] : (valid[0].unit || null),
+    records,
+    diagnostics
+  });
+}
+
 function getSubjectKey(point, kind) {
   if (kind === "port" || kind === "net") return point;
   const slashIndex = point.lastIndexOf("/");

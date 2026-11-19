@@ -115,6 +115,11 @@ test("inspector tab keyboard navigation updates roving focus and one UI preferen
   assert.equal(view.panels()[1].hidden, false);
   assert.deepEqual(preferences, ["timing"]);
   assert.equal(controller.selectTab("adjust"), false);
+  view.replace("module-a:u0", ["connections", "attributes", "analysis", "timing"]);
+  assert.equal(controller.selectTab("attributes"), true);
+  assert.equal(view.panels()[1].hidden, false);
+  assert.equal(controller.selectTab("analysis"), true);
+  assert.equal(view.panels()[2].hidden, false);
   controller.dispose();
 });
 

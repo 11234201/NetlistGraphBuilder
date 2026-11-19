@@ -36,6 +36,7 @@ export function createSessionSnapshot(state, compareEntry = comparePathSnapshot(
     ),
     source: state.currentSource,
     sourceLabel: state.currentSourceLabel,
+    ...(state.sourceFiles?.length > 1 ? { sourceFiles: state.sourceFiles.map(({ name, text }) => ({ name, text })) } : {}),
     moduleName: state.currentModule?.name || null,
     ...(compareEntry ? { comparePathView: compareEntry } : {}),
     showPath: state.showPath, occurrenceContext: state.occurrenceContext,

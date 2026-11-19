@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderObjectDetails, INSPECTION_ROW_PAGE_SIZE, INSPECTION_TARGET_PAGE_SIZE } from "../../src/ui/objectDetailsPanel.js";
+import { renderModuleAttributesSummary } from "../../src/ui/attributesPanel.js";
 import { renderTimingPanel } from "../../src/ui/timingPanel.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
 
@@ -71,4 +72,36 @@ test("timing and instance editing remain scoped sections with their existing con
   assert.match(timing, /id="resetTimingBadgeButton"/);
   assert.match(renderAdjustPanel(node, true), /data-inspector-section="adjust"/);
   assert.equal(renderAdjustPanel(node, false), "");
+});
+
+test("inspector splits Connections, Attributes (including hinst module attributes), and Analysis tabs and renders module attributes on left", () => {
+  const html = renderObjectDetails({
+    kind: "cell",
+    summary: [["Kind", "cell"], ["Label", "u_tc"], ["Cell type", "tc"]],
+    attributes: [{ category: "attr", key: "line_no", value: "12" }, { category: "design_constraint", key: "dont_touch", value: "false" }],
+    referencedModuleName: "tc",
+    moduleAttributes: [{ category: "param", key: "OUTW", value: "256" }],
+    definitionRows: [["Inference", "module"]],
+    connections: [{ pin: "A", direction: "input", net: "n", peerTargets: [] }],
+    traversal: [{ label: "Fanin", immediate: ["a"], immediateTargets: [{ kind: "node", id: "input:a", label: "a" }], transitiveCount: 1, maxDepth: 1 }]
+  });
+
+  assert.match(html, /data-inspector-section="connections"/);
+  assert.match(html, /data-inspector-section="attributes"/);
+  assert.match(html, /data-inspector-section="analysis"/);
+  const connIndex = html.indexOf('data-inspector-section="connections"');
+  const attrIndex = html.indexOf('data-inspector-section="attributes"');
+  const analysisIndex = html.indexOf('data-inspector-section="analysis"');
+  assert.ok(connIndex < attrIndex && attrIndex < analysisIndex);
+  assert.ok(!html.slice(connIndex, attrIndex).includes("Traversal"), "Traversal belongs in Analysis tab, not Connections");
+  assert.match(html.slice(attrIndex, analysisIndex), /Instance attributes/);
+  assert.match(html.slice(attrIndex, analysisIndex), /Module attributes/);
+  assert.match(html.slice(attrIndex, analysisIndex), /OUTW/);
+
+  const leftSummary = renderModuleAttributesSummary({
+    compareActive: false,
+    currentModule: { name: "tc", attributes: [{ category: "param", key: "OUTW", value: "256" }] }
+  });
+  assert.match(leftSummary, /Module attributes/);
+  assert.match(leftSummary, /OUTW/);
 });
