@@ -3,7 +3,7 @@
 本教程面向使用 **Netlist Graph Builder** 阅读、追踪与对比门级结构化 Verilog 网表的工程师，全面覆盖当前版本的各项用户功能：数据导入、全局搜索、大图局部聚焦浏览、时序标注、单元语义配置（Cell Config）、手工布局校准（Adjust）、双模块对比（Compare）、过程日志（Process Log）、离线导出以及 EDA 脚本集成，并介绍独立的 AIG 导入、浏览与逻辑分析流程。
 
 - **网表默认布局与降级机制**：当前版本默认启用 `AnchorLayered` 布局引擎；若布局失败，会按 `AnchorLayered → ELK → Simple` 顺序自动降级，且临时自动降级不会覆盖用户已保存的首选项。
-- 本教程对应 `v1.6.2`。大型 AIG 可先索引再布局；Show Path 可比较各输入到指定终点的级数。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
+- 本教程对应 `v1.6.3`。大型 AIG 可先索引再布局；Show Path 可比较各输入到指定终点的级数。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ## 近期核心功能速览
@@ -955,7 +955,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 - 检查时序文件中的 `@module` 指令（或 JSON 中的 `"module"` / `"modules"` 键名）是否与当前打开的网表模块名一致。
 - 检查时序数据行中的 `point`（端口、单元引脚 `inst/pin` 或线网名）是否能在当前模块中找到对应项。
 - 列式文本格式下，确认表头行（如 `point at rt slack`）与数据行的列数对齐，且至少提供了可展示的时序数值。
-- 展开底部 `Log` 抽屉并按 `Timing` 阶段过滤，同时查看底部 `Diagnostics` 抽屉中的具体未匹配或解析告警提示。
+- 若同一模块只有部分 cell 缺少时序，选中其中一颗并打开 `Inspector → Timing`，查看与该实例名相关的候选路径、被过滤的作用域及解析告警。点击 `Log cell timing details` 可在底部 `Log` 的 `Timing` 阶段查看并导出这颗 cell 的详情。模块日志同时给出最终匹配的记录数及实际覆盖的 cell 数。
 
 ### 19.5 Whole 整图模式下画面显得非常细长或渲染较慢？
 `Whole` 模式会完整布局并渲染模块内的所有单元与连线。遇到数千单元的大模块或上千级串行长链时，建议优先采用 `Search-first` 与有限深度的 `Focused` 视图，并保持 `Fanout hubs` 开启（产品已不再使用结构分组折叠作为大图路径）。
@@ -990,7 +990,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 ### 19.12 更新后还是旧界面，或面板偏好没有沿用？
 
-- 确认启动器来自 `v1.6.2` 程序包，并在浏览器中打开启动器输出的实际 URL。
+- 确认启动器来自 `v1.6.3` 程序包，并在浏览器中打开启动器输出的实际 URL。
 - 源码预览在更新后刷新页面；Windows 离线版需完整替换程序包并重新启动；Linux 单文件版已内嵌界面资源，需重新构建或使用新二进制，再启动服务。仅替换外部文档不会更新界面。
 - 服务更新后刷新当前标签页；若仍加载缓存，可用浏览器的强制刷新。新版工作台应能看到顶部 `Navigator` / `Inspector`，面板标题旁有带方向箭头的 `Hide`。
 - 面板偏好按浏览器及站点地址保存；例如 `127.0.0.1:4173` 与 `127.0.0.1:7724` 不共享偏好。换端口后重新设置一次即可。
@@ -1093,7 +1093,7 @@ BLIF 与 ABC DOT 都可从输入、输出、AND 或常量开始抽取局部逻�
 
 ### AIG 结构分析练习
 
-打开仓库或 `v1.6.2` Windows 离线包中的 `examples/aig_structure_demo.blif`。这个示例由 AND 节点和反相边构成，可以直接打开。
+打开仓库或 `v1.6.3` Windows 离线包中的 `examples/aig_structure_demo.blif`。这个示例由 AND 节点和反相边构成，可以直接打开。
 
 | 输出 | 函数 |
 | --- | --- |

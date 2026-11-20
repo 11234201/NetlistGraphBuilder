@@ -36,6 +36,7 @@ import { createLegacyPort } from "./legacy_port.js";
 import { SINGLE_NAVIGATION_FIELDS, COMPARE_NAVIGATION_FIELDS } from "./view_navigation_import.js";
 import { SINGLE_VIEW_STATE_FIELDS, COMPARE_VIEW_STATE_FIELDS } from "./view_state_import.js";
 import { createNetRoutingBridge } from "./net_routing_bridge.js";
+import { writeTimingLog } from "./timing_match_log.js";
 import { createNetlistStructureBridge } from "./netlist_structure_bridge.js";
 import { objectRefToNodeId } from "../domains/netlist/graph_object_refs.js";
 
@@ -125,6 +126,8 @@ export function createWorkbenchControllers({ state, getElements, services, route
       canPersist: () => !getElements().canvas?.matches?.(".is-panning,.is-node-dragging,.is-view-interacting")
     } : {}),
     ...(owner === "inspector" ? { netRouting, refreshAnalysis: () => structure?.refresh(),
+      logCellTiming: (side, details) => writeTimingLog(services.logProcess, "info", `Missing timing for ${details.instance}`,
+        { operation: "timing.inspect-cell", code: "timing.cell-without-timing", view: side ? "compare" : "single", side, ...details }),
       inspectAnalysis: (side, id) => structure?.inspect(side, id) } : {}),
     ...(owner === "workspace-render" ? { mounted: (mount) => structure?.refresh(mount) } : {}),
     ...(owner === "cell-config" ? { present: (action) => routeAction("presentCellConfig", action, []) } : {})

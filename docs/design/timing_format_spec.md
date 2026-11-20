@@ -242,10 +242,16 @@ u_add_0/A1      pin     f       0.098    0.065    0.728    0.717   -0.011
 
 - `timing.import` 记录文件名、有效记录数、作用域数和解析告警。告警示例给出字段、可用的行号或 JSON point。保留下来的有效记录会继续参与匹配。
 - `timing.match` 给出当前模块、实例路径和 Single 或 Compare 侧别。`reportRecordCount` 是输入记录总数，`scopedRecordCount` 是进入当前模块匹配的条数。`excludedReasons` 和 `excludedExamples` 说明其余记录经过哪条作用域或路径规则被排除。另一模块的时序也可能正常出现在这些计数里。
-- `unmatchedExamples` 给出进入作用域后仍未找到图对象的 point 以及实际尝试的名称。`matchedRecordCount` 按记录计数，最终有时序的 cell 数见 `annotatedCellCount`。多个层级路径指向同名 cell 时可查看 `ambiguousExamples`。多个实例同时命中模块时可查看 `occurrenceExamples`。
+- `candidateMatchedRecordCount` 统计找到候选对象的记录。`matchedRecordCount` 只计入能确定最终对象的记录，同一引脚的多次采样均计入。`unmatchedRecordCount` 是作用域内其余记录。`unmatchedExamples` 展示找不到对象时尝试的名称。`unresolvedPins` 给出候选引脚因路径歧义或优先采用精确路径而落选的条数与示例。多个模块实例同时命中时可查看 `occurrenceExamples`。
+- `annotatedCellCount / cellCount` 是模块内实际覆盖的 cell 比例。若作用域内每条记录都已确定对象，但仍有 cell 缺时序，日志显示 `timing.partial-coverage`，级别为 Info。只给端口或少量关键引脚的报告也可能产生这个结果。
+- 选中任意缺时序的 cell，打开 Inspector 的 **Timing** 页，可查看模块实例选择结果，以及与该实例名相符的解析告警、被过滤的 point 或候选路径冲突。另一作用域中的同名记录只提供回查线索。每种原因显示计数和一个文件位置。选 **Log cell timing details** 可把当前 cell 的详情写入 Process Log 并随 JSONL 导出。
 - 每类示例最多四项，长标识符保留首尾。表格记录可按文件名和行号回查，JSON 记录可按文件名和 point 回查。`cellsWithoutTiming` 是当前完整模块图中缺少时序的 cell 示例；覆盖率也按完整模块统计。
 
 例如，网表顶层为 `LocalDesign_1of1` 时，若日志里出现 `root-path-mismatch`，可对照示例中的 `scope`、`point` 和 `expectedPrefix`。若原因是 `other-named-scope`，说明当前模块已选中一个具名作用域，示例中的记录来自另一个具名作用域。
+
+同一实例可以有不同的报告路径。例如顶层的 `m/k/u1/Z` 和中间模块 `Mid` 下的 `k/u1/A` 可以分别描述同一颗 `u1` 的两个引脚。匹配器沿网表中的实例链核实这两个作用域，在能确定唯一实例或已打开具体实例时合并它们。如果多个实际实例都有命中且尚未选定实例，日志会列出实例路径供选择。
+
+如果两个顶层都有实例 `k`，未声明作用域的 `k/u1/A` 会被标记为 `ambiguous-root-path`。可在报告中写出顶层路径或从层级树打开具体实例。选定后，模块内的短路径和属于该实例的完整路径可共同提供引脚时序。
 
 ## 5. 内部 Timing IR 目标结构（供代码重构对接）
 

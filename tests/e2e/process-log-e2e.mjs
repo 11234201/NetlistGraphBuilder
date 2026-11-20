@@ -112,9 +112,19 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   assert.equal(displayedTiming.sessionId, "single");
   assert.equal(displayedTiming.unmatchedExamples[0].line, 4);
   assert.deepEqual(displayedTiming.cellsWithoutTiming, ["u_missing"]);
+  const inspectMissing = async (mount) => {
+    await page.locator(`${mount} [data-node-id="cell:u_missing"] .node-shape`).first().click();
+    await page.locator('[data-inspector-tab="timing"]').click();
+    const panel = page.locator('[data-inspector-section="timing"]');
+    assert.match(await panel.innerText(), /parse-invalid-number/);
+    assert.match(await panel.innerText(), /single-round\.txt/);
+    await panel.locator("[data-log-cell-timing]").click();
+  };
+  await inspectMissing("#schematicMount");
   await page.locator("#compareButton").click();
   await waitForLog("left / LocalDesign_1of1, 1/2 cells annotated");
   await waitForLog("right / Peer, 0/1 cells annotated");
+  await inspectMissing("#leftSchematicMount");
   await upload("#compareRightTimingInput", "right.txt", "@module Peer\npoint at rt slack\nu_peer/Z 2 1 -1");
   await waitForLog("right / Peer, 1/1 cells annotated");
   await upload("#compareRightTimingInput", "invalid-right.txt", "@module Peer\npoint at rt slack\nu_peer/Z private-invalid 1 -1");
@@ -128,6 +138,9 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   for await (const chunk of await download.createReadStream()) text += chunk.toString("utf8");
   const entries = text.trim().split("\n").map((line) => JSON.parse(line));
   const timingMatches = entries.filter((entry) => entry.details?.operation === "timing.match");
+  const inspected = entries.filter((entry) => entry.details?.operation === "timing.inspect-cell");
+  assert.deepEqual(inspected.map((entry) => [entry.details.side, entry.details.evidence["parse-invalid-number"].line]),
+    [[null, 5], ["left", 5]]);
   assert.deepEqual(timingMatches.find((entry) => entry.details.moduleName === "LocalDesign_1of1" && entry.details.sessionId === "single").details,
     displayedTiming);
   assert.equal(timingMatches.filter((entry) => entry.details.moduleName === "LocalDesign_1of1" && entry.details.side === "left").length, 1);

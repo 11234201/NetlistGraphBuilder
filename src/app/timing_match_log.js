@@ -1,8 +1,8 @@
 import { workspaceArtifactReference } from "./workspaceArtifactCache.js";
 
 export function writeTimingLog(logProcess, level, message, details) {
-  try { logProcess(level, "timing", message, details); }
-  catch { /* A diagnostic sink cannot interrupt import or workspace presentation. */ }
+  try { logProcess(level, "timing", message, details); return true; }
+  catch { return false; }
 }
 
 export function createTimingMatchReporter() {
@@ -20,14 +20,13 @@ export function createTimingMatchReporter() {
       operation: "timing.match", view: side ? "compare" : "single", side, sessionId,
       documentId: document?.documentId, documentRevision: document?.sourceRevision,
       moduleName: graph.moduleName, scopedRecordCount, excludedRecordCount: diagnostics.reportRecordCount - scopedRecordCount,
-      matchedRecordCount, unmatchedRecordCount,
+      matchedRecordCount, unmatchedRecordCount, candidateMatchedRecordCount: summary.candidateMatchedRecordCount,
       ambiguousOccurrenceCount, occurrenceExamples, ...diagnostics
     };
     // Artifact snapshots can be cloned on a redraw. Compare the bounded outcome
     // and the identity of the imported dataset, independent of render request ID.
     const key = JSON.stringify([workspaceArtifactReference(timing), details]);
     if (lastBySession.get(sessionId) === key) return;
-    lastBySession.set(sessionId, key);
     let code = "timing.matched";
     let outcome = "Selected timing points matched";
     let level = "info";
@@ -39,6 +38,10 @@ export function createTimingMatchReporter() {
       code = "timing.hierarchy-limit";
       outcome = "Hierarchy search reached its limit";
       level = "warning";
+    } else if (diagnostics.excludedReasons?.["ambiguous-root-path"]) {
+      code = "timing.ambiguous-root-path";
+      outcome = "A relative timing path has multiple possible roots";
+      level = "warning";
     } else if (!scopedRecordCount) {
       code = "timing.no-applicable-records";
       outcome = "No points selected for this module and instance path";
@@ -46,9 +49,12 @@ export function createTimingMatchReporter() {
       code = "timing.partial-match";
       outcome = "Timing points unresolved";
       level = "warning";
+    } else if (diagnostics.annotatedCellCount < diagnostics.cellCount) {
+      code = "timing.partial-coverage";
+      outcome = "Selected points matched with partial cell coverage";
     }
     const coverage = `${diagnostics.annotatedCellCount}/${diagnostics.cellCount} cells annotated`;
-    writeTimingLog(logProcess, level, `${outcome} (${side ? side + " / " : ""}${graph.moduleName}, ${coverage})`,
-      { code, requestId, ...details });
+    if (writeTimingLog(logProcess, level, `${outcome} (${side ? side + " / " : ""}${graph.moduleName}, ${coverage})`,
+      { code, requestId, ...details })) lastBySession.set(sessionId, key);
   };
 }

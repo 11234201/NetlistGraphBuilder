@@ -1,4 +1,5 @@
 import { renderDefinitionRows as statsRows } from "../ui/html.js";
+import { missingCellTimingDetails } from "../timing/timing_diagnostics.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { getCompareNodeName, findCompareNode } from "./compareWorkspace.js";
 import {
@@ -18,7 +19,7 @@ import { renderNetRoutingPanel, bindNetRoutingPanel } from "../ui/net_routing_pa
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createInspectorController({ state, elements, services, netRouting, refreshAnalysis, inspectAnalysis }) {
+export function createInspectorController({ state, elements, services, netRouting, refreshAnalysis, inspectAnalysis, logCellTiming }) {
   function renderStats() {
     refreshAnalysis?.();
     if (state.compare.active && state.compare.analysis) {
@@ -173,15 +174,17 @@ export function createInspectorController({ state, elements, services, netRoutin
     const timingKey = getTimingKey(node);
     const choices = getTimingBadgeChoices(node, state.compare.timingBadgeChoices[side], timingKey);
     const inspection = inspectGraphNode(state.compare.fullGraphs[side] || state.compare.graphs[side], node);
-    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node, side))}${renderTimingPanel(node, choices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    const missing = missingCellTimingDetails(node, state.compare.graphs[side]?.timingSummary);
+    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node, side))}${renderTimingPanel(node, choices, missing)}${renderAdjustPanel(node, state.calibrationMode)}`;
     bindObjectDetailsPanel(elements.details, inspection);
-    bindCompareSelectionControls(side, node);
+    bindCompareSelectionControls(side, node, missing);
   }
 
-  function bindCompareSelectionControls(side, node) {
+  function bindCompareSelectionControls(side, node, missing) {
     const instance = services.getNodeInstance(node);
     const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
+      onLogCellTiming: () => logCellTiming?.(side, missing),
       onPositionChange: (position) => {
         if (!timingKey || !isTimingBadgePosition(position)) return;
         state.compare.timingBadgePositions[side][timingKey] = position;
@@ -290,9 +293,10 @@ export function createInspectorController({ state, elements, services, netRoutin
     const inspection = inspectGraphNode(state.fullGraph || state.graph, node, {
       hierarchyContext: currentHierarchyInspectionContext()
     });
-    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node))}${renderTimingPanel(node, timingChoices)}${renderAdjustPanel(node, state.calibrationMode)}`;
+    const missing = missingCellTimingDetails(node, state.graph?.timingSummary);
+    elements.details.innerHTML = `${renderObjectDetails(inspection, inspectionOptions(node))}${renderTimingPanel(node, timingChoices, missing)}${renderAdjustPanel(node, state.calibrationMode)}`;
     bindObjectDetailsPanel(elements.details, inspection);
-    bindSelectionControls(node);
+    bindSelectionControls(node, missing);
   }
 
   function renderNetSelection(netName, side = null) {
@@ -362,10 +366,11 @@ export function createInspectorController({ state, elements, services, netRoutin
     }
   }
 
-  function bindSelectionControls(node) {
+  function bindSelectionControls(node, missing) {
     const instance = services.getNodeInstance(node);
     const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
+      onLogCellTiming: () => logCellTiming?.(null, missing),
       onPositionChange: (position) => updateTimingBadgePosition(node, position),
       onBadgeToggle: (pin, metric, checked) =>
         updateTimingBadgeChoice(node, pin, metric, checked),

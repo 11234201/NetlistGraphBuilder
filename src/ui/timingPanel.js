@@ -12,9 +12,9 @@ const POSITION_LABELS = {
   "top-left": "Top left"
 };
 
-export function renderTimingPanel(node, choices) {
+export function renderTimingPanel(node, choices, missingDetails = null) {
   if (!node?.timing) {
-    return "";
+    return missingDetails ? renderMissingTiming(missingDetails) : "";
   }
   const pinsMap = getNormalizedNodePins(node);
   const pinList = Object.values(pinsMap).sort((left, right) =>
@@ -70,6 +70,34 @@ export function renderTimingPanel(node, choices) {
   </section>`;
 }
 
+function renderMissingTiming(details) {
+  const rows = [["Cell", details.instance], ["Module", details.targetModule], ["Selected points in module", details.scopedRecordCount]];
+  if (details.fileName) rows.push(["Report", details.fileName]);
+  if (details.occurrencePath) rows.push(["Instance path", [details.occurrenceRoot, details.occurrencePath].filter(Boolean).join("/")]);
+  if (details.occurrenceExamples?.length) rows.push(["Matching module instances", details.occurrenceExamples.join(", ")]);
+  if (details.hierarchyDepthLimitReached || details.hierarchyVisitLimitReached) rows.push(["Hierarchy search", "Search limit reached"]);
+  const reasons = {
+    "ambiguous-module-occurrence": "Multiple module instances matched. Open the intended instance to inspect its timing.",
+    "no-applicable-records": "No report points passed the scope and path filters for this module instance.",
+    "no-resolved-point": "No timing point resolved to this cell."
+  };
+  const evidence = Object.entries(details.evidence).map(([reason, item]) => {
+    const fields = [["Reason", reason], ["Count", item.count], ["Point", item.point], ["Report scope", item.scope || "(unscoped)"]];
+    if (item.fileName) fields.push(["File", item.fileName]);
+    if (item.line != null) fields.push(["Line", item.line]);
+    if (item.field) fields.push(["Field", item.field]);
+    if (item.paths?.length) fields.push(["Candidate paths", item.paths.join(", ")]);
+    if (item.candidates?.length) fields.push(["Tried names", item.candidates.join(", ")]);
+    if (item.childBoundary) fields.push(["Child instance in path", item.childBoundary]);
+    if (item.expectedPrefix) fields.push(["Expected prefix", item.expectedPrefix]);
+    return `<dl class="stats-list">${renderDefinitionRows(fields)}</dl>`;
+  });
+  return `<section class="timing-list" data-inspector-section="timing" aria-label="Timing">
+    <p>${escapeHtml(reasons[details.outcome])}</p><dl class="stats-list">${renderDefinitionRows(rows)}</dl>
+    ${evidence.length ? "<h4>Report evidence for this instance name</h4>" + evidence.join("") : ""}
+    <button type="button" class="mini-button" data-log-cell-timing>Log cell timing details</button></section>`;
+}
+
 export function renderNetTimingPanel(netTiming) {
   if (!netTiming) {
     return "";
@@ -110,6 +138,7 @@ export function updateTimingBadgeChoices(choices, pin, metric, checked) {
 }
 
 export function bindTimingPanel(container, handlers) {
+  container.querySelector("[data-log-cell-timing]")?.addEventListener("click", () => handlers.onLogCellTiming?.());
   container.querySelector("#timingBadgePositionSelect")?.addEventListener("change", (event) => {
     handlers.onPositionChange?.(event.target.value);
   });

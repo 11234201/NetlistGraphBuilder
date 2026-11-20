@@ -29,8 +29,9 @@ export function summarizeTimingDataset(timing) {
     unit: timing?.unit || "ns",
     diagnosticCount: timing?.diagnostics?.length || 0,
     diagnosticExamples: (timing?.diagnostics || []).slice(0, TIMING_SAMPLE_LIMIT).map(
-      ({ code, severity, line, column, field, point }) => ({
-        code, severity, line, column, field, point: timingNameSample(point) || undefined
+      ({ code, severity, line, column, field, point, module, fileName }) => ({
+        code, severity, line, column, field, point: timingNameSample(point) || undefined,
+        scope: timingNameSample(module) || null, fileName: timingNameSample(fileName || timing.fileName) || undefined
       })
     )
   });

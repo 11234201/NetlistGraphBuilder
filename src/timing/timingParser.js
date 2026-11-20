@@ -118,7 +118,7 @@ function parseTimingTabular(source) {
     if (rowResult.record) {
       records.push(rowResult.record);
     } else if (rowResult.diagnostic) {
-      diagnostics.push(rowResult.diagnostic);
+      diagnostics.push({ ...rowResult.diagnostic, module: currentModule });
     }
   }
 
@@ -182,13 +182,15 @@ function extractJsonPoints(pointsObj, moduleName, records, diagnostics) {
   for (const [rawPoint, rawValue] of Object.entries(pointsObj)) {
     const point = cleanPointIdentifier(rawPoint);
     if (!point) continue;
+    const pointModule = rawValue?.module ? cleanPointIdentifier(String(rawValue.module)) : moduleName;
+    const numeric = (value, field) => parseJsonNumeric(value, diagnostics, point, field, pointModule);
 
     if (Array.isArray(rawValue)) {
-      const at = parseJsonNumeric(rawValue[0], diagnostics, point, "at");
-      const rt = parseJsonNumeric(rawValue[1], diagnostics, point, "rt");
-      const slack = parseJsonNumeric(rawValue[2], diagnostics, point, "slack");
-      const delay = parseJsonNumeric(rawValue[3], diagnostics, point, "delay");
-      const slew = parseJsonNumeric(rawValue[4], diagnostics, point, "slew");
+      const at = numeric(rawValue[0], "at");
+      const rt = numeric(rawValue[1], "rt");
+      const slack = numeric(rawValue[2], "slack");
+      const delay = numeric(rawValue[3], "delay");
+      const slew = numeric(rawValue[4], "slew");
       const edge = rawValue[5] !== undefined ? normalizeEdge(rawValue[5]) : null;
       const kind = rawValue[6] !== undefined ? normalizeKind(rawValue[6]) : null;
       if (at.invalid || rt.invalid || slack.invalid || delay.invalid || slew.invalid) continue;
@@ -208,15 +210,15 @@ function extractJsonPoints(pointsObj, moduleName, records, diagnostics) {
     }
 
     if (rawValue && typeof rawValue === "object") {
-      const at = parseJsonNumeric(rawValue.at ?? rawValue.arrival, diagnostics, point, "at");
-      const rt = parseJsonNumeric(rawValue.rt ?? rawValue.rat ?? rawValue.required, diagnostics, point, "rt");
-      const slack = parseJsonNumeric(rawValue.slack, diagnostics, point, "slack");
-      const delay = parseJsonNumeric(rawValue.delay ?? rawValue.incr ?? rawValue.incremental, diagnostics, point, "delay");
-      const slew = parseJsonNumeric(rawValue.slew ?? rawValue.trans ?? rawValue.transition, diagnostics, point, "slew");
+      const at = numeric(rawValue.at ?? rawValue.arrival, "at");
+      const rt = numeric(rawValue.rt ?? rawValue.rat ?? rawValue.required, "rt");
+      const slack = numeric(rawValue.slack, "slack");
+      const delay = numeric(rawValue.delay ?? rawValue.incr ?? rawValue.incremental, "delay");
+      const slew = numeric(rawValue.slew ?? rawValue.trans ?? rawValue.transition, "slew");
       if (at.invalid || rt.invalid || slack.invalid || delay.invalid || slew.invalid) continue;
       records.push(createTimingPointRecord({
         point,
-        module: rawValue.module ? cleanPointIdentifier(String(rawValue.module)) : moduleName,
+        module: pointModule,
         kind: normalizeKind(rawValue.kind ?? rawValue.type),
         at: at.value,
         rt: rt.value,
@@ -232,27 +234,26 @@ function extractJsonPoints(pointsObj, moduleName, records, diagnostics) {
     diagnostics.push({
       line: null,
       severity: "warning",
-      code: "invalid-point", point,
+      code: "invalid-point", point, module: pointModule,
       message: `Invalid timing entry for '${point}': expected array or object`
     });
   }
 }
 
-function parseJsonNumeric(value, diagnostics, point, field) {
+function parseJsonNumeric(value, diagnostics, point, field, module) {
   if (value === undefined || value === null) return { value: null, invalid: false };
   if (typeof value === "number") {
     if (Number.isFinite(value)) return { value, invalid: false };
-    return { value: null, invalid: false };
   }
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (NULL_TOKENS.has(trimmed.toLowerCase())) return { value: null, invalid: false };
-    if (NUMBER_REGEX.test(trimmed)) return { value: Number(trimmed), invalid: false };
+    if (NUMBER_REGEX.test(trimmed) && Number.isFinite(Number(trimmed))) return { value: Number(trimmed), invalid: false };
   }
   diagnostics.push({
     line: null,
     severity: "warning",
-    code: "invalid-number", point, field,
+    code: "invalid-number", point, field, module,
     message: `Invalid numeric value for '${point}.${field}': ${String(value)}`
   });
   return { value: null, invalid: true };
@@ -273,7 +274,7 @@ function detectHeaderColumns(tokens) {
 function parseTabularRow(tokens, columns, { line, module, contextual }) {
   if (tokens.length < 2) {
     return contextual
-      ? { record: null, diagnostic: { line, severity: "warning", code: "incomplete-row", message: "Incomplete timing row" } }
+      ? { record: null, diagnostic: { line, severity: "warning", code: "incomplete-row", point: cleanPointIdentifier(tokens[0]), message: "Incomplete timing row" } }
       : { record: null, diagnostic: null };
   }
 
@@ -307,10 +308,10 @@ function parseTabularRow(tokens, columns, { line, module, contextual }) {
         explicitNullCount += 1;
         continue;
       }
-      if (!NUMBER_REGEX.test(rawToken)) {
+      if (!NUMBER_REGEX.test(rawToken) || !Number.isFinite(Number(rawToken))) {
         return {
           record: null,
-          diagnostic: contextual
+          diagnostic: contextual || values.point?.includes("/") || tokens.slice(1).some((token) => NUMBER_REGEX.test(token))
             ? { line, severity: "warning", code: "invalid-number", point: values.point, field: column,
                 message: `Invalid numeric value '${rawToken}' in column '${column}'` }
             : null
@@ -384,7 +385,7 @@ function createTimingPointRecord({ point, module, kind, at, rt, slack, delay, sl
 }
 
 function buildTimingDataset({ format, module, stage, unit, records, diagnostics }) {
-  const scopes = {};
+  const scopes = Object.create(null);
   const distinctSubjects = new Set();
 
   for (const record of records) {
@@ -427,9 +428,11 @@ export function mergeTimingDatasets(datasets = []) {
     if (dataset.format) formats.add(dataset.format);
     if (dataset.stage) stages.add(dataset.stage);
     if (dataset.unit) units.add(dataset.unit);
-    if (Array.isArray(dataset.diagnostics)) diagnostics.push(...dataset.diagnostics);
+    for (const warning of dataset.diagnostics || []) {
+      diagnostics.push(dataset.fileName && !warning.fileName ? { ...warning, fileName: dataset.fileName } : warning);
+    }
     for (const record of dataset.records) {
-      const moduleName = record.module || dataset.module || null;
+      const moduleName = record.module === undefined ? dataset.module || null : record.module;
       if (moduleName) modules.add(moduleName);
       const fileName = record.fileName || dataset.fileName;
       if ((moduleName && !record.module) || (fileName && !record.fileName)) {

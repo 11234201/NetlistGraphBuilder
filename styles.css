@@ -1868,7 +1868,7 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .panel-title .square-button { border-color: transparent; background: transparent; width: 26px; height: 26px; flex-basis: 26px; }
 .panel-collapse-button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 28px; padding: 2px 8px; border: 1px solid var(--ui-border); border-radius: 4px; background: var(--ui-surface); color: var(--ui-muted); font-size: 11px; cursor: pointer; }
 .panel-collapse-button span { font-size: 20px; line-height: 1; }
-.panel-tabs, .inspector-tabs { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--ui-border); }
+.panel-tabs, .inspector-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--ui-border); }
 .panel-tabs button, .inspector-tabs button { min-height: 30px; padding: 4px 8px; border: 0; background: transparent; color: var(--ui-muted); cursor: pointer; }
 .panel-tabs button[aria-selected=true], .inspector-tabs button[aria-selected=true] { color: var(--ui-accent); background: var(--ui-accent-soft); font-weight: 600; }
 .navigation-hierarchy > summary { padding: 12px; color: var(--ui-muted); font: 11px Consolas, monospace; overflow-wrap: anywhere; cursor: pointer; }
