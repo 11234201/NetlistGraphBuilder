@@ -361,3 +361,141 @@ endmodule`).modules;
   assert.equal(leakedCell.timing, undefined, "unscoped global record must not match local module via suffix");
   assert.equal(localCell.timing.pins.A.slack, 0.2);
 });
+
+test("LocalDesign top-wrapper JSON resolves kind='pin' boundary ports, nested submodule pins, and isolates parent/child cell names", () => {
+  const timingJson = JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy__a_in_12__0": {
+        at: 0.2,
+        kind: "pin",
+        rt: 0.14874130487442017,
+        slack: -0.051258698105812073
+      },
+      "ModKerWrapper_tc_1049_cpy__a_in_14__0": {
+        at: 0.2,
+        kind: "pin",
+        rt: 0.14874130487442017,
+        slack: -0.051258698105812073
+      },
+      "ModKerWrapper_tc_1049_cpy__y_out__0": {
+        at: 0.65,
+        kind: "pin",
+        rt: 0.55,
+        slack: -0.1
+      },
+      "ModKerWrapper_tc_1049_cpy_loc/l_resyn0_u_gen_15/A1": {
+        at: 0.25,
+        kind: "pin",
+        rt: 0.3,
+        slack: 0.05
+      },
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn1_u_gen_15776_297015_gen_18633/l_resyn0_u_gen_15/A3": {
+        at: 0.40757602453231812,
+        kind: "pin",
+        rt: -0.033556073904037476,
+        slack: -0.44113209843635559
+      }
+    }
+  });
+  const timing = parseTimingLog(timingJson);
+
+  // 1. Top flattened LocalDesign_15of15 with boundary ports exported as kind: "pin" and deep escaped instance
+  const [topFlat] = parseVerilog(`
+module LocalDesign_15of15 (
+  input ModKerWrapper_tc_1049_cpy__a_in_12__0,
+  input [0:0] ModKerWrapper_tc_1049_cpy__a_in_14,
+  output ModKerWrapper_tc_1049_cpy__y_out__0
+);
+  wire n0;
+  AND2 \\ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn1_u_gen_15776_297015_gen_18633/l_resyn0_u_gen_15  (
+    .A1(ModKerWrapper_tc_1049_cpy__a_in_12__0),
+    .A3(ModKerWrapper_tc_1049_cpy__a_in_14[0]),
+    .Z(ModKerWrapper_tc_1049_cpy__y_out__0)
+  );
+endmodule`).modules;
+  const topGraph = buildWorkspaceGraph(topFlat, { timing });
+  const topIn12 = topGraph.nodes.find((n) => n.kind === "input" && n.ref?.name === "ModKerWrapper_tc_1049_cpy__a_in_12__0");
+  const topIn14 = topGraph.nodes.find((n) => n.kind === "input" && n.ref?.name === "ModKerWrapper_tc_1049_cpy__a_in_14[0]");
+  const topOut = topGraph.nodes.find((n) => n.kind === "output" && n.ref?.name === "ModKerWrapper_tc_1049_cpy__y_out__0");
+  const topDeepCell = topGraph.nodes.find((n) => n.kind === "cell");
+  assert.ok(topIn12?.timing, "boundary input port with kind='pin' must receive port timing");
+  assert.equal(topIn12.timing.at, 0.2);
+  assert.ok(topIn14?.timing, "mangled bus-bit port __0 with kind='pin' must resolve to [0]");
+  assert.equal(topIn14.timing.slack, -0.051258698105812073);
+  assert.ok(topOut?.timing, "boundary output port with kind='pin' must receive port timing");
+  assert.equal(topOut.timing.slack, -0.1);
+  assert.equal(topDeepCell.timing?.pins?.A3?.slack, -0.44113209843635559);
+
+  // 2. Multi-level hierarchical design: LocalDesign_15of15 -> ModKerWrapper_tc_1049_cpy -> ConeKernel_TM_...
+  const hierDesign = parseVerilog(`
+module ConeKernel_TM_l_resyn1_u_gen_15776_297015 (input a, output y);
+  AND2 l_resyn0_u_gen_15 (.A3(a), .Z(y));
+endmodule
+module ModKerWrapper_tc_1049_cpy (
+  input [0:0] a_in_12,
+  input a_in_14__0,
+  output y_out__0
+);
+  wire n_mid;
+  BUF l_resyn0_u_gen_15 (.A1(a_in_14__0), .Z(n_mid));
+  ConeKernel_TM_l_resyn1_u_gen_15776_297015 ConeKernel_TM_l_resyn1_u_gen_15776_297015_gen_18633 (
+    .a(a_in_12[0]),
+    .y(y_out__0)
+  );
+endmodule
+module ModKerWrapper_tc_1049 (input [0:0] a_in_12, output y_out__0);
+  BUF l_resyn0_u_gen_15 (.A1(a_in_12[0]), .Z(y_out__0));
+endmodule
+module LocalDesign_15of15 (
+  input ModKerWrapper_tc_1049_cpy__a_in_12__0,
+  input ModKerWrapper_tc_1049_cpy__a_in_14__0,
+  output ModKerWrapper_tc_1049_cpy__y_out__0
+);
+  ModKerWrapper_tc_1049_cpy ModKerWrapper_tc_1049_cpy_loc (
+    .a_in_12(ModKerWrapper_tc_1049_cpy__a_in_12__0),
+    .a_in_14__0(ModKerWrapper_tc_1049_cpy__a_in_14__0),
+    .y_out__0(ModKerWrapper_tc_1049_cpy__y_out__0)
+  );
+endmodule`);
+
+  const coneMod = hierDesign.modules.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15776_297015");
+  const cpyMod = hierDesign.modules.find((m) => m.name === "ModKerWrapper_tc_1049_cpy");
+  const origMod = hierDesign.modules.find((m) => m.name === "ModKerWrapper_tc_1049");
+
+  // 2a. Leaf module ConeKernel resolves timing both via moduleLibrary and standalone
+  for (const lib of [hierDesign.modules, []]) {
+    const coneGraph = buildWorkspaceGraph(coneMod, { timing, moduleLibrary: lib });
+    const coneCell = coneGraph.nodes.find((n) => n.id === "cell:l_resyn0_u_gen_15");
+    assert.equal(coneCell.timing?.pins?.A3?.slack, -0.44113209843635559);
+    assert.equal(
+      coneCell.timing?.fullPath,
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn1_u_gen_15776_297015_gen_18633/l_resyn0_u_gen_15"
+    );
+  }
+
+  // 2b. Parent wrapper ModKerWrapper_tc_1049_cpy resolves its own ports & direct cell without child l_resyn0_u_gen_15 collision
+  const cpyGraph = buildWorkspaceGraph(cpyMod, { timing, moduleLibrary: hierDesign.modules });
+  const cpyIn12 = cpyGraph.nodes.find((n) => n.kind === "input" && n.ref?.name === "a_in_12[0]");
+  const cpyIn14 = cpyGraph.nodes.find((n) => n.kind === "input" && n.ref?.name === "a_in_14__0");
+  const cpyOut = cpyGraph.nodes.find((n) => n.kind === "output" && n.ref?.name === "y_out__0");
+  const cpyDirectCell = cpyGraph.nodes.find((n) => n.id === "cell:l_resyn0_u_gen_15");
+  assert.equal(cpyIn12?.timing?.slack, -0.051258698105812073);
+  assert.equal(cpyIn14?.timing?.slack, -0.051258698105812073);
+  assert.equal(cpyOut?.timing?.slack, -0.1);
+  assert.equal(cpyDirectCell?.timing?.pins?.A1?.slack, 0.05);
+  assert.equal(cpyDirectCell?.timing?.pins?.A3, undefined, "child hinst cell timing must not collide onto sibling parent cell");
+
+  // 2c. Flattened cell inside ModKerWrapper_tc_1049_cpy_loc variant also resolves
+  const [cpyLocFlat] = parseVerilog(`
+module ModKerWrapper_tc_1049_cpy_loc (input a, output y);
+  AND2 \\ConeKernel_TM_l_resyn1_u_gen_15776_297015_gen_18633/l_resyn0_u_gen_15  (.A3(a), .Z(y));
+endmodule`).modules;
+  const cpyLocGraph = buildWorkspaceGraph(cpyLocFlat, { timing });
+  const cpyLocCell = cpyLocGraph.nodes.find((n) => n.kind === "cell");
+  assert.equal(cpyLocCell.timing?.pins?.A3?.slack, -0.44113209843635559);
+
+  // 2d. Non-copy module ModKerWrapper_tc_1049 must remain completely isolated
+  const origGraph = buildWorkspaceGraph(origMod, { timing, moduleLibrary: hierDesign.modules });
+  assert.equal(origGraph.nodes.some((n) => Boolean(n.timing)), false, "ModKerWrapper_tc_1049 must stay isolated from _cpy timing");
+});

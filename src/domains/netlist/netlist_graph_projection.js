@@ -20,7 +20,9 @@ export function buildWorkspaceGraph(module, options = {}) {
   const annotatedGraph = annotateGraphTiming(graph, options.timing, {
     displayPolicy: options.timingDisplayPolicy,
     badgeChoices: options.timingBadgeChoices || {},
-    badgePositions: options.timingBadgePositions || {}
+    badgePositions: options.timingBadgePositions || {},
+    moduleLibrary: options.moduleLibrary || [],
+    occurrencePath: options.occurrencePath || null
   });
   const normalized = normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases === true });
   return applyOccurrenceContext(preserveAliasDriverAmbiguity(normalized, annotatedGraph), options.occurrencePath);
