@@ -26,84 +26,126 @@ export function annotateGraphTiming(graph, timing, options = {}) {
   const stage = timing.stage || "post_map";
 
   const targetModuleName = graph.timingModuleName || graph.moduleName;
-  const occurrencePrefixes = resolveModuleOccurrencePrefixes(
-    targetModuleName,
-    options.moduleLibrary,
-    options.occurrencePath
-  );
-  const scopedRecords = selectModuleRecords(timing, targetModuleName, occurrencePrefixes);
-  if (scopedRecords.length === 0) {
+  const moduleMatcher = createModulePointMatcher(targetModuleName);
+  const hierarchyContext = createHierarchyTimingContext(graph, targetModuleName, options);
+  const scopedItems = selectModuleRecords(timing, hierarchyContext);
+  if (scopedItems.length === 0) {
     return graph;
   }
 
-  const cells = buildCellIndex(graph.nodes);
-  const cellInstanceSet = new Set(cells.map((item) => item.instance));
-  const portsByNormName = buildPortIndex(graph.nodes);
+  const cellIndex = buildCellIndex(graph.nodes);
+  const portIndex = buildPortIndex(graph.nodes);
   const netTopology = buildNetSourceIndex(graph);
 
   const cellPinGroups = new Map();
   const portTimingByNodeId = new Map();
+  const ambiguousPortNodeIds = new Set();
   const netTiming = {};
+  const matchedOccurrenceKeys = new Set();
   let matchedRecordCount = 0;
   let unmatchedRecordCount = 0;
 
-  for (const record of scopedRecords) {
-    const candidates = getPointCandidates(record.point, targetModuleName, occurrencePrefixes);
+  const recordMatch = (match) => {
+    matchedRecordCount += 1;
+    if (match?.occurrenceKey) {
+      matchedOccurrenceKeys.add(match.occurrenceKey);
+    }
+  };
+
+  for (const item of scopedItems) {
+    const { record, stripPrefixes, allowModulePattern, allowPortPrefix } = item;
+    const candidates = getPointCandidates(
+      record.point,
+      moduleMatcher,
+      stripPrefixes,
+      allowModulePattern,
+      allowPortPrefix
+    );
     const explicitKind = record.kind || null;
 
     if (explicitKind === "pin") {
-      if (
-        tryCollectCellPin(record, candidates, cells, cellPinGroups, portsByNormName, cellInstanceSet) ||
-        tryAnnotatePort(record, candidates, portsByNormName, portTimingByNodeId, false)
-      ) {
-        matchedRecordCount += 1;
-      } else {
-        unmatchedRecordCount += 1;
-      }
+      const match =
+        tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex) ||
+        tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, false);
+      if (match) recordMatch(match);
+      else unmatchedRecordCount += 1;
       continue;
     }
 
     if (explicitKind === "port") {
-      if (tryAnnotatePort(record, candidates, portsByNormName, portTimingByNodeId, false)) {
-        matchedRecordCount += 1;
-      } else {
-        unmatchedRecordCount += 1;
-      }
+      const match =
+        tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, false) ||
+        tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex);
+      if (match) recordMatch(match);
+      else unmatchedRecordCount += 1;
       continue;
     }
 
     if (explicitKind === "net") {
-      if (tryAnnotateNet(record, candidates, netTopology, netTiming, cellPinGroups, portTimingByNodeId)) {
-        matchedRecordCount += 1;
-      } else {
-        unmatchedRecordCount += 1;
-      }
+      const match = tryAnnotateNet(
+        record,
+        candidates,
+        netTopology,
+        netTiming,
+        cellPinGroups,
+        portTimingByNodeId,
+        ambiguousPortNodeIds
+      );
+      if (match) recordMatch(match);
+      else unmatchedRecordCount += 1;
       continue;
     }
 
     // Default disambiguation when kind is omitted:
     // 1. Cell Pin (validated against existing cells in graph, unless exact port name takes precedence when pin doesn't exist)
-    if (tryCollectCellPin(record, candidates, cells, cellPinGroups, portsByNormName, cellInstanceSet)) {
-      matchedRecordCount += 1;
+    const pinMatch = tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex);
+    if (pinMatch) {
+      recordMatch(pinMatch);
       continue;
     }
 
     // 2. Boundary Port (supports escaped port names containing '/')
-    if (tryAnnotatePort(record, candidates, portsByNormName, portTimingByNodeId, false)) {
-      matchedRecordCount += 1;
+    const portMatch = tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, false);
+    if (portMatch) {
+      recordMatch(portMatch);
       continue;
     }
 
     // 3. Internal Net (resolves upstream through assign aliases to Source driver)
-    if (tryAnnotateNet(record, candidates, netTopology, netTiming, cellPinGroups, portTimingByNodeId)) {
-      matchedRecordCount += 1;
+    const netMatch = tryAnnotateNet(
+      record,
+      candidates,
+      netTopology,
+      netTiming,
+      cellPinGroups,
+      portTimingByNodeId,
+      ambiguousPortNodeIds
+    );
+    if (netMatch) {
+      recordMatch(netMatch);
       continue;
     }
 
     unmatchedRecordCount += 1;
   }
 
-  const cellTimingByNodeId = resolveCellTimingMatches(cellPinGroups, cells, unit, stage, cellInstanceSet);
+  if (!hierarchyContext.hasExplicitOccurrence && matchedOccurrenceKeys.size > 1) {
+    return {
+      ...graph,
+      netTiming: {},
+      timingSummary: {
+        stage,
+        unit,
+        policy,
+        matchedRecordCount: 0,
+        unmatchedRecordCount: scopedItems.length,
+        ambiguousOccurrenceCount: matchedOccurrenceKeys.size
+      },
+      nodes: graph.nodes
+    };
+  }
+
+  const cellTimingByNodeId = resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage);
 
   const annotatedNodes = graph.nodes.map((node) => {
     if (node.kind === "cell") {
@@ -182,16 +224,95 @@ export function normalizeBadgeChoices(choices) {
   return choices ? [choices] : [];
 }
 
-function selectModuleRecords(timing, moduleName, occurrencePrefixes = []) {
+const MODULE_WRAPPER_PREFIX = "(?:LoResynHinst_of_module_|of_module_|Hinst)?";
+const MODULE_WRAPPER_SUFFIX = "(?:_loc|_ConeInst|_gen_\\d+)*";
+const PORT_PREFIX_TAIL = "((?:[^/\\\\]|\\\\+(?:[^\\\\]|$))+)";
+
+function createModulePointMatcher(moduleName) {
+  const normModule = normalizeHierarchicalName(moduleName);
+  if (!normModule) {
+    return { normModule: "", wrapperPattern: null, portPrefixPattern: null };
+  }
+  const alt = createModuleSegmentAlternation(normModule);
+  return {
+    normModule,
+    wrapperPattern: new RegExp(
+      `^(?:.*?/)??${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}/(.+)$`,
+      "i"
+    ),
+    portPrefixPattern: new RegExp(
+      `^(?:.*?/)??${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}__${PORT_PREFIX_TAIL}$`,
+      "i"
+    )
+  };
+}
+
+function createHierarchyTimingContext(graph, targetModuleName, options = {}) {
+  const moduleLibrary = Array.isArray(options.moduleLibrary) ? options.moduleLibrary : [];
+  const normModule = normalizeHierarchicalName(targetModuleName);
+  const currentMod = moduleLibrary.find((mod) => mod?.name === graph.moduleName) || null;
+  const knownModuleNames = new Set();
+  for (const mod of moduleLibrary) {
+    if (mod?.name) knownModuleNames.add(mod.name);
+    if (mod?.originalName) knownModuleNames.add(mod.originalName);
+  }
+  const rawOccurrencePath = Array.isArray(options.occurrencePath) ? options.occurrencePath : [];
+  const explicitPathSegments = rawOccurrencePath
+    .map((segment) => {
+      const text = String(segment || "").trim();
+      const colonIndex = text.lastIndexOf(":");
+      if (colonIndex > 0) {
+        const suffix = text.slice(colonIndex + 1);
+        const isModuleSuffix = knownModuleNames.size > 0
+          ? knownModuleNames.has(suffix)
+          : (!text.startsWith("\\") && /^[A-Za-z_][\w$]*(?:\s+\[[^\]]+\])?(?:\s+#\d+)?$/.test(suffix));
+        if (isModuleSuffix) {
+          return normalizeHierarchicalName(text.slice(0, colonIndex));
+        }
+      }
+      return normalizeHierarchicalName(text);
+    })
+    .filter(Boolean);
+
+  let explicitRootModuleName = options.occurrenceRootModuleName || null;
+  if (explicitRootModuleName && moduleLibrary.length > 0) {
+    const rootMod = moduleLibrary.find((mod) => mod?.name === explicitRootModuleName);
+    if (rootMod) {
+      explicitRootModuleName = rootMod.originalName || rootMod.name;
+    }
+  }
+
+  return {
+    normModule,
+    currentMod,
+    moduleLibrary,
+    hasExplicitOccurrence: explicitPathSegments.length > 0,
+    explicitPathSegments,
+    explicitRootModuleName: explicitRootModuleName ? normalizeHierarchicalName(explicitRootModuleName) : null
+  };
+}
+
+function selectModuleRecords(timing, context) {
   const allRecords = Array.isArray(timing.records) ? timing.records : [];
   if (allRecords.length === 0) return [];
 
-  const normModule = normalizeHierarchicalName(moduleName);
+  const { normModule, moduleLibrary } = context;
   const scopes = timing.scopes && typeof timing.scopes === "object" && !Array.isArray(timing.scopes)
     ? timing.scopes
     : null;
 
-  if (scopes && normModule) {
+  if (!normModule) {
+    return allRecords.map((record) => ({
+      record,
+      stripPrefixes: [],
+      allowModulePattern: true,
+      allowPortPrefix: true
+    }));
+  }
+
+  const hierarchyIndex = moduleLibrary.length > 0 ? indexModuleHierarchy(moduleLibrary) : null;
+
+  if (scopes) {
     const namedScopeKeys = Object.keys(scopes).filter((key) => key !== "__default__");
     const exactScopeKeys = namedScopeKeys.filter((key) => {
       const normKey = normalizeHierarchicalName(key);
@@ -204,38 +325,338 @@ function selectModuleRecords(timing, moduleName, occurrencePrefixes = []) {
     if (matchedScopeKeys.length > 0) {
       const selected = [];
       if (Array.isArray(scopes.__default__)) {
-        selected.push(...filterRecordsByModulePath(scopes.__default__, normModule, occurrencePrefixes));
+        selected.push(
+          ...filterRecordsForScope(scopes.__default__, "__default__", context, hierarchyIndex)
+        );
       }
       for (const key of matchedScopeKeys) {
-        selected.push(...scopes[key]);
+        for (const record of scopes[key]) {
+          selected.push({
+            record,
+            stripPrefixes: [],
+            allowModulePattern: true,
+            allowPortPrefix: true
+          });
+        }
       }
       return selected;
     }
+
+    const selected = [];
+    for (const [scopeKey, scopeRecords] of Object.entries(scopes)) {
+      if (!Array.isArray(scopeRecords) || scopeRecords.length === 0) continue;
+      selected.push(
+        ...filterRecordsForScope(scopeRecords, scopeKey, context, hierarchyIndex)
+      );
+    }
+    return selected;
   }
 
-  return filterRecordsByModulePath(allRecords, normModule, occurrencePrefixes);
+  return filterRecordsForScope(allRecords, "__default__", context, hierarchyIndex);
 }
 
-function filterRecordsByModulePath(records, normModule, occurrencePrefixes = []) {
-  if (!normModule) return records;
+function filterRecordsForScope(records, scopeKey, context, hierarchyIndex) {
+  const { normModule } = context;
+  const isDefaultScope = scopeKey === "__default__";
+  const normScopeKey = isDefaultScope ? "" : normalizeHierarchicalName(scopeKey);
+  const scopeModules = !isDefaultScope && hierarchyIndex
+    ? findMatchingScopeModules(normScopeKey, hierarchyIndex.modules)
+    : [];
+
+  if (scopeModules.length > 0) {
+    return filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex);
+  }
+
+  const knownRootPaths = resolveKnownRootPaths(context, hierarchyIndex);
+  if (knownRootPaths.length > 0) {
+    return filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths);
+  }
+
   const alt = createModuleSegmentAlternation(normModule);
-  const modulePathPattern = new RegExp(
-    `(?:^|/)(?:LoResynHinst_of_module_|of_module_|Hinst)?${alt}(?:_loc|_ConeInst|_gen_\\d+)*/`,
-    "i"
-  );
-  const modulePortPrefixPattern = new RegExp(
-    `^(?:.*?/)?(?:LoResynHinst_of_module_|of_module_|Hinst)?${alt}(?:_loc|_ConeInst|_gen_\\d+)*__(.+)$`,
-    "i"
-  );
-  return records.filter((record) => {
+  const modulePathPattern = new RegExp(`(?:^|/)${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}/`, "i");
+  const modulePortPrefixPattern = new RegExp(`^(?:.*?/)??${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}__${PORT_PREFIX_TAIL}$`, "i");
+
+  const matched = [];
+  for (const record of records) {
     const normPoint = normalizeHierarchicalName(record.point);
     if (modulePathPattern.test(normPoint) || modulePortPrefixPattern.test(normPoint)) {
+      matched.push({
+        record,
+        stripPrefixes: [],
+        allowModulePattern: true,
+        allowPortPrefix: true
+      });
+    }
+  }
+  return matched;
+}
+
+function findMatchingScopeModules(normScopeKey, modules) {
+  const exact = modules.filter((mod) => {
+    const normMod = normalizeHierarchicalName(mod.originalName || mod.name);
+    return normMod === normScopeKey || normScopeKey.endsWith(`/${normMod}`);
+  });
+  if (exact.length > 0) return exact;
+  return modules.filter((mod) => {
+    const normMod = normalizeHierarchicalName(mod.originalName || mod.name);
+    return matchesModuleWrapper(normScopeKey, normMod);
+  });
+}
+
+function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex) {
+  const pathsFromScope = findOccurrencePathsToModule(scopeModules, hierarchyIndex, context, scopeModules);
+  if (pathsFromScope.length === 0) {
+    return [];
+  }
+
+  const alt = createModuleSegmentAlternation(context.normModule);
+  const modulePortPrefixPattern = new RegExp(`^(?:.*?/)??${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}__${PORT_PREFIX_TAIL}$`, "i");
+  const hasDirectChild = pathsFromScope.some((entry) => entry.pathSegments.length === 1);
+  const pathStrings = [...new Set(pathsFromScope.map((entry) => entry.pathSegments.join("/")))].sort(
+    (left, right) => right.length - left.length || left.localeCompare(right)
+  );
+  const scopeAlt = createModuleSegmentAlternation(normScopeKey);
+  const pathEntries = pathStrings.map((fullPath) => ({
+    fullPath,
+    occurrenceKey: `${normScopeKey}::${fullPath}`,
+    wrapperPattern: new RegExp(
+      `^((?:.*?/)??${MODULE_WRAPPER_PREFIX}${scopeAlt}${MODULE_WRAPPER_SUFFIX}/${escapeRegExp(fullPath)})/`,
+      "i"
+    )
+  }));
+
+  const matched = [];
+  for (const record of records) {
+    const normPoint = normalizeHierarchicalName(record.point);
+    const stripPrefixes = [];
+    const seenPrefixes = new Set();
+    const pushPrefix = (prefix, occurrenceKey) => {
+      if (!prefix || seenPrefixes.has(prefix)) return;
+      seenPrefixes.add(prefix);
+      stripPrefixes.push({ prefix, occurrenceKey });
+    };
+    for (const entry of pathEntries) {
+      if (normPoint.startsWith(`${entry.fullPath}/`)) {
+        pushPrefix(entry.fullPath, entry.occurrenceKey);
+      } else {
+        const match = normPoint.match(entry.wrapperPattern);
+        if (match?.[1]) {
+          pushPrefix(match[1], entry.occurrenceKey);
+        }
+      }
+    }
+    const allowPortPrefix = hasDirectChild && modulePortPrefixPattern.test(normPoint);
+    if (stripPrefixes.length > 0 || allowPortPrefix) {
+      matched.push({
+        record,
+        stripPrefixes,
+        allowModulePattern: false,
+        allowPortPrefix
+      });
+    }
+  }
+  return matched;
+}
+
+function resolveKnownRootPaths(context, hierarchyIndex) {
+  if (context.hasExplicitOccurrence) {
+    return [{
+      rootModuleName: context.explicitRootModuleName,
+      pathSegments: context.explicitPathSegments
+    }];
+  }
+  if (!hierarchyIndex) return [];
+  return findOccurrencePathsToModule(hierarchyIndex.startModules, hierarchyIndex, context, null);
+}
+
+function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths) {
+  const isDefaultScope = scopeKey === "__default__";
+  const rootPatterns = knownRootPaths.map((entry) => {
+    const fullPath = entry.pathSegments.join("/");
+    const occurrenceKey = `${entry.rootModuleName || normScopeKey || scopeKey}::${fullPath}`;
+    if (entry.rootModuleName) {
+      const rootAlt = createModuleSegmentAlternation(entry.rootModuleName);
+      const regex = new RegExp(
+        `^((?:.*?/)??${MODULE_WRAPPER_PREFIX}${rootAlt}${MODULE_WRAPPER_SUFFIX}/${escapeRegExp(fullPath)})/`,
+        "i"
+      );
+      const allowBare = isDefaultScope || matchesRootIdentifier(normScopeKey, entry.rootModuleName);
+      return { kind: "rooted", fullPath, occurrenceKey, regex, allowBare };
+    }
+    return { kind: "unrooted", fullPath, occurrenceKey };
+  });
+
+  const matched = [];
+  for (const record of records) {
+    const normPoint = normalizeHierarchicalName(record.point);
+    const stripPrefixes = [];
+    const seenPrefixes = new Set();
+    const pushPrefix = (prefix, occurrenceKey) => {
+      if (!prefix || seenPrefixes.has(prefix)) return;
+      seenPrefixes.add(prefix);
+      stripPrefixes.push({ prefix, occurrenceKey });
+    };
+    for (const pattern of rootPatterns) {
+      if (pattern.kind === "unrooted") {
+        if (normPoint.startsWith(`${pattern.fullPath}/`) || normPoint.includes(`/${pattern.fullPath}/`)) {
+          pushPrefix(pattern.fullPath, pattern.occurrenceKey);
+        }
+      } else {
+        const match = normPoint.match(pattern.regex);
+        if (match?.[1]) {
+          pushPrefix(match[1], pattern.occurrenceKey);
+        } else if (pattern.allowBare && normPoint.startsWith(`${pattern.fullPath}/`)) {
+          pushPrefix(pattern.fullPath, pattern.occurrenceKey);
+        }
+      }
+    }
+    if (stripPrefixes.length > 0) {
+      stripPrefixes.sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix));
+      matched.push({
+        record,
+        stripPrefixes,
+        allowModulePattern: false,
+        allowPortPrefix: false
+      });
+    }
+  }
+  return matched;
+}
+
+function findOccurrencePathsToModule(startModules, hierarchyIndex, context, scopeModules = null) {
+  const { currentMod, normModule, hasExplicitOccurrence, explicitPathSegments, explicitRootModuleName } = context;
+  const targetStem = getModuleStem(normModule);
+  const hasCurrentMod = Boolean(currentMod && hierarchyIndex.moduleSet.has(currentMod));
+  const paths = [];
+  const MAX_DEPTH = 16;
+  const MAX_VISITS = 4000;
+  let visits = 0;
+
+  const matchesCurrentModule = (typeName, childMod) => {
+    if (hasCurrentMod) {
+      return childMod === currentMod;
+    }
+    if (childMod) {
+      const normChild = normalizeHierarchicalName(childMod.originalName || childMod.name);
+      if (normChild === normModule) return true;
+      if (targetStem && getModuleStem(normChild) === targetStem) return true;
+    }
+    const normType = normalizeHierarchicalName(typeName);
+    if (normType === normModule) return true;
+    return Boolean(targetStem && getModuleStem(normType) === targetStem);
+  };
+
+  const visit = (rootMod, mod, pathSegments, ancestry) => {
+    if (!mod || visits >= MAX_VISITS || pathSegments.length >= MAX_DEPTH) return;
+    visits += 1;
+    for (const cell of mod.cells || []) {
+      const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
+      if (!inst) continue;
+      const nextPath = [...pathSegments, inst];
+      const childMod = hierarchyIndex.resolveChild(cell.type, mod);
+      if (matchesCurrentModule(cell.type, childMod)) {
+        paths.push({
+          rootMod,
+          rootModuleName: normalizeHierarchicalName(rootMod.originalName || rootMod.name),
+          pathSegments: nextPath
+        });
+      }
+      if (childMod && !ancestry.has(childMod.name)) {
+        const nextAncestry = new Set(ancestry);
+        nextAncestry.add(childMod.name);
+        visit(rootMod, childMod, nextPath, nextAncestry);
+      }
+    }
+  };
+
+  for (const rootMod of startModules) {
+    visit(rootMod, rootMod, [], new Set([rootMod.name]));
+  }
+
+  if (!hasExplicitOccurrence) {
+    return paths;
+  }
+
+  const relativeExplicitTargets = scopeModules && explicitRootModuleName
+    ? resolveRelativeExplicitPathUnderScopes(hierarchyIndex, explicitRootModuleName, explicitPathSegments, scopeModules)
+    : [];
+
+  return paths.filter((entry) => {
+    if (
+      relativeExplicitTargets.some((target) =>
+        entry.rootMod === target.scopeMod && segmentsEqual(entry.pathSegments, target.pathSegments)
+      )
+    ) {
       return true;
     }
-    return occurrencePrefixes.some((prefix) =>
-      normPoint.startsWith(`${prefix}/`) || normPoint.includes(`/${prefix}/`)
-    );
+    if (explicitRootModuleName && !matchesRootIdentifier(entry.rootModuleName, explicitRootModuleName)) {
+      return false;
+    }
+    if (segmentsEqual(entry.pathSegments, explicitPathSegments)) {
+      return true;
+    }
+    if (
+      !explicitRootModuleName &&
+      scopeModules &&
+      explicitPathSegments.length > 1 &&
+      scopeModules.some((mod) => matchesRootIdentifier(
+        normalizeHierarchicalName(mod.originalName || mod.name),
+        explicitPathSegments[0]
+      )) &&
+      segmentsEqual(entry.pathSegments, explicitPathSegments.slice(1))
+    ) {
+      return true;
+    }
+    return false;
   });
+}
+
+function resolveRelativeExplicitPathUnderScopes(hierarchyIndex, explicitRootModuleName, explicitPathSegments, scopeModules) {
+  const scopeSet = new Set(scopeModules);
+  const startRoots = hierarchyIndex.modules.filter((mod) =>
+    matchesRootIdentifier(normalizeHierarchicalName(mod.originalName || mod.name), explicitRootModuleName)
+  );
+  const allowed = [];
+  const walk = (mod, stepIndex, ancestry) => {
+    if (!mod) return;
+    if (scopeSet.has(mod) && stepIndex < explicitPathSegments.length) {
+      allowed.push({
+        scopeMod: mod,
+        pathSegments: explicitPathSegments.slice(stepIndex)
+      });
+    }
+    if (stepIndex >= explicitPathSegments.length) return;
+    const expectedInst = explicitPathSegments[stepIndex];
+    for (const cell of mod.cells || []) {
+      const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
+      if (inst !== expectedInst) continue;
+      const childMod = hierarchyIndex.resolveChild(cell.type, mod);
+      if (childMod && !ancestry.has(childMod.name)) {
+        const nextAncestry = new Set(ancestry);
+        nextAncestry.add(childMod.name);
+        walk(childMod, stepIndex + 1, nextAncestry);
+      }
+    }
+  };
+  for (const rootMod of startRoots) {
+    walk(rootMod, 0, new Set([rootMod.name]));
+  }
+  return allowed;
+}
+
+function matchesRootIdentifier(candidateRoot, expectedRoot) {
+  if (!candidateRoot || !expectedRoot) return false;
+  return candidateRoot === expectedRoot ||
+    matchesModuleWrapper(candidateRoot, expectedRoot) ||
+    matchesModuleWrapper(expectedRoot, candidateRoot);
+}
+
+function segmentsEqual(left, right) {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
 }
 
 function getModuleStem(normModule) {
@@ -256,107 +677,18 @@ function createModuleSegmentAlternation(normModule) {
 function matchesModuleWrapper(scopeName, normModule) {
   if (!normModule) return false;
   const alt = createModuleSegmentAlternation(normModule);
-  const pattern = new RegExp(
-    `(?:^|/)(?:LoResynHinst_of_module_|of_module_|Hinst)?${alt}(?:_loc|_ConeInst|_gen_\\d+)*$`,
-    "i"
-  );
+  const pattern = new RegExp(`(?:^|/)${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}$`, "i");
   return pattern.test(scopeName);
 }
 
-function resolveModuleOccurrencePrefixes(targetModuleName, moduleLibrary, occurrencePath) {
-  const prefixes = [];
-  const seen = new Set();
-  const addPrefix = (value) => {
-    const norm = normalizeHierarchicalName(value);
-    if (!norm || seen.has(norm)) return;
-    seen.add(norm);
-    prefixes.push(norm);
-  };
-
-  if (Array.isArray(occurrencePath) && occurrencePath.length > 0) {
-    const cleanSegments = occurrencePath
-      .map((segment) => {
-        const text = String(segment || "").trim();
-        const colonIndex = text.lastIndexOf(":");
-        return normalizeHierarchicalName(colonIndex > 0 ? text.slice(0, colonIndex) : text);
-      })
-      .filter(Boolean);
-    for (let start = 0; start < cleanSegments.length; start += 1) {
-      addPrefix(cleanSegments.slice(start).join("/"));
-    }
-    return prefixes;
-  }
-
-  const normTarget = normalizeHierarchicalName(targetModuleName);
-  if (!normTarget || !Array.isArray(moduleLibrary) || moduleLibrary.length === 0) {
-    return prefixes;
-  }
-
-  const { startModules, resolveChild } = indexModuleHierarchy(moduleLibrary);
-  const targetStem = getModuleStem(normTarget);
-  const exactMatches = [];
-  const stemMatches = [];
-  const MAX_DEPTH = 16;
-  const MAX_VISITS = 4000;
-  let visits = 0;
-
-  const matchesName = (candidateName, exact) => {
-    const normCandidate = normalizeHierarchicalName(candidateName);
-    if (!normCandidate) return false;
-    return exact ? normCandidate === normTarget : Boolean(targetStem && getModuleStem(normCandidate) === targetStem);
-  };
-  const matchesTarget = (typeName, childMod, exact) =>
-    matchesName(typeName, exact) || (childMod ? matchesName(childMod.originalName || childMod.name, exact) : false);
-
-  const visit = (mod, pathSegments, ancestry) => {
-    if (!mod || visits >= MAX_VISITS || pathSegments.length >= MAX_DEPTH) return;
-    visits += 1;
-    for (const cell of mod.cells || []) {
-      const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
-      if (!inst) continue;
-      const nextPath = [...pathSegments, inst];
-      const childMod = resolveChild(cell.type, mod);
-      if (matchesTarget(cell.type, childMod, true)) {
-        exactMatches.push(nextPath);
-      } else if (matchesTarget(cell.type, childMod, false)) {
-        stemMatches.push(nextPath);
-      }
-      if (childMod && !ancestry.has(childMod.name)) {
-        const nextAncestry = new Set(ancestry);
-        nextAncestry.add(childMod.name);
-        visit(childMod, nextPath, nextAncestry);
-      }
-    }
-  };
-
-  for (const root of startModules) {
-    visit(root, [], new Set([root.name]));
-  }
-
-  const chosen = exactMatches.length > 0 ? exactMatches : stemMatches;
-  const collected = new Set();
-  for (const segments of chosen) {
-    for (let start = 0; start < segments.length; start += 1) {
-      const joined = segments.slice(start).join("/");
-      if (joined) collected.add(joined);
-    }
-  }
-  for (const prefix of [...collected].sort((left, right) => right.length - left.length || left.localeCompare(right))) {
-    addPrefix(prefix);
-  }
-  return prefixes;
-}
-
 function indexModuleHierarchy(moduleLibrary) {
+  const modules = moduleLibrary.filter((mod) => Boolean(mod?.name));
+  const moduleSet = new Set(modules);
   const moduleByName = new Map();
   const sameSourceMap = new Map();
   const stemModules = new Map();
-  for (const mod of moduleLibrary) {
-    if (!mod?.name) continue;
+  for (const mod of modules) {
     moduleByName.set(mod.name, mod);
-    if (mod.originalName && !moduleByName.has(mod.originalName)) {
-      moduleByName.set(mod.originalName, mod);
-    }
     if (mod.sourceFile) {
       const rawName = mod.originalName || mod.name;
       sameSourceMap.set(`${mod.sourceFile}::${rawName}`, mod);
@@ -378,59 +710,94 @@ function indexModuleHierarchy(moduleLibrary) {
     const direct = moduleByName.get(typeName);
     if (direct) return direct;
     const typeStem = getModuleStem(normalizeHierarchicalName(typeName));
-    const stemMatches = typeStem ? stemModules.get(typeStem) : null;
-    return stemMatches?.length === 1 ? stemMatches[0] : null;
+    if (!typeStem) return null;
+    const candidates = (stemModules.get(typeStem) || []).filter((mod) =>
+      ownerMod?.sourceFile ? mod.sourceFile === ownerMod.sourceFile : !mod.sourceFile
+    );
+    return candidates.length === 1 ? candidates[0] : null;
   };
 
   const instantiated = new Set();
-  for (const mod of moduleLibrary) {
-    for (const cell of mod?.cells || []) {
+  for (const mod of modules) {
+    for (const cell of mod.cells || []) {
       const child = resolveChild(cell.type, mod);
       if (child) instantiated.add(child.name);
     }
   }
-  const roots = moduleLibrary.filter((mod) => mod?.name && !instantiated.has(mod.name));
-  const startModules = roots.length > 0 ? roots : moduleLibrary.filter((mod) => Boolean(mod?.name));
-  return { startModules, resolveChild };
+  const roots = modules.filter((mod) => !instantiated.has(mod.name));
+  const startModules = roots.length > 0 ? roots : modules;
+  return { modules, moduleSet, startModules, resolveChild };
 }
 
 function buildCellIndex(nodes) {
-  return nodes
-    .filter((node) => node.kind === "cell")
-    .map((node) => {
-      const rawInstance = getNodeInstance(node);
-      const instance = normalizeHierarchicalName(rawInstance);
-      const pinSet = new Set();
-      for (const pin of node.ref?.pins || []) {
-        if (pin.pin) pinSet.add(normalizePinName(pin.pin));
-        if (pin.pinDisplayName) pinSet.add(normalizePinName(pin.pinDisplayName));
-      }
-      for (const port of node.ports || []) {
-        if (port.pin) pinSet.add(normalizePinName(port.pin));
-      }
-      for (const key of Object.keys(node.pinDirections || {})) {
-        pinSet.add(normalizePinName(key));
-      }
-      return { node, instance, pinSet };
-    })
-    .filter((item) => item.instance);
+  const items = [];
+  const byInstance = new Map();
+  const byNodeId = new Map();
+  const instanceSet = new Set();
+
+  for (const node of nodes) {
+    if (node.kind !== "cell") continue;
+    const rawInstance = getNodeInstance(node);
+    const instance = unescapeSlashes(normalizeHierarchicalName(rawInstance));
+    if (!instance) continue;
+
+    const pinSet = new Set();
+    for (const pin of node.ref?.pins || []) {
+      if (pin.pin) pinSet.add(normalizePinName(pin.pin));
+      if (pin.pinDisplayName) pinSet.add(normalizePinName(pin.pinDisplayName));
+    }
+    for (const port of node.ports || []) {
+      if (port.pin) pinSet.add(normalizePinName(port.pin));
+    }
+    for (const key of Object.keys(node.pinDirections || {})) {
+      pinSet.add(normalizePinName(key));
+    }
+
+    const item = { node, instance, pinSet };
+    items.push(item);
+    byNodeId.set(node.id, item);
+    instanceSet.add(instance);
+    if (!byInstance.has(instance)) {
+      byInstance.set(instance, []);
+    }
+    byInstance.get(instance).push(item);
+  }
+
+  return { items, byInstance, byNodeId, instanceSet };
 }
 
 function buildPortIndex(nodes) {
-  const map = new Map();
+  const byName = new Map();
+  const rangedBusPorts = new Map();
+  const addPortName = (rawName, node, targetMap = byName) => {
+    const name = normalizeHierarchicalName(rawName);
+    if (!name) return;
+    if (!targetMap.has(name)) targetMap.set(name, []);
+    const list = targetMap.get(name);
+    if (!list.includes(node)) list.push(node);
+  };
   for (const node of nodes) {
     if (node.kind !== "input" && node.kind !== "output") continue;
-    const names = [node.ref?.name, node.ref?.displayName, node.label]
-      .filter(Boolean)
-      .map(normalizeHierarchicalName);
-    for (const name of names) {
-      if (!name) continue;
-      if (!map.has(name)) map.set(name, []);
-      const list = map.get(name);
-      if (!list.includes(node)) list.push(node);
+    for (const rawName of [node.ref?.name, node.ref?.displayName, node.label]) {
+      if (rawName) addPortName(rawName, node, byName);
+    }
+    const range = node.ref?.range;
+    if (
+      range &&
+      Number.isInteger(range.msb) &&
+      Number.isInteger(range.lsb) &&
+      node.ref?.name
+    ) {
+      if (range.msb === range.lsb && !String(node.ref.name).includes("[")) {
+        addPortName(`${node.ref.name}[${range.msb}]`, node, byName);
+      } else if (range.msb !== range.lsb && !node.ref?.parentName) {
+        for (const rawName of [node.ref.name, node.ref.displayName, node.label]) {
+          if (rawName) addPortName(rawName, node, rangedBusPorts);
+        }
+      }
     }
   }
-  return map;
+  return { byName, rangedBusPorts };
 }
 
 function buildNetSourceIndex(graph) {
@@ -504,63 +871,79 @@ function buildNetSourceIndex(graph) {
   };
 }
 
-function getPointCandidates(rawPoint, moduleName, occurrencePrefixes = []) {
+function getPointCandidates(rawPoint, moduleMatcher, stripPrefixes = [], allowModulePattern = true, allowPortPrefix = true) {
   const normPoint = normalizeHierarchicalName(rawPoint);
   if (!normPoint) return [];
   const candidates = [];
-  const addCandidate = (value) => {
-    if (value && !candidates.includes(value)) {
-      candidates.push(value);
+  const candidateMap = new Map();
+  const addCandidate = (value, occurrenceKey = "") => {
+    if (!value) return;
+    if (!candidateMap.has(value)) {
+      const entry = { text: value, occurrenceKey };
+      candidateMap.set(value, entry);
+      candidates.push(entry);
+    } else if (occurrenceKey && !candidateMap.get(value).occurrenceKey) {
+      candidateMap.get(value).occurrenceKey = occurrenceKey;
     }
   };
 
-  for (const prefix of occurrencePrefixes) {
+  for (const item of stripPrefixes) {
+    const prefix = typeof item === "string" ? item : item.prefix;
+    const occurrenceKey = typeof item === "string" ? "" : (item.occurrenceKey || "");
+    if (!prefix) continue;
     if (normPoint.startsWith(`${prefix}/`)) {
-      addCandidate(normPoint.slice(prefix.length + 1));
+      addCandidate(normPoint.slice(prefix.length + 1), occurrenceKey);
     } else {
       const marker = `/${prefix}/`;
       const markerIndex = normPoint.indexOf(marker);
       if (markerIndex >= 0) {
-        addCandidate(normPoint.slice(markerIndex + marker.length));
+        addCandidate(normPoint.slice(markerIndex + marker.length), occurrenceKey);
       }
     }
   }
 
-  const normModule = normalizeHierarchicalName(moduleName);
+  const normModule = moduleMatcher?.normModule || "";
   if (normModule) {
-    if (normPoint.startsWith(`${normModule}/`)) {
-      addCandidate(normPoint.slice(normModule.length + 1));
+    if (allowModulePattern) {
+      if (normPoint.startsWith(`${normModule}/`)) {
+        addCandidate(normPoint.slice(normModule.length + 1), "");
+      }
+      const wrapperMatch = moduleMatcher.wrapperPattern ? normPoint.match(moduleMatcher.wrapperPattern) : null;
+      if (wrapperMatch?.[1]) {
+        addCandidate(wrapperMatch[1], "");
+      }
     }
-    const alt = createModuleSegmentAlternation(normModule);
-    const wrapperPattern = new RegExp(
-      `^(?:.*?/)??(?:LoResynHinst_of_module_|of_module_|Hinst)?${alt}(?:_loc|_ConeInst|_gen_\\d+)*/(.+)$`,
-      "i"
-    );
-    const wrapperMatch = normPoint.match(wrapperPattern);
-    if (wrapperMatch?.[1]) {
-      addCandidate(wrapperMatch[1]);
-    }
-    const portPrefixPattern = new RegExp(
-      `^(?:.*?/)??(?:LoResynHinst_of_module_|of_module_|Hinst)?${alt}(?:_loc|_ConeInst|_gen_\\d+)*__(.+)$`,
-      "i"
-    );
-    const portMatch = normPoint.match(portPrefixPattern);
-    if (portMatch?.[1]) {
-      addCandidate(portMatch[1]);
+    if (allowPortPrefix) {
+      const portMatch = moduleMatcher.portPrefixPattern ? normPoint.match(moduleMatcher.portPrefixPattern) : null;
+      if (portMatch?.[1]) {
+        addCandidate(portMatch[1], "");
+      }
     }
   }
 
-  addCandidate(normPoint);
+  addCandidate(normPoint, "");
   return candidates;
 }
 
-function tryCollectCellPin(record, candidates, cells, cellPinGroups, portsByNormName = null, cellInstanceSet = null) {
+function findLastUnescapedSlash(text) {
+  for (let index = text.length - 1; index > 0; index -= 1) {
+    if (text[index] !== "/") continue;
+    let backslashes = 0;
+    for (let j = index - 1; j >= 0 && text[j] === "\\"; j -= 1) {
+      backslashes += 1;
+    }
+    if (backslashes % 2 === 0) return index;
+  }
+  return -1;
+}
+
+function tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex = null) {
   const rawNormPoint = normalizeHierarchicalName(record.point);
-  const rawSlashIndex = rawNormPoint.lastIndexOf("/");
+  const rawSlashIndex = findLastUnescapedSlash(rawNormPoint);
   const rawFullPath = rawSlashIndex > 0 ? rawNormPoint.slice(0, rawSlashIndex).trim() : null;
 
-  for (const candidate of candidates) {
-    const slashIndex = candidate.lastIndexOf("/");
+  for (const { text: candidate, occurrenceKey } of candidates) {
+    const slashIndex = findLastUnescapedSlash(candidate);
     if (slashIndex <= 0 || slashIndex === candidate.length - 1) continue;
 
     const instPath = candidate.slice(0, slashIndex).trim();
@@ -568,59 +951,97 @@ function tryCollectCellPin(record, candidates, cells, cellPinGroups, portsByNorm
     const pinName = normalizePinName(rawPin);
     if (!instPath || !pinName) continue;
 
-    const matchedCells = findLongestSuffixCells(instPath, cells, cellInstanceSet);
+    const matchedCells = findLongestSuffixCells(instPath, cellIndex);
     if (matchedCells.length === 0) continue;
 
     // If the unsplit candidate is an exact port name in the module, and the matched cell
     // explicitly defines pins that do NOT include pinName, let Port resolution win.
+    const unescapedCandidate = unescapeSlashes(candidate);
     if (
-      portsByNormName?.has(candidate) &&
+      (portIndex?.byName?.has(candidate) || portIndex?.byName?.has(unescapedCandidate)) &&
       matchedCells.every((item) => item.pinSet.size > 0 && !item.pinSet.has(pinName))
     ) {
       continue;
     }
 
-    addPinToGroup(cellPinGroups, instPath, rawFullPath || instPath, pinName, record, "pin", null);
-    return true;
+    addPinToGroup(cellPinGroups, instPath, rawFullPath || instPath, pinName, record, "pin", null, occurrenceKey);
+    return { occurrenceKey: occurrenceKey || "" };
+  }
+  return null;
+}
+
+function hasChildBoundaryAncestor(prefixPath, cellInstanceSet) {
+  if (!cellInstanceSet || cellInstanceSet.size === 0 || !prefixPath) return false;
+  const segments = prefixPath.split("/");
+  for (let start = 0; start < segments.length; start += 1) {
+    let current = "";
+    for (let end = start; end < segments.length; end += 1) {
+      current = current ? `${current}/${segments[end]}` : segments[end];
+      if (cellInstanceSet.has(current)) return true;
+    }
   }
   return false;
 }
 
-function findLongestSuffixCells(instPath, cells, cellInstanceSet = null) {
+function findLongestSuffixCells(instPath, cellIndex) {
   const normInstPath = normalizeHierarchicalName(instPath);
-  const exact = cells.filter(({ instance }) => normInstPath === instance);
-  if (exact.length > 0) return exact;
+  if (!normInstPath) return [];
+  const unescapedInstPath = unescapeSlashes(normInstPath);
 
-  const hasChildBoundaryAncestor = (prefixPath) => {
-    if (!cellInstanceSet || !prefixPath) return false;
-    const segments = prefixPath.split("/");
-    for (let start = 0; start < segments.length; start += 1) {
-      let current = "";
-      for (let end = start; end < segments.length; end += 1) {
-        current = current ? `${current}/${segments[end]}` : segments[end];
-        if (cellInstanceSet.has(current)) return true;
+  const exactRaw = cellIndex.byInstance.get(normInstPath);
+  if (exactRaw && exactRaw.length > 0) return exactRaw;
+
+  if (unescapedInstPath !== normInstPath) {
+    const exactUnescaped = cellIndex.byInstance.get(unescapedInstPath);
+    if (exactUnescaped && exactUnescaped.length > 0) return exactUnescaped;
+  }
+
+  let slashIndex = unescapedInstPath.indexOf("/");
+  while (slashIndex >= 0) {
+    const prefixBeforeInstance = unescapedInstPath.slice(0, slashIndex);
+    const suffixInstance = unescapedInstPath.slice(slashIndex + 1);
+    if (suffixInstance) {
+      const matches = cellIndex.byInstance.get(suffixInstance);
+      if (matches && matches.length > 0 && !hasChildBoundaryAncestor(prefixBeforeInstance, cellIndex.instanceSet)) {
+        return matches;
       }
     }
-    return false;
-  };
+    slashIndex = unescapedInstPath.indexOf("/", slashIndex + 1);
+  }
 
-  const candidates = cells.filter(({ instance }) => {
-    if (!normInstPath.endsWith(`/${instance}`)) return false;
-    const prefixBeforeInstance = normInstPath.slice(0, normInstPath.length - instance.length - 1);
-    return !hasChildBoundaryAncestor(prefixBeforeInstance);
-  });
-  if (candidates.length === 0) return [];
-  const longestLength = Math.max(...candidates.map(({ instance }) => instance.length));
-  return candidates.filter(({ instance }) => instance.length === longestLength);
+  return [];
 }
 
-function addPinToGroup(cellPinGroups, matchPath, fullPath, pinName, record, sourceKind = "pin", sourceNet = null) {
-  const groupKey = normalizeHierarchicalName(matchPath);
+function isPreferredTimingRecord(incoming, existing, existingPoint = null) {
+  const inHasSlack = Number.isFinite(incoming?.slack);
+  const exHasSlack = Number.isFinite(existing?.slack);
+  if (inHasSlack && exHasSlack) {
+    if (incoming.slack !== existing.slack) {
+      return incoming.slack < existing.slack;
+    }
+  } else if (inHasSlack !== exHasSlack) {
+    return inHasSlack;
+  }
+
+  const inPoint = unescapeSlashes(normalizeHierarchicalName(incoming?.point));
+  const exPoint = unescapeSlashes(normalizeHierarchicalName(existingPoint ?? existing?.point));
+  if (inPoint !== exPoint) {
+    return inPoint.localeCompare(exPoint) < 0;
+  }
+  return String(incoming?.edge || "").localeCompare(String(existing?.edge || "")) < 0;
+}
+
+function addPinToGroup(cellPinGroups, matchPath, fullPath, pinName, record, sourceKind = "pin", sourceNet = null, occurrenceKey = "") {
+  const normMatchPath = unescapeSlashes(normalizeHierarchicalName(matchPath));
+  const normFullPath = unescapeSlashes(normalizeHierarchicalName(fullPath || matchPath));
+  const groupKey = occurrenceKey ? `${occurrenceKey}::${normMatchPath}` : normMatchPath;
   if (!cellPinGroups.has(groupKey)) {
     cellPinGroups.set(groupKey, {
-      matchPath,
-      fullPath: fullPath || matchPath,
-      pins: {}
+      matchPath: normMatchPath,
+      fullPath: normFullPath || normMatchPath,
+      occurrenceKey: occurrenceKey || "",
+      pins: {},
+      pinPoints: {}
     });
   }
   const group = cellPinGroups.get(groupKey);
@@ -629,6 +1050,14 @@ function addPinToGroup(cellPinGroups, matchPath, fullPath, pinName, record, sour
   if (existing && existing.sourceKind === "pin" && sourceKind === "net") {
     return;
   }
+  if (
+    existing &&
+    existing.sourceKind === sourceKind &&
+    !isPreferredTimingRecord(record, existing, group.pinPoints[pinName])
+  ) {
+    return;
+  }
+  group.pinPoints[pinName] = record.point || "";
   group.pins[pinName] = {
     pin: pinName,
     at: record.at,
@@ -643,56 +1072,107 @@ function addPinToGroup(cellPinGroups, matchPath, fullPath, pinName, record, sour
   };
 }
 
-function resolveMatchingPortNodes(candidate, portsByNormName) {
-  const direct = portsByNormName.get(candidate);
-  if (direct && direct.length > 0) return direct;
+function matchRangedBusPorts(baseName, bitIndex, rangedBusPorts) {
+  if (!rangedBusPorts || !Number.isInteger(bitIndex)) return null;
+  const list = rangedBusPorts.get(baseName);
+  if (!list || list.length === 0) return null;
+  const matching = list.filter((node) => {
+    const range = node.ref?.range;
+    if (!range) return false;
+    const low = Math.min(range.msb, range.lsb);
+    const high = Math.max(range.msb, range.lsb);
+    return bitIndex >= low && bitIndex <= high;
+  });
+  return matching.length > 0 ? matching : null;
+}
 
-  const doubleMatch = candidate.match(/^(.+)__(\d+)$/);
-  if (doubleMatch) {
-    const [, base, index] = doubleMatch;
-    const portCandidates = [`${base}[${index}]`, `${base}_[${index}]`];
-    if (index === "0") portCandidates.push(base);
-    for (const key of portCandidates) {
-      const nodes = portsByNormName.get(key);
-      if (nodes && nodes.length > 0) return nodes;
-    }
+function resolveMatchingPortNodes(candidate, portIndex) {
+  const { byName, rangedBusPorts } = portIndex;
+  const portLookupCandidates = [candidate];
+  if (/\\+\//.test(candidate)) {
+    portLookupCandidates.push(unescapeSlashes(candidate));
   }
 
-  const singleMatch = candidate.match(/^(.+)_(\d+)$/);
-  if (singleMatch) {
-    const [, base, index] = singleMatch;
-    const nodes = portsByNormName.get(`${base}[${index}]`);
-    if (nodes && nodes.length > 0) return nodes;
+  for (const item of portLookupCandidates) {
+    const direct = byName.get(item);
+    if (direct && direct.length > 0) return direct;
+
+    const bracketMatch = item.match(/^(.+)\[(-?\d+)\]$/);
+    if (bracketMatch) {
+      const ranged = matchRangedBusPorts(bracketMatch[1], Number(bracketMatch[2]), rangedBusPorts);
+      if (ranged) return ranged;
+    }
+
+    const doubleMatch = item.match(/^(.+)__(\d+)$/);
+    if (doubleMatch) {
+      const [, base, index] = doubleMatch;
+      const portCandidates = [`${base}[${index}]`, `${base}_[${index}]`];
+      if (index === "0") portCandidates.push(base);
+      for (const key of portCandidates) {
+        const nodes = byName.get(key);
+        if (nodes && nodes.length > 0) return nodes;
+      }
+      const ranged = matchRangedBusPorts(base, Number(index), rangedBusPorts);
+      if (ranged) return ranged;
+    }
+
+    const singleMatch = item.match(/^(.+)_(\d+)$/);
+    if (singleMatch) {
+      const [, base, index] = singleMatch;
+      const nodes = byName.get(`${base}[${index}]`);
+      if (nodes && nodes.length > 0) return nodes;
+      const ranged = matchRangedBusPorts(base, Number(index), rangedBusPorts);
+      if (ranged) return ranged;
+    }
   }
 
   return null;
 }
 
-function tryAnnotatePort(record, candidates, portsByNormName, portTimingByNodeId, fromNet = false, sourceNet = null) {
-  for (const candidate of candidates) {
-    const portNodes = resolveMatchingPortNodes(candidate, portsByNormName);
+function tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, fromNet = false, sourceNet = null) {
+  for (const { text: candidate, occurrenceKey } of candidates) {
+    const portNodes = resolveMatchingPortNodes(candidate, portIndex);
     if (!portNodes || portNodes.length === 0) continue;
     for (const portNode of portNodes) {
+      if (ambiguousPortNodeIds.has(portNode.id)) continue;
       const existing = portTimingByNodeId.get(portNode.id);
-      if (existing && existing.sourceKind === "port" && fromNet) continue;
+      if (existing) {
+        if (existing.sourceKind === "port" && fromNet) continue;
+        if (!fromNet && existing.sourceKind === "port") {
+          if (occurrenceKey && existing.occurrenceKey && occurrenceKey !== existing.occurrenceKey) {
+            ambiguousPortNodeIds.add(portNode.id);
+            portTimingByNodeId.delete(portNode.id);
+            continue;
+          }
+          if (!isPreferredTimingRecord(record, existing)) {
+            continue;
+          }
+        }
+      }
       portTimingByNodeId.set(portNode.id, {
         ...record,
         sourceKind: fromNet ? "net" : "port",
-        sourceNet: sourceNet || null
+        sourceNet: sourceNet || null,
+        occurrenceKey: occurrenceKey || existing?.occurrenceKey || ""
       });
     }
-    return true;
+    return { occurrenceKey: occurrenceKey || "" };
   }
-  return false;
+  return null;
 }
 
-function tryAnnotateNet(record, candidates, netTopology, netTiming, cellPinGroups, portTimingByNodeId) {
-  for (const candidate of candidates) {
-    if (!netTopology.knownNets.has(candidate)) continue;
-    const canonicalNet = netTopology.knownNets.get(candidate);
-    const rootNormNet = netTopology.resolveRootNet(candidate);
+function tryAnnotateNet(record, candidates, netTopology, netTiming, cellPinGroups, portTimingByNodeId, ambiguousPortNodeIds) {
+  for (const { text: candidate, occurrenceKey } of candidates) {
+    const lookupKey = netTopology.knownNets.has(candidate)
+      ? candidate
+      : (/\\+\//.test(candidate) && netTopology.knownNets.has(unescapeSlashes(candidate))
+        ? unescapeSlashes(candidate)
+        : null);
+    if (!lookupKey) continue;
+    const canonicalNet = netTopology.knownNets.get(lookupKey);
+    const rootNormNet = netTopology.resolveRootNet(lookupKey);
     const rootCanonicalNet = netTopology.knownNets.get(rootNormNet) || canonicalNet;
-    const driver = netTopology.directDriversByNet.get(rootNormNet) || netTopology.directDriversByNet.get(candidate) || null;
+    const driver = netTopology.directDriversByNet.get(rootNormNet) || netTopology.directDriversByNet.get(lookupKey) || null;
 
     const netEntry = {
       net: canonicalNet,
@@ -707,29 +1187,35 @@ function tryAnnotateNet(record, candidates, netTopology, netTiming, cellPinGroup
       driverNodeId: driver?.nodeId || null,
       driverPin: driver?.pin || null
     };
-    netTiming[canonicalNet] = netEntry;
-    netTiming[candidate] = netEntry;
-    if (rootCanonicalNet) netTiming[rootCanonicalNet] = netEntry;
-    if (rootNormNet) netTiming[rootNormNet] = netEntry;
+    const existingNetEntry = netTiming[canonicalNet];
+    if (!existingNetEntry || isPreferredTimingRecord(record, existingNetEntry)) {
+      netTiming[canonicalNet] = netEntry;
+      netTiming[lookupKey] = netEntry;
+      if (rootCanonicalNet) netTiming[rootCanonicalNet] = netEntry;
+      if (rootNormNet) netTiming[rootNormNet] = netEntry;
+    }
 
     if (driver) {
       if (driver.nodeKind === "input") {
-        const existing = portTimingByNodeId.get(driver.nodeId);
-        if (!existing || existing.sourceKind !== "port") {
-          portTimingByNodeId.set(driver.nodeId, {
-            ...record,
-            sourceKind: "net",
-            sourceNet: canonicalNet
-          });
+        if (!ambiguousPortNodeIds.has(driver.nodeId)) {
+          const existing = portTimingByNodeId.get(driver.nodeId);
+          if (!existing || (existing.sourceKind !== "port" && isPreferredTimingRecord(record, existing))) {
+            portTimingByNodeId.set(driver.nodeId, {
+              ...record,
+              sourceKind: "net",
+              sourceNet: canonicalNet,
+              occurrenceKey: occurrenceKey || existing?.occurrenceKey || ""
+            });
+          }
         }
       } else if (driver.nodeKind === "cell" && driver.pin) {
         const cellNodeId = driver.nodeId;
         addDriverCellPinTiming(cellPinGroups, cellNodeId, driver.pin, record, canonicalNet);
       }
     }
-    return true;
+    return { occurrenceKey: occurrenceKey || "" };
   }
-  return false;
+  return null;
 }
 
 function addDriverCellPinTiming(cellPinGroups, cellNodeId, pinName, record, sourceNet) {
@@ -738,11 +1224,17 @@ function addDriverCellPinTiming(cellPinGroups, cellNodeId, pinName, record, sour
     cellPinGroups.set(key, {
       directNodeId: cellNodeId,
       fullPath: sourceNet,
-      pins: {}
+      pins: {},
+      pinPoints: {}
     });
   }
   const group = cellPinGroups.get(key);
-  if (group.pins[pinName]?.sourceKind === "pin") return;
+  const existing = group.pins[pinName];
+  if (existing?.sourceKind === "pin") return;
+  if (existing && !isPreferredTimingRecord(record, existing, group.pinPoints[pinName])) {
+    return;
+  }
+  group.pinPoints[pinName] = record.point || "";
   group.pins[pinName] = {
     pin: pinName,
     at: record.at,
@@ -757,7 +1249,7 @@ function addDriverCellPinTiming(cellPinGroups, cellNodeId, pinName, record, sour
   };
 }
 
-function resolveCellTimingMatches(cellPinGroups, cells, unit, stage, cellInstanceSet = null) {
+function resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage) {
   const groupsByNodeId = new Map();
   const directGroupsByNodeId = new Map();
 
@@ -766,7 +1258,7 @@ function resolveCellTimingMatches(cellPinGroups, cells, unit, stage, cellInstanc
       directGroupsByNodeId.set(group.directNodeId, group);
       continue;
     }
-    const longest = findLongestSuffixCells(group.matchPath, cells, cellInstanceSet);
+    const longest = findLongestSuffixCells(group.matchPath, cellIndex);
     if (longest.length !== 1) {
       continue;
     }
@@ -791,7 +1283,7 @@ function resolveCellTimingMatches(cellPinGroups, cells, unit, stage, cellInstanc
       selectedEntry = entries[0];
     } else {
       const exactEntries = entries.filter(
-        ({ instance, group }) => normalizeHierarchicalName(group.matchPath) === instance
+        ({ instance, group }) => group.matchPath === instance
       );
       if (exactEntries.length === 1) {
         selectedEntry = exactEntries[0];
@@ -809,7 +1301,7 @@ function resolveCellTimingMatches(cellPinGroups, cells, unit, stage, cellInstanc
 
   for (const [nodeId, directGroup] of directGroupsByNodeId.entries()) {
     if (ambiguousNodeIds.has(nodeId)) continue;
-    const cellEntry = cells.find((item) => item.node.id === nodeId);
+    const cellEntry = cellIndex.byNodeId.get(nodeId);
     if (!cellEntry) continue;
     if (!matchedGroupByNodeId.has(nodeId)) {
       matchedGroupByNodeId.set(nodeId, {
@@ -890,7 +1382,11 @@ function summarizePins(pins) {
   let worstSlack = null;
   for (const pin of Object.values(pins)) {
     if (!Number.isFinite(pin.slack)) continue;
-    if (worstSlack === null || pin.slack < worstSlack) {
+    if (
+      worstSlack === null ||
+      pin.slack < worstSlack ||
+      (pin.slack === worstSlack && String(pin.pin).localeCompare(String(worstPin)) < 0)
+    ) {
       worstPin = pin.pin;
       worstSlack = pin.slack;
     }
@@ -950,6 +1446,26 @@ function getDefaultBadgeChoices(timing, node, policy) {
     return choices;
   }
 
+  if (node?.gateKind === "module") {
+    const pinKeys = Object.keys(timing.pins || {});
+    if (pinKeys.length === 0) return [];
+    const focusPin = timing.worstPin || getOrderedTimingPins(timing, node)[0];
+    if (!isCustomPolicy) {
+      const choices = [];
+      if (Number.isFinite(timing.pins[focusPin]?.at)) choices.push({ pin: focusPin, metric: "at" });
+      if (Number.isFinite(timing.pins[focusPin]?.slack)) choices.push({ pin: focusPin, metric: "slack" });
+      if (choices.length > 0) return choices;
+      const firstMetric = TIMING_METRICS.find((m) => Number.isFinite(timing.pins[focusPin]?.[m])) || "slack";
+      return [{ pin: focusPin, metric: firstMetric }];
+    }
+    if (pinKeys.length > 6) {
+      return policyMetrics.map((metric) => ({ pin: focusPin, metric }));
+    }
+    return getOrderedTimingPins(timing, node).flatMap((pin) =>
+      policyMetrics.map((metric) => ({ pin, metric }))
+    );
+  }
+
   if (isCustomPolicy) {
     const orderedPins = getOrderedTimingPins(timing, node);
     return orderedPins.flatMap((pin) =>
@@ -983,12 +1499,19 @@ function getDefaultBadgeChoices(timing, node, policy) {
 }
 
 function getOrderedTimingPins(timing, node) {
-  const pinOrder = (node?.ref?.pins || []).map((pin) => pin.pinDisplayName || pin.pin);
-  const timingPins = Object.keys(timing.pins || {});
-  return [
-    ...pinOrder.filter((pin) => timing.pins?.[pin]),
-    ...timingPins.filter((pin) => !pinOrder.includes(pin))
-  ];
+  const ordered = [];
+  for (const pin of node?.ref?.pins || []) {
+    const resolved = findTimingPin(timing, pin);
+    if (resolved && !ordered.includes(resolved)) {
+      ordered.push(resolved);
+    }
+  }
+  for (const timingPin of Object.keys(timing.pins || {})) {
+    if (!ordered.includes(timingPin)) {
+      ordered.push(timingPin);
+    }
+  }
+  return ordered;
 }
 
 function findInputTimingPins(timing, node) {
@@ -1053,8 +1576,15 @@ function getLeafDisplayNameOrPort(node) {
   return String(raw).trim();
 }
 
+function unescapeSlashes(value) {
+  return String(value || "").replace(/\\+\//g, "/");
+}
+
 function normalizePinName(value) {
-  return String(value || "").trim().replace(/^\\/, "");
+  return String(value || "")
+    .trim()
+    .replace(/^\\/, "")
+    .replace(/\\+([[\]/$.])/g, "$1");
 }
 
 function normalizeHierarchicalName(value) {
@@ -1063,6 +1593,7 @@ function normalizeHierarchicalName(value) {
     .replace(/\\(\S+)\s+\//g, "$1/")
     .replace(/^\\/, "")
     .replace(/\/\\/g, "/")
+    .replace(/\\+([[\]$.])/g, "$1")
     .replace(/\s+\[/g, "[")
     .trim();
 }

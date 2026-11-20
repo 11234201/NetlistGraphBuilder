@@ -1,5 +1,6 @@
 import { createTestViewBridges } from "../helpers/view_session_bridges.js";
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 import { createAppState } from "../../src/app/appState.js";
 import { createInputController } from "../../src/app/input_controller.js";
@@ -7,6 +8,7 @@ import { detectQuickInputKind } from "../../src/app/quickInput.js";
 import { sampleTiming } from "../../src/app/sampleTiming.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
 import { createImportRequests } from "../../src/application/import_requests.js";
+import { mergeNetlistSources } from "../../src/domains/netlist/design_merge.js";
 import { buildWorkspaceGraph } from "../../src/domains/netlist/netlist_graph_projection.js";
 import { renderSchematicSvg } from "../../src/domains/netlist/netlist_scene.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
@@ -498,4 +500,551 @@ endmodule`).modules;
   // 2d. Non-copy module ModKerWrapper_tc_1049 must remain completely isolated
   const origGraph = buildWorkspaceGraph(origMod, { timing, moduleLibrary: hierDesign.modules });
   assert.equal(origGraph.nodes.some((n) => Boolean(n.timing)), false, "ModKerWrapper_tc_1049 must stay isolated from _cpy timing");
+});
+
+test("Local timing never bleeds into Global ConeKernel across merged designs or occurrence navigation", () => {
+  const localTiming = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630/sco_1605": {
+        at: 0.39349532127380371,
+        kind: "port",
+        rt: -0.055862903594970703,
+        slack: -0.44935822486877441
+      }
+    }
+  }));
+
+  // Case A: Merged global.v + local.v with GlobalTop and LocalDesign_15of15 roots
+  const globalVerilog = `
+module ConeKernel_TM_l_resyn1_u_gen_15765_294015 (input a, output sco_1605);
+  BUF u_g (.A(a), .Z(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049 (input a, output sco_1605);
+  ConeKernel_TM_l_resyn1_u_gen_15765_294015 ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module GlobalTop (input a, output sco_1605);
+  ModKerWrapper_tc_1049 HinstModKerWrapper_tc_1049_gen_18638 (.a(a), .sco_1605(sco_1605));
+endmodule`;
+  const localVerilog = `
+module ConeKernel_TM_l_resyn1_u_gen_15765_294015 (input a, output sco_1605);
+  BUF u_l (.A(a), .Z(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049_cpy (input a, output sco_1605);
+  ConeKernel_TM_l_resyn1_u_gen_15765_294015 ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module LocalDesign_15of15 (input a, output sco_1605);
+  ModKerWrapper_tc_1049_cpy ModKerWrapper_tc_1049_cpy_loc (.a(a), .sco_1605(sco_1605));
+endmodule`;
+
+  const mergedWithTop = mergeNetlistSources([
+    { name: "global.v", text: globalVerilog },
+    { name: "local.v", text: localVerilog }
+  ]).model.modules;
+  const globalCone = mergedWithTop.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15765_294015 [global.v]");
+  const localCone = mergedWithTop.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15765_294015 [local.v]");
+
+  const globalConeGraph = buildWorkspaceGraph(globalCone, { timing: localTiming, moduleLibrary: mergedWithTop });
+  const localConeGraph = buildWorkspaceGraph(localCone, { timing: localTiming, moduleLibrary: mergedWithTop });
+  assert.equal(
+    globalConeGraph.nodes.find((n) => n.kind === "output")?.timing,
+    undefined,
+    "global ConeKernel sco_1605 must not receive local timing"
+  );
+  assert.equal(
+    localConeGraph.nodes.find((n) => n.kind === "output")?.timing?.slack,
+    -0.44935822486877441
+  );
+
+  // Case B: Merged global.v + local.v WITHOUT top wrapper modules (roots are ModKerWrapper_tc_1049 vs _cpy)
+  const mergedNoTop = mergeNetlistSources([
+    {
+      name: "global.v",
+      text: globalVerilog.replace(/module GlobalTop[\s\S]*?endmodule/, "")
+    },
+    {
+      name: "local.v",
+      text: localVerilog.replace(/module LocalDesign_15of15[\s\S]*?endmodule/, "")
+    }
+  ]).model.modules;
+  const globalConeNoTop = mergedNoTop.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15765_294015 [global.v]");
+  const localConeNoTop = mergedNoTop.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15765_294015 [local.v]");
+  assert.equal(
+    buildWorkspaceGraph(globalConeNoTop, { timing: localTiming, moduleLibrary: mergedNoTop })
+      .nodes.find((n) => n.kind === "output")?.timing,
+    undefined,
+    "global ConeKernel under ModKerWrapper_tc_1049 must stay isolated when LocalDesign_15of15 is absent"
+  );
+  assert.equal(
+    buildWorkspaceGraph(localConeNoTop, { timing: localTiming, moduleLibrary: mergedNoTop })
+      .nodes.find((n) => n.kind === "output")?.timing?.slack,
+    -0.44935822486877441
+  );
+
+  // Case C: Single-file shared ConeKernel navigated via explicit occurrencePath & occurrenceRootModuleName
+  const singleDesign = parseVerilog(`
+module ConeKernel_TM_l_resyn1_u_gen_15765_294015 (input a, output sco_1605);
+  BUF u0 (.A(a), .Z(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049 (input a, output sco_1605);
+  ConeKernel_TM_l_resyn1_u_gen_15765_294015 ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049_cpy (input a, output sco_1605);
+  ConeKernel_TM_l_resyn1_u_gen_15765_294015 ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module GlobalTop (input a, output sco_1605);
+  ModKerWrapper_tc_1049 HinstModKerWrapper_tc_1049_gen_18638 (.a(a), .sco_1605(sco_1605));
+endmodule
+module LocalDesign_15of15 (input a, output sco_1605);
+  ModKerWrapper_tc_1049_cpy ModKerWrapper_tc_1049_cpy_loc (.a(a), .sco_1605(sco_1605));
+endmodule`).modules;
+  const sharedCone = singleDesign.find((m) => m.name === "ConeKernel_TM_l_resyn1_u_gen_15765_294015");
+  const sharedGlobalOcc = buildWorkspaceGraph(sharedCone, {
+    timing: localTiming,
+    moduleLibrary: singleDesign,
+    occurrenceRootModuleName: "GlobalTop",
+    occurrencePath: [
+      "HinstModKerWrapper_tc_1049_gen_18638",
+      "ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630"
+    ]
+  });
+  const sharedLocalOcc = buildWorkspaceGraph(sharedCone, {
+    timing: localTiming,
+    moduleLibrary: singleDesign,
+    occurrenceRootModuleName: "LocalDesign_15of15",
+    occurrencePath: [
+      "ModKerWrapper_tc_1049_cpy_loc",
+      "ConeKernel_TM_l_resyn1_u_gen_15765_294015_gen_18630"
+    ]
+  });
+  assert.equal(sharedGlobalOcc.nodes.find((n) => n.kind === "output")?.timing, undefined);
+  assert.equal(sharedLocalOcc.nodes.find((n) => n.kind === "output")?.timing?.slack, -0.44935822486877441);
+});
+
+test("parent module view displays port timing on submodule hinst box and renders escaped pin timing in SVG", () => {
+  const timing = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn0_u_gen_1292_273001_gen_18609/a_q\\[33\\]": {
+        at: 0.22428335249423981,
+        kind: "port",
+        rt: -0.29774534702301025,
+        slack: -0.52202868461608887
+      },
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn0_u_gen_1292_273001_gen_18609/sco_1605": {
+        at: 0.39349532127380371,
+        kind: "port",
+        rt: -0.055862903594970703,
+        slack: -0.44935822486877441
+      }
+    }
+  }));
+
+  const design = parseVerilog(`
+module ConeKernel_TM_l_resyn0_u_gen_1292_273001 (input \\a_q[33] , output sco_1605);
+  BUF u0 (.A(\\a_q[33] ), .Z(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049_cpy (input \\a_q[33] , output sco_1605);
+  ConeKernel_TM_l_resyn0_u_gen_1292_273001 ConeKernel_TM_l_resyn0_u_gen_1292_273001_gen_18609 (
+    .\\a_q[33] (\\a_q[33] ),
+    .sco_1605(sco_1605)
+  );
+endmodule
+module LocalDesign_15of15 (input \\a_q[33] , output sco_1605);
+  ModKerWrapper_tc_1049_cpy ModKerWrapper_tc_1049_cpy_loc (.\\a_q[33] (\\a_q[33] ), .sco_1605(sco_1605));
+endmodule`).modules;
+
+  const cpyMod = design.find((m) => m.name === "ModKerWrapper_tc_1049_cpy");
+  const cpyGraph = layoutGraph(buildWorkspaceGraph(cpyMod, { timing, moduleLibrary: design }));
+  const hinstNode = cpyGraph.nodes.find((n) => n.id === "cell:ConeKernel_TM_l_resyn0_u_gen_1292_273001_gen_18609");
+
+  assert.ok(hinstNode?.timing, "child hinst node must receive timing from kind='port' submodule port records");
+  assert.equal(hinstNode.timing.pins["a_q[33]"]?.slack, -0.52202868461608887);
+  assert.equal(hinstNode.timing.pins.sco_1605?.slack, -0.44935822486877441);
+  assert.equal(hinstNode.timing.worstPin, "a_q[33]");
+  assert.equal(hinstNode.timing.worstSlack, -0.52202868461608887);
+  assert.ok(hinstNode.timing.badges.length > 0);
+  assert.match(hinstNode.timing.badges.map((b) => b.label).join(" "), /a_q\[33\] slack -0\.522/);
+
+  const svg = renderSchematicSvg(cpyGraph);
+  assert.match(svg, /timing-critical/);
+  assert.match(svg, /pin-critical/);
+  assert.match(svg, /a_q\[33\]: at 0\.224, rt -0\.298, slack -0\.522/);
+});
+
+test("backslash-escaped bracket port a_q\\[33\\] resolves onto escaped, bus-expanded, and single-bit packed input ports", () => {
+  const timing = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_TM_l_resyn0_u_gen_1292_273001_gen_18609/a_q\\[33\\]": {
+        at: 0.22428335249423981,
+        kind: "port",
+        rt: -0.29774534702301025,
+        slack: -0.52202868461608887
+      }
+    }
+  }));
+
+  const variants = [
+    {
+      label: "escaped scalar input \\a_q[33]",
+      verilog: `
+module ConeKernel_TM_l_resyn0_u_gen_1292_273001 (input \\a_q[33] , output y);
+  BUF u0 (.A(\\a_q[33] ), .Z(y));
+endmodule`
+    },
+    {
+      label: "expanded bus input [34:32] a_q",
+      verilog: `
+module ConeKernel_TM_l_resyn0_u_gen_1292_273001 (input [34:32] a_q, output y);
+  BUF u0 (.A(a_q[33]), .Z(y));
+endmodule`
+    },
+    {
+      label: "single-bit packed range input [33:33] a_q referenced as whole a_q",
+      verilog: `
+module ConeKernel_TM_l_resyn0_u_gen_1292_273001 (input [33:33] a_q, output y);
+  BUF u0 (.A(a_q), .Z(y));
+endmodule`
+    }
+  ];
+
+  for (const variant of variants) {
+    const [mod] = parseVerilog(variant.verilog).modules;
+    const graph = layoutGraph(buildWorkspaceGraph(mod, { timing }));
+    const inputPort = graph.nodes.find(
+      (n) => n.kind === "input" && (n.ref?.name === "a_q[33]" || n.ref?.name === "a_q")
+    );
+    assert.ok(inputPort?.timing, `${variant.label}: input port should receive timing`);
+    assert.equal(inputPort.timing.at, 0.22428335249423981);
+    assert.equal(inputPort.timing.rt, -0.29774534702301025);
+    assert.equal(inputPort.timing.slack, -0.52202868461608887);
+    const svg = renderSchematicSvg(graph);
+    assert.match(svg, /timing-badge timing-badge-port/, `${variant.label}: SVG should show port timing badge`);
+    assert.match(svg, /slack -0\.522/);
+  }
+});
+
+test("multi-occurrence module prevents pin merging without occurrencePath and resolves cleanly with merged global/local timings", () => {
+  const verilog = `
+module LeafKernel (input a, input b, output y);
+  AND2 u_core (.A(a), .B(b), .Z(y));
+endmodule
+module DualTop (input a0, input b0, input a1, input b1, output y0, output y1);
+  LeafKernel u_left (.a(a0), .b(b0), .y(y0));
+  LeafKernel u_right (.a(a1), .b(b1), .y(y1));
+endmodule`;
+  const modules = parseVerilog(verilog).modules;
+  const leaf = modules.find((m) => m.name === "LeafKernel");
+  const timing = parseTimingLog(JSON.stringify({
+    module: "DualTop",
+    points: {
+      "u_left/u_core/A": { at: 0.1, rt: 0.2, slack: 0.1 },
+      "u_left/a": { at: 0.05, rt: 0.2, slack: 0.15 },
+      "u_right/u_core/B": { at: 0.8, rt: 0.3, slack: -0.5 },
+      "u_right/a": { at: 0.4, rt: 0.1, slack: -0.3 }
+    }
+  }));
+
+  // Without occurrencePath, ambiguous timing must not Frankenstein-merge A (u_left) and B (u_right)
+  const ambiguousGraph = buildWorkspaceGraph(leaf, { timing, moduleLibrary: modules });
+  assert.equal(ambiguousGraph.nodes.find((n) => n.id === "cell:u_core")?.timing, undefined);
+  assert.equal(ambiguousGraph.nodes.find((n) => n.id === "input:a")?.timing, undefined);
+  assert.equal(ambiguousGraph.timingSummary.ambiguousOccurrenceCount, 2);
+  assert.equal(ambiguousGraph.timingSummary.matchedRecordCount, 0);
+
+  // When only one occurrence has timing in the report, un-disambiguated open still shows it
+  const singleActiveTiming = parseTimingLog(JSON.stringify({
+    module: "DualTop",
+    points: {
+      "u_left/u_core/A": { at: 0.1, rt: 0.2, slack: 0.1 },
+      "u_left/a": { at: 0.05, rt: 0.2, slack: 0.15 }
+    }
+  }));
+  const singleActiveGraph = buildWorkspaceGraph(leaf, { timing: singleActiveTiming, moduleLibrary: modules });
+  assert.equal(singleActiveGraph.nodes.find((n) => n.id === "cell:u_core")?.timing?.pins?.A?.slack, 0.1);
+  assert.equal(singleActiveGraph.nodes.find((n) => n.id === "input:a")?.timing?.slack, 0.15);
+
+  // Explicit occurrence selects strictly the requested instance without merging the sibling's pins
+  const rightOcc = buildWorkspaceGraph(leaf, {
+    timing,
+    moduleLibrary: modules,
+    occurrenceRootModuleName: "DualTop",
+    occurrencePath: ["u_right"]
+  });
+  const rightCell = rightOcc.nodes.find((n) => n.id === "cell:u_core");
+  assert.equal(rightCell.timing?.pins?.B?.slack, -0.5);
+  assert.equal(rightCell.timing?.pins?.A, undefined);
+  assert.equal(rightOcc.nodes.find((n) => n.id === "input:a")?.timing?.slack, -0.3);
+
+  // Simultaneous merged Global + Local designs and Global + Local timing datasets stay isolated
+  const globalSrc = `
+module SharedLeaf (input a, output sco_1605);
+  BUF u0 (.A(a), .Z(sco_1605));
+endmodule
+module GlobalTop (input a, output sco_1605);
+  SharedLeaf HinstSharedLeaf_gen_1 (.a(a), .sco_1605(sco_1605));
+endmodule`;
+  const localSrc = `
+module SharedLeaf (input a, output sco_1605);
+  BUF u0 (.A(a), .Z(sco_1605));
+endmodule
+module LocalTop (input a, output sco_1605);
+  SharedLeaf SharedLeaf_loc (.a(a), .sco_1605(sco_1605));
+endmodule`;
+  const mergedDesign = mergeNetlistSources([
+    { name: "global.v", text: globalSrc },
+    { name: "local.v", text: localSrc }
+  ]).model.modules;
+  const globalTiming = parseTimingLog(JSON.stringify({
+    module: "GlobalTop",
+    points: { "HinstSharedLeaf_gen_1/sco_1605": { at: 0.2, kind: "port", rt: 0.3, slack: 0.1 } }
+  }));
+  const localTiming = parseTimingLog(JSON.stringify({
+    module: "LocalTop",
+    points: { "SharedLeaf_loc/sco_1605": { at: 0.7, kind: "port", rt: 0.2, slack: -0.5 } }
+  }));
+  const mergedTiming = mergeTimingDatasets([globalTiming, localTiming]);
+  const gLeaf = mergedDesign.find((m) => m.name === "SharedLeaf [global.v]");
+  const lLeaf = mergedDesign.find((m) => m.name === "SharedLeaf [local.v]");
+  assert.equal(
+    buildWorkspaceGraph(gLeaf, { timing: mergedTiming, moduleLibrary: mergedDesign }).nodes.find((n) => n.kind === "output")?.timing?.slack,
+    0.1
+  );
+  assert.equal(
+    buildWorkspaceGraph(lLeaf, { timing: mergedTiming, moduleLibrary: mergedDesign }).nodes.find((n) => n.kind === "output")?.timing?.slack,
+    -0.5
+  );
+});
+
+test("3-level hierarchy without top wrappers isolates global and local modules and outer root navigation works", () => {
+  const globalVer = `
+module ConeKernel (input a, output sco_1605);
+  BUF u_g (.A(a), .Z(sco_1605));
+endmodule
+module SubMid (input a, output sco_1605);
+  ConeKernel ConeKernel_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049 (input a, output sco_1605);
+  SubMid SubMid_inst (.a(a), .sco_1605(sco_1605));
+endmodule`;
+  const localVer = `
+module ConeKernel (input a, output sco_1605);
+  BUF u_l (.A(a), .Z(sco_1605));
+endmodule
+module SubMid (input a, output sco_1605);
+  ConeKernel ConeKernel_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049_cpy (input a, output sco_1605);
+  SubMid SubMid_inst (.a(a), .sco_1605(sco_1605));
+endmodule`;
+
+  const merged = mergeNetlistSources([
+    { name: "global.v", text: globalVer },
+    { name: "local.v", text: localVer }
+  ]).model.modules;
+  const localTiming = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy_loc/SubMid_inst/ConeKernel_gen_18630/sco_1605": {
+        at: 0.39,
+        kind: "port",
+        rt: -0.05,
+        slack: -0.44
+      }
+    }
+  }));
+
+  const globalCone = merged.find((m) => m.name === "ConeKernel [global.v]");
+  const localCone = merged.find((m) => m.name === "ConeKernel [local.v]");
+  assert.equal(
+    buildWorkspaceGraph(globalCone, { timing: localTiming, moduleLibrary: merged }).nodes.find((n) => n.kind === "output")?.timing,
+    undefined,
+    "3-level global module must not match local timing via unrooted multi-segment fallback"
+  );
+  assert.equal(
+    buildWorkspaceGraph(localCone, { timing: localTiming, moduleLibrary: merged }).nodes.find((n) => n.kind === "output")?.timing?.slack,
+    -0.44
+  );
+
+  // Outer wrapper TopChip wrapping LocalDesign_15of15 and GlobalTop
+  const wrappedDesign = parseVerilog(`
+module ConeKernel (input a, output sco_1605);
+  BUF u0 (.A(a), .Z(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049 (input a, output sco_1605);
+  ConeKernel ConeKernel_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module ModKerWrapper_tc_1049_cpy (input a, output sco_1605);
+  ConeKernel ConeKernel_gen_18630 (.a(a), .sco_1605(sco_1605));
+endmodule
+module GlobalTop (input a, output sco_1605);
+  ModKerWrapper_tc_1049 HinstModKerWrapper_tc_1049_gen_18638 (.a(a), .sco_1605(sco_1605));
+endmodule
+module LocalDesign_15of15 (input a, output sco_1605);
+  ModKerWrapper_tc_1049_cpy ModKerWrapper_tc_1049_cpy_loc (.a(a), .sco_1605(sco_1605));
+endmodule
+module TopChip (input a, output sco_g, output sco_l);
+  GlobalTop u_global (.a(a), .sco_1605(sco_g));
+  LocalDesign_15of15 u_local (.a(a), .sco_1605(sco_l));
+endmodule`).modules;
+  const wrappedTiming = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_tc_1049_cpy_loc/ConeKernel_gen_18630/sco_1605": {
+        at: 0.4,
+        kind: "port",
+        rt: -0.04,
+        slack: -0.44
+      }
+    }
+  }));
+  const sharedCone = wrappedDesign.find((m) => m.name === "ConeKernel");
+  const outerLocalGraph = buildWorkspaceGraph(sharedCone, {
+    timing: wrappedTiming,
+    moduleLibrary: wrappedDesign,
+    occurrenceRootModuleName: "TopChip",
+    occurrencePath: ["u_local", "ModKerWrapper_tc_1049_cpy_loc", "ConeKernel_gen_18630"]
+  });
+  const outerGlobalGraph = buildWorkspaceGraph(sharedCone, {
+    timing: wrappedTiming,
+    moduleLibrary: wrappedDesign,
+    occurrenceRootModuleName: "TopChip",
+    occurrencePath: ["u_global", "HinstModKerWrapper_tc_1049_gen_18638", "ConeKernel_gen_18630"]
+  });
+  assert.equal(outerLocalGraph.nodes.find((n) => n.kind === "output")?.timing?.slack, -0.44);
+  assert.equal(outerGlobalGraph.nodes.find((n) => n.kind === "output")?.timing, undefined);
+});
+
+test("escaped ':' in occurrencePath and '\\/' in cell/net/pin names resolve and count accurately", () => {
+  const modules = parseVerilog(`
+module Leaf (input a, output y);
+  BUF \\u_dp_add_0/u_buf_0  (.A(a), .Z(y));
+endmodule
+module Top (input a, output y);
+  Leaf \\u_blk:0  (.a(a), .y(y));
+endmodule`).modules;
+  const leaf = modules.find((m) => m.name === "Leaf");
+
+  const timing = parseTimingLog(JSON.stringify({
+    module: "Top",
+    points: {
+      "\\u_blk:0 /u_dp_add_0\\/u_buf_0/A": { at: 0.25, rt: 0.15, slack: -0.1, kind: "pin" }
+    }
+  }));
+  const occGraph = buildWorkspaceGraph(leaf, {
+    timing,
+    moduleLibrary: modules,
+    occurrenceRootModuleName: "Top",
+    occurrencePath: ["\\u_blk:0 "]
+  });
+  const escapedCell = occGraph.nodes.find((n) => n.kind === "cell");
+  assert.equal(escapedCell?.timing?.pins?.A?.slack, -0.1);
+
+  // Direct module test for escaped '\/' in net and pin names
+  const [netMod] = parseVerilog(`
+module net_slash_mod (input a, output y);
+  wire \\u_dp_add_0/w_gen_1207 ;
+  BUF u_drv (.A(a), .Z(\\u_dp_add_0/w_gen_1207 ));
+  BUF \\u_dp_add_0/u_buf_1  (.\\a/b (\\u_dp_add_0/w_gen_1207 ), .Z(y));
+endmodule`).modules;
+  const slashTiming = parseTimingLog(JSON.stringify({
+    module: "net_slash_mod",
+    points: {
+      "u_dp_add_0\\/w_gen_1207": { at: 0.35, rt: 0.20, slack: -0.15, kind: "net" },
+      "u_dp_add_0\\/u_buf_1/a\\/b": { at: 0.40, rt: 0.10, slack: -0.30, kind: "pin" },
+      "u_dp_add_0\\/u_buf_1/Z": { at: 0.45, rt: 0.10, slack: -0.35, kind: "pin" }
+    }
+  }));
+  assert.equal(slashTiming.instanceCount, 2);
+  const netGraph = buildWorkspaceGraph(netMod, { timing: slashTiming });
+  assert.equal(netGraph.nodes.find((n) => n.label === "u_drv")?.timing?.pins?.Z?.slack, -0.15);
+  assert.equal(netGraph.nodes.find((n) => n.label === "\\u_dp_add_0/u_buf_1")?.timing?.pins?.["a/b"]?.slack, -0.30);
+});
+
+test("unexpanded multi-bit bus input port and parent hinst whole-bus pin highlight worst bit deterministically", () => {
+  const design = parseVerilog(`
+module ConeKernel (input [63:0] a_q, output sco_1605);
+  BUF u0 (.A(a_q), .Z(sco_1605));
+endmodule
+module ModKerWrapper_cpy (input [63:0] a_q, output sco_1605);
+  ConeKernel ConeKernel_gen_18609 (.a_q(a_q), .sco_1605(sco_1605));
+endmodule
+module LocalDesign_15of15 (input [63:0] a_q, output sco_1605);
+  ModKerWrapper_cpy ModKerWrapper_cpy_loc (.a_q(a_q), .sco_1605(sco_1605));
+endmodule`).modules;
+
+  const timing = parseTimingLog(JSON.stringify({
+    module: "LocalDesign_15of15",
+    points: {
+      "ModKerWrapper_cpy_loc/ConeKernel_gen_18609/a_q\\[12\\]": {
+        at: 0.10,
+        kind: "port",
+        rt: 0.20,
+        slack: 0.10
+      },
+      "ModKerWrapper_cpy_loc/ConeKernel_gen_18609/a_q\\[33\\]": {
+        at: 0.22428335249423981,
+        kind: "port",
+        rt: -0.29774534702301025,
+        slack: -0.52202868461608887
+      }
+    }
+  }));
+
+  const cone = design.find((m) => m.name === "ConeKernel");
+  const coneGraph = layoutGraph(buildWorkspaceGraph(cone, { timing, moduleLibrary: design }));
+  const inputPort = coneGraph.nodes.find((n) => n.kind === "input" && n.ref?.name === "a_q");
+  assert.equal(inputPort?.timing?.slack, -0.52202868461608887);
+
+  const wrapper = design.find((m) => m.name === "ModKerWrapper_cpy");
+  const wrapperGraph = layoutGraph(buildWorkspaceGraph(wrapper, { timing, moduleLibrary: design }));
+  const hinst = wrapperGraph.nodes.find((n) => n.id === "cell:ConeKernel_gen_18609");
+  assert.equal(hinst?.timing?.worstPin, "a_q[33]");
+  const svg = renderSchematicSvg(wrapperGraph);
+  assert.match(svg, /pin-critical/);
+  assert.match(svg, /a_q\[33\]: at 0\.224, rt -0\.298, slack -0\.522/);
+});
+
+test("timing annotation is invariant to record order and scales boundedly for 1000 cells", () => {
+  const cellCount = 1000;
+  const cells = [];
+  const entries = [];
+  for (let i = 0; i < cellCount; i += 1) {
+    const inst = `u_cell_${i}`;
+    cells.push(`  BUF ${inst} (.A(a), .Z(y_${i}));`);
+    entries.push([`${inst}/A`, { at: 0.1, rt: 0.0, slack: i === 500 ? -0.5 : 0.2, kind: "pin" }]);
+    entries.push([`${inst}/Z`, { at: 0.2, rt: 0.0, slack: i === 500 ? -0.5 : 0.1, kind: "pin" }]);
+    entries.push([`net_${i}`, { at: 0.3, rt: 0.4, slack: 0.1, kind: "net" }]);
+    entries.push([`other_wrap/sub_${i}/A`, { at: 0.4, rt: 0.5, slack: 0.1, kind: "pin" }]);
+    entries.push([`u_unmatched_${i}/Z`, { at: 0.5, rt: 0.6, slack: 0.1, kind: "pin" }]);
+  }
+  const modSource = `module scale_top (input a, output ${Array.from({ length: 10 }, (_, i) => `y_${i}`).join(", ")});\n${cells.join("\n")}\nendmodule`;
+  const [mod] = parseVerilog(modSource).modules;
+
+  const forwardTiming = parseTimingLog(JSON.stringify({
+    module: "scale_top",
+    points: Object.fromEntries(entries)
+  }));
+  const reverseTiming = parseTimingLog(JSON.stringify({
+    module: "scale_top",
+    points: Object.fromEntries([...entries].reverse())
+  }));
+
+  const startedAt = performance.now();
+  const forwardGraph = buildWorkspaceGraph(mod, { timing: forwardTiming });
+  const elapsedMs = performance.now() - startedAt;
+  const reverseGraph = buildWorkspaceGraph(mod, { timing: reverseTiming });
+
+  assert.ok(elapsedMs < 500, `Expected 1000-cell / 5000-point timing annotation < 500ms, took ${Math.round(elapsedMs)}ms`);
+  assert.equal(forwardGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstSlack, -0.5);
+  assert.equal(
+    forwardGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstPin,
+    reverseGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstPin,
+    "equal worstSlack tie-breaking must be invariant to record order"
+  );
+  assert.equal(
+    forwardGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstSlack,
+    reverseGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstSlack
+  );
 });

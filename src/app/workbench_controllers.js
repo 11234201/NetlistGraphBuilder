@@ -71,7 +71,9 @@ export function createWorkbenchControllers({ state, getElements, services, route
     const query = normalizeShowPath(value);
     if (!query) return;
     const full = buildModuleFullGraph({ module, moduleLibrary: state.design.modules, graphOverrides, cellConfig: state.cellConfig,
-      cellLibrary: services.readCellLibrary?.(), showAliases: state.showAliases, occurrencePath: occurrence?.occurrencePath });
+      cellLibrary: services.readCellLibrary?.(), showAliases: state.showAliases,
+      occurrenceRootModuleName: occurrence?.rootModuleName || null,
+      occurrencePath: occurrence?.occurrencePath });
     services.netlistFeature.pathIndex(full).query({ ...query, enabled: true });
   }
   const wire = (owner, factory, ports) => factory({

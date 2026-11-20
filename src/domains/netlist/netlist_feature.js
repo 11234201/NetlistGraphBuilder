@@ -107,6 +107,7 @@ export const netlistFeature = defineDomainFeature({
       timingBadgeChoices: options.timingBadgeChoices,
       timingBadgePositions: options.timingBadgePositions,
       showAliases: options.showAliases,
+      occurrenceRootModuleName: options.occurrenceRootModuleName || null,
       occurrencePath: options.occurrencePath
     });
     const { visibleGraph, path } = queryNetlistView(fullGraph, {

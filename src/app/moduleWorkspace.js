@@ -41,6 +41,7 @@ export function buildModuleWorkspace(options) {
     nodePositions = new Map(),
     nodeSizes = new Map(),
     preparedFullGraph = null,
+    occurrenceRootModuleName = null,
     occurrencePath = null,
     artifactCache = null,
     artifactIdentity = null
@@ -56,6 +57,7 @@ export function buildModuleWorkspace(options) {
     timingBadgeChoices,
     timingBadgePositions,
     showAliases,
+    occurrenceRootModuleName,
     occurrencePath,
     artifactCache,
     artifactIdentity
@@ -188,6 +190,7 @@ export function buildModuleFullGraph(options = {}) {
     timingBadgeChoices = {},
     timingBadgePositions = {},
     showAliases = false,
+    occurrenceRootModuleName = null,
     occurrencePath = null,
     artifactCache = null,
     artifactIdentity = null
@@ -204,6 +207,7 @@ export function buildModuleFullGraph(options = {}) {
     timingBadgeChoices,
     timingBadgePositions,
     showAliases,
+    occurrenceRootModuleName,
     occurrencePath
   };
   const key = identity ? createWorkspaceArtifactKey(identity) : null;
@@ -219,6 +223,7 @@ export function buildModuleFullGraph(options = {}) {
     timingBadgeChoices,
     timingBadgePositions,
     showAliases,
+    occurrenceRootModuleName,
     occurrencePath
   });
   if (artifactCache && key) artifactCache.put(key, graph, {

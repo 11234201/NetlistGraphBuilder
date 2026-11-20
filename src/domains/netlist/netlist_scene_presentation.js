@@ -191,6 +191,63 @@ function createGateShape(node, gateKind, conventional, x, y, width, height) {
   return svgElement("g", {}, [shape, svgElement("path", { class: "gate-extra-shape", d: extraD })]);
 }
 
+function lookupPortTiming(pins, port) {
+  if (!pins || typeof pins !== "object") {
+    return { pinLabel: port.pin, timing: null };
+  }
+  const stripLeadingBackslash = (value) => String(value || "").replace(/^\\/, "");
+  const exactKeys = [
+    port.pin,
+    port.rawPin,
+    stripLeadingBackslash(port.pin),
+    port.rawPin ? stripLeadingBackslash(port.rawPin) : null
+  ].filter(Boolean);
+  for (const key of exactKeys) {
+    if (Object.hasOwn(pins, key) && pins[key]) {
+      return { pinLabel: port.pin, timing: pins[key] };
+    }
+  }
+
+  const isConcatSlot = Boolean(port.rawPin && port.pin !== port.rawPin && /\{\d+\}$/.test(String(port.pin || "")));
+  if (isConcatSlot) {
+    return { pinLabel: port.pin, timing: null };
+  }
+
+  const base = stripLeadingBackslash(port.rawPin || port.pin).trim();
+  if (!base) {
+    return { pinLabel: port.pin, timing: null };
+  }
+
+  let bestKey = null;
+  let bestTiming = null;
+  for (const [key, value] of Object.entries(pins)) {
+    if (!value || !key.startsWith(`${base}[`) || !/^\[\d+\]$/.test(key.slice(base.length))) {
+      continue;
+    }
+    if (!bestTiming) {
+      bestKey = key;
+      bestTiming = value;
+      continue;
+    }
+    const nextSlack = value.slack;
+    const bestSlack = bestTiming.slack;
+    const nextHasSlack = Number.isFinite(nextSlack);
+    const bestHasSlack = Number.isFinite(bestSlack);
+    if (
+      (nextHasSlack && !bestHasSlack) ||
+      (nextHasSlack && bestHasSlack && nextSlack < bestSlack) ||
+      (nextHasSlack === bestHasSlack && (!nextHasSlack || nextSlack === bestSlack) && key.localeCompare(bestKey) < 0)
+    ) {
+      bestKey = key;
+      bestTiming = value;
+    }
+  }
+  if (bestTiming) {
+    return { pinLabel: bestKey, timing: bestTiming };
+  }
+  return { pinLabel: port.pin, timing: null };
+}
+
 function createPortPrimitives(node, x, y, width, conventional = false) {
   return (node.ports || []).flatMap((port) => {
     const px = round(x + port.x);
@@ -200,13 +257,13 @@ function createPortPrimitives(node, x, y, width, conventional = false) {
     const labelX = vertical ? px : isOutput ? px - 6 : px + 6;
     const labelY = port.side === "top" ? py + 13 : port.side === "bottom" ? py - 7 : py + 3;
     const anchor = vertical ? "middle" : isOutput ? "end" : "start";
-    const timing = node.timing?.pins?.[port.pin];
+    const { pinLabel, timing } = lookupPortTiming(node.timing?.pins, port);
     const threshold = Number.isFinite(node.timing?.slackThreshold) ? node.timing.slackThreshold : 0.0;
     const isCritical = typeof timing?.isCritical === "boolean"
       ? timing.isCritical
       : (timing && Number.isFinite(timing.slack) && timing.slack < threshold);
     const timingClass = timing ? (isCritical ? " pin-critical" : " pin-timing") : "";
-    const markerChildren = timing ? [title(formatPinTimingTooltip(port.pin, timing))] : [];
+    const markerChildren = timing ? [title(formatPinTimingTooltip(pinLabel, timing))] : [];
     const marker = isOutput && node.outputBubble === true
       ? svgElement("circle", { class: `pin-bubble${timingClass}`, cx: round(x + width + 5), cy: py, r: 5 }, markerChildren)
       : svgElement("circle", { class: `pin-dot${timingClass}`, cx: px, cy: py, r: 2.4 }, markerChildren);

@@ -22,6 +22,7 @@ export function buildWorkspaceGraph(module, options = {}) {
     badgeChoices: options.timingBadgeChoices || {},
     badgePositions: options.timingBadgePositions || {},
     moduleLibrary: options.moduleLibrary || [],
+    occurrenceRootModuleName: options.occurrenceRootModuleName || null,
     occurrencePath: options.occurrencePath || null
   });
   const normalized = normalizeGraphAliases(annotatedGraph, { showAliases: options.showAliases === true });

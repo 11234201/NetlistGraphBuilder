@@ -17,6 +17,7 @@ export function createSingleWorkspaceInput(state, layoutProvider, query, cellLib
     focusedRootNodeIds: state.focusedRootNodeIds,
     activeFocusedRootNodeId: state.activeFocusedRootNodeId,
     coneRootNodeId: state.coneRootNodeId,
+    occurrenceRootModuleName: state.occurrenceContext?.rootModuleName || null,
     occurrencePath: state.occurrenceContext?.occurrencePath || null,
     useFanoutHubs: state.useFanoutHubs,
     layoutProvider,

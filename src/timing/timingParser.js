@@ -442,14 +442,23 @@ export function mergeTimingDatasets(datasets = []) {
 
 function getSubjectKey(point, kind) {
   if (kind === "port" || kind === "net") return point;
-  const slashIndex = point.lastIndexOf("/");
-  if (slashIndex > 0 && !point.startsWith("\\")) {
-    return point.slice(0, slashIndex);
-  }
-  if (slashIndex > 0 && point.startsWith("\\")) {
+  const slashIndex = findLastUnescapedSlash(point);
+  if (slashIndex > 0) {
     return point.slice(0, slashIndex);
   }
   return point;
+}
+
+function findLastUnescapedSlash(text) {
+  for (let index = text.length - 1; index > 0; index -= 1) {
+    if (text[index] !== "/") continue;
+    let backslashes = 0;
+    for (let j = index - 1; j >= 0 && text[j] === "\\"; j -= 1) {
+      backslashes += 1;
+    }
+    if (backslashes % 2 === 0) return index;
+  }
+  return -1;
 }
 
 export function tokenizeTimingLine(line) {

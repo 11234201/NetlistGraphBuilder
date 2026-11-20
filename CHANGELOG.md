@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-20
+
+- `LocalDesign` / 顶层包装作用域下的 `kind: "pin"` 边界端口与多级子模块引脚解析，以及父子同名单元防串扰。
+- 多文件（Global/Local）与显式 occurrence 上下文（`occurrenceRootModuleName` / `occurrencePath`）下的严格层级时序隔离（覆盖多级无顶层设计与外层顶层包装），以及多实例化未指定 occurrence 时的歧义保护（拒绝混合拼合不同实例引脚）。
+- 父模块视图子模块实例（`hinst`）展示 `kind: "port"` 引脚时序徽标与整线总线引脚最差位高亮。
+- STA/Tcl 转义名兼容：`a_q\[33\]` 方括号转义、未展开多比特总线端口范围回退、`\/` 转义斜杠（cell/port/net 与 `instanceCount`）及 `occurrencePath` 中含 `:` 的转义实例名保护。
+- 时序标注确定性与性能优化：预编译模块匹配正则、`Map` 索引化 cell 后缀查找及等 slack 稳定决胜。
+
 ## [1.6.1] - 2026-11-20
 
 - 结构化 Verilog 注释属性解析（`module`、`port`/`bus port`、`net`/`bus net`、`instance`）：左侧 `Navigator → Design` 展示当前模块属性，右侧 `Inspector` 升级为 `Connections | Attributes | Analysis | Timing | Adjust` 五页签（子模块实例 `hinst` 同时展示实例属性与引用模块属性，折叠 `assign` 别名链自动合并线网属性）。
