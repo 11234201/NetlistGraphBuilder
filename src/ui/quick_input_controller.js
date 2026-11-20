@@ -8,7 +8,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   const reportFailure = (error, message, context = {}) => {
     if (readErrorField(error, "name") === "AbortError") return;
     try {
-      logProcess?.("error", "import", message, { error, code: readErrorField(error, "code") || context.operation + ".failed", ...context });
+      logProcess?.("error", "import", message, { error, code: readErrorField(error, "code") || context.operation + ".failed", ...context },
+        { onlyIfUnreported: context.kind === "timing" });
     } catch { /* The failed input and its status remain available if logging fails. */ }
     setStatus(message);
   };

@@ -236,6 +236,17 @@ u_add_0/A1      pin     f       0.098    0.065    0.728    0.717   -0.011
 
 ---
 
+### 4.3 用 Process Log 排查缺少时序的 cell
+
+打开底部 **Log**，将 **Phase** 设为 **Timing**，保留全部日志级别。展开 **details** 可查看以下两类记录，也可用 **Export** 导出当前过滤后的 JSONL。
+
+- `timing.import` 记录文件名、有效记录数、作用域数和解析告警。告警示例给出字段、可用的行号或 JSON point。保留下来的有效记录会继续参与匹配。
+- `timing.match` 给出当前模块、实例路径和 Single 或 Compare 侧别。`reportRecordCount` 是输入记录总数，`scopedRecordCount` 是进入当前模块匹配的条数。`excludedReasons` 和 `excludedExamples` 说明其余记录经过哪条作用域或路径规则被排除。另一模块的时序也可能正常出现在这些计数里。
+- `unmatchedExamples` 给出进入作用域后仍未找到图对象的 point 以及实际尝试的名称。`matchedRecordCount` 按记录计数，最终有时序的 cell 数见 `annotatedCellCount`。多个层级路径指向同名 cell 时可查看 `ambiguousExamples`。多个实例同时命中模块时可查看 `occurrenceExamples`。
+- 每类示例最多四项，长标识符保留首尾。表格记录可按文件名和行号回查，JSON 记录可按文件名和 point 回查。`cellsWithoutTiming` 是当前完整模块图中缺少时序的 cell 示例；覆盖率也按完整模块统计。
+
+例如，网表顶层为 `LocalDesign_1of1` 时，若日志里出现 `root-path-mismatch`，可对照示例中的 `scope`、`point` 和 `expectedPrefix`。若原因是 `other-named-scope`，说明当前模块已选中一个具名作用域，示例中的记录来自另一个具名作用域。
+
 ## 5. 内部 Timing IR 目标结构（供代码重构对接）
 
 为兼容工作区缓存签名序列化（`createWorkspaceArtifactKey` 要求状态对象为无环纯数据结构，避免冗余深拷贝）以及现有的 CLI/导入统计契约（`recordCount` / `instanceCount`），`src/timing/timingParser.js` 的输出统一收敛为如下纯对象结构：

@@ -1,3 +1,5 @@
+import { createMatchDiagnostics, TIMING_SAMPLE_LIMIT, timingNameSample } from "./timing_diagnostics.js";
+
 export const TIMING_BADGE_POSITIONS = Object.freeze([
   "bottom-right",
   "top-right",
@@ -28,9 +30,13 @@ export function annotateGraphTiming(graph, timing, options = {}) {
   const targetModuleName = graph.timingModuleName || graph.moduleName;
   const moduleMatcher = createModulePointMatcher(targetModuleName);
   const hierarchyContext = createHierarchyTimingContext(graph, targetModuleName, options);
-  const scopedItems = selectModuleRecords(timing, hierarchyContext);
+  if (!timing.records?.length) return graph;
+  const diagnostics = createMatchDiagnostics(timing, hierarchyContext);
+  const scopedItems = selectModuleRecords(timing, hierarchyContext, diagnostics);
+  const summary = { stage, unit, policy, scopedRecordCount: scopedItems.length, diagnostics: diagnostics.details };
   if (scopedItems.length === 0) {
-    return graph;
+    diagnostics.summarizeCells(graph.nodes);
+    return { ...graph, timingSummary: { ...summary, matchedRecordCount: 0, unmatchedRecordCount: 0 } };
   }
 
   const cellIndex = buildCellIndex(graph.nodes);
@@ -51,6 +57,10 @@ export function annotateGraphTiming(graph, timing, options = {}) {
       matchedOccurrenceKeys.add(match.occurrenceKey);
     }
   };
+  const recordMiss = (record, candidates) => {
+    unmatchedRecordCount += 1;
+    diagnostics.unmatched(record, candidates);
+  };
 
   for (const item of scopedItems) {
     const { record, stripPrefixes, allowModulePattern, allowPortPrefix } = item;
@@ -68,7 +78,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
         tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex) ||
         tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, false);
       if (match) recordMatch(match);
-      else unmatchedRecordCount += 1;
+      else recordMiss(record, candidates);
       continue;
     }
 
@@ -77,7 +87,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
         tryAnnotatePort(record, candidates, portIndex, portTimingByNodeId, ambiguousPortNodeIds, false) ||
         tryCollectCellPin(record, candidates, cellIndex, cellPinGroups, portIndex);
       if (match) recordMatch(match);
-      else unmatchedRecordCount += 1;
+      else recordMiss(record, candidates);
       continue;
     }
 
@@ -92,7 +102,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
         ambiguousPortNodeIds
       );
       if (match) recordMatch(match);
-      else unmatchedRecordCount += 1;
+      else recordMiss(record, candidates);
       continue;
     }
 
@@ -126,17 +136,22 @@ export function annotateGraphTiming(graph, timing, options = {}) {
       continue;
     }
 
-    unmatchedRecordCount += 1;
+    recordMiss(record, candidates);
   }
 
   if (!hierarchyContext.hasExplicitOccurrence && matchedOccurrenceKeys.size > 1) {
+    diagnostics.summarizeCells(graph.nodes);
+    const occurrenceExamples = [];
+    for (const key of matchedOccurrenceKeys) {
+      occurrenceExamples.push(timingNameSample(key));
+      if (occurrenceExamples.length === TIMING_SAMPLE_LIMIT) break;
+    }
     return {
       ...graph,
       netTiming: {},
       timingSummary: {
-        stage,
-        unit,
-        policy,
+        ...summary,
+        occurrenceExamples,
         matchedRecordCount: 0,
         unmatchedRecordCount: scopedItems.length,
         ambiguousOccurrenceCount: matchedOccurrenceKeys.size
@@ -145,7 +160,8 @@ export function annotateGraphTiming(graph, timing, options = {}) {
     };
   }
 
-  const cellTimingByNodeId = resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage);
+  const cellTimingByNodeId = resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage, diagnostics);
+  diagnostics.summarizeCells(graph.nodes, cellTimingByNodeId);
 
   const annotatedNodes = graph.nodes.map((node) => {
     if (node.kind === "cell") {
@@ -188,9 +204,7 @@ export function annotateGraphTiming(graph, timing, options = {}) {
     ...graph,
     netTiming,
     timingSummary: {
-      stage,
-      unit,
-      policy,
+      ...summary,
       matchedRecordCount,
       unmatchedRecordCount
     },
@@ -292,7 +306,7 @@ function createHierarchyTimingContext(graph, targetModuleName, options = {}) {
   };
 }
 
-function selectModuleRecords(timing, context) {
+function selectModuleRecords(timing, context, diagnostics) {
   const allRecords = Array.isArray(timing.records) ? timing.records : [];
   if (allRecords.length === 0) return [];
 
@@ -326,8 +340,14 @@ function selectModuleRecords(timing, context) {
       const selected = [];
       if (Array.isArray(scopes.__default__)) {
         selected.push(
-          ...filterRecordsForScope(scopes.__default__, "__default__", context, hierarchyIndex)
+          ...filterRecordsForScope(scopes.__default__, "__default__", context, hierarchyIndex, diagnostics)
         );
+      }
+      const chosen = new Set(matchedScopeKeys);
+      for (const key of namedScopeKeys) {
+        if (!chosen.has(key) && Array.isArray(scopes[key])) {
+          diagnostics.exclude("other-named-scope", scopes[key][0], null, scopes[key].length);
+        }
       }
       for (const key of matchedScopeKeys) {
         for (const record of scopes[key]) {
@@ -346,16 +366,16 @@ function selectModuleRecords(timing, context) {
     for (const [scopeKey, scopeRecords] of Object.entries(scopes)) {
       if (!Array.isArray(scopeRecords) || scopeRecords.length === 0) continue;
       selected.push(
-        ...filterRecordsForScope(scopeRecords, scopeKey, context, hierarchyIndex)
+        ...filterRecordsForScope(scopeRecords, scopeKey, context, hierarchyIndex, diagnostics)
       );
     }
     return selected;
   }
 
-  return filterRecordsForScope(allRecords, "__default__", context, hierarchyIndex);
+  return filterRecordsForScope(allRecords, "__default__", context, hierarchyIndex, diagnostics);
 }
 
-function filterRecordsForScope(records, scopeKey, context, hierarchyIndex) {
+function filterRecordsForScope(records, scopeKey, context, hierarchyIndex, diagnostics) {
   const { normModule } = context;
   const isDefaultScope = scopeKey === "__default__";
   const normScopeKey = isDefaultScope ? "" : normalizeHierarchicalName(scopeKey);
@@ -364,12 +384,12 @@ function filterRecordsForScope(records, scopeKey, context, hierarchyIndex) {
     : [];
 
   if (scopeModules.length > 0) {
-    return filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex);
+    return filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex, diagnostics);
   }
 
-  const knownRootPaths = resolveKnownRootPaths(context, hierarchyIndex);
+  const knownRootPaths = resolveKnownRootPaths(context, hierarchyIndex, diagnostics);
   if (knownRootPaths.length > 0) {
-    return filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths);
+    return filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, diagnostics);
   }
 
   const alt = createModuleSegmentAlternation(normModule);
@@ -386,6 +406,8 @@ function filterRecordsForScope(records, scopeKey, context, hierarchyIndex) {
         allowModulePattern: true,
         allowPortPrefix: true
       });
+    } else {
+      diagnostics.exclude("module-prefix-mismatch", record, normModule);
     }
   }
   return matched;
@@ -403,9 +425,10 @@ function findMatchingScopeModules(normScopeKey, modules) {
   });
 }
 
-function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex) {
-  const pathsFromScope = findOccurrencePathsToModule(scopeModules, hierarchyIndex, context, scopeModules);
+function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex, diagnostics) {
+  const pathsFromScope = findOccurrencePathsToModule(scopeModules, hierarchyIndex, context, scopeModules, diagnostics);
   if (pathsFromScope.length === 0) {
+    diagnostics.exclude("no-occurrence-under-scope", records[0], null, records.length);
     return [];
   }
 
@@ -453,12 +476,14 @@ function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, con
         allowModulePattern: false,
         allowPortPrefix
       });
+    } else {
+      diagnostics.exclude("occurrence-path-mismatch", record, pathStrings[0]);
     }
   }
   return matched;
 }
 
-function resolveKnownRootPaths(context, hierarchyIndex) {
+function resolveKnownRootPaths(context, hierarchyIndex, diagnostics) {
   if (context.hasExplicitOccurrence) {
     return [{
       rootModuleName: context.explicitRootModuleName,
@@ -466,10 +491,10 @@ function resolveKnownRootPaths(context, hierarchyIndex) {
     }];
   }
   if (!hierarchyIndex) return [];
-  return findOccurrencePathsToModule(hierarchyIndex.startModules, hierarchyIndex, context, null);
+  return findOccurrencePathsToModule(hierarchyIndex.startModules, hierarchyIndex, context, null, diagnostics);
 }
 
-function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths) {
+function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, diagnostics) {
   const isDefaultScope = scopeKey === "__default__";
   const rootPatterns = knownRootPaths.map((entry) => {
     const fullPath = entry.pathSegments.join("/");
@@ -486,6 +511,8 @@ function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRoo
     return { kind: "unrooted", fullPath, occurrenceKey };
   });
 
+  const firstRoot = knownRootPaths[0];
+  const expectedPrefix = [firstRoot.rootModuleName, ...firstRoot.pathSegments].filter(Boolean).join("/");
   const matched = [];
   for (const record of records) {
     const normPoint = normalizeHierarchicalName(record.point);
@@ -518,12 +545,14 @@ function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRoo
         allowModulePattern: false,
         allowPortPrefix: false
       });
+    } else {
+      diagnostics.exclude("root-path-mismatch", record, expectedPrefix);
     }
   }
   return matched;
 }
 
-function findOccurrencePathsToModule(startModules, hierarchyIndex, context, scopeModules = null) {
+function findOccurrencePathsToModule(startModules, hierarchyIndex, context, scopeModules, diagnostics) {
   const { currentMod, normModule, hasExplicitOccurrence, explicitPathSegments, explicitRootModuleName } = context;
   const targetStem = getModuleStem(normModule);
   const hasCurrentMod = Boolean(currentMod && hierarchyIndex.moduleSet.has(currentMod));
@@ -547,7 +576,12 @@ function findOccurrencePathsToModule(startModules, hierarchyIndex, context, scop
   };
 
   const visit = (rootMod, mod, pathSegments, ancestry) => {
-    if (!mod || visits >= MAX_VISITS || pathSegments.length >= MAX_DEPTH) return;
+    if (!mod) return;
+    if (visits >= MAX_VISITS || pathSegments.length >= MAX_DEPTH) {
+      if (visits >= MAX_VISITS) diagnostics.details.hierarchyVisitLimitReached = MAX_VISITS;
+      if (pathSegments.length >= MAX_DEPTH) diagnostics.details.hierarchyDepthLimitReached = MAX_DEPTH;
+      return;
+    }
     visits += 1;
     for (const cell of mod.cells || []) {
       const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
@@ -1249,7 +1283,7 @@ function addDriverCellPinTiming(cellPinGroups, cellNodeId, pinName, record, sour
   };
 }
 
-function resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage) {
+function resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage, diagnostics) {
   const groupsByNodeId = new Map();
   const directGroupsByNodeId = new Map();
 
@@ -1260,6 +1294,9 @@ function resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage) {
     }
     const longest = findLongestSuffixCells(group.matchPath, cellIndex);
     if (longest.length !== 1) {
+      if (longest.length > 1) {
+        diagnostics.ambiguous(group.fullPath, longest.slice(0, TIMING_SAMPLE_LIMIT).map(({ node }) => node.id));
+      }
       continue;
     }
     const matchedCell = longest[0];
@@ -1289,6 +1326,7 @@ function resolveCellTimingMatches(cellPinGroups, cellIndex, unit, stage) {
         selectedEntry = exactEntries[0];
       } else {
         ambiguousNodeIds.add(nodeId);
+        diagnostics.ambiguous(entries[0].instance, entries.slice(0, TIMING_SAMPLE_LIMIT).map(({ group }) => group.fullPath));
         continue;
       }
     }

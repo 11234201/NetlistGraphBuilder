@@ -93,6 +93,32 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   assert.doesNotMatch(persistence, /injected runtime failure/);
   await page.locator("#processLogPhaseFilter").selectOption("runtime");
   assert.match(await page.locator("#processLogList").textContent(), /injected rejection/);
+  const upload = (selector, name, content) => page.locator(selector).setInputFiles({
+    name, mimeType: "text/plain", buffer: Buffer.from(content)
+  });
+  await upload("#fileInput", "single-round.v", `
+    module LocalDesign_1of1(input a, output y);
+      wire n; BUF u_seen (.A(a), .Z(n)); BUF u_missing (.A(n), .Z(y));
+    endmodule
+    module Peer(input a, output y); BUF u_peer (.A(a), .Z(y)); endmodule`);
+  await page.locator('#schematicMount [data-node-id="cell:u_seen"]').first().waitFor();
+  await page.locator("#processLogPhaseFilter").selectOption("timing");
+  await upload("#timingInput", "single-round.txt",
+    "@module LocalDesign_1of1\npoint at rt slack\nu_seen/Z 2 1 -1\nu_typo/Z 2 1 -1\nu_missing/Z invalid-private-value 1 -1");
+  await waitForLog("LocalDesign_1of1, 1/2 cells annotated");
+  const matchEntry = page.locator("#processLogList li").filter({ hasText: "LocalDesign_1of1, 1/2 cells annotated" }).last();
+  await matchEntry.locator("summary").click();
+  const displayedTiming = JSON.parse(await matchEntry.locator("details[open] pre").innerText());
+  assert.equal(displayedTiming.sessionId, "single");
+  assert.equal(displayedTiming.unmatchedExamples[0].line, 4);
+  assert.deepEqual(displayedTiming.cellsWithoutTiming, ["u_missing"]);
+  await page.locator("#compareButton").click();
+  await waitForLog("left / LocalDesign_1of1, 1/2 cells annotated");
+  await waitForLog("right / Peer, 0/1 cells annotated");
+  await upload("#compareRightTimingInput", "right.txt", "@module Peer\npoint at rt slack\nu_peer/Z 2 1 -1");
+  await waitForLog("right / Peer, 1/1 cells annotated");
+  await upload("#compareRightTimingInput", "invalid-right.txt", "@module Peer\npoint at rt slack\nu_peer/Z private-invalid 1 -1");
+  await waitForLog("Timing parse failed");
   await page.locator("#processLogPhaseFilter").selectOption("");
   const downloaded = page.waitForEvent("download");
   await page.locator("#exportProcessLogButton").click();
@@ -101,6 +127,20 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   let text = "";
   for await (const chunk of await download.createReadStream()) text += chunk.toString("utf8");
   const entries = text.trim().split("\n").map((line) => JSON.parse(line));
+  const timingMatches = entries.filter((entry) => entry.details?.operation === "timing.match");
+  assert.deepEqual(timingMatches.find((entry) => entry.details.moduleName === "LocalDesign_1of1" && entry.details.sessionId === "single").details,
+    displayedTiming);
+  assert.equal(timingMatches.filter((entry) => entry.details.moduleName === "LocalDesign_1of1" && entry.details.side === "left").length, 1);
+  const peer = timingMatches.filter((entry) => entry.details.side === "right" && entry.details.moduleName === "Peer");
+  assert.deepEqual(peer.map((entry) => entry.details.code), ["timing.no-applicable-records", "timing.matched"]);
+  const parseWarning = entries.find((entry) => entry.details?.code === "timing.parsed-with-warnings" && entry.details.fileName === "single-round.txt");
+  assert.equal(parseWarning.details.diagnosticExamples[0].line, 5);
+  const failedImport = entries.filter((entry) => entry.level === "error" && entry.details?.fileName === "invalid-right.txt");
+  assert.equal(failedImport.length, 1);
+  assert.equal(failedImport[0].details.compareSide, "right");
+  assert.equal(failedImport[0].details.error.diagnostic.diagnosticExamples[0].line, 3);
+  assert.ok(failedImport[0].details.error.stack);
+  assert.doesNotMatch(text, /invalid-private-value|private-invalid/);
   const runtime = entries.find((entry) => entry.message.includes("injected runtime failure"));
   assert.equal(runtime.phase, "runtime");
   assert.match(runtime.details.error.stack, /injected runtime failure/);

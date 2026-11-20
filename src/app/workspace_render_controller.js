@@ -6,11 +6,13 @@ import { listLayoutProviders, getLayoutProvider } from "../layout/layoutProvider
 import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { getNextLayoutProviderId } from "../layout/providerDefaults.js";
 import { createSingleWorkspaceIdentity } from "./workspace_identity.js";
+import { createTimingMatchReporter } from "./timing_match_log.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createWorkspaceRenderController({ state, elements, services, mounted }) {
+  const reportTiming = createTimingMatchReporter();
   function renderCurrentModuleGraph(options = {}) {
     if (options.signal?.aborted) { options.onCancelled?.(); return; }
     cancelCanvasGestures(elements.mount);
@@ -104,6 +106,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         options.onCancelled?.(); return;
       }
       state.singleWorkspaceIdentity = options.workspaceIdentity || null;
+      reportTiming(services.logProcess, state.fullGraph, state.timing, { document: state.document, requestId: renderRequest.id });
       services.applyTransform();
       services.setStatus(readyMessage || `Ready (${services.getCurrentLayoutProvider().label})`);
       services.updateCalibrationControls();

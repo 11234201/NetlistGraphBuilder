@@ -16,6 +16,7 @@ import {
 import { importDesignSource } from "./designInput.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { writeTimingLog } from "./timing_match_log.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -105,24 +106,26 @@ export function createInputController({ state, elements, services, restoreCompar
   }
 
   function loadTimingText(text, label, { signal, append = false, compareSide = null } = {}) {
-    services.logProcess("info", "timing", `Parsing timing ${label}`);
+    const context = { operation: "timing.import", fileName: label, compareSide, append,
+      documentId: state.document?.documentId, documentRevision: state.document?.sourceRevision };
+    writeTimingLog(services.logProcess, "info", `Parsing timing ${label}`, { ...context, code: "timing.parse-started" });
     let imported;
     try {
       imported = importTimingSource(text, { name: label });
     } catch (error) {
-      services.logProcess("error", "timing", `Timing parse failed: ${error.message}`, {
-        operation: "timing.import", code: "timing.parse-failed", label, compareSide, append, error
-      });
+      writeTimingLog(services.logProcess, "error", `Timing parse failed: ${error.message}`,
+        { ...context, code: "timing.parse-failed", error });
       throw error;
     }
+    const { recordCount, scopeCount, diagnosticCount } = imported.summary;
+    writeTimingLog(services.logProcess, diagnosticCount ? "warning" : "info",
+      `Parsed ${recordCount} timing record(s) in ${scopeCount} scope(s) from ${label}`,
+      { ...context, code: diagnosticCount ? "timing.parsed-with-warnings" : "timing.parsed", ...imported.summary });
     if (compareSide === "left" || compareSide === "right") {
       const sideTiming = compareSideActions?.setCompareSideTiming
         ? compareSideActions.setCompareSideTiming(compareSide, imported.timing, label, { append })
         : assignFallbackSideTiming(state, compareSide, imported.timing, label, append);
       const sideLabel = compareSide === "left" ? "A" : "B";
-      services.logProcess("info", "timing", `Loaded ${sideLabel} timing (${imported.summary.recordCount} scope(s))`, {
-        label, compareSide, append, format: imported.summary.format, diagnostics: imported.summary.diagnosticCount
-      });
       const count = sideTiming?.instanceCount ?? imported.summary.instanceCount;
       if (state.compare.active) {
         return new Promise((resolve, reject) => services.renderCompareGraphs({
@@ -143,9 +146,6 @@ export function createInputController({ state, elements, services, restoreCompar
 
     state.timing = append ? mergeImportedTiming(state.timing, imported.timing) : imported.timing;
     compareSideActions?.updateCompareSideTimingControls?.();
-    services.logProcess("info", "timing", `Loaded ${imported.summary.recordCount} timing scope(s)`, {
-      label, append, format: imported.summary.format, diagnostics: imported.summary.diagnosticCount
-    });
     resetTimingPresentation(state);
     if (state.compare.active) {
       return new Promise((resolve, reject) => services.renderCompareGraphs({

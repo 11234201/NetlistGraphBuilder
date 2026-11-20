@@ -82,7 +82,7 @@ function parseTimingTabular(source) {
       directiveSeen = true;
       const directiveMatch = line.match(/^@([A-Za-z_][\w-]*)(?:\s+(.*))?$/);
       if (!directiveMatch) {
-        diagnostics.push({ line: lineIndex + 1, severity: "warning", message: `Unrecognized directive: ${line}` });
+        diagnostics.push({ line: lineIndex + 1, severity: "warning", code: "invalid-directive", message: `Unrecognized directive: ${line}` });
         continue;
       }
       const key = directiveMatch[1].toLowerCase();
@@ -95,7 +95,7 @@ function parseTimingTabular(source) {
       } else if (key === "unit") {
         unit = normalizeUnit(value, diagnostics, lineIndex + 1);
       } else {
-        diagnostics.push({ line: lineIndex + 1, severity: "warning", message: `Unknown timing directive @${key}` });
+        diagnostics.push({ line: lineIndex + 1, severity: "warning", code: "unknown-directive", message: `Unknown timing directive @${key}` });
       }
       continue;
     }
@@ -138,12 +138,14 @@ function parseTimingJson(source) {
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    diagnostics.push({ line: 1, severity: "error", message: `Invalid timing JSON: ${error.message}` });
+    const location = error.message.match(/line (\d+) column (\d+)/i);
+    diagnostics.push({ line: location ? Number(location[1]) : null, column: location ? Number(location[2]) : null,
+      severity: "error", code: "invalid-json", message: `Invalid timing JSON: ${error.message}` });
     return buildTimingDataset({ format: "json", module: null, stage: "post_map", unit: "ns", records: [], diagnostics });
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    diagnostics.push({ line: 1, severity: "error", message: "Timing JSON root must be an object" });
+    diagnostics.push({ line: 1, severity: "error", code: "invalid-json-root", message: "Timing JSON root must be an object" });
     return buildTimingDataset({ format: "json", module: null, stage: "post_map", unit: "ns", records: [], diagnostics });
   }
 
@@ -230,6 +232,7 @@ function extractJsonPoints(pointsObj, moduleName, records, diagnostics) {
     diagnostics.push({
       line: null,
       severity: "warning",
+      code: "invalid-point", point,
       message: `Invalid timing entry for '${point}': expected array or object`
     });
   }
@@ -249,6 +252,7 @@ function parseJsonNumeric(value, diagnostics, point, field) {
   diagnostics.push({
     line: null,
     severity: "warning",
+    code: "invalid-number", point, field,
     message: `Invalid numeric value for '${point}.${field}': ${String(value)}`
   });
   return { value: null, invalid: true };
@@ -269,7 +273,7 @@ function detectHeaderColumns(tokens) {
 function parseTabularRow(tokens, columns, { line, module, contextual }) {
   if (tokens.length < 2) {
     return contextual
-      ? { record: null, diagnostic: { line, severity: "warning", message: "Incomplete timing row" } }
+      ? { record: null, diagnostic: { line, severity: "warning", code: "incomplete-row", message: "Incomplete timing row" } }
       : { record: null, diagnostic: null };
   }
 
@@ -307,7 +311,8 @@ function parseTabularRow(tokens, columns, { line, module, contextual }) {
         return {
           record: null,
           diagnostic: contextual
-            ? { line, severity: "warning", message: `Invalid numeric value '${rawToken}' in column '${column}'` }
+            ? { line, severity: "warning", code: "invalid-number", point: values.point, field: column,
+                message: `Invalid numeric value '${rawToken}' in column '${column}'` }
             : null
         };
       }
@@ -334,7 +339,7 @@ function parseTabularRow(tokens, columns, { line, module, contextual }) {
     return {
       record: null,
       diagnostic: contextual
-        ? { line, severity: "warning", message: `Row for '${values.point}' has no valid timing metrics` }
+        ? { line, severity: "warning", code: "missing-metrics", point: values.point, message: `Row for '${values.point}' has no valid timing metrics` }
         : null
     };
   }
@@ -426,7 +431,12 @@ export function mergeTimingDatasets(datasets = []) {
     for (const record of dataset.records) {
       const moduleName = record.module || dataset.module || null;
       if (moduleName) modules.add(moduleName);
-      records.push(moduleName && !record.module ? { ...record, module: moduleName } : record);
+      const fileName = record.fileName || dataset.fileName;
+      if ((moduleName && !record.module) || (fileName && !record.fileName)) {
+        records.push({ ...record, module: moduleName, ...(fileName ? { fileName } : {}) });
+      } else {
+        records.push(record);
+      }
     }
   }
 
@@ -569,6 +579,7 @@ function normalizeStage(value, diagnostics, line) {
   diagnostics?.push({
     line,
     severity: "warning",
+    code: "unknown-stage",
     message: `Unknown @stage '${value}', defaulting to 'post_map'`
   });
   return "post_map";
@@ -580,6 +591,7 @@ function normalizeUnit(value, diagnostics, line) {
   diagnostics?.push({
     line,
     severity: "warning",
+    code: "unknown-unit",
     message: `Unknown @unit '${value}', defaulting to 'ns'`
   });
   return "ns";

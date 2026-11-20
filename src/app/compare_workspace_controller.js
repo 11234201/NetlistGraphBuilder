@@ -7,10 +7,12 @@ import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { mergeImportedTiming } from "../domains/netlist/timing_import.js";
+import { createTimingMatchReporter } from "./timing_match_log.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createCompareWorkspaceController({ state, elements, services }) {
+  const reportTiming = createTimingMatchReporter();
   function renderCompareModuleOptions() {
     for (const select of [elements.leftModuleSelect, elements.rightModuleSelect]) {
       select.innerHTML = "";
@@ -326,6 +328,10 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         options.onCancelled?.(); return;
       }
       if (results.some((result) => result?.cancelled)) { options.onCancelled?.(); return; }
+      for (const side of ["left", "right"]) {
+        reportTiming(services.logProcess, workspace.fullGraphs[side], state.compare.sideTiming?.[side] || state.timing,
+          { document: state.document, side, requestId: renderRequest.id });
+      }
       state.compare.workspaceIdentity = options.pathCandidate ? createCompareWorkspaceIdentity(state, services.readCellLibrary?.()) : options.workspaceIdentity || null;
       services.applyCompareHighlights();
       services.applyCompareTransforms();
