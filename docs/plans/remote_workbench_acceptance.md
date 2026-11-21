@@ -1,6 +1,6 @@
 # SSH 工作台开发需求与验收标准
 
-2026-11-21 拆分。**首版 R01–R13 已完成，npm 与 Linux ELF 已通过 A1–A6。** [首版实测记录](remote_workbench_v1_results.md)。 本文用于分派开发任务和判定交付。公开命令、参数、简写和 AIG 行为以[开发计划第 3、4 节](remote_workbench_commands.md)为准。
+首版 R01–R13 与完整版 R14–R24 均已通过验收。本文保留各批次的验收条件。实测数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版 R14–R24](remote_workbench_full_results.md)。公开命令、参数、简写和 AIG 行为以[开发计划第 3、4 节](remote_workbench_commands.md)为准。
 
 **首版交付**是工程师用一条 SSH 转发，在本地两个页面上查看服务器的网表和 AIG。工程师能从网页选文件，也能从启动终端或 EDA Tcl 增量加载。**完整版交付**是同一套命令覆盖现有工作台的全部操作，并在四种启动器上得到相同的业务结果。
 

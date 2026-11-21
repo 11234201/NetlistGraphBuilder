@@ -1,6 +1,6 @@
 # SSH 远程文件、EDA 工作台命令与多 AIG 开发计划
 
-**状态**　2026-11-20，命令范围和多 AIG 交互已确认，首版运行时已完成，R01–R13 与 A1–A6 结果见[验收记录](remote_workbench_v1_results.md)。第 3 节是公开命令的唯一清单，共 180 条，包括原 179 条和新增的 `aig add`，另保留 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
+2026-11-22，首版 R01–R13 与完整版 R14–R24 均已实现。启动器、命令和性能数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版现场验收](remote_workbench_full_results.md)。第 3 节是公开命令的唯一清单，共 180 条，包括原 179 条和新增的 `aig add`，另保留 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
 
 开发任务 R01–R24、依赖、逐项通过条件和首版现场脚本见[开发需求与验收标准](remote_workbench_acceptance.md)。
 
@@ -425,7 +425,7 @@ ngb[p3]> module open g1
 | 操作完成与错误诊断 | CLI/Tcl 可区分服务 ready、浏览器已接收和操作实际完成。所有新增异步边界按项目日志规范记录 operation、code、原始异常、page、适用的图/侧、request/job 及版本。验证 Process Log 详情和 JSONL 脱敏，失败只在拥有边界记一次，旧任务的错误不挂到新图 |
 | 性能与发布 | 在同一输入上记录基线与改动后的服务器队列、多个标签页、追加/首切/回切耗时、Graphviz 调用数、内存峰值及存档写入量。反复切图后活跃 Worker 与缓存回到约定上限。保留原有指针/滚轮预览与渐进渲染。检查卡住、断开与正常退出都能释放文件和进程资源 |
 
-**执行位置与现有入口。** 开发阶段将构建、一般单测、浏览器 E2E、CTest、Tcl 和基准放在 `mfs-remote`，临时构建、浏览器报告与日志留在服务器。Windows 打包与实际 exe 冒烟安排在可运行该产物的 Windows 环境。本轮交付是计划，下列验证在对应实现批次执行。
+**执行位置与现有入口。** 开发阶段将构建、一般单测、浏览器 E2E、CTest、Tcl 和基准放在 `mfs-remote`，临时构建、浏览器报告与日志留在服务器。Windows 打包与实际 exe 冒烟安排在可运行该产物的 Windows 环境。下列项目用于各批验证，执行记录见[完整版验收报告](remote_workbench_full_results.md)。
 
 - 基础回归运行 `npm test`、`npm run test:architecture`、`npm run test:launcher`。在现有 launcher E2E、native CTest/Tcl 之上增加公共协议及双页对照，CTest 启用 `NGB_BUILD_TESTS=ON` 并核实 Tcl 用例实际被注册。
 - 前端按改动运行 `npm run test:workbench`、`npm run test:ui-workbench`、`npm run test:process-log`、`npm run test:aig`、`npm run test:aig-browser`、`npm run test:aig-views`、`npm run test:aig-structure`、`npm run test:show-path-browser`、`npm run test:scoped-logic-browser` 及 Liberty 相关用例。将多图用例纳入现有测试入口。

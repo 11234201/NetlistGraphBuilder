@@ -2,6 +2,12 @@
 
 本文记录项目现行架构实现与工程约束。面向多领域与 AIG 扩展的目标边界、数据契约及迁移决策见 [可扩展工作台架构](architecture_evolution.md)，具体实施顺序与验收进度见 [阶段 7](STAGE_7_PLAN.md)。目前阶段 7 的模块化单体基线已经全面落地；下文同时记录现行实现架构与具有明确移除条件的向后兼容边界。
 
+## SSH 远程命令与页面状态
+
+Node、Linux ELF 和 Python 读取同一份版本化命令目录，Windows EXE 使用随包 Python 实现。目录声明动词、参数数量、选项、适用模式、Compare 侧及输入输出。宿主处理服务生命周期、页选择、服务器文件和请求回执；每个浏览器页面通过自己的连接执行图操作。Tcl 以独立客户端接入，参数和回执使用 UTF-8。[命令契约](../src/contracts/workbench_commands.json)
+
+配对时协商独立的取消通道，以便长时间运行的页面命令可以被打断。普通命令依次领取，获准执行前核对文档版本。模块、层次 occurrence、Compare 配对或活动侧、当前 AIG 等上下文的变化会推进版本。成功完成页面操作后发送回执，服务器导出则等宿主写入成功。重试同一请求可读取既有回执。原异常由拥有该操作的边界记录，页面把请求号、页及相应文档作用域关联到同一条日志。[页面执行与回执](../src/app/remote_workbench.js) · [宿主协议测试](../tests/e2e/remote_workbench_protocol.mjs)
+
 ## 产品范围决策（2026-09-14）
 
 结构分组折叠（Group collapse/expand）已从产品路线中正式移除。后续功能开发、性能优化、映射网表（mapped cases）基线回归与产品验收均不再以折叠图为目标，也不再新增折叠交互或专用折叠路由逻辑；大规模网表统一沿完整图（Whole）、搜索优先（Search-first）或局部聚焦（Focused）路径处理。现有的 `collapseLargeGroups`、`expandedGroupIds` 字段及历史解析逻辑仅作为旧版 Session / Golden 存档的向后兼容边界保留，除非另有明确的移除任务获批。
