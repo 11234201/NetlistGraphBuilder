@@ -108,6 +108,93 @@ async function check(adapter,s,dir,roots,t){
   const grant=(id)=>s.page(a,"grant",{id});
   const ack=(id,result)=>s.page(a,"ack",{id,result});
   const receipt=async(id,expected)=>assert.equal((await s.admin("status",{id})).status,expected);
+  await t.test(adapter+" R17/R21 positional Compare sides survive delivery, failure and retries",async scope=>{
+    const page=await s.register();
+    scope.after(()=>s.page(page,"leave"));
+    await s.page(page,"poll",{context:{mode:"Compare",documentVersion:1,documentId:"paired-netlists"}});
+    const send=(id,...argv)=>s.admin("command",{id,argv,page:page.page,cwd:roots[0]});
+    const commands=[["compare","module","A","eco"],["compare","side","B"],["compare","clear-timing","A"],
+                    ["compare","design","B","--text","module eco; endmodule"]];
+    for (const argv of commands) {
+      const id="compare-target-"+argv[1];
+      const queued=await send(id,...argv);
+      assert.equal(queued.side,argv[2]);
+      assert.equal((await s.page(page,"poll")).job.side,argv[2]);
+      assert.equal((await s.page(page,"grant",{id})).granted,true);
+      assert.equal((await s.page(page,"ack",{id,result:{}})).side,argv[2]);
+    }
+    const missing=["compare","design","B",join(roots[0],"missing-side.v")];
+    const id="compare-side-read-failure";
+    const failed=await send(id,...missing);
+    assert.equal(failed.error.code,"ENOENT");
+    assert.equal(failed.side,"B");
+    assert.deepEqual(await send(id,...missing),failed);
+    const logs=join(dir,"logs-"+adapter);
+    const files=(await readdir(logs)).filter(name=>name.endsWith(".error.jsonl"));
+    const rows=(await Promise.all(files.map(file=>readFile(join(logs,file),"utf8"))))
+      .flatMap(text=>text.trim().split("\n").filter(Boolean).map(line=>JSON.parse(line)))
+      .filter(entry=>entry.details?.requestId===id);
+    assert.equal(rows.length,1);
+    const {details}=rows[0];
+    assert.equal(details.operation,"compare design");
+    assert.equal(details.page,page.page);
+    assert.equal(details.documentId,"paired-netlists");
+    assert.equal(details.side,"B");
+    assert.equal(details.code,"ENOENT");
+    assert.ok(details.error.message);
+  });
+  await t.test(adapter+" R21 queued picker actions cannot change a replacement document",async scope=>{
+    const page = await s.register();
+    scope.after(()=>s.page(page,"leave"));
+    const change = version => ({mode:"Single", documentId:"doc-"+version, documentVersion:version, pickerState:"open"});
+    const actions = [["files","browse"], ["files","choose","source.v"], ["files","cancel"]];
+    for (const [index,argv] of actions.entries()) {
+      const id = "picker-switch-"+index;
+      await s.page(page,"poll",{context:change(index+1)});
+      await s.admin("command",{page:page.page,id,argv});
+      if (index === 1) {
+        assert.equal((await s.page(page,"poll")).job.id,id);
+        assert.equal((await s.page(page,"grant",{id,context:change(index+2)})).granted,false);
+      } else {
+        assert.equal((await s.page(page,"poll",{context:change(index+2)})).job,undefined);
+      }
+      const failed = await s.admin("status",{id});
+      assert.equal(failed.error.code,"STALE_DOCUMENT");
+      assert.equal(failed.documentVersion,index+1);
+      assert.deepEqual(await s.admin("command",{page:page.page,id,argv}),failed);
+      assert.equal((await s.page(page,"poll")).job,undefined);
+    }
+    const logs=join(dir,"logs-"+adapter);
+    const files=(await readdir(logs)).filter(name=>name.endsWith(".error.jsonl"));
+    const entries=(await Promise.all(files.map(name=>readFile(join(logs,name),"utf8"))))
+      .flatMap(data=>data.trim().split("\n").filter(Boolean).map(line=>JSON.parse(line)));
+    for (const [index,argv] of actions.entries()) {
+      const matching=entries.filter(entry=>entry.details?.requestId==="picker-switch-"+index);
+      assert.equal(matching.length,1);
+      const {details}=matching[0];
+      assert.equal(details.code,"STALE_DOCUMENT");
+      assert.equal(details.operation,argv.slice(0,2).join(" "));
+      assert.equal(details.page,page.page);
+      assert.equal(details.documentId,"doc-"+(index+1));
+      assert.equal(details.documentVersion,index+1);
+      assert.ok(details.error.message);
+    }
+  });
+  await t.test(adapter+" page wait resolves a reserved or disconnected name to its original page ID",async()=>{
+    const label="waiting-room";
+    const reserved=(await command("new-waiting","page","new","--name",label)).result;
+    const wait=()=>command("wait-by-name","page","wait",label);
+    assert.equal((await wait()).status,"waiting");
+    assert.equal((await wait()).page,reserved.id);
+    const params=new URLSearchParams(reserved.href.split("#")[1]);
+    const page=await s.page({},"join",{token:params.get("ngb"),page:reserved.id,resume:params.get("resume")});
+    const ready=await wait();
+    assert.equal(ready.status,"committed");
+    assert.equal(ready.page,reserved.id);
+    await s.page(page,"leave");
+    assert.equal((await wait()).status,"waiting");
+    assert.equal((await command("missing-name","page","wait","absent-page")).error.code,"PAGE_UNAVAILABLE");
+  });
   await t.test(adapter+" cancellation lane remains usable while normal page work is executing",async()=>{
     assert.equal(a.cancelLane,true);
     const nextWork=s.page(a,"poll",{lane:"work", waitMs:4000});

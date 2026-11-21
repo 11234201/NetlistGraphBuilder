@@ -1,23 +1,22 @@
 import { createNavigationCommands } from "./remote_navigation_commands.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
-import { findCompareNode } from "../domains/netlist/compare_objects.js";
+import { compareSelectionId } from "../domains/netlist/compare_objects.js";
 
 // The application state remains owned by the existing workspace controllers.
 // This adapter projects one side for the duration of a single command query.
 export function createNavigationPort({ state, getElements, actions, netRouting, renderCompletion,
-  domainWorkbench, search, clearSearch }) {
+  domainWorkbench, search, clearSearch, readSelection }) {
   function read(side) {
     const compare = state.compare.active ? state.compare : null;
     const selectedSide = compare?.activeSide || compare?.selectedSide;
     side = compare ? side || selectedSide || "left" : null;
     const full = side ? compare.fullGraphs[side] : state.fullGraph;
     const graph = side ? compare.graphs[side] : state.graph;
-    const selectedNode = side ? findCompareNode(full, compare.selectedKind, compare.selectedName)?.id : state.selectedNodeId;
-    const net = side ? compare.selectedKind === "net" && compare.selectedName : state.selectedNet;
     const el = getElements();
     return {
       compare:Boolean(compare), side, selectedSide, graph, full:full || graph,
-      selected:selectedNode || (net ? "net:" + net : null),
+      selected:side ? compareSelectionId(full || graph, readSelection(side)) :
+        state.selectedNodeId || (state.selectedNet ? "net:" + state.selectedNet : null),
       moduleName:side ? compare[side + "ModuleName"] : state.currentModule?.name,
       documentId:state.document?.documentId, sourceRevision:state.document?.sourceRevision,
       occurrence:side ? null : state.occurrenceContext,

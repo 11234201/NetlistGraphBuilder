@@ -20,3 +20,9 @@ export function getCompareNodeName(node) {
     ? node.ref?.instance || node.label
     : node.ref?.name || node.label;
 }
+
+export function compareSelectionId(graph, ref) {
+  if (!ref) return null;
+  if (ref.kind === "net") return "net:" + ref.localId;
+  return findCompareNode(graph, ref.kind, ref.localId)?.id || null;
+}

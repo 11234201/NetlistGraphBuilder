@@ -141,13 +141,12 @@ export function createBroker({files, log}) {
   function checkDocument(job, context) {
     if (!context?.documentVersion || !job.documentVersion || context.documentVersion === job.documentVersion)
       return true;
-    if ([
-          "design info", "module list", "search find", "timing show", "files browse", "files cancel",
-          "files choose"
-        ].includes(job.payload.name))
+    const name = job.payload.name;
+    if (["design info", "module list", "search find", "timing show"].includes(name))
       return true;
-    finish(
-        job, "failed", null, {code: "STALE_DOCUMENT", message: "Target document changed before execution"});
+    const error = failure("STALE_DOCUMENT", "Target document changed before execution");
+    log.error("workbench.stale_document", error, failureScope(job,name,error));
+    finish(job, "failed", null, errorInfo(error), job.scope);
     return false;
   }
   function receipt(j) {
@@ -245,11 +244,14 @@ export function createBroker({files, log}) {
     }
     return inputs;
   }
+  function commandSide(row, args, opts) {
+    return row.sideArgument === undefined ? opts.side : args[row.sideArgument];
+  }
   function payload(id, name, args, opts, inputs) {
     const options = {...opts};
     delete options.text;
     const row = definitions.get(name);
-    return {id, name, args, opts:options, files:inputs, output:!!row.output, modes:row.modes};
+    return {id, name, args, side:commandSide(row,args,opts), opts:options, files:inputs, output:!!row.output, modes:row.modes};
   }
   function changePage(name, args, opts) {
     if (name === "page rename") {
@@ -326,8 +328,11 @@ export function createBroker({files, log}) {
     if (name === "page new" || name === "page rename")
       return pageMutation(name, args, opts);
     if (name.startsWith("page ")) {
-      if (name === "page wait" && pages.has(args[0]) && !active(pages.get(args[0])))
-        return {version: 1, status: "waiting", page: args[0]};
+      if (name === "page wait") {
+        const known = pages.get(args[0]) || [...pages.values()].find(page => page.name === args[0]);
+        if (known && !active(known))
+          return {version:1,protocolVersion:1,status:"waiting",page:known.id,pageId:known.id};
+      }
       const p = pageFor(args[0]);
       return done(describe(p), p.id);
     }
@@ -386,7 +391,7 @@ export function createBroker({files, log}) {
       page: p,
       selector,
       scope:p.context,
-      side: opts.side,
+      side: commandSide(definitions.get(name),args,opts),
       interrupt:definitions.get(name).interrupt,
       phase: "reading",
       at: Date.now(),
@@ -461,6 +466,8 @@ export function createBroker({files, log}) {
       return {};
     if (b.op === "list") {
       const list = await files.list(b.path, b.filter || "", Number(b.number ?? 1));
+      if (!p.online || p.connection !== b.connection)
+        throw failure("PAGE_UNAVAILABLE","Page connection expired");
       for (const e of list.entries)
         if (!e.directory)
           e.handle = fileHandle(p, resolve(list.path, e.name));

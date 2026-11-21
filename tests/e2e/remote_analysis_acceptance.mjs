@@ -88,6 +88,25 @@ export async function verifyAnalysisAcceptance({run,page,root,outputDir}) {
   assert.equal((await ok("analysis","status")).status,"complete");
   const list = await ok("analysis","results","reconvergence");
   const id = list.entries[0].id;
+  assert.equal((await ok("analysis","cancel")).status,"complete");
+  await page.evaluate(() => {
+    const send = Worker.prototype.postMessage;
+    globalThis.restoreDetailWorker = () => { Worker.prototype.postMessage = send; };
+    Worker.prototype.postMessage = function(message,...rest) {
+      if (message?.type === "detail") { globalThis.detailHeldForCancellation = true; return; }
+      return send.call(this,message,...rest);
+    };
+  });
+  const detailJob = await run("analysis","select",id,"--async");
+  try {
+    await page.waitForFunction(() => globalThis.detailHeldForCancellation,null,{timeout:10000});
+    const cancelled = await ok("analysis","cancel");
+    assert.equal(cancelled.status,"complete");
+    assert.equal(cancelled.detailStatus,"cancelled");
+    const receipt = await run("job","wait",detailJob.requestId,"--timeout","5000");
+    assert.equal(receipt.status,"cancelled");
+    assert.ok(!(await ok("log","list","--level","error")).some(entry => entry.details?.requestId === detailJob.requestId));
+  } finally { await page.evaluate(() => globalThis.restoreDetailWorker()); }
   assert.equal((await ok("analysis","select",id)).id,id);
   await page.locator("#domainInspector [data-aig-analysis-action=locate]").waitFor();
   const detail = await ok("analysis","detail",id,"--section","path-a");
@@ -203,6 +222,8 @@ export async function verifyAnalysisAcceptance({run,page,root,outputDir}) {
   await ok("compare","enter");
   await ok("path","open","--side","B");
   await ok("path","add","start","input:b");
+  assert.equal((await ok("path","cancel","--side","A")).cancelled,false);
+  assert.equal(await page.locator("#pathSide").inputValue(),"right");
   await ok("path","open","--side","A");
   assert.deepEqual((await ok("path","draft")).starts,[]);
   await ok("path","open","--side","B");

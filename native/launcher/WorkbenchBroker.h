@@ -177,7 +177,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         return nullptr;
     }
     void Finish(Job &j, std::string phase, Json result = nullptr, Json error = nullptr) {
-        if (j.m_phase != "writing")
+        if (j.m_phase == "executing")
             j.m_documentVersion = pages_.at(j.m_page).m_context.value("documentVersion", 0LL);
         j.m_phase = std::move(phase);
         j.m_result = std::move(result);
@@ -209,10 +209,12 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             return false;
         static const std::set<std::string> queries = {"design info", "module list", "search find",
                                                       "timing show"};
-        if (queries.count(Field(job.m_payload, "name")))
+        const auto name = Field(job.m_payload, "name");
+        if (queries.count(name))
             return false;
-        Finish(job, "failed", nullptr,
-               {{"code", "STALE_DOCUMENT"}, {"message", "Target document changed before command execution"}});
+        const WorkbenchError error("STALE_DOCUMENT", "Target document changed before command execution");
+        LogFailure(job, name, error);
+        Finish(job, "failed", nullptr, WorkbenchFailure(error).at("error"));
         return true;
     }
     void RequireAvailablePageName(const std::string &name, const Page *current = nullptr) const {
@@ -336,9 +338,25 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         TerminalLog::Instance().Write("error", "workbench.failed", operation + " failed",
                                       fields.dump(-1, ' ', false, Json::error_handler_t::replace));
     }
-    Json ListForPage(Page &page, const Json &request) {
-        Json result =
-            files_.List(Field(request, "path"), Field(request, "filter"), request.value("number", 1));
+    Json ListFiles(const fs::path &path, const std::string &filter, int number, bool browser, bool prefix,
+                   std::unique_lock<std::mutex> &lock) {
+        lock.unlock();
+        Json result;
+        try {
+            result = files_.List(path, filter, number, browser, prefix);
+        } catch (...) {
+            lock.lock();
+            throw;
+        }
+        lock.lock();
+        return result;
+    }
+    Json ListForPage(Page &page, const Json &request, std::unique_lock<std::mutex> &lock) {
+        const auto connection = page.m_connection;
+        auto result = ListFiles(Field(request, "path"), Field(request, "filter"), request.value("number", 1),
+                                true, false, lock);
+        if (!page.m_online || page.m_connection != connection)
+            throw WorkbenchError("PAGE_UNAVAILABLE", "Page connection expired");
         for (auto &entry : result.at("entries")) {
             if (entry["directory"] == true)
                 continue;
@@ -451,6 +469,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                              {"hasInputs", !job.m_inputs.empty()}};
             const auto *definition = WorkbenchDefinition(command.m_name);
             job.m_payload["output"] = definition->value("output",false);
+            if (!job.m_side.is_null()) job.m_payload["side"] = job.m_side;
             if (definition->contains("modes")) job.m_payload["modes"] = definition->at("modes");
             job.m_phase = "queued";
             changed_.notify_all();
@@ -582,12 +601,14 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             return Completed(
                 {{"id", id}, {"href", "/#ngb=" + m_pair + "&page=" + id + "&resume=" + p.m_resume}}, id);
         }
-        if (name == "page wait" && pages_.count(first) && !Active(pages_.at(first)))
-            return {{"version", 1},
-                    {"protocolVersion", 1},
-                    {"status", "waiting"},
-                    {"page", first},
-                    {"pageId", first}};
+        if (name == "page wait") {
+            for (const auto &entry : pages_) {
+                const auto &page = entry.second;
+                if ((page.m_id == first || page.m_name == first) && !Active(page))
+                    return {{"version", 1}, {"protocolVersion", 1}, {"status", "waiting"},
+                            {"page", page.m_id}, {"pageId", page.m_id}};
+            }
+        }
         if (name.rfind("job ", 0) == 0) {
             auto &j = Lookup(first);
             if (name == "job cancel" && !j.m_finished) {
@@ -609,8 +630,8 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             const auto directory = complete && !directoryPrefix ? path.parent_path() : path;
             const auto filter = complete ? (directoryPrefix ? std::string() : path.filename().string())
                                          : Field(opts, "filter");
-            auto list =
-                files_.List(directory, filter, std::stoi(Field(opts, "page-number", "1")), browser, complete);
+            auto list = ListFiles(directory, filter, std::stoi(Field(opts, "page-number", "1")),
+                                  browser != nullptr, complete, lock);
             return Completed(name == "fs cd" ? Json{{"path", list["path"]}} : list);
         }
         auto key = name.rfind("page ", 0) == 0 ? first : Field(opts, "page", Field(b, "page"));
@@ -675,7 +696,10 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         for (const char *field : {"documentId","graphId","documentVersion"})
             if (p->m_context.contains(field)) j.m_scope[field] = p->m_context.at(field);
         j.m_at = now_();
-        if (opts.contains("side"))
+        const auto *definition = WorkbenchDefinition(name);
+        if (definition->contains("sideArgument"))
+            j.m_side = args.at(definition->at("sideArgument").get<size_t>());
+        else if (opts.contains("side"))
             j.m_side = opts["side"];
         order_.push_back(id);
         if (opts.value("async", false) && FileCommand(name) && !opts.contains("text")) {
@@ -772,7 +796,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         if (op == "pulse")
             return Json::object();
         if (op == "list")
-            return ListForPage(p, b);
+            return ListForPage(p, b, lock);
         if (op == "import") {
             auto c = ParseWorkbench(b.at("argv"));
             if (!FileCommand(c.m_name))

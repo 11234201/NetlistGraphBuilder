@@ -1,10 +1,24 @@
 import { createRemoteFileImport, compareSideFor, commandFailure } from "./remote_file_import.js";
 import { createAnalysisCommands } from "./remote_analysis_commands.js";
-import { sanitizeLogDetails } from "../foundation/log_details.js";
+import { errorMessage, sanitizeLogDetails } from "../foundation/log_details.js";
+import { copyBrowserText } from "../platform/browser_clipboard.js";
 import { createServerFilePicker } from "../ui/server_file_picker.js";
 
 const pendingStates = new Set(["reading", "queued", "delivered", "executing"]);
-const isCancellation = error => error.name === "AbortError" || error.code === "CANCELLED";
+const isCancellation = error => error?.name === "AbortError" || error?.code === "CANCELLED";
+const failureCode = error => typeof error?.code === "string" && error.code ? error.code : "COMMAND_FAILED";
+
+function commandPhase(operation) {
+  if (operation.startsWith("workbench.")) return "launcher";
+  const [group, action] = operation.split(" ");
+  if (action === "copy" || action === "export" || operation === "golden save") return "export";
+  if (["hierarchy","module","search","selection","inspect","focus","viewport","view","history","compare"].includes(group)) return "navigation";
+  if (["layout","adjust","net"].includes(group)) return "layout";
+  if (group === "analysis" || group === "path") return "graph";
+  if (group === "timing") return "timing";
+  if (group === "display" || group === "ui") return "render";
+  return "import";
+}
 
 export async function bindRemoteWorkbench({ document, windowTarget: w, domainWorkbench, loadText,
   importRequests, modules, readNetlist, selectModule, search, timing, priority, loadCellConfig,
@@ -32,9 +46,8 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
   function log(error, operation, requestId, details = {}) {
     if (isCancellation(error)) return;
     try {
-      const phase = operation.startsWith("workbench.") ? "launcher" : operation === "svg export" ? "export" : operation.startsWith("module ") ? "navigation" : "import";
-      logProcess("error", phase, error.message, {
-        error, operation, code:error.code || "COMMAND_FAILED", requestId,
+      logProcess("error", commandPhase(operation), errorMessage(error), {
+        error, operation, code:failureCode(error), requestId,
         page:identity?.page, ...details
       }, { onlyIfUnreported:true });
     } catch { /* Diagnostics cannot change a command's result. */ }
@@ -122,7 +135,11 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
     if (job.opts.clipboard) {
       const text = typeof result === "string" ? result : result?.text;
       if (typeof text !== "string") throw commandFailure("COPY_FAILED","No text to copy");
-      await w.navigator.clipboard.writeText(text);
+      try { await copyBrowserText(text, w.navigator?.clipboard); }
+      catch (cause) {
+        if (isCancellation(cause)) throw cause;
+        throw commandFailure("COPY_FAILED", errorMessage(cause), {cause});
+      }
       return {text,copied:true};
     }
     return result;
@@ -237,14 +254,16 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
             }
             catch (error) {
               const target = pending.target;
-              log(error, job.name, job.id, {side:job.opts.side, graphId:target.graphId,
-                documentId:target.documentId, documentVersion:target.documentVersion});
-              if (!closing && !isCancellation(error) && error.code !== "STALE_DOCUMENT") setStatus(error.message);
+              const scope = {side:job.side || job.opts.side, graphId:target.graphId,
+                moduleName:target.moduleName, documentId:target.documentId, documentVersion:target.documentVersion};
+              log(error, job.name, job.id, scope);
+              const message = errorMessage(error);
+              const code = isCancellation(error) ? "CANCELLED" : failureCode(error);
+              if (!closing && code !== "CANCELLED" && code !== "STALE_DOCUMENT" &&
+                  target.documentVersion === context().documentVersion) setStatus(message);
               pending.ack = {error:{
-                code:isCancellation(error) ? "CANCELLED" : error.code || "COMMAND_FAILED",
-                message:error.message, candidates:error.candidates, files:error.files,
-                details:sanitizeLogDetails({error,operation:job.name,requestId:job.id,page:identity.page,side:job.opts.side,
-                  graphId:target.graphId,documentId:target.documentId,documentVersion:target.documentVersion})
+                code, message, candidates:error?.candidates, files:error?.files,
+                details:sanitizeLogDetails({error,operation:job.name,code,requestId:job.id,page:identity.page,...scope})
               }};
             } finally { w.clearInterval(timer); }
             delete job.files;

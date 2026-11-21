@@ -66,6 +66,7 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
         Object.assign(record, { selected: null, nodeId: context.selectedNode(), pageIndex: 0,
           detailPage: 0, relatedPage: 0, pathPage: [0, 0], data: null, related: null });
         const analysisScopeId = id + ":" + ++revision;
+        record.analysisScopeId = analysisScopeId;
         record.manager.bind({ document: context.document, unitId: context.unitId, sessionId: context.sessionId,
           side: id, analysisScopeId, analysisModel: scope.model, analysisNodeCount: scope.visibleCount,
           analysisEdgeCount: scope.visibleEdgeCount, feature });
@@ -142,11 +143,16 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
       record.context = null; record.scopeError = null; refresh();
     }
     demand(record.scope && !record.scopeError, "SCOPE_UNAVAILABLE", record.scopeError || "No analysis scope");
-    const scope = record.scope;
+    const analysisScopeId = record.analysisScopeId;
     const status = () => analysisStatus(record.manager.read(),record.context.unitId,record.selected);
     const results = () => record.manager.read().data?.reconvergence?.results || [];
     const selected = value => demand(results().find(item => item.id === value), "OBJECT_NOT_FOUND","Unknown reconvergence result");
-    const current = () => demand(records.get(id) === record && scope === record.scope, "STALE_DOCUMENT","Analysis scope changed");
+    async function waitForWork(promise) {
+      const completed = await promise;
+      demand(records.get(id) === record && record.scope && record.analysisScopeId === analysisScopeId,
+        "STALE_DOCUMENT","Analysis scope changed");
+      demand(completed,"CANCELLED","Structure job superseded");
+    }
     const page = Number(opts["page-number"] || 1);
     switch (name) {
       case "ui page": {
@@ -158,15 +164,14 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
       }
       case "analysis status": return status();
       case "analysis run":
-        record.selected = null; await record.manager.run(true); current();
-        demand(["complete","partial"].includes(status().status),"CANCELLED","Analysis superseded");
+        record.selected = null; await waitForWork(record.manager.run(true));
         return {...status(),partial:status().status === "partial"};
       case "analysis cancel": record.manager.cancel(); return status();
       case "analysis retry":
-        if (args[0] === "detail") await record.manager.detail(selected(record.selected),true);
-        else if (args[0] === "scope") await record.manager.run(true);
+        if (args[0] === "detail") await waitForWork(record.manager.detail(selected(record.selected),true));
+        else if (args[0] === "scope") await waitForWork(record.manager.run(true));
         else throw Object.assign(new Error("Choose scope or detail"), {code:"INVALID_ARGUMENT"});
-        current(); return status();
+        return status();
       case "analysis results": {
         demand(args[0] === "reconvergence" && (!opts.type || opts.type === "all"), "UNAVAILABLE","Netlist supports reconvergence results");
         const value = resultPage(results(),page,12);
@@ -181,7 +186,7 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
         if (section === "summary") demand(page === 1,"PAGE_OUT_OF_RANGE","Summary has one page");
         if (record.selected !== item.id || record.manager.read().detailStatus !== "complete") {
           Object.assign(record,{selected:item.id,pathPage:[0,0],detailPage:0});
-          await record.manager.detail(item,true); current();
+          await waitForWork(record.manager.detail(item,true));
           demand(record.selected === item.id && ["complete","partial"].includes(record.manager.read().detailStatus),
             "CANCELLED","Structure detail superseded");
         }
@@ -189,6 +194,7 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
         const branch = {"path-a":0,"path-b":1}[opts.section];
         demand(branch !== undefined || opts.section === "union","INVALID_ARGUMENT","Unknown detail section");
         const path = branch === undefined ? record.manager.read().detail : item.paths[branch];
+        const scope = record.scope;
         const value = resultPage((path?.edgeIds || []).filter(key => scope.displayEdges.has(key)),page,12);
         if (branch === undefined) record.detailPage = page - 1;
         else record.pathPage[branch] = page - 1;
@@ -199,6 +205,7 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
         paint(); return {id:item.id,section:opts.section,...value,entries};
       }
       case "analysis related": {
+        const scope = record.scope;
         demand(!opts.kind || opts.kind === "reconvergence","UNAVAILABLE","Netlist supports reconvergence results");
         const key = args[0], item = results().find(result => result.id === key);
         demand(item || record.context.graph.nodes.some(node => node.id === key),"OBJECT_NOT_FOUND","Unknown netlist node or result");

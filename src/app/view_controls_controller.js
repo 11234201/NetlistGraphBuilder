@@ -59,13 +59,13 @@ export function createViewControlsController({ state, elements, services }) {
   }
 
   function setCompareViewModeImpl(mode) {
-    const context = services.getFocusedRootContext();
+    const context = services.getFocusedRootContext(state.compare.activeSide);
     if (mode === "focused") {
       let result;
       if (context.roots.length === 0) {
-        const selected = state.compare.selectedKind === "net" && state.compare.selectedName
-          ? { id: focusedNetRootId(state.compare.selectedName) }
-          : findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+        const ref = services.compareViewSessions.readState(context.side).selectedObjectRef;
+        const selected = ref?.kind === "net" ? {id:focusedNetRootId(ref.localId)}
+          : ref?.kind === "cell" ? findCompareNode(context.fullGraph,"cell",ref.localId) : null;
         if (!selected) {
           services.setStatus("Select a compare cell before opening Focused view");
           return;

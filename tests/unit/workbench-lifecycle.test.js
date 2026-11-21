@@ -367,7 +367,7 @@ test("an obsolete Compare history completion performs no selection or transform 
     renderCompareGraphs: (options) => renders.push(options),
     getCompareModule: (side) => side === "left" ? left : right,
     applyCompareTransforms: () => { transforms += 1; },
-    selectCompareObject: () => { selections += 1; }
+    applyCompareHighlights: () => { selections += 1; }
   }, { get: (target, key) => key in target ? target[key] : noOp });
   const controller = createHistoryController({
     state,
@@ -382,6 +382,7 @@ test("an obsolete Compare history completion performs no selection or transform 
   assert.equal(state.restoringViewHistory, true);
   renders[1].onCommitted();
   assert.equal(transforms, 1);
+  assert.equal(selections, 1);
   assert.equal(state.restoringViewHistory, false);
 });
 

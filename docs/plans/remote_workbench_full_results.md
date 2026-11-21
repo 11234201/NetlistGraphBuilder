@@ -2,6 +2,15 @@
 
 验收日期为 2026-11-22。实现提交为 `3e1de7f`，首版基线为 `ab0b215`。[首版验收](remote_workbench_v1_results.md) · [需求和验收标准](remote_workbench_acceptance.md) · [完整命令表](remote_workbench_commands.md)
 
+## 代码检视后的 Windows 离线包复验
+
+2026-11-22 01:26 至 01:36，在 Windows 上将 `NetlistGraphBuilder-v1.6.3-win-x64-r14-r24-reviewed-final.zip` 解压至新目录，以包内 EXE 和真实 Chrome 一次运行宿主、设计、导航、分析和容量五组用例。用时 10 分 22 秒，退出码为 0。将报告逐项与 ZIP 内的命令目录比对，180/180 个命令通过正例，180/180 个命令通过边界检查，缺项为 0。命令名和业务结果与同一轮检视后的 SSH npm、Linux ELF、Python 三份报告一致。
+
+| 验收文件 | SHA-256 |
+| --- | --- |
+| Windows 离线 ZIP（10,666,217 字节） | `3063169e872db81dedfa7397d313c0b27505f7d8398c5a187cd88668ebcbbd69` |
+| 逐命令报告 `dc_runs/r14_r24_windows_full/windows-full.json` | `70d6bfa314bf56bc4e863792c319d4ca8fe3cb8d10faf9ec3e73a26190dc80be` |
+
 ## 命令与业务结果
 
 公共目录共 180 条命令，计划 §3.1 至 §3.8 各有 16、25、34、33、15、24、7、26 条。另有 5 个简写。完整矩阵启动实际服务和 Chromium，让独立客户端执行页面命令，验证回执、可见界面及导出文件。启停和交互退出使用各自的真实进程入口。每条命令也验证一个错误或边界；覆盖率按规范命令名去重。[机器可读目录](../../src/contracts/workbench_commands.json) · [共享矩阵](../../tests/e2e/workbench_full_acceptance.mjs)

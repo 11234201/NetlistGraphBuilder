@@ -3,6 +3,39 @@ import test from "node:test";
 import { createCompareViewSessionBridge } from "../../src/app/compare_view_session_bridge.js";
 import { createSingleViewSessionBridge } from "../../src/app/single_view_session_bridge.js";
 import { createViewSessionStore } from "../../src/application/view_session_store.js";
+import { createViewHistoryEntry } from "../../src/app/viewHistory.js";
+
+test("Compare history restores independent selections, including legacy and other-document snapshots", () => {
+  let documentId = "doc:one";
+  const state = {compare:{active:true, leftModuleName:"before", rightModuleName:"after"}};
+  const bridge = createCompareViewSessionBridge({state, getDocumentId:() => documentId});
+  const select = (side, name) => bridge.dispatch(side, {
+    type:"selection.set", objectRef:bridge.objectRef(side,"cell",name)
+  });
+  const selected = side => bridge.readState(side).selectedObjectRef?.localId || null;
+  select("left","a");
+  select("right","b");
+  bridge.setActiveSide("left");
+  const saved = createViewHistoryEntry(state).compare;
+  select("left","other");
+  bridge.importNavigation(saved);
+  assert.deepEqual([selected("left"),selected("right")],["a","b"]);
+  assert.equal(state.compare.selectedSide,"right");
+  assert.equal(state.compare.activeSide,"left");
+
+  bridge.dispatch("right",{type:"selection.clear"});
+  const cleared = createViewHistoryEntry(state).compare;
+  select("left","other");
+  bridge.importNavigation(cleared);
+  assert.deepEqual([selected("left"),selected("right")],["a",null]);
+  assert.equal(state.compare.selectedSide,null);
+
+  documentId = "doc:two";
+  bridge.importNavigation(saved);
+  assert.deepEqual([selected("left"),selected("right")],[null,null]);
+  bridge.importNavigation({selectedKind:"cell",selectedName:"old",selectedSide:"right"});
+  assert.deepEqual([selected("left"),selected("right")],[null,"old"]);
+});
 
 test("compare legacy roots mirror two ordinary isolated ViewSessions", () => {
   const state = {

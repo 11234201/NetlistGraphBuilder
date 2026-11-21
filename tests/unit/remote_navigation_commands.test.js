@@ -4,6 +4,8 @@ import { createRemoteRenderCompletion } from "../../src/app/remote_render_comple
 import { hierarchyRows, objectRecord, resolveNetlistObject } from "../../src/app/remote_object_queries.js";
 import { objectRefToNodeId } from "../../src/domains/netlist/graph_object_refs.js";
 import { resolveLayoutGoldenModule } from "../../src/app/layoutGoldenImport.js";
+import { compareSelectionId } from "../../src/domains/netlist/compare_objects.js";
+import { renderCompareSelectionHighlights } from "../../src/app/compare_selection_highlights.js";
 
 test("command receipts await nested rendering without waiting on unrelated UI work", async () => {
   const tracker = createRemoteRenderCompletion();
@@ -54,4 +56,34 @@ test("occurrence IDs preserve segment boundaries and Golden rejects a removed oc
   const imported = path => ({moduleName:"leaf",display:{occurrenceContext:{rootModuleName:"top",occurrencePath:path}}});
   assert.equal(resolveLayoutGoldenModule(design,imported(["a/b"])).name,"leaf");
   assert.throws(() => resolveLayoutGoldenModule(design,imported(["a","b"])),{code:"OCCURRENCE_NOT_FOUND"});
+});
+
+test("Compare preserves per-side selections while highlighting the homolog on the other canvas", () => {
+  const graph = {nodes:["first","second"].map(name => ({id:"cell:"+name,kind:"cell",ref:{instance:name}}))};
+  function mount() {
+    const nodes = Object.fromEntries(graph.nodes.map(node => {
+      const classes = new Set();
+      return [node.id,{classes,classList:{
+        add:value => classes.add(value),remove:(...values) => values.forEach(value => classes.delete(value))
+      }}];
+    }));
+    return {nodes,querySelectorAll:() => Object.values(nodes),
+      querySelector:selector => nodes[selector.match(/data-node-id="([^"]+)"/)[1]]};
+  }
+  const refs = {left:{kind:"cell",localId:"first"},right:{kind:"cell",localId:"second"}};
+  const elements = {leftMount:mount(),rightMount:mount()};
+  const compare = {selectedSide:"right",graphs:{left:graph,right:graph}};
+  const render = () => renderCompareSelectionHighlights({compare,elements,readSelection:side => refs[side],escape:s => s});
+  render();
+  assert.equal(compareSelectionId(graph,refs.left),"cell:first");
+  assert.equal(compareSelectionId(graph,refs.right),"cell:second");
+  assert.deepEqual([...elements.leftMount.nodes["cell:first"].classes],["is-selected"]);
+  assert.deepEqual([...elements.leftMount.nodes["cell:second"].classes],["is-compare-counterpart"]);
+  refs.right = null;
+  compare.selectedSide = null;
+  render();
+  assert.equal(compareSelectionId(graph,refs.right),null);
+  assert.equal(elements.rightMount.nodes["cell:second"].classes.size,0);
+  assert.equal(elements.leftMount.nodes["cell:second"].classes.size,0);
+  assert.ok(elements.leftMount.nodes["cell:first"].classes.has("is-selected"));
 });

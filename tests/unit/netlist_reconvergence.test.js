@@ -9,6 +9,7 @@ import { normalizeStructurePolicy } from "../../src/analysis/structure_policy.js
 import { readReconvergenceDetail } from "../../src/analysis/reconvergence.js";
 import { analyzeAigStructure } from "../../src/domains/aig/structure_analysis.js";
 import { createArtifactStore } from "../../src/application/artifact_store.js";
+import { createNetlistStructureBridge } from "../../src/app/netlist_structure_bridge.js";
 import { buildModuleWorkspace } from "../../src/app/moduleWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
 import { DEFAULT_LAYOUT_PROVIDER_ID } from "../../src/layout/providerDefaults.js";
@@ -27,6 +28,35 @@ function run(full, visible = full, options) {
 const diamond = `module top(input s, output z);
   wire p,q;
   BUF b1(.A(s),.Y(p)); INV b2(.A(s),.Y(q)); NAND2 m(.A(p),.B(q),.Y(z)); endmodule`;
+
+test("a geometry-only redraw keeps the pending netlist analysis command attached to its topology", async t => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis,"MutationObserver");
+  Object.defineProperty(globalThis,"MutationObserver",{configurable:true,value:class {observe(){}}});
+  t.after(() => { if (previous) Object.defineProperty(globalThis,"MutationObserver",previous); else delete globalThis.MutationObserver; });
+  const fullGraph = parse(diamond);
+  let context = {document:{documentId:"d",sourceRevision:1},unitId:"top",unitKey:"top",sessionId:"single",
+    sessionReady:true,fullGraph,graph:fullGraph,selectedNode:() => null};
+  const report = analyzeNetlistReconvergence(createNetlistStructureIndex(createNetlistReconvergenceScope(fullGraph,fullGraph).model));
+  let finish;
+  const work = new Promise(resolve => { finish = resolve; });
+  const panel = {ownerDocument:{body:{classList:{contains:()=>false}}},hidden:false,addEventListener(){}};
+  const detail = {addEventListener(){},replaceChildren(){}};
+  const logs = [];
+  const controller = createNetlistStructureBridge({panel,detail,inCompare:() => false,readContext:() => context,
+    feature:{createAnalysisService:() => ({run:() => work,dispose(){}})},logProcess:(...row) => logs.push(row),
+    jobs:{start({run}) {
+      const target = {signal:new AbortController().signal,documentId:"d",sourceRevision:1};
+      return {context:target,promise:run(target).then(value => ({status:"committed",artifact:{value}})),cancel(){}};
+    }}});
+  const pending = controller.command({name:"analysis run",args:[],opts:{}});
+  context = {...context,graph:{...fullGraph,nodes:fullGraph.nodes.map((node,index)=>({...node,x:index*10,y:20}))}};
+  controller.refresh();
+  finish(report);
+  const result = await pending;
+  assert.equal(result.status,"complete");
+  assert.equal(result.reconvergence,1);
+  assert.deepEqual(logs,[]);
+});
 
 test("Netlist actual Whole/Focused projections prove paths only on real visible members", () => {
   const full = parse(diamond), before = JSON.stringify(full), whole = run(full);

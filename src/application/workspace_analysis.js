@@ -68,6 +68,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
       reportPartial(target, job, "reconvergence.run", result.artifact.value, startedAt);
       job = null;
       publish({ status: result.artifact.value.status, data: result.artifact.value, progress: null });
+      return true;
     } catch (error) {
       if (ticket !== generation) return;
       const cancelled = readErrorField(error, "name") === "AbortError";
@@ -80,7 +81,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
   async function detail(result, fromCommand = false) {
     detailJob?.cancel(); detailJob = null;
     if (!result || !service || !workspace || !["partial", "complete"].includes(state.status)) { publish({ detail: null, detailStatus: "idle", detailError: null }); return; }
-    if (detailCache.has(result.id)) { publish({ detail: detailCache.get(result.id), detailStatus: detailCache.get(result.id).status, detailError: null }); return; }
+    if (detailCache.has(result.id)) { publish({ detail: detailCache.get(result.id), detailStatus: detailCache.get(result.id).status, detailError: null }); return true; }
     const target = workspace, ticket = generation, startedAt = performance.now();
     publish({ detail: null, detailStatus: "running", detailError: null });
     let request = null;
@@ -97,6 +98,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
       if (detailCache.size >= 8) detailCache.delete(detailCache.keys().next().value);
       detailCache.set(result.id, value.artifact.value);
       publish({ detail: value.artifact.value, detailStatus: value.artifact.value.status, detailError: null });
+      return true;
     } catch (error) {
       if (ticket !== generation || detailJob !== request) return;
       detailJob = null;
@@ -109,6 +111,14 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
     }
   }
   return Object.freeze({ bind, run, detail, read: () => state,
-    cancel() { cancelWork(); publish({ status: "cancelled", progress: null, detailStatus: "idle", detailError: null }); },
+    cancel() {
+      if (detailJob) {
+        detailJob.cancel(); detailJob = null;
+        publish({ detail: null, detailStatus: "cancelled", detailError: null });
+      } else if (workspace && (state.status === "idle" || state.status === "running")) {
+        cancelWork();
+        publish({ status: "cancelled", progress: null, detailStatus: "idle", detailError: null });
+      }
+    },
     dispose() { cancelWork(); service?.dispose(); service = null; workspace = null; detailCache.clear(); state = { status: "idle", data: null, detail: null, detailStatus: "idle" }; } });
 }

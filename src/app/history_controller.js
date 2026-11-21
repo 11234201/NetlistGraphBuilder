@@ -15,7 +15,7 @@ import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createHistoryController({ state, elements, services }) {
+export function createHistoryController({ state, elements, services, refreshCompareSelection = services.applyCompareHighlights }) {
   let nextViewTransactionId = 1;
   let nextRestoreId = 1;
   let activeRestoreId = 0;
@@ -205,14 +205,7 @@ export function createHistoryController({ state, elements, services }) {
     );
     const finishRestore = () => {
       if (!isCurrentRestore()) return;
-      if (state.compare.selectedName && state.compare.selectedKind && state.compare.selectedSide) {
-        services.selectCompareObject(
-          state.compare.selectedKind,
-          state.compare.selectedName,
-          false,
-          state.compare.selectedSide
-        );
-      }
+      refreshCompareSelection();
       services.applyCompareTransforms();
       endRestore();
     };
@@ -373,7 +366,7 @@ export const historyPorts = Object.freeze({
     "applyCompareHighlights", "applyCompareLayout", "applyCompareSelection", "applyCompareTransforms",
     "applyTransform", "exitCompareView", "getCompareModule", "renderCompareGraphs",
     "renderCompareOutputOptions", "renderCurrentModuleGraph", "renderDiagnostics", "renderGraphMount",
-    "renderStats", "selectCompareObject", "selectModule", "setSelectedNet", "setSelectedNode", "setStatus", "logProcess",
+    "renderStats", "selectModule", "setSelectedNet", "setSelectedNode", "setStatus", "logProcess",
     "setSingleTransform", "updateModuleHierarchyPicker", "updateViewControls",
     "persistSession", "singleViewSession", "compareViewSessions"
   ]

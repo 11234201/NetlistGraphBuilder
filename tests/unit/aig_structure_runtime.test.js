@@ -90,6 +90,31 @@ function analysisHarness(overrides = {}, logProcess) {
     async flush() { for (const callback of scheduled.splice(0)) callback(); await new Promise((resolve) => setImmediate(resolve)); } };
 }
 
+test("cancelling a detail preserves completed analysis and its ability to retry", async () => {
+  let finish, attempts = 0;
+  const reports = [];
+  const {manager} = analysisHarness({detail:async ({id}) => {
+    if (++attempts === 1) return new Promise(resolve => {finish = resolve;});
+    return {id,status:"complete"};
+  }}, (...entry) => reports.push(entry));
+  await manager.run(true);
+  const data = manager.read().data;
+  manager.cancel();
+  assert.equal(manager.read().status,"complete");
+  const pending = manager.detail({id:"pair"},true);
+  await Promise.resolve();
+  manager.cancel();
+  assert.equal(manager.read().status,"complete");
+  assert.equal(manager.read().detailStatus,"cancelled");
+  assert.equal(manager.read().data,data);
+  await manager.detail({id:"pair"},true);
+  finish({id:"old",status:"complete"});
+  assert.equal(await pending,undefined);
+  assert.equal(manager.read().detail.id,"pair");
+  assert.deepEqual(reports,[]);
+  manager.dispose();
+});
+
 test("a command receives the same original worker exception recorded once at the operation boundary", async () => {
   const reason = Object.assign(new Error("worker unavailable", {cause:new Error("fixture resource")}), {code:"FIXTURE_WORKER"});
   const reports = [];

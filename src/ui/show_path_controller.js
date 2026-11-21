@@ -171,7 +171,7 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
     const candidate = action === "clear" ? null : normalizeShowPath(action === "toggle" ?
       { ...owner.query, enabled: !owner.query.enabled } : { ...draft, enabled: true });
     pending?.controller.abort();
-    const request = { controller: new AbortController(), draft, queryKey: JSON.stringify(candidate), keepDraft: action === "toggle" };
+    const request = { controller: new AbortController(), scope: owner.scope, draft, queryKey: JSON.stringify(candidate), keepDraft: action === "toggle" };
     const { signal } = request.controller;
     pending = request; drawDraft();
     try {
@@ -304,6 +304,14 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
     return reportPage();
   }
   return async function runPathCommand({name, args, opts}) {
+    if (name === "path cancel") {
+      if (opts.side) requireValue(read()?.side, "INVALID_SIDE", "Only Compare has path sides");
+      const target = opts.side ? read(opts.side === "A" ? "left" : "right") : context();
+      requireValue(target, "NO_DOCUMENT", "Open a design first");
+      const cancelled = Boolean(pending && pending.scope === target.scope && !pending.controller.signal.aborted);
+      if (cancelled) pending.controller.abort();
+      return {cancelled};
+    }
     if (opts.side) {
       requireValue(read()?.side, "INVALID_SIDE", "Only Compare has path sides");
       explicitSide = opts.side === "A" ? "left" : "right";
@@ -332,11 +340,6 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
         await commit("apply",true);
         return reportPage();
       case "path clear": await commit("clear",true); return snapshot();
-      case "path cancel": {
-        const cancelled = Boolean(pending);
-        pending?.controller.abort();
-        return {cancelled};
-      }
       case "path enable":
         requireValue(current.query, "NO_PATH_REPORT", "Apply a path query first");
         requireValue(["on","off"].includes(args[0]), "INVALID_ARGUMENT", "Choose on or off");

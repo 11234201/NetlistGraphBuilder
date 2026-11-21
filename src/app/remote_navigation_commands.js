@@ -53,10 +53,13 @@ export function createNavigationCommands(services) {
       if (activeAig) return aigCommands({...job,args:[hit.id]},activeAig);
       if (!hit.target || !hit.moduleName) throw invalid("INVALID_ARGUMENT","Incomplete search result");
       if (view.compare && hit.moduleName !== view.moduleName) throw invalid("STALE_REFERENCE","Search result belongs to another Compare module");
-      if (view.compare && hit.target.kind !== "module") {
-        const item = resolveNetlistObject(view,{kind:hit.target.kind,name:hit.target.name});
-        select(view,item);
-        a.focusSelectedCell();
+      if (view.compare) {
+        if (hit.target.kind === "module") a.clearCompareSelection(view.side);
+        else {
+          const item = resolveNetlistObject(view,{kind:hit.target.kind,name:hit.target.name});
+          select(view,item);
+          await run(() => a.focusSelectedCell());
+        }
       } else await run(() => a.activateSearchResult(hit));
       return {id:hit.id,moduleName:read(side).moduleName,selection:currentSelection(read(side))};
     }
@@ -91,7 +94,7 @@ export function createNavigationCommands(services) {
     }
     if (group === "selection") {
       if (action === "set") select(view,resolveNetlistObject(view,args[0]));
-      else if (action === "clear") view.side ? a.clearCompareSelection() : a.setSelectedNode(null);
+      else if (action === "clear") view.side ? a.clearCompareSelection(view.side) : a.setSelectedNode(null);
       else if (action === "zoom") {
         if (!view.selected) throw invalid("NO_SELECTION","Select an object first");
         if (view.side) select(view,resolveNetlistObject(view,view.selected),false);
@@ -160,6 +163,10 @@ export function createNavigationCommands(services) {
     }
     if (group === "view") {
       if (action === "focused" && !view.selected && !view.roots.length) throw invalid("NO_SELECTION","Select a Focused root");
+      if (action === "focused" && view.compare && !view.roots.length) {
+        const target = resolveNetlistObject(view,view.selected);
+        if (target.node && target.node.kind !== "cell") throw invalid("INVALID_ROOT","Choose a cell or net to focus");
+      }
       await run(() => a.setViewMode(action));
       return roots(read(side));
     }

@@ -15,7 +15,7 @@ export const SINGLE_NAVIGATION_FIELDS = Object.freeze([
   "showPath", "viewMode", "coneDepth", "faninDepth", "fanoutDepth"
 ]);
 export const COMPARE_NAVIGATION_FIELDS = Object.freeze([
-  "showPath", "focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId", "selectedKind", "selectedName", "selectedSide"
+  "showPath", "focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId", "selectedKind", "selectedName", "selectedSide", "selectedObjectRefs"
 ]);
 
 // Old archives can contain graph IDs without canonical refs. Keep that explicit

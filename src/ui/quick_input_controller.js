@@ -301,7 +301,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         finish();
         elements.textInput.focus();
       }
-      if (fromCommand) throw error;
+      if (fromCommand) {
+        if (!isCurrent(requestId) || submittedDialogSession !== dialogSession)
+          throw new DOMException("Submission superseded", "AbortError");
+        throw error;
+      }
     } finally {
       finish();
     }

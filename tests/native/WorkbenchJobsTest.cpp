@@ -1,5 +1,6 @@
 #include "WorkbenchBroker.h"
 #include <atomic>
+#include <cstdarg>
 #include <future>
 #include <iostream>
 
@@ -36,7 +37,7 @@ class Gate {
         changed_.notify_all();
     }
 };
-Gate reading, writing;
+Gate reading, writing, listing;
 std::atomic<bool> failSync{false};
 void Require(bool check, const char *message) {
     if (!check) throw std::runtime_error(message);
@@ -66,7 +67,23 @@ const EmbeddedAsset *findEmbeddedAsset(const std::string &route) {
     return route == asset.route ? &asset : nullptr;
 }
 }
-// Pause the real regular-file read and atomic export at their OS boundaries.
+// Pause actual directory listing, regular-file read and atomic export at their OS boundaries.
+extern "C" int __real_open(const char *, int, ...);
+extern "C" int __wrap_open(const char *path, int flags, ...) {
+    if (flags & O_DIRECTORY) listing.Enter();
+    bool takesMode = (flags & O_CREAT) != 0;
+#ifdef O_TMPFILE
+    takesMode = takesMode || (flags & O_TMPFILE) == O_TMPFILE;
+#endif
+    if (takesMode) {
+        va_list args;
+        va_start(args, flags);
+        const auto mode = va_arg(args, mode_t);
+        va_end(args);
+        return __real_open(path, flags, mode);
+    }
+    return __real_open(path, flags);
+}
 extern "C" ssize_t __real_read(int, void *, size_t);
 extern "C" ssize_t __wrap_read(int fd, void *buffer, size_t count) {
     const auto bytes = __real_read(fd, buffer, count);
@@ -102,6 +119,28 @@ int main(int argc, char **argv) {
                                    {"page",target.at("page")},{"cwd",root.string()}}, true);
         };
         const auto changing = root / "changing.v";
+        for (bool fromPage : {false, true}) {
+            const auto owner = join();
+            listing.Arm();
+            auto scan = std::async(std::launch::async, [&] {
+                try {
+                    if (fromPage) page(owner, "list", {{"path",root.string()}});
+                    else cmd({"fs","ls",root.string()}, "slow-ls", owner);
+                    return std::string("completed");
+                } catch (const ngb::WorkbenchError &error) { return error.m_code; }
+            });
+            listing.WaitForEntry();
+            auto disconnect = std::async(std::launch::async, [&] {
+                page(owner, "leave");
+                return page(b,"pulse");
+            });
+            const auto ready = disconnect.wait_for(std::chrono::seconds(1));
+            listing.Release();
+            disconnect.get();
+            Require(ready == std::future_status::ready, "Slow directory scan blocked another page or disconnect");
+            Require(scan.get() == (fromPage ? "PAGE_UNAVAILABLE" : "completed"),
+                    "Directory handles must belong to the connection that requested them");
+        }
         const std::string original(128 * 1024, 'a');
         for (const std::string id : {"truncate", "rewrite"}) {
             std::ofstream(changing) << original;

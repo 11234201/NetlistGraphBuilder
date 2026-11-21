@@ -17,10 +17,14 @@ export function createServerFilePicker({ document, list, submit, context, report
   document.body.append(dialog);
   const el = name => dialog.querySelector("[data-" + name + "]");
   const chosen = new Map();
-  let path = "", number = 1, serial = 0, busy = false, listReady = false, target;
+  const visibleFiles = new Map();
+  let path = "", number = 1, serial = 0, busy = false, listReady = false, windowsPaths = false, target;
   function syncSubmit() { el("submit").disabled = busy || !listReady || chosen.size === 0; }
   for (const name of actions) el("action").add(new Option(name, name));
-  const join = (parent, name) => parent.replace(/\/$/, "") + "/" + name;
+  // Use the server's path syntax even when the browser runs on another OS.
+  const normalized = value => windowsPaths ? value.replaceAll("\\", "/") : value;
+  const directoryKey = value => normalized(value).replace(/\/$/, "");
+  const join = (parent, name) => directoryKey(parent) + "/" + normalized(name);
   function syncSide() {
     el("side").disabled = context().mode !== "Compare" || !sideActions.has(el("action").value);
     if (el("side").disabled) el("side").value = "";
@@ -40,6 +44,7 @@ export function createServerFilePicker({ document, list, submit, context, report
   async function refresh(next = path, page = 1) {
     const ticket = ++serial;
     listReady = false;
+    visibleFiles.clear();
     syncSubmit();
     el("entries").replaceChildren();
     el("count").textContent = "";
@@ -47,14 +52,15 @@ export function createServerFilePicker({ document, list, submit, context, report
     let data;
     try { data = await list(next, el("filter").value, page); }
     catch (error) {
-      if (ticket !== serial || !dialog.open) return;
+      if (ticket !== serial || !dialog.open) return false;
       el("status").textContent = error.message;
       throw error;
     }
-    if (ticket !== serial || !dialog.open) return;
+    if (ticket !== serial || !dialog.open) return false;
     path = data.path; number = data.number; el("path").value = path;
+    windowsPaths = data.roots.some(root => /^(?:[a-z]:[\\/]|\\\\)/i.test(root));
     el("roots").replaceChildren(...data.roots.map(root => new Option(root, root)));
-    const currentRoot = data.roots.filter(root => path === root || path.startsWith(join(root, "")))
+    const currentRoot = data.roots.filter(root => directoryKey(path) === directoryKey(root) || normalized(path).startsWith(join(root, "")))
       .sort((a,b) => b.length - a.length)[0];
     el("roots").value = currentRoot || data.roots[0];
     for (const item of data.entries) {
@@ -66,6 +72,7 @@ export function createServerFilePicker({ document, list, submit, context, report
       } else {
         const label = document.createElement("label"), check = document.createElement("input");
         check.type = "checkbox"; check.checked = chosen.has(full); check.value = full;
+        visibleFiles.set(full, {check, value:item.handle || full});
         if (check.checked) chosen.set(full, item.handle || full);
         check.onchange = () => {
           if (check.checked) chosen.set(full, item.handle || full);
@@ -77,10 +84,11 @@ export function createServerFilePicker({ document, list, submit, context, report
       el("entries").append(row);
     }
     el("prev").disabled = number <= 1; el("next").disabled = number * 100 >= data.total;
-    el("up").disabled = data.roots.includes(path);
+    el("up").disabled = data.roots.some(root => directoryKey(root) === directoryKey(path));
     el("count").textContent = number + " / " + Math.max(1, Math.ceil(data.total / 100));
     listReady = true;
     syncSubmit();
+    return true;
   }
   async function open(action = "design open", dir = "", side = "") {
     if (busy) throw new Error("An import is still running");
@@ -92,7 +100,7 @@ export function createServerFilePicker({ document, list, submit, context, report
     target = context();
     el("context").textContent = [target.page, target.source].filter(Boolean).join(" · ");
     if (!dialog.open) dialog.showModal();
-    await refresh(dir);
+    if (!await refresh(dir)) throw new DOMException("File browsing superseded", "AbortError");
   }
   async function apply(parentId) {
     if (!dialog.open) throw new Error("Open the file picker first");
@@ -134,7 +142,7 @@ export function createServerFilePicker({ document, list, submit, context, report
   el("action").onchange = syncSide;
   el("roots").onchange = () => refresh(el("roots").value).catch(error);
   el("go").onclick = () => refresh(el("path").value).catch(error);
-  el("up").onclick = () => refresh(path.replace(/\/[^/]+\/?$/, "") || "/").catch(error);
+  el("up").onclick = () => refresh(join(path, "..")).catch(error);
   el("prev").onclick = () => refresh(path, number-1).catch(error);
   el("next").onclick = () => refresh(path, number+1).catch(error);
   el("filter").oninput = () => refresh().catch(error);
@@ -148,11 +156,15 @@ export function createServerFilePicker({ document, list, submit, context, report
     },
     choose(paths) {
       if (!dialog.open || busy) throw new Error("Open the file picker before choosing files");
+      if (!listReady) throw Object.assign(new Error("Wait for the server directory to load"), {code:"DIRECTORY_NOT_READY"});
       for (const item of paths) {
-        const full = item.startsWith("/") ? item : join(path, item);
-        chosen.set(full, full);
+        const name = normalized(item);
+        const full = name.startsWith("/") || windowsPaths && /^[a-z]:\//i.test(name) ? name : join(path, name);
+        const visible = visibleFiles.get(full);
+        chosen.set(full, visible?.value || full);
+        if (visible) visible.check.checked = true;
       }
-      return refresh();
+      syncSubmit();
     }
   };
 }

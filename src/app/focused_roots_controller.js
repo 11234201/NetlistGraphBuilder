@@ -47,9 +47,9 @@ export function createFocusedRootsController({ state, elements, services }) {
     ) || null;
   }
 
-  function getFocusedRootContext() {
+  function getFocusedRootContext(requestedSide) {
     if (state.compare.active) {
-      const side = state.compare.selectedSide || "left";
+      const side = requestedSide || state.compare.selectedSide || "left";
       return {
         compare: true,
         side,

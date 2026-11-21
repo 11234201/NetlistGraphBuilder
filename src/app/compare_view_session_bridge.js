@@ -44,9 +44,11 @@ export function createCompareViewSessionBridge({
     focusedRootNodeIds: value.focusedRootNodeIds?.[side] || [],
     focusedRootRefs: value.focusedRootRefs?.[side] || [],
     activeFocusedRootNodeId: value.activeFocusedRootNodeId?.[side],
-    selectedObjectRef: value.selectedSide === side && value.selectedName ? objectRefForSelection(graphFor(side),
-      { documentId: getDocumentId(), unitId: state.compare[`${side}ModuleName`] },
-      value.selectedKind || "cell", value.selectedName) : null
+    selectedObjectRef: value.selectedObjectRefs && Object.hasOwn(value.selectedObjectRefs, side)
+      ? value.selectedObjectRefs[side]
+      : value.selectedSide === side && value.selectedName ? objectRefForSelection(graphFor(side),
+        { documentId: getDocumentId(), unitId: state.compare[`${side}ModuleName`] },
+        value.selectedKind || "cell", value.selectedName) : null
   });
 
   function project(side, session, select = false) {
@@ -56,6 +58,9 @@ export function createCompareViewSessionBridge({
     const value = projectNavigation(session, graphFor(side), pendingNavigation.get(side));
     for (const key of ["focusedRootRefs", "focusedRootNodeIds", "activeFocusedRootNodeId"]) {
       state.compare[key] = Object.freeze({ ...state.compare[key], [side]: value[key] });
+    }
+    if (state.compare.selectedObjectRefs?.[side] !== session.selectedObjectRef) {
+      state.compare.selectedObjectRefs = Object.freeze({ ...state.compare.selectedObjectRefs, [side]: session.selectedObjectRef });
     }
     if (select && session.selectedObjectRef) {
       state.compare.selectedKind = session.selectedObjectRef.kind;
@@ -189,6 +194,7 @@ export function createCompareViewSessionBridge({
       }
     },
     importNavigation(value = {}) {
+      const selectedSide = value.selectedSide;
       for (const side of ["left", "right"]) {
         const current = ensure(side);
         const snapshot = snapshotNavigationImport(importedSide(value, side));
@@ -200,7 +206,13 @@ export function createCompareViewSessionBridge({
           ...importViewState(compareSideViewState(value, side), current)
         }));
         if (graph) pendingNavigation.delete(side); else pendingNavigation.set(side, snapshot);
-        project(side, next, value.selectedSide === side);
+        project(side, next, selectedSide === side);
+      }
+      if (!state.compare.selectedObjectRefs?.[selectedSide]) {
+        state.compare.selectedKind = state.compare.selectedName = state.compare.selectedSide = null;
+      }
+      if (Object.hasOwn(value, "activeSide")) {
+        state.compare.activeSide = ["left", "right"].includes(value.activeSide) ? value.activeSide : null;
       }
     },
     beginComputation(side) {

@@ -80,15 +80,19 @@ export function createAigInspectionCommands({read, readPanels, selectedId, polic
     const category = value => demand(Object.hasOwn(categories,value) && categories[value],"INVALID_ARGUMENT","Expected reconvergence or blocks");
     switch (name) {
       case "analysis status": return status();
-      case "analysis run":
-        await structure.run(); currentScope();
-        demand(["partial","complete"].includes(view().status),"CANCELLED","Analysis superseded");
+      case "analysis run": {
+        const completed = await structure.run(); currentScope();
+        demand(completed,"CANCELLED","Analysis superseded");
         return {...status(),partial:view().status === "partial"};
+      }
       case "analysis cancel": structure.cancel(); return status();
-      case "analysis retry":
+      case "analysis retry": {
         demand(args[0] === "detail","UNAVAILABLE","AIG supports retrying a selected reconvergence detail");
         demand(selected(view().selectedId).category === "reconvergence","UNAVAILABLE","Only reconvergence has a detail job");
-        await structure.selectResult(view().selectedId); currentScope(); return status();
+        const completed = await structure.selectResult(view().selectedId); currentScope();
+        demand(completed,"CANCELLED","Structure detail superseded");
+        return status();
+      }
       case "analysis results": {
         const group = category(args[0]);
         const key = String(opts.type || "all").toLowerCase();
@@ -107,10 +111,10 @@ export function createAigInspectionCommands({read, readPanels, selectedId, polic
         demand(sections.includes(section),"INVALID_ARGUMENT","Unknown detail section for this result");
         if (section === "summary") demand(requested === 1,"PAGE_OUT_OF_RANGE","Summary has one page");
         panels.navigator.tab = "analysis";
-        await structure.selectResult(item.id); currentScope();
+        const completed = await structure.selectResult(item.id); currentScope();
         demand(view().selectedId === item.id,"CANCELLED","Structure selection changed");
         if (item.category === "reconvergence")
-          demand(["partial","complete"].includes(view().detailStatus),"CANCELLED","Structure detail superseded");
+          demand(completed,"CANCELLED","Structure detail superseded");
         if (name === "analysis select") return resultSummary(item);
         const root = item.category === "block" ? query().functionAtUse(item) : null;
         if (section === "summary") return {...resultSummary(item),pins:root?.pins,rootType:root?.kind,detailStatus:view().detailStatus};

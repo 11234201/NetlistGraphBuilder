@@ -38,7 +38,10 @@ export function createRemoteFileImport({ context, graphs, importRequests, loadTe
         error.files = files.map((file, i) => results[i] || { name: file.name, status: "uncommitted" });
         throw error;
       }
-      if (!file.error) logFile(error, name, id, {fileName: file.name, kind});
+      if (!file.error) {
+        const {graphId,documentId,documentVersion} = context();
+        logFile(error, name, id, {fileName:file.name, kind, side:opts.side, graphId, documentId, documentVersion});
+      }
     }
     // Preserve caller order in the receipt. The workspace import order follows
     // the same library/design/attachment policy as local multi-file drops.

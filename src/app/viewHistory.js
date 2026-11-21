@@ -62,6 +62,8 @@ export function createViewHistoryEntry(state, metadata = {}) {
       selectedName: state.compare.selectedName || null,
       selectedKind: state.compare.selectedKind || null,
       selectedSide: state.compare.selectedSide || null,
+      activeSide: state.compare.activeSide ?? state.compare.selectedSide ?? null,
+      selectedObjectRefs: state.compare.selectedObjectRefs,
       transforms: {
         left: normalizeTransform(state.compare.transforms?.left),
         right: normalizeTransform(state.compare.transforms?.right)
@@ -140,6 +142,10 @@ function cloneEntry(entry = {}) {
       selectedName: entry.compare.selectedName || null,
       selectedKind: entry.compare.selectedKind || null,
       selectedSide: entry.compare.selectedSide || null,
+      activeSide: entry.compare.activeSide ?? entry.compare.selectedSide ?? null,
+      ...(entry.compare.selectedObjectRefs && { selectedObjectRefs: Object.fromEntries(
+        Object.entries(entry.compare.selectedObjectRefs).map(([side, ref]) => [side, ref ? cloneObjectRefs([ref])[0] : null])
+      ) }),
       transforms: {
         left: normalizeTransform(entry.compare.transforms?.left),
         right: normalizeTransform(entry.compare.transforms?.right)

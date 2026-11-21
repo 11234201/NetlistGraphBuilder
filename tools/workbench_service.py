@@ -66,6 +66,10 @@ class Job:
         return response
 
 
+def command_side(row, args, opts):
+    return args[row["sideArgument"]] if "sideArgument" in row else opts.get("side")
+
+
 class WorkbenchService:
     def __init__(self, grammar, files, log):
         self.grammar = grammar
@@ -247,9 +251,10 @@ class WorkbenchService:
                 self.finish(job, "failed", error=error_info(error))
             return job.receipt()
         if name.startswith("page "):
-            p = self.pages.get(args[0])
-            if name == "page wait" and p and not p.connection:
-                return {"version":1, "protocolVersion":1, "status":"waiting", "page":p.id}
+            if name == "page wait":
+                p = self.pages.get(args[0]) or next((page for page in self.pages.values() if page.name == args[0]), None)
+                if p and not p.connection:
+                    return {"version":1, "protocolVersion":1, "status":"waiting", "page":p.id, "pageId":p.id}
             p = self.page_for(args[0])
             return completed(p.describe(), p.id)
         if name.startswith("job "):
@@ -277,7 +282,7 @@ class WorkbenchService:
                 raise CommandError("REQUEST_CONFLICT","Request ID already used with different arguments")
             return previous.receipt()
         self.job_capacity()
-        job = Job(rid, p, key, selector, opts.get("side"))
+        job = Job(rid, p, key, selector, command_side(row,args,opts))
         job.interrupt = bool(row.get("interrupt"))
         if row.get("output") and not opts.get("download") and (opts.get("out") or args[-1] != "download"):
             if browser:
@@ -321,6 +326,9 @@ class WorkbenchService:
         row = self.grammar.rows[name]
         data = {"id":job.id, "name":name, "args":args, "opts":{k:v for k,v in opts.items() if k != "text"},
                 "files":files, "output":bool(row.get("output"))}
+        side = command_side(row,args,opts)
+        if side:
+            data["side"] = side
         if "modes" in row:
             data["modes"] = row["modes"]
         return data
@@ -358,9 +366,12 @@ class WorkbenchService:
         version = p.context.get("documentVersion")
         if not version or not job.version or job.version == version:
             return True
-        if job.payload["name"] in ("design info","module list","search find","timing show","files browse","files choose","files cancel"):
+        name = job.payload["name"]
+        if name in ("design info","module list","search find","timing show"):
             return True
-        self.finish(job,"failed",error={"code":"STALE_DOCUMENT","message":"Target document changed before execution"})
+        error = CommandError("STALE_DOCUMENT","Target document changed before execution")
+        self.record(job, name, error, "workbench.stale_document")
+        self.finish(job,"failed",error=error_info(error))
         return False
 
     def handle(self, b, admin):

@@ -12,7 +12,8 @@ function importer(loadText, initialMode = "Single", importRequests = createImpor
   const errors = [], requests = [];
   let mode = initialMode;
   const run = createRemoteFileImport({
-    context: () => ({mode}), graphs: { add() { throw Error("Unexpected AIG batch"); } },
+    context: () => ({mode,documentId:"document:"+mode,documentVersion:mode === "Single" ? 2 : 1}),
+    graphs: { add() { throw Error("Unexpected AIG batch"); } },
     loadText: async (text, options) => {
       requests.push({name:options.label, kind:options.kind, append:options.append});
       await loadText(text, options);
@@ -47,6 +48,8 @@ test("server mixed import prioritizes designs, returns every original file row a
   assert.equal(errors.length,1);
   assert.equal(errors[0].error,broken);
   assert.deepEqual([errors[0].operation,errors[0].id,errors[0].details.fileName],["files import","r1","broken.blif"]);
+  assert.equal(errors[0].details.documentId,"document:Single");
+  assert.equal(errors[0].details.documentVersion,2);
 });
 
 test("mixed import skips attachments when every requested design failed", async () => {

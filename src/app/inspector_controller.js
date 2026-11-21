@@ -2,6 +2,7 @@ import { renderDefinitionRows as statsRows } from "../ui/html.js";
 import { missingCellTimingDetails } from "../timing/timing_diagnostics.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { getCompareNodeName, findCompareNode } from "./compareWorkspace.js";
+import { renderCompareSelectionHighlights } from "./compare_selection_highlights.js";
 import {
   getTimingBadgeChoices,
   renderTimingPanel,
@@ -106,56 +107,53 @@ export function createInspectorController({ state, elements, services, netRoutin
         edge.classList.add(commonNets.has(edge.dataset.net) ? "is-compare-match" : "is-compare-unmatched");
       }
     }
-    if (state.compare.selectedName) selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false, state.compare.selectedSide, false);
+    refreshCompareSelection();
+  }
+
+  function updateCompareSelectionHighlights() {
+    renderCompareSelectionHighlights({compare:state.compare,elements,escape:services.cssEscape,
+      readSelection:side => services.compareViewSessions.readState(side).selectedObjectRef});
   }
 
   function selectCompareObject(kind, name, focus = true, selectedSide = state.compare.selectedSide, shouldRecord = true) {
     if (!selectedSide) return;
-    const peerSide = selectedSide === "left" ? "right" : "left";
-    if (compareObjectExists(peerSide, kind, name)) {
-      services.compareViewSessions.dispatch(peerSide, {
-        type: "selection.set",
-        objectRef: services.compareViewSessions.objectRef(peerSide, kind, name)
-      });
-    }
     services.compareViewSessions.dispatch(selectedSide, {
       type: "selection.set",
       objectRef: services.compareViewSessions.objectRef(selectedSide, kind, name)
     });
     services.updateViewControls();
-    for (const element of elements.compareMount.querySelectorAll(".is-selected")) element.classList.remove("is-selected");
-    for (const side of ["left", "right"]) {
-      const mount = side === "left" ? elements.leftMount : elements.rightMount;
-      if (kind === "net") {
-        for (const edge of mount.querySelectorAll(".edge")) if (edge.dataset.net === name) edge.classList.add("is-selected");
-      } else {
-        const graphNode = findCompareNode(state.compare.graphs[side], kind, name);
-        if (graphNode) mount.querySelector(`[data-node-id="${services.cssEscape(graphNode.id)}"]`)?.classList.add("is-selected");
-      }
-    }
     if (focus) focusCompareSelection(kind, name);
+    refreshCompareSelection();
+    if (shouldRecord) services.commitViewHistory();
+  }
+
+  function refreshCompareSelection() {
+    updateCompareSelectionHighlights();
+    const {selectedKind:kind, selectedName:name, selectedSide} = state.compare;
+    if (!selectedSide || !name) return renderSelection(null);
     if (kind === "net") {
       renderNetSelection(name, selectedSide);
-      if (shouldRecord) services.commitViewHistory();
       return;
     }
-    if (kind !== "net" && selectedSide) {
-      const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
-      if (node) {
-        renderCompareSelection(selectedSide, node);
-        if (shouldRecord) services.commitViewHistory();
-        return;
-      }
+    const node = findCompareNode(state.compare.graphs[selectedSide], kind, name);
+    if (node) {
+      renderCompareSelection(selectedSide, node);
+      return;
     }
     elements.details.className = "details-block";
     elements.details.innerHTML = renderObjectDetails({ kind, summary: [["Kind", kind], ["Present", "highlighted on both sides where available"]], connections: [] },
       inspectionOptions({ kind, id: name, label: name }, selectedSide));
-    if (shouldRecord) services.commitViewHistory();
   }
 
-  function clearCompareSelection() {
-    for (const side of ["left", "right"]) {
+  function clearCompareSelection(targetSide) {
+    for (const side of targetSide ? [targetSide] : ["left", "right"]) {
       services.compareViewSessions.dispatch(side, { type: "selection.clear" });
+    }
+    if (targetSide) {
+      updateCompareSelectionHighlights();
+      services.updateViewControls();
+      if (!state.compare.selectedSide) renderSelection(null);
+      services.commitViewHistory();
     }
   }
 
@@ -248,7 +246,8 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function focusCompareSelection(kind, name) {
-    for (const side of ["left", "right"]) {
+    const sides = state.compare.synchronized ? ["left", "right"] : [state.compare.selectedSide];
+    for (const side of sides) {
       const graph = state.compare.graphs[side];
       const svg = (side === "left" ? elements.leftMount : elements.rightMount).querySelector("svg");
       const node = kind === "net" ? null : findCompareNode(graph, kind, name);
@@ -496,7 +495,7 @@ export function createInspectorController({ state, elements, services, netRoutin
     services.applyTransform();
   }
 
-  return Object.freeze({ editNodeOverride, renderStats, signed, formatGateKinds, applyCompareHighlights, selectCompareObject, clearCompareSelection, compareObjectExists, renderCompareSelection, bindCompareSelectionControls, focusCompareSelection, renderSelection, renderNetSelection, currentHierarchyInspectionContext, renderDiagnostics, bindSelectionControls, updateTimingBadgePosition, updateNodeSize, updateNodeProperty, updateCellPinDirection, updateTimingBadgeChoice, rerenderPreservingView });
+  return Object.freeze({ editNodeOverride, renderStats, signed, formatGateKinds, applyCompareHighlights, refreshCompareSelection, selectCompareObject, clearCompareSelection, compareObjectExists, renderCompareSelection, bindCompareSelectionControls, focusCompareSelection, renderSelection, renderNetSelection, currentHierarchyInspectionContext, renderDiagnostics, bindSelectionControls, updateTimingBadgePosition, updateNodeSize, updateNodeProperty, updateCellPinDirection, updateTimingBadgeChoice, rerenderPreservingView });
 }
 
 export const inspectorPorts = Object.freeze({

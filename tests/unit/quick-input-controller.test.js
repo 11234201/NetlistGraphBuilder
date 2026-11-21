@@ -543,6 +543,25 @@ test("closing a busy paste dialog aborts its request without letting stale resul
   }
 });
 
+test("a late import error cannot fail the cancelled text command or change the replacement draft", async () => {
+  let reject;
+  const elements = inputElements(), logs = [];
+  const controller = createQuickInputController({elements,windowTarget:eventTarget(),setStatus(){},logProcess:(...row) => logs.push(row),
+    schedule:run => run(), loadText:() => new Promise((_, fail) => {reject = fail;})});
+  const run = (name,...args) => controller.draftCommand({name,args,opts:{}});
+  run("text open","aig");
+  run("text set","old source");
+  const submitted = run("text submit");
+  run("text cancel");
+  run("text open","netlist");
+  run("text set","new source");
+  reject(new Error("obsolete provider failure"));
+  await assert.rejects(submitted,{name:"AbortError"});
+  assert.equal(elements.textDialog.open,true);
+  assert.equal(elements.textInput.value,"new source");
+  assert.deepEqual(logs,[]);
+});
+
 test("external import cancellation restores paste controls before the stale load settles", async () => {
   const elements = inputElements(), importRequests = createImportRequests();
   let finish;

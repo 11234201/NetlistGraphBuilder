@@ -52,7 +52,7 @@ export function readRemoteInspection(job,view,hierarchyContext) {
     return {...pageRows(rows,opts["page-number"],size),object,group};
   }
   const fields = {summary:inspection.summary,properties:inspection.definitionRows || [],attributes:inspection.attributes || [],
-    connections:inspection.connections,timing:item.node?.timing || view.full?.edges.find(edge => edge.net === item.name)?.timing || null,
+    connections:inspection.connections,timing:(item.node ? item.node.timing : view.full?.netTiming?.[item.name]) || null,
     source:object,analysis:inspection.traversal};
   if (opts.tab && !Object.hasOwn(fields,opts.tab)) throw invalid("INVALID_ARGUMENT","Unknown inspector tab");
   return {object,...(opts.tab ? {[opts.tab]:fields[opts.tab]} : {...fields,hierarchyConnections:inspection.hierarchyConnections})};

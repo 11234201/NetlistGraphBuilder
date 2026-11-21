@@ -84,7 +84,7 @@ if (NGB_BUILD_TESTS)
     target_compile_features(ngb-workbench-jobs-test PRIVATE cxx_std_17)
     target_include_directories(ngb-workbench-jobs-test PRIVATE launcher)
     target_link_libraries(ngb-workbench-jobs-test PRIVATE Threads::Threads)
-    target_link_options(ngb-workbench-jobs-test PRIVATE "-Wl,--wrap=read" "-Wl,--wrap=fsync")
+    target_link_options(ngb-workbench-jobs-test PRIVATE "-Wl,--wrap=open" "-Wl,--wrap=read" "-Wl,--wrap=fsync")
     add_test(NAME ngb-workbench-jobs COMMAND ngb-workbench-jobs-test "${NGB_SOURCE_ROOT}/src/contracts/workbench_commands.json")
     set_tests_properties(ngb-workbench-jobs PROPERTIES TIMEOUT 20)
     add_test(

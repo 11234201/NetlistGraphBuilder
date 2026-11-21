@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createAnalysisCommands } from "../../src/app/remote_analysis_commands.js";
 import { createAigInspectionCommands } from "../../src/app/aig_inspection_commands.js";
 import { createProcessLog } from "../../src/app/processLog.js";
+import { bindShowPath } from "../../src/ui/show_path_controller.js";
 
 test("invalid structure detail sections leave the selected result, page and visible tab intact", async () => {
   const item = {id:"block:1", category:"block", pins:{}};
@@ -26,6 +27,45 @@ test("late results from a superseded visible AIG scope cannot acknowledge the ne
   workspace = {...initial,analysisScopeId:"focused"};
   finish();
   await assert.rejects(job,{code:"STALE_DOCUMENT"});
+});
+
+test("a superseded command cannot claim a completed replacement analysis or detail in the same graph", async () => {
+  const item = {id:"pair",category:"reconvergence"};
+  const workspace = {document:{},sessionId:"same",analysisScopeId:"visible"};
+  const panels = {navigator:{},analysis:{}};
+  const view = {status:"complete",detailStatus:"complete",selectedId:item.id,query:{get:() => item}};
+  const run = createAigInspectionCommands({read:() => workspace,readPanels:() => panels,
+    structure:{view:() => view,run:async () => undefined,selectResult:async () => undefined}});
+  for (const [name,args] of [["analysis run",[]],["analysis select",[item.id]],["analysis retry",["detail"]]]) {
+    await assert.rejects(run({name,args,opts:{}}),{code:"CANCELLED"});
+  }
+});
+
+test("a Compare cancellation leaves a pending path apply and its panel on the other side", async () => {
+  const elements = new Map(), logs = [];
+  const get = key => {
+    if (!elements.has(key)) elements.set(key,{value:"",querySelector:get,addEventListener(){},replaceChildren(){},toggleAttribute(){},setAttribute(){}});
+    return elements.get(key);
+  };
+  const panel = get("panel");
+  panel.ownerDocument = {getElementById:get,addEventListener(){},dispatchEvent(){},defaultView:{MutationObserver:class { observe(){} }}};
+  let release, signal;
+  const read = (side = "left") => ({side, scope:"view:" + side,query:null,graph:null,
+    index:() => ({endpoints:new Map([["start",{key:"start"}]])}),
+    apply(_query,pendingSignal) { signal = pendingSignal; return new Promise(resolve => {release = resolve;}); }});
+  const command = bindShowPath(panel,{read,subscribe(){},log:(...args) => logs.push(args)});
+  const run = (name,args = [],opts = {}) => command({name,args,opts});
+  await run("path add",["start","start"],{side:"B"});
+  const work = run("path apply");
+  assert.equal((await run("path cancel",[],{side:"A"})).cancelled,false);
+  assert.equal(signal.aborted,false);
+  assert.equal(get("pathSide").value,"right");
+  assert.equal((await run("path cancel",[],{side:"B"})).cancelled,true);
+  assert.equal(signal.aborted,true);
+  assert.equal((await run("path cancel",[],{side:"B"})).cancelled,false);
+  release(false);
+  await assert.rejects(work,{name:"AbortError"});
+  assert.deepEqual(logs,[]);
 });
 
 test("log filters use real select values, keep earlier filters on failure, and reveal a hidden entry", async () => {

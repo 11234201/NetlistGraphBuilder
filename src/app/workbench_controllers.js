@@ -70,7 +70,7 @@ export function createWorkbenchControllers({ state, getElements, services, route
   });
   const refreshCompareSelection = () => {
     if (state.compare.active && state.compare.selectedName && state.compare.selectedKind) {
-      actions.selectCompareObject(state.compare.selectedKind, state.compare.selectedName, false, state.compare.selectedSide, false);
+      actions.refreshCompareSelection();
     }
   };
   function validateSavedPath(value, module, occurrence, graphOverrides = state.graphOverrides) {
@@ -92,6 +92,7 @@ export function createWorkbenchControllers({ state, getElements, services, route
     }),
     elements: createLegacyPort(getElements, ports.elements),
     services: createLegacyPort(() => services, ports.services),
+    ...(owner === "history" ? { refreshCompareSelection: () => actions.refreshCompareSelection() } : {}),
     ...(owner === "search-navigation" ? { comparePathScope(result) {
       if (!state.compare.active) return null;
       const side = [state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result?.moduleName);
@@ -283,7 +284,8 @@ export function createWorkbenchControllers({ state, getElements, services, route
     logTiming:(view,details,job) => writeTimingLog(services.logProcess,"info","Cell timing details",{
       operation:job.name, code:"timing.inspect-cell",requestId:job.id,documentId:view.documentId,side:view.side,...details})
   });
-  actions.createRemoteNavigation = extra => createNavigationPort({ state, getElements, actions, netRouting, renderCompletion, ...extra });
+  actions.createRemoteNavigation = extra => createNavigationPort({ state, getElements, actions, netRouting, renderCompletion,
+    readSelection:side => services.compareViewSessions.readState(side).selectedObjectRef, ...extra });
   return Object.freeze(actions);
 }
 
@@ -291,7 +293,7 @@ const ALL_COMPARE_FIELDS = Object.freeze([
   "active", "showPath", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
   "focusedRootsSynchronized", "fullGraphs", "graphOverrides", "graphs", "layout", "layoutAbortController",
   "leftModuleName", "nodePositions", "nodeSizes", "outputName", "rightModuleName", "scenes", "selectedKind",
-  "activeSide", "selectedName", "selectedSide", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
+  "activeSide", "selectedName", "selectedSide", "selectedObjectRefs", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
   "timingBadgePositions", "transforms", "wholeRequested", "workspaceIdentity"
 ]);
 
@@ -306,12 +308,12 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "helpers": ["graphOverrides", "nodePositions", "nodeSizes"],
   "history": ALL_COMPARE_FIELDS,
   "input": ["active", "layoutAbortController", "leftModuleName", "rightModuleName", "sideTiming", "sideTimingLabels"],
-  "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "timingBadgeChoices", "timingBadgePositions", "transforms"],
+  "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "synchronized", "timingBadgeChoices", "timingBadgePositions", "transforms"],
   "module-navigation": ["active"],
   "presentation": ["active", "graphs", "scenes"],
   "selection-navigation": ["active", "graphs", "selectedSide"],
   "state-commands": ["graphOverrides", "nodePositions", "nodeSizes"],
-  "view-controls": ["active", "focusedRootNodeIds", "outputName", "selectedKind", "selectedName"],
+  "view-controls": ["active", "activeSide", "focusedRootNodeIds", "outputName", "selectedKind", "selectedName", "wholeRequested"],
   "workspace-render": ["active", "singleWorkspaceInvalidated"]
 });
 

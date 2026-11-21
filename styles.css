@@ -1666,10 +1666,10 @@ body.is-dragging-files .drop-overlay {
   stroke-linejoin: round;
 }
 
-.node.is-selected .node-shape {
+.node:is(.is-selected,.is-compare-counterpart) .node-shape {
   stroke-opacity: 0;
 }
-.node.is-selected .node-selection-outline { visibility: visible; pointer-events: stroke; }
+.node:is(.is-selected,.is-compare-counterpart) .node-selection-outline { visibility: visible; pointer-events: stroke; }
 .node.is-compare-unmatched .node-selection-outline { stroke-dasharray: 5 3; }
 .node.gate-conventional .node-selection-outline { stroke-linejoin: round; }
 .node.blackbox .node-selection-outline { stroke-dasharray: 6 3; }
@@ -1677,6 +1677,7 @@ body.is-dragging-files .drop-overlay {
 .node.focus-input .node-selection-outline, .node.focus-output .node-selection-outline { stroke-dasharray: 5 3; }
 
 .wire.is-selected,
+.edge.is-compare-counterpart .wire,
 .edge.is-selected .wire {
   stroke: var(--selected);
   stroke-width: 2.6;

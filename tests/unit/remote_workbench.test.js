@@ -21,6 +21,24 @@ test("R02 starting a second service preserves a live session record during a con
   assert.deepEqual(JSON.parse(await readFile(path,"utf8")), state);
 });
 
+test("an outstanding directory listing cannot issue file handles after its page reconnects", async t => {
+  let complete;
+  const listing = new Promise(resolve => { complete = resolve; });
+  const broker = createBroker({files:{roots:["/tmp"], list:() => listing},log:{error(){}}});
+  t.after(broker.close);
+  const join = fields => broker.handle({version:1,op:"join",token:broker.pair,...fields},false);
+  const first = await join();
+  const send = (identity, op) => broker.handle({version:1,...identity,op,path:"/tmp"},false);
+  const pending = send(first,"list");
+  await send(first,"leave");
+  const fresh = await join({page:first.page,resume:first.resume});
+  const result = {path:"/tmp",entries:[{name:"source.v",directory:false}]};
+  complete(result);
+  await assert.rejects(pending,{code:"PAGE_UNAVAILABLE"});
+  assert.equal(result.entries[0].handle,undefined);
+  assert.match((await send(fresh,"list")).entries[0].handle,/^ngb-file:/);
+});
+
 test("R13 duplicate acknowledgements share the export failure and preserve a newer page context", async t => {
   let rejectWrite;
   const output = new Promise((_,reject) => { rejectWrite = reject; });

@@ -13,6 +13,7 @@ import {verifyDesignCommands} from "./remote_design_acceptance.mjs";
 import {verifyAnalysisAcceptance} from "./remote_analysis_acceptance.mjs";
 
 import {verifyCommandDiagnostics} from "./workbench_diagnostics_acceptance.mjs";
+import {verifyPickerAndClipboard} from "./workbench_picker_clipboard_acceptance.mjs";
 import {countWorkbenchWorkers,verifyResourceLimits} from "./workbench_resource_acceptance.mjs";
 
 const {chromium} = await import(process.env.NGB_PLAYWRIGHT_MODULE || "playwright");
@@ -22,7 +23,8 @@ const launchers = {npm:[process.execPath,join(project,"tools/serve.mjs")], elf:[
   python:[process.env.NGB_PYTHON || "python3",join(project,"tools/serve.py")],windows:[process.env.NGB_WINDOWS_EXE]};
 const [exe,...prefix] = launchers[adapter];
 if (!exe) throw new Error("Set NGB_WINDOWS_EXE to the extracted offline launcher");
-const groups = (process.env.NGB_TEST_GROUPS || "host,design,navigation,analysis,limits").split(",");
+const fullGroups = ["host","design","navigation","analysis","limits"];
+const groups = process.env.NGB_TEST_GROUPS?.split(",") || fullGroups;
 const dir = await mkdtemp(join(tmpdir(),"ngb-command-verification-"));
 const state = join(dir,"session.json");
 const env = {...process.env,NGB_LOG_DIR:join(dir,"logs")};
@@ -48,13 +50,14 @@ async function run(...argv) {
   const {stdout,stderr} = await call(argv,["cmd","--state-file",state,...(!argv.includes("--page") && target ? ["--page",target] : []),...(!argv.includes("--timeout") ? ["--timeout","15000"] : [])]);
   if (!stdout.trim()) throw new Error(name+" empty CLI reply: "+stderr.slice(-400));
   const receipt = JSON.parse(stdout);
-  if (!receipt.error && !["unknown","cancelled"].includes(receipt.status)) seen.add(name);
-  else boundaries.add(name);
+  if (receipt.status === "committed" && !receipt.error) seen.add(name);
+  if (receipt.error) boundaries.add(name);
   return receipt;
 }
 async function ok(...args) {
   const r = await run(...args);
-  assert.ok(!r.error, JSON.stringify({command:args.slice(0,2),receipt:r}));
+  const expected = args.includes("--async") ? ["reading","queued","delivered","executing","committed"] : ["committed"];
+  assert.ok(!r.error && expected.includes(r.status), JSON.stringify({command:args.slice(0,2),receipt:r}));
   return r;
 }
 async function register(page,url) {
@@ -102,6 +105,7 @@ try {
     await ok("svg","export","--out",join(dir,"host.svg"));
     assert.match(await readFile(join(dir,"host.svg"),"utf8"),/<svg/);
   }
+  if (groups.includes("host") || groups.includes("picker")) report.pickerClipboard = await verifyPickerAndClipboard({run,page,project});
   if(groups.includes("host")) report.diagnostics = await verifyCommandDiagnostics({run,page,dir,project,target});
   if(groups.includes("design")) report.design=await verifyDesignCommands({run,page,dir});
   if (groups.includes("design") || groups.includes("timing")) report.timing = await verifyTimingPresentation({run,page,dir});
@@ -143,7 +147,7 @@ try {
   report.passed=[...seen].sort();
   report.boundaries=catalogue.commands.map(row=>row.name).filter(name=>boundaries.has(name)).sort();
   report.missing=catalogue.commands.filter(r=>!seen.has(r.name)).map(r=>r.name);
-  if (groups.length === 5) {
+  if (fullGroups.every(group => groups.includes(group))) {
     assert.deepEqual(report.missing,[],"Missing positive command coverage");
     assert.deepEqual(catalogue.commands.filter(row=>!boundaries.has(row.name)).map(row=>row.name),[],"Missing boundary coverage");
   }

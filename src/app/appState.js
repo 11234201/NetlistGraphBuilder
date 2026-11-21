@@ -86,6 +86,7 @@ export function createCompareState() {
     selectedName: null,
     selectedKind: null,
     selectedSide: null,
+    selectedObjectRefs: null,
     activeSide: null,
     nodePositions: { left: new Map(), right: new Map() },
     nodeSizes: { left: new Map(), right: new Map() },
