@@ -28,6 +28,8 @@ export function parseLauncherArgs(argv, options = {}) {
     replaceExisting: false,
     parentDeath: false,
     stateFile: null,
+    browseRoots: [],
+    interactive: undefined,
     inputs: {},
     target: {}
   };
@@ -65,6 +67,8 @@ export function parseLauncherArgs(argv, options = {}) {
       result.parentDeath = true;
       continue;
     }
+    if (argument === "--browse-root" && argv[index+1] && !argv[index+1].startsWith("--")) { result.browseRoots.push(resolve(cwd, argv[++index])); continue; }
+    if (argument === "--interactive" || argument === "--no-interactive") { result.interactive = argument === "--interactive"; continue; }
     const key = valueOptions.get(argument);
     if (!key) throw new LauncherArgumentError(`Unknown option: ${argument}`);
     const value = argv[++index];
@@ -138,7 +142,9 @@ export function createReadyRecord(port, manifest) {
 }
 
 export function getLauncherHelp(command = "node tools/serve.mjs") {
-  return `Usage: ${command} [start|stop|status] [options]\n\n` +
+  return `Usage: ${command} [start|stop|status] [options]\n       ${command} cmd --state-file <path> [--page ID] <command> [args...]\n\n` +
+    "  --browse-root <dir>    server file picker root (repeatable, default: working directory)\n" +
+    "  --[no-]interactive     show or suppress the command prompt (default: TTY)\n" +
     "  --netlist <path>       structural Verilog to load\n" +
     "  --timing <path>        standard timing report (Tabular/CSV/JSON)\n" +
     "  --cell-config <path>   versioned Cell Config JSON\n" +

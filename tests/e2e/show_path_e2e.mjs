@@ -16,6 +16,13 @@ await runBrowserTest(async ({ browser, url }) => {
   const panel = page.locator("#pathPanel");
   const pathButton = page.locator("#showPathButton");
   async function open() { if (!await panel.isVisible()) await pathButton.click(); }
+  async function reloadPath() {
+    await page.reload();
+    // The saved query can be active while the navigator shows another tab.
+    await page.locator("#pathPanel[data-enabled]").waitFor({ state: "attached" });
+    await open();
+    await page.locator("#pathPanel[data-enabled]").waitFor();
+  }
   const action = (name) => panel.locator(`[data-path-action="${name}"]`);
   const file = (name, text) => ({ name, mimeType: "text/plain", buffer: Buffer.from(text) });
   async function add(term, side, match) {
@@ -108,8 +115,7 @@ await runBrowserTest(async ({ browser, url }) => {
     const detail = page.locator("#processLogList li").filter({ hasText: "injected detached Path render" }).last();
     await detail.locator("summary").evaluate((el) => el.click());
     assert.match(await detail.locator("pre").textContent(), /show-path.apply/);
-    await page.reload(); await page.locator("#pathPanel[data-enabled]").waitFor();
-    await open(); await action("toggle").click();
+    await reloadPath(); await action("toggle").click();
     await page.locator('#schematicMount [data-node-id="cell:isolated"]').waitFor();
     await page.locator("#moduleBackButton").evaluate((el) => el.click());
     await page.locator("#pathPanel[data-enabled]").waitFor();
@@ -194,8 +200,8 @@ await runBrowserTest(async ({ browser, url }) => {
       document.querySelector("#exportSvgButton").click();
     });
     assert.ok((await download("#exportProcessLogButton")).includes("injected Show Path SVG download"));
-    await page.reload(); await page.locator("#pathPanel[data-enabled]").waitFor();
-    await open(); await action("clear").click(); await page.waitForFunction(() => !document.querySelector("#pathPanel").hasAttribute("data-enabled"));
+    await reloadPath(); await action("clear").click();
+    await page.waitForFunction(() => !document.querySelector("#pathPanel").hasAttribute("data-enabled"));
     await add("a", "starts", /^a · pi/); await add("w", "ends", /^w · po/); await apply();
     assert.match(await page.locator("#pathReportBody").textContent(), /No path.*unreachable/);
     await page.addInitScript(() => {

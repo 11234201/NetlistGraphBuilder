@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { stat, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -17,9 +17,8 @@ import {
   isProcessAlive,
   launcherStatus,
   makeLauncherState,
-  readLauncherState,
-  removeLauncherState,
-  stateFileExists,
+  prepareLauncherState,
+  removeOwnedState,
   stopLauncherState,
   writeLauncherState
 } from "./launcher-state.mjs";
@@ -28,9 +27,12 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const host = "127.0.0.1";
 const log = createTerminalLog("node");
 process.stderr.on("error", () => {});
+if (process.platform === "linux") process.on("SIGXFSZ", () => {});
 process.on("exit", (code) => log.write(code ? "error" : "info", "process.exit", "Launcher exiting", { exitCode: code }));
 process.on("uncaughtExceptionMonitor", (error) => log.error("process.uncaught", error));
 process.on("unhandledRejection", (error) => { log.error("process.rejection", error); process.exit(1); });
+import { cli, remoteHost, terminal } from "./workbench_terminal.mjs";
+if (process.argv[2] === "cmd") process.exit(await cli(process.argv.slice(3), log));
 let options;
 let startupManifest;
 try {
@@ -63,17 +65,9 @@ if (options.command === "stop" || options.command === "status") {
   }
 }
 
-if (options.stateFile && await stateFileExists(options.stateFile)) {
+if (options.stateFile) {
   try {
-    if (options.replaceExisting) {
-      await stopLauncherState(options.stateFile);
-    } else {
-      const existing = await launcherStatus(options.stateFile);
-      if (existing.status === "running") {
-        throw new Error(`A Netlist Graph Builder session is already running for state file: ${options.stateFile}`);
-      }
-      await removeLauncherState(options.stateFile);
-    }
+    await prepareLauncherState(options.stateFile, options.replaceExisting);
   } catch (error) {
     log.error("session.prepare_failed", error);
     process.exit(1);
@@ -87,7 +81,9 @@ const mimeTypes = new Map([
   [".sv", "text/plain; charset=utf-8"]
 ]);
 
+const workbench = await remoteHost(options, log);
 const server = createServer(async (request, response) => {
+  if (request.url === "/__ngb/workbench") return workbench.route(request,response);
   const requestPath = (request.url || "/").split(/[?#]/, 1)[0];
   let stream;
   response.once("finish", () => log.request(request.method, requestPath, response.statusCode));
@@ -119,6 +115,9 @@ const server = createServer(async (request, response) => {
     if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath) || log.contains(filePath)) {
       response.writeHead(403); response.end("Forbidden"); return;
     }
+    const runtimeAsset = /^(?:index\.html$|styles\.css$|(?:src|vendor|examples)\/)/;
+    const canonical = await realpath(filePath);
+    if (!runtimeAsset.test(pathname) || !runtimeAsset.test(relative(root,canonical).split(sep).join("/")) || workbench.guard(canonical)) { response.writeHead(403); response.end("Forbidden"); return; }
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) { response.writeHead(404); response.end("Not found"); return; }
     response.setHeader("content-type", mimeTypes.get(extname(filePath)) || "application/octet-stream");
@@ -136,18 +135,16 @@ let shuttingDown = false;
 function shutdown(reason = "shutdown") {
   if (shuttingDown) return;
   shuttingDown = true;
+  workbench.stopPolling();
   log.write("info", "server.stopping", "Stopping preview server", { reason });
   if (parentCheck) clearInterval(parentCheck);
-  if (server.listening) server.close();
+  if (server.listening) { server.close(); server.closeIdleConnections?.(); }
 }
 
 async function cleanupState() {
   if (!launcherState) return;
   try {
-    const current = await readLauncherState(launcherState.stateFile);
-    if (current.pid === launcherState.pid && current.owner === launcherState.owner) {
-      await removeLauncherState(launcherState.stateFile);
-    }
+    await removeOwnedState(launcherState);
   } catch (error) {
     if (error.code !== "ENOENT") log.error("session.cleanup_failed", error);
   }
@@ -159,6 +156,7 @@ process.once("SIGTERM", () => shutdown("SIGTERM"));
 server.on("error", (error) => {
   log.error("server.failed", error);
   process.exitCode = 1;
+  if (!server.listening) void workbench.close();
 });
 
 log.write("info", "server.starting", "Starting Netlist Graph Builder preview server");
@@ -166,20 +164,23 @@ server.listen(options.port, host, () => {
   const port = server.address().port;
   const ready = createReadyRecord(port, startupManifest);
   const finishStart = async () => {
-    if (options.stateFile) {
-      try {
-        launcherState = makeLauncherState({ port, url: ready.url, stateFile: options.stateFile });
-        await writeLauncherState(launcherState);
-      } catch (error) {
-        log.error("session.write_failed", error);
-        server.close();
-        process.exitCode = 1;
-        return;
-      }
+    try {
+      launcherState = makeLauncherState({port,url:ready.url,stateFile:workbench.state});
+      launcherState.control = workbench.socket;
+      workbench.identify(launcherState);
+      ready.pairUrl = ready.url + "#ngb=" + workbench.pair;
+      ready.stateFile = workbench.state;
+      await writeLauncherState(launcherState);
+    } catch (error) {
+      log.error("session.write_failed",error);
+      process.exitCode = 1;
+      server.close();
+      return;
     }
     console.log(JSON.stringify(ready));
     log.write("info", "server.ready", "Preview server ready", { port });
-    if (options.openBrowser) openBrowser(ready.url);
+    if (options.interactive ?? process.stdin.isTTY) terminal(workbench, () => shutdown("quit"));
+    if (options.openBrowser) openBrowser(ready.pairUrl);
     if (options.parentDeath) {
       const parentPid = process.ppid;
       parentCheck = setInterval(() => {
@@ -191,7 +192,7 @@ server.listen(options.port, host, () => {
 });
 
 server.on("close", () => {
-  void cleanupState().finally(() => {
+  void cleanupState().then(() => workbench.close()).finally(() => {
     if (parentCheck) clearInterval(parentCheck);
     if (shuttingDown || process.exitCode !== undefined) process.exit(process.exitCode || 0);
   });
@@ -203,11 +204,11 @@ function openBrowser(url) {
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
     child.on("error", (error) => {
-      log.error("browser.open_failed", error, { url });
+      log.error("browser.open_failed", error);
     });
-    child.on("exit", (code) => { if (code) log.error("browser.open_failed", new Error("Browser opener exited unsuccessfully"), { exitCode: code, url }); });
+    child.on("exit", (code) => { if (code) log.error("browser.open_failed", new Error("Browser opener exited unsuccessfully"), { exitCode: code }); });
     child.unref();
   } catch (error) {
-    log.error("browser.open_failed", error, { url });
+    log.error("browser.open_failed", error);
   }
 }

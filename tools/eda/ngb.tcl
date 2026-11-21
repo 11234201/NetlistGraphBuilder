@@ -1,6 +1,7 @@
 # Tcl 8.5+, no Tcllib or shell. Keep this namespace alive until Stop is called.
 namespace eval ::ngb {
     variable channels [dict create]
+    variable launchers [dict create]
     variable serial 0
     variable pending
 }
@@ -29,7 +30,7 @@ proc ::ngb::Start {binary stateFile args} {
     set command [list $binary start --state-file $stateFile --port 0 --no-open --parent-death]
     if {[llength $args] % 2} { error "Start expects option/value pairs" }
     foreach {option value} $args {
-        if {$option ni {--netlist --timing --cell-config --module --focus --fanin-depth --fanout-depth}} {
+        if {$option ni {--netlist --timing --cell-config --browse-root --module --focus --fanin-depth --fanout-depth}} {
             error "Unsupported ngb option: $option"
         }
         if {$option in {--netlist --timing --cell-config}} { set value [file normalize $value] }
@@ -62,8 +63,42 @@ proc ::ngb::Start {binary stateFile args} {
         catch {close $channel}
         error $message
     }
+    variable launchers
+    dict set launchers $stateFile [list $binary]
     dict set channels $stateFile $channel
     return $message
+}
+
+proc ::ngb::Connect {launcherArgv stateFile} {
+    variable launchers
+    set stateFile [file normalize $stateFile]
+    if {![llength $launcherArgv]} {error "Missing launcher"}
+    foreach arg $launcherArgv {
+        if {[regexp {^(2?>|[<|&])} $arg]} {error "Invalid launcher argument"}
+    }
+    set reply [RunCommand $launcherArgv $stateFile pages]
+    dict set launchers $stateFile $launcherArgv
+    return [dict create version [dict get $reply version] stateFile $stateFile]
+}
+
+proc ::ngb::Cmd {stateFile args} {
+    variable launchers
+    set stateFile [file normalize $stateFile]
+    if {![dict exists $launchers $stateFile]} {return -code error -errorcode {NGB NO_CONNECTION} "Connect to this state file first"}
+    return [RunCommand [dict get $launchers $stateFile] $stateFile {*}$args]
+}
+
+proc ::ngb::RunCommand {launcher stateFile args} {
+    set encoded {}
+    foreach arg $args {
+        binary scan [encoding convertto utf-8 $arg] H* hex
+        lappend encoded x$hex
+    }
+    set reply [exec {*}$launcher cmd --state-file $stateFile --tcl --argv-stdin << [join $encoded " "] 2>@ stderr]
+    if {[dict exists $reply error]} {
+        return -code error -errorcode [list NGB [dict get $reply error code]] -ngbreceipt $reply [dict get $reply error message]
+    }
+    return $reply
 }
 
 proc ::ngb::Status {binary stateFile} {
@@ -78,6 +113,8 @@ proc ::ngb::Stop {binary stateFile} {
     # Errors are intentionally propagated. EDA must not report success when
     # ownership verification or shutdown fails.
     exec [file normalize $binary] stop --state-file $stateFile 2>@ stderr
+    variable launchers
+    if {[dict exists $launchers $stateFile]} {dict unset launchers $stateFile}
     if {[dict exists $channels $stateFile]} {
         set channel [dict get $channels $stateFile]
         dict unset channels $stateFile

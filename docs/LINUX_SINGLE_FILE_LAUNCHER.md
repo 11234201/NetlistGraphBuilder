@@ -14,7 +14,7 @@
 | Linux `ngb` | Linux 基础系统 C/C++ 库 | 单个 ELF 可执行文件（已内嵌全部前端源码、ELK、Graphviz/WASM 与许可证），无需安装 Node.js、Python 或携带外部资源目录 |
 
 **职责边界说明**：
-- `ngb` 仅负责读取显式指定的输入文件、生成启动清单（startup manifest）并提供仅限本机回环（`127.0.0.1`）的 HTTP 服务，不在 C++ 层重复实现 Verilog 解析、Netlist IR、单元推断、布局或渲染逻辑。
+- `ngb` 处理启动清单、服务器文件、页面注册与命令回执。Verilog 和 AIG 解析、布局、渲染及导出图像生成由目标工作台执行。
 - 在绑定监听端口前，`ngb` 仅校验输入文件的存在性与可读性；网表语法、`Cell Config` 结构以及 `module` / `focus` 目标匹配均由浏览器前端完成校验。
 - 标准输出打印 `ready` 仅代表本地 HTTP 服务与启动清单已就绪，不代表浏览器已完成网表解析或布局渲染。浏览器前端默认采用 `AnchorLayered` 布局引擎，若失败则按 `AnchorLayered → ELK → Simple` 顺序自动降级。
 
@@ -22,7 +22,7 @@
 
 ## 2. 从源码构建与测试
 
-Linux 构建机需具备 **CMake 3.16+**、支持 **C++11** 的编译器以及 **POSIX threads**（无需联网下载任何第三方依赖）：
+Linux 构建机需具备 **CMake 3.16+**、支持 **C++17** 的编译器以及 **POSIX threads**（无需联网下载任何第三方依赖）：
 
 ```bash
 cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNGB_BUILD_TESTS=ON
@@ -118,13 +118,69 @@ ngb start --state-file ./results/ngb-session.json --replace --port 0 --no-open
 
   - `--replace` 会先校验新启动参数与输入文件的可读性，通过后再安全停止旧会话并接管文件锁。注意：在升级或替换磁盘上的 `ngb` 二进制文件前，应先用旧二进制停止正在运行的服务（若新旧二进制 inode 不同，`stop` 会出于安全策略拒绝跨二进制终止进程）。`--parent-death` 用于在父进程意外崩溃时自动退出，不应替代正常流程中的显式 `stop`。
 - **内置 HTTP 安全限制**：
-  - 仅支持 `GET` 与 `HEAD` 方法；动态生成的启动清单强制设置 `Cache-Control: no-store`。
+  - 静态资源和启动清单使用 `GET`、`HEAD`。已配对页面在同源 `POST /__ngb/workbench` 上领取操作、读取浏览根目录和提交回执。终端和 Tcl 使用私有控制通道。
   - 严格拦截路径穿越（`..`）、空字节（`NUL`）与反斜杠，仅返回内嵌的已知前端资源，不提供主机任意文件下载。
   - 并发连接上限为 32 个，单个请求头上限 16 KiB，请求读取总时限 2 秒，响应发送超时 2 秒。该服务仅作为本机同用户回环工具，不可作为公网 Web 服务器使用。
 
 ---
 
-## 6. EDA Tcl 辅助脚本（`ngb.tcl`）
+## 6. 在 SSH 转发的页面中追加文件
+
+在本机建立转发并登录服务器。以下示例将本机端口 8417 转发到服务器端口 4173。
+
+```sh
+ssh -L 8417:127.0.0.1:4173 user@server
+```
+
+在服务器项目目录运行下列任一启动命令。用实际输入目录替换 `/work/run`。
+
+```sh
+npm start -- --no-open --port 4173 --browse-root /work/run --state-file "$HOME/ngb.state"
+./build/native/ngb start --no-open --port 4173 --browse-root /work/run --state-file "$HOME/ngb.state"
+```
+
+复制 ready 记录中的 `pairUrl`，将端口改为 `8417`，保留 `#ngb=…`，在本地浏览器打开两次。界面上的页编号对应终端 `pages` 的结果。网表页从 **File → Open from server…** 选择网表或时序。AIG 页选 **aig add** 可保留多张图，并用页内图选择器切换。TTY 中仍能输入命令。
+
+```text
+pages
+use p1
+add /work/run/extra.v
+add-timing "/work/run/中文 timing/T2.rpt"
+--page p2 aig add /work/run/base.blif /work/run/eco.blif
+--page p2 module list
+--page p2 module open g2
+--page p1 svg export --out /work/run/top.svg
+```
+
+示例中的页和图编号需替换为本轮的实际值。多页时可用 `--page` 明确目标，或在启动终端以 `use` 设置默认页。关闭默认页后，终端会报告 `PAGE_UNAVAILABLE`。服务端导出默认保留同名旧文件，显式替换可用 `--overwrite`。UI 的 SVG 导出及命令 `svg export --download` 会触发当前浏览器下载。
+
+独立 shell 可以执行 `ngb cmd --state-file "$HOME/ngb.state" --page p1 module list`。源码入口可将 `ngb` 替换为 `node tools/serve.mjs`。EDA Tcl 可连接任一服务并读取结构化回执。
+
+```tcl
+source /opt/eda/share/netlist_graph_builder/ngb.tcl
+set state [file join $::env(HOME) ngb.state]
+::ngb::Connect [list /opt/eda/bin/ngb] $state
+set reply [::ngb::Cmd $state --page p1 timing add {/work/run/中文 timing/T2.rpt}]
+puts [dict get $reply status]
+```
+
+当 Tcl 自行启动服务时，`::ngb::Start` 仍返回原有预览 URL。可用 `::ngb::Cmd $state page new` 取得带配对信息的 `result href`，用本地转发地址打开这个相对链接。
+
+脚本等待超时时，服务端任务仍可查询。Tcl 的 `catch` 会在选项字典的 `-errorcode` 中返回 `NGB WAIT_TIMEOUT`，在 `-ngbreceipt` 中保留原回执。用回执中的 `requestId` 查询同一任务。
+
+```tcl
+if {[catch {::ngb::Cmd $state --page p1 --timeout 1000 aig add /work/eco.blif} message options]} {
+    if {[dict get $options -errorcode] ne {NGB WAIT_TIMEOUT}} {
+        return -options $options $message
+    }
+    set request [dict get $options -ngbreceipt requestId]
+    puts [::ngb::Cmd $state job status $request]
+}
+```
+
+`commands` 列出完整目录，`help aig add` 查询参数。`commands --available` 依据网页最近报告的模式和文件选择器状态列出可执行命令。尚未连接网页时只列启动器和服务命令，单页时自动选择，多页时使用 `--page <ID>` 或终端已选的页面。在 Compare 页加 `--side A` 或 `--side B` 可查询适用于该侧的命令，包括导出 SVG 和查看时序。
+
+## 7. EDA Tcl 辅助脚本（`ngb.tcl`）
 
 仓库 `tools/eda/ngb.tcl` 提供了兼容 **Tcl 8.5+**（无需安装第三方 `Tcllib`）的集成封装：
 
@@ -147,7 +203,7 @@ puts [::ngb::Status $ngb_bin $ngb_state]
 
 ---
 
-## 7. 远程端口转发、系统兼容性与开源许可证
+## 8. 远程端口转发、系统兼容性与开源许可证
 
 - **远程服务器访问**：在远程 Linux 服务器上启动时，`ready.url` 中的端口为远程服务器回环端口。请通过 VS Code `Ports` 面板或 SSH 本地端口转发（例如将远端 `43821` 转发至本地 `43822`），随后在本地浏览器打开 `http://127.0.0.1:43822/?startup=1`。切勿混淆远端与本地端口号，亦不能将请求参数中的 `--port 0` 当作实际监听端口。
 - **发行版与系统库兼容性**：单文件 ELF 仅代表“前端资源已内嵌、无外部脚本依赖”，并不等同于完全静态链接（static binary）或跨任意 Linux 发行版通用。建议在不高于目标生产环境 glibc 基线的构建机上编译，并在发布前使用 `file ngb` 与 `ldd ngb` 核查动态库依赖（必要时可附加 `-static-libgcc -static-libstdc++`，但仍受限于目标系统的 glibc 版本；musl libc 属于独立构建目标，未经验收前不宣称兼容）。

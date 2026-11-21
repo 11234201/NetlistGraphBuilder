@@ -12,7 +12,7 @@ import { errorMessage } from "../foundation/log_details.js";
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createGoldenController({ state, elements, services, markExport = (markup) => markup, validateSavedPath }) {
-  function exportCurrentSvg(requestedSide) {
+  function exportCurrentSvg(requestedSide, capture = false) {
     const side = state.compare.active && ["left", "right"].includes(requestedSide) ? requestedSide : null;
     if (!side && (state.compare.active || state.compare.singleWorkspaceInvalidated)) {
       services.setStatus("Exit Compare before exporting the Single SVG");
@@ -31,6 +31,7 @@ export function createGoldenController({ state, elements, services, markExport =
       const scene = renderSvgScene(side ? state.compare.scenes[side] : state.scene);
       const display = graph.path ? { boundaries: pathDisplayBoundaries(graph), visible: new Set(graph.nodes.map((n) => n.id)), truncated: graph.view?.truncated } : {};
       const svg = createStandaloneSvg(markExport(scene, side), graph.path, [unit, side, mode].filter(Boolean).join(" · "), display);
+      if (capture) return {name:fileName,text:svg};
       services.browserDownload.text(svg, fileName, "image/svg+xml");
     } catch (error) {
       reportExportFailure(error, "export-svg", fileName, { side, moduleName: unit, view: mode });

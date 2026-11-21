@@ -6,16 +6,17 @@ import { createLibraryWorkspaceRefresh } from "./library_workspace_refresh.js";
 import { createWorkbenchControllers, createViewSessionBridges } from "./workbench_controllers.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { createRenderGeneration } from "../render/renderGeneration.js";
-import { createLayoutSpacingController } from "../ui/layout_spacing_controller.js";
-import { createTimingDisplayController } from "../ui/timing_display_controller.js";
+
+
 import { bindWorkbenchInput } from "./workbench_input_bindings.js";
-import { createWheelGestureController } from "../ui/wheel_gesture_controller.js";
+import { createRemoteCellConfigImport } from "./remote_cell_config.js";
+
 import { bindWorkbenchEvents } from "./workbench_event_bindings.js";
 import { createWorkbenchUi } from "./workbench_ui_bootstrap.js";
 import { createDefaultDomainRegistry } from "../bootstrap/default_domains.js";
-import { createModuleHierarchyController } from "../ui/module_hierarchy_controller.js";
+import { createCanvasControls } from "./workbench_canvas_controls.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
-import { createSchematicSelectionController } from "../ui/schematic_selection_controller.js";
+
 import { createBrowserDownload } from "../platform/browser_download.js";
 import { saveStoredCellConfig } from "../persistence/cell_config_storage.js";
 import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cases.js";
@@ -31,7 +32,7 @@ const domainRouter = createWorkbenchCommandRouter();
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const {
   initializeApplication,
-  createStartupHandlers,
+
   startSidebarResize,
   handleSidebarResizeKeydown,
   setSidebarWidth,
@@ -333,7 +334,7 @@ const domainWorkbench = createDomainWorkbench({ document, windowTarget: window, 
   netlistSearchGraph: (moduleName) => state.compare.active
     ? [state.compare.graphs.left, state.compare.graphs.right].find((g) => g?.moduleName === moduleName)
     : state.graph?.moduleName === moduleName ? state.graph : null,
-  importRequests, clearSearch: () => clearSearch(),
+  importRequests, canStartAigCollection: () => !state.currentSourceLabel || state.currentSourceLabel === "built-in sample", clearSearch: () => clearSearch(),
   setStatus, logProcess, suspendLegacy: () => workspaceJobs.cancelDocument(state.document?.documentId) });
 domainRouter.connect(domainWorkbench.routeCommand);
 const processLogController = createProcessLogController({
@@ -343,37 +344,11 @@ const processLogController = createProcessLogController({
   copyText: (text) => navigator.clipboard.writeText(text),
   downloadText: (text, fileName, type) => browserDownload.text(text, fileName, type)
 });
-const moduleHierarchyController = createModuleHierarchyController({
-  container: elements.moduleHierarchyTree,
-  panel: elements.moduleHierarchyMenu,
-  filterInput: elements.moduleHierarchyFilter,
-  getHierarchy: () => state.design ? buildModuleHierarchy(state.design) : null,
-  getCurrentModuleName: () => state.currentModule?.name || null,
-  getCurrentOccurrenceContext: () => state.occurrenceContext,
-  navigate: selectModule
-});
-const schematicSelectionController = createSchematicSelectionController({
-  container: elements.mount,
-  onNodeSelection: handleSingleNodeSelection,
-  onNetSelection: handleSingleNetSelection
-});
-const layoutSpacingController = createLayoutSpacingController({
-  elements,
-  getSpacing: () => state.layoutPolicy.spacing,
-  onCommit: commitLayoutSpacing
-});
-const timingDisplayController = createTimingDisplayController({
-  elements: {
-    metricSelect: elements.timingMetricSelect,
-    thresholdInput: elements.timingSlackThresholdInput
-  },
-  getPolicy: () => state.timingDisplayPolicy,
-  onCommit: commitTimingDisplayPolicy
-});
-const wheelGestureController = createWheelGestureController({
-  canvas: elements.canvas,
-  apply: applyPendingWheelGesture,
-  onSettled: () => commitViewHistory({ label: "Viewport gesture" })
+const { moduleHierarchyController, schematicSelectionController, layoutSpacingController, timingDisplayController, wheelGestureController } = createCanvasControls({
+  elements, selectModule, readHierarchy: () => state.design ? buildModuleHierarchy(state.design) : null,
+  readCurrentModule: () => state.currentModule?.name, readOccurrence: () => state.occurrenceContext,
+  handleSingleNodeSelection, handleSingleNetSelection, readSpacing: () => state.layoutPolicy.spacing,
+  commitLayoutSpacing, readTimingPolicy: () => state.timingDisplayPolicy, commitTimingDisplayPolicy, applyPendingWheelGesture, commitViewHistory
 });
 
 const refreshLibraryWorkspace = createLibraryWorkspaceRefresh({
@@ -387,9 +362,15 @@ const libertyController = createLibertyController({
   read: libertyService.read, importText: libertyService.importText, clear: libertyService.clear,
   cancel: libertyService.cancel, refresh: refreshLibraryWorkspace, setStatus, logProcess
 });
-bindWorkbenchInput({
+const remoteInput = bindWorkbenchInput({
   elements, document, windowTarget: window, importRequests, imports: domainWorkbench.imports,
-  loadNetlistText: loadQuickInputText, loadLibertyText: libertyController.load,
+  loadNetlistText: loadQuickInputText, loadLibertyText: libertyController.load, domainWorkbench,
+  modules: () => state.design?.modules.map(m => ({id:m.name,name:m.name,active:m === state.currentModule})) || [],
+  readNetlist: () => ({source:state.currentSourceLabel, mode:state.compare.active ? "Compare" : "Single", documentId:state.document?.documentId, sourceRevision:state.document?.sourceRevision}),
+  search: query => domainWorkbench.search(state.searchIndex,query), exportCurrentSvg, selectModule,
+  timing: (point, side) => ((side && state.compare.sideTiming[side] || state.timing)?.records || []).filter(r => r.point === point && (!r.module || r.module === (side ? state.compare.graphs[side]?.moduleName : state.currentModule?.name))),
+  downloadSvg: ({text, name}) => browserDownload.text(text, name, "image/svg+xml"),
+  loadCellConfig: createRemoteCellConfigImport({useCases:cellConfigUseCases, read:() => state.cellConfig, write:value => { state.cellConfig = value; }, refresh:refreshLibraryWorkspace}),
   setStatus, logProcess
 });
 const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
@@ -447,4 +428,4 @@ initializeWorkbench({
   getSessionSnapshot: () => state.currentSource ? createSessionSnapshot(state) : null,
   applySessionPreferences, renderLayoutProviderOptions, initializeDomain: domainWorkbench.initialize,
   initializeApplication, updateCalibrationControls
-});
+}).then(remoteInput);

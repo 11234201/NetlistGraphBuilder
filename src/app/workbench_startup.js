@@ -6,6 +6,7 @@ export function initializeWorkbench({ windowTarget, logProcess, setCellConfig, g
   const restoredSession = restoreWorkbenchStorage({ windowTarget, logProcess, setCellConfig, getSessionSnapshot });
   applySessionPreferences(restoredSession);
   renderLayoutProviderOptions();
-  initializeDomain(() => initializeApplication(restoredSession));
+  const ready = initializeDomain(() => initializeApplication(restoredSession));
   updateCalibrationControls();
+  return Promise.resolve(ready);
 }

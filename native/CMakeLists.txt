@@ -14,6 +14,8 @@ file(GLOB_RECURSE NGB_SOURCE_ASSETS CONFIGURE_DEPENDS
 set(NGB_ASSETS
     "${NGB_SOURCE_ROOT}/index.html"
     "${NGB_SOURCE_ROOT}/styles.css"
+    "${NGB_SOURCE_ROOT}/src/contracts/workbench_commands.json"
+    "${NGB_SOURCE_ROOT}/native/vendor/nlohmann/LICENSE.txt"
     ${NGB_SOURCE_ASSETS}
     "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/lib/elk.bundled.js"
     "${NGB_SOURCE_ROOT}/vendor/elkjs-0.11.1/LICENSE.md"
@@ -49,8 +51,8 @@ add_executable(ngb
     "${NGB_ASSET_CPP}"
 )
 
-target_compile_features(ngb PRIVATE cxx_std_11)
-set_target_properties(ngb PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_compile_features(ngb PRIVATE cxx_std_17)
+set_target_properties(ngb PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 target_compile_definitions(ngb PRIVATE _FILE_OFFSET_BITS=64)
 target_include_directories(ngb PRIVATE launcher)
 target_link_libraries(ngb PRIVATE Threads::Threads)
@@ -78,6 +80,13 @@ if (NGB_BUILD_TESTS)
     target_include_directories(ngb-log-retention-test PRIVATE launcher)
     target_link_options(ngb-log-retention-test PRIVATE "-Wl,--wrap=readdir" "-Wl,--wrap=unlink")
     add_test(NAME ngb-log-retention COMMAND ngb-log-retention-test)
+    add_executable(ngb-workbench-jobs-test "${NGB_SOURCE_ROOT}/tests/native/WorkbenchJobsTest.cpp")
+    target_compile_features(ngb-workbench-jobs-test PRIVATE cxx_std_17)
+    target_include_directories(ngb-workbench-jobs-test PRIVATE launcher)
+    target_link_libraries(ngb-workbench-jobs-test PRIVATE Threads::Threads)
+    target_link_options(ngb-workbench-jobs-test PRIVATE "-Wl,--wrap=read" "-Wl,--wrap=fsync")
+    add_test(NAME ngb-workbench-jobs COMMAND ngb-workbench-jobs-test "${NGB_SOURCE_ROOT}/src/contracts/workbench_commands.json")
+    set_tests_properties(ngb-workbench-jobs PROPERTIES TIMEOUT 20)
     add_test(
         NAME ngb-help
         COMMAND ngb --help)

@@ -18,6 +18,9 @@
             <label class="menu-action" tabindex="0"><input id="fileInput" type="file" multiple accept=".v,.sv,.dot,.blif,.txt,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
             <label class="menu-action" tabindex="0"><input id="addDesignInput" type="file" multiple accept=".v,.sv,.txt,text/plain">Add design file(s)… <span class="help-text">Merge modules</span></label>
             <label class="menu-action" tabindex="0"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif,.txt,text/plain">Open AIG… <span class="help-text">ABC AIG DOT / two-input BLIF</span></label>
+            <label class="menu-action" tabindex="0"><input id="addAigInput" type="file" multiple accept=".dot,.blif,.txt,text/plain">Add AIG file(s)…</label>
+            <button id="addAigText" class="menu-action" type="button">Append pasted AIG…</button>
+            <button id="serverFiles" class="menu-action" type="button" hidden>Open from server…</button>
             <label class="alias-toggle aig-import-mode"><input id="aigSearchFirstInput" type="checkbox">Open AIG in Search-first</label>
             <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
             <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
@@ -88,6 +91,8 @@
           <div id="searchResults" class="search-results" role="list" aria-label="Search results" hidden></div>
         </div>
         <span id="sourceBadge" class="source-badge" title="Current source">Sample</span>
+        <select id="aigGraphSelect" aria-label="Active AIG graph" hidden></select>
+        <span id="remotePageLabel" class="context-note" hidden></span>
         <button id="compareButton" class="icon-button mode-button" type="button" title="Compare two modules">Compare</button>
         <button id="helpButton" class="square-button" type="button" aria-label="Help and shortcuts" title="Help and shortcuts">?</button>
       </header>

@@ -3,11 +3,11 @@ import { errorMessage } from "../foundation/log_details.js";
 
 const STORAGE_KEY = "ngb.domain-workspace.v1";
 
-export function encodeDomainWorkspace({ domainId, source, viewport, selectedId, presentationPolicy, panels, focus }) {
+export function encodeDomainWorkspace({ domainId, source, viewport, selectedId, presentationPolicy, panels, focus, graphId }) {
   if (!domainId || typeof source?.text !== "string") throw new Error("Workspace source is required");
   return JSON.stringify({ kind: "domain-workspace", version: focus?.showPath ? 2 : 1, normalizationVersion: 1,
     ...(focus?.showPath ? { sourceIdentity: createSourceIdentity(source.name, source.text) } : {}),
-    domainId, source: { name: String(source.name || "input"), format: source.format, text: source.text },
+    domainId, ...(graphId ? { graphId } : {}), source: { name: String(source.name || "input"), format: source.format, text: source.text },
     viewport, selectedId: selectedId || null, presentationPolicy, panels, focus });
 }
 

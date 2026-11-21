@@ -1,5 +1,6 @@
 #include "embedded_assets.hpp"
 #include "ProcessGuard.h"
+#include "WorkbenchTransport.h"
 #include "TerminalLog.h"
 
 #include <arpa/inet.h>
@@ -45,6 +46,8 @@ struct StartOptions {
     bool openBrowser = true;
     bool replaceExisting = false;
     bool watchParent = false;
+    bool interactive = isatty(STDIN_FILENO);
+    std::vector<std::string> browseRoots;
     std::string stateFile;
     std::string netlistPath;
     std::string timingPath;
@@ -61,11 +64,13 @@ struct StateRecord {
     std::string url;
     std::string stateFile;
     std::string owner;
+    std::string control;
     std::string m_processStartTicks;
 };
 
 struct ServerContext {
     std::string startupJson;
+    std::shared_ptr<ngb::WorkbenchBroker> workbench;
     std::atomic<int> m_activeClients{0};
 };
 
@@ -82,6 +87,8 @@ void installSignalHandlers() {
     sigaction(SIGINT, &action, 0);
     sigaction(SIGTERM, &action, 0);
     signal(SIGPIPE, SIG_IGN);
+    // Let writes report EFBIG so export cleanup and the structured receipt both run.
+    signal(SIGXFSZ, SIG_IGN);
     signal(SIGCHLD, SIG_DFL);
 }
 
@@ -317,6 +324,7 @@ std::string stateJson(const StateRecord& state) {
            << ",\"port\":" << state.port
            << ",\"url\":\"" << jsonEscape(state.url) << "\""
            << ",\"stateFile\":\"" << jsonEscape(state.stateFile) << "\""
+           << ",\"control\":\"" << jsonEscape(state.control) << "\""
            << ",\"owner\":\"" << jsonEscape(state.owner) << "\""
            << ",\"processStartTicks\":\"" << jsonEscape(state.m_processStartTicks) << "\"}\n";
     return output.str();
@@ -344,11 +352,12 @@ bool writeStateFile(const StateRecord& state, std::string* error) {
         unlink(temporary.c_str());
         return false;
     }
-    if (rename(temporary.c_str(), state.stateFile.c_str()) != 0) {
+    if (link(temporary.c_str(), state.stateFile.c_str()) != 0) {
         if (error) *error = "Cannot install state file " + state.stateFile + ": " + std::strerror(errno);
         unlink(temporary.c_str());
         return false;
     }
+    unlink(temporary.c_str());
     return true;
 }
 
@@ -405,6 +414,7 @@ bool readStateFile(const std::string& path, StateRecord* state, std::string* err
         if (error) *error = "Invalid Netlist Graph Builder state file: " + path;
         return false;
     }
+    extractJsonString(content,"control",&state->control);
     if (FindJsonValue(content, "processStartTicks") != std::string::npos &&
         (!extractJsonString(content, "processStartTicks", &state->m_processStartTicks) ||
          state->m_processStartTicks.empty() || state->m_processStartTicks.find_first_not_of("0123456789") != std::string::npos)) {
@@ -416,9 +426,18 @@ bool readStateFile(const std::string& path, StateRecord* state, std::string* err
 
 bool processBelongsToState(const StateRecord& state) {
     const std::string startTicks = ngb::ReadProcessStartTicks(state.pid);
-    return !startTicks.empty() && ngb::IsSameExecutable(state.pid) &&
-        ngb::HasExactStateArgument(state.pid, absolutePath(state.stateFile)) &&
-        (state.m_processStartTicks.empty() || state.m_processStartTicks == startTicks);
+    if (startTicks.empty() || !ngb::IsSameExecutable(state.pid) ||
+        (!state.m_processStartTicks.empty() && state.m_processStartTicks != startTicks)) return false;
+    const std::string path = absolutePath(state.stateFile);
+    if (ngb::HasExactStateArgument(state.pid,path)) return true;
+    // A generated state has no --state-file argument. Verify the Unix peer
+    // and ask that process for its actual state path before signalling it.
+    if (state.m_processStartTicks.empty() || state.control.empty() ||
+        ngb::fs::path(state.control) != ngb::fs::path(path).parent_path()/"control") return false;
+    try {
+        const auto identity = ngb::WorkbenchCall(state.control,{{"version",1},{"op","identity"}},state.pid);
+        return ngb::Field(identity,"owner") == state.owner && ngb::Field(identity,"stateFile") == path;
+    } catch(const std::exception&) { return false; }
 }
 
 bool processExists(int pid) {
@@ -598,7 +617,7 @@ void sendResponse(int descriptor, int status, const std::string& type,
     if (!headOnly && !body.empty()) sendAll(descriptor, body.data(), body.size());
 }
 
-void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context) {
+void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context, bool admin) {
     requestMethod.clear(); requestPath.clear();
     char buffer[16384];
     timeval timeout = {2, 0};
@@ -627,6 +646,15 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context)
     request >> method >> target >> version;
     requestMethod = method;
     requestPath = target.substr(0, target.find_first_of("?#"));
+    if (admin || target == "/__ngb/workbench") {
+        ngb::Json body; int status = 200;
+        try {
+            if (method != "POST") throw ngb::WorkbenchError("ACCESS_DENIED","Invalid method");
+            body = context->workbench->Handle(ngb::ReadWorkbenchRequest(descriptor,header,admin),admin);
+        } catch (const std::exception& e) { status=400; body=ngb::WorkbenchFailure(e); }
+        sendResponse(descriptor,status,"application/json; charset=utf-8",body.dump(-1,' ',false,ngb::Json::error_handler_t::replace),false,true);
+        close(descriptor); return;
+    }
     const bool headOnly = method == "HEAD";
     if ((method != "GET" && method != "HEAD") || version.find("HTTP/") != 0) {
         sendResponse(descriptor, method == "GET" || method == "HEAD" ? 400 : 405,
@@ -700,7 +728,8 @@ pid_t openBrowser(const std::string& url) {
 
 void printUsage(const char* command) {
     std::cout
-        << "Usage: " << command << " <start|stop|status> [options]\n\n"
+        << "Usage: " << command << " <start|stop|status|cmd> [options]\n"
+        << "  cmd --state-file <path> [--page <id>] <command> [arguments]\n\n"
         << "Start options:\n"
         << "  --netlist <path>       structural Verilog to load\n"
         << "  --timing <path>        timing text to load\n"
@@ -711,6 +740,8 @@ void printUsage(const char* command) {
         << "  --fanout-depth <0-99>  focused fanout depth\n"
         << "  --port <0-65535>       localhost port; 0 selects an idle port\n"
         << "  --state-file <path>    managed session state file\n"
+        << "  --browse-root <dir>    server file picker root (repeatable)\n"
+        << "  --[no-]interactive     enable or disable the command prompt (default: TTY)\n"
         << "  --replace              stop the verified session in state-file first\n"
         << "  --parent-death         stop when the launching EDA process exits\n"
         << "  --no-open              do not open a browser\n"
@@ -724,11 +755,11 @@ void printUsage(const char* command) {
 int printLicenses() {
     const char* licensePaths[] = {
         "vendor/elkjs-0.11.1/LICENSE.md", "vendor/graphviz/VIZ-LICENSE.txt",
-        "vendor/graphviz/GRAPHVIZ-LICENSE.txt", "vendor/graphviz/EXPAT-LICENSE.txt"
+        "vendor/graphviz/GRAPHVIZ-LICENSE.txt", "vendor/graphviz/EXPAT-LICENSE.txt", "native/vendor/nlohmann/LICENSE.txt"
     };
     const char* labels[] = {
         "ELK.js 0.11.1 (EPL-2.0)", "Viz.js 3.31.0 (MIT)",
-        "Graphviz 16.1.0 (EPL-2.0)", "Expat 2.8.5 (MIT)"
+        "Graphviz 16.1.0 (EPL-2.0)", "Expat 2.8.5 (MIT)", "JSON for Modern C++ 3.9.1 (MIT)"
     };
     std::cout << "Netlist Graph Builder native launcher\n";
     for (std::size_t index = 0; index < sizeof(licensePaths) / sizeof(licensePaths[0]); ++index) {
@@ -765,6 +796,11 @@ bool parseStartOptions(int argc, char** argv, int first, StartOptions* options, 
             std::exit(0);
         } else if (argument == "--no-open" || argument == "--no-browser") {
             options->openBrowser = false;
+        } else if (argument == "--browse-root") {
+            if (!requireValue(argc,argv,&index,&value,error)) return false;
+            options->browseRoots.push_back(absolutePath(value));
+        } else if (argument == "--interactive" || argument == "--no-interactive") {
+            options->interactive = argument == "--interactive";
         } else if (argument == "--open") {
             options->openBrowser = true;
         } else if (argument == "--replace") {
@@ -849,7 +885,7 @@ int runStart(const StartOptions& options) {
         if (!RemoveStateFile(options.stateFile)) return 1;
     }
     int actualPort = 0;
-    const int listener = createListener(options.port, &actualPort, &error);
+    int listener = createListener(options.port, &actualPort, &error);
     if (listener < 0) {
         std::cerr << error << std::endl;
         return 1;
@@ -859,8 +895,12 @@ int runStart(const StartOptions& options) {
     state.pid = static_cast<int>(getpid());
     state.port = actualPort;
     state.url = buildUrl(actualPort, hasStartup);
-    state.stateFile = options.stateFile;
+    ngb::WorkbenchEndpoint endpoint;
+    state.stateFile = options.stateFile.empty() ? endpoint.Directory()+"/state.json" : options.stateFile;
+    state.control = endpoint.Path();
+    const auto logs = ngb::fs::weakly_canonical(ngb::TerminalLog::Instance().Directory());
     state.owner = makeOwnerToken();
+    const auto broker = std::make_shared<ngb::WorkbenchBroker>(ngb::WorkbenchFiles(options.browseRoots,state.stateFile,endpoint.Directory(),logs),state.stateFile,state.owner);
     state.m_processStartTicks = ngb::ReadProcessStartTicks(state.pid);
     if (!state.stateFile.empty() && !writeStateFile(state, &error)) {
         close(listener);
@@ -873,6 +913,7 @@ int runStart(const StartOptions& options) {
     ngb::TerminalLog::Instance().Write("info", "server.starting", "Starting Netlist Graph Builder preview server");
     std::cout << "{\"event\":\"ready\",\"host\":\"127.0.0.1\",\"port\":"
               << actualPort << ",\"url\":\"" << jsonEscape(state.url)
+              << "\",\"pairUrl\":\"" << jsonEscape(state.url + "#ngb=" + broker->m_pair) << "\",\"stateFile\":\"" << jsonEscape(state.stateFile)
               << "\",\"startup\":{"
               << "\"netlist\":" << (options.netlistPath.empty() ? "null" : "\"" + jsonEscape(basenameOf(options.netlistPath)) + "\"")
               << ",\"timing\":" << (options.timingPath.empty() ? "null" : "\"" + jsonEscape(basenameOf(options.timingPath)) + "\"")
@@ -884,10 +925,21 @@ int runStart(const StartOptions& options) {
               << "}}" << std::endl;
     ngb::TerminalLog::Instance().Write("info", "server.ready", "Preview server ready", "{\"port\":" + std::to_string(actualPort) + "}");
 
-    pid_t browserPid = options.openBrowser ? openBrowser(state.url) : -1;
+    pid_t browserPid = options.openBrowser ? openBrowser(state.url + "#ngb=" + broker->m_pair) : -1;
+    ngb::WorkbenchTerminalMode terminalMode(options.interactive);
+    if (options.interactive) std::thread(ngb::WorkbenchTerminal,broker,[] { raise(SIGTERM); },terminalMode.Enabled()).detach();
     const std::shared_ptr<ServerContext> context(new ServerContext);
     context->startupJson = startupJson;
-    while (!g_stopRequested) {
+    context->workbench = broker;
+    for (;;) {
+        if (g_stopRequested && listener >= 0) {
+            close(listener);
+            listener = -1;
+            broker->BeginShutdown();
+        }
+        // Keep the private endpoint available for process identity checks while
+        // existing reads unwind and an acknowledged export completes atomically.
+        if (listener < 0 && !context->m_activeClients.load() && !broker->HasPendingFileWork()) break;
         if (browserPid > 0) {
             int status = 0;
             const pid_t exited = waitpid(browserPid, &status, WNOHANG);
@@ -897,8 +949,8 @@ int runStart(const StartOptions& options) {
                 browserPid = -1;
             }
         }
-        pollfd ready = {listener, POLLIN, 0};
-        const int readyCount = poll(&ready, 1, 250);
+        pollfd ready[] = {{listener,POLLIN,0},{endpoint.Descriptor(),POLLIN,0}};
+        const int readyCount = poll(ready, 2, 250);
         if (readyCount <= 0) {
             if (readyCount < 0 && errno != EINTR) {
                 ngb::TerminalLog::Instance().Error("server.poll_failed", std::strerror(errno), errno);
@@ -909,7 +961,8 @@ int runStart(const StartOptions& options) {
         }
         sockaddr_in clientAddress;
         socklen_t clientLength = sizeof(clientAddress);
-        const int client = accept(listener, reinterpret_cast<sockaddr*>(&clientAddress), &clientLength);
+        const bool admin = (ready[1].revents & POLLIN) != 0;
+        const int client = accept(admin ? endpoint.Descriptor() : listener, reinterpret_cast<sockaddr*>(&clientAddress), &clientLength);
         if (client < 0) {
             if (errno == EINTR) continue;
             if (g_stopRequested) break;
@@ -925,8 +978,8 @@ int runStart(const StartOptions& options) {
             continue;
         }
         try {
-            std::thread([client, context]() {
-                try { handleClient(client, context); }
+            std::thread([client, context, admin]() {
+                try { handleClient(client, context, admin); }
                 catch (const std::exception& error) {
                     ngb::TerminalLog::Instance().Error("http.failed", error.what()); close(client);
                 } catch (...) {
@@ -942,7 +995,7 @@ int runStart(const StartOptions& options) {
     }
     ngb::TerminalLog::Instance().Write("info", "server.stopping", "Stopping preview server",
         "{\"signal\":" + std::to_string(g_stopRequested) + "}");
-    close(listener);
+    if (listener >= 0) close(listener);
     if (!state.stateFile.empty()) {
         StateRecord current;
         if (readStateFile(state.stateFile, &current, &error)) {
@@ -978,6 +1031,7 @@ int runCommand(int argc, char** argv) {
         return 0;
     }
     if (command == "--licenses") return printLicenses();
+    if (command == "cmd") return ngb::WorkbenchCli(argc,argv);
     if (command != "start" && command != "stop" && command != "status") {
         command = "start";
     }

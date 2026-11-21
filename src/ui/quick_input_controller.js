@@ -121,7 +121,8 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     }
     entries.sort((a, b) => getInputPriority(a.kind) - getInputPriority(b.kind) || a.order - b.order);
     let designLoaded = Boolean(batchOptions.append) || !entries.some((entry) => entry.kind === "netlist");
-    const seenKind = { netlist: false, timing: false };
+    const seenKind = { netlist: false, timing: false, aig: false };
+    const aigBatch = entries.every(entry => entry.kind === "aig");
     for (const entry of entries) {
       if (!isCurrent(requestId)) return;
       if (entry.kind !== "netlist" && entry.kind !== "aig" && entry.kind !== "liberty" && !designLoaded) {
@@ -133,7 +134,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         checkFileSize(entry.file, entry.kind);
         const text = entry.file.slice ? await entry.file.text() : entry.classificationText ?? await entry.file.text();
         if (!isCurrent(requestId)) return;
-        const appendable = entry.kind === "netlist" || entry.kind === "timing";
+        const appendable = entry.kind === "netlist" || entry.kind === "timing" || aigBatch;
         const shouldAppend = appendable && (Boolean(batchOptions.append) || seenKind[entry.kind]);
         const extra = {
           ...(shouldAppend ? { append: true } : {}),
@@ -226,6 +227,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
   elements.goldenInput?.addEventListener("change", (event) => loadInputFile(event, "golden"));
   elements.pasteNetlistButton?.addEventListener("click", () => openDialog("netlist"));
   elements.pasteAigButton?.addEventListener("click", () => openDialog("aig"));
+  elements.textForm?.ownerDocument?.getElementById?.("addAigText")?.addEventListener("click", () => openDialog("aig", { append: true }));
   elements.pasteTimingButton?.addEventListener("click", () => openDialog("timing"));
   elements.compareLeftNetlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist", { append: true, compareSide: "left" }));
   elements.compareRightNetlistInput?.addEventListener("change", (event) => loadInputFile(event, "netlist", { append: true, compareSide: "right" }));

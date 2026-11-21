@@ -97,7 +97,7 @@ npm run release:windows
 
 Release 提供 `NetlistGraphBuilder-v<version>-linux-x64` 单文件 ELF 可执行程序及 `.sha256` 校验文件；下载后执行 `chmod +x` 即可直接运行。该二进制在 Linux x86-64（glibc 2.35）环境下构建与验证，不承诺在 CentOS 7 或任意旧发行版上直接兼容。配套 Tcl 辅助脚本可从发布附件 `ngb.tcl` 下载，或直接取自仓库 `tools/eda/ngb.tcl`。
 
-从源码构建 Linux 单文件启动器需要 CMake 3.16+、支持 C++11 的编译器与 POSIX threads；生成的二进制已内嵌全部前端源码、vendored ELK、Graphviz/Viz.js（含 WASM）与开源许可证，运行机器无需安装 Node.js、Python 或携带项目资源目录（仅依赖目标平台基础系统库与浏览器）：
+从源码构建 Linux 单文件启动器需要 CMake 3.16+、支持 C++17 的编译器与 POSIX threads；生成的二进制已内嵌全部前端源码、vendored ELK、Graphviz/Viz.js（含 WASM）与开源许可证，运行机器无需安装 Node.js、Python 或携带项目资源目录（仅依赖目标平台基础系统库与浏览器）：
 
 ```bash
 cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNGB_BUILD_TESTS=ON
@@ -185,6 +185,10 @@ node tools/serve.mjs stop --state-file ./results/ngb-session.json
 当输入文件不可读、Cell Config JSON 结构非法、指定的 `module`/`focus` 在网表中不存在（Node 启动预校验）或数值参数越界时，启动器会在绑定端口前输出清晰报错并以非零状态码退出。可执行 `npm run test:launcher` 运行端到端启动协议测试。
 
 若启动时未指定任何输入文件，页面将默认加载内置示例网表。用户可随时通过顶部 `File` 菜单打开网表或 AIG（`.dot` / `.blif`），也可向页面任意位置拖放 `.lib` Liberty 库、`.v` / `.sv` / `.txt` 网表、`.json` Layout Golden 及 `.log` 时序文件；当输入焦点不在文本框内时，直接按 `Ctrl+V` 即可粘贴剪贴板中的文件或文本。若只需临时查看一小段网表代码，点击顶部 `File > Paste netlist` 粘贴文本即可立即绘图。
+
+## SSH 工作台
+
+通过 SSH 转发打开 `ready.pairUrl`，本地网页的 **File → Open from server…** 可选择服务器文件。一个后端可配对多个页面。在启动终端输入 `pages` 查看页号，`use p1` 指定页面，随后用 `add`、`timing add` 或 `aig add` 增量加载。页内图选择器和 `module open` 均可切换该页保留的 AIG。npm 与 Linux ELF 支持相同的终端、独立 CLI 和 EDA Tcl 命令。[启动、转发和 Tcl 示例](docs/LINUX_SINGLE_FILE_LAUNCHER.md#6-在-ssh-转发的页面中追加文件)
 
 ## 快速上手指南
 
@@ -298,7 +302,7 @@ npm run test:mapped-cases
 ```text
 docs/                 项目路线图、阶段计划、架构说明、设计规范与使用教程
 examples/             示例 Verilog 网表与配套时序文件
-native/               Linux C++11 单文件启动器、资源嵌入脚本与 CMake 构建配置
+native/               Linux C++17 单文件启动器、资源嵌入脚本与 CMake 构建配置
 src/analysis/         逻辑锥（cone）、别名规范化、对象连接查询与模块对比分析
 src/app/              浏览器入口组装、领域工作台桥接与旧状态兼容投影
 src/application/      Document/ViewSession 状态存储、命令总线、任务协调与领域会话

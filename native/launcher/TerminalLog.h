@@ -26,6 +26,8 @@ public:
         return *logger;
     }
 
+    const std::string& Directory() const { return directory_; }
+
     static std::string Quote(const std::string& value) {
         std::string result = "\"";
         const std::string bounded = value.substr(0, 4096);
@@ -75,7 +77,7 @@ public:
 private:
     std::mutex mutex_;
     bool enabled_ = true;
-    std::string runPath_, errorPath_;
+    std::string directory_, runPath_, errorPath_;
     std::size_t runSize_ = 0, errorSize_ = 0, limit_ = 2097152;
 
     TerminalLog() {
@@ -84,6 +86,7 @@ private:
         const char* home = std::getenv("HOME");
         const std::string directory = configured && *configured ? configured :
             (state && *state ? std::string(state) : std::string(home && *home ? home : "/tmp") + "/.local/state") + "/netlist_graph_builder/logs";
+        directory_ = directory;
         const char* maximum = std::getenv("NGB_LOG_MAX_BYTES");
         if (maximum) {
             char* end = 0; const long size = std::strtol(maximum, &end, 10);
