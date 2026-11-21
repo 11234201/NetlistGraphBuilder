@@ -49,7 +49,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
       witnessItems: result.reconvergence?.witnessItems, blockWork: result.blocks?.work
     });
   }
-  async function run() {
+  async function run(fromCommand = false) {
     if (!workspace?.feature.createAnalysisService) return;
     cancelWork();
     const target = workspace, ticket = generation, startedAt = performance.now();
@@ -74,9 +74,10 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
       if (!cancelled) report(target, job, "reconvergence.run", "error", errorMessage(error), { error, elapsedMs: Math.round(performance.now() - startedAt) });
       job = null;
       publish({ status: cancelled ? "cancelled" : "error", error: cancelled ? null : errorMessage(error), progress: null });
+      if (fromCommand) throw error;
     }
   }
-  async function detail(result) {
+  async function detail(result, fromCommand = false) {
     detailJob?.cancel(); detailJob = null;
     if (!result || !service || !workspace || !["partial", "complete"].includes(state.status)) { publish({ detail: null, detailStatus: "idle", detailError: null }); return; }
     if (detailCache.has(result.id)) { publish({ detail: detailCache.get(result.id), detailStatus: detailCache.get(result.id).status, detailError: null }); return; }
@@ -104,6 +105,7 @@ export function createWorkspaceAnalysis({ jobs, onChange = () => {}, logProcess,
         error, resultId: result.id, elapsedMs: Math.round(performance.now() - startedAt)
       });
       publish({ detailStatus: cancelled ? "cancelled" : "error", detailError: cancelled ? null : errorMessage(error) });
+      if (fromCommand) throw error;
     }
   }
   return Object.freeze({ bind, run, detail, read: () => state,

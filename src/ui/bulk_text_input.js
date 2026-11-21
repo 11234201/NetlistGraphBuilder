@@ -67,16 +67,17 @@ export function createBulkTextInput({ input, notice, expandButton, clearButton }
       clear();
     }
   });
-  expandButton?.addEventListener("click", () => {
+  function expand() {
     if (original === null) return;
     input.value = original;
     original = null;
     expanded = true;
     updateControls();
     input.focus();
-  });
+  }
+  expandButton?.addEventListener("click", expand);
   clearButton?.addEventListener("click", clear);
   updateControls();
 
-  return Object.freeze({ getValue: () => original ?? input.value, setValue, clear });
+  return Object.freeze({ getValue: () => original ?? input.value, setValue, clear, expand });
 }

@@ -1,4 +1,6 @@
 import { createRemoteFileImport, compareSideFor, commandFailure } from "./remote_file_import.js";
+import { createAnalysisCommands } from "./remote_analysis_commands.js";
+import { sanitizeLogDetails } from "../foundation/log_details.js";
 import { createServerFilePicker } from "../ui/server_file_picker.js";
 
 const pendingStates = new Set(["reading", "queued", "delivered", "executing"]);
@@ -6,7 +8,7 @@ const isCancellation = error => error.name === "AbortError" || error.code === "C
 
 export async function bindRemoteWorkbench({ document, windowTarget: w, domainWorkbench, loadText,
   importRequests, modules, readNetlist, selectModule, search, timing, priority, loadCellConfig,
-  exportCurrentSvg, downloadSvg, logProcess, setStatus }) {
+  exportCurrentSvg, downloadSvg, logProcess, setStatus, navigation, runRemoteDesign, libertyController, ...extras }) {
   const hash = new URLSearchParams(w.location.hash.slice(1));
   let storage, previous, token = hash.get("ngb");
   try {
@@ -23,7 +25,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       source: domain.sourceLabel, mode: "AIG", documentId:domain.documentId,
       sourceRevision:domain.sourceRevision, graphId:domain.graphId
     } : readNetlist();
-    const documentKey = JSON.stringify([active.documentId, active.sourceRevision, active.graphId, active.mode]);
+    const documentKey = JSON.stringify([active.documentId, active.sourceRevision, active.graphId, active.mode, active.moduleName, active.occurrence, active.pair, active.activeSide]);
     if (documentKey !== lastDocument) { lastDocument = documentKey; documentVersion++; }
     return { ...active, page:identity?.page, documentVersion, pickerState:picker?.state() || "closed" };
   }
@@ -108,11 +110,46 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
   });
   w.addEventListener("pageshow", event => { if (closing && event.persisted) w.location.reload(); });
 
+  const runAnalysis = createAnalysisCommands({document,windowTarget:w,domainWorkbench,context,exportCurrentSvg,
+    setStatus,logProcess,...extras});
   async function execute(job) {
+    const result = await dispatch(job);
+    if (job.output && (job.opts.download || !job.opts.out && job.args[0] === "download")) {
+      if (!result || typeof result.text !== "string") throw commandFailure("EXPORT_FAILED","Missing export content");
+      extras.downloadText(result.text,result.name,result.mime || "text/plain");
+      return {downloadTriggered:true,name:result.name};
+    }
+    if (job.opts.clipboard) {
+      const text = typeof result === "string" ? result : result?.text;
+      if (typeof text !== "string") throw commandFailure("COPY_FAILED","No text to copy");
+      await w.navigator.clipboard.writeText(text);
+      return {text,copied:true};
+    }
+    return result;
+  }
+  async function dispatch(job) {
     const {name, args, opts} = job;
     const {mode} = context();
     const graphs = domainWorkbench.graphs;
+    if (job.modes && !job.modes.includes(mode)) throw commandFailure("DOMAIN_MISMATCH","Command unavailable in this workspace");
+    if (opts.side && mode !== "Compare") throw commandFailure("INVALID_SIDE","Only Compare has sides A and B");
+    const navigated = await navigation?.(job);
+    if (navigated !== undefined) return navigated;
+    const analysis = await runAnalysis(job);
+    if (analysis !== undefined) return analysis;
+    const design = await runRemoteDesign?.(job);
+    if (design !== undefined) return design;
     switch (name) {
+      case "liberty status": return libertyController.status();
+      case "liberty cancel": return libertyController.cancel();
+      case "liberty unload": return libertyController.unload();
+      case "aig import-mode": {
+        const input = document.getElementById("aigSearchFirstInput");
+        input.checked = args[0] === "search-first";
+        return {mode:args[0]};
+      }
+      case "aig cancel-import": return domainWorkbench.cancelImport();
+      case "compare design": return importFiles({...job,name:"design add",opts:{...opts,side:args[0]}});
       case "files browse":
         await picker.open(opts.action, opts.dir, opts.side);
         return {opened:true};
@@ -136,7 +173,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       }
       case "design info": {
         const info = context();
-        return mode === "AIG" ? { ...info, graphCount:graphs.list().length } : info;
+        return mode === "AIG" ? { ...info, graphCount:graphs.list().length, resources:domainWorkbench.resourceUsage?.() } : info;
       }
       case "search find": {
         const hits = search(args[0]);
@@ -153,83 +190,91 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
         if (mode === "Compare" && !opts.side) throw commandFailure("SIDE_REQUIRED", "Choose side A or B", {candidates:["A","B"]});
         const result = exportCurrentSvg(compareSideFor(mode, opts.side, true), true);
         if (!result) throw commandFailure("SVG_UNAVAILABLE", "SVG unavailable for the current view");
-        if (opts.out || args[0] !== "download" && !opts.download) return result;
+        if (job.output || opts.out || args[0] !== "download" && !opts.download) return {...result,mime:"image/svg+xml"};
         downloadSvg(result);
         return {downloadTriggered:true, name:result.name};
       }
-      default: return importFiles(job);
+      default:
+        if (job.hasInputs || job.files?.length) return importFiles(job);
+        throw commandFailure("UNAVAILABLE","Command has no active workspace handler");
     }
   }
 
-  let healthy = true, pending = null;
-  while (!closing) {
-    try {
-      if (!pending) {
-        const polled = await call("poll", {context:context(), waitMs:5000});
-        label.textContent = [identity.page, polled.name].filter(Boolean).join(" · ");
-        if (polled.job) pending = {job:polled.job};
-      }
-      if (pending && !pending.ack) {
-        const job = pending.job;
-        if (job.hasInputs && !pending.inputsLoaded) {
-          const input = await call("inputs", {id:job.id});
-          if (input.error) throw commandFailure(input.error.code, input.error.message, input.error);
-          if (!Array.isArray(input.files)) throw new Error("Incomplete workbench input response");
-          job.files = input.files;
-          pending.inputsLoaded = true;
+  async function receive(lane) {
+    let healthy = true, pending = null;
+    while (!closing) {
+      try {
+        if (!pending) {
+          const polled = await call("poll", {lane, ...(lane !== "cancel" && {context:context()}), waitMs:5000});
+          label.textContent = [identity.page, polled.name].filter(Boolean).join(" · ");
+          if (polled.job) pending = {job:polled.job};
         }
-        const current = context();
-        pending.target ??= current;
-        const grant = await call("grant", {id:job.id, context:current});
-        if (grant.granted && !closing) {
-          let pulseInFlight = false;
-          const timer = w.setInterval(async () => {
-            if (pulseInFlight) return;
-            pulseInFlight = true;
-            try { await call("pulse", {id:job.id}); }
-            catch { /* The final ack distinguishes expiry from a transient disconnect. */ }
-            finally { pulseInFlight = false; }
-          }, 10000);
-          try {
-            if (pending.target.documentVersion !== context().documentVersion)
-              throw commandFailure("STALE_DOCUMENT", "Target document changed while awaiting command execution");
-            pending.ack = {result:await execute(job)};
+        if (pending && !pending.ack) {
+          const job = pending.job;
+          if (job.hasInputs && !pending.inputsLoaded) {
+            const input = await call("inputs", {id:job.id});
+            if (input.error) throw commandFailure(input.error.code, input.error.message, input.error);
+            if (!Array.isArray(input.files)) throw new Error("Incomplete workbench input response");
+            job.files = input.files;
+            pending.inputsLoaded = true;
           }
-          catch (error) {
-            const target = pending.target;
-            log(error, job.name, job.id, {side:job.opts.side, graphId:target.graphId,
-              documentId:target.documentId, documentVersion:target.documentVersion});
-            if (!closing && !isCancellation(error) && error.code !== "STALE_DOCUMENT") setStatus(error.message);
-            pending.ack = {error:{
-              code:isCancellation(error) ? "CANCELLED" : error.code || "COMMAND_FAILED",
-              message:error.message, candidates:error.candidates, files:error.files
-            }};
-          } finally { w.clearInterval(timer); }
-          delete job.files;
-          pending.ack.context = context();
-        } else pending = null;
-      }
-      // Keep the result until acknowledged. A lost response retries just ack,
-      // including for downloads or other irreversible browser actions.
-      if (pending?.ack && !closing) {
-        await call("ack", {id:pending.job.id, ...pending.ack});
-        pending = null;
-      }
-      healthy = true;
-    } catch (error) {
-      if (pending && ["CANCELLED", "STALE_DOCUMENT", "UNKNOWN_REQUEST", "INVALID_STATE"].includes(error.code)) {
-        pending = null;
+          const current = context();
+          pending.target ??= current;
+          const grant = await call("grant", {id:job.id, context:current});
+          if (grant.granted && !closing) {
+            let pulseInFlight = false;
+            const timer = w.setInterval(async () => {
+              if (pulseInFlight) return;
+              pulseInFlight = true;
+              try { await call("pulse", {id:job.id}); }
+              catch { /* The final ack distinguishes expiry from a transient disconnect. */ }
+              finally { pulseInFlight = false; }
+            }, 10000);
+            try {
+              if (pending.target.documentVersion !== context().documentVersion)
+                throw commandFailure("STALE_DOCUMENT", "Target document changed while awaiting command execution");
+              pending.ack = {result:await execute(job)};
+            }
+            catch (error) {
+              const target = pending.target;
+              log(error, job.name, job.id, {side:job.opts.side, graphId:target.graphId,
+                documentId:target.documentId, documentVersion:target.documentVersion});
+              if (!closing && !isCancellation(error) && error.code !== "STALE_DOCUMENT") setStatus(error.message);
+              pending.ack = {error:{
+                code:isCancellation(error) ? "CANCELLED" : error.code || "COMMAND_FAILED",
+                message:error.message, candidates:error.candidates, files:error.files,
+                details:sanitizeLogDetails({error,operation:job.name,requestId:job.id,page:identity.page,side:job.opts.side,
+                  graphId:target.graphId,documentId:target.documentId,documentVersion:target.documentVersion})
+              }};
+            } finally { w.clearInterval(timer); }
+            delete job.files;
+            pending.ack.context = context();
+          } else pending = null;
+        }
+        // Keep the result until acknowledged. A lost response retries just ack,
+        // including for downloads or other irreversible browser actions.
+        if (pending?.ack && !closing) {
+          await call("ack", {id:pending.job.id, ...pending.ack});
+          pending = null;
+        }
         healthy = true;
-        continue;
+      } catch (error) {
+        if (pending && ["CANCELLED", "STALE_DOCUMENT", "UNKNOWN_REQUEST", "INVALID_STATE"].includes(error.code)) {
+          pending = null;
+          healthy = true;
+          continue;
+        }
+        if (!closing && healthy) log(error, "workbench.transport", pending?.job.id);
+        if (error.code === "PAGE_UNAVAILABLE") {
+          label.textContent = identity.page + " · disconnected";
+          button.hidden = true;
+          break;
+        }
+        healthy = false;
       }
-      if (!closing && healthy) log(error, "workbench.transport", pending?.job.id);
-      if (error.code === "PAGE_UNAVAILABLE") {
-        label.textContent = identity.page + " · disconnected";
-        button.hidden = true;
-        break;
-      }
-      healthy = false;
+      await sleep(healthy ? 160 : 1500);
     }
-    await sleep(healthy ? 160 : 1500);
   }
+  if (identity.cancelLane) await Promise.all([receive("work"),receive("cancel")]);
+  else await receive("");
 }

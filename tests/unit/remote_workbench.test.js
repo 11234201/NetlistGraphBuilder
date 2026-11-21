@@ -264,7 +264,7 @@ test("R05 file import detects truncation and same-size regeneration between real
     const scope = errors.filter(([, , details]) => details.requestId === id);
     assert.equal(scope.length, 1);
     assert.equal(scope[0][1].code, "FILE_CHANGED");
-    assert.deepEqual(scope[0][2], {requestId:id, page:page.page, operation:"design open"});
+    assert.deepEqual(scope[0][2], {requestId:id, page:page.page, operation:"design open",code:"FILE_CHANGED"});
     assert.equal((await files.read(path, true)).text, replacement);
   }
   await writeFile(path, "");

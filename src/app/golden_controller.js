@@ -15,11 +15,13 @@ export function createGoldenController({ state, elements, services, markExport =
   function exportCurrentSvg(requestedSide, capture = false) {
     const side = state.compare.active && ["left", "right"].includes(requestedSide) ? requestedSide : null;
     if (!side && (state.compare.active || state.compare.singleWorkspaceInvalidated)) {
+      if (capture) throw Object.assign(new Error("Choose a committed Compare side to export"),{code:"WORKSPACE_UNAVAILABLE"});
       services.setStatus("Exit Compare before exporting the Single SVG");
       return;
     }
     const graph = side ? state.compare.graphs[side] : state.graph;
     if (!graph || (side ? !state.compare.workspaceIdentity : !state.currentModule || !state.singleWorkspaceIdentity)) {
+      if (capture) throw Object.assign(new Error("The requested workspace is not ready to export"),{code:"WORKSPACE_UNAVAILABLE"});
       services.setStatus("Wait for the current Single workspace before exporting SVG");
       return;
     }
@@ -31,9 +33,10 @@ export function createGoldenController({ state, elements, services, markExport =
       const scene = renderSvgScene(side ? state.compare.scenes[side] : state.scene);
       const display = graph.path ? { boundaries: pathDisplayBoundaries(graph), visible: new Set(graph.nodes.map((n) => n.id)), truncated: graph.view?.truncated } : {};
       const svg = createStandaloneSvg(markExport(scene, side), graph.path, [unit, side, mode].filter(Boolean).join(" · "), display);
-      if (capture) return {name:fileName,text:svg};
+      if (capture) return {name:fileName,text:svg,mime:"image/svg+xml"};
       services.browserDownload.text(svg, fileName, "image/svg+xml");
     } catch (error) {
+      if (capture) throw error;
       reportExportFailure(error, "export-svg", fileName, { side, moduleName: unit, view: mode });
       return;
     }
@@ -93,8 +96,8 @@ export function createGoldenController({ state, elements, services, markExport =
     if (imported.display.showPath) validateSavedPath?.(imported.display.showPath, module, imported.display.occurrenceContext, imported.graphOverrides);
     if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
     const occurrence = imported.display.occurrenceContext;
-    if (state.currentModule?.name !== module.name || imported.display.showPath) {
-      services.selectModule(module.name, { deferRender: true, ...(imported.display.showPath
+    if (state.currentModule?.name !== module.name || imported.display.showPath || occurrence) {
+      services.selectModule(module.name, { deferRender: true, ...(imported.display.showPath || occurrence
         ? { occurrencePath: occurrence?.occurrencePath || [], rootModuleName: occurrence?.rootModuleName } : {}) });
     }
     applyLayoutGoldenState(state, imported, (value) => services.singleViewSession.importNavigation(value));
@@ -117,21 +120,23 @@ export function createGoldenController({ state, elements, services, markExport =
     return completion;
   }
 
-  function saveLayoutGolden() {
+  function saveLayoutGolden(capture = false) {
     if (!state.graph || !state.currentModule || !state.singleWorkspaceIdentity || state.compare.singleWorkspaceInvalidated) {
+      if (capture === true) throw Object.assign(new Error("Single workspace is not ready"), {code:"WORKSPACE_UNAVAILABLE"});
       services.setStatus("Wait for the current Single workspace before saving a Golden");
       return;
     }
 
     const fileName = `layout-golden-${sanitizeDownloadFileName(state.currentModule.name)}.json`;
     try {
-      exportLayoutGolden(fileName);
+      return exportLayoutGolden(fileName, capture === true);
     } catch (error) {
+      if (capture === true) throw error;
       reportExportFailure(error, "export-golden", fileName);
     }
   }
 
-  function exportLayoutGolden(fileName) {
+  function exportLayoutGolden(fileName, capture) {
     const diff = compareLayoutGraphs(state.autoGraph, state.graph);
     const golden = createLayoutGolden(state.graph, {
       identity: currentPersistenceIdentity(),
@@ -141,7 +146,7 @@ export function createGoldenController({ state, elements, services, markExport =
         timingBadgeChoices: state.timingBadgeChoices,
         timingBadgePositions: state.timingBadgePositions,
         display: {
-          ...(state.showPath ? { showPath: state.showPath, occurrenceContext: state.occurrenceContext } : {}), viewMode: state.viewMode,
+          ...(state.showPath || state.occurrenceContext ? { showPath: state.showPath, occurrenceContext: state.occurrenceContext } : {}), viewMode: state.viewMode,
           coneRootNodeId: state.coneRootNodeId,
           focusedRootNodeIds: state.focusedRootNodeIds,
           focusedRootRefs: state.focusedRootRefs,
@@ -154,13 +159,9 @@ export function createGoldenController({ state, elements, services, markExport =
       },
       svgSnapshot: renderSvgScene(state.scene)
     });
-    services.browserDownload.json(
-      {
-        ...golden,
-        diff
-      },
-      fileName
-    );
+    const value = { ...golden, diff };
+    if (capture) return {text:JSON.stringify(value, null, 2), name:fileName, mime:"application/json"};
+    services.browserDownload.json(value, fileName);
     services.logProcess("info", "export", `Exported layout Golden for ${state.currentModule.displayName}`, {
       movedNodeCount: diff.movedNodeCount,
       maxMove: diff.maxMove

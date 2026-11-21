@@ -5,7 +5,8 @@ import {join} from "node:path";
 import {readFile, readdir} from "node:fs/promises";
 
 export async function verifyWorkbenchClients({adapter, service, page, dir, project, t}) {
-  const launcher = adapter === "elf" ? [join(dir, "deploy/ngb")] : [process.execPath, join(project, "tools/serve.mjs")];
+  const launcher = adapter === "elf" ? [join(dir, "deploy/ngb")] : adapter === "python" ?
+    ["/usr/bin/python3", join(project,"tools/serve.py")] : [process.execPath, join(project, "tools/serve.mjs")];
   const logs = join(dir, adapter + "-client-logs");
   async function invoke(argv, input = "") {
     const cmd = spawn(launcher[0], [...launcher.slice(1), "cmd", "--state-file", service.stateFile, ...argv], {

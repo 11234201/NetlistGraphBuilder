@@ -67,6 +67,16 @@ New-Item -ItemType Directory -Force -Path $appRoot,$buildRoot | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot "index.html") -Destination $appRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "styles.css") -Destination $appRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "src") -Destination $appRoot -Recurse
+$hostTools = Join-Path $appRoot "tools"
+New-Item -ItemType Directory -Path $hostTools | Out-Null
+foreach ($file in @("serve.py", "terminal_log.py", "log_retention.py", "workbench_protocol.py",
+                    "workbench_service.py", "workbench_server_files.py", "workbench_transport.py", "workbench_client.py")) {
+  Copy-Item -LiteralPath (Join-Path (Join-Path $repoRoot "tools") $file) -Destination $hostTools
+}
+$pythonBuild = if ($env:NGB_BUILD_PYTHON) { $env:NGB_BUILD_PYTHON } else { "python" }
+& $pythonBuild -I (Join-Path $repoRoot "tools\windows-launcher\package_runtime.py") $packageRoot
+if ($LASTEXITCODE -ne 0) { throw "Could not build the private Windows runtime." }
+Copy-Item -LiteralPath (Join-Path $repoRoot "tools\eda\ngb.tcl") -Destination $packageRoot
 
 $elkTarget = Join-Path $appRoot "vendor\elkjs-0.11.1\lib"
 New-Item -ItemType Directory -Force -Path $elkTarget | Out-Null
@@ -139,7 +149,7 @@ if (-not $csc) {
 }
 
 $exePath = Join-Path $packageRoot "NetlistGraphBuilder.exe"
-& $csc /nologo /optimize+ /target:exe /platform:anycpu /reference:System.Web.Extensions.dll "/out:$exePath" `
+& $csc /nologo /optimize+ /target:exe /platform:x64 /reference:System.Web.Extensions.dll "/out:$exePath" `
   (Join-Path $repoRoot "tools\windows-launcher\Program.cs") (Join-Path $repoRoot "tools\windows-launcher\TerminalLog.cs") $assemblyInfoPath
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $exePath)) {
   throw "Failed to compile NetlistGraphBuilder.exe"

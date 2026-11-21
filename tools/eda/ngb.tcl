@@ -94,7 +94,19 @@ proc ::ngb::RunCommand {launcher stateFile args} {
         binary scan [encoding convertto utf-8 $arg] H* hex
         lappend encoded x$hex
     }
-    set reply [exec {*}$launcher cmd --state-file $stateFile --tcl --argv-stdin << [join $encoded " "] 2>@ stderr]
+    # Workbench replies use UTF-8 regardless of the EDA shell's system encoding.
+    set pipeline [concat [list |] $launcher [list cmd --state-file $stateFile --tcl --argv-stdin << [join $encoded " "] 2>@ stderr]]
+    set channel [open $pipeline r]
+    set status [catch {
+        fconfigure $channel -encoding utf-8 -translation lf
+        set reply [read $channel]
+    } message options]
+    if {$status} {
+        catch {close $channel}
+        return -options $options $message
+    }
+    close $channel
+    set reply [string trimright $reply "\r\n"]
     if {[dict exists $reply error]} {
         return -code error -errorcode [list NGB [dict get $reply error code]] -ngbreceipt $reply [dict get $reply error message]
     }

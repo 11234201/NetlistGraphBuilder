@@ -98,7 +98,7 @@ function clientPoint(event) {
   };
 }
 
-function normalizePosition(position) {
+export function normalizePosition(position) {
   return {
     x: round(Math.max(16, Number(position?.x) || 0)),
     y: round(Math.max(16, Number(position?.y) || 0))

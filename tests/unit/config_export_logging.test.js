@@ -95,6 +95,20 @@ test("cancelled Cell Config reset and conflicting import do not write or log err
   assert.equal(log.size, 0);
 });
 
+test("remote SVG capture preserves the serializer cause for the command diagnostic", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const {log,services} = logging();
+  const controller = createGoldenController({state,elements:{},services});
+  assert.throws(() => controller.exportCurrentSvg(null,true),{code:"WORKSPACE_UNAVAILABLE"});
+  state.currentModule = {name:"top"};
+  state.singleWorkspaceIdentity = {};
+  state.graph = {nodes:[],edges:[]};
+  const failure = new Error("scene read failed",{cause:new Error("original cause")});
+  Object.defineProperty(state,"scene",{get() { throw failure; }});
+  assert.throws(() => controller.exportCurrentSvg(null,true),error => error === failure);
+  assert.equal(log.size,0);
+});
+
 for (const operation of ["export-svg", "export-golden", "export-cell-config"]) {
   for (const stage of ["download", "serialize"]) {
     test(`${operation} ${stage} failure has export context and never claims success`, () => {

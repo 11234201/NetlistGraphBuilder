@@ -6,6 +6,26 @@
 - 本教程对应 `v1.6.3`。大型 AIG 可先索引再布局；Show Path 可比较各输入到指定终点的级数。升级时请完整解压同一版本的程序包，并核对随附的 SHA-256 校验值。
 - **Linux 与 EDA 集成**：关于 Linux 单文件二进制、CMake 嵌入构建与 EDA/Tcl 辅助脚本的详细说明，请参阅 [Linux 启动指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
+## 从 SSH 终端操作页面
+
+在 SSH 上执行 `npm start -- --no-open --browse-root /work/run`，将监听端口转发到本地。复制启动终端打印的配对链接，使用本地转发端口并保留链接的路径和片段。每个配对标签页会显示自己的页号，**File → Open from server…** 列出服务器浏览根内的文件。
+
+在启动终端输入 `pages`，用 `use p1` 选中实际页号，然后可以继续输入命令。以下示例让两个页面分别显示网表和 AIG。先在浏览器打开两个配对页，并把示例页号与路径换成现场值。
+
+```text
+use p1
+design open /work/run/top.v
+timing add /work/run/top.rpt
+module list
+use p2
+aig open /work/run/base.blif
+aig add /work/run/eco.blif
+module list
+module open g2
+```
+
+在当前页输入 `commands --available` 查适用操作。例如在 Compare 中可以用 `timing show a --side B` 查看 B 侧时序。查命令参数用 `help timing show`。需要持续运行的分析可加 `--async`，另一个终端用 `job wait <requestId>` 读取最终结果。使用独立 CLI 或 EDA Tcl 时，可用 `--page` 指定页面。[启动器与 Tcl 示例](LINUX_SINGLE_FILE_LAUNCHER.md) · [完整命令表](plans/remote_workbench_commands.md)
+
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |

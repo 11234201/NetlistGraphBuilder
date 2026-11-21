@@ -6,95 +6,61 @@ import {failure} from "./workbench_files.mjs";
 export const catalogue =
     JSON.parse(await readFile(new URL("../src/contracts/workbench_commands.json", import.meta.url)));
 const definitions = new Map(catalogue.commands.map(row => [row.name, row]));
-const inputCommands = new Set([
-  "design open", "design add", "timing open", "timing add", "aig open", "aig add", "files import",
-  "liberty load", "golden load", "cell-config import"
-]);
-const many = new Set(
-    ["design open", "design add", "timing open", "timing add", "aig add", "files import", "files choose"]);
-export const valueOptions = new Set([
-  "--page", "--side", "--request-id", "--timeout", "--page-number", "--filter", "--action", "--dir", "--view",
-  "--name", "--text", "--out", "--on-conflict"
-]);
-const flags = new Set(["--json", "--available", "--overwrite", "--download", "--async"]);
+const inputCommands = new Set(catalogue.commands.filter(row => row.inputStart !== undefined).map(row => row.name));
+export const optionValueCount = arg => arg.startsWith("--") && Object.hasOwn(catalogue.optionArity,arg.slice(2)) ? catalogue.optionArity[arg.slice(2)] : 0;
+const globalOptions = new Set(["page","side","request-id","timeout","async","json"]);
+
 export function parseCommand(argv) {
   if (!Array.isArray(argv) || argv.length > 150 || argv.some(value => typeof value !== "string"))
     throw failure("INVALID_ARGUMENT", "Invalid argument list");
   const words = [], opts = {};
   for (let i = 0; i < argv.length; i++) {
     const word = argv[i];
-    if ((valueOptions.has(word) || flags.has(word)) && Object.hasOwn(opts, word.slice(2)))
-      throw failure("INVALID_ARGUMENT", "Repeated option " + word);
-    if (flags.has(word))
-      opts[word.slice(2)] = true;
-    else if (valueOptions.has(word) && i + 1 < argv.length)
-      opts[word.slice(2)] = argv[++i];
-    else if (word.startsWith("--"))
-      throw failure("INVALID_ARGUMENT", "Invalid option " + word);
-    else
+    if (!word.startsWith("--")) {
       words.push(word);
+      continue;
+    }
+    const key = word.slice(2);
+    if (!Object.hasOwn(catalogue.optionArity, key) || Object.hasOwn(opts, key))
+      throw failure("INVALID_ARGUMENT", "Unknown or repeated option");
+    const arity = catalogue.optionArity[key];
+    const values = argv.slice(i + 1, i + 1 + arity);
+    if (values.length !== arity || (key !== "filter" && values.includes("")))
+      throw failure("INVALID_ARGUMENT", "Expected a value for --" + key);
+    opts[key] = arity === 0 ? true : arity === 1 ? values[0] : values;
+    i += arity;
   }
-  if (!words.length)
-    throw failure("INVALID_ARGUMENT", "Command required");
-  for (const [option, value] of Object.entries(opts)) {
-    if (value === "" && option !== "filter")
-      throw failure("INVALID_ARGUMENT", "Empty option --" + option);
-  }
+  if (!words.length) throw failure("INVALID_ARGUMENT", "Command required");
   const first = words.shift();
   const name = Object.hasOwn(catalogue.aliases, first) ? catalogue.aliases[first] :
-      definitions.has(first)                           ? first :
-                                                         first + " " + (words.shift() || "");
+      definitions.has(first) ? first : first + " " + (words.shift() || "");
   const def = definitions.get(name);
-  if (!def || def.capability !== "v1")
-    throw failure("UNAVAILABLE", "Unavailable command " + name);
-  if (opts.side && !["A", "B"].includes(opts.side))
-    throw failure("INVALID_ARGUMENT", "Expected side A or B");
+  if (!def || def.capability !== "v1") throw failure("UNAVAILABLE", "Unavailable command " + name);
+  if (opts.side && !["A","B"].includes(opts.side)) throw failure("INVALID_ARGUMENT", "Expected side A or B");
   if (opts.side && !def.compareSide && !(name === "commands" && opts.available))
     throw failure("INVALID_SIDE", "This command does not target a Compare side");
-  if (opts.timeout !== undefined && !/^[1-9]\d{0,7}$/.test(opts.timeout))
-    throw failure("INVALID_ARGUMENT", "Invalid timeout");
-  if (opts["page-number"] !== undefined && !/^[1-9]\d{0,6}$/.test(opts["page-number"]))
-    throw failure("INVALID_ARGUMENT", "Invalid page number");
-  if (opts.view !== undefined && !["logic", "standard", "search-first"].includes(opts.view))
-    throw failure("INVALID_ARGUMENT", "Invalid AIG view");
-  if (opts["on-conflict"] && !["abort", "replace"].includes(opts["on-conflict"]))
-    throw failure("INVALID_ARGUMENT", "Invalid conflict policy");
-  for (const key of Object.keys(opts)) {
-    if (["page", "side", "request-id", "timeout", "async", "json"].includes(key))
-      continue;
-    if (key === "text" && inputCommands.has(name) ||
-        key === "name" && (inputCommands.has(name) || name === "page new"))
-      continue;
-    if (["overwrite", "out", "download"].includes(key) && name === "svg export")
-      continue;
-    if (!def.syntax.includes("--" + key))
-      throw failure("INVALID_ARGUMENT", def.syntax);
-  }
+  const invalid = () => { throw failure("INVALID_ARGUMENT", def.syntax); };
+  for (const key of Object.keys(opts))
+    if (!globalOptions.has(key) && !def.options?.includes(key)) invalid();
+  if (opts.timeout && !/^[1-9]\d{0,7}$/.test(opts.timeout) ||
+      opts["page-number"] && !/^[1-9]\d{0,6}$/.test(opts["page-number"])) invalid();
+  if (opts.view && !["logic","standard","search-first"].includes(opts.view) ||
+      opts["on-conflict"] && !["abort","replace"].includes(opts["on-conflict"])) invalid();
   if (opts.text !== undefined) {
-    if (!inputCommands.has(name) || words.length || !opts.text.length || Buffer.byteLength(opts.text) > 16 * 1024 * 1024)
-      throw failure("INVALID_ARGUMENT", "Expected a single text input");
+    if (words.length !== def.inputStart || Buffer.byteLength(opts.text) > 16 * 1024 * 1024) invalid();
     words.push(opts.name || "pasted input");
   }
   if (opts.out || opts.download) {
-    if (name !== "svg export" || words.length || opts.out && opts.download)
-      throw failure("INVALID_ARGUMENT", "Choose one export destination");
+    if (words.length || opts.out && opts.download) invalid();
     words.push(opts.out || "download");
   }
-  const min = name === "page rename" ? 2 :
-      many.has(name) ||
-          [
-            "page info", "page use", "page wait", "job status", "job cancel", "job wait", "aig open",
-            "module open", "timing show", "search find", "svg export", "liberty load", "golden load",
-            "cell-config import", "fs cd", "fs complete"
-          ].includes(name) ?
-                                       1 :
-                                       0;
-  const max = many.has(name) ? 64 : name === "help" ? 2 : name === "fs ls" ? 1 : min;
-  if (words.length < min || words.length > max)
-    throw failure("INVALID_ARGUMENT", def.syntax);
-  if (name !== "fs complete" && words.some(word => word === ""))
-    throw failure("INVALID_ARGUMENT", def.syntax);
-  return {name, args: words, opts};
+  if (def.alternative && opts[def.alternative]) {
+    if (words.length) invalid();
+  } else if (words.length < def.arguments[0] || words.length > def.arguments[1]) invalid();
+  if (name !== "fs complete" && name !== "text set" && words.some(word => word === "")) invalid();
+  for (const [index, choices] of Object.entries(def.enums || {}))
+    if (words[index] !== undefined && !choices.includes(words[index])) invalid();
+  return {name, args:words, opts};
 }
 export function errorInfo(error) {
   return {
@@ -125,20 +91,26 @@ export function createBroker({files, log}) {
           "Choose a connected page", {candidates: live.map(p => p.id)});
     return page;
   }
-  function nextJob(page) {
-    for (const job of jobs.values()) if (job.page === page && !job.finished) return job;
+  function nextJob(page, lane) {
+    for (const job of jobs.values()) {
+      if (job.page === page && !job.finished && (!lane || Boolean(job.interrupt) === (lane === "cancel"))) return job;
+    }
   }
-  function waitForWork(page, ms) {
-    if (!ms || page.wake || waiting >= 16) return;
+  function notifyPage(page) {
+    for (const wake of page.waiters?.values() || []) wake();
+  }
+  function waitForWork(page, lane, ms) {
+    page.waiters ??= new Map();
+    if (!ms || page.waiters.has(lane) || waiting >= 16) return;
     return new Promise(resolve => {
       waiting++;
       const timer = setTimeout(wake,ms);
-      function wake() { clearTimeout(timer); delete page.wake; waiting--; resolve(); }
-      page.wake = wake;
+      function wake() { clearTimeout(timer); page.waiters.delete(lane); waiting--; resolve(); }
+      page.waiters.set(lane,wake);
     });
   }
   function disconnect(p) {
-    p.wake?.();
+    notifyPage(p);
     p.online = false;
     p.handles?.clear();
     p.paths?.clear();
@@ -152,7 +124,7 @@ export function createBroker({files, log}) {
   }
   function finish(j, status, result, error, context = j.page.context) {
     j.phase = status;
-    j.page.wake?.();
+    notifyPage(j.page);
     j.finished = true;
     j.result = result;
     j.error = error;
@@ -160,9 +132,11 @@ export function createBroker({files, log}) {
     j.documentVersion = context?.documentVersion ?? j.documentVersion;
     j.at = Date.now();
   }
-  function pageContext(context) {
-    return {source: context.source, mode: context.mode, documentVersion: context.documentVersion,
-      pickerState: ["open","selected","busy"].includes(context.pickerState) ? context.pickerState : "closed"};
+  function pageContext(context, previous) {
+    if (previous?.documentVersion > context.documentVersion) return previous;
+    const {source,mode,documentVersion,moduleName,occurrence,pair,graphId,activeSide,documentId} = context;
+    return {source,mode,documentVersion,moduleName,occurrence,pair,graphId,activeSide,documentId,
+      pickerState:["open","selected","busy"].includes(context.pickerState) ? context.pickerState : "closed"};
   }
   function checkDocument(job, context) {
     if (!context?.documentVersion || !job.documentVersion || context.documentVersion === job.documentVersion)
@@ -228,6 +202,14 @@ export function createBroker({files, log}) {
       throw failure("ACCESS_DENIED", "File selection belongs to another page or expired");
     return path;
   }
+  function failureScope(job, operation, error) {
+    const scope = {requestId:job.id, page:job.page.id, operation, code:error.code || "COMMAND_FAILED"};
+    if (job.side) scope.side = job.side;
+    for (const field of ["documentId","graphId","documentVersion"]) {
+      if (job.scope?.[field] != null) scope[field] = job.scope[field];
+    }
+    return scope;
+  }
   async function prepareInputs({name, args, opts}, page, cwd, job) {
     const inputs = [];
     let bytes = 0;
@@ -248,7 +230,7 @@ export function createBroker({files, log}) {
         if (name === "files import" && error.code !== "ACCESS_DENIED" && error.code !== "FILE_LIMIT") {
           log.error(
               "workbench.read_failed", error,
-              {requestId: job.id, page: job.page.id, operation: name, fileName});
+              {...failureScope(job,name,error),fileName});
           inputs.push({name: fileName, error: errorInfo(error)});
           continue;
         }
@@ -266,14 +248,15 @@ export function createBroker({files, log}) {
   function payload(id, name, args, opts, inputs) {
     const options = {...opts};
     delete options.text;
-    return {id, name, args, opts: options, files: inputs};
+    const row = definitions.get(name);
+    return {id, name, args, opts:options, files:inputs, output:!!row.output, modes:row.modes};
   }
   function changePage(name, args, opts) {
     if (name === "page rename") {
       const page = pageFor(args[0]);
       validatePageName(args[1], page);
       page.name = args[1];
-      page.wake?.();
+      notifyPage(page);
       return done(describe(page), page.id);
     }
     if (pages.size >= 2048)
@@ -402,7 +385,9 @@ export function createBroker({files, log}) {
       key: fingerprint,
       page: p,
       selector,
+      scope:p.context,
       side: opts.side,
+      interrupt:definitions.get(name).interrupt,
       phase: "reading",
       at: Date.now(),
       documentVersion: p.context.documentVersion || 0
@@ -411,10 +396,10 @@ export function createBroker({files, log}) {
     async function prepare() {
       try {
         const inputs =
-            inputCommands.has(name) ? await prepareInputs({name, args, opts}, browserPage, cwd, j) : [];
+            inputCommands.has(name) ? await prepareInputs({name, args:args.slice(definitions.get(name).inputStart), opts}, browserPage, cwd, j) : [];
         if (j.finished)
           return;
-        if (name === "svg export" && (opts.out || !opts.download && args[0] !== "download")) {
+        if (definitions.get(name).output && (opts.out || !opts.download && args[0] !== "download")) {
           if (browserPage)
             throw failure("ACCESS_DENIED", "Use the terminal to write server output");
           j.output = resolve(cwd, args[0]);
@@ -422,11 +407,11 @@ export function createBroker({files, log}) {
         }
         j.payload = payload(id, name, args, opts, inputs);
         j.phase = "queued";
-        p.wake?.();
+        notifyPage(p);
       } catch (error) {
         if (j.finished)
           return;
-        log.error("workbench.prepare_failed", error, {requestId: id, page: p.id, operation: name});
+        log.error("workbench.prepare_failed", error, failureScope(j,name,error));
         finish(j, "failed", null, errorInfo(error));
       }
     }
@@ -461,8 +446,8 @@ export function createBroker({files, log}) {
         disconnect(p);
       Object.assign(
           p,
-          {online: true, connection: randomUUID(), seen: Date.now(), handles: new Map(), paths: new Map()});
-      return {page: p.id, connection: p.connection, resume: p.resume};
+          {online: true, context:{}, connection: randomUUID(), seen: Date.now(), handles: new Map(), paths: new Map()});
+      return {page:p.id, connection:p.connection, resume:p.resume, cancelLane:true};
     }
     const p = pages.get(b.page);
     if (!p || !p.online || p.connection !== b.connection)
@@ -490,14 +475,16 @@ export function createBroker({files, log}) {
       return command(b, p);
     }
     if (b.op === "poll") {
-      if (b.context) p.context = pageContext(b.context);
-      let j = nextJob(p);
+      if (b.context) p.context = pageContext(b.context, p.context);
+      const lane = b.lane || "";
+      if (!["","work","cancel"].includes(lane)) throw failure("INVALID_ARGUMENT","Invalid poll lane");
+      let j = nextJob(p,lane);
       if (!j || j.phase === "reading") {
         const waitMs = Math.min(8000,Math.max(0,Number(b.waitMs) || 0));
         if (waitMs) {
-          await waitForWork(p,waitMs);
+          await waitForWork(p,lane,waitMs);
           if (!p.online || p.connection !== b.connection) throw failure("PAGE_UNAVAILABLE","Page connection expired");
-          j = nextJob(p);
+          j = nextJob(p,lane);
         }
       }
       if (!j || !["queued","delivered"].includes(j.phase) || !checkDocument(j,p.context)) return {name:p.name};
@@ -526,7 +513,7 @@ export function createBroker({files, log}) {
       if (j.phase === "executing")
         return {granted: true};
       if (b.context)
-        p.context = pageContext(b.context);
+        p.context = pageContext(b.context, p.context);
       if (j.phase !== "delivered" || !checkDocument(j, p.context))
         return {granted: false};
       j.phase = "executing";
@@ -538,7 +525,7 @@ export function createBroker({files, log}) {
       return j.write;
     if (b.op === "ack" && j.phase === "executing") {
       if (b.context)
-        p.context = pageContext(b.context);
+        p.context = pageContext(b.context, p.context);
       const context = p.context;
       if (!b.error && j.output) {
         j.phase = "writing";
@@ -547,7 +534,7 @@ export function createBroker({files, log}) {
             const result = await files.output(j.output, b.result.text, j.overwrite);
             finish(j, "committed", result, null, context);
           } catch (error) {
-            log.error("workbench.export_failed", error, {requestId:j.id, page:p.id, operation:"svg export", code:error.code});
+            log.error("workbench.export_failed", error, failureScope(j,j.payload.name,error));
             finish(j, "failed", null, errorInfo(error), context);
           }
           return receipt(j);
@@ -555,7 +542,7 @@ export function createBroker({files, log}) {
         try { return await j.write; }
         finally { delete j.write; }
       }
-      finish(j, b.error ? "failed" : b.result?.partial ? "partial" : "committed", b.result, b.error, context);
+      finish(j, b.error ? (b.error.code === "CANCELLED" ? "cancelled" : "failed") : b.result?.partial ? "partial" : "committed", b.result, b.error, context);
       return receipt(j);
     }
     throw failure("INVALID_STATE", "Unexpected page operation");

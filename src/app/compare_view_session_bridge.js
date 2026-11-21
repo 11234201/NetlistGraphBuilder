@@ -61,6 +61,7 @@ export function createCompareViewSessionBridge({
       state.compare.selectedKind = session.selectedObjectRef.kind;
       state.compare.selectedName = session.selectedObjectRef.localId;
       state.compare.selectedSide = side;
+      state.compare.activeSide = side;
     } else if (!session.selectedObjectRef && state.compare.selectedSide === side) {
       state.compare.selectedKind = null;
       state.compare.selectedName = null;
@@ -159,6 +160,10 @@ export function createCompareViewSessionBridge({
   }
 
   return Object.freeze({
+    setActiveSide(side) {
+      if (side !== "left" && side !== "right") throw new Error("Unknown Compare side");
+      state.compare.activeSide = side;
+    },
     setShowPath(side, showPath) {
       const s = ensure(side);
       project(side, sessions.update(s.sessionId, () => ({ showPath })));

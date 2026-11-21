@@ -22,10 +22,20 @@ export function createCellConfigController({ state, elements, services, present 
       services.setStatus(`${node.label}: real submodule definitions cannot be replaced by Cell Config`);
       return;
     }
-    const cellType = node.ref?.type;
+    openEditor(node.ref?.type);
+  }
+
+  function openEditor(cellType) {
     activeCellDefinition = collectCellTypeSummary(state.design, cellType);
-    const definition = state.cellConfig.cells[activeCellDefinition.cellType]
-      || createInferredCellDefinition(activeCellDefinition);
+    const saved = state.cellConfig.cells[activeCellDefinition.cellType];
+    const definition = saved || createInferredCellDefinition(activeCellDefinition);
+    if (saved) {
+      activeCellDefinition.displayName = saved.displayName || activeCellDefinition.displayName;
+      const connected = new Set(activeCellDefinition.pins.map(pin => pin.canonicalName));
+      for (const name of Object.keys(saved.pins).sort()) {
+        if (!connected.has(name)) activeCellDefinition.pins.push({name,canonicalName:name,count:0});
+      }
+    }
     elements.cellDefinitionBody.innerHTML = renderCellDefinitionEditor(activeCellDefinition, definition);
     elements.deleteCellDefinitionButton.disabled = !state.cellConfig.cells[activeCellDefinition.cellType];
     if (!elements.cellDefinitionDialog.open) elements.cellDefinitionDialog.showModal();
@@ -98,10 +108,11 @@ export function createCellConfigController({ state, elements, services, present 
     present(() => services.setStatus(message));
   }
 
-  function commitConfigChange(operation, commit, message, details, closeEditor = false) {
+  function commitConfigChange(operation, commit, message, details, closeEditor = false, strict = false) {
     try {
       state.cellConfig = commit();
     } catch (error) {
+      if (strict) throw error;
       reportFailure(error, "persistence", "Cell Config change could not be saved", { operation, ...details });
       return;
     }
@@ -112,6 +123,7 @@ export function createCellConfigController({ state, elements, services, present 
         rebuildAfterCellConfigChange(message);
       });
     } catch (error) {
+      if (strict) throw error;
       reportFailure(error, "render", "Cell Config saved, but workspace refresh failed", { operation, ...details });
     }
   }
@@ -157,7 +169,46 @@ export function createCellConfigController({ state, elements, services, present 
     elements.resetCellConfigButton.disabled = Object.keys(state.cellConfig.cells).length === 0;
   }
 
-  return Object.freeze({ openSelectedCellDefinition, closeCellDefinitionDialog, saveActiveCellDefinition, deleteActiveCellDefinition, handleCellConfigImport, exportCellConfig, resetAllCellConfig, rebuildAfterCellConfigChange, updateCellDefinitionControls });
+  function runCellConfigCommand({name, args, opts}) {
+    const fail = (code, message) => { throw Object.assign(new Error(message), {code}); };
+    const scope = "browser-origin";
+    const type = args[0];
+    if (name === "cell-config export")
+      return {text:serializeCellConfig(state.cellConfig) + "\n", name:"netlist-cell-config.json", mime:"application/json"};
+    if (name === "cell-config show" || name === "cell-config edit") {
+      const summary = collectCellTypeSummary(state.design, type);
+      if (state.design?.modules.some(module => module.name === type)) fail("INVALID_CELL_TYPE", "Module definitions cannot be replaced");
+      const saved = Object.hasOwn(state.cellConfig.cells, summary.cellType) ? state.cellConfig.cells[summary.cellType] : null;
+      if (!summary.instanceCount && !saved) fail("CELL_TYPE_NOT_FOUND", "Unknown cell type");
+      if (name === "cell-config edit") openEditor(type);
+      return {scope, type:summary.cellType, saved, definition:saved || createInferredCellDefinition(summary), instances:summary.instanceCount};
+    }
+    if (name === "cell-config delete" || name === "cell-config reset") {
+      if (name.endsWith("reset") && !opts.confirm) fail("CONFIRM_REQUIRED", "Use --confirm to reset all cell definitions");
+      if (type && !Object.hasOwn(state.cellConfig.cells,type)) fail("CELL_TYPE_NOT_FOUND","No saved definition for this type");
+      commitConfigChange(name, () => type ? services.cellConfigUseCases.remove(state.cellConfig, type) : services.cellConfigUseCases.reset(),
+        type ? "Deleted saved cell definition" : "Reset saved cell definitions", {cellType:type}, true, true);
+      return {scope, savedCount:Object.keys(state.cellConfig.cells).length};
+    }
+    if (!activeCellDefinition || !elements.cellDefinitionDialog.open) fail("EDITOR_CLOSED", "Open a cell definition first");
+    if (name === "cell-config cancel") { closeCellDefinitionDialog(); return {cancelled:true}; }
+    const form = elements.cellDefinitionForm;
+    if (name === "cell-config gate" || name === "cell-config pin") {
+      const gate = name.endsWith("gate");
+      const select = gate ? form.querySelector("#cellDefinitionGateKind") :
+        [...form.querySelectorAll("[data-cell-config-pin]")].find(item => item.dataset.cellConfigPin === args[0]);
+      const value = args[gate ? 0 : 1];
+      if (!select || ![...select.options].some(option => option.value === value)) fail("INVALID_ARGUMENT","Unknown pin or editor value");
+      select.value = value;
+    }
+    const cellType = activeCellDefinition.cellType;
+    const definition = readCellDefinitionEditor(form,activeCellDefinition);
+    if (name === "cell-config save")
+      commitConfigChange(name, () => services.cellConfigUseCases.set(state.cellConfig,cellType,definition),
+        "Saved cell definition", {cellType}, true, true);
+    return {scope, type:cellType, definition};
+  }
+  return Object.freeze({ runCellConfigCommand, openSelectedCellDefinition, closeCellDefinitionDialog, saveActiveCellDefinition, deleteActiveCellDefinition, handleCellConfigImport, exportCellConfig, resetAllCellConfig, rebuildAfterCellConfigChange, updateCellDefinitionControls });
 }
 
 export const cellConfigPorts = Object.freeze({

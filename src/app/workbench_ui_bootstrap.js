@@ -24,6 +24,7 @@ export function createWorkbenchUi({
   const context = createWorkbenchContextController({ document, windowTarget, readContext, closeLog });
   const unsubscribe = subscribe(context.scheduleRefresh);
   return Object.freeze({
+    shell,
     refresh: context.scheduleRefresh,
     refreshViewport: viewport.refresh,
     dispose() { unsubscribe(); context.dispose(); inspector.dispose(); shell.dispose(); viewport.dispose(); }

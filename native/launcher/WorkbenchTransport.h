@@ -250,7 +250,7 @@ inline int WorkbenchCli(int argc, char **argv) {
                 encoded = true;
             else {
                 args.push_back(arg);
-                if (WorkbenchValueOptions().count(arg) && i + 1 < argc)
+                for (auto n = WorkbenchValueCount(arg); n && i + 1 < argc; --n)
                     args.push_back(argv[++i]);
             }
         }
@@ -272,8 +272,8 @@ inline int WorkbenchCli(int argc, char **argv) {
             }
         }
         for (size_t i = 0; i < args.size(); ++i) {
-            if (WorkbenchValueOptions().count(args[i].get<std::string>())) {
-                ++i;
+            if (auto count = WorkbenchValueCount(args[i].get<std::string>())) {
+                i += count;
             } else if (args[i] == "--stdin") {
                 if (encoded)
                     throw WorkbenchError("INVALID_ARGUMENT", "Standard input already supplies the Tcl arguments");
@@ -345,6 +345,7 @@ inline void WorkbenchTerminal(std::shared_ptr<WorkbenchBroker> broker, std::func
             if (args.empty())
                 continue;
             if (args[0] == "quit") {
+                if (args.size() != 1) throw WorkbenchError("INVALID_ARGUMENT", "quit takes no arguments");
                 stop();
                 return;
             }

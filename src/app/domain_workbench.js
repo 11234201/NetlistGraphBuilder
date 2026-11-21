@@ -18,6 +18,7 @@ import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { copyBrowserText } from "../platform/browser_clipboard.js";
 import { getQuickInputPriority } from "./quickInput.js";
 import { createAigStructureBridge } from "./aig_structure_bridge.js";
+import { createAigInspectionCommands } from "./aig_inspection_commands.js";
 import { createAigFocusedController } from "../ui/aig_focused_controller.js";
 import { resolveFocusedRootAction } from "./focusedSelection.js";
 import { createDomainWorkspaceDiagnostics } from "./domain_workspace_diagnostics.js";
@@ -114,7 +115,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const object = workspace.query.getObject(id);
     const boundary = !object && workspace.displayQuery.getObject(id);
     if (boundary) { if (focus) focusSelection(id); setStatus(boundary.description); return; }
-    if (focus && object && focused.reveal(id)) return;
+    if (focus && object) {
+      const reveal = focused.reveal(id);
+      if (reveal) return reveal;
+    }
     if (!preserveAnalysis) { selectionRevision++; structure.clearSelection(); }
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
       unitId: session().unitId, kind: workspace.query.edgeById.has(id) ? "edge" : object.kind, localId: id }) : null;
@@ -448,6 +452,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (ticket === inputGeneration) diagnostics.failure(error, "layout", operation, { roots: restore.focus.focusedRootNodeIds,
         faninDepth: restore.focus.faninDepth, fanoutDepth: restore.focus.fanoutDepth, retainedPreviousView: true,
         previousScope: workspace.analysisScopeLabel }, "error", candidateContext);
+      if (options.reportToCommand && ticket === inputGeneration) throw error;
       return null;
     } finally {
       if (ticket === inputGeneration) {
@@ -497,10 +502,13 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     try { if (files.length) await addGraphs(await Promise.all(files.map(async (file) => ({ name: file.name, text: await file.text() }))), request); }
     catch (error) { if (error.name !== "AbortError") diagnostics.failure(error, "import", "aig.collection.add"); }
   });
-  get("cancelDomainImportButton").addEventListener("click", () => {
+  function cancelImport() {
+    const active = !get("cancelDomainImportButton").hidden;
     const operation = switchingStyle ? "Layout" : "Import";
     importRequest?.cancel(); setStatus(`${operation} cancelled; previous view retained.`);
-  });
+    return {cancelled:active};
+  }
+  get("cancelDomainImportButton").addEventListener("click", cancelImport);
   function activateCanvasObject(event) {
     if (!workspace) return;
     const object = event.target.closest("[data-domain-object]");
@@ -522,8 +530,27 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
   });
   windowTarget.addEventListener("beforeunload", persist);
   return Object.freeze({
-    open,
+    open, cancelImport,
+    resourceUsage:() => registry.require("aig").resourceUsage(),
+    runInspectionCommand:createAigInspectionCommands({read:() => workspace, readPanels:() => panels, selectedId, policy,
+      changePresentation, changeStyle:focused.changeStyle, panelEvent, structure, renderPanels, syncControls:syncPolicyControls, persist}),
     graphs: { add: addGraphs, list: collection.list, select: (id) => collection.switchTo(id, importRequests.begin()) },
+    navigation: {
+      read: () => workspace && ({ ...focused.snapshot(), selectedId:selectedId(), documentId:workspace.document.documentId,
+        graphId:collection.active(), viewport:canvas.viewport(), mount }),
+      object: id => workspace?.query.getObject(id),
+      named: name => (workspace?.search(name, 100) || []).filter(hit => hit.label === name ||
+        hit.sourceRefs?.some(ref => ref.id === name || ref.label === name) ||
+        hit.nameMappings?.some(row => row.name === name || row.signalId === name)).map(hit => hit.id),
+      connections: id => workspace?.query.connections(id),
+      select, zoom:focusSelection, roots:focused.rootsAction, canNavigate:focused.canNavigate,
+      analysis: id => ({critical:workspace.query.criticalNodes.has(id) || workspace.query.criticalEdges.has(id)}),
+      depth(fanin, fanout) {
+        get("faninDepthInput").value = String(fanin);
+        get("fanoutDepthInput").value = String(fanout);
+        return focused.commands.scheduleFocusedDepthChange();
+      }
+    },
     async initialize(fallback) {
       try {
         const saved = !windowTarget.location.search ? storage.load() : null;
@@ -596,7 +623,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
           try { const text = createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, selectionPolicy(), selectedId(), structure.view())), workspace.path, workspace.analysisScopeLabel, workspace.path ? { boundaries: pathDisplayBoundaries(workspace.displayModel), visible: workspace.positionedNodes, truncated: workspace.truncated } : {});
             if (capture) return {name:fileName,text};
             download.text(text,fileName,"image/svg+xml"); }
-          catch (error) { diagnostics.failure(error, "export", "aig.svg.export", { format: "svg", fileName }); }
+          catch (error) {
+            diagnostics.failure(error, "export", "aig.svg.export", { format: "svg", fileName });
+            if (capture) throw error;
+          }
         },
         handleFocusSelectedShortcut: (event) => handleFocusShortcut(event, focusSelection, Boolean(selectedId() || panels.analysis.selectedId))
       };

@@ -9,7 +9,7 @@ export function createLayoutGolden(graph, options = {}) {
   const identity = options.identity || {};
   return {
     kind: "netlist-layout-golden",
-    version: options.layoutOptions?.display?.showPath ? 4 : 3,
+    version: options.layoutOptions?.display?.showPath || options.layoutOptions?.display?.occurrenceContext ? 4 : 3,
     domainId: identity.domainId || "netlist",
     documentId: identity.documentId || null,
     unitId: identity.unitId || graph.moduleName,

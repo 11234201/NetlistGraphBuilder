@@ -85,9 +85,9 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 Windows 离线发布包为 `NetlistGraphBuilder-v<version>-win-x64.zip`（当前版本为 `v1.6.3`），完整解压后双击运行 `NetlistGraphBuilder.exe`。程序仅在本机回环地址 `127.0.0.1` 启动本地服务并自动打开默认浏览器；使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
-发布包内含 `examples/` 示例网表、`README.md`、`CHANGELOG.md`、`USER_GUIDE.md`、`ELKJS-LICENSE.md`、`VIZ-LICENSE.txt`、`GRAPHVIZ-LICENSE.txt`、`EXPAT-LICENSE.txt` 和 `app/vendor/graphviz/` 离线资源。**注意**：请勿单独拷贝 `.exe` 文件运行，启动器依赖同目录下的 `app/` 资源文件夹。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
+完整解压后保留 `app/`、`runtime/` 与 EXE 同级。EXE 在自己的进程中加载包内 CPython 和工作台资源，使用当前 Windows 用户的命名管道处理 `cmd`、`status` 和 `stop`。包内提供示例、使用指南、`ngb.tcl` 及 Python、ELK 和 Graphviz 的许可证。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 
-维护者可通过以下命令在本地重新构建 Windows 发布包（产物与 SHA-256 校验文件输出至 `dist/` 目录）：
+维护者在安装了 x64 CPython 3.10+、Node 和 .NET Framework 编译器的 Windows 构建机上执行下列命令。可用 `NGB_BUILD_PYTHON` 指定构建解释器。产物与 SHA-256 校验文件输出至 `dist/`。
 
 ```powershell
 npm run release:windows
@@ -188,7 +188,7 @@ node tools/serve.mjs stop --state-file ./results/ngb-session.json
 
 ## SSH 工作台
 
-通过 SSH 转发打开 `ready.pairUrl`，本地网页的 **File → Open from server…** 可选择服务器文件。一个后端可配对多个页面。在启动终端输入 `pages` 查看页号，`use p1` 指定页面，随后用 `add`、`timing add` 或 `aig add` 增量加载。页内图选择器和 `module open` 均可切换该页保留的 AIG。npm 与 Linux ELF 支持相同的终端、独立 CLI 和 EDA Tcl 命令。[启动、转发和 Tcl 示例](docs/LINUX_SINGLE_FILE_LAUNCHER.md#6-在-ssh-转发的页面中追加文件)
+通过 SSH 转发打开 `ready.pairUrl`，本地网页的 **File → Open from server…** 可选择服务器文件。一个后端可配对多个页面。在启动终端输入 `pages` 查看页号，`use p1` 指定页面，随后用 `add`、`timing add` 或 `aig add` 增量加载。页内图选择器和 `module open` 均可切换该页保留的 AIG。npm、Linux ELF、Python 和 Windows 离线包共用 180 条命令与 5 个简写。`commands --available` 列出当前页适用的命令，`help <命令>` 显示参数。[启动、转发和 Tcl 示例](docs/LINUX_SINGLE_FILE_LAUNCHER.md#6-在-ssh-转发的页面中追加文件) · [完整命令表](docs/plans/remote_workbench_commands.md)
 
 ## 快速上手指南
 

@@ -81,19 +81,24 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
     frame = doc.defaultView.requestAnimationFrame(() => { frame = null; sync(); });
   }
   const button = (label, action, index) => `<button type="button" data-path-action="${action}" data-index="${index}"${action.startsWith("tab-") ? ` aria-pressed="${action === "tab-" + section}"` : ""}>${escapeHtml(label)}</button>`;
-  function candidates() {
-    matches = [];
-    const host = get("pathCandidates");
-    if (!current || !search.value.trim()) { host.replaceChildren(); return; }
-    const terms = search.value.toLowerCase().trim().split(/\s+/);
-    const skip = pageSize * searchPage;
+  function findCandidates(term, pageIndex) {
+    const found = [];
+    if (!current || !term.trim()) return found;
+    const terms = term.toLowerCase().trim().split(/\s+/);
+    const skip = pageSize * pageIndex;
     let count = 0;
     for (const entry of current.index().endpoints.values()) {
       const text = (entry.label + " " + entry.kind + " " + entry.key).toLowerCase();
       if (!terms.every((term) => text.includes(term))) continue;
-      if (count++ >= skip) matches.push(entry);
-      if (matches.length > pageSize) break;
+      if (count++ >= skip) found.push(entry);
+      if (found.length > pageSize) break;
     }
+    return found;
+  }
+  function candidates(found = findCandidates(search.value, searchPage)) {
+    matches = found;
+    const host = get("pathCandidates");
+    if (!current || !search.value.trim()) { host.replaceChildren(); return; }
     host.innerHTML = matches.slice(0, pageSize).map((e, i) => `<div class="path-row"><span>${escapeHtml(e.label)} <small>· ${escapeHtml(e.kind)}</small></span>${button("Start +", "starts", i)}${button("End +", "ends", i)}</div>`).join("") ||
       "No matching endpoints";
     if (searchPage) host.insertAdjacentHTML("beforeend", button("Previous", "search-prev", 0));
@@ -157,7 +162,7 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
     draft = { ...draft, [side]: keys };
     message.textContent = ""; openPanel(false); drawDraft();
   }
-  async function commit(action) {
+  async function commit(action, fromCommand = false) {
     const owner = current;
     if (!owner) return;
     if (action === "clear" && !owner.query && !pending) {
@@ -171,7 +176,10 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
     pending = request; drawDraft();
     try {
       const result = await owner.apply(candidate, signal, () => request === pending && owner.scope === context()?.scope);
-      if (request !== pending || signal.aborted || owner.scope !== context()?.scope) return;
+      if (request !== pending || signal.aborted || owner.scope !== context()?.scope || !result) {
+        if (fromCommand) throw new DOMException("Path query superseded", "AbortError");
+        return;
+      }
       if (result) {
         saved = undefined; sync(true);
         const path = current?.path;
@@ -184,7 +192,10 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
             startCount: path.startCount, endCount: path.endCount, nodeCount: path.nodeIds.size, wireCount: path.edgeIds.size }); } catch {}
         }
       }
-    } catch (error) { if (!signal.aborted) reportFailure(error, "show-path.apply", owner); }
+    } catch (error) {
+      if (fromCommand) throw error;
+      if (!signal.aborted) reportFailure(error, "show-path.apply", owner);
+    }
     finally { if (pending === request) { pending = null; sync(true); } }
   }
   async function action(event) {
@@ -249,4 +260,120 @@ export function bindShowPath(panel, { read, log, subscribe, copyText, exportSvg,
   subscribe(schedule);
   new doc.defaultView.MutationObserver(schedule).observe(get("statusBar"), { childList: true, characterData: true, subtree: true });
   sync(true);
+  function requireValue(value, code, message) {
+    if (!value) throw Object.assign(new Error(message), {code});
+    return value;
+  }
+  function endpoint(name) {
+    const endpoints = current.index().endpoints;
+    if (endpoints.has(name)) return name;
+    const matches = [];
+    for (const entry of endpoints.values()) {
+      if (entry.label === name) matches.push(entry.key);
+    }
+    if (matches.length > 1)
+      throw Object.assign(new Error("Ambiguous path endpoint"), {code:"AMBIGUOUS_ENDPOINT", candidates:matches});
+    return requireValue(matches[0], "ENDPOINT_NOT_FOUND", "Unknown path endpoint");
+  }
+  function reportPage() {
+    const path = requireValue(current.path, "NO_PATH_REPORT", "Apply a path query first");
+    drawReport();
+    const entries = rows.map(row => {
+      const range = sourceLevels?.values.get(row.id);
+      return {...row, visible:current.visible(row.displayId),
+        ...(sourceLevels && section !== "boundaries" ? {reachable:sourceLevels.values.has(row.id), min:range?.min, max:range?.max} : {})};
+    });
+    return {section, page:page + 1, status:path.status, partial:path.status === "partial" || Boolean(path.endpointsTruncated),
+      reasons:path.reasons, starts:path.startCount,
+      ends:path.endCount, from:sourceLevels?.label || null, entries};
+  }
+  function searchAt(term, targetPage) {
+    requireValue(Number.isSafeInteger(targetPage) && targetPage > 0,"INVALID_ARGUMENT","Expected a positive page number");
+    const found = findCandidates(term,targetPage - 1);
+    requireValue(targetPage === 1 || found.length,"PAGE_OUT_OF_RANGE","Endpoint page is out of range");
+    search.value = term; searchPage = targetPage - 1; candidates(found);
+    return {page:targetPage, more:found.length > pageSize,
+      entries:found.slice(0,pageSize).map(({key,label,kind,displayId}) => ({key,label,kind,displayId}))};
+  }
+  function reportAt(targetSection, targetPage) {
+    const path = requireValue(current.path, "NO_PATH_REPORT", "Apply a path query first");
+    requireValue(Number.isSafeInteger(targetPage) && targetPage > 0,"INVALID_ARGUMENT","Expected a positive page number");
+    const count = targetSection === "levels" ? path.levels.size : targetSection === "boundaries" ? current.boundaries.length : path[targetSection].length;
+    requireValue(targetPage <= Math.max(1,Math.ceil(count / pageSize)), "PAGE_OUT_OF_RANGE","Report page is out of range");
+    section = targetSection; page = targetPage - 1;
+    return reportPage();
+  }
+  return async function runPathCommand({name, args, opts}) {
+    if (opts.side) {
+      requireValue(read()?.side, "INVALID_SIDE", "Only Compare has path sides");
+      explicitSide = opts.side === "A" ? "left" : "right";
+    }
+    openPanel();
+    requireValue(current, "NO_DOCUMENT", "Open a design first");
+    const snapshot = () => ({starts:[...draft.starts], ends:[...draft.ends], enabled:Boolean(current.query?.enabled), side:current.side});
+    switch (name) {
+      case "path open":
+      case "path draft": return snapshot();
+      case "path find":
+        return searchAt(args[0],Number(opts["page-number"] || 1));
+      case "path add":
+      case "path remove": {
+        const key = {start:"starts", end:"ends"}[args[0]];
+        requireValue(key, "INVALID_ARGUMENT", "Choose start or end");
+        const changes = args.slice(1).map(endpoint);
+        const keys = name === "path add" ? [...new Set([...draft[key],...changes])] : draft[key].filter(id => !changes.includes(id));
+        const next = {...draft,[key]:keys};
+        if (next.starts.length || next.ends.length) normalizeShowPath(next);
+        draft = next;
+        drawDraft();
+        return snapshot();
+      }
+      case "path apply":
+        await commit("apply",true);
+        return reportPage();
+      case "path clear": await commit("clear",true); return snapshot();
+      case "path cancel": {
+        const cancelled = Boolean(pending);
+        pending?.controller.abort();
+        return {cancelled};
+      }
+      case "path enable":
+        requireValue(current.query, "NO_PATH_REPORT", "Apply a path query first");
+        requireValue(["on","off"].includes(args[0]), "INVALID_ARGUMENT", "Choose on or off");
+        if (Boolean(current.query.enabled) !== (args[0] === "on")) await commit("toggle",true);
+        return snapshot();
+      case "path report":
+        requireValue(!args.length || ["starts","ends","levels","boundaries"].includes(args[0]), "INVALID_ARGUMENT", "Unknown report section");
+        return reportAt(args[0] || section, Number(opts["page-number"] || 1));
+      case "ui page": {
+        const targetPage = Number(args[1]);
+        if (args[0] === "path-search") return {list:args[0], ...searchAt(search.value,targetPage)};
+        return reportAt(section,targetPage);
+      }
+      case "path distances": {
+        const path = requireValue(current.path, "NO_PATH_REPORT", "Apply a path query first");
+        if (opts.all) sourceLevels = null;
+        else {
+          const start = requireValue(path.starts.find(row => [row.key,row.id,row.label,row.name].includes(args[0])),
+            "ENDPOINT_NOT_FOUND", "Unknown start in this report");
+          requireValue(start.reachable, "UNREACHABLE", "Start is unreachable");
+          sourceLevels = {label:start.name || start.label, values:path.fromStart(start.id)};
+        }
+        section = "ends"; page = 0;
+        return reportPage();
+      }
+      case "path locate":
+      case "path copy": {
+        const row = requireValue(reportPage().entries.find(item => [item.key,item.id,item.label,item.name,item.copyName].includes(args[0])),
+          "OBJECT_NOT_FOUND", "Unknown item on this report page");
+        if (name === "path copy") return {text:row.copyName || row.label};
+        requireValue(row.visible, "OUTSIDE_VIEW", "Report item is outside the active view");
+        current.locate(row.displayId);
+        return {id:row.id, displayId:row.displayId};
+      }
+      case "path export":
+        requireValue(current.path, "NO_PATH_REPORT", "Apply a path query first");
+        return {side:current.side};
+    }
+  };
 }

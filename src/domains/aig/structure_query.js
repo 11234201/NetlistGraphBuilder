@@ -39,6 +39,17 @@ export function createStructureQuery(data) {
     get: (id) => byId.get(id) || null,
     list(category = "reconvergence", type = "all") { return category === "block" ? type === "all" ? data.blocks.results : types.get(type) || [] : data.reconvergence.results; },
     rootEntries: () => roots.entries(), uniqueRoots: roots.size,
+    relatedTo(subject, category, detail = null) {
+      let nodes;
+      if (subject.category === "block") {
+        nodes = category === "block" ? [subject.rootId] : [...subject.nodeIds,...subject.boundaryIds];
+      } else if (subject.category === "reconvergence") {
+        nodes = detail?.nodeIds || subject.paths.flatMap(path => path.nodeIds);
+      } else {
+        nodes = subject.source && subject.target ? [subject.source,subject.target] : [subject.id];
+      }
+      return query.related(nodes,category,subject.category ? subject.id : null);
+    },
     related(nodeIds, category, excludeId = null) {
       const ids = new Set();
       for (const nodeId of nodeIds) for (const id of membership.get(nodeId) || []) if (id !== excludeId && byId.get(id).category === category) ids.add(id);

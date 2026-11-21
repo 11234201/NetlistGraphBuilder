@@ -12,8 +12,10 @@ export function graphNodeToObjectRef(node, { documentId, unitId }) {
 }
 
 export function objectRefToNodeId(ref, graph) {
+  // A canonical net root is available while the destination occurrence's
+  // first graph is still being prepared.
+  if (ref?.kind === "net") return `net:${ref.localId}`;
   if (!ref || !graph) return null;
-  if (ref.kind === "net") return `net:${ref.localId}`;
   return graph.nodes.find((node) =>
     (node.ref?.instance || node.ref?.name || node.ref?.localId || node.id) === ref.localId &&
     node.kind === ref.kind &&

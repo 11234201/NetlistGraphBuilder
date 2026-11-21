@@ -65,7 +65,10 @@ export function createProcessLogController({ elements, setStatus, copyText, down
   elements.clearButton.addEventListener("click", clear);
 
   function append(level, phase, message, details, options = {}) {
-    if (options.onlyIfUnreported && details?.error && log.hasEntry(reportedErrors.get(details.error))) return;
+    if (options.onlyIfUnreported && details?.error && log.correlate(reportedErrors.get(details.error),details)) {
+      render();
+      return;
+    }
     const entry = options.progressKey
       ? log.progress({ level, phase, message, details, key: options.progressKey })
       : log.append({ level, phase, message, details });

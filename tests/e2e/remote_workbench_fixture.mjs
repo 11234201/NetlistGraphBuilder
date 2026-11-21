@@ -15,5 +15,8 @@ const files = {
 for (const [path,body] of Object.entries(files)) await writeFile(join(inputs,path),body);
 await copyFile("examples/aig_mapped_names.blif",join(inputs,"base/top.blif"));
 await copyFile("tests/fixtures/aig/shared_cone.dot",join(inputs,"shared_cone.dot"));
-await copyFile(resolve(process.argv[2] || "build/native/ngb"),join(dir,"deploy/ngb")); await chmod(join(dir,"deploy/ngb"),0o700);
+if (process.argv[2] !== "--no-elf") {
+  await copyFile(resolve(process.argv[2] || "build/native/ngb"),join(dir,"deploy/ngb"));
+  await chmod(join(dir,"deploy/ngb"),0o700);
+}
 console.log(dir);

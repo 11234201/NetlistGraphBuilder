@@ -1,505 +1,68 @@
 using System;
-using System.Diagnostics;
+using System.ComponentModel;
 using System.IO;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-using System.Collections.Generic;
-using System.Web.Script.Serialization;
+using System.Runtime.InteropServices;
 
 namespace NetlistGraphBuilderLauncher
 {
     internal static class Program
     {
-        private static readonly string AppRoot = Path.GetFullPath(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app"));
-        private static volatile bool running = true;
-        private static TcpListener listener;
-        private static string startupManifestJson = "{\"version\":1,\"inputs\":{},\"target\":{}}";
-        [ThreadStatic] private static string requestMethod;
-        [ThreadStatic] private static string requestTarget;
+        [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr LoadLibraryEx(string filename, IntPtr file, uint flags);
+
+        [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+        private static extern IntPtr GetProcAddress(IntPtr module, string name);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int PythonMain(int argc, IntPtr argv);
 
         private static int Main(string[] args)
         {
-            TerminalLog.Initialize();
-            AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs evt) {
-                TerminalLog.Error("process.uncaught", "Unhandled launcher exception", evt.ExceptionObject as Exception);
-            };
-            int code = 1;
-            try { code = Run(args); }
-            catch (Exception error) { TerminalLog.Error("process.uncaught", "Unhandled launcher exception", error); }
-            finally {
-                if (listener != null) listener.Stop();
-                TerminalLog.Write(code == 0 ? "info" : "error", "process.exit", "Launcher exiting",
-                    new Dictionary<string, object> { { "exitCode", code } });
-            }
-            return code;
-        }
-
-        private static int Run(string[] args)
-        {
-            Console.OutputEncoding = Encoding.UTF8;
-            if (!File.Exists(Path.Combine(AppRoot, "index.html")))
-            {
-                TerminalLog.Error("startup.failed", "Release package is incomplete: app\\index.html was not found.");
-                return 2;
-            }
-
-            bool openBrowser = true;
-            bool explicitPort = false;
-            int port = 4173;
-            string netlistPath = null;
-            string timingPath = null;
-            string cellConfigPath = null;
-            string moduleName = null;
-            string focusName = null;
-            int? faninDepth = null;
-            int? fanoutDepth = null;
-            for (int index = 0; index < args.Length; index++)
-            {
-                string argument = args[index];
-                if (argument == "--no-browser" || argument == "--no-open")
-                {
-                    openBrowser = false;
-                }
-                else if (argument == "--help" || argument == "-h")
-                {
-                    PrintHelp();
-                    return 0;
-                }
-                else if (argument == "--port")
-                {
-                    if (!RequireValue(args, ref index, argument)) return 2;
-                    int parsedPort;
-                    if (!int.TryParse(args[index], out parsedPort) || parsedPort < 0 || parsedPort > 65535)
-                    {
-                        TerminalLog.Error("arguments.invalid", "Invalid --port value.");
-                        return 2;
-                    }
-                    port = parsedPort;
-                    explicitPort = true;
-                }
-                else if (argument == "--fanin-depth" || argument == "--fanout-depth")
-                {
-                    if (!RequireValue(args, ref index, argument)) return 2;
-                    int depth;
-                    if (!int.TryParse(args[index], out depth) || depth < 0 || depth > 99)
-                    {
-                        TerminalLog.Error("arguments.invalid", "Invalid " + argument + " value; expected 0 to 99.");
-                        return 2;
-                    }
-                    if (argument == "--fanin-depth") faninDepth = depth; else fanoutDepth = depth;
-                }
-                else if (argument == "--netlist" || argument == "--timing" || argument == "--cell-config" ||
-                         argument == "--module" || argument == "--focus")
-                {
-                    if (!RequireValue(args, ref index, argument)) return 2;
-                    string value = args[index];
-                    if (argument == "--netlist") netlistPath = value;
-                    else if (argument == "--timing") timingPath = value;
-                    else if (argument == "--cell-config") cellConfigPath = value;
-                    else if (argument == "--module") moduleName = value;
-                    else focusName = value;
-                }
-                else
-                {
-                    TerminalLog.Error("arguments.invalid", "Unknown option: " + argument);
-                    return 2;
-                }
-            }
-
-            Dictionary<string, object> manifest;
             try
             {
-                manifest = CreateStartupManifest(netlistPath, timingPath, cellConfigPath, moduleName, focusName, faninDepth, fanoutDepth);
-                startupManifestJson = new JavaScriptSerializer().Serialize(manifest);
-            }
-            catch (Exception error)
-            {
-                TerminalLog.Error("startup.failed", error.Message, error);
-                return 2;
-            }
+                string root = AppDomain.CurrentDomain.BaseDirectory;
+                string runtime = Path.Combine(root, "runtime");
+                string library = File.ReadAllText(Path.Combine(runtime, "version.txt")).Trim();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(library, @"^python3[0-9]+\.dll$"))
+                    throw new InvalidDataException("Invalid packaged runtime version.");
+                string script = Path.Combine(root, "app", "tools", "serve.py");
+                if (!File.Exists(script) || !File.Exists(Path.Combine(root, "app", "index.html")))
+                    throw new FileNotFoundException("Release package is incomplete.");
 
-            listener = StartListener(port, explicitPort, out port);
-            if (listener == null) return 1;
-
-            bool hasStartup = ((Dictionary<string, object>)manifest["inputs"]).Count > 0 ||
-                ((Dictionary<string, object>)manifest["target"]).Count > 0;
-            string url = "http://127.0.0.1:" + port + "/" + (hasStartup ? "?startup=1" : "");
-            Console.Title = "Netlist Graph Builder";
-            Console.WriteLine(CreateReadyJson(port, url, manifest));
-            TerminalLog.Write("info", "server.ready", "Keep this window open. Press Ctrl+C to stop.",
-                new Dictionary<string, object> { { "port", port } });
-            Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs eventArgs)
-            {
-                eventArgs.Cancel = true;
-                running = false;
-                TerminalLog.Write("info", "server.stopping", "Stopping preview server", new Dictionary<string, object> { { "reason", "Ctrl+C" } });
-                listener.Stop();
-            };
-
-            if (openBrowser) OpenBrowser(url);
-
-            while (running)
-            {
+                // Search dependencies beside this DLL and in System32. Never use the caller's PATH.
+                IntPtr module = LoadLibraryEx(Path.Combine(runtime, library), IntPtr.Zero, 0x100 | 0x800);
+                if (module == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+                IntPtr entry = GetProcAddress(module, "Py_Main");
+                if (entry == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var run = (PythonMain)Marshal.GetDelegateForFunctionPointer(entry, typeof(PythonMain));
+                Environment.SetEnvironmentVariable("NGB_WINDOWS_PACKAGE_RUNTIME", "1");
+                string[] prefix = {Environment.GetCommandLineArgs()[0], "-I", "-B", "-u", "-X", "utf8", script};
+                string[] words = new string[prefix.Length + args.Length];
+                prefix.CopyTo(words, 0);
+                args.CopyTo(words, prefix.Length);
+                IntPtr argv = Marshal.AllocHGlobal((words.Length + 1) * IntPtr.Size);
+                IntPtr[] values = new IntPtr[words.Length];
                 try
                 {
-                    TcpClient client = listener.AcceptTcpClient();
-                    ThreadPool.QueueUserWorkItem(delegate { HandleClient(client); });
+                    for (int i = 0; i < words.Length; i++)
+                    {
+                        values[i] = Marshal.StringToHGlobalUni(words[i]);
+                        Marshal.WriteIntPtr(argv, i * IntPtr.Size, values[i]);
+                    }
+                    Marshal.WriteIntPtr(argv, words.Length * IntPtr.Size, IntPtr.Zero);
+                    return run(words.Length, argv);
                 }
-                catch (SocketException)
+                finally
                 {
-                    if (running) throw;
+                    foreach (IntPtr value in values) if (value != IntPtr.Zero) Marshal.FreeHGlobal(value);
+                    Marshal.FreeHGlobal(argv);
                 }
-                catch (ObjectDisposedException)
-                {
-                    if (running) throw;
-                }
-            }
-            return 0;
-        }
-
-        private static bool RequireValue(string[] args, ref int index, string argument)
-        {
-            if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
-            {
-                TerminalLog.Error("arguments.invalid", argument + " requires a value.");
-                return false;
-            }
-            index++;
-            return true;
-        }
-
-        private static void PrintHelp()
-        {
-            Console.WriteLine("Usage: NetlistGraphBuilder.exe [options]");
-            Console.WriteLine("  --netlist <path>       structural Verilog to load");
-            Console.WriteLine("  --timing <path>        standard timing report (Tabular/CSV/JSON)");
-            Console.WriteLine("  --cell-config <path>   versioned Cell Config JSON");
-            Console.WriteLine("  --module <name>        module selected after loading");
-            Console.WriteLine("  --focus <instance>     cell instance to focus");
-            Console.WriteLine("  --fanin-depth <0-99>   focused fanin depth");
-            Console.WriteLine("  --fanout-depth <0-99>  focused fanout depth");
-            Console.WriteLine("  --port <0-65535>       localhost port; 0 selects an idle port");
-            Console.WriteLine("  --no-open              do not open the default browser");
-        }
-
-        private static Dictionary<string, object> CreateStartupManifest(
-            string netlistPath,
-            string timingPath,
-            string cellConfigPath,
-            string moduleName,
-            string focusName,
-            int? faninDepth,
-            int? fanoutDepth)
-        {
-            Dictionary<string, object> inputs = new Dictionary<string, object>();
-            if (cellConfigPath != null)
-            {
-                Dictionary<string, object> input = ReadStartupInput(cellConfigPath, "--cell-config");
-                ValidateCellConfig((string)input["text"]);
-                inputs["cellConfig"] = input;
-            }
-            if (netlistPath != null) inputs["netlist"] = ReadStartupInput(netlistPath, "--netlist");
-            if (timingPath != null) inputs["timing"] = ReadStartupInput(timingPath, "--timing");
-
-            Dictionary<string, object> target = new Dictionary<string, object>();
-            if (moduleName != null) target["module"] = moduleName;
-            if (focusName != null) target["focus"] = focusName;
-            if (faninDepth.HasValue) target["faninDepth"] = faninDepth.Value;
-            if (fanoutDepth.HasValue) target["fanoutDepth"] = fanoutDepth.Value;
-            return new Dictionary<string, object> {
-                { "version", 1 }, { "inputs", inputs }, { "target", target }
-            };
-        }
-
-        private static Dictionary<string, object> ReadStartupInput(string path, string option)
-        {
-            string absolute = Path.GetFullPath(path);
-            try
-            {
-                return new Dictionary<string, object> {
-                    { "name", Path.GetFileName(absolute) }, { "text", File.ReadAllText(absolute, Encoding.UTF8) }
-                };
             }
             catch (Exception error)
             {
-                throw new ArgumentException("Cannot read " + option + " file " + absolute + ": " + error.Message);
-            }
-        }
-
-        private static void ValidateCellConfig(string text)
-        {
-            Dictionary<string, object> value;
-            try
-            {
-                value = new JavaScriptSerializer().DeserializeObject(text) as Dictionary<string, object>;
-            }
-            catch (Exception error)
-            {
-                throw new ArgumentException("Invalid --cell-config JSON: " + error.Message);
-            }
-            object kind;
-            object version;
-            object cellsValue;
-            if (value == null || !value.TryGetValue("kind", out kind) || Convert.ToString(kind) != "netlist-cell-config" ||
-                !value.TryGetValue("version", out version) || Convert.ToInt32(version) != 1 ||
-                !value.TryGetValue("cells", out cellsValue) || !(cellsValue is Dictionary<string, object>))
-            {
-                throw new ArgumentException("Invalid --cell-config schema: expected netlist-cell-config version 1.");
-            }
-            foreach (string key in value.Keys)
-                if (key != "kind" && key != "version" && key != "cells")
-                    throw new ArgumentException("Invalid --cell-config schema field: " + key + ".");
-            HashSet<string> gateKinds = new HashSet<string>(new[] {
-                "AND", "OR", "MUX", "INV", "NAND", "NOR", "XOR", "XNOR", "BUF", "REGISTER", "BLACKBOX"
-            });
-            HashSet<string> directions = new HashSet<string>(new[] { "input", "output", "inout", "unknown" });
-            foreach (KeyValuePair<string, object> cell in (Dictionary<string, object>)cellsValue)
-            {
-                Dictionary<string, object> definition = cell.Value as Dictionary<string, object>;
-                object gateValue;
-                object pinsValue;
-                if (definition == null || !definition.TryGetValue("gateKind", out gateValue) ||
-                    !gateKinds.Contains(Convert.ToString(gateValue).ToUpperInvariant()) ||
-                    !definition.TryGetValue("pins", out pinsValue) || !(pinsValue is Dictionary<string, object>))
-                {
-                    throw new ArgumentException("Invalid --cell-config definition for " + cell.Key + ".");
-                }
-                foreach (string key in definition.Keys)
-                    if (key != "displayName" && key != "gateKind" && key != "pins")
-                        throw new ArgumentException("Invalid --cell-config field for " + cell.Key + ": " + key + ".");
-                foreach (object direction in ((Dictionary<string, object>)pinsValue).Values)
-                {
-                    if (!directions.Contains(Convert.ToString(direction)))
-                        throw new ArgumentException("Invalid --cell-config pin direction for " + cell.Key + ".");
-                }
-            }
-        }
-
-        private static string CreateReadyJson(int port, string url, Dictionary<string, object> manifest)
-        {
-            Dictionary<string, object> inputs = (Dictionary<string, object>)manifest["inputs"];
-            Dictionary<string, object> target = (Dictionary<string, object>)manifest["target"];
-            Dictionary<string, object> startup = new Dictionary<string, object>();
-            foreach (string kind in new[] { "netlist", "timing", "cellConfig" })
-            {
-                startup[kind] = inputs.ContainsKey(kind)
-                    ? ((Dictionary<string, object>)inputs[kind])["name"] : null;
-            }
-            foreach (string key in new[] { "module", "focus", "faninDepth", "fanoutDepth" })
-                startup[key] = target.ContainsKey(key) ? target[key] : null;
-            return new JavaScriptSerializer().Serialize(new Dictionary<string, object> {
-                { "event", "ready" }, { "host", "127.0.0.1" }, { "port", port }, { "url", url }, { "startup", startup }
-            });
-        }
-
-        private static TcpListener StartListener(int requestedPort, bool explicitPort, out int selectedPort)
-        {
-            int attempts = explicitPort ? 1 : 20;
-            for (int offset = 0; offset < attempts; offset++)
-            {
-                int candidate = requestedPort + offset;
-                try
-                {
-                    TcpListener candidateListener = new TcpListener(IPAddress.Loopback, candidate);
-                    candidateListener.Start();
-                    selectedPort = candidate == 0
-                        ? ((IPEndPoint)candidateListener.LocalEndpoint).Port
-                        : candidate;
-                    return candidateListener;
-                }
-                catch (SocketException error)
-                {
-                    if (explicitPort)
-                    {
-                        TerminalLog.Error("server.failed", "Port " + candidate + " is already in use.", error);
-                    }
-                }
-            }
-
-            selectedPort = requestedPort;
-            TerminalLog.Error("server.failed", "Could not find an available local port.");
-            return null;
-        }
-
-        private static void OpenBrowser(string url)
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
-            catch (Exception error)
-            {
-                TerminalLog.Error("browser.open_failed", "Could not open the default browser; open " + url + " manually", error);
-            }
-        }
-
-        private static void HandleClient(TcpClient client)
-        {
-            requestMethod = "";
-            requestTarget = "/";
-            using (client)
-            {
-                try
-                {
-                    client.ReceiveTimeout = 5000;
-                    client.SendTimeout = 5000;
-                    NetworkStream stream = client.GetStream();
-                    StreamReader reader = new StreamReader(stream, Encoding.ASCII, false, 4096, true);
-                    string requestLine = reader.ReadLine();
-                    if (String.IsNullOrWhiteSpace(requestLine)) return;
-
-                    string header;
-                    do
-                    {
-                        header = reader.ReadLine();
-                    } while (!String.IsNullOrEmpty(header));
-
-                    string[] requestParts = requestLine.Split(' ');
-                    requestMethod = requestParts[0];
-                    if (requestParts.Length > 1) requestTarget = requestParts[1];
-                    if (requestParts.Length < 2 || (requestParts[0] != "GET" && requestParts[0] != "HEAD"))
-                    {
-                        WriteTextResponse(stream, 405, "Method Not Allowed", "Method not allowed", false);
-                        return;
-                    }
-
-                    string relativePath;
-                    if (!TryResolveRequestPath(requestParts[1], out relativePath))
-                    {
-                        WriteTextResponse(stream, 403, "Forbidden", "Forbidden", requestParts[0] == "HEAD");
-                        return;
-                    }
-
-                    if (relativePath == "__ngb_startup__.json")
-                    {
-                        WriteResponse(stream, 200, "OK", "application/json; charset=utf-8",
-                            Encoding.UTF8.GetBytes(startupManifestJson), requestParts[0] == "HEAD");
-                        return;
-                    }
-
-                    string filePath = Path.GetFullPath(Path.Combine(
-                        AppRoot,
-                        relativePath.Replace('/', Path.DirectorySeparatorChar)));
-                    string rootPrefix = AppRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                    if (TerminalLog.Contains(filePath)) {
-                        WriteTextResponse(stream, 403, "Forbidden", "Forbidden", requestParts[0] == "HEAD");
-                        return;
-                    }
-                    if (!filePath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
-                    {
-                        WriteTextResponse(stream, 404, "Not Found", "Not found", requestParts[0] == "HEAD");
-                        return;
-                    }
-
-                    byte[] content = File.ReadAllBytes(filePath);
-                    WriteResponse(
-                        stream,
-                        200,
-                        "OK",
-                        GetMimeType(Path.GetExtension(filePath)),
-                        content,
-                        requestParts[0] == "HEAD");
-                }
-                catch (IOException error)
-                {
-                    if (error.InnerException is SocketException) TerminalLog.Write("warning", "http.disconnected", "Client disconnected");
-                    else ReportRequestFailure(client, error);
-                }
-                catch (Exception error)
-                {
-                    ReportRequestFailure(client, error);
-                }
-            }
-        }
-
-        private static void ReportRequestFailure(TcpClient client, Exception error)
-        {
-            TerminalLog.Error("http.failed", "Request handling failed", error);
-            try { WriteTextResponse(client.GetStream(), 500, "Internal Server Error", "Internal server error", false); }
-            catch (Exception secondary) { TerminalLog.Write("warning", "http.disconnected", "Could not send error response: " + secondary.Message); }
-        }
-
-        private static bool TryResolveRequestPath(string rawTarget, out string relativePath)
-        {
-            relativePath = null;
-            Uri uri;
-            if (!Uri.TryCreate("http://127.0.0.1" + rawTarget, UriKind.Absolute, out uri)) return false;
-
-            string decoded;
-            try
-            {
-                decoded = Uri.UnescapeDataString(uri.AbsolutePath).Replace('\\', '/');
-            }
-            catch (UriFormatException)
-            {
-                return false;
-            }
-
-            decoded = decoded.TrimStart('/');
-            if (decoded.Length == 0) decoded = "index.html";
-            string[] segments = decoded.Split('/');
-            foreach (string segment in segments)
-            {
-                if (segment == "..") return false;
-            }
-            relativePath = decoded;
-            return true;
-        }
-
-        private static void WriteTextResponse(
-            Stream stream,
-            int status,
-            string reason,
-            string message,
-            bool headOnly)
-        {
-            WriteResponse(
-                stream,
-                status,
-                reason,
-                "text/plain; charset=utf-8",
-                Encoding.UTF8.GetBytes(message),
-                headOnly);
-        }
-
-        private static void WriteResponse(
-            Stream stream,
-            int status,
-            string reason,
-            string contentType,
-            byte[] content,
-            bool headOnly)
-        {
-            TerminalLog.Request(requestMethod, requestTarget, status);
-            string headers = "HTTP/1.1 " + status + " " + reason + "\r\n" +
-                "Content-Type: " + contentType + "\r\n" +
-                "Content-Length: " + content.Length + "\r\n" +
-                "Cache-Control: no-cache\r\n" +
-                "X-Content-Type-Options: nosniff\r\n" +
-                "Connection: close\r\n\r\n";
-            byte[] headerBytes = Encoding.ASCII.GetBytes(headers);
-            stream.Write(headerBytes, 0, headerBytes.Length);
-            if (!headOnly) stream.Write(content, 0, content.Length);
-            stream.Flush();
-        }
-
-        private static string GetMimeType(string extension)
-        {
-            switch ((extension ?? "").ToLowerInvariant())
-            {
-                case ".html": return "text/html; charset=utf-8";
-                case ".css": return "text/css; charset=utf-8";
-                case ".js": return "text/javascript; charset=utf-8";
-                case ".json": return "application/json; charset=utf-8";
-                case ".svg": return "image/svg+xml; charset=utf-8";
-                case ".v":
-                case ".sv":
-                case ".txt":
-                case ".log": return "text/plain; charset=utf-8";
-                default: return "application/octet-stream";
+                TerminalLog.Initialize();
+                TerminalLog.Error("startup.failed", "Could not start the packaged workbench", error);
+                return 1;
             }
         }
     }

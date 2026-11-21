@@ -5,17 +5,27 @@ from __future__ import print_function
 import argparse
 import datetime
 import email.utils
+import errno
 import json
 import os
 import signal
 import sys
 import time
+import tempfile
+import threading
 import uuid
 import webbrowser
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler
+from urllib.parse import unquote, urlsplit
 from terminal_log import TerminalLog
+from workbench_client import cli, terminal
+from workbench_protocol import CommandError, Grammar
+from workbench_server_files import WorkbenchFiles, canonical, inside, opened_path
+from workbench_service import WorkbenchService
+from workbench_transport import BrowserServer, ControlEndpoint, control_call, handle_post
 
-LOG = TerminalLog("python")
+WINDOWS_PACKAGE = os.name == "nt" and os.environ.get("NGB_WINDOWS_PACKAGE_RUNTIME") == "1"
+LOG = TerminalLog("windows" if WINDOWS_PACKAGE else "python")
 
 if os.name == "nt":
     import ctypes
@@ -50,20 +60,35 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             return
         SimpleHTTPRequestHandler.do_GET(self)
 
+    def do_POST(self):
+        handle_post(self)
+
+    def translate_path(self, path):
+        name = unquote(urlsplit(path).path).lstrip("/") or "index.html"
+        return os.path.join(ROOT, name)
+
     def send_head(self):
         path = self.translate_path(self.path)
-        if LOG.contains(path):
+        root = canonical(ROOT)
+        if not inside(canonical(path),root):
             self.send_error(403, "Forbidden")
             return None
-        if os.path.isdir(path):
-            return SimpleHTTPRequestHandler.send_head(self)
         try:
-            output = open(path, "rb")
+            with self.server.files.regular(path, False) as stream:
+                actual = opened_path(stream.fileno()) or canonical(path)
+                relative = os.path.relpath(actual, root).replace(os.sep, "/") if inside(actual,root) else ""
+                if not (relative in ("index.html","styles.css") or relative.startswith(("src/","vendor/","examples/"))):
+                    self.send_error(403, "Forbidden")
+                    return None
+                output = os.fdopen(os.dup(stream.fileno()),"rb")
+        except CommandError:
+            self.send_error(403, "Forbidden")
+            return None
         except OSError as error:
             if error.errno in (2, 20):
                 self.send_error(404, "Not found")
             else:
-                LOG.write("error", "http.read_failed", "Could not read requested file", error=error)
+                LOG.write("error", "http.failed" if WINDOWS_PACKAGE else "http.read_failed", "Could not read requested file", error=error)
                 self.send_error(500, "Internal server error")
             return None
         try:
@@ -131,7 +156,9 @@ def parse_args(argv):
     command = "start"
     if arguments and arguments[0] in ("start", "stop", "status"):
         command = arguments.pop(0)
-    parser = LauncherArgumentParser(description="Launch Netlist Graph Builder on localhost")
+    parser = LauncherArgumentParser(
+        description="Launch Netlist Graph Builder on localhost",
+        epilog="Use start to serve, status or stop with --state-file, and cmd --state-file FILE help for workbench commands.")
     parser.add_argument("--netlist")
     parser.add_argument("--timing")
     parser.add_argument("--cell-config", dest="cell_config")
@@ -140,6 +167,11 @@ def parse_args(argv):
     parser.add_argument("--fanin-depth", type=bounded_integer(0, 99), dest="fanin_depth")
     parser.add_argument("--fanout-depth", type=bounded_integer(0, 99), dest="fanout_depth")
     parser.add_argument("--port", type=bounded_integer(0, 65535), default=os.environ.get("PORT", "4173"))
+    parser.add_argument("--browse-root",dest="roots",action="append",default=[])
+    interactive = parser.add_mutually_exclusive_group()
+    interactive.add_argument("--interactive",action="store_true",dest="interactive")
+    interactive.add_argument("--no-interactive",action="store_false",dest="interactive")
+    parser.set_defaults(interactive=None)
     parser.add_argument("--no-open", "--no-browser", action="store_true", dest="no_open")
     parser.add_argument("--state-file", dest="state_file")
     parser.add_argument("--replace", action="store_true", dest="replace_existing")
@@ -147,6 +179,7 @@ def parse_args(argv):
     parser.add_argument("--parent-death", action="store_true", dest="parent_death")
     args = parser.parse_args(arguments)
     args.command = command
+    args.explicit_port = any(arg == "--port" or arg.startswith("--port=") for arg in arguments)
     if args.state_file:
         args.state_file = os.path.abspath(args.state_file)
     if args.replace_existing and not args.state_file:
@@ -179,14 +212,22 @@ def process_exists(pid):
 
 
 def process_matches_state(state):
+    if state.get("control"):
+        try:
+            result = control_call(state,{"version":1,"op":"identity"})
+            return all(result.get(k) == state[k] for k in ("pid","owner","stateFile"))
+        except (OSError, ValueError, KeyError, CommandError, EOFError):
+            return False
     if os.name == "nt":
-        return True
+        return False
     try:
         with open("/proc/{}/cmdline".format(state["pid"]), "rb") as stream:
-            command_line = stream.read().replace(b"\0", b" ").decode("utf-8", "replace")
-        return ("serve.py" in command_line and "--state-file" in command_line and
-                os.path.basename(state["stateFile"]) in command_line)
-    except (IOError, OSError):
+            args = [os.fsdecode(a) for a in stream.read().split(b"\0")]
+        cwd = os.readlink("/proc/{}/cwd".format(state["pid"]))
+        idx = args.index("--state-file")
+        return (any(canonical(os.path.join(cwd,a)) == canonical(__file__) for a in args) and
+                canonical(os.path.join(cwd,args[idx + 1])) == canonical(state["stateFile"]))
+    except (IOError, OSError, ValueError, IndexError):
         return False
 
 
@@ -205,18 +246,14 @@ def write_state(state):
     directory = os.path.dirname(state["stateFile"])
     if directory and not os.path.isdir(directory):
         os.makedirs(directory)
-    temporary = state["stateFile"] + ".tmp.{}".format(os.getpid())
-    with open(temporary, "w", encoding="utf-8") as stream:
-        json.dump(state, stream, ensure_ascii=False, separators=(",", ":"))
-        stream.write("\n")
+    fd, temporary = tempfile.mkstemp(prefix=os.path.basename(state["stateFile"])+".tmp.",dir=directory)
     try:
-        os.replace(temporary, state["stateFile"])
-    except Exception:
-        try:
-            os.remove(temporary)
-        except OSError:
-            pass
-        raise
+        with os.fdopen(fd,"w",encoding="utf8") as stream:
+            json.dump(state, stream, ensure_ascii=False, separators=(",", ":"))
+            stream.write("\n")
+        os.link(temporary, state["stateFile"])
+    finally:
+        os.unlink(temporary)
 
 
 def remove_state(path):
@@ -227,6 +264,15 @@ def remove_state(path):
             raise
 
 
+def remove_owned_state(state):
+    try:
+        current = read_state(state["stateFile"])
+        if (current.get("pid"), current.get("owner")) == (state["pid"], state.get("owner")):
+            remove_state(state["stateFile"])
+    except FileNotFoundError:
+        pass
+
+
 def stop_state(path, force=False):
     try:
         state = read_state(path)
@@ -235,12 +281,16 @@ def stop_state(path, force=False):
             return None, "stopped"
         raise
     if not process_exists(state["pid"]):
-        remove_state(path)
+        remove_owned_state(state)
         return state, "stopped"
     if not process_matches_state(state):
         raise ValueError("Refusing to stop PID {}: it does not match the Netlist Graph Builder state file".format(state["pid"]))
     try:
-        if os.name == "nt" and force:
+        if not force and state.get("workbenchHost") == "python":
+            response = control_call(state,dict(version=1,op="stop",owner=state["owner"]))
+            if response.get("error"):
+                raise ValueError("Control channel refused stop")
+        elif os.name == "nt" and force:
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             kernel32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
             kernel32.OpenProcess.restype = ctypes.c_void_p
@@ -263,14 +313,8 @@ def stop_state(path, force=False):
     while process_exists(state["pid"]) and time.time() < deadline:
         time.sleep(0.05)
     if process_exists(state["pid"]):
-        if not force:
-            return state, "running"
-        try:
-            os.kill(state["pid"], signal.SIGKILL)
-        except OSError as error:
-            if error.errno != 3:
-                raise
-    remove_state(path)
+        return state, "running"
+    remove_owned_state(state)
     return state, "stopped"
 
 
@@ -334,8 +378,13 @@ def create_manifest(args):
 
 
 def main(argv=None):
+    global RUNNING
+    arguments = sys.argv[1:] if argv is None else argv
+    grammar = Grammar(ROOT)
+    if arguments[:1] == ["cmd"]:
+        return cli(arguments[1:], grammar, read_state, LOG)
     try:
-        args = parse_args(sys.argv[1:] if argv is None else argv)
+        args = parse_args(arguments)
         if args.command in ("stop", "status"):
             if not args.state_file:
                 LOG.write("error", "arguments.invalid", "--state-file is required for {}".format(args.command))
@@ -347,23 +396,31 @@ def main(argv=None):
                 print(json.dumps(state, ensure_ascii=False, separators=(",", ":")))
             print("status={}".format(status))
             return 1 if status == "running" else 0
+        manifest = create_manifest(args)
         if args.state_file and os.path.exists(args.state_file):
             if args.replace_existing:
-                stop_state(args.state_file)
+                _, status = stop_state(args.state_file)
+                if status != "stopped":
+                    raise ValueError("The previous session is still running")
             else:
                 state = read_state(args.state_file)
-                if process_exists(state["pid"]) and process_matches_state(state):
+                if process_exists(state["pid"]):
                     raise ValueError("A Netlist Graph Builder session is already running for state file: {}".format(args.state_file))
-                remove_state(args.state_file)
-        manifest = create_manifest(args)
+                remove_owned_state(state)
     except ValueError as error:
         LOG.write("error", "startup.failed", str(error), error=error)
         return 2
-    os.chdir(ROOT)
     PreviewHandler.startup_json = json.dumps(manifest, ensure_ascii=False, separators=(",", ":"))
     LOG.write("info", "server.starting", "Starting Netlist Graph Builder preview server")
     try:
-        server = HTTPServer((HOST, args.port), PreviewHandler)
+        attempts = 20 if WINDOWS_PACKAGE and not args.explicit_port else 1
+        for offset in range(min(attempts,65536-args.port)):
+            try:
+                server = BrowserServer((HOST,args.port + offset),PreviewHandler)
+                break
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE or offset + 1 >= min(attempts,65536-args.port):
+                    raise
     except OSError as error:
         LOG.write("error", "server.failed", "Failed to start preview server", error=error)
         return 1
@@ -379,18 +436,38 @@ def main(argv=None):
             "fanoutDepth": manifest["target"].get("fanoutDepth")
         }
     }
-    state = None
-    if args.state_file:
-        state = {
-            "version": 1, "pid": os.getpid(), "port": actual_port, "url": url,
-            "stateFile": args.state_file, "owner": "{}-{}".format(os.getpid(), uuid.uuid4())
-        }
-        try:
-            write_state(state)
-        except (IOError, OSError) as error:
-            LOG.write("error", "session.write_failed", "Could not write state file", error=error)
-            server.server_close()
-            return 1
+    temporary = tempfile.TemporaryDirectory(prefix="ngb-session-")
+    state = {"version":1, "pid":os.getpid(), "port":actual_port, "url":url, "workbenchHost":"python",
+             "stateFile":args.state_file or os.path.join(temporary.name,"state.json"), "owner":uuid.uuid4().hex}
+    stop_event = threading.Event()
+    endpoint = None
+    service = None
+    try:
+        server.files = WorkbenchFiles(args.roots, state["stateFile"], temporary.name, LOG)
+        service = WorkbenchService(grammar,server.files,LOG)
+        def dispatch(body, admin):
+            if admin and isinstance(body,dict) and body.get("version") == 1:
+                if body.get("op") == "identity":
+                    return {key:state[key] for key in ("version","pid","owner","stateFile")}
+                if body.get("op") == "stop" and body.get("owner") == state["owner"]:
+                    stop_event.set()
+                    return {"version":1,"status":"stopped"}
+            return service.handle(body,admin)
+        endpoint = ControlEndpoint(temporary.name,dispatch,LOG)
+        server.dispatch, server.log = dispatch, LOG
+        state["control"] = endpoint.path
+        write_state(state)
+        ready["stateFile"] = state["stateFile"]
+        ready["pairUrl"] = url + "#ngb=" + service.pair
+    except Exception as error:
+        LOG.write("error","session.write_failed","Could not initialize workbench session",error=error)
+        server.server_close()
+        if service:
+            service.close()
+        if endpoint:
+            endpoint.close()
+        temporary.cleanup()
+        return 1
     print(json.dumps(ready, ensure_ascii=False, separators=(",", ":")), flush=True)
     LOG.write("info", "server.ready", "Preview server ready", port=actual_port)
     if not args.no_open:
@@ -400,14 +477,13 @@ def main(argv=None):
             try:
                 with open(os.devnull, "wb") as quiet:
                     os.dup2(quiet.fileno(), sys.stdout.fileno())
-                    if not webbrowser.open(url):
+                    if not webbrowser.open(ready["pairUrl"]):
                         LOG.write("error", "browser.open_failed", "Default browser could not be opened", url=url)
             finally:
                 os.dup2(saved_stdout, sys.stdout.fileno())
                 os.close(saved_stdout)
         except Exception as error:
             LOG.write("error", "browser.open_failed", "Default browser could not be opened", error=error, url=url)
-    global RUNNING
     parent_pid = os.getppid()
     stop_reason = ["shutdown"]
     def request_stop(signum, frame):
@@ -416,9 +492,11 @@ def main(argv=None):
         stop_reason[0] = signal.Signals(signum).name
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
-    server.timeout = 0.5
+    server.timeout = 0.20
+    if args.interactive or (args.interactive is None and sys.stdin.isatty()):
+        threading.Thread(target=terminal,args=(lambda body:dispatch(body,True),grammar,stop_event.set),daemon=True).start()
     try:
-        while RUNNING:
+        while RUNNING and not stop_event.is_set():
             server.handle_request()
             if args.parent_death and (os.getppid() != parent_pid or not process_exists(parent_pid)):
                 RUNNING = False
@@ -427,15 +505,16 @@ def main(argv=None):
         RUNNING = False
     finally:
         LOG.write("info", "server.stopping", "Stopping preview server", reason=stop_reason[0])
+        service.close()
         server.server_close()
+        endpoint.close()
         if state:
             try:
-                current = read_state(state["stateFile"])
-                if current.get("pid") == state["pid"] and current.get("owner") == state["owner"]:
-                    remove_state(state["stateFile"])
+                remove_owned_state(state)
             except (IOError, OSError, ValueError) as error:
                 if getattr(error, "errno", None) != 2:
                     LOG.write("error", "session.cleanup_failed", "Could not remove state file", error=error)
+        temporary.cleanup()
     return 0
 
 

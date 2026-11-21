@@ -214,6 +214,14 @@ export function createWorkbenchShell({
   return Object.freeze({
     refresh: () => render("viewport"),
     setPanelOpen,
+    setPanelWidth(panel, width) {
+      if (!elements[panel] || !Number.isSafeInteger(width) || width <= 0)
+        throw Object.assign(new Error("Invalid panel or width"), {code:"INVALID_ARGUMENT"});
+      if (layout[panel].mode !== "docked") throw Object.assign(new Error("Panel is in drawer mode"), {code:"PANEL_UNDOCKED"});
+      prefs[panel + "Width"] = normalizePanelWidth(panel, width);
+      render("resize"); save();
+      return layout[panel].width;
+    },
     selectNavigatorTab,
     getPreferences: () => ({ ...prefs }),
     setInspectorTab(tab) {

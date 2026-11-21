@@ -124,13 +124,20 @@ function getPage(items, group, pages, size) {
 function renderPager(total, group, page, size) {
   if (total <= size) return "";
   const start = page * size;
-  return `<div class="inspection-pagination" aria-label="Connection list pages">
+  return `<div class="inspection-pagination" aria-label="Connection list pages" data-page-count="${Math.ceil(total / size)}" data-current-page="${page + 1}">
     <span>${start + 1}–${Math.min(start + size, total)} of ${total}</span>
     <button class="mini-button" type="button" data-inspection-page-group="${escapeAttr(group)}" data-inspection-page="${page - 1}"${page === 0 ? " disabled" : ""}>Previous</button>
     <button class="mini-button" type="button" data-inspection-page-group="${escapeAttr(group)}" data-inspection-page="${page + 1}"${start + size >= total ? " disabled" : ""}>Next</button>
   </div>`;
 }
 
+const listCommands = new WeakMap();
+export function openInspectionPage(list, page) {
+  const panel = list.closest("[data-object-connections], [data-object-analysis]");
+  const command = listCommands.get(panel);
+  if (!command) throw Object.assign(new Error("Inspector list is unavailable"), {code:"UNAVAILABLE"});
+  command(list.dataset.inspectionList, page - 1);
+}
 export function bindObjectDetailsPanel(container, inspection) {
   const panels = [
     container.querySelector?.("[data-object-connections]"),
@@ -139,11 +146,7 @@ export function bindObjectDetailsPanel(container, inspection) {
   if (panels.length === 0) return;
   const pages = {};
   for (const panel of panels) {
-    panel.addEventListener("click", (event) => {
-      const button = event.target.closest?.("[data-inspection-page-group]");
-      if (!button || !panel.contains(button)) return;
-      const group = button.dataset.inspectionPageGroup;
-      const page = Number(button.dataset.inspectionPage);
+    function changePage(group, page) {
       if (!Number.isInteger(page) || page < 0) return;
       pages[group] = page;
       const list = [...panel.querySelectorAll("[data-inspection-list]")].find((item) => item.dataset.inspectionList === group);
@@ -164,6 +167,11 @@ export function bindObjectDetailsPanel(container, inspection) {
       const focusTarget = [...(updated?.querySelectorAll("[data-inspection-page-group]") || [])]
         .find((item) => item.dataset.inspectionPageGroup === group && !item.disabled);
       focusTarget?.focus({ preventScroll: true });
+    }
+    listCommands.set(panel,changePage);
+    panel.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-inspection-page-group]");
+      if (button && panel.contains(button)) changePage(button.dataset.inspectionPageGroup,Number(button.dataset.inspectionPage));
     });
   }
 }

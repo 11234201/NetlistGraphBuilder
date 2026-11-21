@@ -48,9 +48,10 @@ function post(address, payload) {
 
 async function start(adapter, dir, roots, defaultState=false) {
   let stateFile=defaultState ? undefined : join(roots[0],adapter+".state");
-  const app=adapter==="elf" ? [join(dir,"deploy/ngb")] : [process.execPath,join(project,"tools/serve.mjs")];
+  const app=adapter==="elf" ? [join(dir,"deploy/ngb")] : adapter==="python" ?
+    [python,join(project,"tools/serve.py")] : [process.execPath,join(project,"tools/serve.mjs")];
   const options={cwd:dir,env:{...process.env,NGB_LOG_DIR:join(dir,"logs-"+adapter)}};
-  if (adapter==="elf") options.env.PATH="/nonexistent";
+  if (adapter==="elf" || adapter==="python") options.env.PATH="/nonexistent";
   const stateArgs=defaultState ? ["--interactive"] : ["--no-interactive","--state-file",stateFile];
   const child=spawn(python,["-c",limitedExec,String(cap),...app,"start","--no-open",
     "--port","0",...stateArgs,...roots.flatMap(root=>["--browse-root",root])],options);
@@ -107,6 +108,21 @@ async function check(adapter,s,dir,roots,t){
   const grant=(id)=>s.page(a,"grant",{id});
   const ack=(id,result)=>s.page(a,"ack",{id,result});
   const receipt=async(id,expected)=>assert.equal((await s.admin("status",{id})).status,expected);
+  await t.test(adapter+" cancellation lane remains usable while normal page work is executing",async()=>{
+    assert.equal(a.cancelLane,true);
+    const nextWork=s.page(a,"poll",{lane:"work", waitMs:4000});
+    const nextCancel=s.page(a,"poll",{lane:"cancel", waitMs:4000});
+    await command("running-work","module","list");
+    assert.equal((await nextWork).job.id,"running-work");
+    assert.equal((await grant("running-work")).granted,true);
+    await command("interrupt","analysis","cancel");
+    assert.equal((await nextCancel).job.id,"interrupt");
+    assert.equal((await grant("interrupt")).granted,true);
+    await ack("interrupt",{cancelled:true});
+    const cancelled=await s.page(a,"ack",{id:"running-work",error:{code:"CANCELLED",message:"Cancelled"}});
+    assert.equal(cancelled.status,"cancelled");
+    assert.equal(cancelled.page,a.page);
+  });
   await t.test(adapter+" R01 available actions follow document mode, Compare side and picker state",async()=>{
     const ambiguous=await available();
     assert.equal(ambiguous.error.code,"PAGE_REQUIRED");
@@ -295,24 +311,26 @@ async function check(adapter,s,dir,roots,t){
   await s.page(a,"leave");
 }
 
-test("Linux Node and standalone ELF workbench protocol",{timeout:90000},async t=>{
+test("Linux workbench launcher protocol",{timeout:120000},async t=>{
+  const adapters=(process.env.NGB_PROTOCOL_ADAPTERS||"npm,elf,python").split(",");
   assert.equal(process.platform,"linux","run on the SSH server");
   const dir=await mkdtemp(join(tmpdir(),"ngb-protocol-"));
   const roots=[join(dir,"input"),join(dir,"second")];
   const running=[];
   try{
     await Promise.all([...roots,join(dir,"deploy")].map(p=>mkdir(p)));
-    await copyFile(binary,join(dir,"deploy/ngb"));await chmod(join(dir,"deploy/ngb"),0o700);
+    if (adapters.includes("elf")) {
+      await copyFile(binary,join(dir,"deploy/ngb"));await chmod(join(dir,"deploy/ngb"),0o700);
+    }
     await writeFile(join(roots[0],"probe.v"),"// probe-private-marker");
     await writeFile(join(roots[0],"unreadable.v"),"unreadable-private-marker",{mode:0});
     await mkdir(join(roots[1],"child"));
     await writeFile(join(roots[1],"child","prefix-hidden.v"),"");
     for(const name of ["prefix-top.v","ignore-prefix-embedded.v"])await writeFile(join(roots[1],name),"");
     await Promise.all(Array.from({length:103},(_,i)=>writeFile(join(roots[1],"sample"+String(i).padStart(3,"0")),"")));
-    for(const adapter of ["npm","elf"]) running.push(await start(adapter,dir,roots));
-    await check("npm",running[0],dir,roots,t);
-    await check("elf",running[1],dir,roots,t);
-    for(const adapter of ["npm","elf"]){
+    for(const adapter of adapters) running.push(await start(adapter,dir,roots));
+    for(const [index,adapter] of adapters.entries()) await check(adapter,running[index],dir,roots,t);
+    for(const adapter of adapters){
       await t.test(adapter+" R02/R06 auto state identifies its own interactive service for status and stop",async()=>{
         const session=await start(adapter,dir,roots,true);
         try{
@@ -323,8 +341,10 @@ test("Linux Node and standalone ELF workbench protocol",{timeout:90000},async t=
     }
     await t.test("R02/R06 targeted stop releases state, control socket and port while sibling stays reachable",async()=>{
       await running[0].stop();
-      assert.equal((await running[1].admin("command",{argv:["pages"]})).status,"committed");
-      await running[1].stop();
+      for(const sibling of running.slice(1)) {
+        assert.equal((await sibling.admin("command",{argv:["pages"]})).status,"committed");
+        await sibling.stop();
+      }
     });
   }finally{
     await Promise.all(running.map(s=>s.cleanup()));

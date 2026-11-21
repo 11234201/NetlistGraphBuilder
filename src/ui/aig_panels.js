@@ -147,7 +147,7 @@ function outsideScope(visible, id, path) {
   return visible && !visible.has(id) ? " · outside Focused" : "";
 }
 
-function renderNames(workspace, options) {
+function nameRecords(workspace, options) {
   const query = String(options.nameQuery || "").trim().toLowerCase();
   const context = getIndexes(workspace);
   if (context.nameQuery !== query) {
@@ -159,7 +159,18 @@ function renderNames(workspace, options) {
     }) : all;
     context.nameQuery = query;
   }
-  const { names } = context;
+  return context.names;
+}
+
+export function readAigNavigatorPage(workspace, options) {
+  const entries = options.tab === "names" ? nameRecords(workspace, options) : getObjectView(workspace, options).context.objects;
+  const {page,start,end} = pageRange(entries.length, options.page);
+  return {page:page + 1, total:entries.length, entries:entries.slice(start,end)};
+}
+
+function renderNames(workspace, options) {
+  const query = String(options.nameQuery || "").trim().toLowerCase();
+  const names = nameRecords(workspace, options);
   const { start, end, page } = pageRange(names.length, options.page);
   const rows = names.slice(start, end).map((row) => {
     const node = workspace.query.nodeById.get(row.nodeId);
@@ -206,7 +217,7 @@ function renderAnalysis(workspace, object, isEdge, options) {
     ["Source depth", query.nodeById.get(object.source).level], ["Target depth", query.nodeById.get(object.target).level], ["Polarity", object.inverted ? "Inverted" : "Positive"]]
     : [["AND depth", object.level], ["Fanout references", analysis.fanout[object.id] || 0], ["Logical critical path", query.criticalNodes.has(object.id) ? "Yes" : "No"],
       ["High fanout threshold", threshold], ["Threshold reached", (analysis.fanout[object.id] || 0) >= threshold ? "Yes" : "No"]];
-  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl>${renderAigStructureMembership(workspace, object, isEdge, options.structure)}`;
+  return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl>${renderAigStructureMembership(workspace, object, options.structure)}`;
 }
 
 function renderSource(object, isEdge, options) {
@@ -249,7 +260,7 @@ function pageRange(count, requested) {
 function renderPager(count, page, target) {
   if (count <= AIG_PANEL_PAGE_SIZE) return "";
   const pages = Math.ceil(count / AIG_PANEL_PAGE_SIZE);
-  return `<nav class="inspection-pager" aria-label="AIG ${target} pages"><button type="button" data-aig-page="${page - 1}" data-aig-page-target="${target}"${page === 0 ? " disabled" : ""}>Previous</button>
+  return `<nav class="inspection-pager" aria-label="AIG ${target} pages" data-current-page="${page + 1}" data-page-count="${pages}"><button type="button" data-aig-page="${page - 1}" data-aig-page-target="${target}"${page === 0 ? " disabled" : ""}>Previous</button>
     <span>Page ${page + 1} / ${pages}</span><button type="button" data-aig-page="${page + 1}" data-aig-page-target="${target}"${page === pages - 1 ? " disabled" : ""}>Next</button></nav>`;
 }
 

@@ -23,14 +23,16 @@ async function until(fn,label,timeout=20000) {
   do{try{last=await fn();if(last)return last;}catch(e){last=e;}await delay(90);}while(Date.now()<end);
   throw new Error("Timed out "+label+" "+String(last));
 }
-const dir=await ssh(["node","tests/e2e/remote_workbench_fixture.mjs"]);
+const adapters=(process.env.NGB_ADAPTERS||"npm,elf").split(",");
+const dir=await ssh(["node","tests/e2e/remote_workbench_fixture.mjs",...(adapters.includes("elf")?[]:["--no-elf"])]);
 const browser=await chromium.launch({headless:true,executablePath:process.env.NGB_CHROME_BINARY,args:["--no-first-run"]});
 const report={fixture:dir,runs:[]};
 async function run(adapter) {
   const native=adapter==="elf", state=dir+"/"+adapter+".state", inp=dir+"/inputs", bin=dir+"/deploy/ngb";
   const remotePort=randomInt(20000,30000),localPort=randomInt(31000,42000);
-  const cmd=native?["env","PATH=/nonexistent",bin]:["node",root+"/tools/serve.mjs"];
-  const start=native?[...cmd,"start"]:["npm","start","--"];
+  const python=adapter==="python";
+  const cmd=native?["env","PATH=/nonexistent",bin]:python?["env","PATH=/nonexistent","/usr/bin/python3",root+"/tools/serve.py"]:["node",root+"/tools/serve.mjs"];
+  const start=native||python?[...cmd,"start"]:["npm","start","--"];
   const args=["--port",String(remotePort),"--browse-root",inp,"--browse-root",dir+"/second","--state-file",state,"--no-open"];
   // ssh started from a piped CI controller otherwise advertises TERM=dumb; model a user terminal.
   const term=spawn("ssh",["-tt","-o","ExitOnForwardFailure=yes","-L","127.0.0.1:"+localPort+":127.0.0.1:"+remotePort,host,"cd "+quote(root)+" && exec "+shell(["env","TERM=xterm-256color",...start,...args])],{windowsHide:true});
@@ -131,9 +133,17 @@ async function run(adapter) {
     await until(async()=>(await ok("--page",pn,"timing","show","a"))[0]?.slack===0.10,"first Slack");
     assert.equal((await repl("use "+pn)).page,pn);
     assert.equal((await repl("add "+inp+"/extra.v")).status,"committed");
-    const tcl=await ssh(["tclsh","tests/e2e/remote_workbench_acceptance.tcl",native?"elf":"node",native?bin:root+"/tools/serve.mjs",state,pn,inp+"/中文 timing/T2.rpt"]);
+    const tcl=await ssh(["tclsh","tests/e2e/remote_workbench_acceptance.tcl",native?"elf":python?"python":"node",
+      native?bin:root+(python?"/tools/serve.py":"/tools/serve.mjs"),state,pn,inp+"/中文 timing/T2.rpt"]);
     assert.ok(tcl.includes("TCL_PASS "+pn));
     await ok("--page",pn,"module","open","top");
+    const replSelection = (await repl("selection get")).result.selection;
+    const cliSelection = (await ok("--page",pn,"selection","get")).selection;
+    assert.equal(cliSelection.id,"input:a");
+    assert.deepEqual(replSelection,cliSelection);
+    for (const words of [["liberty","status"],["compare","status"],["path","draft"],["analysis","status"]]) {
+      assert.deepEqual((await repl(words.join(" "))).result,await ok("--page",pn,...words));
+    }
     const checkNet=async()=>{const mods=(await ok("--page",pn,"module","list")).map(x=>x.name).sort();
       const slack=[];for(const point of ["a","y"])slack.push((await ok("--page",pn,"timing","show",point))[0]?.slack);
       assert.deepEqual(mods,["extra","top"]);assert.deepEqual(slack,[0.10,-0.05]);return {mods,slack};};
@@ -273,8 +283,8 @@ async function run(adapter) {
   }
 }
 try{
-  for(const adapter of (process.env.NGB_ADAPTERS||"npm,elf").split(",")) await run(adapter);
-  if(report.runs.length===2 && process.env.NGB_CHECK_ARCHIVE!=="only") {
+  for(const adapter of adapters) await run(adapter);
+  if(report.runs.length>=2 && process.env.NGB_CHECK_ARCHIVE!=="only") {
     function businessResults(result) {
       const byId=Object.fromEntries(result.steps.map(s=>[s.id,s]));
       const {A1,A2,A3,A4,A5}=byId;
@@ -289,8 +299,8 @@ try{
         files:A4.files,conflict:A4.conflict,added:A4.once.added.map(({name,format,fingerprint})=>({name,format,fingerprint})),
         graphCount:A4.graphCount,closed:A5.closed,reopened:A5.reopened,retainedAfterClose:[A5.mods,A5.slack]};
     }
-    const [npm,elf]=report.runs.map(businessResults);
-    assert.deepEqual(npm,elf);
+    const [reference,...others]=report.runs.map(businessResults);
+    for (const other of others) assert.deepEqual(other,reference);
     report.A6="passed";console.log("A6 passed");
   }
 }finally{

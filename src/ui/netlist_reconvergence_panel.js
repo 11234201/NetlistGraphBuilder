@@ -9,7 +9,7 @@ function page(items, number, render, key) {
   const last = Math.max(0, Math.ceil(items.length / pageSize) - 1);
   const current = Math.max(0, Math.min(number, last));
   const rows = items.slice(current * pageSize, (current + 1) * pageSize).map(render).join("");
-  const paging = last ? `<div class="recon-actions">${button(key + "-", "Previous", current === 0)} ${current + 1} / ${last + 1} ${button(key + "+", "Next", current === last)}</div>` : "";
+  const paging = last ? `<div class="recon-actions" data-recon-page="${h(key)}" data-current-page="${current + 1}" data-page-count="${last + 1}">${button(key + "-", "Previous", current === 0)} ${current + 1} / ${last + 1} ${button(key + "+", "Next", current === last)}</div>` : "";
   return rows + paging;
 }
 

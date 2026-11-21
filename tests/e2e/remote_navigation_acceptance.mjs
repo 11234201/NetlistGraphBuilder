@@ -1,0 +1,156 @@
+import assert from "node:assert/strict";
+import {join} from "node:path";
+
+// Shared by host acceptance runs. The command function addresses one already
+// paired page and returns the public workbench receipt.
+export async function verifyRemoteNavigation({command,page,project,scratch}) {
+  const verified = new Set();
+  async function ok(...argv) {
+    const reply = await command(...argv);
+    assert.equal(reply.status,"committed",JSON.stringify({argv,reply}));
+    verified.add(argv.slice(0,2).join(" "));
+    return reply.result;
+  }
+  async function fails(code,...argv) {
+    const reply = await command(...argv);
+    assert.equal(reply.status,"failed",JSON.stringify({argv,reply}));
+    if (code) assert.equal(reply.error.code,code,JSON.stringify({argv,reply}));
+  }
+  await ok("design","open",project + "/examples/module_hierarchy_demo.v");
+  await ok("module","open","hierarchy_demo_top");
+  const tree = await ok("hierarchy","list","--filter","u_compute");
+  const choices = await ok("hierarchy","occurrences","compute_cluster");
+  assert.equal(choices.length,2);
+  assert.deepEqual(tree.items.map(row => row.id).sort(),choices.map(row => row.id).sort());
+  const child = choices.find(row => row.instanceName === "u_compute_right");
+  assert.ok(child);
+  await ok("hierarchy","open",child.id);
+  const selected = await ok("selection","set","input:a");
+  assert.equal(selected.selection.moduleName,"compute_cluster");
+  assert.deepEqual(selected.selection.occurrencePath,["u_compute_right"]);
+  const parents = await ok("inspect","connections","input:a","--group","parent");
+  assert.equal(parents.items[0].target.name,"after_left");
+  const occurrenceGolden = scratch && join(scratch,"right-occurrence.json");
+  if (occurrenceGolden) await ok("golden","save","--out",occurrenceGolden,"--overwrite");
+  const followed = await ok("inspect","follow",JSON.stringify(parents.items[0].target));
+  assert.equal(followed.selection.moduleName,"hierarchy_demo_top");
+  assert.equal(followed.selection.name,"after_left");
+  await ok("hierarchy","enter","cell:u_compute_left");
+  await ok("selection","set","input:a");
+  assert.equal((await ok("inspect","connections","input:a","--group","parent")).items[0].target.name,"a");
+  await fails("STALE_REFERENCE","selection","set",JSON.stringify(selected.selection));
+  await fails("STALE_REFERENCE","inspect","follow",JSON.stringify(parents.items[0].target));
+  if (occurrenceGolden) {
+    await ok("golden","load",occurrenceGolden);
+    assert.deepEqual((await ok("selection","set","input:a")).selection.occurrencePath,child.occurrencePath);
+  }
+  await fails("OCCURRENCE_NOT_FOUND","hierarchy","open","missing");
+
+  const design = "module top(input a, output y); wire n; BUF u1 (.A(a), .Y(n)); INV u2 (.A(n), .Y(y)); endmodule";
+  await ok("design","open","--text",design,"--name","edit.v");
+  const results = await ok("search","find","u1");
+  const hit = results.find(r => r.target.kind === "cell");
+  assert.ok(hit);
+  await ok("search","open",hit.id);
+  assert.equal((await ok("selection","get")).selection.name,"u1");
+  await ok("selection","zoom");
+  assert.equal(await ok("inspect","copy","cell:u1"),"u1");
+  assert.equal((await ok("inspect","show","cell:u1","--tab","source")).source.name,"u1");
+  assert.ok((await ok("inspect","tooltip","cell:u1")).text);
+  assert.match((await ok("inspect","tooltip",JSON.stringify({id:"cell:u1",pin:"A"}))).text,/A/);
+  await fails("PIN_NOT_FOUND","inspect","tooltip",JSON.stringify({id:"cell:u1",pin:"missing"}));
+  const fanout = await ok("inspect","connections","cell:u1","--group","fanout");
+  assert.ok(fanout.items.some(target => target.id === "cell:u2"));
+  await ok("search","clear");
+  await fails("OBJECT_NOT_FOUND","search","open","missing");
+  await ok("selection","clear");
+  assert.equal((await ok("selection","get")).selection,null);
+  await fails("NO_SELECTION","selection","zoom");
+  await ok("selection","set","cell:u1");
+  await ok("view","focused");
+  await ok("view","whole");
+  await ok("search","find","u1");
+  assert.deepEqual((await ok("focus","replace",hit.id)).roots,["cell:u1"]);
+  assert.deepEqual((await ok("focus","add","cell:u2")).roots.sort(),["cell:u1","cell:u2"]);
+  assert.equal((await ok("focus","activate","cell:u1")).active,"cell:u1");
+  assert.deepEqual((await ok("focus","list","--filter","u2")).roots,["cell:u2"]);
+  assert.equal((await ok("focus","depth","--fanin","0","--fanout","2")).fanin,0);
+  assert.deepEqual((await ok("focus","remove","cell:u2")).roots,["cell:u1"]);
+  await ok("focus","clear");
+  await fails("ROOT_NOT_FOUND","focus","activate","cell:u1");
+  await ok("viewport","fit");
+  const start = await ok("viewport","get");
+  const panned = await ok("viewport","pan","12","8");
+  assert.ok(panned.x !== start.x && panned.y !== start.y);
+  const zoom = await ok("viewport","zoom","1.2","--at","13","15");
+  assert.ok(zoom.scale > panned.scale);
+  await ok("history","back");
+  assert.equal((await ok("viewport","get")).scale,panned.scale);
+  await ok("history","forward");
+  assert.equal((await ok("viewport","get")).scale,zoom.scale);
+  assert.ok((await page.locator("#schematicMount svg").count()) > 0);
+  await fails("INVALID_ARGUMENT","viewport","zoom","0");
+  const providers = await ok("layout","providers");
+  assert.ok(providers.some(p => p.id === "native-layered"));
+  await ok("layout","provider","native-layered");
+  await fails("INVALID_ARGUMENT","layout","provider","missing");
+  await ok("display","aliases","on"); await ok("display","hubs","off");
+  await ok("display","symbols","conventional");
+  assert.equal((await ok("layout","spacing","--wire","32")).wire,32);
+  assert.ok(await page.locator("#showAliasesInput").isChecked());
+  await fails("ADJUST_DISABLED","adjust","size","cell:u1","125","65");
+  await ok("adjust","mode","on");
+  const moved = await ok("adjust","move","cell:u1","149","139");
+  assert.ok(moved.position);
+  assert.deepEqual((await ok("adjust","size","cell:u1","125","65")).size,{width:125,height:65});
+  assert.equal((await ok("adjust","property","cell:u1","label","moved cell")).properties.label,"moved cell");
+  assert.equal((await ok("adjust","pin","cell:u1","A","output")).pins.A,"output");
+  assert.equal((await ok("net","route","n","off")).enabled,false);
+  assert.equal((await ok("net","route","n","on")).enabled,true);
+  if (scratch) {
+    const path = scratch + "/navigation-golden.json";
+    const saved = await ok("golden","save","--out",path,"--overwrite");
+    assert.ok(saved.bytes > 0);
+    await ok("layout","reset-overrides");
+    await ok("golden","load",path);
+    const golden = await ok("inspect","show","cell:u1");
+    assert.ok(golden.summary.some(([key,value]) => key === "Label" && value === "moved cell"));
+  }
+  await ok("adjust","reset-size","cell:u1"); await ok("adjust","reset-properties","cell:u1");
+  await ok("adjust","reset-pins","cell:u1");
+  await ok("layout","reset-overrides");
+  await ok("design","open","--text",design + "\n" + design.replace("module top","module peer"),"--name","compare.v");
+  await ok("compare","enter");
+  await ok("compare","sync-viewport","off");
+  await ok("compare","sync-roots","off");
+  const left = (await ok("selection","set","cell:u1","--side","A")).selection;
+  assert.equal(left.side,"A");
+  await ok("compare","side","B");
+  await fails("STALE_REFERENCE","selection","set",JSON.stringify(left));
+  const right = (await ok("selection","set","cell:u2")).selection;
+  assert.equal(right.side,"B");
+  await ok("focus","replace","cell:u1","--side","A");
+  assert.deepEqual((await ok("focus","list","--side","A")).roots,["cell:u1"]);
+  assert.deepEqual((await ok("focus","list","--side","B")).roots,[]);
+  await ok("focus","clear","--side","A");
+  assert.deepEqual((await ok("focus","list","--side","A")).roots,[]);
+  const beforeLeft = await ok("viewport","get","--side","A");
+  await ok("viewport","pan","10","-5","--side","B");
+  assert.deepEqual(await ok("viewport","get","--side","A"),beforeLeft);
+  await ok("compare","exit");
+  await ok("aig","open",project + "/examples/aig_mapped_names.blif");
+  await ok("selection","set","n0");
+  const oldAig = (await ok("selection","get")).selection;
+  const secondAig = (await ok("selection","set",JSON.stringify({sourceId:"n1"}))).selection;
+  assert.notEqual(oldAig.id,secondAig.id);
+  assert.ok(oldAig.graphId);
+  assert.equal(await ok("inspect","copy",JSON.stringify({...oldAig,field:"mapping"})),"dp_add_2_cp_temp3_combined/in_96");
+  assert.ok((await ok("inspect","show","n0")).source);
+  assert.ok((await ok("inspect","connections","n0","--group","outgoing")).total >= 1);
+  await ok("focus","replace",oldAig.id,secondAig.id);
+  assert.deepEqual((await ok("focus","list")).roots.sort(),[oldAig.id,secondAig.id].sort());
+  await ok("focus","clear");
+  await ok("aig","open",project + "/examples/aig_mapped_names.blif");
+  await fails("STALE_REFERENCE","selection","set",JSON.stringify(oldAig));
+  return {commands:[...verified].sort(),occurrences:choices.map(x => x.occurrencePath),restoredViewport:zoom};
+}

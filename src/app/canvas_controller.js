@@ -168,7 +168,7 @@ export function createCanvasController({ state, elements, services }) {
 
   function commitNodeDrag(nodeId, preview) {
     if (!state.autoGraph) {
-      preview.clear();
+      preview?.clear();
       services.renderCurrentModuleGraph();
       return;
     }
@@ -180,8 +180,8 @@ export function createCanvasController({ state, elements, services }) {
     });
     state.graph = adjusted.graph;
     state.scene = adjusted.scene;
-    preview.clear();
-    services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
+    preview?.clear();
+    return services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
       if (result?.cancelled) return;
       services.setSelectedNode(nodeId, false);
       services.applyTransform();

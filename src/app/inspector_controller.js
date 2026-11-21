@@ -181,7 +181,6 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function bindCompareSelectionControls(side, node, missing) {
-    const instance = services.getNodeInstance(node);
     const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
       onLogCellTiming: () => logCellTiming?.(side, missing),
@@ -201,7 +200,11 @@ export function createInspectorController({ state, elements, services, netRoutin
         services.renderCompareGraphs();
       }
     });
-    bindAdjustPanel(elements.details, node, state.calibrationMode, {
+    bindAdjustPanel(elements.details, node, state.calibrationMode, compareAdjustHandlers(side,node));
+  }
+  function compareAdjustHandlers(side,node) {
+    const instance = services.getNodeInstance(node);
+    return {
       onSizeChange: (size) => {
         services.updateCompareOverrides(side, (overrides) => overrides.nodeSizes.set(node.id, {
           width: services.clamp(Number(size.width), 24, 420),
@@ -241,7 +244,7 @@ export function createInspectorController({ state, elements, services, netRoutin
         if (instance) services.updateCompareOverrides(side, (overrides) => delete overrides.graphOverrides.cellPinDirections[instance]);
         services.renderCompareGraphs();
       }
-    });
+    };
   }
 
   function focusCompareSelection(kind, name) {
@@ -367,7 +370,6 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function bindSelectionControls(node, missing) {
-    const instance = services.getNodeInstance(node);
     const timingKey = getTimingKey(node);
     bindTimingPanel(elements.details, {
       onLogCellTiming: () => logCellTiming?.(null, missing),
@@ -383,7 +385,11 @@ export function createInspectorController({ state, elements, services, netRoutin
       }
     });
 
-    bindAdjustPanel(elements.details, node, state.calibrationMode, {
+    bindAdjustPanel(elements.details, node, state.calibrationMode, singleAdjustHandlers(node));
+  }
+  function singleAdjustHandlers(node) {
+    const instance = services.getNodeInstance(node);
+    return {
       onSizeChange: (size) => updateNodeSize(node.id, size),
       onResetSize: () => {
         services.updateSingleOverrides((overrides) => overrides.nodeSizes.delete(node.id));
@@ -404,7 +410,12 @@ export function createInspectorController({ state, elements, services, netRoutin
         rerenderPreservingView(node.id);
         services.setStatus(`${node.label}: pin directions reset`);
       }
-    });
+    };
+  }
+
+  function editNodeOverride(side, node, operation, ...args) {
+    const handlers = side ? compareAdjustHandlers(side,node) : singleAdjustHandlers(node);
+    return handlers[operation](...args);
   }
 
   function updateTimingBadgePosition(node, position) {
@@ -485,7 +496,7 @@ export function createInspectorController({ state, elements, services, netRoutin
     services.applyTransform();
   }
 
-  return Object.freeze({ renderStats, signed, formatGateKinds, applyCompareHighlights, selectCompareObject, clearCompareSelection, compareObjectExists, renderCompareSelection, bindCompareSelectionControls, focusCompareSelection, renderSelection, renderNetSelection, currentHierarchyInspectionContext, renderDiagnostics, bindSelectionControls, updateTimingBadgePosition, updateNodeSize, updateNodeProperty, updateCellPinDirection, updateTimingBadgeChoice, rerenderPreservingView });
+  return Object.freeze({ editNodeOverride, renderStats, signed, formatGateKinds, applyCompareHighlights, selectCompareObject, clearCompareSelection, compareObjectExists, renderCompareSelection, bindCompareSelectionControls, focusCompareSelection, renderSelection, renderNetSelection, currentHierarchyInspectionContext, renderDiagnostics, bindSelectionControls, updateTimingBadgePosition, updateNodeSize, updateNodeProperty, updateCellPinDirection, updateTimingBadgeChoice, rerenderPreservingView });
 }
 
 export const inspectorPorts = Object.freeze({

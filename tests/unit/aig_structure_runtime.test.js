@@ -90,6 +90,21 @@ function analysisHarness(overrides = {}, logProcess) {
     async flush() { for (const callback of scheduled.splice(0)) callback(); await new Promise((resolve) => setImmediate(resolve)); } };
 }
 
+test("a command receives the same original worker exception recorded once at the operation boundary", async () => {
+  const reason = Object.assign(new Error("worker unavailable", {cause:new Error("fixture resource")}), {code:"FIXTURE_WORKER"});
+  const reports = [];
+  const {manager} = analysisHarness({run:async () => { throw reason; }}, (...args) => reports.push(args));
+  await assert.rejects(manager.run(true), error => error === reason);
+  assert.equal(reports.length,1);
+  const details = reports[0][3];
+  assert.equal(details.error,reason);
+  assert.equal(details.operation,"reconvergence.run");
+  assert.equal(details.documentId,"analysis");
+  assert.ok(details.jobId && details.sessionId);
+  assert.equal(manager.read().status,"error");
+  manager.dispose();
+});
+
 test("relayout does not silently restart an analysis that was cancelled or failed before producing results", async () => {
   const cancelled = analysisHarness();
   cancelled.manager.cancel(); cancelled.manager.bind(cancelled.workspace()); await cancelled.flush();

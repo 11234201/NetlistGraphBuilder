@@ -169,9 +169,12 @@ test("AIG capacity and first-layout failures identify the failed file without pu
   assert.deepEqual(collection.list(), []);
 });
 
-test("page tolerates lost replies, rejects a document switch during grant and reports the active AIG collection", async t => {
+for (const [field,before,after] of [
+  ["documentId","top","extra"], ["occurrence",["left"],["right"]],
+  ["pair",["left","right"],["left","other"]], ["activeSide","A","B"]
+]) test("page tolerates retry and rejects changes to "+field+" during grant", async t => {
   const actions = [], jobs = ["cancelled", "valid", "superseded", "graph-info"], loaded = [], waits = [], acknowledged = [], logs = [];
-  let graph = false, netlist = "top";
+  let graph = false, targetValue = before;
   const response = (body, ok = true) => ({ ok, json:async () => body });
   let inputs = 0, acks = 0;
   const wait = fn => { queueMicrotask(fn); return 0; };
@@ -200,7 +203,7 @@ test("page tolerates lost replies, rejects a document switch during grant and re
         return response({files:[{name:"sample.rpt", text:"data"}]});
       }
       if (b.op === "grant") {
-        if (b.id === "superseded") netlist = "extra";
+        if (b.id === "superseded") targetValue = after;
         return response({granted:true});
       }
       if (b.op === "ack") {
@@ -222,7 +225,7 @@ test("page tolerates lost replies, rejects a document switch during grant and re
       context:()=>graph ? {sourceLabel:"top.blif",graphId:"g2",documentId:"aig-2",sourceRevision:1} : {},
       graphs:{list:()=>[{id:"g1"}, {id:"g2"}]}
     },
-    readNetlist:()=>({mode:"Single", documentId:netlist}), priority:getQuickInputPriority, importRequests:createImportRequests(),
+    readNetlist:()=>({mode:field === "pair" || field === "activeSide" ? "Compare" : "Single", documentId:"top", [field]:targetValue}), priority:getQuickInputPriority, importRequests:createImportRequests(),
     loadText:async text=>{ loaded.push(text); return "timing"; }, logProcess:(...args)=>logs.push(args), setStatus(){}
   });
   assert.deepEqual(loaded,["data"]);

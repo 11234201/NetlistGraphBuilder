@@ -85,9 +85,9 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
   function rootsAction(type, ids, selectedId, requestWhole = false) {
     const state = pending?.focus || snapshot();
     let root = { rootNodeIds: state.focusedRootNodeIds, activeRootNodeId: state.activeFocusedRootNodeId };
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
       if (id && !readWorkspace().query.nodeById.has(id)) return;
-      root = resolveFocusedRootAction(root, { type, nodeId: id });
+      root = resolveFocusedRootAction(root, { type:type === "replace" ? (index ? "add" : "set") : type, nodeId:id });
       if (root.rejected) { setStatus("Focused root limit reached. Remove a root before adding another."); return; }
     }
     const changed = JSON.stringify(root.rootNodeIds) !== JSON.stringify(state.focusedRootNodeIds);
@@ -119,7 +119,7 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
     if (!ws.searchFirst && (!ws.visibleNodeIds || ws.visibleNodeIds.has(id) || ws.visibleEdgeIds.has(id))) return false;
     const edge = ws.query.edgeById.get(id);
     const ids = edge ? [edge.source, edge.target] : [id];
-    rootsAction("add", ids, id); return true;
+    return rootsAction("add", ids, id) || true;
   }
   function navigate(delta) {
     const saved = pending?.options.history || replaceCurrentViewHistory(history, entry());
@@ -131,14 +131,15 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
     const style = pending?.options.presentationPolicy?.viewStyle;
     return style !== undefined && style !== readSession().presentationPolicy.viewStyle;
   }
-  function changeStyle(viewStyle) {
+  function changeStyle(viewStyle, reportToCommand = false) {
     const current = readSession().presentationPolicy;
     const requested = pending?.options.presentationPolicy || current;
     if (viewStyle === requested.viewStyle) return;
     if (pending && viewStyle === current.viewStyle && sameFocus(pending.focus, snapshot()) && !pending.options.history) {
       pending = null; cancelPending(); sync(); return;
     }
-    return apply(pending?.focus || snapshot(), { ...pending?.options, presentationPolicy: { ...requested, viewStyle } }, "aig.style.layout");
+    return apply(pending?.focus || snapshot(), { ...pending?.options, reportToCommand,
+      presentationPolicy: { ...requested, viewStyle } }, "aig.style.layout");
   }
   function shortcut(event) {
     if (isEditableInputTarget(event.target)) return;
@@ -180,7 +181,8 @@ export function createAigFocusedController({ get, readWorkspace, readSession, re
     navigateViewHistory: navigate,
     handleViewHistoryShortcut: shortcut
   };
-  return { commands, reset, sync, snapshot, reveal, changeStyle,
+  return { commands, reset, sync, snapshot, reveal, changeStyle, rootsAction,
+    canNavigate(delta) { return Boolean(stepViewHistory(pending?.options.history || history, delta).entry); },
     changePath: (showPath) => apply({ ...(pending?.focus || snapshot()), showPath }, {}, "show-path.apply") };
 }
 

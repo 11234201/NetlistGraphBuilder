@@ -36,118 +36,91 @@ inline const Json &CommandCatalogue() {
     }();
     return catalogue;
 }
-inline bool FileCommand(const std::string &n) {
-    static const std::set<std::string> inputs = {
-        "design open", "design add",   "aig open",     "aig add",     "timing open",
-        "timing add",  "files import", "liberty load", "golden load", "cell-config import"};
-    return inputs.count(n);
+inline const Json *WorkbenchDefinition(const std::string &name) {
+    const auto &rows = CommandCatalogue().at("commands");
+    auto row = std::find_if(rows.begin(), rows.end(), [&](const Json &item) { return item.at("name") == name; });
+    return row == rows.end() ? nullptr : &*row;
 }
-inline const std::set<std::string> &WorkbenchValueOptions() {
-    static const std::set<std::string> options = {
-        "--page", "--side", "--request-id", "--timeout", "--page-number", "--filter",     "--action",
-        "--dir",  "--view", "--name",       "--text",    "--out",         "--on-conflict"};
-    return options;
+inline bool FileCommand(const std::string &name) {
+    const auto *def = WorkbenchDefinition(name);
+    return def && def->contains("inputStart");
+}
+inline size_t WorkbenchValueCount(const std::string &option) {
+    const auto &arity = CommandCatalogue().at("optionArity");
+    return option.rfind("--", 0) == 0 ? arity.value(option.substr(2), size_t{0}) : 0;
 }
 inline WorkbenchCommand ParseWorkbench(const Json &argv) {
     if (!argv.is_array() || argv.size() > 150)
         throw WorkbenchError("INVALID_ARGUMENT", "Invalid argument list");
-    WorkbenchCommand c;
-    std::vector<std::string> words;
-    const auto &options = WorkbenchValueOptions();
-    const std::set<std::string> flags = {"--overwrite", "--download", "--available", "--json", "--async"};
-    for (size_t i = 0; i < argv.size(); i++) {
-        if (!argv.at(i).is_string())
-            throw WorkbenchError("INVALID_ARGUMENT", "Expected string arguments");
-        std::string arg = argv.at(i);
-
-        if ((flags.count(arg) || options.count(arg)) && c.m_options.contains(arg.substr(2)))
-            throw WorkbenchError("INVALID_ARGUMENT", "Repeated option " + arg);
-        if (flags.count(arg))
-            c.m_options[arg.substr(2)] = true;
-        else if (options.count(arg) && i + 1 < argv.size() && argv.at(i + 1).is_string()) {
-            c.m_options[arg.substr(2)] = argv.at(++i);
-            if (arg != "--filter" && c.m_options.at(arg.substr(2)) == "")
-                throw WorkbenchError("INVALID_ARGUMENT", "Empty option " + arg);
-        } else if (arg.rfind("--", 0) == 0)
-            throw WorkbenchError("INVALID_ARGUMENT", "Invalid option " + arg);
-        else
-            words.push_back(arg);
-    }
-    if (words.empty())
-        throw WorkbenchError("INVALID_ARGUMENT", "Command required");
-    auto positive = [](const std::string &s) {
-        return !s.empty() && s.size() <= 8 && s.front() != '0' &&
-               s.find_first_not_of("0123456789") == std::string::npos;
-    };
-    if (c.m_options.contains("timeout") && !positive(Field(c.m_options, "timeout")))
-        throw WorkbenchError("INVALID_ARGUMENT", "Invalid timeout");
-    if (c.m_options.contains("page-number") &&
-        (!positive(Field(c.m_options, "page-number")) || Field(c.m_options, "page-number").size() > 7))
-        throw WorkbenchError("INVALID_ARGUMENT", "Invalid page number");
     const auto &catalog = CommandCatalogue();
-    size_t used = 1;
-    c.m_name = words[0];
-    if (catalog["aliases"].contains(c.m_name))
-        c.m_name = catalog["aliases"][c.m_name];
-    else if (words.size() > 1 && std::none_of(catalog["commands"].begin(), catalog["commands"].end(),
-                                              [&](const Json &d) { return d["name"] == c.m_name; })) {
-        c.m_name += " " + words[1];
-        used++;
+    const auto &arity = catalog.at("optionArity");
+    WorkbenchCommand c;
+    auto &words = c.m_args;
+    auto &opts = c.m_options;
+    for (size_t i = 0; i < argv.size(); ++i) {
+        if (!argv.at(i).is_string()) throw WorkbenchError("INVALID_ARGUMENT", "Expected string argument");
+        std::string arg = argv.at(i);
+        if (arg.rfind("--", 0) != 0) { words.push_back(arg); continue; }
+        const auto key = arg.substr(2);
+        if (!arity.contains(key) || opts.contains(key))
+            throw WorkbenchError("INVALID_ARGUMENT", "Unknown or repeated option");
+        const auto count = arity.at(key).get<size_t>();
+        Json values = Json::array();
+        for (size_t k = 0; k < count; ++k) {
+            if (++i >= argv.size() || !argv[i].is_string() || (key != "filter" && argv[i] == ""))
+                throw WorkbenchError("INVALID_ARGUMENT", "Expected a value for --" + key);
+            values.push_back(argv[i]);
+        }
+        if (!count) opts[key] = true;
+        else if (count == 1) opts[key] = values[0];
+        else opts[key] = std::move(values);
     }
-    const auto &name = c.m_name;
-    auto def = std::find_if(catalog["commands"].begin(), catalog["commands"].end(),
-                            [&](const Json &d) { return d["name"] == name; });
-    if (def == catalog["commands"].end() || def->at("capability") != "v1")
-        throw WorkbenchError("UNAVAILABLE", "Unavailable command " + name);
-    const auto side = Field(c.m_options, "side");
-    if (!side.empty() && side != "A" && side != "B")
-        throw WorkbenchError("INVALID_ARGUMENT", "Expected side A or B");
-    if (!side.empty() && !def->contains("compareSide") && !(name == "commands" && c.m_options.value("available", false)))
+    if (words.empty()) throw WorkbenchError("INVALID_ARGUMENT", "Command required");
+    c.m_name = words.front().get<std::string>();
+    words.erase(words.begin());
+    if (catalog.at("aliases").contains(c.m_name)) c.m_name = catalog.at("aliases").at(c.m_name);
+    else if (!WorkbenchDefinition(c.m_name) && !words.empty()) {
+        c.m_name += " " + words.front().get<std::string>();
+        words.erase(words.begin());
+    }
+    const auto *row = WorkbenchDefinition(c.m_name);
+    if (!row || row->at("capability") != "v1") throw WorkbenchError("UNAVAILABLE", "Unavailable command " + c.m_name);
+    const auto &def = *row;
+    auto invalid = [&] { throw WorkbenchError("INVALID_ARGUMENT", Field(def, "syntax")); };
+    const auto side = Field(opts,"side");
+    if (!side.empty() && side != "A" && side != "B") invalid();
+    if (!side.empty() && !def.contains("compareSide") && !(c.m_name == "commands" && opts.value("available",false)))
         throw WorkbenchError("INVALID_SIDE", "This command does not target a Compare side");
-    const std::string grammar = Field(*def, "syntax");
-    const std::set<std::string> global = {"page", "side", "request-id", "timeout", "json", "async"};
-    for (auto it = c.m_options.begin(); it != c.m_options.end(); ++it) {
-        const auto &key = it.key();
-        if (global.count(key) || grammar.find("--" + key) != std::string::npos)
-            continue;
-        if (FileCommand(name) && (key == "text" || key == "name"))
-            continue;
-        if (name == "svg export" && (key == "out" || key == "download" || key == "overwrite"))
-            continue;
-        throw WorkbenchError("INVALID_ARGUMENT", "Option not valid for " + name + ": --" + key);
+    static const std::set<std::string> global = {"page","side","request-id","timeout","async","json"};
+    const auto allowed = def.value("options",Json::array());
+    for (auto it = opts.begin(); it != opts.end(); ++it)
+        if (!global.count(it.key()) && std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end()) invalid();
+    for (const std::string key : {"timeout","page-number"}) {
+        if (!opts.contains(key)) continue;
+        const auto value = Field(opts,key);
+        if (value.size() > (key == "timeout" ? 8u : 7u) || value[0] == '0' ||
+            value.find_first_not_of("0123456789") != std::string::npos) invalid();
     }
-    if (c.m_options.contains("view") &&
-        !std::set<std::string>{"logic", "standard", "search-first"}.count(Field(c.m_options, "view")))
-        throw WorkbenchError("INVALID_ARGUMENT", "Invalid AIG view");
-    if (c.m_options.contains("on-conflict") &&
-        !std::set<std::string>{"abort", "replace"}.count(Field(c.m_options, "on-conflict")))
-        throw WorkbenchError("INVALID_ARGUMENT", "Expected abort or replace");
-    for (; used < words.size(); used++)
-        c.m_args.push_back(words[used]);
-    if (c.m_options.contains("text")) {
-        const auto &text = c.m_options.at("text").get_ref<const std::string &>();
-        if (!FileCommand(name) || !c.m_args.empty() || text.empty() || text.size() > 16 * 1024 * 1024)
-            throw WorkbenchError("INVALID_ARGUMENT", "Expected a single text input");
-        c.m_args.push_back(Field(c.m_options, "name", "pasted input"));
+    if (opts.contains("view") && !std::set<std::string>{"logic","standard","search-first"}.count(Field(opts,"view"))) invalid();
+    if (opts.contains("on-conflict") && !std::set<std::string>{"abort","replace"}.count(Field(opts,"on-conflict"))) invalid();
+    if (opts.contains("text")) {
+        if (words.size() != def.at("inputStart").get<size_t>() ||
+            opts.at("text").get_ref<const std::string &>().size() > 16 * 1024 * 1024) invalid();
+        words.push_back(Field(opts,"name","pasted input"));
     }
-    if (c.m_options.contains("out") || c.m_options.contains("download")) {
-        if (name != "svg export" || !c.m_args.empty() ||
-            (c.m_options.contains("out") && c.m_options.contains("download")))
-            throw WorkbenchError("INVALID_ARGUMENT", "Choose one export destination");
-        c.m_args.push_back(Field(c.m_options, "out", "download"));
+    if (opts.contains("out") || opts.contains("download")) {
+        if (!words.empty() || (opts.contains("out") && opts.contains("download"))) invalid();
+        words.push_back(Field(opts, "out", "download"));
     }
-    const std::set<std::string> many = {"design open", "design add",   "timing open", "timing add",
-                                        "aig add",     "files import", "files choose"};
-    const std::set<std::string> one = {"page info",   "page use",    "page wait",   "job status",
-                                       "job wait",    "job cancel",  "fs cd",       "fs complete",
-                                       "module open", "search find", "timing show", "svg export"};
-    size_t min =
-        name == "page rename" ? 2 : (many.count(name) || one.count(name) || FileCommand(name) ? 1 : 0);
-    size_t max = many.count(name) ? 64 : name == "help" ? 2 : name == "fs ls" ? 1 : min;
-    if (c.m_args.size() < min || c.m_args.size() > max)
-        throw WorkbenchError("INVALID_ARGUMENT", def->at("syntax"));
-    if (name != "fs complete" && std::find(c.m_args.begin(), c.m_args.end(), Json("")) != c.m_args.end())
-        throw WorkbenchError("INVALID_ARGUMENT", def->at("syntax"));
+    if (def.contains("alternative") && opts.contains(Field(def,"alternative"))) {
+        if (!words.empty()) invalid();
+    } else if (words.size() < def.at("arguments")[0].get<size_t>() || words.size() > def.at("arguments")[1].get<size_t>()) invalid();
+    if (c.m_name != "fs complete" && c.m_name != "text set" && std::find(words.begin(), words.end(), Json("")) != words.end()) invalid();
+    const auto enums = def.find("enums");
+    if (enums != def.end()) for (auto it = enums->begin(); it != enums->end(); ++it) {
+        const auto index = std::stoul(it.key());
+        if (index < words.size() && std::find(it.value().begin(),it.value().end(),words[index]) == it.value().end()) invalid();
+    }
     return c;
 }
 class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
@@ -161,10 +134,10 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
     };
     struct Job {
         std::string m_id, m_page, m_selector, m_key, m_phase, m_output;
-        bool m_finished = false, m_overwrite = false, m_preparing = false;
+        bool m_interrupt = false, m_finished = false, m_overwrite = false, m_preparing = false;
         long long m_documentVersion = 0;
         long long m_at = 0;
-        Json m_payload, m_inputs, m_side, m_result, m_error;
+        Json m_payload, m_inputs, m_side, m_result, m_error, m_scope = Json::object();
     };
     std::vector<std::string> order_;
     std::map<std::string, Job> jobs_;
@@ -219,9 +192,12 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         auto it = message.find("context");
         if (it == message.end() || !it->is_object())
             return;
-        for (const char *field : {"source", "mode"})
+        if (it->value("documentVersion", 0LL) < page.m_context.value("documentVersion", 0LL))
+            return;
+        page.m_context = Json::object();
+        for (const char *field : {"source", "mode", "moduleName", "occurrence", "pair", "graphId", "activeSide", "documentId"})
             if (it->contains(field))
-                page.m_context[field] = Field(*it, field);
+                page.m_context[field] = it->at(field);
         const auto picker = Field(*it, "pickerState");
         page.m_context["pickerState"] = picker == "open" || picker == "selected" || picker == "busy" ? picker : "closed";
         if (it->contains("documentVersion") && it->at("documentVersion").is_number_integer())
@@ -260,10 +236,10 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                 Finish(kv.second, kv.second.m_phase == "executing" ? "unknown" : "cancelled", nullptr,
                        {{"code", "PAGE_UNAVAILABLE"}, {"message", "Page disconnected"}});
     }
-    Job *NextDelivery(Page &page) {
+    Job *NextDelivery(Page &page, const std::string &lane) {
         for (const auto &id : order_) {
             auto &job = jobs_.at(id);
-            if (job.m_page != page.m_id || job.m_finished)
+            if (job.m_page != page.m_id || job.m_finished || (!lane.empty() && job.m_interrupt != (lane == "cancel")))
                 continue;
             if (job.m_phase != "queued" && job.m_phase != "delivered")
                 return nullptr;
@@ -276,28 +252,30 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
     }
     Json Poll(Page &page, const Json &message, std::unique_lock<std::mutex> &lock) {
         RefreshContext(page, message);
-        auto *job = NextDelivery(page);
+        const auto lane = Field(message,"lane");
+        if (!lane.empty() && lane != "work" && lane != "cancel") throw WorkbenchError("INVALID_ARGUMENT","Invalid poll lane");
+        auto *job = NextDelivery(page,lane);
         const auto duration = std::clamp(message.value("waitMs", 0LL), 0LL, 8000LL);
         const auto connection = page.m_connection;
         // The listener admits 32 clients. At most half may wait idle so commands,
         // file delivery and normal HTTP requests can still make progress.
         if (!job && duration > 0 && waitingConnections_.size() < 16 &&
-            waitingConnections_.insert(connection).second) {
+            waitingConnections_.insert(connection + lane).second) {
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(duration);
             try {
                 while (!job) {
                     const auto wake = changed_.wait_until(lock, deadline);
                     if (!page.m_online || page.m_connection != connection)
                         throw WorkbenchError("PAGE_UNAVAILABLE", "Page connection expired");
-                    job = NextDelivery(page);
+                    job = NextDelivery(page,lane);
                     if (wake == std::cv_status::timeout)
                         break;
                 }
             } catch (...) {
-                waitingConnections_.erase(connection);
+                waitingConnections_.erase(connection + lane);
                 throw;
             }
-            waitingConnections_.erase(connection);
+            waitingConnections_.erase(connection + lane);
         }
         if (job)
             return {{"job", job->m_payload}, {"name", page.m_name}};
@@ -353,6 +331,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                        {"requestId", job.m_id},
                        {"page", job.m_page},
                        {"operation", operation}};
+        fields.update(job.m_scope);
         if (!job.m_side.is_null()) fields["side"] = job.m_side;
         TerminalLog::Instance().Write("error", "workbench.failed", operation + " failed",
                                       fields.dump(-1, ' ', false, Json::error_handler_t::replace));
@@ -387,8 +366,8 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                       std::unique_lock<std::mutex> &lock) {
         Json inputs = Json::array();
         size_t size = 0;
-        for (const auto &arg : c.m_args) {
-            std::string name = arg.get<std::string>();
+        for (size_t index = WorkbenchDefinition(c.m_name)->at("inputStart").get<size_t>(); index < c.m_args.size(); ++index) {
+            std::string name = c.m_args[index].get<std::string>();
             if (name.rfind("ngb-file:", 0) == 0) {
                 if (!browser)
                     throw WorkbenchError("ACCESS_DENIED", "File handle requires its issuing page");
@@ -458,7 +437,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             if (job.m_finished)
                 return;
             auto options = command.m_options;
-            if (command.m_name == "svg export" && (options.contains("out") ||
+            if (WorkbenchDefinition(command.m_name)->value("output", false) && (options.contains("out") ||
                 (!options.value("download", false) && command.m_args.at(0) != "download"))) {
                 if (browser)
                     throw WorkbenchError("ACCESS_DENIED", "Use the terminal for server output");
@@ -470,6 +449,9 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             job.m_payload = {{"id", job.m_id}, {"name", command.m_name}, {"args", command.m_args},
                              {"opts", std::move(options)}, {"files", Json::array()},
                              {"hasInputs", !job.m_inputs.empty()}};
+            const auto *definition = WorkbenchDefinition(command.m_name);
+            job.m_payload["output"] = definition->value("output",false);
+            if (definition->contains("modes")) job.m_payload["modes"] = definition->at("modes");
             job.m_phase = "queued";
             changed_.notify_all();
         } catch (const std::exception &e) {
@@ -686,9 +668,12 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         retainedKeyBytes_ += j.m_key.size();
         j.m_page = p->m_id;
         j.m_selector = key;
+        j.m_interrupt = WorkbenchDefinition(name)->value("interrupt",false);
         j.m_phase = "reading";
         j.m_preparing = true;
         j.m_documentVersion = p->m_context.value("documentVersion", 0LL);
+        for (const char *field : {"documentId","graphId","documentVersion"})
+            if (p->m_context.contains(field)) j.m_scope[field] = p->m_context.at(field);
         j.m_at = now_();
         if (opts.contains("side"))
             j.m_side = opts["side"];
@@ -771,9 +756,10 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                 Disconnect(it->second);
             auto &p = pages_.at(key);
             p.m_online = true;
+            p.m_context = Json::object();
             p.m_connection = WorkbenchToken();
             p.m_seen = now_();
-            return {{"page", key}, {"resume", p.m_resume}, {"connection", p.m_connection}};
+            return {{"page", key}, {"resume", p.m_resume}, {"connection", p.m_connection}, {"cancelLane",true}};
         }
         if (it == pages_.end() || !it->second.m_online || it->second.m_connection != Field(b, "connection"))
             throw WorkbenchError("PAGE_UNAVAILABLE", "Page connection expired");
@@ -846,7 +832,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             try {
                 RefreshContext(p, b);
                 if (b.contains("error"))
-                    Finish(j, "failed", nullptr, b.at("error"));
+                    Finish(j, Field(b.at("error"),"code") == "CANCELLED" ? "cancelled" : "failed", nullptr, b.at("error"));
                 else {
                     Json result = b.at("result");
                     if (!j.m_output.empty()) {

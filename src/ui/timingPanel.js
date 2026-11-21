@@ -162,7 +162,7 @@ export function isTimingBadgePosition(value) {
   return TIMING_BADGE_POSITIONS.includes(value);
 }
 
-function getNormalizedNodePins(node) {
+export function getNormalizedNodePins(node) {
   if (node.timing?.pins && typeof node.timing.pins === "object") {
     return node.timing.pins;
   }

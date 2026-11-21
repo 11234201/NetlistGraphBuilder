@@ -1,3 +1,4 @@
+import { createCompareCommands } from "./remote_compare_commands.js";
 import { preparePathCandidate } from "./path_candidate_render.js";
 import { recommendModulePair, compareModules } from "../analysis/moduleCompare.js";
 import { saveCompareWorkspace, restoreCompareWorkspace } from "./appState.js";
@@ -450,7 +451,18 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     return state.design?.modules.find((module) => module.name === state.compare[`${side}ModuleName`]);
   }
 
-  return Object.freeze({ renderCompareModuleOptions, handleCompareOutputChange, enterCompareView, applyCompareSelection, applyCompareSelectionImpl, exitCompareView, applyCompareLayout, renderCompareGraphs, commitCompareWorkspace, updateCompareSideStatus, renderCompareOutputOptions, getCompareModule, updateCompareSideTimingControls, setCompareSideTiming, clearCompareSideTiming, assignCompareSideModule });
+  const runCompareCommand = createCompareCommands({
+    modules:() => (state.design?.modules || []).map(module => module.name), controls:() => elements,
+    enter:enterCompareView, apply:applyCompareSelection, exit:exitCompareView, clearTiming:clearCompareSideTiming,
+    setSide:side => services.compareViewSessions.setActiveSide(side), changeOutput:handleCompareOutputChange,
+    setDepth:depth => services.singleViewSession.dispatch({type:"view.coneDepth.set",coneDepth:depth}), summary:() => state.compare.analysis,
+    read:() => ({active:state.compare.active, applied:{A:state.compare.leftModuleName,B:state.compare.rightModuleName},
+      draft:{A:elements.leftModuleSelect.value,B:elements.rightModuleSelect.value},side:({left:"A",right:"B"})[state.compare.activeSide] || null,
+      split:state.compare.layout,syncViewport:state.compare.synchronized,syncRoots:state.compare.focusedRootsSynchronized,
+      timing:{A:state.compare.sideTimingLabels.left || null,B:state.compare.sideTimingLabels.right || null},
+      output:state.compare.outputName,depth:state.coneDepth})
+  });
+  return Object.freeze({ runCompareCommand, renderCompareModuleOptions, handleCompareOutputChange, enterCompareView, applyCompareSelection, applyCompareSelectionImpl, exitCompareView, applyCompareLayout, renderCompareGraphs, commitCompareWorkspace, updateCompareSideStatus, renderCompareOutputOptions, getCompareModule, updateCompareSideTimingControls, setCompareSideTiming, clearCompareSideTiming, assignCompareSideModule });
 }
 
 export const compareWorkspacePorts = Object.freeze({

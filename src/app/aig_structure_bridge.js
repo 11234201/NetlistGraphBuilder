@@ -26,12 +26,13 @@ export function createAigStructureBridge({ jobs, logProcess, mount, readWorkspac
     if (workspace?.feature.analysisPresentation) canvas.update(workspace.feature.analysisPresentation(workspace, view(), readPolicy()));
   }
   function requestDetail() { const result = query?.get(readPanelState().selectedId); if (result?.category === "reconvergence") analysis.detail(result); }
-  function choose(id) {
+  function choose(id, fromCommand = false) {
     const result = query?.get(id);
     if (!result) return;
     Object.assign(readPanelState(), revealAigStructureSelection(query, readPanelState(), id));
-    if (result.category === "reconvergence") requestDetail(); else analysis.detail(null);
+    const ready = analysis.detail(result.category === "reconvergence" ? result : null, fromCommand);
     refresh(); renderPanels(); persist();
+    return ready;
   }
   function locate() {
     const selected = query?.get(readPanelState().selectedId), workspace = readWorkspace();
@@ -49,6 +50,7 @@ export function createAigStructureBridge({ jobs, logProcess, mount, readWorkspac
     return true;
   }
   return Object.freeze({ view, refresh, choose, locate,
+    run:() => analysis.run(true), cancel:analysis.cancel, selectResult:id => choose(id,true),
     attach(workspace, elements) {
       canvas.bind(elements, workspace.positionedNodes);
       attaching = true;

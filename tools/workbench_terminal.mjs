@@ -5,7 +5,7 @@ import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import {createInterface} from "node:readline";
 import {workbenchCall} from "./workbench_ipc.mjs";
-import {createBroker, parseCommand, errorInfo, valueOptions} from "./workbench_broker.mjs";
+import {createBroker, parseCommand, errorInfo, optionValueCount} from "./workbench_broker.mjs";
 import {createWorkbenchFiles, failure} from "./workbench_files.mjs";
 
 const wait = ms => new Promise(resolveWait => setTimeout(resolveWait, ms));
@@ -187,6 +187,7 @@ export function terminal(host, stop) {
       try {
         const {argv: args} = tokenize(line);
         if (args[0] === "quit") {
+          if (args.length !== 1) throw failure("INVALID_ARGUMENT","quit takes no arguments");
           reader.close();
           stop();
           return;
@@ -252,7 +253,7 @@ export async function cli(argv, log) {
         encoded = true;
       else {
         args.push(arg);
-        if (valueOptions.has(arg) && i + 1 < argv.length)
+        for (let n = optionValueCount(arg); n > 0 && i + 1 < argv.length; n--)
           args.push(argv[++i]);
       }
     }
@@ -267,8 +268,9 @@ export async function cli(argv, log) {
       args.push(...await readTclArguments());
     }
     for (let i = 0; i < args.length; i++) {
-      if (valueOptions.has(args[i])) {
-        i++;
+      const count = optionValueCount(args[i]);
+      if (count) {
+        i += count;
       } else if (args[i] === "--stdin") {
         if (encoded)
           throw failure("INVALID_ARGUMENT", "Standard input already supplies the Tcl arguments");

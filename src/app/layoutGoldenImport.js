@@ -1,6 +1,7 @@
 import { normalizeFocusedRootNodeIds } from "./appState.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { sourceIdentitiesMatch } from "../persistence/source_identity.js";
+import { buildModuleHierarchy, findModuleOccurrences } from "../domains/netlist/module_hierarchy.js";
 
 export function resolveLayoutGoldenModule(design, imported, currentIdentity = null) {
   if (imported.display?.showPath && currentIdentity && !imported.identity?.sourceIdentity?.fingerprint) {
@@ -10,6 +11,12 @@ export function resolveLayoutGoldenModule(design, imported, currentIdentity = nu
   const module = design?.modules?.find((item) => item.name === imported.moduleName);
   if (!module) {
     throw new Error(`module ${imported.moduleName} is not present; load its Verilog netlist first`);
+  }
+  const occurrence = imported.display?.occurrenceContext;
+  if (occurrence && !findModuleOccurrences(buildModuleHierarchy(design),module.name).some(candidate =>
+    candidate.rootModuleName === occurrence.rootModuleName &&
+    JSON.stringify(candidate.occurrencePath) === JSON.stringify(occurrence.occurrencePath))) {
+    throw Object.assign(new Error("Golden occurrence is unavailable in this design"),{code:"OCCURRENCE_NOT_FOUND"});
   }
   return module;
 }

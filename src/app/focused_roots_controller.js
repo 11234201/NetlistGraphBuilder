@@ -250,9 +250,10 @@ export function createFocusedRootsController({ state, elements, services }) {
       : `Cleared Compare ${context.side} Focused roots`);
   }
 
-  function clearFocusedRoots() {
+  function clearFocusedRoots(requestedSide) {
     if (state.compare.active) {
-      const context = getFocusedRootContext();
+      const side = ["left","right"].includes(requestedSide) ? requestedSide : getFocusedRootContext().side;
+      const context = {side,roots:state.compare.focusedRootNodeIds[side],activeRootNodeId:state.compare.activeFocusedRootNodeId[side]};
       if (context.roots.length === 0) return;
       const results = [setCompareFocusedRootNodeIds(context.side, [])];
       const activeNodeId = context.activeRootNodeId;
@@ -287,7 +288,9 @@ export function createFocusedRootsController({ state, elements, services }) {
       });
     }
     const chip = event.target.closest?.("[data-focused-root-activate]");
-    const nodeId = chip?.dataset.focusedRootActivate;
+    return activateSingleFocusedRoot(chip?.dataset.focusedRootActivate);
+  }
+  function activateSingleFocusedRoot(nodeId) {
     if (!state.focusedRootNodeIds.includes(nodeId)) return;
     const netName = focusedNetName(nodeId);
     const fullNode = state.fullGraph?.nodes.find((node) => node.id === nodeId);
@@ -346,7 +349,9 @@ export function createFocusedRootsController({ state, elements, services }) {
       return;
     }
     const chip = event.target.closest?.("[data-focused-root-activate]");
-    const nodeId = chip?.dataset.focusedRootActivate;
+    return activateCompareFocusedRoot(context, chip?.dataset.focusedRootActivate);
+  }
+  function activateCompareFocusedRoot(context, nodeId) {
     if (!context.roots.includes(nodeId)) return;
     const netName = focusedNetName(nodeId);
     if (netName) {
@@ -444,7 +449,30 @@ export function createFocusedRootsController({ state, elements, services }) {
     handleFocusShortcut(event, services.focusSelectedCell, !elements.focusSelectedButton.disabled);
   }
 
-  return Object.freeze({ getSelectedSingleCell, getFocusedRootContext, setCompareFocusedRootNodeIds, syncCompareFocusedRootNode, setSelectedAsFocusedRoot, setSelectedCompareAsFocusedRoot, addSelectedAsFocusedRoot, addSelectedCompareAsFocusedRoot, removeSelectedFromFocusedRoots, removeSelectedCompareFocusedRoot, clearFocusedRoots, handleFocusedRootListClick, handleCompareFocusedRootListClick, handleFocusedRootsFilter, renderFocusedRootList, updateFocusSelectedControl, handleFocusSelectedShortcut });
+  function changeFocusedRoots(operation, ids, side) {
+    const old = side ? state.compare.focusedRootNodeIds[side] : state.focusedRootNodeIds;
+    if (operation === "activate") return side ? activateCompareFocusedRoot({side, roots:old,
+      fullGraph:state.compare.fullGraphs[side]},ids[0]) : activateSingleFocusedRoot(ids[0]);
+    const roots = operation === "remove" ? old.filter(id => !ids.includes(id)) :
+      [...new Set([...(operation === "add" ? old : []), ...ids])];
+    if (normalizeFocusedSelectionRoots(roots).length !== roots.length)
+      throw Object.assign(new Error("Focused root limit exceeded"), {code:"FOCUS_LIMIT"});
+    const active = operation === "remove" ? roots[0] : ids.at(-1);
+    if (side) {
+      const results = [setCompareFocusedRootNodeIds(side, roots, active)];
+      if (operation === "replace") syncCompareFocusedRootNode(side, null, "clear", results);
+      for (const id of ids)
+        if (!focusedNetName(id)) syncCompareFocusedRootNode(side, id, operation === "remove" ? "remove" : "add", results);
+      return applyCompareFocusedEffects(side, results);
+    }
+    if (!roots.length) return runSingleFocusedCommand({type:"focus.clear"});
+    const refs = roots.map(id => focusedNetName(id) ? services.singleViewSession.objectRefForNet(focusedNetName(id)) :
+      services.singleViewSession.objectRefForNode(state.fullGraph?.nodes.find(node => node.id === id)));
+    if (refs.some(ref => !ref)) throw Object.assign(new Error("Focused object no longer exists"), {code:"OBJECT_NOT_FOUND"});
+    return runSingleFocusedCommand({ type:"focus.replace", objectRefs:refs, activeObjectRef:refs[roots.indexOf(active)] });
+  }
+
+  return Object.freeze({ changeFocusedRoots, getSelectedSingleCell, getFocusedRootContext, setCompareFocusedRootNodeIds, syncCompareFocusedRootNode, setSelectedAsFocusedRoot, setSelectedCompareAsFocusedRoot, addSelectedAsFocusedRoot, addSelectedCompareAsFocusedRoot, removeSelectedFromFocusedRoots, removeSelectedCompareFocusedRoot, clearFocusedRoots, handleFocusedRootListClick, handleCompareFocusedRootListClick, handleFocusedRootsFilter, renderFocusedRootList, updateFocusSelectedControl, handleFocusSelectedShortcut });
 }
 
 export const focusedRootsPorts = Object.freeze({

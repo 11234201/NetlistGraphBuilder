@@ -37,17 +37,28 @@ export function createLibertyController({ elements, read, importText, clear, can
       throw error;
     } finally { if (request === generation) render(); }
   }
-  elements.cancelButton.addEventListener("click", () => {
+  function cancelLoad() {
+    const busy = !elements.cancelButton.disabled;
     generation += 1; cancel(); render(); setStatus("Liberty import cancelled");
-  });
-  elements.clearButton.addEventListener("click", async () => {
+    return {cancelled:busy};
+  }
+  async function unload(strict = false) {
     const request = ++generation;
     clear(); render();
     try { await refresh(); if (request === generation) setStatus("Liberty unloaded; naming rules restored"); }
     catch (error) {
+      if (strict) throw error;
       if (request === generation) reportFailure(error, "render", `Liberty unload refresh failed: ${errorMessage(error)}`);
     }
-  });
+    return status();
+  }
+  function status() {
+    const library = read();
+    return {loaded:Boolean(library), busy:!elements.cancelButton.disabled, source:library?.sourceName || null,
+      cellCount:library?.cellCount || 0, diagnostics:(library?.diagnostics || []).slice(0,100)};
+  }
+  elements.cancelButton.addEventListener("click", cancelLoad);
+  elements.clearButton.addEventListener("click", () => unload());
   render();
-  return Object.freeze({ load });
+  return Object.freeze({load, status, cancel:cancelLoad, unload:() => unload(true)});
 }

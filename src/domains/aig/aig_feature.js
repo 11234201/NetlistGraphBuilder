@@ -14,11 +14,13 @@ import { createStructureQuery } from "./structure_query.js";
 import { createStructurePresentation } from "./structure_presentation.js";
 
 const cache = new Map();
+const MAX_CACHE_ENTRIES = 4;
 const MAX_CACHE_NODES = 20000;
 let cacheNodes = 0;
 
 export const aigFeature = defineDomainFeature({
   id: "aig",
+  resourceUsage: () => ({cacheEntries:cache.size, cacheNodes, maxEntries:MAX_CACHE_ENTRIES, maxNodes:MAX_CACHE_NODES}),
   inputFormats: [{ id: "abc-dot", extensions: [".dot"] }, { id: "blif", extensions: [".blif"] }],
   capabilities: { focused: true, compare: false, timing: false, cellConfig: false, adjust: false,
     geometry: "curves", exportSvg: true, whole: true },
@@ -59,7 +61,7 @@ export const aigFeature = defineDomainFeature({
         const value = graphvizJsonToGeometry(json, { nodeLabels: diagram.nodeLabels });
         if (signal?.aborted) throw Object.assign(new Error("AIG layout cancelled"), { name: "AbortError" });
         if (value.nodes.length <= MAX_CACHE_NODES) {
-          while (cache.size && (cache.size >= 4 || cacheNodes + value.nodes.length > MAX_CACHE_NODES)) {
+          while (cache.size && (cache.size >= MAX_CACHE_ENTRIES || cacheNodes + value.nodes.length > MAX_CACHE_NODES)) {
             const oldest = cache.keys().next().value; cacheNodes -= cache.get(oldest).nodes.length; cache.delete(oldest);
           }
           cache.set(key, value); cacheNodes += value.nodes.length;

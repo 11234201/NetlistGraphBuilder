@@ -39,6 +39,9 @@ import { createNetRoutingBridge } from "./net_routing_bridge.js";
 import { writeTimingLog } from "./timing_match_log.js";
 import { createNetlistStructureBridge } from "./netlist_structure_bridge.js";
 import { objectRefToNodeId } from "../domains/netlist/graph_object_refs.js";
+import { createRemoteRenderCompletion } from "./remote_render_completion.js";
+import { createRemoteDesignCommands } from "./remote_design_commands.js";
+import { createNavigationPort } from "./remote_navigation_port.js";
 
 export function createViewSessionBridges(state, sessions, onDispatch) {
   const options = { state, sessions, onDispatch, getDocumentId: () => state.document?.documentId || null };
@@ -48,7 +51,10 @@ export function createViewSessionBridges(state, sessions, onDispatch) {
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
 export function createWorkbenchControllers({ state, getElements, services, routeAction = (_name, action, args) => action(...args) }) {
   const actions = Object.create(null);
-  let structure;
+  const renderCompletion = createRemoteRenderCompletion();
+  let structure, pathCommand;
+  actions.runPathCommand = job => pathCommand(job);
+  actions.runNetlistAnalysisCommand = job => structure.command(job);
   const netRouting = createNetRoutingBridge({
     readContext: (side) => ({
       fullGraph: side ? state.compare.fullGraphs[side] : state.fullGraph,
@@ -153,13 +159,15 @@ export function createWorkbenchControllers({ state, getElements, services, route
   }
   queueMicrotask(() => {
     const elementTarget = getElements();
+    for (const [side, mount] of [["left",elementTarget.leftMount],["right",elementTarget.rightMount]])
+      mount?.addEventListener("pointerdown", () => services.compareViewSessions.setActiveSide(side));
     for (const [owner, , ports] of controllers) {
       for (const key of ports.elements) if (!(key in elementTarget)) throw new Error(`Missing element dependency ${key} for ${owner}`);
       for (const key of ports.services) validateWorkbenchServiceDependency(services, key, owner);
     }
     elementTarget.compareLeftClearTimingButton?.addEventListener("click", () => actions.clearCompareSideTiming("left", { onCommitted: refreshCompareSelection }));
     elementTarget.compareRightClearTimingButton?.addEventListener("click", () => actions.clearCompareSideTiming("right", { onCommitted: refreshCompareSelection }));
-    if (elementTarget.pathPanel) bindShowPath(elementTarget.pathPanel, {
+    if (elementTarget.pathPanel) pathCommand = bindShowPath(elementTarget.pathPanel, {
       copyText: (text) => copyBrowserText(text, elementTarget.pathPanel.ownerDocument.defaultView.navigator.clipboard),
       async navigateResult(result, preferred) {
         if (!result?.target || !result.moduleName) return preferred;
@@ -241,8 +249,41 @@ export function createWorkbenchControllers({ state, getElements, services, route
           : services.runViewHistoryTransaction({ label: ports.historyActions[name] }, () => action(...args))
         : action;
       actions[name] = (...args) => routeAction(name, invoke, args);
+      if (name === "bindViewHistoryCallbacks")
+        actions[name] = (options, key) => renderCompletion.callbacks(invoke(options, key), key);
+      if (name === "renderGraphMount")
+        actions[name] = (...args) => renderCompletion.observe(routeAction(name, invoke, args));
     }
   }
+  const compareSettings = {active:() => state.compare.active,
+    syncViewport:value => { state.compare.synchronized = value; },
+    syncRoots:value => { state.compare.focusedRootsSynchronized = value; },
+    layout:value => { state.compare.layout = value; }};
+  actions.compareSettings = { isActive:compareSettings.active, setSynchronized:compareSettings.syncViewport,
+    setRootsSynchronized:compareSettings.syncRoots, setLayout:compareSettings.layout };
+  actions.runRemoteDesign = createRemoteDesignCommands({getElements, actions, completed:renderCompletion.run,
+    settings:() => ({...compareSettings,timing:services.timingDisplayController}),
+    readTimingView(target) {
+      const side = state.compare.active ? (target === "A" ? "left" : target === "B" ? "right" : state.compare.activeSide) : null;
+      if (state.compare.active && !side) throw Object.assign(new Error("Choose Compare side A or B"),{code:"SIDE_REQUIRED",candidates:["A","B"]});
+      const graph = side ? state.compare.graphs[side] : state.graph;
+      return {side,graph, full:(side ? state.compare.fullGraphs[side] : state.fullGraph) || graph,
+        moduleName:graph?.moduleName || state.currentModule?.name, documentId:state.document?.documentId,
+        occurrence:side ? null : state.occurrenceContext, sourceRevision:state.document?.sourceRevision, selected:state.selectedNodeId,
+        badges:side ? state.compare.timingBadgeChoices[side] : state.timingBadgeChoices,
+        positions:side ? state.compare.timingBadgePositions[side] : state.timingBadgePositions};
+    },
+    updateBadges(side,key,operation,value,choices) {
+      const badges = side ? state.compare.timingBadgeChoices[side] : state.timingBadgeChoices;
+      const positions = side ? state.compare.timingBadgePositions[side] : state.timingBadgePositions;
+      if (operation === "timing badge-position") positions[key] = value;
+      else if (operation === "timing reset-badges") delete badges[key];
+      else badges[key] = choices;
+    },
+    logTiming:(view,details,job) => writeTimingLog(services.logProcess,"info","Cell timing details",{
+      operation:job.name, code:"timing.inspect-cell",requestId:job.id,documentId:view.documentId,side:view.side,...details})
+  });
+  actions.createRemoteNavigation = extra => createNavigationPort({ state, getElements, actions, netRouting, renderCompletion, ...extra });
   return Object.freeze(actions);
 }
 
@@ -250,7 +291,7 @@ const ALL_COMPARE_FIELDS = Object.freeze([
   "active", "showPath", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
   "focusedRootsSynchronized", "fullGraphs", "graphOverrides", "graphs", "layout", "layoutAbortController",
   "leftModuleName", "nodePositions", "nodeSizes", "outputName", "rightModuleName", "scenes", "selectedKind",
-  "selectedName", "selectedSide", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
+  "activeSide", "selectedName", "selectedSide", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
   "timingBadgePositions", "transforms", "wholeRequested", "workspaceIdentity"
 ]);
 

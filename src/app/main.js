@@ -1,15 +1,11 @@
 import { createWorkbenchElements, createProcessLogElements } from "../ui/workbench_elements.js";
-import { createLibertyController } from "../ui/liberty_controller.js";
-import { createLibertyLibraryService } from "../domains/netlist/liberty_import.js";
-import { runCooperativeTask } from "../application/cooperative_task.js";
-import { createLibraryWorkspaceRefresh } from "./library_workspace_refresh.js";
 import { createWorkbenchControllers, createViewSessionBridges } from "./workbench_controllers.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
 import { createRenderGeneration } from "../render/renderGeneration.js";
 
 
-import { bindWorkbenchInput } from "./workbench_input_bindings.js";
-import { createRemoteCellConfigImport } from "./remote_cell_config.js";
+import { createWorkbenchLibraries } from "./workbench_libraries.js";
+import { bindWorkbenchInput, remoteNetlistContext } from "./workbench_input_bindings.js";
 
 import { bindWorkbenchEvents } from "./workbench_event_bindings.js";
 import { createWorkbenchUi } from "./workbench_ui_bootstrap.js";
@@ -18,8 +14,6 @@ import { createCanvasControls } from "./workbench_canvas_controls.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 
 import { createBrowserDownload } from "../platform/browser_download.js";
-import { saveStoredCellConfig } from "../persistence/cell_config_storage.js";
-import { createCellConfigUseCases } from "../domains/netlist/cell_config_use_cases.js";
 import { createAppState } from "./appState.js";
 import { createSessionSnapshot } from "./sessionState.js";
 import { initializeWorkbench } from "./workbench_startup.js";
@@ -32,6 +26,7 @@ const domainRouter = createWorkbenchCommandRouter();
 const state = createAppState(DEFAULT_LAYOUT_POLICY);
 const {
   initializeApplication,
+  createRemoteNavigation, runPathCommand, runNetlistAnalysisCommand, runRemoteDesign, compareSettings,
 
   startSidebarResize,
   handleSidebarResizeKeydown,
@@ -324,8 +319,6 @@ const netlistFeature = domainRegistry.require("netlist");
 const { documents, viewSessions, workspaceJobs, workspaceExecution, importRequests } = createWorkspaceServices();
 const renderGeneration = createRenderGeneration();
 const { singleViewSession, compareViewSessions } = createViewSessionBridges(state, viewSessions, noteViewCommandDispatch);
-const cellConfigUseCases = createCellConfigUseCases({ save: saveStoredCellConfig });
-const libertyService = createLibertyLibraryService({ execute: runCooperativeTask });
 const SEARCH_FIRST_NODE_THRESHOLD = 500;
 
 const elements = createWorkbenchElements(document);
@@ -351,26 +344,25 @@ const { moduleHierarchyController, schematicSelectionController, layoutSpacingCo
   commitLayoutSpacing, readTimingPolicy: () => state.timingDisplayPolicy, commitTimingDisplayPolicy, applyPendingWheelGesture, commitViewHistory
 });
 
-const refreshLibraryWorkspace = createLibraryWorkspaceRefresh({
-  readContext: () => ({ compareActive: state.compare.active, hasModule: Boolean(state.currentModule), selectedNodeId: state.selectedNodeId }),
-  cancelJobs: () => workspaceJobs.cancelDocument(state.document?.documentId),
-  renderSingle: rerenderPreservingView, renderCompare: renderCompareGraphs
+const {cellConfigUseCases,libertyService,libertyController,loadCellConfig} = createWorkbenchLibraries({
+  elements, readContext:() => ({compareActive:state.compare.active, hasModule:Boolean(state.currentModule), selectedNodeId:state.selectedNodeId}),
+  cancelJobs:() => workspaceJobs.cancelDocument(state.document?.documentId), renderSingle:rerenderPreservingView,
+  renderCompare:renderCompareGraphs, readCellConfig:() => state.cellConfig, writeCellConfig:value => { state.cellConfig = value; },
+  setStatus, logProcess
 });
-const libertyController = createLibertyController({
-  elements: { summary: elements.libertySummary, diagnostics: elements.libertyDiagnostics,
-    cancelButton: elements.cancelLibertyButton, clearButton: elements.clearLibertyButton },
-  read: libertyService.read, importText: libertyService.importText, clear: libertyService.clear,
-  cancel: libertyService.cancel, refresh: refreshLibraryWorkspace, setStatus, logProcess
-});
+const searchWorkspace = query => domainWorkbench.search(state.searchIndex,query);
 const remoteInput = bindWorkbenchInput({
   elements, document, windowTarget: window, importRequests, imports: domainWorkbench.imports,
   loadNetlistText: loadQuickInputText, loadLibertyText: libertyController.load, domainWorkbench,
   modules: () => state.design?.modules.map(m => ({id:m.name,name:m.name,active:m === state.currentModule})) || [],
-  readNetlist: () => ({source:state.currentSourceLabel, mode:state.compare.active ? "Compare" : "Single", documentId:state.document?.documentId, sourceRevision:state.document?.sourceRevision}),
-  search: query => domainWorkbench.search(state.searchIndex,query), exportCurrentSvg, selectModule,
+  readNetlist: () => remoteNetlistContext(state.currentSourceLabel,state.currentModule,state.occurrenceContext,state.compare,state.document),
+  search:searchWorkspace, exportCurrentSvg, selectModule,
+  navigation:createRemoteNavigation({domainWorkbench,search:searchWorkspace,clearSearch:() => clearSearch(),document,download:browserDownload}),
+  runRemoteDesign, libertyController, runPathCommand, runNetlistAnalysisCommand, processLogController,
+  readShell:() => workbenchUi.shell, downloadText:(text,name,mime) => browserDownload.text(text,name,mime),
   timing: (point, side) => ((side && state.compare.sideTiming[side] || state.timing)?.records || []).filter(r => r.point === point && (!r.module || r.module === (side ? state.compare.graphs[side]?.moduleName : state.currentModule?.name))),
   downloadSvg: ({text, name}) => browserDownload.text(text, name, "image/svg+xml"),
-  loadCellConfig: createRemoteCellConfigImport({useCases:cellConfigUseCases, read:() => state.cellConfig, write:value => { state.cellConfig = value; }, refresh:refreshLibraryWorkspace}),
+  loadCellConfig,
   setStatus, logProcess
 });
 const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
@@ -391,12 +383,7 @@ const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
   handlePointerDown, handleCanvasDoubleClick, handleModuleHistoryShortcut,
   handleViewHistoryShortcut, handleFocusSelectedShortcut,
   },
-  compare: {
-    isActive: () => state.compare.active,
-    setSynchronized: (value) => { state.compare.synchronized = value; },
-    setRootsSynchronized: (value) => { state.compare.focusedRootsSynchronized = value; },
-    setLayout: (value) => { state.compare.layout = value === "horizontal" ? "horizontal" : "vertical"; }
-  },
+  compare:compareSettings,
   search: { getIndex: () => state.searchIndex, search: domainWorkbench.search,
     onChange: (search) => { state.searchQuery = search.searchQuery; } }
 });

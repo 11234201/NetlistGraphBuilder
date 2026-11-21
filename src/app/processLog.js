@@ -38,6 +38,16 @@ export function createProcessLog(options = {}) {
     entries(filters = {}) {
       return filterProcessLogEntries(entries, filters);
     },
+    correlate(sequence, context) {
+      const entry = entries.find(item => item.sequence === sequence);
+      if (!entry) return false;
+      if (!context?.requestId || entry.details?.requestId) return true;
+      const {requestId,page,side,graphId,documentId,documentVersion,operation,code} = context;
+      const related = Object.fromEntries(Object.entries({requestId,page,side,graphId,documentId,documentVersion,
+        command:operation,code}).filter(([,value]) => value != null));
+      entry.details = sanitizeLogDetails({...related,...entry.details});
+      return true;
+    },
     hasEntry(sequence) {
       return entries.some((entry) => entry.sequence === sequence);
     },

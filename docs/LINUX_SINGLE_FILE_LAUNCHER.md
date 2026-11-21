@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `node tools/serve.mjs` | Node.js 18+ | 源码开发调试；在绑定端口前复用项目 parser 执行网表与目标语义预校验 |
 | `python3 -u tools/serve.py` | Python 3 标准库 | 无法运行新版 Node.js 的 Linux 源码预览环境 |
-| Windows `NetlistGraphBuilder.exe` | 同级目录下的 `app/` 资源 | Windows 离线发布包（非 Linux 可执行程序） |
+| Windows `NetlistGraphBuilder.exe` | 包内 `app/` 和 `runtime/` | 解压运行，使用内置 CPython 执行与 Python 回退服务相同的工作台协议 |
 | Linux `ngb` | Linux 基础系统 C/C++ 库 | 单个 ELF 可执行文件（已内嵌全部前端源码、ELK、Graphviz/WASM 与许可证），无需安装 Node.js、Python 或携带外部资源目录 |
 
 **职责边界说明**：
@@ -154,7 +154,7 @@ add-timing "/work/run/中文 timing/T2.rpt"
 
 示例中的页和图编号需替换为本轮的实际值。多页时可用 `--page` 明确目标，或在启动终端以 `use` 设置默认页。关闭默认页后，终端会报告 `PAGE_UNAVAILABLE`。服务端导出默认保留同名旧文件，显式替换可用 `--overwrite`。UI 的 SVG 导出及命令 `svg export --download` 会触发当前浏览器下载。
 
-独立 shell 可以执行 `ngb cmd --state-file "$HOME/ngb.state" --page p1 module list`。源码入口可将 `ngb` 替换为 `node tools/serve.mjs`。EDA Tcl 可连接任一服务并读取结构化回执。
+独立 shell 可以执行 `ngb cmd --state-file "$HOME/ngb.state" --page p1 module list`。源码入口可将 `ngb` 替换为 `node tools/serve.mjs` 或 `python3 tools/serve.py`。Windows 解包后可在 PowerShell 用 `.\NetlistGraphBuilder.exe start --state-file .\ngb.state` 启动服务，在另一个窗口运行 `.\NetlistGraphBuilder.exe cmd --state-file .\ngb.state pages`。EDA Tcl 可连接任一服务并读取结构化回执。
 
 ```tcl
 source /opt/eda/share/netlist_graph_builder/ngb.tcl

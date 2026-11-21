@@ -36,7 +36,7 @@ function pager(count, requested, detail = false) {
   if (count <= PAGE_SIZE) return "";
   const { page, pages } = range(count, requested), field = detail ? "detail-page" : "page";
   const target = detail ? "analysis-details" : "analysis-results";
-  return `<nav class="inspection-pager" aria-label="Analysis pages"><button type="button" data-aig-page-target="${target}" data-aig-analysis-${field}="${page - 1}"${page ? "" : " disabled"}>Previous</button>
+  return `<nav class="inspection-pager" aria-label="Analysis pages" data-current-page="${page + 1}" data-page-count="${pages}"><button type="button" data-aig-page-target="${target}" data-aig-analysis-${field}="${page - 1}"${page ? "" : " disabled"}>Previous</button>
     <span>${page + 1} / ${pages}</span><button type="button" data-aig-page-target="${target}" data-aig-analysis-${field}="${page + 1}"${page + 1 < pages ? "" : " disabled"}>Next</button></nav>`;
 }
 function limits(data) { return data?.reasons?.length ? `<p class="details-empty">Reached: ${html(data.reasons.map((key) => reasonNames[key] || key).join(", "))}. Results are partial.</p>` : ""; }
@@ -89,8 +89,8 @@ function blockDetails(workspace, result, view) {
       positive: `${names[positive.kind]} · ${html(formula)}`,
       inverted: `${names[negative.kind]} · ${html(view.query.formula(negative, signalLabel))}`
     })}
-    ${related(workspace, view, [...result.nodeIds, ...result.boundaryIds], "reconvergence", result.id)}
-    ${related(workspace, view, [result.rootId], "block", result.id)}`;
+    ${related(workspace, view, result, "reconvergence")}
+    ${related(workspace, view, result, "block")}`;
 }
 function renderBlockUses(workspace, { rootEdges, taps }, page, formulas) {
   const count = rootEdges.length + taps.length, { start, end } = range(count, page);
@@ -116,14 +116,13 @@ function reconDetails(workspace, result, view) {
     <p class="details-empty">The two paths share only their stem and merge. Other paths in the union are teal; nested pairs remain separate results.</p>
     ${limits(detail)}${view.detailError ? `<p class="details-empty">${html(view.detailError)}</p>` : ""}
     <h4>Witness paths</h4><ol class="aig-witness-list">${rows.slice(start, end).map(({ id, step, branch, edgeId }) => `<li><span class="aig-path-${branch.toLowerCase()}">${branch} · ${step}</span> ${edgeId ? workspace.query.edgeById.get(edgeId)?.inverted ? "⇢ ¬" : "→" : ""}${node(workspace, id)}</li>`).join("")}</ol>${pager(rows.length, view.detailPage, true)}
-    ${related(workspace, view, detail?.nodeIds || rows.map((row) => row.id), "block", result.id)}`;
+    ${related(workspace, view, result, "block", detail)}`;
 }
-function related(workspace, view, nodes, category, exclude) {
-  const results = view.query?.related(nodes, category, exclude) || [];
+function related(workspace, view, subject, category, detail) {
+  const results = view.query?.relatedTo(subject, category, detail) || [];
   if (!results.length) return "";
   return `<h4>${category === "block" ? "Related blocks" : "Related reconvergence"} (${results.length})</h4><ul class="aig-analysis-list">${results.slice(0, 20).map((result) => `<li>${resultLink(workspace, result, view.selectedId)}</li>`).join("")}</ul>${results.length > 20 ? '<p class="details-empty">First 20 shown. Use Navigator for the full list.</p>' : ""}`;
 }
-export function renderAigStructureMembership(workspace, object, isEdge, view) {
-  const ids = isEdge ? [object.source, object.target] : [object.id];
-  return related(workspace, view || {}, ids, "block") + related(workspace, view || {}, ids, "reconvergence");
+export function renderAigStructureMembership(workspace, object, view) {
+  return related(workspace, view || {}, object, "block") + related(workspace, view || {}, object, "reconvergence");
 }

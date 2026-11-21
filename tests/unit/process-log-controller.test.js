@@ -29,6 +29,23 @@ function setupLog(options = {}) {
   return { elements, statuses, controller };
 }
 
+test("remote receipts enrich the owner error in place and preserve the original cause", () => {
+  const {controller} = setupLog();
+  const error = new Error("layout failed", {cause:new Error("worker failed")});
+  controller.append("error","layout","layout failed",{error,operation:"aig.layout",graphId:"g1"});
+  const scope = {error,operation:"module open",requestId:"r1",page:"p1",graphId:"g2",documentVersion:3};
+  controller.append("error","navigation","layout failed",scope,{onlyIfUnreported:true});
+  controller.append("error","navigation","layout failed",{...scope,requestId:"r2"},{onlyIfUnreported:true});
+  assert.equal(controller.model.size,1);
+  const {details} = JSON.parse(controller.model.toJsonLines());
+  assert.equal(details.graphId,"g1");
+  assert.equal(details.operation,"aig.layout");
+  assert.equal(details.command,"module open");
+  assert.equal(details.requestId,"r1");
+  assert.equal(details.page,"p1");
+  assert.equal(details.error.cause.message,"worker failed");
+});
+
 function eventTarget() {
   const listeners = new Map();
   return { listeners,

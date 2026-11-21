@@ -247,13 +247,16 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       elements.textForm.requestSubmit();
     }
   });
-  elements.textForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (pendingSubmission) return;
+  async function submitDraft(fromCommand = false) {
+    if (pendingSubmission) {
+      if (fromCommand) throw Object.assign(new Error("A submission is running"), {code:"BUSY"});
+      return;
+    }
     const source = textBuffer.getValue();
     if (!source.trim()) {
       const message = `Paste failed: ${textKind} text is empty`;
       showTextStatus(message);
+      if (fromCommand) throw Object.assign(new Error(message), {code:"EMPTY_INPUT"});
       reportFailure(undefined, message, { kind: textKind, operation: "paste-text" });
       elements.textInput.focus();
       return;
@@ -286,6 +289,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     try {
       await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy, deferLayout } : {}), ...submitExtra });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
+      else if (fromCommand) throw new DOMException("Submission superseded", "AbortError");
     } catch (error) {
       if (error?.name === "AbortError") onAbort();
       else if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
@@ -293,13 +297,18 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
         const hint = error?.name === "TimeoutError" && kind === "aig"
           ? " 选择 Search-first 可先筛选再布局，也可选择 Logic View 重试。" : "";
         showTextStatus(message + hint);
-        reportFailure(error, message, details);
+        if (!fromCommand) reportFailure(error, message, details);
         finish();
         elements.textInput.focus();
       }
+      if (fromCommand) throw error;
     } finally {
       finish();
     }
+  }
+  elements.textForm?.addEventListener("submit", event => {
+    event.preventDefault();
+    return submitDraft();
   });
 
   windowTarget?.addEventListener("dragenter", (event) => {
@@ -349,7 +358,29 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     }
   });
 
-  return Object.freeze({ openDialog, closeDialog, clearDrag, loadFiles });
+  function draftCommand({name,args,opts}) {
+    if (name === "text open") {
+      if (!["netlist","aig","timing"].includes(args[0]) || opts.action && !["open","add"].includes(opts.action))
+        throw Object.assign(new Error("Unknown paste kind or action"), {code:"INVALID_ARGUMENT"});
+      openDialog(args[0], {append:opts.action === "add", compareSide:{A:"left",B:"right"}[opts.side]});
+    } else {
+      if (!elements.textDialog?.open) throw Object.assign(new Error("Open the paste editor first"), {code:"EDITOR_CLOSED"});
+      if (name === "text submit") return submitDraft(true).then(() => ({submitted:true, kind:textKind}));
+      if (name === "text cancel") closeDialog();
+      else if (pendingSubmission) throw Object.assign(new Error("A submission is running"), {code:"BUSY"});
+      else if (name === "text set") textBuffer.setValue(args[0]);
+      else if (name === "text clear") textBuffer.clear();
+      else if (name === "text expand") textBuffer.expand();
+      else if (name === "text view") {
+        if (textKind !== "aig" || !["logic","standard","search-first"].includes(args[0]))
+          throw Object.assign(new Error("Choose an AIG paste view"), {code:"INVALID_ARGUMENT"});
+        aigView.value = args[0] === "logic" ? "abc" : args[0];
+        aigView.dispatchEvent(new windowTarget.Event("change", {bubbles:true}));
+      }
+    }
+    return {open:Boolean(elements.textDialog?.open), kind:textKind, length:textBuffer.getValue().length, preview:elements.textInput.readOnly};
+  }
+  return Object.freeze({ openDialog, closeDialog, clearDrag, loadFiles, draftCommand });
 }
 
 export function isEditableInputTarget(target) {
