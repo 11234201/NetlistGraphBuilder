@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+- 支持为 AIG 导入 `.level` 层级与裕量报告（`File → AIG + Level → Open levels…` / `Paste levels…`、主图与 Level 同时选择/拖放配对，以及远程命令 `level open` / `text open level`）：既支持无表头两列简写指定主输入（PI）初始到达层级（`at_level`）并向下游传播拓扑层级（`Topology level`）与逻辑关键路径，也支持带表头的 `point at_level rt_level slack_level`（及可选 `kind`）逐点报告并在 `Inspector → Analysis` 与 `Navigator → Design` / `Objects` 中展示（含示例 `examples/aig_mapped_names.level` 与 [格式规范](docs/design/aig_level_format_spec.md)）。
+- 重组 `File` 菜单为顶部 `Open design…` 及下方的 `Netlist + Timing`、`AIG + Level` 配对分组；多文件批量导入、同页多份 AIG 切图（`aig add`）与 `sessionStorage` 会话恢复均按所属 AIG 独立绑定与保存 Level 附件；远程工作台公开命令目录扩展至 181 条命令与 5 个简写。
+
 ## [1.7.0] - 2026-11-22
 
 - SSH 端口转发后，本地浏览器可直接浏览和导入服务器上配置目录内的文件。启动终端可继续输入命令，同一后端支持多个独立页面，可用 `pages` 查看页号、用 `use` 选择目标页。

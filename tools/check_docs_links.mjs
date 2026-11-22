@@ -7,6 +7,7 @@ const defaults=['README.md','CHANGELOG.md','native/README.md','tools/eda/README.
   'docs/USER_GUIDE.md','docs/PLAN.md','docs/ARCHITECTURE.md','docs/DESIGN_SPEC.md',
   'docs/LINUX_SINGLE_FILE_LAUNCHER.md','docs/LINUX_ADAPTATION_PLAN.md',
   'docs/plans/linux_launcher_maintenance.md','docs/design/elk_anchor_package.md',
+  'docs/design/timing_format_spec.md','docs/design/aig_level_format_spec.md',
   'docs/reports/anchor_development_summary.md','src/layout/anchor_layered/README.md'];
 let checked=0,artifacts=0,failed=0;
 for(const name of process.argv.length>2?process.argv.slice(2):defaults){

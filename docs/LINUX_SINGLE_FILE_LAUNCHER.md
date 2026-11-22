@@ -77,7 +77,7 @@ mkdir -p ./results
   --state-file ./results/ngb-session.json --parent-death --no-open
 ```
 
-- **参数与默认值**：所有输入文件参数（`--netlist`、`--timing`、`--cell-config`）与目标定位参数（`--module`、`--focus`、`--fanin-depth`、`--fanout-depth`）均可按需省略。原生启动器默认端口为 `0`（即由操作系统自动分配空闲端口），且始终仅监听本地回环地址 `127.0.0.1`。
+- **参数与默认值**：所有输入文件参数（`--netlist`、`--timing`、`--cell-config`）、目标定位参数（`--module`、`--focus`、`--fanin-depth`、`--fanout-depth`）以及服务器文件浏览根目录参数（`--browse-root <dir>`，可重复传入多个目录，默认当前工作目录）均可按需省略。原生启动器默认端口为 `0`（即由操作系统自动分配空闲端口），且始终仅监听本地回环地址 `127.0.0.1`。`--[no-]interactive` 控制是否在启动终端显示交互式命令提示符（默认在 TTY 下开启）。
 - **浏览器唤起控制**：服务器或无头环境请传入 `--no-open`（兼容旧别名 `--no-browser`）；传入 `--open` 则尝试调用系统 `xdg-open` 打开浏览器。`start` 子命令可省略以保持向后兼容；若不带任何参数直接运行 `ngb`，则会打印用法说明并以非零状态退出。
 - **标准输出 `ready` 消息**：启动成功后，`stdout` 仅输出唯一一行 JSON 格式的 `ready` 事件（所有诊断与错误信息均输出至 `stderr`）。`ready` 行仅包含文件名与目标摘要，绝不包含网表、时序或配置原文：
 
@@ -139,16 +139,18 @@ npm start -- --no-open --port 4173 --browse-root /work/run --state-file "$HOME/n
 ./build/native/ngb start --no-open --port 4173 --browse-root /work/run --state-file "$HOME/ngb.state"
 ```
 
-复制 ready 记录中的 `pairUrl`，将端口改为 `8417`，保留 `#ngb=…`，在本地浏览器打开两次。界面上的页编号对应终端 `pages` 的结果。网表页从 **File → Open from server…** 选择网表或时序。AIG 页选 **aig add** 可保留多张图，并用页内图选择器切换。TTY 中仍能输入命令。
+复制 ready 记录中的 `pairUrl`，将端口改为 `8417`，保留 `#ngb=…`，在本地浏览器打开两次。界面上的页编号对应终端 `pages` 的结果。从 **File → Open from server…** 默认自动识别所选文件（既可单选主文件，也可同时勾选 Verilog + Timing 或 AIG + Level 配对导入，或选 `level open` 为当前 AIG 补载 `.level` 报告）。AIG 页选 **aig add** 可保留多张图，并用页内图选择器切换（每张图独立保存各自的 Level 附件与视图状态）。TTY 中仍能输入命令。
 
 ```text
 pages
 use p1
 add /work/run/extra.v
 add-timing "/work/run/中文 timing/T2.rpt"
---page p2 aig add /work/run/base.blif /work/run/eco.blif
+--page p2 files import /work/run/base.blif /work/run/base.level
+--page p2 aig add /work/run/eco.blif
 --page p2 module list
 --page p2 module open g2
+--page p2 level open /work/run/eco.level
 --page p1 svg export --out /work/run/top.svg
 ```
 
@@ -178,7 +180,7 @@ if {[catch {::ngb::Cmd $state --page p1 --timeout 1000 aig add /work/eco.blif} m
 }
 ```
 
-`commands` 列出完整目录，`help aig add` 查询参数。`commands --available` 依据网页最近报告的模式和文件选择器状态列出可执行命令。尚未连接网页时只列启动器和服务命令，单页时自动选择，多页时使用 `--page <ID>` 或终端已选的页面。在 Compare 页加 `--side A` 或 `--side B` 可查询适用于该侧的命令，包括导出 SVG 和查看时序。
+`commands` 列出完整目录（共 181 条命令与 5 个简写），`help aig add` 或 `help level open` 查询参数。`commands --available` 依据网页最近报告的模式和文件选择器状态列出可执行命令。尚未连接网页时只列启动器和服务命令，单页时自动选择，多页时使用 `--page <ID>` 或终端已选的页面。在 Compare 页加 `--side A` 或 `--side B` 可查询适用于该侧的命令，包括导出 SVG 和查看时序。
 
 ## 7. EDA Tcl 辅助脚本（`ngb.tcl`）
 
@@ -197,7 +199,8 @@ puts [::ngb::Status $ngb_bin $ngb_state]
 ::ngb::Stop $ngb_bin $ngb_state
 ```
 
-- **`::ngb::Start`**：在后台打开非阻塞管道并保持持有，最多等待 10 秒直至读取到合法的 `ready` JSON 后才向调用方返回 URL；若子进程提前退出、等待超时或目标 `stateFile` 已被占用，均会直接抛出 Tcl 错误。默认自动附加 `--port 0`、`--no-open` 与 `--parent-death`，并支持传入 `--netlist`、`--timing`、`--cell-config`、`--module`、`--focus`、`--fanin-depth`、`--fanout-depth` 键值对。
+- **`::ngb::Start`**：在后台打开非阻塞管道并保持持有，最多等待 10 秒直至读取到合法的 `ready` JSON 后才向调用方返回 URL；若子进程提前退出、等待超时或目标 `stateFile` 已被占用，均会直接抛出 Tcl 错误。默认自动附加 `--port 0`、`--no-open` 与 `--parent-death`，并支持传入 `--netlist`、`--timing`、`--cell-config`、`--browse-root`、`--module`、`--focus`、`--fanin-depth`、`--fanout-depth` 键值对。
+- **`::ngb::Connect` 与 `::ngb::Cmd`**：连接已运行的服务会话并发送 181 条工作台命令（返回值直接解析为 UTF-8 Tcl 字典回执，业务错误在 `-errorcode` 中携带 `NGB <CODE>` 并在 `-ngbreceipt` 中附带完整回执）。
 - **`::ngb::Status` 与 `::ngb::Stop`**：不同 `stateFile` 路径可并行管理多个独立会话，不会隐式覆盖既有会话。`Stop` 委托给原生 `ngb stop` 进行安全校验终止，不会吞掉错误，也不会直接强杀 Tcl 管道 PID。
 - **防注入与编码安全**：所有命令参数均通过 Tcl 列表（List）直接传递，不经过任何 Shell 字符串拼接，完整支持含空格或中文字符的文件路径。由于 Tcl `open "|..."` 原生语法会解析管道与重定向符号，脚本会显式拒绝以 `<`、`>`、`|`、`&` 开头的非路径参数值。若上层 EDA 脚本使用 `catch` 捕获异常，请务必将错误真实报告给用户，切勿将失败伪报为启动成功。
 
@@ -207,4 +210,4 @@ puts [::ngb::Status $ngb_bin $ngb_state]
 
 - **远程服务器访问**：在远程 Linux 服务器上启动时，`ready.url` 中的端口为远程服务器回环端口。请通过 VS Code `Ports` 面板或 SSH 本地端口转发（例如将远端 `43821` 转发至本地 `43822`），随后在本地浏览器打开 `http://127.0.0.1:43822/?startup=1`。切勿混淆远端与本地端口号，亦不能将请求参数中的 `--port 0` 当作实际监听端口。
 - **发行版与系统库兼容性**：单文件 ELF 仅代表“前端资源已内嵌、无外部脚本依赖”，并不等同于完全静态链接（static binary）或跨任意 Linux 发行版通用。建议在不高于目标生产环境 glibc 基线的构建机上编译，并在发布前使用 `file ngb` 与 `ldd ngb` 核查动态库依赖（必要时可附加 `-static-libgcc -static-libstdc++`，但仍受限于目标系统的 glibc 版本；musl libc 属于独立构建目标，未经验收前不宣称兼容）。
-- **内嵌开源许可证**：vendored ELK `0.11.1`（`EPL-2.0`）以及 Viz.js（`MIT`）、Graphviz（`EPL-1.0`）与 Expat（`MIT`）许可证文本均已直接内嵌至 `ngb` 二进制中，随时可通过 `ngb --licenses` 打印查看，无需附带外部许可证文件。
+- **内嵌开源许可证**：vendored ELK `0.11.1`（`EPL-2.0`）、Viz.js（`MIT`）、Graphviz（`EPL-1.0`）、Expat（`MIT`）以及 `nlohmann/json`（`MIT`）许可证文本均已直接内嵌至 `ngb` 二进制中，随时可通过 `ngb --licenses` 打印查看，无需附带外部许可证文件。
