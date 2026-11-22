@@ -107,6 +107,8 @@ AIG 首版通过 File → Open AIG 使用现有 Single 画布与响应式两侧�
 
 File → Open design 同时接受 Verilog 与 AIG 文件；Open AIG 及 Open design 的文件过滤器均包含 `.blif`、`.dot`、`.txt`。Paste AIG 对话框、非输入框 Ctrl+V 和拖放共享格式识别及导入生命周期。BLIF 文本可不带扩展名；导入失败保留原画布与对话框文本，更新请求取消旧计算。
 
+File 下方按 Netlist + Timing 和 AIG + Level 分组。AIG 可与一份可选 Level 同时打开，也可在当前图补载或替换。输入 AT 改变下游逻辑层级和逻辑关键路径，节点与边的身份保持稳定。各点的报告指标在 Inspector 中查询，Level 附件随所属图恢复。[Level 文件规范](design/aig_level_format_spec.md)
+
 Paste AIG 绘图前可选择 Standard / Logic View，初始默认 Logic View。粘贴窗口内显示处理进度与失败信息；处理期间禁用重复提交和源文本编辑，Cancel、关闭及 Escape 取消待完成的导入。Standard 布局超时后保留文本并提示选择 Logic View 重试；不自动更换视图样式或延长布局超时。
 
 Verilog / Timing 粘贴取消会中止实际布局任务及尚未完成的绘制，取消或过期结果不得覆盖新请求。既有网表导入在布局前已应用解析结果，因此取消保留已解析的数据，清除当前取消操作的画布并明确提示可重新绘图；Single / Compare 使用共享的任务取消边界。

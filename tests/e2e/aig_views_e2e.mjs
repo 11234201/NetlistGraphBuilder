@@ -407,6 +407,23 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator("#canvas").click({ position: { x: 5, y: 5 } });
     assert.deepEqual(await greyObjects(page), []);
     cases.push("both views support full and bounded port traces without layout, with matching greyed objects in SVG export and session restore");
+    await page.evaluate(() => { window.__viewTest.hold = true; });
+    await page.locator("#levelInput").setInputFiles({ name: "ports.level", mimeType: "text/plain", buffer: Buffer.from("a 4") });
+    await page.waitForFunction(() => typeof window.__viewTest.release === "function");
+    await highlight.selectOption("off");
+    const critical = page.locator('[data-domain-policy="critical"]');
+    if (!await critical.isVisible()) await page.locator("#settingsMenu > summary").click();
+    await critical.uncheck();
+    await page.evaluate(() => { window.__viewTest.hold = false; window.__viewTest.release(); });
+    await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded port_cones.blif ·")
+      && document.querySelector("#statusBar").textContent.includes("ports.level"));
+    assert.equal(await highlight.inputValue(), "off");
+    assert.equal(await critical.isChecked(), false);
+    assert.equal(await page.locator("#schematicMount .aig-edge-path[data-aig-critical]").count(), 0);
+    const levelView = await page.evaluate(() => JSON.parse(sessionStorage.getItem("ngb.aig-collection.v1")).records[0].view);
+    assert.equal(levelView.presentationPolicy.connectionHighlight, "off");
+    assert.equal(levelView.presentationPolicy.critical, false);
+    cases.push("Level import preserves overlay edits made while Graphviz is preparing the replacement");
     assert.deepEqual(errors, []);
     await writeFile(join(artifacts, "report.json"), JSON.stringify({ cases, errors }, null, 2));
     console.log(JSON.stringify({ cases, errors, artifacts }));

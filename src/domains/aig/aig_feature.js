@@ -2,6 +2,7 @@ import { aigPathIndex } from "./show_path.js";
 import { defineDomainFeature } from "../../contracts/domain_feature.js";
 import { createDocumentEnvelope } from "../../contracts/document.js";
 import { importAigSource } from "./aig_import.js";
+import { applyAigLevelFile } from "./aig_level.js";
 import { queryAigView, restoreAigFocus } from "./aig_view_query.js";
 import { buildAigSearchIndex, searchAigIndex, createAigQuery } from "./aig_query.js";
 import { projectAigDot, AIG_DISPLAY_VERSION, AIG_FONT } from "./aig_projection.js";
@@ -27,7 +28,9 @@ export const aigFeature = defineDomainFeature({
   panels: [{ id: "aig-navigator" }, { id: "aig-inspector" }],
   layoutProfiles: [{ id: "graphviz", label: "Graphviz", geometry: "curves" }],
   importSource(input, context = {}) {
-    const imported = importAigSource(input.text, { name: input.name, format: input.format });
+    const imported = context.previousDocument && input.levelFile
+      ? applyAigLevelFile(context.previousDocument.model, input.levelFile)
+      : importAigSource(input.text, { name: input.name, format: input.format, levelFile: input.levelFile });
     return createDocumentEnvelope({ domainId: "aig", documentId: context.documentId || "document:aig",
       sourceRevision: context.sourceRevision || 1, source: { name: input.name, kind: "text", size: input.text.length }, model: imported });
   },

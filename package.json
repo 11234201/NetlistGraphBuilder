@@ -14,7 +14,7 @@
     "test:ui-workbench": "node tests/e2e/ui-workbench-e2e.mjs",
     "test:process-log": "node tests/e2e/process-log-e2e.mjs",
     "test:aig": "node --test tests/unit/aig-*.test.js tests/unit/aig_*.test.js tests/unit/graphviz-*.test.js",
-    "test:aig-browser": "node tests/e2e/aig-workbench-e2e.mjs",
+    "test:aig-browser": "node tests/e2e/aig-workbench-e2e.mjs && node tests/e2e/aig_level_e2e.mjs",
     "test:aig-views": "node tests/e2e/aig_views_e2e.mjs",
     "test:aig-structure": "node tests/e2e/aig_structure_e2e.mjs",
     "test:show-path-browser": "node tests/e2e/show_path_e2e.mjs",

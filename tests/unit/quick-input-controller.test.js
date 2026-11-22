@@ -5,9 +5,12 @@ import { createProcessLog } from "../../src/app/processLog.js";
 import { createImportRequests } from "../../src/application/import_requests.js";
 import { getQuickInputPriority } from "../../src/app/quickInput.js";
 import { importAigSource } from "../../src/domains/aig/aig_import.js";
+import { createAigCollection } from "../../src/app/aig_collection.js";
+import { readAigLevelFile, requireAigLevelTarget } from "../../src/app/aig_level_input.js";
+import { AIG_IMPORT_LIMITS } from "../../src/domains/aig/aig_diagnostics.js";
 
 function createQuickInputController(options) {
-  return createController({ importRequests: createImportRequests(), ...options });
+  return createController({ importRequests: createImportRequests(), readLevelFile:readAigLevelFile, ...options });
 }
 
 function eventTarget() {
@@ -24,8 +27,8 @@ function inputElements() {
     .map((name) => [`[data-${name}]`, { ...makeTarget(), hidden: true, disabled: false }]));
   controls["[data-aig-input-view]"].value = "abc";
   return {
-    netlistInput: makeTarget(), timingInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
-    pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(), pasteAigButton: makeTarget(),
+    netlistInput: makeTarget(), timingInput: makeTarget(), levelInput: makeTarget(), goldenInput: makeTarget(), libertyInput: makeTarget(),
+    pasteNetlistButton: makeTarget(), pasteTimingButton: makeTarget(), pasteAigButton: makeTarget(), pasteLevelButton: makeTarget(),
     closeTextButton: makeTarget(), cancelTextButton: makeTarget(),
     textForm: { ...makeTarget(), requestSubmit() {}, querySelector: (selector) => controls[selector] },
     textInput: makeTarget(), textTitle: {}, textDescription: {},
@@ -52,6 +55,51 @@ test("AIG file, drop, direct paste and dialog share the cancellable input reques
   assert.ok(loaded.every((entry) => entry.kind === 'aig' && entry.text === text && entry.request));
   assert.ok(loaded.slice(0, -1).every((entry) => !entry.request.isCurrent()));
   assert.equal(loaded.at(-1).request.isCurrent(), true);
+});
+
+test("a Level editor or picker stays bound to its original graph across a collection switch", async () => {
+  const elements = inputElements(), requests = createImportRequests(), log = createProcessLog();
+  const reached = [];
+  const collection = createAigCollection({ validate() {}, render() {},
+    activate(source, view) { collection.commit(source, view.graphId); }
+  });
+  collection.commit({ name: "same.blif", text: "first" });
+  await collection.add([{ name: "same.blif", text: "second" }], requests.begin());
+  const controller = createQuickInputController({ elements, windowTarget: eventTarget(), importRequests: requests,
+    getLevelTarget: collection.active, setStatus() {}, schedule: (run) => run(),
+    logProcess: (level, phase, message, details) => log.append({ level, phase, message, details }),
+    loadText(_text, { levelTarget }) {
+      requireAigLevelTarget(collection.active(), levelTarget);
+      reached.push(levelTarget);
+    }
+  });
+  controller.openDialog("level");
+  elements.textInput.value = "a 3";
+  elements.levelInput.listeners.click();
+  elements.netlistInput.listeners.click?.();
+  await collection.switchTo("g2", requests.begin());
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  assert.equal(elements.textDialog.open, true);
+  assert.equal(log.entries().at(-1).details.code, "aig.level.graph-changed");
+  const file = { name: "inputs.level", text: async () => "a 3" };
+  await elements.levelInput.listeners.change({ target: { files: [file] } });
+  assert.equal(log.entries().at(-1).details.code, "aig.level.graph-changed");
+  const generic = { name: "levels.txt", text: async () => "point at_level\na 3" };
+  await elements.netlistInput.listeners.change({ target: { files: [generic] } });
+  assert.equal(log.entries().at(-1).details.code, "aig.level.graph-changed");
+  assert.deepEqual(reached, []);
+  controller.closeDialog();
+  controller.openDialog("level");
+  elements.textInput.value = "a 4";
+  await elements.textForm.listeners.submit({ preventDefault() {} });
+  assert.deepEqual(reached, ["g2"]);
+  let finish;
+  const pending = elements.levelInput.listeners.change({ target: { files: [{ name: file.name,
+    text: () => new Promise((resolve) => { finish = resolve; }) }] } });
+  await collection.switchTo("g1", requests.begin());
+  finish("a 8");
+  await pending;
+  assert.deepEqual(reached, ["g2"], "a read superseded after the picker closes never reaches the next graph");
 });
 
 test("file read, detection, batch and paste failures log context and preserve cancellation/stale guards", async () => {
@@ -81,6 +129,161 @@ test("file read, detection, batch and paste failures log context and preserve ca
   rejectOld(failure);
   await old;
   assert.equal(log.size, currentCount);
+});
+
+test("standalone Level picker, explicit editor and clipboard share the attachment request", async () => {
+  const elements = inputElements(), windowTarget = eventTarget(), loaded = [];
+  createQuickInputController({ elements, windowTarget, schedule: run => run(), setStatus() {},
+    loadText: (text, options) => loaded.push({ text, ...options }) });
+  const simple = "a 3";
+  const full = "point at_level\na 5";
+  await elements.levelInput.listeners.change({ target: { files: [{ name: 'simple.txt', text: async () => simple }] } });
+  elements.pasteLevelButton.listeners.click();
+  assert.equal(elements.textTitle.textContent, "Paste levels");
+  assert.equal(elements.textForm.querySelector("[data-text-submit]").textContent, "Apply levels");
+  elements.textInput.value = simple;
+  await elements.textForm.listeners.submit({preventDefault() {}});
+  await windowTarget.listeners.paste({clipboardData:{getData: () => full},preventDefault() {}});
+  assert.deepEqual(loaded.map(({kind,text}) => [kind,text]), [["level",simple],["level",simple],["level",full]]);
+  assert.ok(loaded.every(entry => entry.request && entry.onFailureContext));
+});
+
+test("remote Level paste retains the original graph and diagnostic context for command log correlation", async () => {
+  const elements = inputElements(), log = createProcessLog();
+  const original = Object.assign(new Error("unknown point"), {code:"aig.level-unknown-point"});
+  const controller = createQuickInputController({elements, windowTarget:eventTarget(), schedule:run => run(), setStatus() {},
+    loadText(text, options) {
+      options.onFailureContext({operation:"aig.level.import", graphId:"g7", fileName:options.label, line:2});
+      throw original;
+    },
+    logProcess(level, phase, message, details, options) {
+      assert.equal(options.onlyIfUnreported, true);
+      log.append({level, phase, message, details});
+    }
+  });
+  const run = (name, ...args) => controller.draftCommand({name, args, opts:{}});
+  run("text open", "level");
+  run("text set", "point at_level\nmissing 8");
+  await assert.rejects(run("text submit"), error => error === original);
+  const {details} = JSON.parse(log.toJsonLines());
+  assert.equal(details.operation, "aig.level.import");
+  assert.equal(details.fileName, "pasted Level");
+  assert.equal(details.line, 2);
+  assert.equal(details.graphId, "g7");
+  assert.equal(details.error.stack, original.stack);
+  assert.equal(elements.textDialog.open, true);
+});
+
+test("table detection reads beyond partial Level headers in a generic CSV or text file", async () => {
+  const loaded = [];
+  const controller = createQuickInputController({elements:inputElements(),windowTarget:eventTarget(),setStatus() {},
+    loadText:(text,options) => loaded.push([options.kind,text])});
+  const reports = [
+    "#" + "x".repeat(65530) + "\nrt_level,point\n3,y",
+    "point" + " ".repeat(65536) + "at_level\na 5"
+  ];
+  for (const text of reports) {
+    for (const name of ["report.txt","report.csv"]) {
+      const file = new Blob([text]);
+      file.name = name;
+      await controller.loadFiles([file]);
+    }
+  }
+  assert.deepEqual(loaded, reports.flatMap(text => [["level",text],["level",text]]));
+});
+
+test("a single design selected with a generic extension can place its module beyond the sample", async () => {
+  const elements = inputElements(), loaded = [];
+  createQuickInputController({elements, windowTarget:eventTarget(), setStatus() {}, loadText:text => loaded.push(text)});
+  const text = '`timescale 1ns/1ps\n' + "// generated metadata\n".repeat(4000) + "module top; endmodule";
+  const file = new Blob([text]); file.name = "design.txt";
+  await elements.netlistInput.listeners.change({target:{files:[file]}});
+  assert.deepEqual(loaded, [text]);
+});
+
+test("Level file reads bound decoded text for standalone and paired inputs while preserving multibyte names", async () => {
+  const elements = inputElements(), log = createProcessLog(), loaded = [];
+  const controller = createQuickInputController({ elements, windowTarget:eventTarget(), setStatus() {},
+    logProcess:(level,phase,message,details) => log.append({level,phase,message,details}),
+    loadText: text => loaded.push(text) });
+  const limit = AIG_IMPORT_LIMITS.sourceCharacters;
+  const huge = {name:"g.level",size:3*limit+4,text:() => assert.fail("must reject before reading")};
+  await elements.netlistInput.listeners.change({target:{files:[huge]}});
+  await controller.loadFiles([{name:"g.blif",text:async () => ".model g"}, huge]);
+  for (const name of ["g.csv", "g.txt"]) {
+    const generic = {...huge, name, slice(start, end) {
+      const prefix = start === 0 ? "#" : start === 65536 ? "\npoint at_level\na 3\n#" : "";
+      return new Blob([prefix.padEnd(end-start, "x")]);
+    }};
+    await elements.netlistInput.listeners.change({target:{files:[generic]}});
+  }
+  const tooMany = new Blob([new Uint8Array(limit+1)]);
+  tooMany.name = "inputs.level";
+  tooMany.text = () => assert.fail("must decode in bounded chunks");
+  await controller.loadFiles([tooMany]);
+  assert.deepEqual(loaded, []);
+  const failures = log.toJsonLines().split("\n").map(line => JSON.parse(line).details);
+  assert.deepEqual(failures.map(row => row.error.code), Array(5).fill("aig.level-limit"));
+  assert.equal(failures[1].operation, "aig.level.read");
+  assert.equal(failures[1].levelFileName, "g.level");
+  const unicode = "#"+"名".repeat(Math.ceil(limit/3))+"\npi 3";
+  const valid = new Blob([unicode]); valid.name = "unicode.level";
+  await controller.loadFiles([valid]);
+  assert.equal(loaded.length, 1);
+  assert.ok(loaded[0] === unicode);
+});
+
+test("main picker bundles a companion atomically, with Netlist timing first in mixed workspace batches", async () => {
+  const elements = inputElements(), loaded = [];
+  createQuickInputController({elements, windowTarget:eventTarget(), setStatus() {},
+    loadText:(text, options) => loaded.push({text,...options})});
+  const file = (name, text) => ({name, text:async () => text});
+  const table = "# name\nslack_level,point\n-1,y";
+  const csv = new Blob([table]);
+  csv.name = "other.csv";
+  await elements.netlistInput.listeners.change({target:{files:[
+    file("g.dot","graph"), csv, file("design.timing","timing"), file("design.v","netlist")
+  ]}});
+  assert.deepEqual(loaded.map(item => item.kind), ["netlist","timing","aig"]);
+  assert.deepEqual(loaded[2].levelFile, {name:"other.csv",text:table});
+});
+
+test("ambiguous attachments and failed reads retain the active graph and log the original error", async () => {
+  const loaded = [], log = createProcessLog();
+  const controller = createQuickInputController({elements:inputElements(), windowTarget:eventTarget(), setStatus() {},
+    loadText:(text, options) => loaded.push(options.kind),
+    logProcess:(level,phase,message,details) => log.append({level,phase,message,details})});
+  const file = name => ({name,text:async () => "placeholder"});
+  await controller.loadFiles([file("a.dot"), file("x.level"), file("b.blif")]);
+  const error = new Error("unreadable attachment");
+  await controller.loadFiles([file("a.dot"), {name:"x.level",text:async () => {throw error;}}]);
+  await controller.loadFiles([{name:"unreadable.txt",text:async () => {throw error;}}, file("x.level")]);
+  assert.deepEqual(loaded, []);
+  const [ambiguous,read,unknown] = log.toJsonLines().split("\n").map(row => JSON.parse(row).details);
+  assert.equal(ambiguous.operation, "pair-aig-level");
+  assert.equal(ambiguous.error.code, "AMBIGUOUS_LEVEL_TARGET");
+  assert.equal(ambiguous.fileName, "x.level");
+  assert.equal(read.levelFileName, "x.level");
+  assert.equal(read.fileName, "x.level");
+  assert.equal(read.operation, "aig.level.read");
+  assert.equal(read.error.stack, error.stack);
+  assert.equal(unknown.fileName, "unreadable.txt");
+});
+
+test("supersession during a paired Level read cannot commit the obsolete AIG", async () => {
+  const requests = createImportRequests(), loaded = [], messages = [];
+  const controller = createQuickInputController({elements:inputElements(),windowTarget:eventTarget(),importRequests:requests,
+    setStatus: message => messages.push(message),loadText:(text, {kind}) => loaded.push(kind)});
+  let started, release;
+  const reading = new Promise(resolve => { started = resolve; });
+  const pending = controller.loadFiles([{name:"a.dot",text:async () => "source"},
+    {name:"x.level",text:() => {started();return new Promise(resolve => {release=resolve;});}}]);
+  await reading;
+  requests.begin();
+  release("a 3");
+  await pending;
+  assert.deepEqual(loaded, []);
+  assert.deepEqual(messages, []);
 });
 
 test("a dropped text BLIF is recognized beyond a large mapping header or leading whitespace", async () => {
@@ -388,6 +591,23 @@ test("batch loading skips timing and Golden when every netlist failed", async ()
   ]);
   assert.deepEqual(loaded, []);
   assert.equal(statuses.filter((message) => message.startsWith("Skipped")).length, 2);
+});
+
+test("unreadable generic design prevents attaching Timing to the old graph while an independent AIG opens", async () => {
+  const loaded = [], statuses = [], log = createProcessLog();
+  const controller = createQuickInputController({ elements: inputElements(), windowTarget: eventTarget(),
+    loadText: (_text, options) => loaded.push(options.label), setStatus: message => statuses.push(message),
+    logProcess: (level, phase, message, details) => log.append({ level, phase, message, details }) });
+  const failure = new Error("unreadable design");
+  await controller.loadFiles([
+    { name: "new.txt", text: async () => { throw failure; } },
+    { name: "new.timing", text: async () => "point at rt slack\na 2 3 1" },
+    { name: "independent.blif", text: async () => ".model g\n.inputs a\n.outputs a\n.end" }
+  ]);
+  assert.deepEqual(loaded, ["independent.blif"]);
+  assert.ok(statuses.some(message => message.includes("Skipped new.timing")));
+  assert.equal(log.size, 1);
+  assert.equal(log.entries()[0].details.error.stack, failure.stack);
 });
 
 test("paste dialog validates empty text and waits for the load before closing", async () => {

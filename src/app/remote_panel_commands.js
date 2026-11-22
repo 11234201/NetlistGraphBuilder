@@ -6,10 +6,10 @@ const menuIds = {file:"fileMenu",settings:"settingsMenu",view:"viewMenu",layout:
   "compare-a":"compareLeftFilesMenu","compare-b":"compareRightFilesMenu",sync:"compareOptionsMenu",roots:"focusedRootsMenu"};
 const focusIds = {search:"searchInput","path-find":"pathFind",hierarchy:"moduleHierarchyFilter",roots:"focusedRootsFilter",editor:"netlistTextInput"};
 const businessControls = {
-  fileInput:"design open",addDesignInput:"design add",aigFileInput:"aig open",addAigInput:"aig add",serverFiles:"files browse",
+  fileInput:"files import",addDesignInput:"design add",aigFileInput:"aig open",addAigInput:"aig add",serverFiles:"files browse",
   aigSearchFirstInput:"aig import-mode",cancelDomainImportButton:"aig cancel-import",pasteNetlistButton:"text open",
   pasteAigButton:"text open",addAigText:"text open",timingInput:"timing open",addTimingInput:"timing add",pasteTimingButton:"text open",
-  goldenInput:"golden load",saveGoldenButton:"golden save",exportSvgButton:"svg export",showAliasesInput:"display aliases",
+  levelInput:"level open",pasteLevelButton:"text open",goldenInput:"golden load",saveGoldenButton:"golden save",exportSvgButton:"svg export",showAliasesInput:"display aliases",
   fanoutHubsInput:"display hubs",gateSymbolModeSelect:"display symbols",layoutProviderSelect:"layout provider",
   wireSpacingInput:"layout spacing",cellSpacingInput:"layout spacing",resetLayoutButton:"layout reset-overrides",
   timingMetricSelect:"timing metric",timingSlackThresholdInput:"timing threshold",libertyInput:"liberty load",

@@ -1,6 +1,6 @@
 # SSH 远程文件、EDA 工作台命令与多 AIG 开发计划
 
-2026-11-22，首版 R01–R13 与完整版 R14–R24 均已实现。启动器、命令和性能数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版现场验收](remote_workbench_full_results.md)。第 3 节是公开命令的唯一清单，共 180 条，包括原 179 条和新增的 `aig add`，另保留 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
+2026-11-22，首版 R01–R13 与完整版 R14–R24 均已实现。启动器、命令和性能数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版现场验收](remote_workbench_full_results.md)。第 3 节是公开命令的唯一清单。加入 `level open` 后共 181 条，另有 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
 
 开发任务 R01–R24、依赖、逐项通过条件和首版现场脚本见[开发需求与验收标准](remote_workbench_acceptance.md)。
 
@@ -114,6 +114,7 @@ design add <输入…>                           File → Add design file(s)。�
 timing open <输入…>                          Open timing / Paste timing，替换对应的时序输入
 timing add <输入…>                           Add timing file(s)，向当前时序数据集追加
 aig open <输入> [--view logic|standard|search-first]  Open / Paste AIG，DOT 或 BLIF
+level open <输入>                            File → AIG + Level → Open levels，替换当前 AIG 的 Level 数据
 aig add <输入…>                              Add AIG file(s)，将独立的 DOT/BLIF 加入本页图列表
 aig import-mode <normal|search-first>        File → Open AIG in Search-first 的后续导入偏好
 aig cancel-import                            File → Cancel AIG import
@@ -127,6 +128,8 @@ svg export <输出>                            导出当前 Netlist Single 或 A
 ```
 
 支持五个简写。`pages` = `page list`，`use` = `page use`，`open` = `design open`，`add` = `design add`，`add-timing` = `timing add`。三个入口都接受相同简写。网页的服务器文件选择器也支持 Liberty、Cell Config、Golden、AIG 和 Compare 侧所允许的文件类型。批量包含多个网表或时序时沿用现有批次次序和追加决策，逐文件返回成功、失败、跳过及原因。
+
+单独打开主图仍可执行 `aig open top.blif`。若同时有配套文件，可执行 `files import top.blif inputs.level`，两份文件校验成功后一起提交。向已打开的 AIG 补载或替换时，执行 `level open inputs.level` 或 `level open --text "a 3" --name inputs.level`。服务器选取器提供同一动作 `files browse --action "level open"`。Level 数据随所属图保存，切图后使用各自的输入层级和报告。[AIG Level 文件格式](../design/aig_level_format_spec.md)
 
 ### 3.3 浏览、搜索、聚焦与画布
 
@@ -293,12 +296,12 @@ ui focus <控件引用>                          聚焦搜索框等命名控件
 ui dismiss                                   Escape 或关闭当前菜单、抽屉或对话框
 ui help <open|close>                         帮助与快捷键对话框
 ui controls                                  列出当前可用的逻辑控件、可选值、禁用原因与命令
-text open <netlist|aig|timing> [--action open|add]  打开粘贴框，默认 open。AIG 支持显式 add，Compare 侧沿用已有粘贴入口
+text open <netlist|aig|timing|level> [--action open|add]  打开粘贴框，默认 open。level 应用于当前 AIG，AIG 主文件支持 add，Compare 侧沿用网表和时序粘贴入口
 text set <文本>                              编辑当前草稿
 text view <logic|standard|search-first>      AIG 粘贴框的绘图选项
 text expand                                  大文本预览 → 展开编辑
 text clear                                   清空草稿
-text submit                                  Draw / Index / Ctrl+Enter
+text submit                                  Draw / Index / Apply levels / Ctrl+Enter
 text cancel                                  放弃草稿或取消该输入框中的提交
 diagnostics list                             查看 Diagnostics 的诊断项
 log list [--level <级别>] [--phase <阶段>]    查询日志
@@ -403,7 +406,7 @@ ngb[p3]> module open g1
 
 | 批次 | 依赖 | 开发内容 | 可观察的退出条件 |
 | --- | --- | --- | --- |
-| P0　固定命令契约 | 第 3–4 节 | 为 180 个动词建立目录和按动作分组的 UI 映射。为每个动词登记拥有者、参数、目标、能力门控、返回类型和完成条件。固定别名、结构化错误、版本协商、限额配置位置及公共请求/回执样例 | 自动对照目录恰好 180 条、5 个简写。命令无重名，无效参数和协议版本在读文件或改状态前报错。UI 新增动作时可定位其对应的命令和用例 |
+| P0　固定命令契约 | 第 3–4 节 | 为 181 个动词建立目录和按动作分组的 UI 映射。为每个动词登记拥有者、参数、目标、能力门控、返回类型和完成条件。固定别名、结构化错误、版本协商、限额配置位置及公共请求/回执样例 | 自动对照目录恰好 181 条、5 个简写。命令无重名，无效参数和协议版本在读文件或改状态前报错。UI 新增动作时可定位其对应的命令和用例 |
 | P1　Node、页面路由与 Netlist 最短流程 | P0 | 实现服务注册、配对、每页队列、连接代次、TTY 提示与路径补全、跨进程 cmd 和 job 回执。首先接入 design open/add、timing open/add、必要的查询与日志，浏览器直接调用原导入用例 | 真实两页分别打开不同设计。终端向 p1 追加模块和时序后从 p1 查到新对象，p2 的模块、选区与视口保持原值。独立 CLI 能读取相同结果。无页/多页/目标页关闭均收到准确回执 |
 | P2　Linux ELF 与 EDA Tcl 对等 | P0、P1 | 在 native 实现同一控制协议、TTY 和 cmd。使 Tcl 的 Connect/Cmd 连接两种服务，参数以 list 传递，支持含空格文件名和稳定失败分类。扩展 CMake 内嵌及集成测试 | 同一份 Tcl 脚本分别驱动 Node 服务和 ELF，执行相同查询、追加、错误和取消，并比较规范化结果。单独部署 ELF 和现有 Tcl 脚本即可运行 |
 | P3　同页多 AIG | P0，可先做领域工作，远程验收依赖 P1/P2 | 按第 4 节实现集合、稳定图 ID、原子追加、切图、每图状态、v1/v2 迁移。本机文件、粘贴、Add 菜单与通用 add 路由接入。检查 Graphviz 缓存及结构分析任务释放 | DOT 与 BLIF 在同一页并存。重复文件名和节点名可消歧。追加非活动图 Graphviz 零新增调用。切图、回切、刷新、取消、故障后旧图正确。相同 request ID 不重复追加 |
@@ -411,7 +414,7 @@ ngb[p3]> module open g1
 | P5　Netlist 浏览、校准与 Compare | P1，文件类动作承接 P4 | 完成 §3.3–3.5 全部动作。按导航、显示、实例覆盖、类型定义、侧设置拆分提交。保留 Compare 草稿/Apply、同步策略、历史和共享时序策略，复用对象和实例引用 | 通过 UI 与命令分别完成跨父层定位、Focused、拖动等价提交、独立侧时序、双侧 Fit/Reset、Golden 往返等流程，关键状态和导出结果一致。两个真实同名层次实例可准确区分 |
 | P6　路径、结构分析、AIG 与工作台外壳 | P3、P5 | 完成 §3.6–3.8。以草稿和报告对象接入 Show Path，网表及 AIG 域分别贡献可用分析。接入 AIG 名称/高亮、面板、分页、文本编辑器、详情、Diagnostics 和 Log。补齐 §3.1/3.2 其余查询和导出 | UI、REPL、cmd、Tcl 均可得到同样的指定起点距离、结构结果、当前图及 SVG。只在某域或某状态可用的动作返回实际限制。命令驱动路径能读到和浏览器相同的结构化失败详情 |
 | P7　Python 与 Windows 离线适配 | P0、P2，整体验收依赖 P6 | Python 回退及 Windows 离线启动器实现相同服务、文件与控制协议。接入 tty/非 tty、自包含资源和关闭清理。复用公共请求样例及前端 | 同版目录、帮助、JSON 回执及错误分类通过四启动器对照。Windows 离线包实际启动完成多页和多 AIG 用例，资源与许可证齐全。Python 回退可在无 Node 的服务环境运行 |
-| P8　全链路回归与交付 | P4–P7 | 合并每批 UI 映射和测试证据，执行第 7 节的端到端、性能与发布验收。更新使用指南、Linux/Tcl 集成说明、Windows 说明和已变更的架构契约 | 180 条均能定位到实现和用例，所有适用入口均覆盖。有界、部分、取消、失败和失效目标的回执可查。交付记录列明版本、平台、实际运行的测试和产物 |
+| P8　全链路回归与交付 | P4–P7 | 合并每批 UI 映射和测试证据，执行第 7 节的端到端、性能与发布验收。更新使用指南、Linux/Tcl 集成说明、Windows 说明和已变更的架构契约 | 181 条均能定位到实现和用例，所有适用入口均覆盖。有界、部分、取消、失败和失效目标的回执可查。交付记录列明版本、平台、实际运行的测试和产物 |
 
 ## 7. 验证计划
 
@@ -436,6 +439,6 @@ ngb[p3]> module open g1
 
 **首个可用版本验收 P0–P4。** 用 npm 启动 SSH 服务，页面 1 打开网表并追加模块和时序，页面 2 从服务器打开 AIG，再追加另一张包含同名节点的图。终端和已有 EDA Tcl 均可列页、选页、列图、切图并查询结果。刷新后两页各自恢复。在同一台服务器把启动入口换成 Linux ELF，重复这份脚本得到相同业务结果。
 
-**完整版本验收 P5–P8。** 交付可运行的启动器、兼容的 Tcl 辅助脚本、远程文件选择器、多 AIG 工作区、180 条命令的在线帮助和完整 UI 覆盖清单。随版本提供 SSH 转发与 Tcl 示例、协议版本和错误码说明、平台测试报告及离线包核验结果。按批次合入时只在界面和 `commands --available` 中启用已实现且适用于该页的能力。功能失败时保留原有本机文件入口和可用工作区。
+**完整版本验收 P5–P8。** 交付可运行的启动器、兼容的 Tcl 辅助脚本、远程文件选择器、多 AIG 工作区、181 条命令的在线帮助和完整 UI 覆盖清单。随版本提供 SSH 转发与 Tcl 示例、协议版本和错误码说明、平台测试报告及离线包核验结果。按批次合入时只在界面和 `commands --available` 中启用已实现且适用于该页的能力。功能失败时保留原有本机文件入口和可用工作区。
 
 核对入口见 [前端工作台](../../index.html)、[通用事件绑定](../../src/app/workbench_event_bindings.js)、[导入与粘贴](../../src/ui/quick_input_controller.js)、[Show Path](../../src/ui/show_path_controller.js)、[Netlist 重收敛](../../src/ui/netlist_reconvergence_panel.js)、[AIG 面板](../../src/ui/aig_panels.js)、[AIG 结构详情](../../src/ui/aig_structure_panels.js)、[用户指南](../USER_GUIDE.md)、[Node 启动器](../../tools/serve.mjs)、[Linux 单文件启动器说明](../LINUX_SINGLE_FILE_LAUNCHER.md)和 [EDA Tcl 接口](../../tools/eda/ngb.tcl)。

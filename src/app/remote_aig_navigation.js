@@ -102,7 +102,8 @@ export function createRemoteAigNavigation(domain) {
     }
     const fields = {summary:info,connections:{incoming:edges.incoming.length,outgoing:edges.outgoing.length},source:{
       id:item.id,description:item.description,source:item.source,target:item.target,slot:item.slot,sourceRefs:item.sourceRefs,nameMappings:item.nameMappings},
-      analysis:nav.analysis(item.id)};
+      analysis:{...nav.analysis(item.id), ...(item.kind ? {topologyLevel:item.level} : {}),
+        ...(item.levelReport ? {levelReport:item.levelReport} : {})}};
     if (opts.tab && !Object.hasOwn(fields,opts.tab)) throw invalid("INVALID_ARGUMENT","Unknown AIG inspector tab");
     return {object:info,...(opts.tab ? {[opts.tab]:fields[opts.tab]} : fields)};
   };

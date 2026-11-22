@@ -1,10 +1,11 @@
-import { collectionLimits } from "../persistence/aig_collection_storage.js";
+import { aigSourceCharacters, collectionLimits } from "../persistence/aig_collection_storage.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 
 export function createAigCollection({ validate, activate, render }) {
   let entries = [], activeId = null, serial = 0, pendingBatch = null;
   const list = () => entries.map(({ id, source, identity }) => ({
-    id, name:source.name, format:source.format, fingerprint:identity.fingerprint, active:id === activeId
+    id, name:source.name, format:source.format, fingerprint:identity.fingerprint, active:id === activeId,
+    ...(source.levelFile ? { levelFileName: source.levelFile.name } : {})
   }));
   function make(source) {
     return { id: "g" + ++serial, source, identity: createSourceIdentity(source.name, source.text), view: {} };
@@ -12,6 +13,8 @@ export function createAigCollection({ validate, activate, render }) {
   function changed() { render(list(), activeId); }
   function commit(source, id, request) {
     if (id) {
+      const entry = entries.find((item) => item.id === id);
+      if (entry && entry.source.levelFile !== source.levelFile) entry.source = source;
       activeId = id;
     } else {
       const batch = pendingBatch;
@@ -44,9 +47,9 @@ export function createAigCollection({ validate, activate, render }) {
     const fileResults = failedIndex => inputs.map((source, index) => ({
       name:source.name, status:index === failedIndex ? "failed" : "uncommitted"
     }));
-    let characters = entries.reduce((sum, entry) => sum + entry.source.text.length, 0);
+    let characters = entries.reduce((sum, entry) => sum + aigSourceCharacters(entry.source), 0);
     for (const [index, input] of inputs.entries()) {
-      characters += input.text.length;
+      characters += aigSourceCharacters(input);
       if (entries.length + index + 1 > collectionLimits.graphs || characters > collectionLimits.characters)
         throw Object.assign(new Error("AIG collection capacity exceeded"), { code:"COLLECTION_LIMIT", files:fileResults(index) });
     }
@@ -83,7 +86,11 @@ export function createAigCollection({ validate, activate, render }) {
     changed();
     return { added: list().slice(oldLength), activeGraphId: activeId, graphCount: entries.length };
   }
-  return { add, commit, restore, list, switchTo, active: () => activeId,
+  function checkReplacement(source) {
+    const characters = entries.reduce((sum, entry) => sum + aigSourceCharacters(entry.id === activeId ? source : entry.source), 0);
+    if (characters > collectionLimits.characters) throw Object.assign(new Error("AIG collection capacity exceeded"), { code: "COLLECTION_LIMIT" });
+  }
+  return { add, commit, restore, list, switchTo, checkReplacement, active: () => activeId,
     clear() { entries = []; activeId = null; changed(); },
     save(view, storage) {
       const active = entries.find((entry) => entry.id === activeId);

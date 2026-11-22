@@ -110,7 +110,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       });
     }
   });
-  button.onclick = () => picker.open().catch(error => log(error, "files.browse"));
+  button.onclick = () => picker.open("files import").catch(error => log(error, "files.browse"));
   for (const [id, side] of [["compareLeftFilesMenu","A"], ["compareRightFilesMenu","B"]]) {
     const item = document.createElement("button");
     item.type = "button"; item.className = "menu-action"; item.textContent = "Open from server…";
@@ -256,7 +256,10 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
               const target = pending.target;
               const scope = {side:job.side || job.opts.side, graphId:target.graphId,
                 moduleName:target.moduleName, documentId:target.documentId, documentVersion:target.documentVersion};
-              log(error, job.name, job.id, scope);
+              // A failed batch already logged each file. Correlate the command
+              // with its original error and keep the batch summary in the receipt.
+              const loggedError = error.code === "IMPORT_FAILED" && error.files && error.cause ? error.cause : error;
+              log(loggedError, job.name, job.id, scope);
               const message = errorMessage(error);
               const code = isCancellation(error) ? "CANCELLED" : failureCode(error);
               if (!closing && code !== "CANCELLED" && code !== "STALE_DOCUMENT" &&

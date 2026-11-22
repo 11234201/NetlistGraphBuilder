@@ -100,7 +100,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $packageRoo
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
 # Keep the repository layout for offline guide links, plus the traditional root guide.
-foreach ($relative in @("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md")) {
+foreach ($relative in @("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md", "docs\design\aig_level_format_spec.md")) {
   $destination = Join-Path $packageRoot $relative
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
   Copy-Item -LiteralPath (Join-Path $repoRoot $relative) -Destination $destination

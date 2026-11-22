@@ -21,20 +21,22 @@ export function createDomainWorkspace({ documents, sessions, jobs, registry, lay
     close(candidate);
     candidate = null;
   }
-  async function open(domainId, input, restore = null, onFailure) {
+  async function open(domainId, input, restore = null, onFailure, previousDocument = null) {
+    if (previousDocument && previousDocument !== active?.document) return null;
     cancel();
     const ticket = generation;
     const documentId = `document:workspace:${ticket}`;
+    const sourceRevision = previousDocument ? previousDocument.sourceRevision + 1 : 1;
     let document, feature;
     try {
       feature = registry.require(domainId);
       if (typeof feature.createWorkspaceStages !== "function") throw new Error("Domain has no workspace contribution");
-      document = await feature.importSource(input, { documentId, sourceRevision: 1 });
+      document = await feature.importSource(input, { documentId, sourceRevision, ...(previousDocument ? { previousDocument } : {}) });
       if (ticket !== generation) return null;
       documents.open(document);
     } catch (error) {
       if (ticket !== generation) return null;
-      notifyFailure(onFailure, { domainId, documentId, documentRevision: 1 });
+      notifyFailure(onFailure, { domainId, documentId, documentRevision: sourceRevision });
       throw error;
     }
     return prepare(document, feature, restore, ticket, onFailure);

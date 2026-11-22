@@ -2,7 +2,7 @@ import { projectAbcAigDot } from "./abc_projection.js";
 import { normalizeAigViewStyle } from "./aig_presentation.js";
 import { quoteDot as quote } from "./dot_attributes.js";
 
-export const AIG_DISPLAY_VERSION = 7;
+export const AIG_DISPLAY_VERSION = 8;
 export const AIG_FONT = "Arial";
 // Graphviz otherwise permits INT_MAX network-simplex iterations. These named
 // quality/cost limits supplement the Worker's hard timeout; they do not change
@@ -26,11 +26,21 @@ export function projectAigDot(model, presentation = {}) {
   for (const node of nodes) {
     const shape = { pi: "triangle", po: "invtriangle", and: "ellipse", constant: "box", boundary: "box" }[node.kind];
     lines.push(`${quote(node.id)} [id=${quote(node.id)}, label=${quote(node.label)}, shape=${shape}];`);
-    const rank = node.kind === "po" ? "output" : String(node.level || 0);
+    // A cut marks the driver's signal. Put a fanout marker one display row
+    // above its driver without adding a logic level to that signal.
+    const rank = node.kind === "po" ? "output" : String((node.level || 0) + Number(node.boundaryDirection === "out"));
     if (!ranks.has(rank)) ranks.set(rank, []);
     ranks.get(rank).push(quote(node.id));
   }
   for (const [rank, ids] of ranks) lines.push(`{ rank=${rank === "output" ? "max" : rank === "0" ? "min" : "same"}; ${ids.join("; ")}; }`);
+  if (model.hasInputLevelOffsets) {
+    // rank=same groups only constrain peers. Connect one representative of
+    // each occupied level so independent branches respect their PI offsets.
+    const occupied = [...ranks.keys()].filter(rank => rank !== "output").sort((a, b) => Number(a) - Number(b));
+    for (let i = 1; i < occupied.length; i++) {
+      lines.push(`${ranks.get(occupied[i - 1])[0]} -> ${ranks.get(occupied[i])[0]} [style=invis];`);
+    }
+  }
   for (const edge of [...model.edges].sort(byCanonicalId)) lines.push(`${quote(edge.source)} -> ${quote(edge.target)} [id=${quote(edge.id)}, style=${edge.inverted ? "dashed" : "solid"}];`);
   lines.push("}");
   return lines.join("\n");

@@ -28,6 +28,18 @@ export const aigControls = Object.freeze({
   searchPlaceholder: "Find AIG name or source ID…"
 });
 
+export function syncAigLevelControls(document, active) {
+  const input = document.getElementById("levelInput");
+  const paste = document.getElementById("pasteLevelButton");
+  if (input) {
+    input.disabled = !active;
+    const label = input.closest("label");
+    label.tabIndex = active ? 0 : -1;
+    label.setAttribute("aria-disabled", String(!active));
+  }
+  if (paste) paste.disabled = !active;
+}
+
 // Custom entry replaces the selector in place. All choices write the same setting.
 export function bindAigConnectionHighlight(toolbar, { read, commit, preview }) {
   const group = toolbar.querySelector(".aig-connection-control");

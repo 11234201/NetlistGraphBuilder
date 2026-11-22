@@ -68,6 +68,22 @@ test("AIG navigator filters with analysis indexes and retains an excluded select
   assert.match(source, /data-aig-select="and:0"/);
 });
 
+test("AIG object and edge panels use topology levels for designs with input offsets", () => {
+  const imported = importAigSource(".model gates\n.inputs a b\n.outputs y\n.names a b y\n11 1\n.end", {
+    name:"gates.blif", levelFile:{name:"gates.level", text:"a 3"}
+  });
+  const query = createAigQuery(imported.model, imported.analysis);
+  const workspace = {document:imported, query, search:() => imported.model.nodes};
+  const objects = renderAigNavigator(workspace, {tab:"objects", sort:"depth"});
+  assert.match(objects, /topology level 3 · fanout/);
+  assert.match(objects, /Topology level \(highest first\)/);
+  const input = imported.model.nodes.find(node => node.kind === "pi" && node.label === "a");
+  const edge = imported.model.edges.find(candidate => candidate.source === input.id);
+  const analysis = renderAigInspector(workspace, {selectedId:edge.id, tab:"analysis"});
+  assert.match(analysis, /Source topology level<\/dt><dd><code>3/);
+  assert.match(analysis, /Target topology level<\/dt><dd><code>4/);
+});
+
 test("AIG navigator exposes a selected object on another page without changing the requested page", () => {
   const workspace = createWorkspace(230);
   const options = { tab: "objects", type: "po", query: "output_", sort: "name", page: 0, selectedId: "extra:229" };

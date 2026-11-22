@@ -217,11 +217,12 @@ async function check(adapter,s,dir,roots,t){
     await s.page(a,"poll",{context:{mode:"AIG",pickerState:"closed"}});
     await s.page(b,"poll",{context:{mode:"Compare",pickerState:"open"}});
     const aigNames=names(await available("--page",a.page));
-    for(const name of ["aig add","module open","files browse"]) assert.ok(aigNames.includes(name));
+    for(const name of ["aig add","level open","module open","files browse"]) assert.ok(aigNames.includes(name));
     for(const name of ["timing open","timing show","golden load","files choose","files submit"])
       assert.ok(!aigNames.includes(name));
     assert.equal((await available("--page",a.page,"--side","B")).error.code,"INVALID_SIDE");
     const compareNames=names(await available("--page",b.page));
+    assert.ok(!compareNames.includes("level open"));
     assert.ok(compareNames.includes("files choose"));
     assert.ok(!compareNames.includes("files submit"));
     assert.ok(!compareNames.includes("svg export"));
@@ -231,8 +232,9 @@ async function check(adapter,s,dir,roots,t){
     await s.page(b,"poll",{context:{mode:"Compare",pickerState:"selected"}});
     assert.ok(names(await available("--page",b.page)).includes("files submit"));
     await s.page(a,"poll",{context:{mode:"Single",pickerState:"closed"}});
+    assert.ok(!names(await available("--page",a.page)).includes("level open"));
     const full=await s.admin("command",{argv:["commands","--page","missing"]});
-    assert.equal(full.result.length,180);
+    assert.equal(full.result.length,181);
     const logs=join(dir,"logs-"+adapter);
     const files=(await readdir(logs)).filter(name=>name.endsWith(".error.jsonl"));
     const records=(await Promise.all(files.map(name=>readFile(join(logs,name),"utf8"))))
@@ -250,6 +252,8 @@ async function check(adapter,s,dir,roots,t){
     const version=await s.admin("command",{version:999,id:"bad-version",argv:["open",sentinel],page:a.page});
     assert.equal(version.error.code,"PROTOCOL_VERSION");
     assert.equal((await command("bad-args",...args)).error.code,"INVALID_ARGUMENT");
+    assert.equal((await command("bad-level-paths","level","open",sentinel,sentinel)).error.code,"INVALID_ARGUMENT");
+    assert.equal((await command("bad-level-side","level","open",sentinel,"--side","B")).error.code,"INVALID_SIDE");
     assert.equal((await command("bad-side-file","aig","add",sentinel,"--side","A")).error.code,"INVALID_SIDE");
     assert.equal((await command("bad-side-module","module","open","top","--side","B")).error.code,"INVALID_SIDE");
     assert.equal((await command("bad-side-catalogue","commands","--side","B")).error.code,"INVALID_SIDE");
@@ -258,7 +262,7 @@ async function check(adapter,s,dir,roots,t){
     await readFile(sentinel);
     assert.ok((await stat(sentinel)).atimeMs>0,"fixture filesystem must record a real read");
     const rows=(await command("catalogue","commands")).result;
-    assert.equal(new Set(rows.map(row=>row.name)).size,180);
+    assert.equal(new Set(rows.map(row=>row.name)).size,181);
     assert.ok(rows.every(row=>row.syntax && row.capability && row.target && row.completion));
   });
   await t.test(adapter+" R03/R04 queue, cancellation at receive and commit gate, deduplication and unknown outcome",async()=>{

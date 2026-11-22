@@ -1,4 +1,4 @@
-const actions = ["design open", "design add", "aig open", "aig add", "timing open", "timing add",
+const actions = ["design open", "design add", "timing open", "timing add", "aig open", "aig add", "level open",
   "files import", "liberty load", "golden load", "cell-config import"];
 const sideActions = new Set(["design open", "design add", "timing open", "timing add", "files import"]);
 
@@ -20,7 +20,8 @@ export function createServerFilePicker({ document, list, submit, context, report
   const visibleFiles = new Map();
   let path = "", number = 1, serial = 0, busy = false, listReady = false, windowsPaths = false, target;
   function syncSubmit() { el("submit").disabled = busy || !listReady || chosen.size === 0; }
-  for (const name of actions) el("action").add(new Option(name, name));
+  const levelAction = new Option("level open", "level open");
+  for (const name of actions) el("action").add(name === "level open" ? levelAction : new Option(name, name));
   // Use the server's path syntax even when the browser runs on another OS.
   const normalized = value => windowsPaths ? value.replaceAll("\\", "/") : value;
   const directoryKey = value => normalized(value).replace(/\/$/, "");
@@ -93,11 +94,15 @@ export function createServerFilePicker({ document, list, submit, context, report
   async function open(action = "design open", dir = "", side = "") {
     if (busy) throw new Error("An import is still running");
     if (!actions.includes(action)) throw new Error("Unknown file action: " + action);
-    if (side && (context().mode !== "Compare" || !sideActions.has(action))) throw new Error("This action does not accept a Compare side");
+    const current = context();
+    if (action === "level open" && current.mode !== "AIG")
+      throw Object.assign(new Error("Open an AIG before loading its Level file"), {code:"DOMAIN_MISMATCH"});
+    if (side && (current.mode !== "Compare" || !sideActions.has(action))) throw new Error("This action does not accept a Compare side");
     chosen.clear(); showResults(); el("status").textContent = ""; el("filter").value = "";
     el("roots").replaceChildren(); el("path").value = dir;
+    levelAction.disabled = current.mode !== "AIG";
     el("action").value = action; el("side").value = side; syncSide();
-    target = context();
+    target = current;
     el("context").textContent = [target.page, target.source].filter(Boolean).join(" · ");
     if (!dialog.open) dialog.showModal();
     if (!await refresh(dir)) throw new DOMException("File browsing superseded", "AbortError");
@@ -120,6 +125,7 @@ export function createServerFilePicker({ document, list, submit, context, report
       const result = await submit(el("action").value, [...chosen.values()], el("side").value, parentId);
       if (result.partial) {
         target = result;
+        levelAction.disabled = target.mode !== "AIG";
         el("context").textContent = [target.page, target.source].filter(Boolean).join(" · ");
         showResults(result.files);
         // Retrying after a partial batch imports only the remaining selections.

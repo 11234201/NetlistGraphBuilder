@@ -331,6 +331,8 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 ## AIG Single 领域接入（2026-11-15）
 
+`domains/aig/aig_level.js` 在归一化编号与源名称绑定之后解析层级记录的目标，在派生模型上从 PI 的 AT 传播拓扑层级。内部节点的显式 AT、RT 和 Slack 作为报告值保存。附件通过 AIG 候选工作区校验并随图提交，原文按图进入集合存档。[Level 文件规范](design/aig_level_format_spec.md)
+
 - `domains/aig/` 解析 ABC DOT 和平坦组合 BLIF。parser 保留 cover、注释和源位置，语义层将最多两输入的函数归约为常量、别名、AND 和反相边。XOR/XNOR 的辅助点保留生成声明来源。规范化保留输入槽与极性，以独立索引绑定设计名、driver 与输出端口，搜索和映射表共享该身份。
 - `aig_view_query` 从源模型提取多根 Focused 子图。真实节点与内部边交给结构分析；截断处的显示节点和带极性的边交给 Graphviz、Scene 和 SVG。整个文档的搜索索引仍可定位范围外对象。存档保存规范化版本、roots 与两向深度，恢复时在已重新导入的文档上校验 roots。
 - `bootstrap/default_domains.js` 静态注册 Netlist 与 AIG。AIG 的 `createWorkspaceStages` 贡献通过公共 `runViewPipeline` 执行；应用公共层没有领域 ID 分支。AIG 曲线使用 `curve-geometry.v1` 的中心/边界、三次样条路径、箭头及文字坐标，不进入 `edge.points`、wireRoutes、正交 validator 或 Adjust。

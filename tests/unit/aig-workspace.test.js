@@ -122,6 +122,44 @@ test("versioned domain archives preserve pure view data and reject incompatible 
   assert.equal(aigFeature.capabilities.compare, false);
 });
 
+test("Level replacement updates a detached AIG workspace, preserves Focused IDs, and rolls back bad or cancelled replacements", async () => {
+  const env = setup();
+  const input = { name: "levels.blif", text: fixture("shared_cone.blif") };
+  const initial = await env.useCase.open("aig", input, { focus: { viewMode: "search-first" } });
+  const pi = initial.document.model.model.nodes.find((node) => node.kind === "pi" && node.label === "a");
+  assert.equal(env.calls(), 0);
+  const levelFile = { name: "first.level", text: "a 3" };
+  const restore = { focus: { focusedRootNodeIds: [pi.id], activeFocusedRootNodeId: pi.id, faninDepth: 0, fanoutDepth: 1 } };
+  const attached = await env.useCase.open("aig", { ...input, levelFile }, restore, null, initial.document);
+  assert.equal(attached.query.nodeById.get(pi.id).level, 3);
+  assert.equal(pi.level, 0);
+  assert.equal(attached.document.sourceRevision, initial.document.sourceRevision + 1);
+  assert.equal(env.viewSessions.require(attached.sessionId).activeFocusedRootRef.localId, pi.id);
+  assert.ok(attached.geometry.nodes.some((node) => node.id === pi.id));
+  let failureContext;
+  await assert.rejects(env.useCase.open("aig", { ...input, levelFile: { name: "bad.level", text: "a 2\nmissing 3" } },
+    restore, (value) => { failureContext = value; }, attached.document), (error) => {
+    assert.equal(error.diagnostic.file, "bad.level");
+    assert.equal(error.diagnostic.line, 2);
+    return true;
+  });
+  assert.equal(failureContext.domainId, "aig");
+  assert.equal(env.useCase.read(), attached);
+  assert.equal(await env.useCase.open("aig", { ...input, levelFile }, restore, null, initial.document), null);
+  const pending = env.useCase.open("aig", { ...input, levelFile: { name: "cancel.level", text: "b 5" } },
+    restore, null, attached.document);
+  env.useCase.cancel();
+  assert.equal(await pending, null);
+  assert.equal(env.useCase.read(), attached);
+  assert.equal(env.documents.list().length, 1);
+  const replaced = await env.useCase.open("aig", { ...input, levelFile: { name: "latest.level", text: "b 5" } },
+    { focus: { viewMode: "search-first" } }, null, attached.document);
+  assert.equal(replaced.searchFirst, true);
+  assert.equal(replaced.query.nodeById.get(pi.id).level, 0);
+  assert.equal(replaced.document.model.levelFile.name, "latest.level");
+  env.useCase.leave();
+});
+
 test("AIG styles reuse the source, preserve every object and cache a round trip", async () => {
   const env = setup();
   const first = await env.useCase.open("aig", { text: fixture("shared_cone.blif"), name: "views.blif" });

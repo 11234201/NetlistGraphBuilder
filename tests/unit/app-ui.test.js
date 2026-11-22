@@ -190,6 +190,12 @@ test("lightweight inputs expose paste and Golden load controls", async () => {
   assert.match(html, /id="processLogPhaseFilter"/);
   assert.match(html, /id="exportProcessLogButton"/);
   assert.match(topbar, /id="fileMenu"[\s\S]*<summary>File<\/summary>/);
+  const files = topbar.slice(topbar.indexOf('id="fileMenu"'), topbar.indexOf('id="settingsMenu"'));
+  const netlist = files.indexOf('id="netlistFilesHeading"');
+  const aig = files.indexOf('id="aigFilesHeading"');
+  assert.ok(files.indexOf('id="fileInput"') < netlist && netlist < aig);
+  assert.match(files.slice(netlist, aig), /Netlist \+ Timing[\s\S]*id="pasteNetlistButton"[\s\S]*id="timingInput"/);
+  assert.match(files.slice(aig), /AIG \+ Level[\s\S]*id="aigFileInput"[\s\S]*id="levelInput"[\s\S]*id="pasteLevelButton"/);
   assert.match(topbar, /id="cellConfigMenu"/);
   assert.match(topbar, /class="topbar-search"[\s\S]*id="searchInput"/);
   assert.doesNotMatch(html, /class="panel-section search-panel"/);

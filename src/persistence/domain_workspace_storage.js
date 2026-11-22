@@ -7,7 +7,8 @@ export function encodeDomainWorkspace({ domainId, source, viewport, selectedId, 
   if (!domainId || typeof source?.text !== "string") throw new Error("Workspace source is required");
   return JSON.stringify({ kind: "domain-workspace", version: focus?.showPath ? 2 : 1, normalizationVersion: 1,
     ...(focus?.showPath ? { sourceIdentity: createSourceIdentity(source.name, source.text) } : {}),
-    domainId, ...(graphId ? { graphId } : {}), source: { name: String(source.name || "input"), format: source.format, text: source.text },
+    domainId, ...(graphId ? { graphId } : {}), source: { name: String(source.name || "input"), format: source.format, text: source.text,
+      ...(source.levelFile ? { levelFile: { name: source.levelFile.name, text: source.levelFile.text } } : {}) },
     viewport, selectedId: selectedId || null, presentationPolicy, panels, focus });
 }
 

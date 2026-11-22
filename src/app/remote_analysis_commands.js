@@ -76,8 +76,9 @@ export function createAnalysisCommands(services) {
     if (job.name.startsWith("ui ") || job.name === "diagnostics list") return panel(job);
     if (job.name.startsWith("text ")) {
       if (job.name === "text open") {
-        if (job.opts.side) demand(context().mode === "Compare" && job.args[0] !== "aig","INVALID_SIDE","Only Compare netlist and timing editors have sides");
+        if (job.opts.side) demand(context().mode === "Compare" && ["netlist", "timing"].includes(job.args[0]),"INVALID_SIDE","Only Compare netlist and timing editors have sides");
         if (job.args[0] === "timing") demand(context().mode !== "AIG","DOMAIN_MISMATCH","Timing requires a netlist");
+        if (job.args[0] === "level") demand(context().mode === "AIG","DOMAIN_MISMATCH","Level requires an AIG");
       }
       return quickInput.draftCommand(job);
     }

@@ -33,6 +33,7 @@ export function graphvizJsonToGeometry(json, { padding = 24, nodeLabels = null }
   const edges = [];
   ids.clear();
   for (const item of json.edges || []) {
+    if (item.style === "invis") continue; // A rank constraint has no drawable curve or hit target.
     const id = String(item.id || `edge:${item._gvid}`);
     if (ids.has(id)) throw new Error(`Duplicate Graphviz edge id: ${id}`);
     ids.add(id);

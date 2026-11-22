@@ -96,9 +96,9 @@ test("R01 published grammar matches the eight command groups and five aliases", 
         .map(line => line.trim().split(/\s{2,}/)[0])
         .filter(line => /^[a-z]/.test(line));
   });
-  assert.deepEqual(groups.map(g => g.length), [16, 25, 34, 33, 15, 24, 7, 26]);
+  assert.deepEqual(groups.map(g => g.length), [16, 26, 34, 33, 15, 24, 7, 26]);
   assert.deepEqual(catalogue.commands.map(c => c.syntax), groups.flat());
-  assert.equal(new Set(catalogue.commands.map(c => c.name)).size, 180);
+  assert.equal(new Set(catalogue.commands.map(c => c.name)).size, 181);
   assert.deepEqual(catalogue.aliases, {
     pages: "page list",
     use: "page use",
@@ -108,6 +108,16 @@ test("R01 published grammar matches the eight command groups and five aliases", 
   });
   assert.ok(catalogue.commands.every(c => c.target && c.capability && c.completion));
   assert.throws(() => parseCommand(["aig", "open", "a", "b"]), {code: "INVALID_ARGUMENT"});
+});
+
+test("Level commands accept a single attachment or an explicit paste editor", () => {
+  assert.deepEqual(parseCommand(["level","open","seeds.level"]).args, ["seeds.level"]);
+  assert.deepEqual(parseCommand(["level","open","--text","a 3","--name","seeds.level"]).opts, {text:"a 3", name:"seeds.level"});
+  assert.deepEqual(parseCommand(["text","open","level"]).args, ["level"]);
+  assert.deepEqual(catalogue.commands.find(row => row.name === "level open").modes, ["AIG"]);
+  assert.throws(() => parseCommand(["level","open","a","b"]), {code:"INVALID_ARGUMENT"});
+  assert.throws(() => parseCommand(["level","open","a","--text","b 4"]), {code:"INVALID_ARGUMENT"});
+  assert.throws(() => parseCommand(["level","open","a","--side","B"]), {code:"INVALID_SIDE"});
 });
 
 test("R03/R04 cancellation at file read, delivery and grant; scoped receipts and deduplication", async t => {

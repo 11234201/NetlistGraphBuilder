@@ -43,7 +43,7 @@ test("server mixed import prioritizes designs, returns every original file row a
   assert.deepEqual(result.files.map(row => row.status), ["committed","committed","failed","failed","committed"]);
   assert.equal(result.files[3].error.code, "ENOENT");
   assert.deepEqual(requests.map(r => [r.name,r.append]), [
-    ["design.v",false],["more.v",true],["broken.blif",false],["timing.rpt",false]
+    ["design.v",false],["more.v",true],["timing.rpt",false],["broken.blif",false]
   ]);
   assert.equal(errors.length,1);
   assert.equal(errors[0].error,broken);
@@ -61,6 +61,85 @@ test("mixed import skips attachments when every requested design failed", async 
     return true;
   });
   assert.equal(requests.length,1);
+});
+
+test("unreadable Verilog inputs keep Timing off the previous document and allow independent AIGs", async () => {
+  for (const name of ["expected.sv", "unknown.txt"]) {
+    const {run, requests} = importer(() => {});
+    const files = [{name, error: {code: "ENOENT", message: "missing design"}},
+      {name: "new.timing", text: "point at rt slack\na 2 3 1"}, {name: "independent.blif", text: "AIG"}];
+    if (name === "expected.sv") files.push({name: "independent.level", text: "a 3"});
+    const result = await run({name: "files import", opts: {}, files});
+    assert.deepEqual(requests.map(row => row.name), ["independent.blif"]);
+    assert.deepEqual(result.files.map(row => row.status),
+      name === "expected.sv" ? ["failed", "skipped", "committed", "committed"] : ["failed", "skipped", "committed"]);
+    assert.equal(result.files[0].error.code, "ENOENT");
+  }
+});
+
+test("remote Level pairs commit together and report the offending attachment once", async () => {
+  const levelError = Object.assign(new Error("unknown Level point"), {code:"aig.level-unknown-point"});
+  const {run, errors} = importer((text, options) => {
+    assert.equal(options.levelFile.text, text + " level");
+    if (text === "bad") {
+      options.onFailureContext({fileName:options.levelFile.name, operation:"aig.level.import", line:2});
+      throw levelError;
+    }
+  });
+  const files = [
+    {name:"bad.level", text:"bad level"}, {name:"good.blif", text:"good"},
+    {name:"bad.dot", text:"bad"}, {name:"good.level", text:"good level"}
+  ];
+  const result = await run({name:"files import", id:"pair", opts:{}, files});
+  assert.deepEqual(result.files.map(f => f.status), ["failed","committed","uncommitted","committed"]);
+  assert.equal(errors.length,1);
+  assert.equal(errors[0].error,levelError);
+  assert.equal(errors[0].details.fileName,"bad.level");
+  assert.equal(errors[0].details.line,2);
+});
+
+test("unreadable member prevents a remote pair from changing the active AIG", async () => {
+  const {run, requests} = importer(() => {}, "AIG");
+  for (const name of ["bad.blif", "unknown.txt"]) {
+    const files = [{name, error:{code:"ENOENT",message:"Missing"}}, {name:"inputs.level",text:"a 3"}];
+    await assert.rejects(run({name:"files import", opts:{}, files}), e => e.files.every(f=>f.status !== "committed"));
+  }
+  assert.deepEqual(requests,[]);
+});
+
+test("ambiguous remote Level pairs return an ordered receipt identifying the conflicting selection", async () => {
+  const {run, requests, errors} = importer(() => {});
+  const files = [{name:"core.level", text:"a 1"}, {name:"core.blif", text:"graph"}, {name:"core.level", text:"a 2"}];
+  await assert.rejects(run({name:"files import", id:"ambiguous", opts:{}, files}), error => {
+    assert.equal(error.code, "AMBIGUOUS_LEVEL_TARGET");
+    assert.deepEqual(error.files.map(row => [row.name,row.status]), [
+      ["core.level","uncommitted"], ["core.blif","uncommitted"], ["core.level","failed"]
+    ]);
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0].error, error);
+    assert.equal(errors[0].details.operation, "pair-aig-level");
+    return true;
+  });
+  assert.deepEqual(requests, []);
+});
+
+test("same-name remote graph and Level files report the member whose validation failed", async () => {
+  for (const kind of ["aig","level"]) {
+    const original = Object.assign(new Error("invalid input"), {code:kind === "aig" ? "blif.cover-value" : "aig.level-row"});
+    const {run, errors} = importer((_text, options) => {
+      options.onFailureContext({fileName:"report.txt", operation:kind === "level" ? "aig.level.import" : "aig.import", line:2});
+      throw original;
+    });
+    const files = [{name:"report.txt", text:".model g"}, {name:"report.txt", text:"point at_level\na 5"}];
+    await assert.rejects(run({name:"files import", opts:{}, files}), error => {
+      assert.equal(error.code, "IMPORT_FAILED");
+      assert.deepEqual(error.files.map(row => [row.kind,row.status]),
+        kind === "aig" ? [["aig","failed"],["level","uncommitted"]] : [["aig","uncommitted"],["level","failed"]]);
+      return true;
+    });
+    assert.equal(errors[0].details.kind, kind);
+    assert.equal(errors[0].error, original);
+  }
 });
 
 test("pure AIG multi-open appends only after the first successful open", async () => {

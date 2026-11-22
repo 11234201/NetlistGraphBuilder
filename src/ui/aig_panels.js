@@ -72,7 +72,7 @@ function thresholdOf(options) {
 }
 
 function renderDesign(workspace, options) {
-  const { name, format, analysis } = workspace.document;
+  const { name, format, analysis, levelFile } = workspace.document;
   const threshold = thresholdOf(options);
   const context = getIndexes(workspace);
   let highFanout = context.fanoutCounts.get(threshold);
@@ -86,7 +86,8 @@ function renderDesign(workspace, options) {
   return `<h3 title="${escapeAttr(name)}">${escapeHtml(name)}</h3><dl class="stats-list">${renderDefinitionRows([
     ["Format", ["dot", "abc-dot"].includes(format) ? "ABC AIG DOT" : "Two-input BLIF"], ["Inputs (PI)", counts.pi], ["AND", counts.and],
     ["Outputs (PO)", counts.po], ["Constants", counts.constant], ["Logical edges", counts.edges],
-    ["Inverted edges", counts.invertedEdges], ["Maximum AND depth", analysis.depth],
+    ["Inverted edges", counts.invertedEdges], [levelFile ? "Maximum output level" : "Maximum AND depth", analysis.depth],
+    ...(levelFile ? [["Level file", levelFile.name], ["Reported points", levelFile.pointCount]] : []),
     ["Critical nodes", analysis.criticalNodes.length], ["Critical edges", analysis.criticalEdges.length],
     [`Fanout ≥ ${threshold}`, highFanout]
   ])}</dl>`;
@@ -119,7 +120,7 @@ function getObjectView(workspace, options) {
 
 function renderObjects(workspace, options) {
   const { context, type, query, analysisFilter, sort, threshold } = getObjectView(workspace, options);
-  const { analysis } = workspace.document;
+  const { analysis, levelFile } = workspace.document;
   const { page, start, end } = pageRange(context.objects.length, options.page);
   const selected = context.query.nodeById.get(options.selectedId);
   const selectedPosition = context.objectPositions.get(selected?.id);
@@ -129,14 +130,14 @@ function renderObjects(workspace, options) {
     const node = context.query.nodeById.get(entry.id);
     const current = entry.id === options.selectedId;
     return `<li><button type="button" class="module-hierarchy-link${current ? " is-current" : ""}" data-aig-select="${escapeAttr(entry.id)}" title="${escapeAttr(entry.label)}"${current ? ' aria-current="true"' : ""}>
-      <span>${escapeHtml(entry.label)}</span> <small>${entry.detail ? escapeHtml(entry.detail) + " · " : ""}${escapeHtml(kindLabel(entry.kind))} · depth ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}${outsideScope(workspace.visibleNodeIds, node.id, workspace.path?.nodeIds)}</small>
+      <span>${escapeHtml(entry.label)}</span> <small>${entry.detail ? escapeHtml(entry.detail) + " · " : ""}${escapeHtml(kindLabel(entry.kind))} · ${levelFile ? "topology level" : "depth"} ${escapeHtml(node.level)} · fanout ${escapeHtml(analysis.fanout[entry.id] || 0)}${outsideScope(workspace.visibleNodeIds, node.id, workspace.path?.nodeIds)}</small>
     </button></li>`;
   }).join("");
   return `<div class="aig-object-filters">
     <label>Name or source ID <input type="search" data-aig-filter="query" value="${escapeAttr(query)}" autocomplete="off"></label>
     ${renderSelect("type", "Type", [["ports", "Inputs / outputs"], ["all", "All objects"], ["pi", "Inputs"], ["po", "Outputs"], ["and", "AND"], ["constant", "Constants"]], type)}
     ${renderSelect("analysisFilter", "Analysis", [["all", "All"], ["critical", "Critical path"], ["fanout", `Fanout ≥ ${threshold}`]], analysisFilter)}
-    ${renderSelect("sort", "Sort", [["name", "Name"], ["depth", "Depth (highest first)"], ["fanout", "Fanout (highest first)"]], sort)}
+    ${renderSelect("sort", "Sort", [["name", "Name"], ["depth", levelFile ? "Topology level (highest first)" : "Depth (highest first)"], ["fanout", "Fanout (highest first)"]], sort)}
   </div>${excluded || offPage ? `<p class="details-empty">${excluded ? "Current selection is outside the filter." : "Current selection is on another page."} <button type="button" data-aig-show-selection="${escapeAttr(selected.id)}">Show selection</button></p>` : ""}
   <p>${context.objects.length} objects</p><ul class="module-hierarchy-tree aig-object-list">${rows}</ul>
   ${context.objects.length ? renderPager(context.objects.length, page, "navigator") : '<p class="details-empty">No matching objects.</p>'}`;
@@ -210,13 +211,19 @@ function renderEdgeDetails(edge, query) {
 }
 
 function renderAnalysis(workspace, object, isEdge, options) {
-  const { analysis } = workspace.document;
+  const { analysis, levelFile } = workspace.document;
   const { query } = getIndexes(workspace);
   const threshold = thresholdOf(options);
   const rows = isEdge ? [["Logical critical edge", query.criticalEdges.has(object.id) ? "Yes" : "No"],
-    ["Source depth", query.nodeById.get(object.source).level], ["Target depth", query.nodeById.get(object.target).level], ["Polarity", object.inverted ? "Inverted" : "Positive"]]
-    : [["AND depth", object.level], ["Fanout references", analysis.fanout[object.id] || 0], ["Logical critical path", query.criticalNodes.has(object.id) ? "Yes" : "No"],
+    [levelFile ? "Source topology level" : "Source depth", query.nodeById.get(object.source).level],
+    [levelFile ? "Target topology level" : "Target depth", query.nodeById.get(object.target).level], ["Polarity", object.inverted ? "Inverted" : "Positive"]]
+    : [[levelFile ? "Topology level" : "AND depth", object.level], ["Fanout references", analysis.fanout[object.id] || 0], ["Logical critical path", query.criticalNodes.has(object.id) ? "Yes" : "No"],
       ["High fanout threshold", threshold], ["Threshold reached", (analysis.fanout[object.id] || 0) >= threshold ? "Yes" : "No"]];
+  const report = object.levelReport;
+  if (report) {
+    rows.push(["Reported AT level", report.at ?? "—"], ["Reported RT level", report.rt ?? "—"],
+      [report.slackDerived ? "Slack level (RT − AT)" : "Reported Slack level", report.slack ?? "—"]);
+  }
   return `<dl class="stats-list">${renderDefinitionRows(rows)}</dl>${renderAigStructureMembership(workspace, object, options.structure)}`;
 }
 

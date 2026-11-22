@@ -2,13 +2,14 @@ import { aigPathContext, pathDisplayBoundaries } from "./show_path_context.js";
 import { createDomainWorkspace } from "../application/domain_workspace.js";
 import { createAigCollectionStorage } from "../persistence/aig_collection_storage.js";
 import { createAigCollection } from "./aig_collection.js";
+import { aigLevelFailureDetails, requireAigLevelTarget } from "./aig_level_input.js";
 import { createGraphvizRuntime } from "../platform/graphviz_runtime.js";
 import { renderSvgSceneIntoMount, cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
 import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { createDomainCanvas } from "../ui/domain_canvas_controller.js";
 import { renderAigNavigator, renderAigInspector, revealAigNavigatorSelection } from "../ui/aig_panels.js";
-import { aigControls, bindAigConnectionHighlight } from "../ui/aig_controls.js";
+import { aigControls, bindAigConnectionHighlight, syncAigLevelControls } from "../ui/aig_controls.js";
 import { createAigPanelInteractions } from "../ui/aig_panel_interactions.js";
 import { updateAigSelectionHighlights } from "../ui/aig_selection_highlights.js";
 import { handleFocusShortcut } from "../ui/focus_shortcut.js";
@@ -26,6 +27,10 @@ import { createDomainWorkspaceDiagnostics } from "./domain_workspace_diagnostics
 const presentations = new Map([[aigControls.domainId, { ...aigControls,
   navigator: renderAigNavigator, inspector: renderAigInspector }]]);
 const passthrough = new Set(["setStatus", "logProcess", "cssEscape", "clamp", "round", "signed", "isPromise"]);
+
+function forwardInputFailure(report, details) {
+  try { report?.(details); } catch { /* Preserve the original failure when the diagnostic sink fails. */ }
+}
 
 export function createDomainWorkbench({ document, windowTarget, registry, documents, sessions, jobs, download,
   setStatus, logProcess, suspendLegacy, clearSearch, importRequests, netlistSearchGraph, canStartAigCollection }) {
@@ -91,10 +96,13 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     relayout: (focus, options, operation) => replaceView({ ...options, focus }, operation), setStatus,
     cancelPending() { importRequest?.cancel(); setStatus(`AIG view: ${aigScopeLabel(session())}`); },
     activateRoot: (id) => sessions.update(workspace.sessionId, (s) => ({ activeFocusedRootRef: s.focusedRootRefs.find((ref) => ref.localId === id) }), { invalidateComputation: false }) });
+  function currentView() {
+    return { viewport: canvas.viewport(), selectedId: selectedId(), presentationPolicy: policy(),
+      focus: focused.snapshot(), panels: structuredClone(panels) };
+  }
   function persist() {
     if (!workspace || !source) return;
-    try { collection.save({ viewport: canvas.viewport(), selectedId: selectedId(), presentationPolicy: policy(),
-      focus: focused.snapshot(), panels: structuredClone(panels) }, storage); diagnostics.saved(); }
+    try { collection.save(currentView(), storage); diagnostics.saved(); }
     catch (error) { diagnostics.saveFailed(error); }
   }
   function renderPanels() {
@@ -155,6 +163,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     isAnalysisVisible: () => panels.navigator.tab === "analysis" || Boolean(panels.analysis.selectedId) || panels.inspector.tab === "analysis",
     focus: (bounds) => canvas.focus(bounds), onSelectionChange: () => refreshSelectionHighlights() });
   function switchShell(active) {
+    syncAigLevelControls(document, active);
     if (active) {
       const legacy = [...get("navigatorPanel").children].filter((item) => item !== navigatorHost && !item.matches("header"));
       legacy.push(get("selectionDetails"), get("comparePanel"), get("compareMount"),
@@ -186,8 +195,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     document.body.classList.toggle("has-domain-workspace", active);
     clearSearch();
   }
-  function refreshPolicy() {
-    if (!workspace) return;
+  function applyShapeStyles() {
     for (const [id, element] of objectElements) {
       const node = workspace.displayQuery.nodeById.get(id);
       const edge = workspace.displayQuery.edgeById.get(id);
@@ -196,6 +204,10 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       for (const shape of element.querySelectorAll(selector)) setAttributes(shape, style);
       if (edge) for (const arrow of element.querySelectorAll(".aig-edge-arrow")) setAttributes(arrow, { fill: style.stroke, stroke: style.stroke });
     }
+  }
+  function refreshPolicy() {
+    if (!workspace) return;
+    applyShapeStyles();
     syncPolicyControls();
     refreshSelectionHighlights();
     structure.refresh();
@@ -243,17 +255,23 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (!isCurrent()) return false;
       // Retain selections made on the still-visible graph while layout was running.
       const sameDocument = workspace?.document === next.document;
-      const keepCurrentSelection = sameDocument && (!restore?.restoreSelection || restore.selectionRevision !== selectionRevision);
+      const updatingLevels = Boolean(restore?.levelUpdate);
+      const livePolicy = updatingLevels && policy();
+      const policyChanged = livePolicy && Object.entries(livePolicy).some(([key, value]) => value !== restore.presentationPolicy[key]);
+      const sameGraph = sameDocument || updatingLevels;
+      const keepCurrentSelection = sameGraph && (!restore?.restoreSelection || restore.selectionRevision !== selectionRevision);
       const nextSelectedId = keepCurrentSelection ? selectedId() : restore?.selectedId;
       const scopeChanged = workspace?.analysisScopeId !== next.analysisScopeId;
-      const nextPanels = sameDocument ? panels : restore?.panels;
-      const focusedObjectId = sameDocument ? document.activeElement?.closest("[data-domain-object]")?.dataset.domainObject : null;
-      const navigatorScroll = sameDocument ? get("navigatorPanel").scrollTop : 0;
-      const inspectorScroll = sameDocument ? inspectorHost.scrollTop : 0;
+      const nextPanels = sameGraph ? panels : restore?.panels;
+      const focusedObjectId = sameGraph ? document.activeElement?.closest("[data-domain-object]")?.dataset.domainObject : null;
+      const navigatorScroll = sameGraph ? get("navigatorPanel").scrollTop : 0;
+      const inspectorScroll = sameGraph ? inspectorHost.scrollTop : 0;
+      if (updatingLevels) sessions.updateViewport(next.sessionId, canvas.viewport());
+      if (policyChanged) sessions.update(next.sessionId, () => ({ presentationPolicy: livePolicy }), { invalidateComputation: false });
       suspendLegacy();
       for (const id of ["schematicMount", "leftSchematicMount", "rightSchematicMount"]) cancelSchematicRender(get(id));
       canvas.stop();
-      if (workspace && !sameDocument) switchShell(false);
+      if (workspace && !sameGraph) switchShell(false);
       workspace = next;
       source = null;
       workspace.presentation = { ...next, document: next.document.model };
@@ -263,17 +281,20 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       highlightedSelectionId = null;
       highlightedDepth = null;
       neighborHighlights = new Map();
-      if (!sameDocument) { switchShell(true); focused.reset(); }
+      if (!sameGraph) { switchShell(true); focused.reset(); }
       else if (scopeChanged) panels.analysis.selectedId = null;
       get("exportSvgButton").disabled = next.searchFirst;
       mount.replaceChildren(...candidateMount.childNodes);
       objectElements = new Map([...mount.querySelectorAll("[data-domain-object]")].map((element) => [element.dataset.domainObject, element]));
       canvas.apply();
+      if (policyChanged) applyShapeStyles();
       // Relayout leaves the visible panel data unchanged. Keep its live inputs,
       // including an IME composition, instead of replacing their DOM.
       structure.attach(workspace, objectElements);
-      const visibleSelection = next.displayQuery.getObject(nextSelectedId) ? nextSelectedId : null;
-      select(visibleSelection, false, { refreshDetails: !sameDocument || scopeChanged || restore?.restoreSelection, preserveAnalysis: true });
+      // Saved graph views can inspect source objects outside the drawing, including in Search-first.
+      const selectionQuery = restore?.graphId ? next.query : next.displayQuery;
+      const restoredId = selectionQuery.getObject(nextSelectedId) ? nextSelectedId : null;
+      select(restoredId, false, { refreshDetails: !sameDocument || scopeChanged || restore?.restoreSelection, preserveAnalysis: true });
       focused.sync();
       syncPolicyControls();
       if (focusedObjectId) objectElements.get(focusedObjectId)?.focus({ preventScroll: true });
@@ -318,7 +339,9 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       if (!restore?.source && !restore?.focus && get("aigSearchFirstInput").checked) {
         restore = { ...restore, focus: { viewMode: "search-first" } };
       }
-      const result = await useCase.open(domainId, input, restore, (value) => { candidateContext = value; });
+      if (restore?.levelUpdate) collection.checkReplacement(input);
+      const result = await useCase.open(domainId, input, restore, (value) => { candidateContext = value; },
+        restore?.levelUpdate ? workspace.document : null);
       if (!result || ticket !== inputGeneration) return null;
       source = { ...input, format:result.document.model.format };
       collection.commit(source, restore?.graphId, request);
@@ -326,8 +349,12 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       const restoredSelectionMissing = restore?.selectedId && !result.query.getObject(restore.selectedId);
       const partial = budgetNotice(result, "aig.focused.restore");
       const summary = result.searchFirst ? `${result.query.nodeById.size} nodes indexed · Search-first` : `${result.geometry.nodes.length} nodes · Graphviz`;
-      setStatus(`Loaded ${input.name} · ${summary}${partial}${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
-      diagnostics.emit("info", "import", `Loaded ${input.name}`, { domainId, provider: runtime.version });
+      const levels = result.document.model.levelFile;
+      const levelSummary = levels ? ` · ${levels.name} (${levels.pointCount} level points)` : "";
+      setStatus(`Loaded ${input.name} · ${summary}${levelSummary}${partial}${restoredSelectionMissing ? " · Source object no longer present; selection cleared." : ""}`);
+      diagnostics.emit("info", "import", `Loaded ${input.name}`, { domainId, provider: runtime.version,
+        ...(levels ? { ...diagnostics.context(), graphId: collection.active(), operation: "aig.level.import",
+          fileName: levels.name, pointCount: levels.pointCount } : {}) });
       const mappingWarnings = result.document.model.model.mappingWarnings;
       if (mappingWarnings) diagnostics.emit("warning", "import", "Some BLIF name mappings need attention",
         { ...mappingWarnings, ...diagnostics.context(), operation: "blif.names.bind", code: "blif.mapping-warnings", fileName: input.name });
@@ -343,12 +370,13 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     } catch (error) {
       const details = { fileName: input.name, retainedPreviousView: Boolean(workspace),
         previousDocumentId: workspace?.document.documentId };
+      if (input.levelFile) Object.assign(details, aigLevelFailureDetails(input, error, candidateContext), { graphId: restore?.graphId });
       if (ticket === inputGeneration && request.isCurrent() && restore?.source && restore.focus?.showPath && error?.code?.startsWith("show-path.")) {
         diagnostics.failure(error, "persistence", "show-path.restore", { ...details, code: error.code }, "warning", candidateContext);
         return open(domainId, input, { ...restore, focus: { ...restore.focus, showPath: null } }, request);
       }
       if (forwardFailure) {
-        try { forwardFailure({ ...candidateContext, ...details }); } catch { /* Preserve the original input failure. */ }
+        forwardInputFailure(forwardFailure, { ...candidateContext, ...details });
         throw error;
       }
       if (ticket === inputGeneration) diagnostics.failure(error, restore?.source ? "persistence" : "import",
@@ -564,13 +592,29 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       await fallback();
     },
     imports: Object.freeze({
-      openAigText(text, { label, request, append, presentationPolicy, deferLayout, onFailureContext = () => {} }) {
-        if (append) return addGraphs([{ name: label, text }], request);
+      levelTarget: () => workspace ? collection.active() : null,
+      openAigText(text, { label, request, append, presentationPolicy, deferLayout, levelFile, onFailureContext = () => {} }) {
+        const input = { text, name: label, ...(levelFile ? { levelFile } : {}) };
+        if (append) return addGraphs([input], request).catch((error) => {
+          if (levelFile && error.name !== "AbortError") forwardInputFailure(onFailureContext, aigLevelFailureDetails(input, error));
+          throw error;
+        });
         const focus = deferLayout === undefined ? undefined : { viewMode: deferLayout ? "search-first" : "whole" };
-        return open("aig", { text, name: label }, { presentationPolicy, focus }, beginImport(request), onFailureContext);
+        return open("aig", input, { presentationPolicy, focus }, beginImport(request), onFailureContext);
+      },
+      async loadLevelText(text, { label, request, levelTarget, onFailureContext = () => {} }) {
+        const graphId = workspace && source ? collection.active() : null;
+        try { requireAigLevelTarget(graphId, levelTarget); }
+        catch (error) {
+          forwardInputFailure(onFailureContext, { operation: "aig.level.import", domainId: "aig",
+            graphId: levelTarget === undefined ? graphId : levelTarget, activeGraphId: graphId, fileName: label });
+          throw error;
+        }
+        return open("aig", { ...source, levelFile: { name: label, text } },
+          { ...currentView(), graphId, levelUpdate: true }, beginImport(request), onFailureContext);
       },
       route(kind, run) {
-        if (workspace && kind !== "netlist" && kind !== "aig") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
+        if (workspace && kind !== "netlist" && kind !== "aig" && kind !== "level") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
         return run();
       },
       // Leave the domain successfully before applying Netlist-only attachments.

@@ -147,6 +147,43 @@ test("curve geometry rejects invalid values and drops untrusted drawing attribut
   assert.throws(() => graphvizJsonToGeometry(json), /coordinates/);
 });
 
+test("Standard view orders occupied PI levels across branches without drawing extra edges", async () => {
+  const {instance} = await import("../../src/platform/graphviz_vendor.js");
+  const viz = await instance();
+  const input = {name:"ranks.blif", text:".model ranks\n.inputs a b c\n.outputs y z\n.names a b y\n11 1\n.names c z\n1 1\n.end",
+    levelFile:{name:"ranks.level",text:"b 1000000\nc 8"}};
+  const {model, analysis} = aigFeature.importSource(input).model;
+  const standard = {presentationPolicy:{viewStyle:"standard"}};
+  const diagram = aigFeature.projectDiagram({model, analysis}, standard);
+  const reversed = { ...model, nodes:[...model.nodes].reverse(), edges:[...model.edges].reverse() };
+  assert.equal(aigFeature.projectDiagram({model:reversed, analysis}, standard).dot, diagram.dot);
+  const geometry = graphvizJsonToGeometry(viz.renderJSON(diagram.dot));
+  const y = label => geometry.nodes.find(n=>n.id === model.nodes.find(n=>n.label === label).id).center.y;
+  assert.ok(y("a") > y("c") && y("c") > y("b"));
+  assert.equal(geometry.edges.length, model.edges.length);
+  assert.deepEqual(geometry.edges.map(e=>e.id).sort(), model.edges.map(e=>e.id).sort());
+  assert.ok(geometry.bounds.height < 1000);
+});
+
+test("focused fanout boundaries preserve the signal level and draw above a maximum-level PI", async () => {
+  const { instance } = await import("../../src/platform/graphviz_vendor.js");
+  const viz = await instance();
+  const document = aigFeature.importSource({
+    name: "pass.blif",
+    text: ".model pass\n.inputs a\n.outputs y\n.names a y\n1 1\n.end",
+    levelFile: { name: "pass.level", text: `a ${Number.MAX_SAFE_INTEGER}` }
+  });
+  const input = document.model.model.nodes.find(node => node.kind === "pi");
+  const view = aigFeature.queryView(document, { mode: "focused", rootNodeIds: [input.id], faninDepth: 0, fanoutDepth: 0 });
+  const cut = view.model.nodes.find(node => node.kind === "boundary");
+  assert.equal(cut.level, input.level);
+  const { dot } = aigFeature.projectDiagram(view, { presentationPolicy: { viewStyle: "standard" } });
+  const geometry = graphvizJsonToGeometry(viz.renderJSON(dot));
+  const centerY = id => geometry.nodes.find(node => node.id === id).center.y;
+  assert.ok(centerY(input.id) > centerY(cut.id));
+  assert.deepEqual(geometry.edges.map(edge => edge.id), view.model.edges.map(edge => edge.id));
+});
+
 test("real embedded WASM preserves literal escaped names from BLIF in curve labels", async () => {
   const { instance } = await import("../../src/platform/graphviz_vendor.js");
   const viz = await instance();

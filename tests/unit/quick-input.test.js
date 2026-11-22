@@ -4,7 +4,8 @@ import { spawnSync } from "node:child_process";
 import { findReferencedModule } from "../../src/app/moduleNavigation.js";
 import {
   detectQuickInputKind,
-  getQuickInputPriority
+  getQuickInputPriority,
+  planAigLevelBatch
 } from "../../src/app/quickInput.js";
 
 test("quick input recognizes files and pasted content", () => {
@@ -72,6 +73,32 @@ test("automatic JSON classification requires complete valid content", () => {
 test("multi-file quick input orders netlist before timing and Golden", () => {
   assert.ok(getQuickInputPriority("netlist") < getQuickInputPriority("timing"));
   assert.ok(getQuickInputPriority("timing") < getQuickInputPriority("golden"));
+});
+
+test("Level headers in generic tables and paste distinguish AIG levels from timing", () => {
+  for (const name of [undefined, "report.CSV", "report.tsv", "report.txt"]) {
+    assert.equal(detectQuickInputKind('\uFEFF# generated\n\nrt_level,point,kind\n4,y,po', { name }), "level");
+    assert.equal(detectQuickInputKind('point at rt slack\ny 3 4 1', { name }), "timing");
+  }
+  assert.equal(detectQuickInputKind('point at rt slack\ny 3 4 1', { name: 'g.LEVEL' }), "level");
+  assert.equal(detectQuickInputKind('a 3', { preferredKind: 'level' }), "level");
+  assert.throws(() => detectQuickInputKind('a 3'), /not recognized/);
+});
+
+test("AIG Level pairs resolve independently of order and reject multiple possible targets", () => {
+  const entry = (kind, name) => ({ kind, name });
+  const a = entry('aig','core.blif'), b = entry('aig','test.dot');
+  const levelA = entry('level','core.csv'), levelB = entry('level','extra.level');
+  for (const entries of [[a,levelB,b,levelA],[levelA,b,levelB,a]]) {
+    const plan = planAigLevelBatch(entries);
+    assert.equal(plan.levelForAig.get(a), levelA);
+    assert.equal(plan.levelForAig.get(b), levelB);
+    assert.deepEqual(plan.attachedLevels, new Set([levelA,levelB]));
+  }
+  for (const entries of [[a,b,levelB], [levelA,levelB], [a,levelA,levelB], [levelB,entry('netlist','net.v')]]) {
+    assert.throws(() => planAigLevelBatch(entries), {code:'AMBIGUOUS_LEVEL_TARGET'});
+  }
+  assert.equal(planAigLevelBatch([levelA]).attachedLevels.size, 0);
 });
 
 test("content classification handles long comment headers without backtracking", () => {

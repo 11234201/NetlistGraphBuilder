@@ -1768,6 +1768,21 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .menu-action:hover { background: var(--ui-accent-soft); }
 .menu-action input { display: none; }
 .aig-import-mode { padding: 4px 10px; }
+.import-menu > .toolbar-menu-popover { width: 434px; }
+.open-design-action { justify-content: space-between; font-weight: 600; }
+.open-design-action .help-text { font-weight: 400; }
+.file-import-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(178px, 100%), 1fr));
+  gap: 8px;
+  padding: 5px 0;
+  margin: 4px 0;
+  border-block: 1px solid var(--ui-border);
+}
+.file-import-group { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+.file-import-group .menu-heading { color: var(--text); }
+.file-companion-actions { padding-top: 4px; margin: 4px 0 0; border-top: 1px solid var(--ui-border); }
+.menu-action[aria-disabled="true"] { opacity: .48; cursor: not-allowed; }
 .menu-note { margin: 8px 10px; color: var(--ui-muted); font-size: 11px; line-height: 1.5; }
 .settings-popover, .liberty-popover { width: 352px; padding: 16px; display: grid; gap: 12px; }
 .settings-popover h2 { font-size: 14px; margin: 0; }

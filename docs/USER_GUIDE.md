@@ -10,6 +10,8 @@
 
 在 SSH 上执行 `npm start -- --no-open --browse-root /work/run`，将监听端口转发到本地。复制启动终端打印的配对链接，使用本地转发端口并保留链接的路径和片段。每个配对标签页会显示自己的页号，**File → Open from server…** 列出服务器浏览根内的文件。
 
+服务器文件窗口默认自动识别所选文件。可以只选主文件，也可以同时勾选 Verilog 和 Timing，或 AIG 和 Level。给当前图单独补载 Level 时，可选择 `level open`。
+
 在启动终端输入 `pages`，用 `use p1` 选中实际页号，然后可以继续输入命令。以下示例让两个页面分别显示网表和 AIG。先在浏览器打开两个配对页，并把示例页号与路径换成现场值。
 
 ```text
@@ -182,7 +184,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 | 要找的功能 | 当前入口 |
 | --- | --- |
-| 原 Import 菜单的文件和文本导入 | 全局栏 `File` 的 `Import` 分组 |
+| 打开设计或导入附件 | 全局栏 `File → Open design…`。下方按 `Netlist + Timing`、`AIG + Level` 分组 |
 | 打开或取消 AIG 图导入 | 全局栏 `File` → `Open AIG…` / `Cancel AIG import` |
 | 导出 SVG、保存/加载 Golden | 全局栏 `File` 的 `Export & snapshots` 分组；Compare 可从已启用的 Show Path 报告导出所选侧 |
 | Liberty 标准单元库管理 | 全局栏 `Settings → Liberty` → `Load .lib` / `Cancel import` / `Unload` |
@@ -201,9 +203,9 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 ## 3. 导入网表、时序和配置
 
-### 3.1 File 菜单中的 Import 分组
+### 3.1 从 File 打开设计与配套文件
 
-点击全局栏的 `File`，其 `Import` 分组提供以下导入入口：
+只打开主文件时，在 `File → Open design…` 选择 Verilog、DOT 或 BLIF 即可。有配套文件时也可以一次选中主文件和附件。
 
 - `Open AIG…`：选择 ABC AIG DOT 或平坦两输入组合 BLIF，进入独立 AIG 工作区，详见 [AIG 图浏览](#aig-图浏览)。
 - `Open design`：从本地选择 `.v`、`.sv`、`.dot`、`.blif` 或 `.txt` 文件，自动识别 Verilog / AIG。Windows 文件选择器包含 `.blif`；保存为 `.txt` 的 AIG 也可按内容识别。
@@ -211,6 +213,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 - `Paste AIG…`：粘贴 ABC AIG DOT 或 `.model` / `.names` 格式的两输入组合 BLIF，点击 `Draw` 或按 `Ctrl+Enter` 绘图；失败时保留输入与上一张图。
 - `Open timing`：从本地选择 `.log`、`.txt`、`.rpt`、`.timing`、`.csv`、`.tsv` 或 `.json` 时序报告文件。
 - `Paste timing`：在弹窗中粘贴时序文本并明确按 Timing 格式解析（避免短小的时序片段被自动识别逻辑误判为 Verilog）。
+- `Open levels…` 和 `Paste levels…` 将 Level 应用到当前 AIG。只指定主输入的初始层级时，每行填写输入名和整数，例如 `a 3`。完整报告可提供 AT、RT 和 Slack。[AIG Level 格式规范](design/aig_level_format_spec.md)
 
 成功导入新网表后会替换当前 Design，并同步重建模块列表、搜索索引、诊断信息及视图状态；若新输入解析失败，系统会报错并安全保留此前已成功加载的 Design。
 
@@ -222,6 +225,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 - 结构化 Verilog 网表（`.v` / `.sv` / `.txt`）
 - 时序报告文本（Timing log）
+- AIG 的 `.level` 文件，或带有 `point` 和 `at_level`、`rt_level`、`slack_level` 中至少一项的表格文本
 - 布局快照文件（Layout Golden `.json`）
 - Liberty 文本库（`.lib`）
 
@@ -244,7 +248,7 @@ Compare 模式会在画布上方显示 A/B 配置行；Focused 模式会显示 `
 
 ### 3.4 批量导入顺序与失败保护
 
-当一次性拖入或粘贴多个文件时，系统会严格按照 **“Liberty（如有）→ 网表 → Timing → Golden”** 的依赖顺序串行执行：
+一张 AIG 和一份 Level 一起拖入时，文件名和拖入顺序都可自由选择。多张 AIG 一起导入时，优先按同名文件主干配对，例如 `before.blif` 配 `before.level`。如果仍有多个可能目标，请单独选择对应的一对。网表批次按设计和附件的依赖顺序导入。
 
 - **前置失败即中止**：若前置步骤（例如 Liberty 或网表解析）失败，状态栏会立即报告错误并终止后续依赖步骤，绝不会将未生效的后续文件伪装为导入成功。
 - **单份库文件约束**：单次批量操作至多接受一份 `.lib` 文件；若同一批次包含多份 Liberty 文件，系统会整体拒绝并提示，避免按文件排列顺序隐式挑出某一个工艺角（Corner）。
@@ -1020,6 +1024,8 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 本节介绍当前 AIG 工作区。基础浏览自 `v1.5.0` 引入，结构重汇聚、XOR / XNOR / MUX 识别和双视图在 `v1.5.2` 汇总交付。从 `v1.5.3` 起，原 ABC 视图改名为 Logic View，作为新打开 AIG 的默认视图。“重收敛”和“重汇聚”在本教程中指同一结构，界面名称为 `Reconvergence`。从旧版升级时请完整替换离线包并重新启动。AIG 工作区采用本地离线 Graphviz（Viz.js / WASM）曲线布局，与门级网表的 `AnchorLayered → ELK → Simple` 正交布局流水线相互独立。
 
 ### AIG 导入与阅读流程
+
+**给 AIG 加层级数据。** 在 `Open design…` 同时选择主图和 Level，或在图打开后选择 `File → Open levels…`。同一张图再次载入会替换前一份 Level。每张图各自保存附件，切图和刷新后可在 `Navigator → Design` 确认文件名。在 `Inspector → Analysis` 查看节点的拓扑层级以及报告中的 AT、RT、Slack。仅主输入 AT 参与下游拓扑层级推算。Standard 按已占用层级的先后排列，Logic View 允许端口靠近相连的逻辑。[Level 示例](../examples/aig_mapped_names.level) · [配套 BLIF](../examples/aig_mapped_names.blif)
 
 1. **打开 AIG 文件**：点击全局栏 `File → Open AIG…`，选择 ABC `write_dot` 生成的 AIG `.dot` 文件，或平坦两输入组合 `.blif` 文件；也可在 `File → Paste AIG…` 中粘贴文本。导入期间查看状态栏进度，完成前可用 `File → Cancel AIG import` 取消。菜单已标明受支持格式范围，不接受任意通用 DOT 逻辑图。
 2. **图元与极性约定**：主输入（PI）与主输出（PO）保留原始信号名，内部与门（AND）采用稳定编号。信号整体**自下向上**流动：**正三角形**代表输入（PI），**倒三角形**代表输出（PO），**椭圆**代表二输入 AND 节点；**虚线边**表示逻辑反相（含输出端反相），实线边表示正相传输。

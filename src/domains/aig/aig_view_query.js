@@ -49,7 +49,8 @@ export function queryAigView(document, session = {}) {
     boundary.nodes = boundary.nodes.concat(inputs.nodes);
     boundary.edges = boundary.edges.concat(inputs.edges);
   }
-  const displayModel = { focused: true, nodes: [...analysisModel.nodes, ...boundary.nodes], edges: [...analysisModel.edges, ...boundary.edges] };
+  const displayModel = { focused: true, ...(model.hasInputLevelOffsets && { hasInputLevelOffsets: true }),
+    nodes: [...analysisModel.nodes, ...boundary.nodes], edges: [...analysisModel.edges, ...boundary.edges] };
   const displayAnalysis = analyzeAig(displayModel);
   // The logical critical path and fanout refer to the source design. Only
   // connections in this display model participate in selection traversal.
@@ -84,7 +85,8 @@ function projectCut(focus, visible, query, pathInput = false) {
     const id = `cut:${key}`;
     const label = outgoing ? `Out · ${name} ×${count}` : `In · ${name}`;
     const description = `${outgoing ? "Downstream" : "Upstream"} · ${label} · ${edge.inverted ? "inverted" : "positive"} · ${pathInput ? "Show Path input" : "Focused " + reason} boundary`;
-    nodes.push({ id, kind: "boundary", label, description, level: driver.level + Number(outgoing), sourceRefs: [] });
+    nodes.push({ id, kind: "boundary", label, description, level: driver.level,
+      boundaryDirection: outgoing ? "out" : "in", sourceRefs: [] });
     edges.push({ id: `cut-edge:${key}`, source: outgoing ? edge.source : id, target: outgoing ? id : edge.target,
       slot: outgoing ? 0 : edge.slot, inverted: edge.inverted, description, sourceRefs: [] });
   }

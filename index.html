@@ -14,20 +14,33 @@
         <details id="fileMenu" class="toolbar-menu import-menu">
           <summary>File</summary>
           <div class="toolbar-menu-popover">
-            <span class="menu-heading">Import</span>
-            <label class="menu-action" tabindex="0"><input id="fileInput" type="file" multiple accept=".v,.sv,.dot,.blif,.txt,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
-            <label class="menu-action" tabindex="0"><input id="addDesignInput" type="file" multiple accept=".v,.sv,.txt,text/plain">Add design file(s)… <span class="help-text">Merge modules</span></label>
-            <label class="menu-action" tabindex="0"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif,.txt,text/plain">Open AIG… <span class="help-text">ABC AIG DOT / two-input BLIF</span></label>
-            <label class="menu-action" tabindex="0"><input id="addAigInput" type="file" multiple accept=".dot,.blif,.txt,text/plain">Add AIG file(s)…</label>
-            <button id="addAigText" class="menu-action" type="button">Append pasted AIG…</button>
+            <label class="menu-action open-design-action" tabindex="0"><input id="fileInput" type="file" multiple accept=".v,.sv,.dot,.blif,.level,.txt,.csv,.tsv,.timing,.sta,.log,.rpt,.json,text/plain">Open design… <span class="help-text">Verilog / AIG</span></label>
             <button id="serverFiles" class="menu-action" type="button" hidden>Open from server…</button>
-            <label class="alias-toggle aig-import-mode"><input id="aigSearchFirstInput" type="checkbox">Open AIG in Search-first</label>
-            <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
-            <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
-            <button id="pasteAigButton" class="menu-action" type="button">Paste AIG…</button>
-            <label class="menu-action" tabindex="0"><input id="timingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Open timing…</label>
-            <label class="menu-action" tabindex="0"><input id="addTimingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Add timing file(s)…</label>
-            <button id="pasteTimingButton" class="menu-action" type="button">Paste timing…</button>
+            <div class="file-import-groups">
+              <div class="file-import-group" role="group" aria-labelledby="netlistFilesHeading">
+                <span class="menu-heading" id="netlistFilesHeading">Netlist + Timing</span>
+                <label class="menu-action" tabindex="0" title="Merge Verilog modules into the current design"><input id="addDesignInput" type="file" multiple accept=".v,.sv,.txt,text/plain">Add design file(s)…</label>
+                <button id="pasteNetlistButton" class="menu-action" type="button">Paste netlist…</button>
+                <div class="file-companion-actions">
+                  <label class="menu-action" tabindex="0"><input id="timingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.sta,.csv,.tsv,.json">Open timing…</label>
+                  <label class="menu-action" tabindex="0"><input id="addTimingInput" type="file" multiple accept=".log,.txt,.rpt,.timing,.sta,.csv,.tsv,.json">Add timing file(s)…</label>
+                  <button id="pasteTimingButton" class="menu-action" type="button">Paste timing…</button>
+                </div>
+              </div>
+              <div class="file-import-group" role="group" aria-labelledby="aigFilesHeading">
+                <span class="menu-heading" id="aigFilesHeading">AIG + Level</span>
+                <label class="menu-action" tabindex="0" title="ABC AIG DOT / two-input BLIF"><input id="aigFileInput" data-domain-id="aig" type="file" accept=".dot,.blif,.txt,text/plain">Open AIG…</label>
+                <label class="menu-action" tabindex="0"><input id="addAigInput" type="file" multiple accept=".dot,.blif,.txt,text/plain">Add AIG file(s)…</label>
+                <button id="pasteAigButton" class="menu-action" type="button">Paste AIG…</button>
+                <button id="addAigText" class="menu-action" type="button">Append pasted AIG…</button>
+                <label class="alias-toggle aig-import-mode"><input id="aigSearchFirstInput" type="checkbox">Open AIG in Search-first</label>
+                <button id="cancelDomainImportButton" class="menu-action" type="button" hidden>Cancel AIG import</button>
+                <div class="file-companion-actions">
+                  <label class="menu-action" tabindex="-1" aria-disabled="true"><input id="levelInput" type="file" accept=".level,.txt,.csv,.tsv,text/plain" disabled>Open levels…</label>
+                  <button id="pasteLevelButton" class="menu-action" type="button" disabled>Paste levels…</button>
+                </div>
+              </div>
+            </div>
             <span class="menu-heading">Export & snapshots</span>
             <button id="exportSvgButton" class="menu-action" type="button" title="Export the current Single view">Export SVG</button>
             <button id="saveGoldenButton" class="menu-action" type="button" title="Save the current Single view and overrides">Save Golden</button>
@@ -196,7 +209,7 @@
       <footer class="status-bar"><span id="statusBar" role="status">Ready</span><span id="providerStatus" class="context-note"></span><button id="toggleDiagnosticsButton" type="button" aria-controls="diagnosticsDrawer" aria-expanded="false">Diagnostics <span id="diagnosticsCount">0</span></button><button id="toggleProcessLogButton" type="button" aria-controls="processLogDrawer" aria-expanded="false">Log <span id="processLogCount">0</span></button></footer>
     </main>
     <p id="narrowWindowNotice" hidden>Widen this window for the full workbench.</p>
-    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. Liberty and timing are optional.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Use the Show Path report to export one Compare side. Save Golden records the Single view. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
+    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. A Verilog design can include a Timing report. An AIG can include a Level file. Select the design alone or together with its report.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Use the Show Path report to export one Compare side. Save Golden records the Single view. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
     <dialog id="netlistTextDialog" class="text-input-dialog" aria-labelledby="netlistTextTitle">
       <form id="netlistTextForm" class="text-input-form">
         <header>
@@ -221,7 +234,7 @@
         </div>
         <p data-text-status role="status" aria-live="polite" hidden></p>
         <footer>
-          <span>Ctrl + Enter 快速画图</span>
+          <span>Ctrl + Enter 提交</span>
           <div>
             <button id="cancelNetlistTextButton" class="dialog-button" type="button">Cancel</button>
             <button class="dialog-button primary" data-text-submit type="submit">Draw</button>
@@ -241,7 +254,7 @@
     <div id="dropOverlay" class="drop-overlay" aria-hidden="true">
       <div>
         <strong>Drop to load</strong>
-        <span>Liberty .lib · Verilog · AIG .dot / .blif · Golden JSON · Timing log</span>
+        <span>Verilog + optional Timing · AIG DOT / BLIF + optional Level · Liberty · Golden JSON</span>
       </div>
     </div>
 

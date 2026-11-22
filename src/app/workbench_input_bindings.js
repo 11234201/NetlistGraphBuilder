@@ -1,4 +1,5 @@
 import { createQuickInputController } from "../ui/quick_input_controller.js";
+import { readAigLevelFile } from "./aig_level_input.js";
 import { createQuickInputElements } from "../ui/workbench_elements.js";
 
 import { bindRemoteWorkbench } from "./remote_workbench.js";
@@ -12,10 +13,10 @@ export function remoteNetlistContext(source, module, occurrence, compare, docume
 
 export function bindWorkbenchInput({ elements, document, windowTarget, importRequests,
   imports, loadNetlistText, loadLibertyText, setStatus, logProcess, ...actions }) {
-  const loadText = (text, options) => imports.route(options.kind, () => options.kind === "aig"
-    ? imports.openAigText(text, options) : options.kind === "liberty"
-      ? loadLibertyText(text, options) : loadNetlistText(text, options));
+  const readers = { aig: imports.openAigText, level: imports.loadLevelText, liberty: loadLibertyText };
+  const loadText = (text, options) => imports.route(options.kind, () =>
+    (readers[options.kind] || loadNetlistText)(text, options));
   const quickInput = createQuickInputController({elements:createQuickInputElements(elements,document.body),
-    windowTarget,importRequests,getInputPriority:imports.priority,loadText,setStatus,logProcess});
+    windowTarget,importRequests,getInputPriority:imports.priority,getLevelTarget:imports.levelTarget,readLevelFile:readAigLevelFile,loadText,setStatus,logProcess});
   return () => bindRemoteWorkbench({document,windowTarget,importRequests,loadText,priority:imports.priority,setStatus,logProcess,quickInput,...actions});
 }
