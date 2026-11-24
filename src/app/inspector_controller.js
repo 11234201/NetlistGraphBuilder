@@ -11,7 +11,7 @@ import {
   isTimingBadgePosition,
   updateTimingBadgeChoices
 } from "../ui/timingPanel.js";
-import { renderObjectDetails, bindObjectDetailsPanel } from "../ui/objectDetailsPanel.js";
+import { renderEmptySelection, renderObjectDetails, bindObjectDetailsPanel } from "../ui/objectDetailsPanel.js";
 import { renderModuleAttributesSummary } from "../ui/attributesPanel.js";
 import { inspectGraphNode, inspectGraphNet } from "../analysis/graphInspector.js";
 import { renderAdjustPanel, bindAdjustPanel } from "../ui/adjustPanel.js";
@@ -283,7 +283,7 @@ export function createInspectorController({ state, elements, services, netRoutin
     if (!node) {
       services.updateCellDefinitionControls(null);
       elements.details.className = "details-empty";
-      elements.details.textContent = "Select a cell, net or port to inspect its connections.";
+      elements.details.innerHTML = renderEmptySelection();
       return;
     }
 

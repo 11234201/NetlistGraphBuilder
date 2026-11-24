@@ -2065,9 +2065,32 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .aig-path-a { color: #1776c8; }
 .aig-path-b { color: #c16a16; }
 
-#netlistAnalysisDetail:empty, .has-domain-workspace #netlistAnalysisDetail { display: none; }
-.recon-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0; }
-.recon-result, .recon-wire { margin-block: 0.35rem; overflow-wrap: anywhere; }
+#netlistAnalysis, #netlistAnalysisDetail { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; color: var(--text); }
+#netlistAnalysisDetail:empty { display: none; }
+.recon-selection-hint { color: var(--ui-muted); }
+#netlistAnalysisDetail:not(:empty) + .recon-selection-hint { display: none; }
+#netlistAnalysisDetail h3 { margin: 0 0 6px; font-size: 14px; }
+#netlistAnalysisDetail h4 { margin: 12px 0 4px; font-size: 12px; }
+#netlistAnalysisDetail p, .recon-scope { color: var(--ui-muted); }
+.recon-actions, .recon-status-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.recon-status-row { justify-content: space-between; }
+.recon-status-row [role=status] { padding: 2px 7px; border-radius: 4px; font-weight: 600; color: var(--ui-accent); background: var(--ui-accent-soft); }
+.recon-status-row [role=status]::first-letter { text-transform: uppercase; }
+.recon-status-row [data-recon-status=partial] { color: #864800; background: #fff0d6; }
+.recon-status-row [data-recon-status=error], #netlistAnalysis .recon-note { color: #924719; }
+.recon-actions .mini-button, .recon-status-row .mini-button { height: 27px; font-size: 12px; }
+.recon-actions [data-recon-action=left]:disabled, .recon-actions [data-recon-action=right]:disabled { opacity: 1; color: var(--ui-accent); background: var(--ui-accent-soft); }
+.recon-result { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; width: 100%; padding: 7px 9px; margin: 4px 0; text-align: left; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); color: var(--text); background: var(--ui-surface); font: inherit; cursor: pointer; }
+.recon-result span { min-width: 0; }
+.recon-arrow { color: var(--ui-accent); }
+.recon-result:hover, .recon-result[aria-pressed=true] { color: var(--ui-accent); background: var(--ui-accent-soft); border-color: var(--ui-accent); }
+.recon-result[aria-pressed=true] { box-shadow: inset 3px 0 var(--ui-accent); }
+.recon-path { margin: 10px 0; padding: 7px 10px; border-inline-start: 3px solid #1776c8; background: #f1f7fd; }
+.recon-path[data-path-branch="1"] { border-color: #b45a16; background: #fff6ee; }
+#netlistAnalysisDetail .recon-path h4 { margin: 0 0 4px; }
+.recon-path small { color: var(--ui-muted); font-size: 11px; font-weight: 400; }
+.recon-wire { padding: 3px 0; font: 12px/1.45 Consolas, monospace; }
+.recon-wire + .recon-wire { border-top: 1px solid var(--ui-border); }
 [data-recon-role="a"] { --recon-color: #1776c8; }
 [data-recon-role="b"] { --recon-color: #b45a16; }
 [data-recon-role="shared"] { --recon-color: #833fa4; }

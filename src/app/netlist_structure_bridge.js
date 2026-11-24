@@ -97,7 +97,9 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
       const result = results.find((item) => item.id === newId);
       if (!result) return;
       Object.assign(record, { selected: newId, detailPage: 0, pathPage: [0, 0] });
-      record.manager.detail(result); return;
+      record.manager.detail(result);
+      panel.dispatchEvent(new Event("recon-result-selected"));
+      return;
     }
     if (action === "cancel") record.manager.cancel();
     else if (action === "run") { record.selected = null; record.manager.run(); }
@@ -190,6 +192,7 @@ export function createNetlistStructureBridge({ panel, detail, readContext, inCom
           demand(record.selected === item.id && ["complete","partial"].includes(record.manager.read().detailStatus),
             "CANCELLED","Structure detail superseded");
         }
+        if (name === "analysis select") panel.dispatchEvent(new Event("recon-result-selected"));
         if (name === "analysis select" || !opts.section || opts.section === "summary") return resultSummary(item);
         const branch = {"path-a":0,"path-b":1}[opts.section];
         demand(branch !== undefined || opts.section === "union","INVALID_ARGUMENT","Unknown detail section");

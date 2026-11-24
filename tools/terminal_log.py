@@ -2,6 +2,7 @@
 import datetime
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -45,7 +46,13 @@ class TerminalLog:
 
     def terminal(self, item):
         try:
-            sys.stderr.write(json.dumps(item, ensure_ascii=True) + "\n")
+            if sys.stderr.isatty() and self.enabled:
+                summary = item["level"].upper() + "  " + item["message"]
+                if item["event"] == "log.ready":
+                    summary += "\n  Log: " + self.files["run"]
+                sys.stderr.write(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "?", summary) + "\n")
+            else:
+                sys.stderr.write(json.dumps(item, ensure_ascii=True) + "\n")
             sys.stderr.flush()
         except (OSError, ValueError):
             pass

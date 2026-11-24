@@ -196,8 +196,10 @@
           <header class="panel-title"><h2>Inspector <span id="inspectorScope" class="context-note"></span></h2><button class="panel-collapse-button" data-close-panel="inspector" type="button" title="Hide Inspector to expand the canvas" aria-label="Hide Inspector">Hide <span aria-hidden="true">›</span></button></header>
           <div class="inspector-actions"><button id="focusSelectedButton" class="mini-button" type="button" title="Center the selection; a hidden cell opens its neighborhood (F)" disabled>Zoom to selection</button><button id="addFocusedRootButton" class="mini-button" type="button" title="Append the selected cell or net to Focused" disabled>Add to Focused</button><button id="setFocusedRootButton" class="mini-button" type="button" title="Replace all Focused roots with the selection" disabled>Replace roots</button></div>
           <div id="pathSelection" class="path-selection" hidden><span>Show Path</span><button type="button" data-path-selection="starts">Add as start</button><button type="button" data-path-selection="ends">Add as end</button></div>
-          <div id="selectionDetails" class="details-empty">Select a cell, net or port to inspect its connections.</div>
-          <section id="netlistAnalysisDetail" class="panel-section"></section>
+          <div id="selectionDetails" class="details-empty">
+            <section data-inspector-section="connections">Select a cell, net or port to inspect its connections.</section>
+            <section data-inspector-section="analysis" hidden><div id="netlistAnalysisDetail" aria-label="Reconvergence details"></div><p class="recon-selection-hint">Select a result in Navigator → Analysis to inspect its paths.</p></section>
+          </div>
           <footer class="inspector-footer"><button id="editCellDefinitionButton" class="mini-button" type="button" title="Edit the saved rule for every instance of this cell type" disabled>Edit cell type…</button><span class="help-text">Type-level definitions</span></footer>
         </aside>
       </section>

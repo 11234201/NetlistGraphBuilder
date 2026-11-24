@@ -157,14 +157,15 @@ def verify(command, label, root):
         server.stderr.close()
 
     if label in ("node", "python"):
-        unreadable = ROOT / "dc_runs" / ("terminal_unreadable_" + str(os.getpid()))
-        unreadable.parent.mkdir(exist_ok=True)
-        unreadable.write_text("must-not-log-source", encoding="utf8")
+        # Exercise a read failure on a served asset. Private paths are rejected before reading.
+        with tempfile.NamedTemporaryFile(dir=ROOT / "examples", prefix="terminal_unreadable_", delete=False) as temp:
+            temp.write(b"must-not-log-source")
+        unreadable = Path(temp.name)
         unreadable.chmod(0)
         io_logs = root / (label + "-io")
         server = Server(command, io_logs)
         try:
-            assert request(server.ready["port"], "/dc_runs/" + unreadable.name)[0] == 500
+            assert request(server.ready["port"], "/examples/" + unreadable.name)[0] == 500
             assert request(server.ready["port"])[0] == 200
         finally:
             server.close()

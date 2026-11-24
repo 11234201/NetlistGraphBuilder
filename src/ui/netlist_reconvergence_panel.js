@@ -2,8 +2,9 @@ import { escapeHtml as h } from "./html.js";
 
 const pageSize = 12;
 const button = (action, label, disabled = false) =>
-  `<button type="button" data-recon-action="${h(action)}"${disabled ? " disabled" : ""}>${h(label)}</button>`;
-const select = (result, scope) => `<button type="button" data-recon-result="${h(result.id)}">${h(label(scope, result.stemId))} → ${h(label(scope, result.mergeId))}</button>`;
+  `<button class="mini-button" type="button" data-recon-action="${h(action)}"${disabled ? " disabled" : ""}>${h(label)}</button>`;
+const select = (result, scope, selected) => `<button class="recon-result" type="button" data-recon-result="${h(result.id)}" aria-pressed="${result.id === selected}">
+  <span>${h(label(scope, result.stemId))}</span><span class="recon-arrow">→</span><span>${h(label(scope, result.mergeId))}</span></button>`;
 const label = (scope, id) => scope.displayNodes.get(id)?.label || id;
 function page(items, number, render, key) {
   const last = Math.max(0, Math.ceil(items.length / pageSize) - 1);
@@ -29,18 +30,20 @@ export function renderNetlistReconvergence({ panel, detail }, record, compare, s
   const result = results.find((item) => item.id === selected);
   const view = compare ? (side === "left" ? "Side A" : "Side B") + " · " : "";
   const summary = `${view}${context.unitId} · ${context.graph.view?.mode || "whole"} · ${scope.visibleCount} visible nodes`;
-  const status = state.status === "partial" ? "Partial results · " + reasons : state.error || state.status;
-  panel.innerHTML = heading + `<p>${h(summary)}</p><p data-recon-status="${h(state.status)}">${h(status)}${settled ? " · " + results.length + " results" : ""}</p>` +
-    (state.status === "running" ? button("cancel", "Cancel") : button("run", "Run again")) +
-    (results.length ? page(results, pageIndex, (item) => `<div class="recon-result">${select(item, scope)}</div>`, "list") :
+  const status = state.status === "partial" ? "Partial results" : state.status;
+  panel.innerHTML = heading + `<p class="recon-scope">${h(summary)}</p>
+    <div class="recon-status-row"><span role="status" data-recon-status="${h(state.status)}">${h(status)}${settled ? " · " + results.length + (results.length === 1 ? " result" : " results") : ""}</span>
+    ${state.status === "running" ? button("cancel", "Cancel") : button("run", "Run again")}</div>` +
+    (state.error || reasons ? `<p class="recon-note">${h(state.error || reasons)}</p>` : "") +
+    (results.length ? page(results, pageIndex, (item) => select(item, scope, selected), "list") :
       settled ? "<p>No reconvergence found in the analyzed portion of this view.</p>" : "");
   const sections = [];
   if (result) {
     const rows = [], pathPage = record.pathPage;
     result.paths.forEach((path, i) => {
       const wires = path.edgeIds.filter((id) => scope.displayEdges.has(id));
-      rows.push(`<h4>Path ${i + 1} · ${path.depth} gates · ${wires.length} edges</h4>` +
-        page(wires, pathPage[i], (id) => wireRow(scope, id), "path" + i));
+      rows.push(`<section class="recon-path" data-path-branch="${i}"><h4>Path ${i + 1} <small>· ${path.depth} gates · ${wires.length} edges</small></h4>` +
+        page(wires, pathPage[i], (id) => wireRow(scope, id), "path" + i) + "</section>");
     });
     const union = state.detail;
     const unionEdges = union?.edgeIds.filter((id) => scope.displayEdges.has(id)) || [];
@@ -53,7 +56,7 @@ export function renderNetlistReconvergence({ panel, detail }, record, compare, s
   if (nodeId && record.related?.has(nodeId)) {
     const related = record.related.get(nodeId);
     sections.push(`<h3>Related reconvergence · ${h(label(scope, nodeId))} (${related.length})</h3>` +
-      page(related, relatedPage, (item) => `<div>${select(item, scope)}</div>`, "related"));
+      page(related, relatedPage, (item) => select(item, scope, selected), "related"));
   }
   detail.innerHTML = sections.join("");
 }

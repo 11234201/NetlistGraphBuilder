@@ -4,13 +4,15 @@ import os
 import re
 import sys
 import time
+from collections import deque
 
 from workbench_protocol import CommandError, error_info, token
 from workbench_transport import control_call, encode
+from workbench_display import format_reply
 
 
-def execute(run, grammar, argv, context):
-    name, _, opts, _ = grammar.parse(argv)
+def execute(run, grammar, argv, context, parsed=None):
+    name, _, opts, _ = parsed or grammar.parse(argv)
     rid = opts.get("request-id", token())
     message = {"version":1,"op":"command","id":rid,"argv":argv,"page":context.get("page"),"cwd":context["cwd"]}
     response = run(message)
@@ -57,9 +59,27 @@ def input_bytes(limit):
     return data
 
 
+def prompt_options(args, grammar):
+    words = []
+    json_output = inline_text = False
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--json":
+            json_output = True
+        if arg == "--text":
+            inline_text = True
+        if not arg.startswith("--") and len(words) < 2:
+            words.append(arg)
+        i += 1 + (grammar.arity.get(arg[2:], 0) if arg.startswith("--") else 0)
+    remember = bool(args) and not inline_text and words[:1] != ["text set"] and words != ["text", "set"]
+    return json_output, remember
+
+
 def cli(argv, grammar, read_state, log):
     args = []
     machine = encoded = False
+    json_output, command = not sys.stdout.isatty(), None
     path = None
     try:
         it = iter(argv)
@@ -76,6 +96,7 @@ def cli(argv, grammar, read_state, log):
                     value = next(it,None)
                     if value is not None:
                         args.append(value)
+        json_output = json_output or prompt_options(args, grammar)[0]
         if not path:
             raise CommandError("INVALID_ARGUMENT","A state file is required")
         state = read_state(path)
@@ -100,13 +121,18 @@ def cli(argv, grammar, read_state, log):
                 i += 2
             else:
                 i += 1 + (grammar.arity.get(item[2:],0) if item.startswith("--") else 0)
-        reply = execute(lambda body: control_call(state,body), grammar,args,{"cwd":os.getcwd()})
+        parsed = grammar.parse(args)
+        command = parsed[0]
+        reply = execute(lambda body: control_call(state,body), grammar,args,{"cwd":os.getcwd()}, parsed)
     except Exception as error:
         detail = error_info(error)
         log.write("error","workbench.client_failed","Command failed",error=error,operation="cmd",code=detail["code"])
         reply = {"version":1,"status":"failed","error":detail}
-    sys.stdout.buffer.write((tcl(reply).encode("utf8") if machine else encode(reply)) + b"\n")
-    sys.stdout.flush()
+    if machine or json_output:
+        sys.stdout.buffer.write((tcl(reply).encode("utf8") if machine else encode(reply)) + b"\n")
+        sys.stdout.flush()
+    else:
+        print(format_reply(reply, command), flush=True)
     return int(not machine and reply.get("status") in ("failed","unknown","cancelled"))
 
 
@@ -152,9 +178,10 @@ def quote_word(word):
     return re.sub(r"""([\s\\"'])""",r"\\\1",word)
 
 
-def windows_input(prompt, run, grammar, context):
+def windows_input(prompt, run, grammar, context, history):
     import msvcrt
     line, cursor = "", 0
+    position, draft = len(history), ""
     while True:
         previous = len(line)
         key = msvcrt.getwch()
@@ -165,7 +192,17 @@ def windows_input(prompt, run, grammar, context):
             raise EOFError
         if key in ("\x00","\xe0"):
             extended = msvcrt.getwch()
-            if extended == "K":
+            if extended == "H" and position:
+                if position == len(history):
+                    draft = line
+                position -= 1
+                line = history[position]
+                cursor = len(line)
+            elif extended == "P" and position < len(history):
+                position += 1
+                line = draft if position == len(history) else history[position]
+                cursor = len(line)
+            elif extended == "K":
                 cursor = max(0,cursor-1)
             elif extended == "M":
                 cursor = min(len(line),cursor+1)
@@ -199,8 +236,10 @@ def windows_input(prompt, run, grammar, context):
         sys.stderr.flush()
 
 
-def terminal(run, grammar, stop):
+def terminal(run, grammar, stop, log):
     context = {"cwd":os.getcwd()}
+    terminal_input = sys.stdin.isatty()
+    history = deque(maxlen=100)
     try:
         import readline
         candidates = []
@@ -215,21 +254,35 @@ def terminal(run, grammar, stop):
         if hasattr(readline,"set_auto_history"):
             readline.set_auto_history(False)
     except ImportError:
-        pass
+        readline = None
     while True:
         prompt = ("ngb[%s]> " % context["page"]) if context.get("page") else "ngb> "
         sys.stderr.write(prompt)
         sys.stderr.flush()
+        json_output, command = False, None
         try:
-            line = windows_input(prompt,run,grammar,context) if os.name == "nt" and sys.stdin.isatty() else input()
+            line = windows_input(prompt,run,grammar,context,history) if os.name == "nt" and terminal_input else input()
             argv = words(line)
+            json_output, remember = prompt_options(argv, grammar)
             if argv == ["quit"]:
                 stop()
                 return
             if argv:
-                response = execute(run,grammar,argv,context)
-                print(encode(response).decode(), file=sys.stderr, flush=True)
+                if terminal_input and remember and (not history or line != history[-1]):
+                    history.append(line)
+                    if readline and os.name != "nt":
+                        readline.add_history(line)
+                        if readline.get_current_history_length() > history.maxlen:
+                            readline.remove_history_item(0)
+                parsed = grammar.parse(argv)
+                command = parsed[0]
+                response = execute(run,grammar,argv,context,parsed)
+                print(encode(response).decode() if json_output else format_reply(response, command), file=sys.stderr, flush=True)
         except EOFError:
             return
         except Exception as error:
-            print(json.dumps({"status":"failed","error":error_info(error)},ensure_ascii=False),file=sys.stderr,flush=True)
+            reply = {"status":"failed","error":error_info(error)}
+            if not getattr(error, "diagnostic_recorded", False):
+                log.write("error", "workbench.prompt_failed", "Interactive command failed", error=error,
+                          operation=command or "prompt", page=context.get("page"), code=reply["error"]["code"], console=False)
+            print(json.dumps(reply,ensure_ascii=False) if json_output else format_reply(reply,command),file=sys.stderr,flush=True)

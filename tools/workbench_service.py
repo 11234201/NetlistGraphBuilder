@@ -220,6 +220,7 @@ class WorkbenchService:
                 self.log.write("error","workbench.catalogue_failed","Could not get commands",error=error,
                                operation=name,code=error.code,page=selector,side=opts.get("side"),
                                requestId=opts.get("request-id") or message.get("id"))
+                error.diagnostic_recorded = True
                 raise
         if name in ("help", "commands"):
             prefix = " ".join(args)

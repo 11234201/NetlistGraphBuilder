@@ -12,6 +12,7 @@ function element(dataset = {}) {
       removeProperty(key) { properties.delete(key); }
     },
     setAttribute(key, value) { this.attributes[key] = value; },
+    prepend(child) { child.parentElement = this; },
     addEventListener(type, callback) { listeners.set(type, callback); },
     removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); },
     classList: { toggle() {} }, focus() { this.focused = true; } };
@@ -120,6 +121,24 @@ test("inspector tab keyboard navigation updates roving focus and one UI preferen
   assert.equal(view.panels()[1].hidden, false);
   assert.equal(controller.selectTab("analysis"), true);
   assert.equal(view.panels()[2].hidden, false);
+  controller.dispose();
+});
+
+test("analysis content retains its identity across selection changes and follows tab visibility", () => {
+  const view = fixture();
+  const detail = {};
+  const controller = createInspectorTabsController({ container: view.container, sectionContent: { analysis: detail },
+    MutationObserverClass: view.Observer });
+  view.replace("first", ["connections", "analysis"]);
+  const first = view.panels()[1];
+  assert.equal(detail.parentElement, first);
+  assert.ok(first.hidden);
+  controller.selectTab("analysis");
+  view.replace("second", ["connections", "analysis"]);
+  assert.equal(detail.parentElement, view.panels()[1]);
+  assert.equal(detail.parentElement.hidden, false);
+  controller.selectTab("connections");
+  assert.ok(detail.parentElement.hidden);
   controller.dispose();
 });
 

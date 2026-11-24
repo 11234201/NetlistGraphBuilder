@@ -50,11 +50,20 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator('#schematicMount [data-node-id="cell:b1"]').waitFor();
     await clickVisible('[data-nav-tab="analysis"]'); await status("complete");
     assert.equal(await result.count(), 1);
+    const tab = (name) => page.locator(`#selectionDetails [data-inspector-tab="${name}"]`);
+    assert.equal(await tab("connections").getAttribute("aria-selected"), "true");
     const viewport = () => page.locator("#schematicMount #schematicContent").getAttribute("transform");
     const before = await viewport();
     await result.click();
     await page.waitForFunction(() => /Connections between endpoints\s*complete/.test(document.querySelector("#netlistAnalysisDetail").textContent));
     assert.match(await detail.textContent(), /Path 1 · 2 gates · 2 edges/);
+    assert.equal(await tab("analysis").getAttribute("aria-selected"), "true");
+    assert.equal(await result.getAttribute("aria-pressed"), "true");
+    assert.ok(await detail.isVisible());
+    await tab("connections").click();
+    assert.ok(await detail.isHidden());
+    await tab("connections").press("ArrowRight");
+    assert.ok(await detail.isVisible());
     assert.equal(await viewport(), before);
     assert.ok(await page.locator("#schematicMount .edge[data-recon-role]").count() >= 4);
     const calls = await page.evaluate(() => window.reconTest.analyses);
@@ -63,12 +72,15 @@ await runBrowserTest(async ({ browser, url }) => {
     await button("clear").click();
     await page.locator('#schematicMount [data-node-id="cell:b1"] .node-shape').first().click();
     await detail.locator("[data-recon-result]").first().waitFor();
+    await tab("connections").click();
+    assert.ok(await detail.isHidden());
 
     await page.evaluate(() => { window.reconTest.fail = "analyze"; });
     await button("run").click(); await status("error");
     assert.equal(await detail.locator("[data-recon-result]").count(), 0);
     await page.evaluate(() => { window.reconTest.fail = "detail"; });
     await button("run").click(); await status("complete");
+    assert.equal(await tab("connections").getAttribute("aria-selected"), "true");
     await result.click();
     await detail.getByText("Injected netlist detail failure").waitFor();
     await page.evaluate(() => { window.reconTest.fail = ""; });
@@ -126,6 +138,21 @@ await runBrowserTest(async ({ browser, url }) => {
       assert.equal(failures.length, 1); assert.equal(failures[0].details.side, "single");
     }
     assert.ok(logs.some((row) => row.level === "warning" && row.details.side === "right" && row.details.reasons.includes("combinational-cycle")));
+    await clickVisible("#exitCompareButton");
+    const branches = Array.from({length: 13}, (_, i) =>
+      `wire q${i}, y${i}; INV inv${i}(.A(s),.Y(q${i})); NAND2 merge${i}(.A(s),.B(q${i}),.Y(y${i}));`);
+    await page.locator("#fileInput").setInputFiles({ name: "many.v", mimeType: "text/plain",
+      buffer: Buffer.from("module many(input s);" + branches.join("\n") + "endmodule") });
+    const pager = panel.locator('[data-recon-page="list"]');
+    await pager.waitFor();
+    assert.equal(await result.count(), 12);
+    const first = await result.first().getAttribute("data-recon-result");
+    await button("list+").click();
+    assert.equal(await result.count(), 1);
+    await result.click();
+    assert.ok(await detail.isVisible());
+    await button("list-").click();
+    assert.equal(await result.first().getAttribute("data-recon-result"), first);
     assert.deepEqual(errors, []);
     console.log("Netlist Whole/Focused, Compare isolation, witnesses, detail/highlight, cancel, worker failure/retry and Process Log JSONL passed.");
   } finally { await page.close(); }

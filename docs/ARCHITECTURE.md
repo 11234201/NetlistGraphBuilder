@@ -315,7 +315,7 @@ ViewSession、模块工作区、历史和 Golden 保存，Single 当前模块的
 
 日志元素映射归 `ui/workbench_elements.js`；main 的入口行数上限继续随完整职责抽取收紧，以架构测试中的当前门限为准。
 
-终端侧日志由各宿主的独立适配器负责：`tools/terminal_log.mjs`、`terminal_log.py`、`terminal_log.sh`、`native/launcher/TerminalLog.h` 和 `tools/windows-launcher/TerminalLog.cs`。共同使用带时间、级别、进程号与事件的 JSONL 格式，按进程分开运行/错误文件并限容滚动；文件故障降级到 stderr。HTTP 请求记录方法、去掉查询串的路径及状态码，不记录正文。Node 的流读取异常在请求边界处理，原生与 Windows 的工作线程异常在请求边界处理；已捕获异常不作为成功操作报告。stdout 保持 ready/status/help/licenses 协议，日志不通过页面 API 暴露，Bash 保留 exec 交接语义。进程强杀不保证退出记录；终端日志与浏览器 Process Log 没有隐式汇聚。
+终端侧日志由各宿主的独立适配器负责：`tools/terminal_log.mjs`、`terminal_log.py`、`terminal_log.sh`、`native/launcher/TerminalLog.h` 和 `tools/windows-launcher/TerminalLog.cs`。共同使用带时间、级别、进程号与事件的 JSONL 格式，按进程分开运行/错误文件并限容滚动；文件故障降级到 stderr。HTTP 请求记录方法、去掉查询串的路径及状态码，不记录正文。Node 的流读取异常在请求边界处理，原生与 Windows 的工作线程异常在请求边界处理；已捕获异常不作为成功操作报告。交互终端提供可读的启动摘要与命令回执，管道和非交互启动保持 ready 协议，cmd 重定向与显式 --json 保持完整回执，日志不通过页面 API 暴露，Bash 保留 exec 交接语义。进程强杀不保证退出记录；终端日志与浏览器 Process Log 没有隐式汇聚。
 
 ## 可选 Liberty 附件契约（2026-11-10）
 

@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTerminalLog } from "./terminal_log.mjs";
+import { formatPromptStartup } from "./workbench_display.mjs";
 import {
   STARTUP_ENDPOINT,
   buildStartupUrl,
@@ -177,9 +178,10 @@ server.listen(options.port, host, () => {
       server.close();
       return;
     }
-    console.log(JSON.stringify(ready));
+    const interactive = options.interactive ?? process.stdin.isTTY;
+    console.log(interactive && process.stdout.isTTY ? formatPromptStartup(ready) : JSON.stringify(ready));
     log.write("info", "server.ready", "Preview server ready", { port });
-    if (options.interactive ?? process.stdin.isTTY) terminal(workbench, () => shutdown("quit"));
+    if (interactive) terminal(workbench, () => shutdown("quit"), log);
     if (options.openBrowser) openBrowser(ready.pairUrl);
     if (options.parentDeath) {
       const parentPid = process.ppid;

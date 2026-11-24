@@ -14,7 +14,11 @@ NgbLog() {
   printf -v timestamp '%(%Y-%m-%dT%H:%M:%S%z)T' -1
   # Callers supply fixed diagnostics, never command arguments or source content.
   printf -v line '{"time":"%s","level":"%s","runtime":"bash","pid":%s,"event":"%s","message":"%s"}' "$timestamp" "$level" "$$" "$event" "$message"
-  printf '%s\n' "$line" >&2 || true
+  if [[ -t 2 && "$ngb_log_enabled" == 1 ]]; then
+    printf '%s  %s\n' "$level" "$message" >&2 || true
+  else
+    printf '%s\n' "$line" >&2 || true
+  fi
   if [[ "$ngb_log_enabled" == 1 ]]; then
     if ! (umask 077; printf '%s\n' "$line" >> "${ngb_log_prefix}.run.jsonl" || exit 1; if [[ "$level" == error ]]; then printf '%s\n' "$line" >> "${ngb_log_prefix}.error.jsonl" || exit 1; fi) 2>/dev/null; then
       ngb_log_enabled=0

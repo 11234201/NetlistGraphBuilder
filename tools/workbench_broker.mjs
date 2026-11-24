@@ -308,6 +308,7 @@ export function createBroker({files, log}) {
       } catch (error) {
         log.error("workbench.catalogue_failed", error, {operation:name, code:error.code,
           requestId:opts["request-id"] || b.id, page:page?.id || key, side:opts.side});
+        error.diagnosticRecorded = true;
         throw error;
       }
       const mode = page?.context.mode;

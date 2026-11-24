@@ -14,7 +14,13 @@ export function createTerminalLog(runtime, env = process.env) {
   const limit = Number.isInteger(configured) && configured >= 1024 && configured <= 67108864 ? configured : 2097152;
   let enabled = true;
   function terminal(record) {
-    try { process.stderr.write(`${JSON.stringify(record)}\n`); } catch { /* Broken diagnostic pipe must not hide the original exit status. */ }
+    try {
+      if (process.stderr.isTTY && enabled) {
+        const summary = record.level.toUpperCase() + "  " + record.message;
+        const location = record.event === "log.ready" ? "\n  Log: " + files.run : "";
+        process.stderr.write((summary + location).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "?") + "\n");
+      } else process.stderr.write(JSON.stringify(record) + "\n");
+    } catch { /* Broken diagnostic pipe must not hide the original exit status. */ }
   }
   function record(level, event, message, details) {
     return { time: new Date().toISOString(), level, runtime, pid: process.pid, event,

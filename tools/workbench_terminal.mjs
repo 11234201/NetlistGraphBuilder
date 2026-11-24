@@ -4,6 +4,7 @@ import {readFile, mkdtemp, rm, chmod} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import {createInterface} from "node:readline";
+import {formatWorkbenchReply} from "./workbench_display.mjs";
 import {workbenchCall} from "./workbench_ipc.mjs";
 import {createBroker, parseCommand, errorInfo, optionValueCount} from "./workbench_broker.mjs";
 import {createWorkbenchFiles, failure} from "./workbench_files.mjs";
@@ -93,8 +94,8 @@ export async function remoteHost(options, log) {
   };
 }
 
-async function execute(run, argv, ctx) {
-  const {name, opts} = parseCommand(argv);
+async function execute(run, argv, ctx, parsed = parseCommand(argv)) {
+  const {name, opts} = parsed;
   const command = {version: 1, op: "command", argv, cwd: ctx.cwd, page: ctx.page, id: opts["request-id"] || randomUUID()};
   let response = await run(command);
   const deadline = Date.now() + Number(opts.timeout || 90000);
@@ -166,16 +167,36 @@ async function complete(line, host, cwd) {
   });
   return [paths, raw];
 }
-export function terminal(host, stop) {
+function promptOptions(args) {
+  const words = [];
+  let json = false, inlineText = false;
+  for (let i = 0; i < args.length; i += 1 + optionValueCount(args[i])) {
+    const arg = args[i];
+    if (arg === "--json") json = true;
+    if (arg === "--text") inlineText = true;
+    if (!arg.startsWith("--") && words.length < 2) words.push(arg);
+  }
+  const remember = args.length > 0 && !inlineText && words[0] !== "text set" && words.join(" ") !== "text set";
+  return {json, remember};
+}
+
+export function terminal(host, stop, log) {
   const ctx = {cwd: process.cwd(), page: null};
   const reader = createInterface({
     input: process.stdin,
     output: process.stderr,
     terminal: !!process.stdin.isTTY,
-    historySize: 0,
+    historySize: 100,
     completer(line, callback) {
       complete(line, host, ctx.cwd).then(result => callback(null, result), callback);
     }
+  });
+  reader.on("history", history => {
+    if (!history.length) return;
+    try {
+      if (promptOptions(tokenize(history[0]).argv).remember) return;
+    } catch { /* An unfinished quote may contain an inline document. */ }
+    history.shift();
   });
   (async () => {
     const prompt = () => {
@@ -184,18 +205,27 @@ export function terminal(host, stop) {
     };
     prompt();
     for await (const line of reader) {
+      let json = false, command;
       try {
         const {argv: args} = tokenize(line);
+        json = promptOptions(args).json;
         if (args[0] === "quit") {
           if (args.length !== 1) throw failure("INVALID_ARGUMENT","quit takes no arguments");
           reader.close();
           stop();
           return;
         }
-        if (args.length)
-          process.stderr.write(JSON.stringify(await execute(host.run, args, ctx)) + "\n");
+        if (args.length) {
+          const parsed = parseCommand(args);
+          command = parsed.name;
+          const reply = await execute(host.run, args, ctx, parsed);
+          process.stderr.write((json ? JSON.stringify(reply) : formatWorkbenchReply(reply, command)) + "\n");
+        }
       } catch (error) {
-        process.stderr.write(JSON.stringify({status: "failed", error: errorInfo(error)}) + "\n");
+        const reply = {status: "failed", error: errorInfo(error)};
+        if (!error.diagnosticRecorded) log.write("error", "workbench.prompt_failed", "Interactive command failed",
+            {operation:command || "prompt", page:ctx.page, code:reply.error.code, error}, false);
+        process.stderr.write((json ? JSON.stringify(reply) : formatWorkbenchReply(reply, command)) + "\n");
       }
       prompt();
     }
@@ -239,7 +269,7 @@ async function readTclArguments() {
 
 export async function cli(argv, log) {
   let machine = false;
-  let reply;
+  let reply, command, json = !process.stdout.isTTY;
   try {
     let path, encoded = false;
     const args = [];
@@ -257,6 +287,7 @@ export async function cli(argv, log) {
           args.push(argv[++i]);
       }
     }
+    json ||= promptOptions(args).json;
     if (!path)
       throw failure("INVALID_ARGUMENT", "A state file is required");
     const {control} = JSON.parse(await readFile(path, "utf8"));
@@ -278,11 +309,13 @@ export async function cli(argv, log) {
         i++;
       }
     }
-    reply = await execute(b => workbenchCall(control, b), args, {cwd: process.cwd()});
+    const parsed = parseCommand(args);
+    command = parsed.name;
+    reply = await execute(b => workbenchCall(control, b), args, {cwd: process.cwd()}, parsed);
   } catch (error) {
     reply = {version: 1, status: "failed", error: errorInfo(error)};
     log.error("workbench.client_failed", error, {operation:"cmd", code:reply.error.code});
   }
-  console.log(machine ? tcl(reply) : JSON.stringify(reply));
+  console.log(machine ? tcl(reply) : json ? JSON.stringify(reply) : formatWorkbenchReply(reply, command));
   return !machine && ["failed", "cancelled", "unknown"].includes(reply.status) ? 1 : 0;
 }

@@ -4,6 +4,17 @@ import { renderObjectAttributesSection } from "./attributesPanel.js";
 export const INSPECTION_ROW_PAGE_SIZE = 100;
 export const INSPECTION_TARGET_PAGE_SIZE = 20;
 
+function renderAnalysisSection(traversal, pages) {
+  const content = renderTraversal(traversal, pages) ||
+    '<p class="recon-selection-hint">Select a result in Navigator → Analysis to inspect its paths.</p>';
+  return `<section data-inspector-section="analysis" data-object-analysis aria-label="Analysis" hidden>${content}</section>`;
+}
+
+export function renderEmptySelection() {
+  return `<section data-inspector-section="connections" class="details-empty">Select a cell, net or port to inspect its connections.</section>
+    ${renderAnalysisSection()}`;
+}
+
 export function renderObjectDetails(inspection, options = {}) {
   if (!inspection) {
     return "";
@@ -16,9 +27,7 @@ export function renderObjectDetails(inspection, options = {}) {
     const count = inspection.connections?.filter((item) => item.pin === role).length || 0;
     return [key, `${count} connection(s); see Connections`];
   });
-  const traversalSection = inspection.traversal?.length
-    ? `<section data-inspector-section="analysis" data-object-analysis aria-label="Analysis">${renderTraversal(inspection.traversal, options.pages)}</section>`
-    : "";
+  const traversalSection = renderAnalysisSection(inspection.traversal, options.pages);
   return `<header class="inspector-object-header" data-inspector-summary data-selection-identity="${escapeAttr(options.identity || `${inspection.kind}:${canonicalName}`)}">
     ${options.scope ? `<div class="inspector-object-scope">${escapeHtml(options.scope)}</div>` : ""}
     <div class="inspector-object-name"><strong data-selection-label title="${escapeAttr(label)}">${escapeHtml(label)}</strong>

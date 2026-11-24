@@ -911,7 +911,12 @@ int runStart(const StartOptions& options) {
     installSignalHandlers();
     if (options.watchParent) enableParentDeathCleanup();
     ngb::TerminalLog::Instance().Write("info", "server.starting", "Starting Netlist Graph Builder preview server");
-    std::cout << "{\"event\":\"ready\",\"host\":\"127.0.0.1\",\"port\":"
+    if (options.interactive && isatty(STDOUT_FILENO)) {
+        std::cout << "Open workbench: " << ngb::TerminalText(state.url + "#ngb=" + broker->m_pair)
+                  << "\nState file: " << ngb::TerminalText(state.stateFile)
+                  << "\nType help to list commands. Use ↑ and ↓ for history." << std::endl;
+    } else {
+        std::cout << "{\"event\":\"ready\",\"host\":\"127.0.0.1\",\"port\":"
               << actualPort << ",\"url\":\"" << jsonEscape(state.url)
               << "\",\"pairUrl\":\"" << jsonEscape(state.url + "#ngb=" + broker->m_pair) << "\",\"stateFile\":\"" << jsonEscape(state.stateFile)
               << "\",\"startup\":{"
@@ -923,6 +928,7 @@ int runStart(const StartOptions& options) {
               << ",\"faninDepth\":" << (options.faninDepth < 0 ? "null" : std::to_string(options.faninDepth))
               << ",\"fanoutDepth\":" << (options.fanoutDepth < 0 ? "null" : std::to_string(options.fanoutDepth))
               << "}}" << std::endl;
+    }
     ngb::TerminalLog::Instance().Write("info", "server.ready", "Preview server ready", "{\"port\":" + std::to_string(actualPort) + "}");
 
     pid_t browserPid = options.openBrowser ? openBrowser(state.url + "#ngb=" + broker->m_pair) : -1;

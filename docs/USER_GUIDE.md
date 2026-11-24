@@ -450,7 +450,7 @@ Inspector 与画布上方的 `Roots` 菜单提供显式的根节点集合管理�
 
 打开 **Navigator → Analysis**。列表顶部显示模块、Whole 或 Focused 范围、可见节点数和结果数。每一行对应一个分叉点和一个汇合门。同一信号在分叉后经过两条内部单元互不重合的路径到达汇合门时，列表显示这一对端点。多输出单元的分叉点带输出引脚名。
 
-点击一行，Inspector 列出两条见证路径、各自的门级数和连接数。画布分别用蓝色和橙色高亮路径，共用的端点或线段用紫色标出。**Connections between endpoints** 展开这两个端点之间可证明的连接并集。标有 **not routed** 的连接参与逻辑分析，其导线仍按原设置隐藏。点击 **Locate** 可将视口定位到两条见证路径。选中画布上的路径成员，还能通过 Inspector 的 **Related reconvergence** 打开关联结果。
+点击一行会打开 **Inspector → Analysis**，列出两条见证路径、各自的门级数和连接数。切到 **Connections**、**Timing** 等页签即可查看对象的其他信息，返回 **Analysis** 可继续查看所选结果。路径 1 用蓝色、路径 2 用橙色，与画布颜色对应，共用的端点或线段用紫色标出。**Connections between endpoints** 展开这两个端点之间可证明的连接并集。标有 **not routed** 的连接参与逻辑分析，其导线仍按原设置隐藏。点击 **Locate** 可将视口定位到两条见证路径。选中画布上的路径成员，还能通过 **Analysis** 中的 **Related reconvergence** 打开关联结果。
 
 Focused 裁掉一条支路后，对应结果会从列表中移除。平移、缩放和移动单元保留已完成的分析。Compare 中通过 **Side A** 和 **Side B** 切换，两侧分别使用各自模块当前展示的逻辑。寄存器、黑盒和未展开的子模块在输入处终止组合路径，各输出可作为新路径的起点。
 
@@ -829,7 +829,7 @@ Bash 预览入口、Node/Python 服务、Linux 单文件启动器和 Windows 离
 - **字段规范与标准流隔离**：
   - JSONL 每行包含 `time`、`level`、`runtime`、`pid`、`event`、`message`，并按事件附带状态码、操作、异常类型、错误码或调用栈（原生 C++ 错误记录系统错误码或异常消息）。查询参数、请求正文与启动输入原文均不写入日志。
   - 正常 HTTP 请求仅写入日志文件，启动/退出与失败诊断同步输出至 `stderr`；若日志目录不可写，仅报告一次告警并自动回退至 `stderr`，绝不伪装成服务启动失败。
-  - 启动成功时，`stdout` 严格保持原有的单行 `ready` JSON 协议；`status`、`--help` 与 `--licenses` 的标准输出格式不变。
+  - 重定向标准输出或使用 `--no-interactive` 启动时，`stdout` 输出单行 `ready` JSON；`status`、`--help` 与 `--licenses` 的标准输出格式不变。
 
 例如，在 Bash 中指定自定义日志目录启动预览服务：
 
@@ -917,9 +917,13 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 
 > **安全约定**：当文件路径包含空格时，请按当前 Shell 规范加引号；所有启动器始终仅绑定本地回环地址 `127.0.0.1`，不向局域网或公网暴露端口。四种启动器均支持 `<launcher> cmd --state-file <path> [--page ID] <command> [args...]` 子命令，可在独立终端或脚本中向已配对页面发送 181 条工作台命令并获取结构化 JSON 回执。
 
+交互启动时，终端分别显示可打开的工作台链接和状态文件路径。在 `ngb>` 中输入 `help fs` 可逐行查看文件命令的用法，`pages` 列出已连接的页面。按 ↑ / ↓ 浏览本次终端会话最近的 100 条命令，可以修改后按 Enter 再次执行。`text set` 和带 `--text` 的内联文本命令跳过历史记录。
+
+提示符和直接在终端中运行的 `cmd` 默认分行显示结果。错误首行给出错误码与原因，异步请求显示可传给 `job status` 的请求 ID。命令加 `--json` 可读取完整回执，脚本通过管道或重定向读取 `cmd` 的标准输出也会得到 JSON。
+
 ### 17.3 标准输出 Ready JSON 协议
 
-服务成功绑定端口并准备就绪后，会在标准输出（`stdout`）打印单行 JSON 消息，供外层 EDA 宿主进程读取最终访问 URL：
+脚本或 EDA 宿主通过管道读取标准输出时，服务成功绑定端口后输出一行 JSON，包含最终访问 URL。在终端中可使用 `--no-interactive` 查看同一条就绪消息。
 
 ```json
 {"event":"ready","host":"127.0.0.1","port":4173,"url":"http://127.0.0.1:4173/?startup=1","startup":{"netlist":"design.v","module":"top","focus":"u0","faninDepth":1,"fanoutDepth":2}}

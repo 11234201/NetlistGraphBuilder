@@ -79,7 +79,7 @@ mkdir -p ./results
 
 - **参数与默认值**：所有输入文件参数（`--netlist`、`--timing`、`--cell-config`）、目标定位参数（`--module`、`--focus`、`--fanin-depth`、`--fanout-depth`）以及服务器文件浏览根目录参数（`--browse-root <dir>`，可重复传入多个目录，默认当前工作目录）均可按需省略。原生启动器默认端口为 `0`（即由操作系统自动分配空闲端口），且始终仅监听本地回环地址 `127.0.0.1`。`--[no-]interactive` 控制是否在启动终端显示交互式命令提示符（默认在 TTY 下开启）。
 - **浏览器唤起控制**：服务器或无头环境请传入 `--no-open`（兼容旧别名 `--no-browser`）；传入 `--open` 则尝试调用系统 `xdg-open` 打开浏览器。`start` 子命令可省略以保持向后兼容；若不带任何参数直接运行 `ngb`，则会打印用法说明并以非零状态退出。
-- **标准输出 `ready` 消息**：启动成功后，`stdout` 仅输出唯一一行 JSON 格式的 `ready` 事件（所有诊断与错误信息均输出至 `stderr`）。`ready` 行仅包含文件名与目标摘要，绝不包含网表、时序或配置原文：
+- **标准输出 `ready` 消息**：交互终端分别显示工作台链接和状态文件路径。标准输出连接管道、重定向到文件或使用 `--no-interactive` 时，启动成功后输出一行 JSON 格式的 `ready` 事件（所有诊断与错误信息均输出至 `stderr`）。`ready` 行仅包含文件名与目标摘要，绝不包含网表、时序或配置原文：
 
 ```json
 {"event":"ready","host":"127.0.0.1","port":43821,"url":"http://127.0.0.1:43821/?startup=1","startup":{"netlist":"top_mapped.v","timing":"top_timing.log","cellConfig":"cells.json","module":"top","focus":"u0","faninDepth":1,"fanoutDepth":2}}

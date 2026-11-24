@@ -10,6 +10,7 @@ const TAB_LABELS = Object.freeze({
 
 export function createInspectorTabsController({
   container,
+  sectionContent = {},
   summaryButton = null,
   scrollContainer = container,
   copyText,
@@ -22,6 +23,7 @@ export function createInspectorTabsController({
 }) {
   if (!container) throw new Error("Inspector tabs require a content container");
   let activeTab = Object.hasOwn(TAB_LABELS, initialTab) ? initialTab : "connections";
+  let preferredTab = activeTab;
   let identity = null;
   let scrollTop = 0;
   let disposed = false;
@@ -87,6 +89,12 @@ export function createInspectorTabsController({
       scrollTop = 0;
     }
     const panels = sections();
+    // Object selection replaces the section markup. Reattach independently
+    // updated content (and its event handlers) to the new tab panel.
+    for (const panel of panels) {
+      const content = sectionContent[panel.dataset.inspectorSection];
+      if (content && content.parentElement !== panel) panel.prepend(content);
+    }
     if (summaryButton) {
       const label = summary?.querySelector("[data-selection-label]")?.textContent || "No selection";
       summaryButton.textContent = label;
@@ -99,7 +107,7 @@ export function createInspectorTabsController({
       observe();
       return;
     }
-    if (!panels.some((panel) => panel.dataset.inspectorSection === activeTab)) activeTab = "connections";
+    activeTab = panels.some((panel) => panel.dataset.inspectorSection === preferredTab) ? preferredTab : "connections";
     if (!nav) {
       nav = container.ownerDocument.createElement("div");
       nav.className = "inspector-tabs";
@@ -139,7 +147,8 @@ export function createInspectorTabsController({
 
   function selectTab(tab) {
     if (!sections().some((panel) => panel.dataset.inspectorSection === tab)) return false;
-    if (activeTab !== tab) {
+    if (activeTab !== tab || preferredTab !== tab) {
+      preferredTab = tab;
       activeTab = tab;
       scrollTop = 0;
       updateVisibility();

@@ -19,6 +19,7 @@ from http.server import SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlsplit
 from terminal_log import TerminalLog
 from workbench_client import cli, terminal
+from workbench_display import format_prompt_startup
 from workbench_protocol import CommandError, Grammar
 from workbench_server_files import WorkbenchFiles, canonical, inside, opened_path
 from workbench_service import WorkbenchService
@@ -468,7 +469,9 @@ def main(argv=None):
             endpoint.close()
         temporary.cleanup()
         return 1
-    print(json.dumps(ready, ensure_ascii=False, separators=(",", ":")), flush=True)
+    interactive = args.interactive if args.interactive is not None else sys.stdin.isatty()
+    print(format_prompt_startup(ready) if interactive and sys.stdout.isatty()
+          else json.dumps(ready, ensure_ascii=False, separators=(",", ":")), flush=True)
     LOG.write("info", "server.ready", "Preview server ready", port=actual_port)
     if not args.no_open:
         try:
@@ -493,8 +496,8 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
     server.timeout = 0.20
-    if args.interactive or (args.interactive is None and sys.stdin.isatty()):
-        threading.Thread(target=terminal,args=(lambda body:dispatch(body,True),grammar,stop_event.set),daemon=True).start()
+    if interactive:
+        threading.Thread(target=terminal,args=(lambda body:dispatch(body,True),grammar,stop_event.set,LOG),daemon=True).start()
     try:
         while RUNNING and not stop_event.is_set():
             server.handle_request()

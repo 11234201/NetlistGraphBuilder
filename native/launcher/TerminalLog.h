@@ -61,7 +61,15 @@ public:
         if (enabled_) {
             if (!Append(runPath_, runSize_, line) || (level == "error" && !Append(errorPath_, errorSize_, line))) Disable();
         }
-        if (console || !enabled_) Stderr(line);
+        if (console && enabled_ && isatty(STDERR_FILENO)) {
+            const auto quoted = Quote(message);
+            std::string summary = level + "  " + quoted.substr(1, quoted.size() - 2);
+            if (event == "log.ready") {
+                const auto path = Quote(runPath_);
+                summary += "\n  Log: " + path.substr(1, path.size() - 2);
+            }
+            Stderr(summary + "\n");
+        } else if (console || !enabled_) Stderr(line);
     }
 
     void Error(const std::string& event, const std::string& message, int errorCode = 0) {

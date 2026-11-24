@@ -16,17 +16,27 @@ export function createWorkbenchUi({
   const shell = createWorkbenchShell({ document, windowTarget, preferences, onViewportResize: viewport.onViewportResize });
   const inspector = createInspectorTabsController({
     container: document.querySelector("#selectionDetails"),
+    sectionContent: { analysis: document.querySelector("#netlistAnalysisDetail") },
     summaryButton: document.querySelector("#selectionSummaryButton"),
     copyText: (text) => windowTarget.navigator.clipboard.writeText(text),
     initialTab: shell.getPreferences().inspectorTab,
     onTabChange: shell.setInspectorTab
   });
+  const analysis = document.querySelector("#netlistAnalysis");
+  const showResult = () => {
+    inspector.selectTab("analysis");
+    if (document.querySelector("#inspectorPanel").hidden) shell.setPanelOpen("inspector", true);
+  };
+  analysis?.addEventListener("recon-result-selected", showResult);
   const context = createWorkbenchContextController({ document, windowTarget, readContext, closeLog });
   const unsubscribe = subscribe(context.scheduleRefresh);
   return Object.freeze({
     shell,
     refresh: context.scheduleRefresh,
     refreshViewport: viewport.refresh,
-    dispose() { unsubscribe(); context.dispose(); inspector.dispose(); shell.dispose(); viewport.dispose(); }
+    dispose() {
+      analysis?.removeEventListener("recon-result-selected", showResult);
+      unsubscribe(); context.dispose(); inspector.dispose(); shell.dispose(); viewport.dispose();
+    }
   });
 }

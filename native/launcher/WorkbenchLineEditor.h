@@ -1,5 +1,6 @@
 #pragma once
-#include "WorkbenchBroker.h"
+#include "WorkbenchDisplay.h"
+#include <deque>
 #include <termios.h>
 #include <poll.h>
 #include <unistd.h>
@@ -116,11 +117,13 @@ inline void CompleteWorkbenchPath(WorkbenchBroker &broker, const std::string &cw
     PrintWorkbenchTerminal(prompt + line);
 }
 inline bool ReadWorkbenchLine(WorkbenchBroker &broker, const std::string &cwd, const std::string &prompt,
-                              bool terminal, std::string &line) {
+                              bool terminal, std::string &line, const std::deque<std::string> &history) {
     PrintWorkbenchTerminal(prompt);
     if (!terminal)
         return static_cast<bool>(std::getline(std::cin, line));
     line.clear();
+    auto position = history.size();
+    std::string draft;
     for (;;) {
         unsigned char c;
         const auto n = read(STDIN_FILENO, &c, 1);
@@ -136,7 +139,7 @@ inline bool ReadWorkbenchLine(WorkbenchBroker &broker, const std::string &cwd, c
             try {
                 CompleteWorkbenchPath(broker, cwd, prompt, line);
             } catch (const std::exception &e) {
-                PrintWorkbenchTerminal("\n" + WorkbenchFailure(e).dump() + "\n" + prompt + line);
+                PrintWorkbenchTerminal("\n" + FormatWorkbenchReply(WorkbenchFailure(e)) + prompt + line);
             }
         } else if (c == 127 || c == 8) {
             if (!line.empty()) {
@@ -151,15 +154,21 @@ inline bool ReadWorkbenchLine(WorkbenchBroker &broker, const std::string &cwd, c
             PrintWorkbenchTerminal("\r\x1b[2K" + prompt);
         } else if (c == 4 && line.empty())
             return false;
-        else if (c ==
-                 27) { // Discard terminal function-key sequences instead of inserting them into a command.
+        else if (c == 27) {
             pollfd key = {STDIN_FILENO, POLLIN, 0};
             unsigned char next;
             if (poll(&key, 1, 20) > 0 && read(STDIN_FILENO, &next, 1) == 1 && (next == '[' || next == 'O')) {
-                while (poll(&key, 1, 20) > 0 && read(STDIN_FILENO, &next, 1) == 1) {
-                    if (next >= 0x40 && next <= 0x7e)
-                        break;
+                if (poll(&key, 1, 20) <= 0 || read(STDIN_FILENO, &next, 1) != 1) continue;
+                if (next == 'A' && position > 0) {
+                    if (position == history.size()) draft = line;
+                    line = history[--position];
+                } else if (next == 'B' && position < history.size()) {
+                    line = ++position == history.size() ? draft : history[position];
+                } else {
+                    while (next < 0x40 && poll(&key, 1, 20) > 0 && read(STDIN_FILENO, &next, 1) == 1) {}
+                    continue;
                 }
+                PrintWorkbenchTerminal("\r\x1b[2K" + prompt + line);
             }
         } else if (c >= 32 && line.size() < 65536) {
             line += static_cast<char>(c);

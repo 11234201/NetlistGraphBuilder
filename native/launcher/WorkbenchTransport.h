@@ -140,9 +140,8 @@ inline Json WorkbenchCall(const std::string &path, const Json &body, int expecte
         throw;
     }
 }
-inline Json ExecuteWorkbench(const std::function<Json(const Json &)> &run, Json argv, std::string &page,
-                             std::string &cwd) {
-    auto cmd = ParseWorkbench(argv);
+inline Json ExecuteWorkbench(const std::function<Json(const Json &)> &run, const Json &argv, const WorkbenchCommand &cmd,
+                             std::string &page, std::string &cwd) {
     Json command = {{"version", 1},
                       {"op", "command"},
                       {"argv", argv},
@@ -235,8 +234,31 @@ inline unsigned HexDigit(char value) {
         return value - 'A' + 10;
     throw WorkbenchError("INVALID_ARGUMENT", "Invalid Tcl argument");
 }
+struct PromptOptions {
+    bool m_json = false;
+    bool m_remember = false;
+};
+
+inline PromptOptions ReadPromptOptions(const Json &args) {
+    PromptOptions result;
+    result.m_remember = !args.empty();
+    std::vector<std::string> words;
+    for (size_t i = 0; i < args.size(); ++i) {
+        const auto &arg = args[i].get_ref<const std::string &>();
+        if (arg == "--json") result.m_json = true;
+        if (arg == "--text") result.m_remember = false;
+        if (arg.rfind("--", 0) != 0 && words.size() < 2) words.push_back(arg);
+        i += WorkbenchValueCount(arg);
+    }
+    if (!words.empty() && (words[0] == "text set" || (words.size() == 2 && words[0] == "text" && words[1] == "set")))
+        result.m_remember = false;
+    return result;
+}
+
 inline int WorkbenchCli(int argc, char **argv) {
     bool tcl = false, encoded = false;
+    bool jsonOutput = !isatty(STDOUT_FILENO);
+    std::string command;
     std::string state, cwd = fs::current_path(), page;
     Json args = Json::array(), reply;
     try {
@@ -254,6 +276,7 @@ inline int WorkbenchCli(int argc, char **argv) {
                     args.push_back(argv[++i]);
             }
         }
+        jsonOutput = jsonOutput || ReadPromptOptions(args).m_json;
         if (state.empty())
             throw WorkbenchError("INVALID_ARGUMENT", "A state file is required");
         if (encoded) {
@@ -287,7 +310,9 @@ inline int WorkbenchCli(int argc, char **argv) {
         Json cfg;
         input >> cfg;
         auto path = Field(cfg, "control");
-        reply = ExecuteWorkbench([&](const Json &b) { return WorkbenchCall(path, b); }, args, page, cwd);
+        const auto parsed = ParseWorkbench(args);
+        command = parsed.m_name;
+        reply = ExecuteWorkbench([&](const Json &b) { return WorkbenchCall(path, b); }, args, parsed, page, cwd);
     } catch (const std::exception &e) {
         reply = WorkbenchFailure(e);
         const auto &error = reply.at("error");
@@ -295,7 +320,8 @@ inline int WorkbenchCli(int argc, char **argv) {
         TerminalLog::Instance().Write("error", "workbench.client_failed", "Command failed",
                                       details.dump(-1, ' ', false, Json::error_handler_t::replace));
     }
-    std::cout << (tcl ? WorkbenchTcl(reply) : reply.dump()) << std::endl;
+    if (!tcl && !jsonOutput) std::cout << FormatWorkbenchReply(reply, command);
+    else std::cout << (tcl ? WorkbenchTcl(reply) : reply.dump()) << std::endl;
     return !tcl && (reply.contains("error")) ? 1 : 0;
 }
 inline Json TerminalWords(const std::string &line) {
@@ -335,13 +361,19 @@ inline Json TerminalWords(const std::string &line) {
 inline void WorkbenchTerminal(std::shared_ptr<WorkbenchBroker> broker, std::function<void()> stop,
                               bool terminal) {
     std::string page, cwd = fs::current_path(), line;
-    auto print = [](const std::string &value) {
-        std::fwrite(value.data(), 1, value.size(), stderr);
-        std::fflush(stderr);
-    };
-    while (ReadWorkbenchLine(*broker, cwd, page.empty() ? "ngb> " : "ngb[" + page + "]> ", terminal, line)) {
+    std::deque<std::string> history;
+    while (ReadWorkbenchLine(*broker, cwd, page.empty() ? "ngb> " : "ngb[" + page + "]> ", terminal, line, history)) {
+        bool jsonOutput = false;
+        std::string command;
+        Json reply;
         try {
             auto args = TerminalWords(line);
+            const auto options = ReadPromptOptions(args);
+            jsonOutput = options.m_json;
+            if (terminal && options.m_remember && (history.empty() || history.back() != line)) {
+                if (history.size() == 100) history.pop_front();
+                history.push_back(line);
+            }
             if (args.empty())
                 continue;
             if (args[0] == "quit") {
@@ -349,12 +381,18 @@ inline void WorkbenchTerminal(std::shared_ptr<WorkbenchBroker> broker, std::func
                 stop();
                 return;
             }
-            print(ExecuteWorkbench([&](const Json &b) { return broker->Handle(b, true); }, args, page, cwd)
-                      .dump() +
-                  "\n");
+            const auto parsed = ParseWorkbench(args);
+            command = parsed.m_name;
+            reply = ExecuteWorkbench([&](const Json &b) { return broker->Handle(b, true); }, args, parsed, page, cwd);
         } catch (const std::exception &e) {
-            print(WorkbenchFailure(e).dump() + "\n");
+            reply = WorkbenchFailure(e);
+            const Json details = {{"operation", command.empty() ? "prompt" : command}, {"page", page},
+                                  {"code", reply["error"]["code"]}, {"error", reply["error"]}};
+            TerminalLog::Instance().Write("error", "workbench.prompt_failed", "Interactive command failed",
+                details.dump(-1, ' ', false, Json::error_handler_t::replace), false);
         }
+        PrintWorkbenchTerminal(jsonOutput ? reply.dump(-1, ' ', false, Json::error_handler_t::replace) + "\n"
+                                          : FormatWorkbenchReply(reply, command));
     }
 }
 } // namespace ngb

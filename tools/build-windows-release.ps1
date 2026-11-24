@@ -70,7 +70,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "src") -Destination $appRoot -Recurs
 $hostTools = Join-Path $appRoot "tools"
 New-Item -ItemType Directory -Path $hostTools | Out-Null
 foreach ($file in @("serve.py", "terminal_log.py", "log_retention.py", "workbench_protocol.py",
-                    "workbench_service.py", "workbench_server_files.py", "workbench_transport.py", "workbench_client.py")) {
+                    "workbench_service.py", "workbench_server_files.py", "workbench_transport.py", "workbench_display.py", "workbench_client.py")) {
   Copy-Item -LiteralPath (Join-Path (Join-Path $repoRoot "tools") $file) -Destination $hostTools
 }
 $pythonBuild = if ($env:NGB_BUILD_PYTHON) { $env:NGB_BUILD_PYTHON } else { "python" }
