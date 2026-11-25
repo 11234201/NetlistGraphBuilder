@@ -111,7 +111,7 @@
       </header>
       <section class="contextbar" aria-label="View tools">
         <button id="toggleNavigatorButton" class="mini-button panel-toggle" type="button" aria-controls="navigatorPanel" aria-expanded="false"><svg class="panel-toggle-icon" viewBox="0 0 18 16" aria-hidden="true"><rect x="1" y="1" width="16" height="14" rx="2"/><path d="M6 1v14"/><path class="panel-icon-region" d="M2 2h3v12H2z"/></svg>Navigator</button>
-        <div class="history-controls"><button id="moduleBackButton" class="square-button" type="button" title="Back through view history (Ctrl+Z / Alt+Left)" aria-label="Back through view history" disabled>←</button><button id="moduleForwardButton" class="square-button" type="button" title="Forward through view history (Ctrl+Shift+Z / Alt+Right)" aria-label="Forward through view history" disabled>→</button></div>
+        <div class="history-controls"><button id="moduleBackButton" class="square-button" type="button" title="Back through view history (Ctrl+Z / Alt+Left)" aria-label="Back through view history" disabled>←</button><button id="moduleForwardButton" class="square-button" type="button" title="Forward through view history (Ctrl+Shift+Z / Ctrl+Y / Alt+Right)" aria-label="Forward through view history" disabled>→</button></div>
         <div class="workspace-heading"><span id="workspaceTitle">No module</span><span id="workspaceMode" class="mode-indicator">Whole</span></div>
         <div class="view-mode-control" role="group" aria-label="Schematic view mode"><button id="wholeViewButton" type="button">Whole</button><button id="focusedViewButton" type="button">Focused</button></div>
         <button id="showPathButton" class="mini-button path-toggle-button" type="button" title="Open Show Path panel in Navigator" aria-pressed="false">Show Path</button>
@@ -127,7 +127,7 @@
           <label class="menu-action" tabindex="0"><input id="compareLeftNetlistInput" type="file" accept=".v,.sv,.txt,text/plain">Load Verilog for A…</label>
           <button id="compareLeftPasteNetlistButton" class="menu-action" type="button">Paste Verilog for A…</button>
           <span class="menu-heading">Side A timing</span>
-          <label class="menu-action" tabindex="0"><input id="compareLeftTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Load timing for A…</label>
+          <label class="menu-action" tabindex="0"><input id="compareLeftTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.sta,.csv,.tsv,.json">Load timing for A…</label>
           <button id="compareLeftPasteTimingButton" class="menu-action" type="button">Paste timing for A…</button>
           <span id="compareLeftTimingStatus" class="menu-note compare-side-timing-status">Timing: none</span>
           <button id="compareLeftClearTimingButton" class="menu-action" type="button" hidden>Clear A timing override</button>
@@ -138,7 +138,7 @@
           <label class="menu-action" tabindex="0"><input id="compareRightNetlistInput" type="file" accept=".v,.sv,.txt,text/plain">Load Verilog for B…</label>
           <button id="compareRightPasteNetlistButton" class="menu-action" type="button">Paste Verilog for B…</button>
           <span class="menu-heading">Side B timing</span>
-          <label class="menu-action" tabindex="0"><input id="compareRightTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.csv,.tsv,.json">Load timing for B…</label>
+          <label class="menu-action" tabindex="0"><input id="compareRightTimingInput" type="file" accept=".log,.txt,.rpt,.timing,.sta,.csv,.tsv,.json">Load timing for B…</label>
           <button id="compareRightPasteTimingButton" class="menu-action" type="button">Paste timing for B…</button>
           <span id="compareRightTimingStatus" class="menu-note compare-side-timing-status">Timing: none</span>
           <button id="compareRightClearTimingButton" class="menu-action" type="button" hidden>Clear B timing override</button>
@@ -157,15 +157,15 @@
       <section class="workspace">
         <aside id="navigatorPanel" class="side-panel navigation-panel" aria-label="Navigator">
           <header class="panel-title"><h2>Navigator</h2><button class="panel-collapse-button" data-close-panel="navigator" type="button" title="Hide Navigator to expand the canvas" aria-label="Hide Navigator"><span aria-hidden="true">‹</span> Hide</button></header>
-          <div class="panel-tabs" role="tablist" aria-label="Navigator pages"><button type="button" role="tab" data-nav-tab="hierarchy" aria-selected="true">Hierarchy</button><button type="button" role="tab" data-nav-tab="design" aria-selected="false">Design</button><button type="button" role="tab" data-nav-tab="analysis" aria-selected="false">Analysis</button><button type="button" role="tab" data-nav-tab="path" aria-selected="false">Path</button></div>
-          <div data-nav-panel="hierarchy">
+          <div class="panel-tabs" role="tablist" aria-label="Navigator pages"><button type="button" role="tab" id="hierarchyTab" aria-controls="hierarchyPanel" data-nav-tab="hierarchy" aria-selected="true">Hierarchy</button><button type="button" role="tab" id="designTab" aria-controls="designPanel" data-nav-tab="design" aria-selected="false">Design</button><button type="button" role="tab" id="analysisTab" aria-controls="netlistAnalysis" data-nav-tab="analysis" aria-selected="false">Analysis</button><button type="button" role="tab" id="pathTab" aria-controls="pathPanel" data-nav-tab="path" aria-selected="false">Path</button></div>
+          <div id="hierarchyPanel" role="tabpanel" aria-labelledby="hierarchyTab" data-nav-panel="hierarchy">
             <details id="moduleHierarchyMenu" class="navigation-hierarchy" open><summary id="moduleHierarchySummary" title="Browse module hierarchy"><span id="moduleHierarchyCurrent">No module</span></summary>
               <div class="hierarchy-content"><label class="module-hierarchy-filter-label" for="moduleHierarchyFilter">Find module or instance</label><input id="moduleHierarchyFilter" class="module-hierarchy-filter" type="search" placeholder="Module or instance…" autocomplete="off" aria-controls="moduleHierarchyTree"><div id="moduleHierarchyTree" class="module-hierarchy-body" aria-live="polite">No modules</div><div id="moduleOccurrenceChoices" class="module-occurrence-choices-host" aria-live="polite"></div></div>
             </details><p id="compareNavigationNote" class="help-text" hidden>Choose A and B above the canvas. Return to Single to browse the hierarchy.</p>
           </div>
-          <section data-nav-panel="design" class="panel-section" hidden><h2>Design summary</h2><dl id="designStats" class="stats-list"></dl><div id="moduleAttributes" class="module-attributes-section"></div></section>
-          <section id="netlistAnalysis" data-nav-panel="analysis" class="panel-section" hidden></section>
-          <section id="pathPanel" data-nav-panel="path" class="panel-section path-panel" aria-label="Show Path" hidden>
+          <section id="designPanel" role="tabpanel" aria-labelledby="designTab" data-nav-panel="design" class="panel-section" hidden><h2>Design summary</h2><dl id="designStats" class="stats-list"></dl><div id="moduleAttributes" class="module-attributes-section"></div></section>
+          <section id="netlistAnalysis" role="tabpanel" aria-labelledby="analysisTab" data-nav-panel="analysis" class="panel-section" hidden></section>
+          <section id="pathPanel" role="tabpanel" aria-labelledby="pathTab" data-nav-panel="path" class="panel-section path-panel" aria-label="Show Path" hidden>
             <header class="path-heading"><strong>Show Path</strong><select id="pathSide" aria-label="Compare side" hidden><option value="left">A</option><option value="right">B</option></select><span id="pathScope"></span></header>
             <div class="path-editor"><label>Find an endpoint <input id="pathFind" type="search" placeholder="Name or ID" autocomplete="off"></label>
             <div id="pathCandidates"></div><div id="pathDraft"></div></div>
@@ -213,32 +213,32 @@
       <footer class="status-bar"><span id="statusBar" role="status">Ready</span><span id="providerStatus" class="context-note"></span><button id="toggleDiagnosticsButton" type="button" aria-controls="diagnosticsDrawer" aria-expanded="false">Diagnostics <span id="diagnosticsCount">0</span></button><button id="toggleProcessLogButton" type="button" aria-controls="processLogDrawer" aria-expanded="false">Log <span id="processLogCount">0</span></button></footer>
     </main>
     <p id="narrowWindowNotice" hidden>Widen this window for the full workbench.</p>
-    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. A Verilog design can include a Timing report. An AIG can include a Level file. Select the design alone or together with its report.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Use the Show Path report to export one Compare side. Save Golden records the Single view. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
+    <dialog id="helpDialog" class="text-input-dialog help-dialog" aria-labelledby="helpTitle"><header class="panel-title"><h2 id="helpTitle">Read, trace, compare</h2><button id="closeHelpButton" class="square-button" type="button" aria-label="Close help">×</button></header><div class="help-content"><p>Open or paste Verilog or AIG (ABC DOT / two-input BLIF) from File. Drag files onto the workbench, or paste outside a text field. A Verilog design can include a Timing report. An AIG can include a Level file. Select the design alone or together with its report.</p><dl><dt>/</dt><dd>Search cells, nets, ports and modules</dd><dt>F</dt><dd>Zoom to selection; a cell outside the current graph opens a Focused neighborhood</dd><dt>Ctrl+Z / Alt+Left</dt><dd>Previous view operation</dd><dt>Ctrl+Shift+Z / Ctrl+Y / Alt+Right</dt><dd>Next view operation</dd><dt>Escape</dt><dd>Close the active menu or dialog</dd></dl><p><strong>Add to Focused</strong> keeps existing roots. <strong>Replace roots</strong> starts a neighborhood around the selection. Fanin/Fanout depth 0 disables that direction.</p><p>Drag empty canvas to pan; use the wheel to zoom. Enable <strong>Adjust</strong> to drag nodes. Double-click a module instance to enter it. Connections can cross to an explicitly identified parent occurrence.</p><p>Compare uses A/B identities in either split direction. Whole and Reset affect both views; depths are shared. Use the Show Path report to export one Compare side. Save Golden records the Single view. Loading Golden returns to Single.</p><p class="help-text">All processing runs locally. Cell Config definitions persist; Liberty must be reloaded after refresh.</p></div></dialog>
     <dialog id="netlistTextDialog" class="text-input-dialog" aria-labelledby="netlistTextTitle">
       <form id="netlistTextForm" class="text-input-form">
         <header>
           <div>
             <h2 id="netlistTextTitle">Paste Verilog</h2>
-            <p id="netlistTextDescription">粘贴 structural Verilog，解析成功后立即画图。</p>
+            <p id="netlistTextDescription">Paste structural Verilog to draw its schematic.</p>
           </div>
-          <button id="closeNetlistTextButton" class="dialog-close" type="button" aria-label="关闭">&times;</button>
+          <button id="closeNetlistTextButton" class="dialog-close" type="button" aria-label="Close">&times;</button>
         </header>
         <label class="bulk-text-tools" data-aig-input-options hidden>View
           <select data-aig-input-view aria-label="AIG view style">
-            <option value="abc">Logic View · 输入输出就近排列</option>
-            <option value="search-first">Search-first · 先筛选再布局</option>
-            <option value="standard">Standard · 按深度分层</option>
+            <option value="abc">Logic View · Place inputs and outputs nearby</option>
+            <option value="search-first">Search-first · Find signals before layout</option>
+            <option value="standard">Standard · Layer by depth</option>
           </select>
         </label>
         <textarea id="netlistTextInput" aria-labelledby="netlistTextTitle" aria-describedby="bulkTextNotice" placeholder="Paste text here…" spellcheck="false" wrap="off" required></textarea>
         <div class="bulk-text-tools">
           <p id="bulkTextNotice" data-bulk-text-notice role="status" hidden></p>
-          <button class="dialog-button" data-bulk-text-expand type="button" title="展开完整原文；超大文本的编辑和全选可能较慢" hidden>展开编辑</button>
-          <button class="dialog-button" data-bulk-text-clear type="button">清空</button>
+          <button class="dialog-button" data-bulk-text-expand type="button" title="Show the full text for editing. Large inputs may take a moment." hidden>Edit full text</button>
+          <button class="dialog-button" data-bulk-text-clear type="button">Clear</button>
         </div>
         <p data-text-status role="status" aria-live="polite" hidden></p>
         <footer>
-          <span>Ctrl + Enter 提交</span>
+          <span>Ctrl+Enter to submit</span>
           <div>
             <button id="cancelNetlistTextButton" class="dialog-button" type="button">Cancel</button>
             <button class="dialog-button primary" data-text-submit type="submit">Draw</button>
@@ -249,7 +249,7 @@
 
     <dialog id="cellDefinitionDialog" class="text-input-dialog cell-definition-dialog" aria-labelledby="cellDefinitionTitle">
       <form id="cellDefinitionForm" class="text-input-form">
-        <header><div><h2 id="cellDefinitionTitle">Cell Definition</h2><p>按 cell type 保存 gate kind 和 pin direction。</p></div><button id="closeCellDefinitionButton" class="dialog-close" type="button" aria-label="关闭">&times;</button></header>
+        <header><div><h2 id="cellDefinitionTitle">Cell Definition</h2><p>Save the gate kind and pin directions for this cell type.</p></div><button id="closeCellDefinitionButton" class="dialog-close" type="button" aria-label="Close">&times;</button></header>
         <div id="cellDefinitionBody" class="cell-definition-body"></div>
         <footer><button id="deleteCellDefinitionButton" class="dialog-button" type="button">Delete saved</button><div><button id="cancelCellDefinitionButton" class="dialog-button" type="button">Cancel</button><button class="dialog-button primary" type="submit">Save</button></div></footer>
       </form>

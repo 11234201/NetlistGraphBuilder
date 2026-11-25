@@ -9,12 +9,16 @@ const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 test("browser entry cannot regain workspace scheduling or grow past its migration budget", () => {
   const source = readFileSync(join(projectRoot, "src/app/main.js"), "utf8");
-  assert.ok(source.split(/\r?\n/).length <= 420, "Extract a complete responsibility before adding entry code; do not raise the budget");
+  assert.ok(source.split(/\r?\n/).length <= 407, "Extract a complete responsibility before adding entry code; do not raise the budget");
   assert.doesNotMatch(source, /^(?:async )?function\s+/m, "Entry must only compose controllers and bind browser events");
   for (const file of sourceFiles(join(projectRoot, "src/app"))) {
-    if (!file.endsWith("_controller.js")) continue;
-    assert.ok(readFileSync(file, "utf8").split(/\r?\n/).length <= 520, `${file} exceeds the responsibility budget`);
+    const responsibility = /(?:domain_workbench|(?:inspector|focused_roots|input|compare_workspace)_controller)\.js$/.test(file);
+    if (!responsibility && !file.endsWith("_controller.js")) continue;
+    const budget = responsibility ? 450 : 520;
+    assert.ok(readFileSync(file, "utf8").split(/\r?\n/).length <= budget, `${file} exceeds the responsibility budget`);
   }
+  const timingFacade = readFileSync(join(projectRoot, "src/timing/timingAnnotation.js"), "utf8");
+  assert.ok(timingFacade.split(/\r?\n/).length <= 500, "Timing annotation must delegate scope, index and badge responsibilities");
   assert.doesNotMatch(source, /workspaceJobs\.(?:start|runSync)\s*\(/);
   assert.doesNotMatch(source, /\.executionMode\s*===/);
   assert.doesNotMatch(source, /\.dispatch\s*\(/, "Entry binds actions; command construction belongs to adapters");

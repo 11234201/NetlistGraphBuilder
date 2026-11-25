@@ -15,7 +15,7 @@ export function createBulkTextInput({ input, notice, expandButton, clearButton }
     if (notice) {
       notice.hidden = !preview;
       notice.textContent = preview
-        ? `已保留完整文本（${original.length.toLocaleString()} 字符），此处仅显示开头预览。可直接粘贴替换；全选后复制及导入均使用完整原文。需要修改时请选择“展开编辑”。`
+        ? `Previewing the start of ${original.length.toLocaleString()} characters. Copy all or import to use the full text. Paste to replace it, or choose Edit full text to make changes.`
         : "";
     }
   }

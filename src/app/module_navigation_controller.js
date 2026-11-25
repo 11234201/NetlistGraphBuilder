@@ -130,7 +130,7 @@ export const moduleNavigationPorts = Object.freeze({
   },
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
-    "coneRootNodeId", "currentModule", "design", "expandedGroupIds", "faninDepth", "fanoutDepth",
+    "coneRootNodeId", "currentModule", "design", "faninDepth", "fanoutDepth",
     "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "showPath", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "restoringViewHistory", "scene", "searchResults",
     "selectedNet", "selectedNodeId", "timing", "timingBadgeChoices", "timingBadgePositions",

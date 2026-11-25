@@ -1,5 +1,7 @@
 # Focused 正交路由系统修改方案
 
+> 历史冻结前存档。本文记录当时的实验与交接。Simple 当前的冻结范围见[冻结基线](plans/simple_layout_freeze_baseline.md)。
+
 - 方案日期：2026-09-12
 - 方案状态：暂停（已有实现保留；未完成阶段仅作为历史 backlog，等待后续明确启动）
 - 问题报告：[eq012_focused_routing_investigation_report.md](eq012_focused_routing_investigation_report.md)

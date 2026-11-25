@@ -229,10 +229,10 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
     const sideSuffix = textOptions.compareSide === "left" ? " for A" : textOptions.compareSide === "right" ? " for B" : "";
     elements.textTitle.textContent = { timing: "Paste timing", aig: "Paste AIG", level: "Paste levels", netlist: "Paste Verilog" }[textKind] + sideSuffix;
     elements.textDescription.textContent = {
-      timing: "粘贴标准时序文本（Tabular / CSV / JSON，默认 point at rt slack），解析成功后应用到当前设计。",
-      level: "每行写一个输入名和初始层级，例如 a 3。完整报告可用表头 point at_level rt_level slack_level，应用到当前 AIG。",
-      aig: "粘贴 ABC AIG DOT 或两输入组合 BLIF（.model / .names）。大图可选 Search-first，在布局前筛选逻辑。",
-      netlist: "粘贴 structural Verilog，解析成功后立即画图。"
+      timing: "Paste tabular, CSV, or JSON timing data for the current design. Default columns are point, at, rt, and slack.",
+      level: "Enter an input and its initial level on each line, for example a 3. For full reports, use point, at_level, rt_level, and slack_level.",
+      aig: "Paste ABC AIG DOT or two-input combinational BLIF (.model / .names). For large graphs, choose Search-first to find signals before layout.",
+      netlist: "Paste structural Verilog to draw its schematic."
     }[textKind];
     if (!elements.textDialog.open) elements.textDialog.showModal();
     schedule(() => elements.textInput.focus());
@@ -315,11 +315,11 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       return true;
     };
     const onAbort = () => {
-      if (finish() && submittedDialogSession === dialogSession && elements.textDialog?.open) showTextStatus("已取消，可修改后重新提交。");
+      if (finish() && submittedDialogSession === dialogSession && elements.textDialog?.open) showTextStatus("Cancelled. Edit the input and submit again.");
     };
     submission.request.signal.addEventListener("abort", onAbort, { once: true });
     setSubmitting(true);
-    showTextStatus(kind === "aig" ? (deferLayout ? "正在建立 AIG 索引…" : "正在解析并布局 AIG…可以点击 Cancel 取消。") : "正在处理文本…");
+    showTextStatus(kind === "aig" ? (deferLayout ? "Indexing AIG…" : "Parsing and laying out AIG… Select Cancel to stop.") : "Processing text…");
     try {
       await loadText(source, { kind, label: pastedLabel(kind), ...requestOptions(kind, details), ...(presentationPolicy ? { presentationPolicy, deferLayout } : {}), ...submitExtra });
       if (isCurrent(requestId) && submittedDialogSession === dialogSession) { finish(); closeDialog(); }
@@ -329,7 +329,7 @@ export function createQuickInputController({ elements, windowTarget, loadText, s
       else if (isCurrent(requestId) && submittedDialogSession === dialogSession) {
         const message = `Paste failed: ${errorMessage(error)}`;
         const hint = error?.name === "TimeoutError" && kind === "aig"
-          ? " 选择 Search-first 可先筛选再布局，也可选择 Logic View 重试。" : "";
+          ? " Choose Search-first to find signals before layout, or retry in Logic View." : "";
         showTextStatus(message + hint);
         if (!fromCommand || kind === "level") reportFailure(error, message, details);
         finish();

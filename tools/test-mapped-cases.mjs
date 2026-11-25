@@ -11,7 +11,7 @@ const expectedCases = numberFromEnvironment("EXPECTED_MAPPED_CASES", 47);
 const timeoutMs = numberFromEnvironment("MAPPED_CASE_TIMEOUT_MS", 45_000);
 const maximumCaseViolations = numberFromEnvironment("MAX_CASE_VIOLATIONS", 32);
 const maximumTotalViolations = numberFromEnvironment("MAX_TOTAL_VIOLATIONS", 120);
-const noCollapse = process.env.MAPPED_CASE_NO_COLLAPSE === "1";
+
 const providerId = process.env.MAPPED_CASE_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID;
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
 const caseViolationBudget = hardInvariants ? 0 : maximumCaseViolations;
@@ -33,7 +33,7 @@ if (netlists.length !== expectedCases) {
 }
 
 const results = [];
-console.log(`mapped configuration: provider=${providerId}, cases=${netlists.length}, timeoutMs=${timeoutMs}, hardInvariants=${hardInvariants}, noCollapse=${noCollapse}`);
+console.log(`mapped configuration: provider=${providerId}, cases=${netlists.length}, timeoutMs=${timeoutMs}, hardInvariants=${hardInvariants}, noCollapse=true`);
 for (const [index, netlist] of netlists.entries()) {
   const caseName = path.basename(netlist, "_mapped.v");
   process.stdout.write(`[${index + 1}/${netlists.length}] ${caseName} `);
@@ -74,7 +74,7 @@ console.log(
   `violations=${totalViolations}/${totalViolationBudget}, ` +
   `maxLayoutMs=${maximumLayoutMs}, maxHeapMiB=${maximumHeapUsedMiB}, ` +
   `hardInvariants=${hardInvariants}`
-  + `, provider=${providerId}, noCollapse=${noCollapse}`
+  + `, provider=${providerId}, noCollapse=true`
 );
 
 if (failed.length > 0 || totalViolations > totalViolationBudget) {
@@ -87,7 +87,7 @@ if (failed.length > 0 || totalViolations > totalViolationBudget) {
             : hardInvariants && result.metrics.layoutStatus !== "routed" ? "provider-status"
               : "violation-budget";
     console.error(JSON.stringify({ reason, code: result.execution.code,
-      elapsedMs: result.execution.elapsedMs, timeoutMs, noCollapse, metrics: result.metrics }));
+      elapsedMs: result.execution.elapsedMs, timeoutMs, noCollapse: true, metrics: result.metrics }));
     if (result.execution.stderr) console.error(result.execution.stderr.slice(-2000));
   }
   process.exitCode = 1;
@@ -107,7 +107,7 @@ function runWorker(netlist, timeout) {
   return new Promise((resolve) => {
     const started = Date.now();
     const workerArguments = [worker, netlist,
-      ...(noCollapse ? ["--no-collapse"] : []),
+      "--no-collapse",
       ...(hardInvariants ? ["--hard"] : [])];
     const child = spawn(process.execPath, workerArguments, {
       stdio: ["ignore", "pipe", "pipe"],

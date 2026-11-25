@@ -1,5 +1,7 @@
 # 布线方案实现符合性审计
 
+> 历史冻结前存档。本文记录当时的实验与交接。Simple 当前的冻结范围见[冻结基线](plans/simple_layout_freeze_baseline.md)。
+
 - 审计日期：2026-09-13
 - 审计基线：`6800cc3`
 - 对照方案：[eq012_focused_routing_remediation_plan.md](eq012_focused_routing_remediation_plan.md)

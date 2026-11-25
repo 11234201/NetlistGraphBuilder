@@ -1,4 +1,7 @@
 import { restoreWorkbenchStorage } from "../../src/app/workbench_storage.js";
+import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { createPreferencesController } from "../../src/app/preferences_controller.js";
+import { createAppState } from "../../src/app/appState.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { decodeSessionSnapshot, encodeSessionSnapshot, SESSION_CODEC_VERSION } from "../../src/persistence/session_codec.js";
@@ -115,6 +118,23 @@ test("corrupt multi-source archives report the module and file count without inc
     assert.doesNotMatch(error.message, /private source/);
     return true;
   });
+});
+
+test("legacy collapse requests produce one notice and restore ordinary view preferences", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const entries = [];
+  const sync = () => {};
+  const preferences = createPreferencesController({
+    state, elements: { coneDepthInput: {}, faninDepthInput: {}, fanoutDepthInput: {}, gateSymbolModeSelect: {} },
+    services: { singleViewSession: { importQuery: sync, importState: sync }, clamp: value => value,
+      layoutSpacingController: { sync }, timingDisplayController: { sync }, logProcess: (...args) => entries.push(args) }
+  });
+  preferences.applySessionPreferences(decodeSessionSnapshot({ version: 1, collapseLargeGroups: true, moduleName: "top" }));
+  assert.equal(state.collapseLargeGroups, false);
+  assert.deepEqual(entries.map(([level, phase, , details]) => [level, phase, details.operation, details.code]),
+    [["warning", "persistence", "session.restore", "display.legacy-collapse-ignored"]]);
+  preferences.applySessionPreferences(decodeSessionSnapshot({ version: 2 }));
+  assert.equal(entries.length, 1);
 });
 
 test("a closing workspace retains its snapshot failure when the log sink throws", () => {

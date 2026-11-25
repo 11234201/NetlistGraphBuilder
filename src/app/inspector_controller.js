@@ -1,4 +1,4 @@
-import { renderDefinitionRows as statsRows } from "../ui/html.js";
+import { renderInspectorStats, renderInspectorDiagnostics, signed, formatGateKinds } from "./inspector_summary.js";
 import { missingCellTimingDetails } from "../timing/timing_diagnostics.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { getCompareNodeName, findCompareNode } from "./compareWorkspace.js";
@@ -12,7 +12,6 @@ import {
   updateTimingBadgeChoices
 } from "../ui/timingPanel.js";
 import { renderEmptySelection, renderObjectDetails, bindObjectDetailsPanel } from "../ui/objectDetailsPanel.js";
-import { renderModuleAttributesSummary } from "../ui/attributesPanel.js";
 import { inspectGraphNode, inspectGraphNet } from "../analysis/graphInspector.js";
 import { renderAdjustPanel, bindAdjustPanel } from "../ui/adjustPanel.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
@@ -23,64 +22,8 @@ import { renderNetRoutingPanel, bindNetRoutingPanel } from "../ui/net_routing_pa
 export function createInspectorController({ state, elements, services, netRouting, refreshAnalysis, inspectAnalysis, logCellTiming }) {
   function renderStats() {
     refreshAnalysis?.();
-    if (state.compare.active && state.compare.analysis) {
-      const { left, right, delta, unmatchedPorts, unmatchedNets } = state.compare.analysis;
-      const pair = (a, b) => `${a} / ${b}`;
-      elements.stats.innerHTML = statsRows([
-        ["Cells A/B", pair(left.cells, right.cells)],
-        ["Cell delta", signed(delta.cells)],
-        ["Depth A/B", pair(left.logicDepth, right.logicDepth)],
-        ["Depth delta", signed(delta.logicDepth)],
-        ["Max fanout A/B", pair(left.maxFanout, right.maxFanout)],
-        ["Fanout delta", signed(delta.maxFanout)],
-        ["Gate kinds A", formatGateKinds(left.gateKinds)],
-        ["Gate kinds B", formatGateKinds(right.gateKinds)],
-        ["Unmatched ports", unmatchedPorts.length],
-        ["Unmatched nets A/B", pair(unmatchedNets.left.length, unmatchedNets.right.length)]
-      ]);
-      if (elements.moduleAttributes) {
-        const leftGraph = state.compare.fullGraphs?.left || state.compare.graphs?.left;
-        const rightGraph = state.compare.fullGraphs?.right || state.compare.graphs?.right;
-        elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({
-          compareActive: true,
-          leftModule: state.design?.modules.find((item) => item.name === state.compare.leftModuleName) || null,
-          rightModule: state.design?.modules.find((item) => item.name === state.compare.rightModuleName) || null,
-          leftGraph,
-          rightGraph
-        });
-      }
-      return;
-    }
-    const module = state.currentModule;
-    const graph = state.graph;
-    if (!module || !graph) {
-      elements.stats.innerHTML = statsRows([
-        ["Module", module?.displayName || "-"],
-        ["Layout", "Pending"]
-      ]);
-      if (elements.moduleAttributes) {
-        elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({ currentModule: module, graph });
-      }
-      return;
-    }
-    elements.stats.innerHTML = statsRows([
-      ["Module", module.displayName],
-      ["Ports", graph.stats.ports],
-      ["Nets", graph.stats.nets],
-      ["Cells", graph.stats.cells],
-      ["Assigns", graph.stats.assigns],
-      ["Timing inst", state.timing?.instanceCount || 0],
-      ["Graph nodes", graph.nodes.length],
-      ["Graph edges", graph.edges.length]
-    ]);
-    if (elements.moduleAttributes) {
-      elements.moduleAttributes.innerHTML = renderModuleAttributesSummary({ currentModule: module, graph });
-    }
+    renderInspectorStats(state, elements);
   }
-
-  function signed(value) { return value > 0 ? `+${value}` : String(value); }
-
-  function formatGateKinds(counts) { return Object.entries(counts).map(([kind, count]) => `${kind}:${count}`).join(", ") || "-"; }
 
   function applyCompareHighlights() {
     const analysis = state.compare.analysis;
@@ -345,28 +288,7 @@ export function createInspectorController({ state, elements, services, netRoutin
     };
   }
 
-  function renderDiagnostics() {
-    const diagnostics = [
-      ...(state.design?.diagnostics || []),
-      ...(state.compare.active ? [] : (state.graph?.diagnostics || [])),
-      ...(state.compare.active ? (state.compare.graphs?.left?.diagnostics || []) : []),
-      ...(state.compare.active ? (state.compare.graphs?.right?.diagnostics || []) : [])
-    ];
-
-    elements.diagnostics.innerHTML = "";
-    if (diagnostics.length === 0) {
-      const item = document.createElement("li");
-      item.textContent = "No diagnostics";
-      elements.diagnostics.append(item);
-      return;
-    }
-
-    for (const diagnostic of diagnostics) {
-      const item = document.createElement("li");
-      item.textContent = diagnostic.message;
-      elements.diagnostics.append(item);
-    }
-  }
+  const renderDiagnostics = () => renderInspectorDiagnostics(state, elements.diagnostics);
 
   function bindSelectionControls(node, missing) {
     const timingKey = getTimingKey(node);

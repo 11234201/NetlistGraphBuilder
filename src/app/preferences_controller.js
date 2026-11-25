@@ -1,3 +1,4 @@
+import { warnLegacyCollapse } from "./legacy_display_options.js";
 import { getSessionLayoutProviderId } from "./sessionState.js";
 import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 
@@ -16,10 +17,7 @@ export function createPreferencesController({ state, elements, services }) {
       state.layoutProviderId = getSessionLayoutProviderId(session);
       state.layoutFallbackFromProviderId = null;
       state.useFanoutHubs = session.useFanoutHubs !== false;
-      // Group collapse is retired. Legacy sessions remain readable but cannot
-      // reactivate the removed display transform.
-      state.collapseLargeGroups = false;
-      state.expandedGroupIds.clear();
+      warnLegacyCollapse(session, services.logProcess, "session.restore");
       services.singleViewSession.importState({ presentationPolicy: normalizeNetlistPresentationPolicy(session.presentationPolicy) });
       if (session.layoutPolicy) services.setSingleLayoutPolicy(session.layoutPolicy);
       const metrics = session.timingDisplayPolicy?.metrics;
@@ -46,9 +44,9 @@ export function createPreferencesController({ state, elements, services }) {
 
 export const preferencesPorts = Object.freeze({
   state: [
-    "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "collapseLargeGroups", "compare",
+    "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare",
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "currentSource",
-    "currentSourceLabel", "document", "expandedGroupIds", "faninDepth", "fanoutDepth",
+    "currentSourceLabel", "document", "faninDepth", "fanoutDepth",
     "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides",
     "layoutFallbackFromProviderId", "layoutPolicy", "layoutProviderId", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "presentationPolicy", "restoringViewHistory",
@@ -60,7 +58,7 @@ export const preferencesPorts = Object.freeze({
     "coneDepthInput", "faninDepthInput", "fanoutDepthInput", "gateSymbolModeSelect"
   ],
   services: [
-    "singleViewSession",
+    "singleViewSession", "logProcess",
     "clamp", "layoutSpacingController", "setSingleLayoutPolicy",
     "timingDisplayController"
   ]

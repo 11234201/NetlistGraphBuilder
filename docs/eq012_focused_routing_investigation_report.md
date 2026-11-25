@@ -1,5 +1,7 @@
 # eq012 Focused 路由异常调查报告
 
+> 历史冻结前存档。本文记录当时的实验与交接。Simple 当前的冻结范围见[冻结基线](plans/simple_layout_freeze_baseline.md)。
+
 - 调查日期：2026-09-12
 - 调查对象：`tests/fixtures/mapped/equal/eq_012_mapped.v`
 - 复现场景：Focused 根节点 `_2021_`、`_2406_`，`faninDepth=3`，`fanoutDepth=3`，`cellSpacing=4`

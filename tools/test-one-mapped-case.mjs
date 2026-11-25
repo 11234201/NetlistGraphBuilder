@@ -8,7 +8,6 @@ import { buildSchematicGraph } from "../src/netlist/graph.js";
 import { parseVerilog } from "../src/parser/verilogParser.js";
 
 const input = process.argv[2];
-const noCollapse = process.argv.includes("--no-collapse");
 const hardInvariants = process.argv.includes("--hard") || process.env.MAPPED_HARD_INVARIANTS === "1";
 const providerId = process.env.MAPPED_CASE_PROVIDER || DEFAULT_LAYOUT_PROVIDER_ID;
 if (!input) throw new Error("usage: node tools/test-one-mapped-case.mjs <netlist.v> [--no-collapse] [--hard]");
@@ -24,9 +23,7 @@ if (!module) throw new Error(`No Verilog module found in ${input}`);
 const graphStarted = performance.now();
 console.error("stage=graph");
 const rawGraph = buildSchematicGraph(module);
-const graph = applyWorkspaceGraphTransforms(rawGraph, {
-  collapseLargeGroups: !noCollapse
-});
+const graph = applyWorkspaceGraphTransforms(rawGraph);
 const graphMs = performance.now() - graphStarted;
 const layoutStarted = performance.now();
 console.error("stage=layout");
@@ -62,6 +59,7 @@ console.log(JSON.stringify({
   graphMs: Math.round(graphMs),
   layoutMs: Math.round(layoutMs),
   heapUsedMiB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+  noCollapse: true,
   hardInvariants,
   layoutStatus: laidOut.layoutStatus || "unknown",
   layoutMetrics: laidOut.layoutMetrics || null,

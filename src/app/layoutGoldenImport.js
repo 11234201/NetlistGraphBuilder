@@ -61,10 +61,6 @@ export function applyLayoutGoldenState(state, imported, restoreNavigation = (val
   }
   if (!display.viewMode) restoreNavigation(viewState);
   if (display.useFanoutHubs !== null) state.useFanoutHubs = display.useFanoutHubs;
-  // Decode legacy collapse fields for compatibility, but never reactivate the
-  // retired display transform in a current workspace.
-  state.collapseLargeGroups = false;
-  state.expandedGroupIds = new Set();
   return state;
 }
 

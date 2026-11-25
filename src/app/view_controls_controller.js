@@ -228,7 +228,7 @@ export const viewControlsPorts = Object.freeze({
   },
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "compare", "compareWorkspaces",
-    "coneDepth", "coneRootNodeId", "expandedGroupIds", "faninDepth", "fanoutDepth",
+    "coneDepth", "coneRootNodeId", "faninDepth", "fanoutDepth",
     "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "restoringViewHistory", "scene", "searchResults",
     "selectedNet", "selectedNodeId", "showAliases", "timing", "timingBadgeChoices",

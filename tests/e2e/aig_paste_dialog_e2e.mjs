@@ -59,7 +59,7 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.equal(await input.isDisabled(), true);
     assert.equal(await view.isDisabled(), true);
     assert.equal(await status.isVisible(), true);
-    assert.match(await status.textContent(), /正在解析并布局/);
+    assert.match(await status.textContent(), /Parsing and laying out/);
     await form.evaluate((element) => element.requestSubmit());
     assert.equal(await page.evaluate(() => window.__pasteTest.calls), before.calls + 1);
     await page.locator("#cancelNetlistTextButton").click();

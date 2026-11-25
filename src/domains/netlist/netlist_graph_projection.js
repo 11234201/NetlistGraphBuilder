@@ -1,7 +1,6 @@
 import { normalizeGraphAliases, createGraphAliasIndex, expandGraphAliases } from "../../analysis/aliasNormalizer.js";
 import { simplifyFanoutWithHubs } from "../../analysis/fanoutHub.js";
 import { createFocusedNeighborhoodGraph } from "../../analysis/graphCone.js";
-import { collapseLargeGraph } from "../../analysis/groupCollapse.js";
 import { projectFocusedBoundaries } from "../../analysis/focusBoundary.js";
 import { normalizeFocusedRootIds, normalizeViewMode } from "../../foundation/view_policy.js";
 import { buildSchematicGraph } from "../../netlist/graph.js";
@@ -94,6 +93,5 @@ export function applyWorkspaceGraphTransforms(graph, options = {}) {
   let result = omitUnroutedNets(graph, options.unroutedNets, options.fullGraph || graph);
   if (!options.preserveLegacyProjection) result = projectAliasRoutingIdentity(result, options.fullGraph || graph);
   if (options.useFanoutHubs !== false) result = simplifyFanoutWithHubs(result);
-  if (options.collapseLargeGroups === true) result = collapseLargeGraph(result, { expandedGroupIds: options.expandedGroupIds || new Set() });
   return result;
 }

@@ -59,7 +59,7 @@ AIG 的四项 [后续需求](plans/aig_followup_roadmap.md) 独立于基础主�
 
 **当前里程碑进展**：
 - **阶段 7（已完成）**：模块化单体多领域工作台架构已全面落地，涵盖领域契约与静态注册、`DocumentStore` / `ViewSessionStore` / 命令总线、共享视图流水线与 `Scene` 渲染器、职责解耦的 UI 控制器、版本化存档编解码器（codec）以及内存 AIG 扩展性验证门禁。
-- **阶段 8（进行中）**：跨层 Fanin/Fanout 追踪、Cell/Net 统一聚焦根、可切换的标准逻辑门符号、通用事务化视图历史（View History）、搜索与聚焦解耦以及 Compare 大图按需加载均已完成范围内交付；当前重点围绕交互性能基线、最小化缓存失效与代码审查问题闭环。阶段 5 的可选 Liberty `.lib` 增强继续作为后续储备计划，生产级 AIGER 导入与分析另行独立规划。
+- **阶段 8（进行中）**：跨层 Fanin/Fanout 追踪、Cell/Net 统一聚焦根、可切换的标准逻辑门符号、通用事务化视图历史（View History）、搜索与聚焦解耦以及 Compare 大图按需加载均已完成范围内交付；当前重点围绕交互性能基线、最小化缓存失效与代码审查问题闭环。生产级 AIGER 导入与分析另行独立规划。
 
 **状态定义**：
 - `已完成`：仓库中已具备完整可运行实现、自动化测试及文档交付物。
@@ -87,7 +87,7 @@ AIG 的四项 [后续需求](plans/aig_followup_roadmap.md) 独立于基础主�
 | R4-1 | 阶段 4 | 大图布局引擎与渐进渲染 | `LayoutProvider` 抽象、vendored ELK.js 集成、可取消的分批渐进式 SVG 渲染 | 已完成 | `docs/STAGE_4_PLAN.md` |
 | R4-2 | 阶段 4 | 大图可读性简化与会话保存 | 高扇出中继（Fanout Hub）、低缩放隐藏细节（LOD）、`sessionStorage` 状态恢复 | 已完成 | `docs/STAGE_4_PLAN.md` |
 | R4-3 | 阶段 4 | Balanced/Folded 折叠排布 | 超深串行 DAG 分带折叠与跨带独立通道（当前保持默认从左到右排布） | 暂缓 | `docs/STAGE_4_PLAN.md` |
-| R5-1 | 阶段 5 | 可选 Liberty（`.lib`）增强 | `.lib` 必要子集解析、引脚方向精确覆盖、逻辑功能表达式辅助与回退诊断 | 计划中 | `docs/STAGE_5_PLAN.md` |
+| R5-1 | 阶段 5 | 可选 Liberty（`.lib`）增强 | `.lib` 必要子集解析、引脚方向精确覆盖、逻辑功能表达式辅助与回退诊断 | 已完成 | [实施计划](plans/liberty_reader_implementation.md) · [验证记录](research/liberty_synthesis_validation.md) |
 | R6-1 | 阶段 6 | 新版模块/实例边界时序格式 | Global/Local 快照、INPUT/OUTPUT、AT/RT/Slack、Apply 策略及旧格式兼容 | 已完成 | `docs/STAGE_6_PLAN.md` |
 | R6-2 | 阶段 6 | 全图统一时序显示策略 | `Auto` / `Global` / `Local` 快照与 `Slack` / `AT` / `RT` / `All` 全图徽标策略 | 已完成 | `docs/STAGE_6_PLAN.md` |
 | R6-3 | 阶段 6 | 单元间距调节与拥塞可读性 | 可调 `Cell spacing`、拥塞感知通道扩展与布局质量回归门禁 | 已完成 | `docs/STAGE_6_PLAN.md` |
@@ -134,7 +134,7 @@ AIG 的四项 [后续需求](plans/aig_followup_roadmap.md) 独立于基础主�
 - **目标**：支撑千级单元规模的真实工程网表浏览与状态持久化。
 - **完成标准**：引入 `LayoutProvider` 架构与离线 `ELK.js`、400+ 对象渐进式渲染、高扇出 `Fanout Hub`、低缩放细节隐藏（LOD）及 `sessionStorage` 标签页会话恢复（注：早期尝试的分组折叠 `group collapse` 已于后续版本正式退役，由 `AnchorLayered` 引擎、`Search-first` 与 `Focused` 取代）。
 
-### 阶段 5：可选 `.lib` 增强（计划中）
+### 阶段 5：可选 `.lib` 增强（已完成）
 - **目标**：在用户提供 Liberty 文件时进一步提升引脚方向与门功能识别准确度，同时丝毫不影响默认无 `.lib` 工作流。
 
 ### 阶段 6：时序、聚焦浏览与 EDA 集成

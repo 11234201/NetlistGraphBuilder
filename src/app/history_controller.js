@@ -377,7 +377,7 @@ export const historyPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "cellConfig", "compare",
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "currentSource",
-    "currentSourceLabel", "sourceFiles", "document", "expandedGroupIds", "faninDepth", "fanoutDepth",
+    "currentSourceLabel", "sourceFiles", "document", "faninDepth", "fanoutDepth",
     "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "showPath", "graphOverrides",
     "layoutFallbackFromProviderId", "layoutPolicy", "layoutProviderId", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "pendingViewCommandMetadata",

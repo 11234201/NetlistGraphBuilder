@@ -674,7 +674,7 @@ test("paste dialog shows progress and prevents repeated submissions until comple
   assert.equal(elements.textInput.disabled, true);
   assert.equal(elements.textForm.querySelector("[data-bulk-text-clear]").disabled, true);
   assert.equal(status.hidden, false);
-  assert.match(status.textContent, /正在解析并布局/);
+  assert.match(status.textContent, /Parsing and laying out/);
   await elements.textForm.listeners.submit({ preventDefault() {} });
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].options.presentationPolicy, { viewStyle: "abc" });
@@ -755,7 +755,7 @@ test("closing a busy paste dialog aborts its request without letting stale resul
     await old;
     assert.equal(elements.textDialog.open, true, dismissal);
     assert.equal(elements.textForm.querySelector("[data-text-submit]").disabled, true, dismissal);
-    assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /正在解析并布局/);
+    assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /Parsing and laying out/);
     assert.ok(!statuses.some((value) => value.includes("obsolete failure")));
     complete[1].resolve();
     await current;
@@ -792,7 +792,7 @@ test("external import cancellation restores paste controls before the stale load
   const pending = elements.textForm.listeners.submit({ preventDefault() {} });
   importRequests.begin();
   assert.equal(elements.textForm.querySelector("[data-text-submit]").disabled, false);
-  assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /已取消/);
+  assert.match(elements.textForm.querySelector("[data-text-status]").textContent, /Cancelled/);
   finish();
   await pending;
   assert.equal(elements.textDialog.open, true);

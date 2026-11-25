@@ -1,4 +1,5 @@
 import { writeProcessLogSafely } from "./processLog.js";
+import { warnLegacyCollapse } from "./legacy_display_options.js";
 import { pathDisplayBoundaries } from "./show_path_context.js";
 import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
@@ -101,6 +102,7 @@ export function createGoldenController({ state, elements, services, exportScene 
       services.selectModule(module.name, { deferRender: true, ...(imported.display.showPath || occurrence
         ? { occurrencePath: occurrence?.occurrencePath || [], rootModuleName: occurrence?.rootModuleName } : {}) });
     }
+    warnLegacyCollapse(imported.display, services.logProcess, "golden.restore");
     applyLayoutGoldenState(state, imported, (value) => services.singleViewSession.importNavigation(value));
     elements.coneDepthInput.value = String(state.coneDepth);
     elements.faninDepthInput.value = String(state.faninDepth);
@@ -224,8 +226,8 @@ export function createGoldenController({ state, elements, services, exportScene 
 export const goldenPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "calibrationMode",
-    "collapseLargeGroups", "compare", "compareWorkspaces", "coneDepth", "coneRootNodeId",
-    "currentModule", "currentSource", "currentSourceLabel", "design", "document", "expandedGroupIds",
+    "compare", "compareWorkspaces", "coneDepth", "coneRootNodeId",
+    "currentModule", "currentSource", "currentSourceLabel", "design", "document",
     "faninDepth", "fanoutDepth", "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "showPath",
     "graphOverrides", "layoutPolicy", "moduleWorkspaces", "nodePositions", "nodeSizes",
     "occurrenceContext", "restoringViewHistory", "scene", "searchResults", "selectedNet",

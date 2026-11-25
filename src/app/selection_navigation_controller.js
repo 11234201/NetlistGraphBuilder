@@ -122,7 +122,7 @@ export function createSelectionNavigationController({ state, elements, services 
         const node = graph.nodes.find((item) => item.id === fullNode.id);
         setSelectedNode(node?.id || null);
         if (!node) {
-          services.setStatus("Connected cell is inside a collapsed group; expand the group to reveal it");
+          services.setStatus("Connected cell is outside the current view");
           return;
         }
         services.centerGraphPoint({

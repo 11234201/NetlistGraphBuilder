@@ -158,10 +158,7 @@ function createProjectionMap(documentId, unitId, sourceGraph, visibleGraph) {
       projectionMap.set(node.id, createObjectRef({ documentId, unitId, kind: "net", localId: node.ref.name }));
       continue;
     }
-    const group = visibleGraph.groups?.find((item) => item.id === node.id);
-    if (group) {
-      projectionMap.set(node.id, Object.freeze(group.members.map((member) => sourceRefById.get(member.id)).filter(Boolean)));
-    }
+
   }
   for (const edge of visibleGraph.edges) {
     if (!edge.net) continue;

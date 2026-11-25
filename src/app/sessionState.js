@@ -59,8 +59,6 @@ export function createSessionSnapshot(state, compareEntry = comparePathSnapshot(
     layoutProviderPreferenceVersion: 1,
     transform: { ...state.transform },
     useFanoutHubs: state.useFanoutHubs,
-    // Retain the legacy codec field as an explicit disabled value.
-    collapseLargeGroups: false,
     layoutPolicy: {
       name: state.layoutPolicy?.name,
       spacing: { ...(state.layoutPolicy?.spacing || {}) },

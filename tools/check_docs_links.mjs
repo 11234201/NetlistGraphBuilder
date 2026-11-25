@@ -1,14 +1,19 @@
-import {readFile,stat} from 'node:fs/promises';
+import {readFile,readdir,stat} from 'node:fs/promises';
 import {resolve,dirname,isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const defaults=['README.md','CHANGELOG.md','native/README.md','tools/eda/README.md',
-  'docs/USER_GUIDE.md','docs/PLAN.md','docs/ARCHITECTURE.md','docs/DESIGN_SPEC.md',
-  'docs/LINUX_SINGLE_FILE_LAUNCHER.md','docs/LINUX_ADAPTATION_PLAN.md',
-  'docs/plans/linux_launcher_maintenance.md','docs/design/elk_anchor_package.md',
-  'docs/design/timing_format_spec.md','docs/design/aig_level_format_spec.md',
-  'docs/reports/anchor_development_summary.md','src/layout/anchor_layered/README.md'];
+  'src/layout/anchor_layered/README.md', ...await markdownFiles('docs')];
+async function markdownFiles(directory) {
+  const result = [];
+  for (const entry of await readdir(resolve(root,directory), {withFileTypes:true})) {
+    const name = directory + '/' + entry.name;
+    if (entry.isDirectory()) result.push(...await markdownFiles(name));
+    else if (entry.isFile() && name.endsWith('.md')) result.push(name);
+  }
+  return result.sort();
+}
 let checked=0,artifacts=0,failed=0;
 for(const name of process.argv.length>2?process.argv.slice(2):defaults){
   const file=resolve(root,name);

@@ -33,8 +33,6 @@ export function buildModuleWorkspace(options) {
     maximumVisibleNodes = DEFAULT_FOCUSED_VIEW_POLICY.maximumVisibleNodes,
     maximumFrontier = DEFAULT_FOCUSED_VIEW_POLICY.maximumFrontier,
     useFanoutHubs = true,
-    collapseLargeGroups = false,
-    expandedGroupIds = new Set(),
     layoutProvider,
     layoutPolicy,
     presentationPolicy = null,
@@ -92,8 +90,6 @@ export function buildModuleWorkspace(options) {
     maximumFrontier,
     useFanoutHubs,
     unroutedNets: graphOverrides?.unroutedNets,
-    collapseLargeGroups,
-    expandedGroupIds: [...expandedGroupIds],
     layoutProvider: layoutProvider?.id || null,
     layoutPolicy
   };
@@ -141,8 +137,6 @@ export function buildModuleWorkspace(options) {
     }, {
       unroutedNets: graphOverrides?.unroutedNets,
       useFanoutHubs,
-      collapseLargeGroups,
-      expandedGroupIds
     }),
     project: (result) => result.visibleGraph,
     measure: (graph) => layoutProvider?.measurementContract === MEASURED_GRAPH_CONTRACT

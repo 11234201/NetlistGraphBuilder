@@ -1,6 +1,6 @@
 # 阶段 8：层次追踪、对象聚焦与大图交互收敛
 
-更新日期：2026-09-14。状态：进行中（改用 47 个 mapped case 复验后，真实 move/resize 性能仍需优化）。
+更新日期：2026-11-25。状态：进行中。AnchorLayered 已成为默认布局器，Simple 永久冻结。全节点 mapped 验收覆盖 47 个样例，要求全部布通且无违规；4K 手势恢复按五轮 Windows 浏览器实测签收。
 
 当前专项维护见 [Linux launcher/CMake/EDA 计划](plans/linux_launcher_maintenance.md)；
 以下性能实验保持历史口径，不因启动器维护而重启性能优化或宣称完成。

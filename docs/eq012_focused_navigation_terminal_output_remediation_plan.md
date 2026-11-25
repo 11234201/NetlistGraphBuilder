@@ -1,5 +1,7 @@
 # eq012 Focused 导航与末级输出布局修改方案
 
+> 历史冻结前存档。本文记录当时的实验与交接。Simple 当前的冻结范围见[冻结基线](plans/simple_layout_freeze_baseline.md)。
+
 - 方案日期：2026-09-13
 - 状态：阶段性暂停；Focused Connection 导航、单扇出 terminal 后置安放、local/outer tier 门禁已完成，Whole 跨层 DFF bank 问题已留档待后续实现
 - 复现场景：`tests/fixtures/mapped/equal/eq_012_mapped.v`

@@ -1,23 +1,18 @@
-import { aigPathContext, pathDisplayBoundaries } from "./show_path_context.js";
+import { defaultPanels, normalizePanels } from "./aig_panel_state.js";
+import { createDomainViewCommands } from "./domain_view_commands.js";
+import { createAigSourceActions, forwardInputFailure } from "./aig_source_actions.js";
+import { createAigWorkbenchShell } from "../ui/aig_workbench_shell.js";
 import { createDomainWorkspace } from "../application/domain_workspace.js";
 import { createAigCollectionStorage } from "../persistence/aig_collection_storage.js";
 import { createAigCollection } from "./aig_collection.js";
-import { aigLevelFailureDetails, requireAigLevelTarget } from "./aig_level_input.js";
+import { aigLevelFailureDetails } from "./aig_level_input.js";
 import { createGraphvizRuntime } from "../platform/graphviz_runtime.js";
 import { renderSvgSceneIntoMount, cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
-import { createStandaloneSvg } from "../render/svgExport.js";
-import { renderSvgScene } from "../render/svg_scene_renderer.js";
 import { createDomainCanvas } from "../ui/domain_canvas_controller.js";
 import { renderAigNavigator, renderAigInspector, revealAigNavigatorSelection } from "../ui/aig_panels.js";
-import { aigControls, bindAigConnectionHighlight, syncAigLevelControls } from "../ui/aig_controls.js";
-import { createAigPanelInteractions } from "../ui/aig_panel_interactions.js";
-import { updateAigSelectionHighlights } from "../ui/aig_selection_highlights.js";
-import { handleFocusShortcut } from "../ui/focus_shortcut.js";
-import { searchDesignIndex } from "../search/designSearch.js";
+import { aigControls } from "../ui/aig_controls.js";
 import { createObjectRef } from "../contracts/object_ref.js";
-import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { copyBrowserText } from "../platform/browser_clipboard.js";
-import { getQuickInputPriority } from "./quickInput.js";
 import { createAigStructureBridge } from "./aig_structure_bridge.js";
 import { createAigInspectionCommands } from "./aig_inspection_commands.js";
 import { createAigFocusedController } from "../ui/aig_focused_controller.js";
@@ -26,11 +21,7 @@ import { createDomainWorkspaceDiagnostics } from "./domain_workspace_diagnostics
 
 const presentations = new Map([[aigControls.domainId, { ...aigControls,
   navigator: renderAigNavigator, inspector: renderAigInspector }]]);
-const passthrough = new Set(["setStatus", "logProcess", "cssEscape", "clamp", "round", "signed", "isPromise"]);
 
-function forwardInputFailure(report, details) {
-  try { report?.(details); } catch { /* Preserve the original failure when the diagnostic sink fails. */ }
-}
 
 export function createDomainWorkbench({ document, windowTarget, registry, documents, sessions, jobs, download,
   setStatus, logProcess, suspendLegacy, clearSearch, importRequests, netlistSearchGraph, canStartAigCollection }) {
@@ -51,45 +42,23 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       graphSelect.value = active || "";
     }
   });
-  const navigatorHost = document.createElement("div");
-  const inspectorHost = document.createElement("div");
-  const toolbar = document.createElement("div");
-  const overlays = get("aigOverlaySettings");
-  navigatorHost.id = "domainNavigator";
-  inspectorHost.id = "domainInspector";
-  toolbar.id = "domainToolbar";
-  toolbar.className = "domain-toolbar";
-  const pathPanel = get("pathPanel");
-  if (pathPanel) pathPanel.before(navigatorHost);
-  else get("navigatorPanel").append(navigatorHost);
-  get("inspectorPanel").append(inspectorHost);
-  get("canvas").before(toolbar);
-  for (const host of [navigatorHost, inspectorHost, toolbar]) host.hidden = true;
   let workspace = null;
   let source = null;
   let panels = defaultPanels();
-  let savedVisibility = new Map();
-  let objectElements = new Map();
-  let oldSelectedId = null;
-  let neighborHighlights = new Map();
-  let highlightedSelectionId = null;
-  let highlightedDepth = null;
-  let connectionControl = null;
   let switchingStyle = false;
   let inputGeneration = 0;
   let selectionRevision = 0;
   let importRequest = null;
-  const panelInteractions = createAigPanelInteractions({ document, navigatorHost, inspectorHost, onAction: panelEvent,
-    onFilter(field, value) {
-      if (!workspace) return;
-      if (field === "structureType") { panels.analysis.type = value; panels.analysis.page = 0; }
-      else { panels.navigator[field] = value; panels.navigator.page = 0; }
-      renderPanels(); persist();
-    } });
   const session = () => workspace ? sessions.require(workspace.sessionId) : null;
   const policy = () => session()?.presentationPolicy || {};
   const selectedId = () => session()?.selectedObjectRef?.localId || null;
   const present = () => presentations.get(workspace?.document.domainId);
+  const shell = createAigWorkbenchShell({ document, get, mount, readWorkspace: () => workspace,
+    readPanels: () => panels, present, readStructure: () => structure.view(), policy, selectedId,
+    isSwitchingStyle: () => switchingStyle, changePresentation, changeStyle: value => focused.changeStyle(value),
+    syncFocus: () => focused.sync(), panelEvent, select, persist, clearSearch });
+  const { renderPanels, switchShell, applyShapeStyles, syncPolicyControls,
+    refreshSelectionHighlights, selectionPolicy, inspectorHost } = shell;
   const diagnostics = createDomainWorkspaceDiagnostics({ readWorkspace: () => workspace, readSession: session, setStatus, logProcess });
   const focused = createAigFocusedController({ get, readWorkspace: () => workspace, readSession: session, select, resolveFocusedRootAction,
     readSelectionRevision: () => selectionRevision,
@@ -105,19 +74,6 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     try { collection.save(currentView(), storage); diagnostics.saved(); }
     catch (error) { diagnostics.saveFailed(error); }
   }
-  function renderPanels() {
-    if (!workspace) return;
-    const options = { selectedId: selectedId(), fanoutThreshold: policy().fanoutThreshold, structure: structure.view() };
-    panelInteractions.render({ navigator: present().navigator(workspace.presentation, { ...panels.navigator, ...options }),
-      inspector: present().inspector(workspace.presentation, { ...panels.inspector, ...options }) });
-    const pathSection = get("pathPanel");
-    if (pathSection) pathSection.hidden = panels.navigator.tab !== "path";
-    const object = workspace.query.getObject(selectedId());
-    const result = options.structure.query?.get(options.structure.selectedId);
-    get("selectionSummaryButton").textContent = result ? result.category === "block" ? `${result.kind.toUpperCase()} block` : "Reconvergence paths" : object?.label || object?.id || "No selection";
-    get("focusSelectedButton").disabled = !object && !result;
-    focused.sync();
-  }
   function select(id, focus = true, { refreshDetails = true, preserveAnalysis = false } = {}) {
     if (!workspace) return;
     const object = workspace.query.getObject(id);
@@ -131,11 +87,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const selection = object ? createObjectRef({ documentId: workspace.document.documentId,
       unitId: session().unitId, kind: workspace.query.edgeById.has(id) ? "edge" : object.kind, localId: id }) : null;
     sessions.update(workspace.sessionId, () => ({ selectedObjectRef: selection }), { invalidateComputation: false });
-    for (const [target, visible] of [[oldSelectedId, false], [selection?.localId, true]]) {
-      objectElements.get(target)?.classList.toggle("is-selected", visible);
-      for (const halo of objectElements.get(target)?.querySelectorAll(".aig-selection-halo") || []) halo.setAttribute("visibility", visible ? "visible" : "hidden");
-    }
-    oldSelectedId = selection?.localId || null;
+    shell.selectObject(selection?.localId);
     refreshSelectionHighlights();
     if (refreshDetails) renderPanels();
     if (focus && object) focusSelection(id);
@@ -162,49 +114,6 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     readPanelState: () => panels.analysis, readPolicy: policy, renderPanels, persist,
     isAnalysisVisible: () => panels.navigator.tab === "analysis" || Boolean(panels.analysis.selectedId) || panels.inspector.tab === "analysis",
     focus: (bounds) => canvas.focus(bounds), onSelectionChange: () => refreshSelectionHighlights() });
-  function switchShell(active) {
-    syncAigLevelControls(document, active);
-    if (active) {
-      const legacy = [...get("navigatorPanel").children].filter((item) => item !== navigatorHost && !item.matches("header"));
-      legacy.push(get("selectionDetails"), get("comparePanel"), get("compareMount"),
-        ...get("inspectorPanel").querySelectorAll(".inspector-footer"));
-      for (const id of present().unavailableControls) {
-        const element = get(id);
-        if (element) legacy.push(element.matches("input[type=file]") ? element.closest("label") : element);
-      }
-      savedVisibility = new Map(legacy.filter(Boolean).map((element) => [element, element.hidden]));
-      for (const element of savedVisibility.keys()) element.hidden = true;
-      mount.hidden = false;
-      toolbar.innerHTML = present().toolbar;
-      overlays.innerHTML = present().overlays;
-      connectionControl = bindAigConnectionHighlight(toolbar, { read: () => policy().connectionHighlight,
-        commit: (value) => changePresentation("connectionHighlight", value), preview: refreshSelectionHighlights });
-      get("searchInput").placeholder = present().searchPlaceholder;
-      get("exportSvgButton").disabled = false;
-      get("wholeViewButton").classList.add("is-active");
-      get("focusedViewButton").classList.remove("is-active");
-    } else {
-      panelInteractions.reset();
-      connectionControl?.closeEditor();
-      connectionControl = null;
-      for (const [element, hidden] of savedVisibility) element.hidden = hidden;
-      savedVisibility.clear();
-      get("searchInput").placeholder = "Find cell, net, port…";
-    }
-    for (const host of [navigatorHost, inspectorHost, toolbar, overlays]) host.hidden = !active;
-    document.body.classList.toggle("has-domain-workspace", active);
-    clearSearch();
-  }
-  function applyShapeStyles() {
-    for (const [id, element] of objectElements) {
-      const node = workspace.displayQuery.nodeById.get(id);
-      const edge = workspace.displayQuery.edgeById.get(id);
-      const style = node ? workspace.feature.nodeStyle(workspace, node, policy()) : workspace.feature.edgeStyle(workspace, edge, policy());
-      const selector = node ? ".aig-node-shape" : ".aig-edge-path";
-      for (const shape of element.querySelectorAll(selector)) setAttributes(shape, style);
-      if (edge) for (const arrow of element.querySelectorAll(".aig-edge-arrow")) setAttributes(arrow, { fill: style.stroke, stroke: style.stroke });
-    }
-  }
   function refreshPolicy() {
     if (!workspace) return;
     applyShapeStyles();
@@ -212,36 +121,6 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     refreshSelectionHighlights();
     structure.refresh();
     renderPanels();
-  }
-  function syncPolicyControls() {
-    get("cancelDomainImportButton").textContent = switchingStyle ? "Cancel AIG layout" : "Cancel AIG import";
-    connectionControl?.sync(policy().connectionHighlight, switchingStyle);
-    for (const input of [...toolbar.querySelectorAll("[data-domain-policy]"), ...overlays.querySelectorAll("[data-domain-policy]")]) {
-      // Keep the requested style visible and keyboard-accessible while preparing
-      // it. Choosing the active style cancels the pending replacement.
-      if (input.dataset.domainPolicy === "viewStyle" && switchingStyle) continue;
-      const value = policy()[input.dataset.domainPolicy];
-      if (input.type === "checkbox") input.checked = value; else input.value = value;
-      input.disabled = switchingStyle;
-    }
-  }
-  function selectionPolicy() {
-    const saved = policy(), depth = connectionControl?.previewDepth();
-    return depth == null ? saved : { ...saved, connectionHighlight: depth };
-  }
-  function refreshSelectionHighlights() {
-    if (!workspace) return;
-    const options = selectionPolicy();
-    const analysisSelected = structure.view().query?.get(panels.analysis.selectedId);
-    const selectionId = options.connectionHighlight !== "off" && !analysisSelected ? selectedId() : null;
-    if (highlightedSelectionId === selectionId && highlightedDepth === options.connectionHighlight) return;
-    const highlight = selectionId && workspace.feature.selectionHighlights?.(workspace, selectionId, options);
-    const next = highlight?.roles || new Map();
-    mount.querySelector("svg")?.toggleAttribute("data-aig-cone-trace", Boolean(highlight?.dimOutside));
-    updateAigSelectionHighlights(objectElements, neighborHighlights, next, workspace.feature.selectionHighlightColors);
-    highlightedSelectionId = selectionId;
-    highlightedDepth = options.connectionHighlight;
-    neighborHighlights = next;
   }
   const useCase = createDomainWorkspace({ documents, sessions, jobs, registry, layout: runtime,
     async onCommit(next, restore, isCurrent) {
@@ -277,15 +156,11 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       workspace.presentation = { ...next, document: next.document.model };
       workspace.positionedNodes = new Map(next.geometry.nodes.map((node) => [node.id, node]));
       panels = normalizePanels(nextPanels);
-      oldSelectedId = null;
-      highlightedSelectionId = null;
-      highlightedDepth = null;
-      neighborHighlights = new Map();
       if (!sameGraph) { switchShell(true); focused.reset(); }
       else if (scopeChanged) panels.analysis.selectedId = null;
       get("exportSvgButton").disabled = next.searchFirst;
       mount.replaceChildren(...candidateMount.childNodes);
-      objectElements = new Map([...mount.querySelectorAll("[data-domain-object]")].map((element) => [element.dataset.domainObject, element]));
+      const objectElements = shell.indexObjects();
       canvas.apply();
       if (policyChanged) applyShapeStyles();
       // Relayout leaves the visible panel data unchanged. Keep its live inputs,
@@ -394,9 +269,8 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     if (workspace) switchShell(false);
     workspace = null;
     source = null;
-    objectElements.clear();
+    shell.clearObjects();
     collection.clear();
-    neighborHighlights.clear();
     get("cancelDomainImportButton").hidden = true;
     try { storage.clear(); } catch (error) { diagnostics.failure(error, "persistence", "aig.workspace.clear", {}, "warning"); }
   }
@@ -429,18 +303,11 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     else return;
     renderPanels(); persist();
   }
-  for (const host of [toolbar, overlays]) host.addEventListener("change", (event) => {
-    const field = event.target.dataset.domainPolicy;
-    if (!field || !workspace) return;
-    const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
-    if (field === "viewStyle") { focused.changeStyle(value); return; }
-    changePresentation(field, value);
-  });
   function changePresentation(field, value) {
     const next = workspace.feature.normalizePresentation({ ...policy(), [field]: value });
     sessions.update(workspace.sessionId, () => ({ presentationPolicy: next }), { invalidateComputation: false });
     if (field === "connectionHighlight") {
-      connectionControl.sync(next.connectionHighlight, switchingStyle);
+      syncPolicyControls();
       refreshSelectionHighlights();
     }
     else if (field === "structureLabels" || field === "structureDim") structure.refresh();
@@ -459,7 +326,7 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     const viewStyle = restore.presentationPolicy.viewStyle;
     switchingStyle = true;
     syncPolicyControls();
-    toolbar.querySelector('[data-domain-policy="viewStyle"]').value = viewStyle;
+    shell.setPendingStyle(viewStyle);
     get("cancelDomainImportButton").hidden = false;
     const scope = aigScopeLabel(restore.focus);
     const label = operation === "aig.style.layout" ? (viewStyle === "abc" ? "Logic View" : "Standard") : scope;
@@ -537,25 +404,6 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
     return {cancelled:active};
   }
   get("cancelDomainImportButton").addEventListener("click", cancelImport);
-  function activateCanvasObject(event) {
-    if (!workspace) return;
-    const object = event.target.closest("[data-domain-object]");
-    if (object) { event.preventDefault(); select(object.dataset.domainObject, false); }
-  }
-  mount.addEventListener("keydown", (event) => {
-    if (["Enter", " "].includes(event.key)) activateCanvasObject(event);
-  });
-  mount.addEventListener("click", (event) => {
-    // Pointer activation is handled on pointerdown. Assistive clicks can arrive on their own.
-    if (event.detail === 0) activateCanvasObject(event);
-  });
-  document.addEventListener("workbench-open-path", (event) => {
-    if (!workspace) return;
-    panels.navigator.tab = "path";
-    renderPanels();
-    persist();
-    if (event.detail?.focusSearch) get("pathFind")?.focus?.();
-  });
   windowTarget.addEventListener("beforeunload", persist);
   return Object.freeze({
     open, cancelImport,
@@ -579,126 +427,16 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
         return focused.commands.scheduleFocusedDepthChange();
       }
     },
-    async initialize(fallback) {
-      try {
-        const saved = !windowTarget.location.search ? storage.load() : null;
-        if (saved) {
-          const request = beginImport();
-          const entry = collection.restore(saved);
-          const restored = await open("aig", entry.source, { ...entry.view, source: entry.source, graphId: entry.id }, request);
-          if (restored || !request.isLatest()) return;
-        }
-      } catch (error) { diagnostics.failure(error, "persistence", "aig.workspace.load"); }
-      await fallback();
-    },
-    imports: Object.freeze({
-      levelTarget: () => workspace ? collection.active() : null,
-      openAigText(text, { label, request, append, presentationPolicy, deferLayout, levelFile, onFailureContext = () => {} }) {
-        const input = { text, name: label, ...(levelFile ? { levelFile } : {}) };
-        if (append) return addGraphs([input], request).catch((error) => {
-          if (levelFile && error.name !== "AbortError") forwardInputFailure(onFailureContext, aigLevelFailureDetails(input, error));
-          throw error;
-        });
-        const focus = deferLayout === undefined ? undefined : { viewMode: deferLayout ? "search-first" : "whole" };
-        return open("aig", input, { presentationPolicy, focus }, beginImport(request), onFailureContext);
-      },
-      async loadLevelText(text, { label, request, levelTarget, onFailureContext = () => {} }) {
-        const graphId = workspace && source ? collection.active() : null;
-        try { requireAigLevelTarget(graphId, levelTarget); }
-        catch (error) {
-          forwardInputFailure(onFailureContext, { operation: "aig.level.import", domainId: "aig",
-            graphId: levelTarget === undefined ? graphId : levelTarget, activeGraphId: graphId, fileName: label });
-          throw error;
-        }
-        return open("aig", { ...source, levelFile: { name: label, text } },
-          { ...currentView(), graphId, levelUpdate: true }, beginImport(request), onFailureContext);
-      },
-      route(kind, run) {
-        if (workspace && kind !== "netlist" && kind !== "aig" && kind !== "level") { setStatus("This import is unavailable in the current view. Open a netlist first."); return Promise.resolve(null); }
-        return run();
-      },
-      // Leave the domain successfully before applying Netlist-only attachments.
-      // Within Netlist, keep the existing library-first batch policy.
-      priority: (kind) => workspace && kind === "netlist" ? -2 : getQuickInputPriority(kind)
-    }),
-    search(index, query) {
-      if (!workspace) return searchDesignIndex(index, query).map((hit) => {
-        const path = netlistSearchGraph?.(hit.moduleName)?.path;
-        if (!path || hit.kind === "module" || path.searchKeys.has(JSON.stringify([hit.target.kind, hit.target.name]))) return hit;
-        return { ...hit, detail: [hit.detail, "Outside Show Path"].filter(Boolean).join(" · "), outsidePath: true };
-      });
-      const matches = workspace.search(query, 100);
-      return workspace.visibleNodeIds ? matches.map((match) => workspace.visibleNodeIds.has(match.id) ? match
-        : { ...match, detail: [match.detail, workspace.path && !workspace.path.nodeIds.has(match.id) ? "Outside Show Path" : "Outside Focused"].filter(Boolean).join(" · ") }) : matches;
-    },
-    viewport: Object.freeze({
-      read: () => workspace ? [{ id: "domain", mount, viewport: canvas.viewport() }] : null,
-      preview(id, viewport) {
-        if (!workspace || id !== "domain") return false;
-        canvas.preview(viewport); return true;
-      },
-      commit(id, viewport) {
-        if (!workspace || id !== "domain") return false;
-        sessions.updateViewport(workspace.sessionId, viewport); canvas.apply(); persist(); return true;
-      }
-    }),
-    context: () => workspace ? { compareActive: false, moduleLabel: workspace.document.model.name, documentId:workspace.document.documentId, sourceRevision:workspace.document.sourceRevision, graphId:collection.active(),
-      sourceLabel: workspace.document.source.name, viewMode: session().viewMode, pathEnabled: Boolean(workspace.path), providerLabel: "Graphviz" } : {},
-    routeCommand(name, action, args) {
-      if (name === "loadDesign" || name === "loadQuickInputText" && args[1]?.kind === "netlist") {
-        if (!workspace) { leave(); return action(...args); }
-        // The importer calls this after validating the candidate and before mounting its canvas.
-        const optionsIndex = name === "loadDesign" ? 3 : 1;
-        const routed = [...args];
-        routed[optionsIndex] = { ...args[optionsIndex], onDesignParsed: leave };
-        return action(...routed);
-      }
-      if (!workspace || passthrough.has(name)) return action(...args);
-      const commands = {
-        ...focused.commands,
-        readShowPath: () => aigPathContext(workspace, session(), select, (candidate, signal) => {
-          const result = focused.changePath(candidate);
-          const request = importRequest;
-          const cancel = () => request?.cancel();
-          signal.addEventListener("abort", cancel, { once: true });
-          return result.finally(() => signal.removeEventListener("abort", cancel));
-        }),
-        handleWheel: canvas.wheel, handlePointerDown: canvas.pointerDown, fitToView: canvas.fit,
-        focusSelectedCell: focusSelection, activateSearchResult: (result) => select(result.id),
-        persistSession: persist,
-        exportCurrentSvg(side, capture = false) {
-          const fileName = `${sanitizeDownloadFileName(workspace.document.source.name)}.svg`;
-          try { const text = createStandaloneSvg(renderSvgScene(workspace.feature.scene(workspace, selectionPolicy(), selectedId(), structure.view())), workspace.path, workspace.analysisScopeLabel, workspace.path ? { boundaries: pathDisplayBoundaries(workspace.displayModel), visible: workspace.positionedNodes, truncated: workspace.truncated } : {});
-            if (capture) return {name:fileName,text};
-            download.text(text,fileName,"image/svg+xml"); }
-          catch (error) {
-            diagnostics.failure(error, "export", "aig.svg.export", { format: "svg", fileName });
-            if (capture) throw error;
-          }
-        },
-        handleFocusSelectedShortcut: (event) => handleFocusShortcut(event, focusSelection, Boolean(selectedId() || panels.analysis.selectedId))
-      };
-      return commands[name]?.(...args);
-    }
+    ...createAigSourceActions({ windowTarget, storage, collection, open, beginImport, diagnostics,
+      isActive: () => Boolean(workspace), readSource: () => source, currentView, addGraphs, setStatus }),
+    ...createDomainViewCommands({ readWorkspace: () => workspace, readRequest: () => importRequest,
+      readAnalysisSelection: () => panels.analysis.selectedId, netlistSearchGraph, canvas, mount, sessions,
+      session, persist, collection, leave, focused, select, focusSelection, selectionPolicy, selectedId,
+      structure, download, diagnostics })
   });
 }
 
 function aigScopeLabel(focus) {
   if (focus.showPath?.enabled) return "Show Path";
   return focus.viewMode === "search-first" ? "Search-first" : focus.viewMode === "focused" ? "Focused" : "Whole";
-}
-
-function setAttributes(element, values) {
-  for (const [key, value] of Object.entries(values)) {
-    if (value === null || value === undefined) element.removeAttribute(key); else element.setAttribute(key, String(value));
-  }
-}
-function defaultPanels() {
-  return { navigator: { tab: "design", type: "ports", query: "", analysisFilter: "all", sort: "name", page: 0 },
-    inspector: { tab: "connections", page: 0 }, analysis: { category: "reconvergence", type: "all", page: 0, detailPage: 0, selectedId: null } };
-}
-function normalizePanels(value) {
-  const defaults = defaultPanels();
-  return { navigator: { ...defaults.navigator, ...value?.navigator }, inspector: { ...defaults.inspector, ...value?.inspector },
-    analysis: { ...defaults.analysis, ...value?.analysis } };
 }

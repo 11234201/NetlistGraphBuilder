@@ -220,7 +220,6 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName, 
 }
 
 export function resetModuleWorkspace(state, restoreNavigation = (value) => Object.assign(state, value)) {
-  state.expandedGroupIds = new Set();
   restoreNavigation({ nodePositions: new Map(), nodeSizes: new Map(), graphOverrides: createEmptyGraphOverrides(),
     showPath: null, viewMode: "whole", coneRootNodeId: null, focusedRootNodeIds: [], focusedRootRefs: [], activeFocusedRootNodeId: null,
     selectedNodeId: null, selectedNet: null });

@@ -39,7 +39,7 @@ computer-use浏览器观察：三列相同画布；整体公共窗口6374×32578
 
 观察到trial中1465与1471相对垂直距离增大；局部仍可追连线，但未证明可读性改善。结合EQ线长/物理交叉/碎片退步和dp002最大折点退步，决定**暂不接纳生产变更**。这不是用户最终视觉批准，不能关闭Q02/Q06。
 
-截图（忽略产物）：[焦点](../../dc_runs/p3_working_visual/focus1471.png)、[上游分支](../../dc_runs/p3_working_visual/branch1465.png)、[公共整体](../../dc_runs/p3_working_visual/overview.png)。本地GUI是平台能力例外；仅三SVG约38.9MB、节点索引及截图留在该scoped忽略目录，未搬回大graph/测试产物。viewer与127.0.0.1:5192服务保留供查看。
+截图（忽略产物）：焦点 `dc_runs/p3_working_visual/focus1471.png`、上游分支 `dc_runs/p3_working_visual/branch1465.png`、公共整体 `dc_runs/p3_working_visual/overview.png`。本地GUI是平台能力例外；仅三SVG约38.9MB、节点索引及截图留在该scoped忽略目录，未搬回大graph/测试产物。viewer与127.0.0.1:5192服务保留供查看。
 
 ## 复现与验证
 

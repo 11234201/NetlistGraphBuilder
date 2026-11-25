@@ -1,4 +1,5 @@
 import { writeProcessLogSafely } from "./processLog.js";
+import { assignCompareSideTiming } from "./compare_side_timing.js";
 import { prepareDesignSources, sourcePayloadForIdentity, snapshotModuleIdentity, remapModule, pickAddedCompareModule } from "./design_source_identity.js";
 import { fetchStartupManifest, executeStartupManifest } from "./startupController.js";
 import { sampleNetlist } from "./sampleNetlist.js";
@@ -130,7 +131,7 @@ export function createInputController({ state, elements, services, restoreCompar
     if (compareSide === "left" || compareSide === "right") {
       const sideTiming = compareSideActions?.setCompareSideTiming
         ? compareSideActions.setCompareSideTiming(compareSide, imported.timing, label, { append })
-        : assignFallbackSideTiming(state, compareSide, imported.timing, label, append);
+        : assignCompareSideTiming(state.compare, compareSide, imported.timing, label, append);
       const sideLabel = compareSide === "left" ? "A" : "B";
       const count = sideTiming?.instanceCount ?? imported.summary.instanceCount;
       if (state.compare.active) {
@@ -414,17 +415,6 @@ export function createInputController({ state, elements, services, restoreCompar
   return Object.freeze({ initializeApplication, createStartupHandlers, loadQuickInputText, loadTimingText, loadDesign });
 }
 
-function assignFallbackSideTiming(state, side, timing, label, append) {
-  const prev = state.compare.sideTiming?.[side] || null;
-  const prevLabel = state.compare.sideTimingLabels?.[side];
-  const next = append && prev ? mergeImportedTiming(prev, timing) : timing;
-  if (state.compare.sideTiming) state.compare.sideTiming[side] = next;
-  if (state.compare.sideTimingLabels) {
-    state.compare.sideTimingLabels[side] = append && prev && prevLabel ? `${prevLabel} + ${label}` : label;
-  }
-  return next;
-}
-
 function createStartupCancellationError(message = "Startup render was cancelled") {
   const error = new Error(message);
   error.name = "AbortError";
@@ -435,7 +425,7 @@ export const inputPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "cellConfig", "compare",
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "currentSource", "currentSourceLabel",
-    "design", "document", "expandedGroupIds", "faninDepth", "fanoutDepth", "focusedRootNodeIds",
+    "design", "document", "faninDepth", "fanoutDepth", "focusedRootNodeIds",
     "focusedRootRefs", "fullGraph", "graph", "graphOverrides", "layoutFallbackFromProviderId",
     "layoutProviderId", "moduleWorkspaces", "nodePositions", "nodeSizes", "occurrenceContext",
     "restoringViewHistory", "scene", "searchIndex", "searchQuery", "searchResults", "selectedNet",
