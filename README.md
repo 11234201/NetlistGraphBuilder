@@ -4,7 +4,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **Netlist Graph Builder** 是一个离线可用的门级结构化 Verilog 原理图浏览器（Gate-level Structural Verilog Schematic Browser）。在缺乏 Liberty（`.lib`）时序库与大型商业 EDA 工具的环境中，它能够直接解析网表、自动推断常见标准单元（cell）与引脚（pin）语义，并生成支持搜索、路径追踪与双模块对比的交互式 SVG 结构图。此外，内置独立的 AIG 工作区，支持离线浏览与分析 ABC AIG DOT 和平坦两输入组合 BLIF。
 
-- **v1.7.0** 支持通过 SSH 转发在本地浏览器打开服务器文件，在启动终端继续输入命令，并用一个后端控制多个页面。用 `aig add` 可在同一页追加和切换多份 AIG；同时支持为 AIG 关联 `.level` 层级与裕量报告（主输入初始到达层级传播与逐点 AT / RT / Slack 报告），并在 `File` 菜单中按 `Netlist + Timing` 与 `AIG + Level` 配对分组。[下载 Windows / Linux 版](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.7.0) · [SSH 工作台](#ssh-工作台) · [AIG Level 规范](docs/design/aig_level_format_spec.md) · [更新日志](CHANGELOG.md)
+- **v1.7.1** 修复 Verilog 与时序导入、Compare 历史恢复、画布定位和启动器断连处理，并改善大图内存与交互响应。支持通过 SSH 转发在本地浏览器打开服务器文件，在启动终端继续输入命令，并用一个后端控制多个页面。用 `aig add` 可在同一页追加和切换多份 AIG；同时支持为 AIG 关联 `.level` 层级与裕量报告（主输入初始到达层级传播与逐点 AT / RT / Slack 报告），并在 `File` 菜单中按 `Netlist + Timing` 与 `AIG + Level` 配对分组。[下载 Windows / Linux 版](https://github.com/11234201/NetlistGraphBuilder/releases/tag/v1.7.1) · [SSH 工作台](#ssh-工作台) · [AIG Level 规范](docs/design/aig_level_format_spec.md) · [更新日志](CHANGELOG.md)
 - **v1.6.3** 修复同一实例的 STA 记录因层级路径写法不同而漏配的问题。选中缺时序的 cell，可在 Inspector 的 Timing 页查看具体原因和报告位置。
 - **v1.6.2** 修复多文件 Global/Local 与多层 occurrence 上下文的时序隔离及多实例歧义保护，支持父模块视图子模块 `hinst` 展示 `kind: "port"` 引脚时序与整线总线最差位高亮，并兼容 `LocalDesign`、`a_q\[33\]`、`\/` 与含 `:` 的转义实例名，同时索引化 cell 查找以保证顺序无关与大模块性能。
 - **v1.6.1** 新增 Verilog 注释属性解析与 Inspector 分页，支持多文件网表/时序合并及 Compare A/B 独立导入，默认左右对比与副本自动配对，并将 Show Path 整合至左侧 Navigator。
@@ -89,7 +89,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 ### Windows 离线正式版（无需安装 Node.js）
 
-Windows 当前离线发布包为 `NetlistGraphBuilder-v1.7.0-win-x64.zip`，完整解压后双击运行 `NetlistGraphBuilder.exe`。程序在本机回环地址 `127.0.0.1` 启动服务并自动打开默认浏览器。使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
+Windows 当前离线发布包为 `NetlistGraphBuilder-v1.7.1-win-x64.zip`，完整解压后双击运行 `NetlistGraphBuilder.exe`。程序在本机回环地址 `127.0.0.1` 启动服务并自动打开默认浏览器。使用期间请保留控制台启动窗口，按 `Ctrl+C` 或关闭窗口即可退出服务。
 
 完整解压后保留 `app/`、`runtime/` 与 EXE 同级。EXE 在自己的进程中加载包内 CPython 和工作台资源，使用当前 Windows 用户的命名管道处理 `cmd`、`status` 和 `stop`。包内提供示例、使用指南、`ngb.tcl` 及 Python、ELK 和 Graphviz 的许可证。若默认端口 `4173` 已被占用，启动器会自动顺延寻找空闲端口。
 

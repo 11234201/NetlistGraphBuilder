@@ -4,8 +4,17 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-26
+
+- 修复结构化 Verilog 范围、属性和通配事件控制的解析，保留转义标识符和多文件模块来源。修复转义 CSV 的字段分隔、混合时序单位换算及精度，并补齐层级时序和多驱动歧义诊断。
+- 修复 Compare 多文件合并后的撤销、重做和会话保存，区分点击居中与视口同步，保留旧会话中的同名模块选择。修复窗口调整后大图的显示与鼠标命中偏移。
+- 减少 AnchorLayered 的临时分配和重复计算，复用只读工作区缓存。修复 ELK 闭环与共起点分段拼接，保留折返点；完善 Worker 清理、过期任务隔离和 SVG 挂载失败处理。
+- 统一 Node、Python、Linux 原生和 Windows 启动器的文件取消与错误回执，修复路径校验和访问拒绝状态码。为新 Node 会话提供经内核身份核验的强制停止，覆盖应用事件循环阻塞的情况。
+- 修复日志写入恢复后的重试与 Compare 双侧错误上下文，保留异常堆栈和 cause；拆分控制器职责，清理退役运行时引用与误入库的基准原始报告。
+- 验证通过 1,574 项单测、47/47 完整图 mapped 硬约束、54/54 三端协议与 7/7 Linux 原生测试。macOS 监听者分支通过输出样例测试，真机测试因当前环境缺失跳过。升级前已卡死且缺少新所有权登记的旧 Node 会话仍依赖原身份接口。
+
 - 支持为 AIG 导入 `.level` 层级与裕量报告（`File → AIG + Level → Open levels…` / `Paste levels…`、主图与 Level 同时选择/拖放配对，以及远程命令 `level open` / `text open level`）：既支持无表头两列简写指定主输入（PI）初始到达层级（`at_level`）并向下游传播拓扑层级（`Topology level`）与逻辑关键路径，也支持带表头的 `point at_level rt_level slack_level`（及可选 `kind`）逐点报告并在 `Inspector → Analysis` 与 `Navigator → Design` / `Objects` 中展示（含示例 `examples/aig_mapped_names.level` 与 [格式规范](docs/design/aig_level_format_spec.md)）。
-- 重组 `File` 菜单为顶部 `Open design…` 及下方的 `Netlist + Timing`、`AIG + Level` 配对分组；多文件批量导入、同页多份 AIG 切图（`aig add`）与 `sessionStorage` 会话恢复均按所属 AIG 独立绑定与保存 Level 附件；远程工作台公开命令目录扩展至 181 条命令与 5 个简写。
+- 重组 `File` 菜单为顶部 `Open design…` 及下方的 `Netlist + Timing`、`AIG + Level` 配对分组；多文件批量导入、同页多份 AIG 切图（`aig add`）与 `sessionStorage` 会话恢复均按所属 AIG 独立绑定与保存 Level 附件；远程工作台公开命令目录扩展至 182 条命令与 5 个简写。
 
 ## [1.7.0] - 2026-11-22
 
