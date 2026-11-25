@@ -73,6 +73,7 @@ export function buildModuleWorkspace(options) {
     showAliases,
     occurrenceRootModuleName,
     occurrencePath,
+    reuseWhileReferenced: layoutProvider?.id === DEFAULT_LAYOUT_PROVIDER_ID,
     artifactCache,
     artifactIdentity
   });
@@ -201,6 +202,7 @@ export function buildModuleFullGraph(options = {}) {
     showAliases = false,
     occurrenceRootModuleName = null,
     occurrencePath = null,
+    reuseWhileReferenced = false,
     artifactCache = null,
     artifactIdentity = null
   } = options;
@@ -220,7 +222,7 @@ export function buildModuleFullGraph(options = {}) {
     occurrencePath
   };
   const key = identity ? createWorkspaceArtifactKey(identity) : null;
-  const cached = artifactCache && key ? artifactCache.get(key) : null;
+  const cached = artifactCache && key ? artifactCache.get(key, { reuseWhileReferenced }) : null;
   if (cached) return cached;
   const graph = buildWorkspaceGraph(module, {
     moduleLibrary,
@@ -236,7 +238,7 @@ export function buildModuleFullGraph(options = {}) {
     occurrencePath
   });
   if (artifactCache && key) artifactCache.put(key, graph, {
-    documentId: artifactIdentity.documentId,
+    reuseWhileReferenced, documentId: artifactIdentity.documentId,
     sessionId: artifactIdentity.sessionId
   });
   return graph;

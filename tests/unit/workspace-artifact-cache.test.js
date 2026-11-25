@@ -52,3 +52,29 @@ test("workspace cache enforces an aggregate weight budget and rejects oversized 
   cache.put("oversized", { value: 3 }, { weight: 6 });
   assert.equal(cache.get("oversized"), null);
 });
+
+test("weak reuse is opt-in, bounded and invalidated with the strong workspace cache", () => {
+  const cache = createWorkspaceArtifactCache({ capacity: 2, maximumWeight: 2 });
+  const live = { reuseWhileReferenced: true };
+  const a = {}, b = {}, c = {};
+  cache.put("a", a, { ...live, documentId: "doc-a", sessionId: "left", weight: 2 });
+  cache.put("b", b, { ...live, documentId: "doc-b", sessionId: "right", weight: 2 });
+  assert.equal(cache.get("a"), null);
+  assert.equal(cache.get("a", live), a);
+  cache.put("c", c, { ...live, documentId: "doc-a", sessionId: "right", weight: 9 });
+  assert.equal(cache.get("c", live), c);
+  assert.equal(cache.stats().weight, 2);
+  cache.put("d", {}, { ...live, weight: 9 });
+  assert.equal(cache.get("a", live), null);
+  assert.equal(cache.clearDocument("doc-a"), 1);
+  assert.equal(cache.get("c", live), null);
+  cache.put("e", a, { ...live, sessionId: "right", weight: 9 });
+  assert.equal(cache.clearSession("right"), 2);
+  assert.equal(cache.get("b", live), null);
+  assert.equal(cache.get("e", live), null);
+  cache.put("d", b, { weight: 9 });
+  assert.equal(cache.get("d", live), null);
+  cache.put("c", c, { ...live, weight: 9 });
+  cache.clear();
+  assert.equal(cache.get("c", live), null);
+});

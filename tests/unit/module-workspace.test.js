@@ -63,6 +63,33 @@ test("cached positioned graphs reuse their scene only for matching geometry and 
   assert.equal((await buildModuleWorkspace({ ...common, presentationPolicy: policy })).scene, conventional.scene);
 });
 
+test("live full-graph reuse follows document, session, revision and graph options for the active provider", async () => {
+  const module = parseVerilog(source).modules[0];
+  const cache = createWorkspaceArtifactCache({ capacity: 8, maximumWeight: 1 });
+  const identity = { documentId: "doc-a", sessionId: "left", sourceRevision: 1 };
+  const common = { module, moduleLibrary: [module], artifactCache: cache, artifactIdentity: identity,
+    layoutProvider: getLayoutProvider(DEFAULT_LAYOUT_PROVIDER_ID) };
+  const full = (await buildModuleWorkspace(common)).fullGraph;
+  assert.equal(cache.stats().weight, 0);
+  assert.equal((await buildModuleWorkspace({ ...common, viewMode: "focused", focusedRootNodeIds: ["cell:u0"],
+    presentationPolicy: { gateSymbolMode: "conventional" } })).fullGraph, full);
+  for (const changed of [{ documentId: "doc-b" }, { sessionId: "right" }]) {
+    const result = await buildModuleWorkspace({ ...common, artifactIdentity: { ...identity, ...changed } });
+    assert.notEqual(result.fullGraph, full);
+  }
+  assert.notEqual((await buildModuleWorkspace({ ...common, showAliases: true })).fullGraph, full);
+  const edited = parseVerilog(source.replace("BUF u1", "BUF edited")).modules[0];
+  const revised = await buildModuleWorkspace({ ...common, module: edited, moduleLibrary: [edited],
+    artifactIdentity: { ...identity, sourceRevision: 2 } });
+  assert.ok(revised.fullGraph.nodes.some((node) => node.id === "cell:edited"));
+  assert.ok(full.nodes.some((node) => node.id === "cell:u1"));
+  const other = parseVerilog(source.replace("module top", "module other")).modules[0];
+  assert.notEqual((await buildModuleWorkspace({ ...common, module: other, moduleLibrary: [other] })).fullGraph, full);
+  assert.notEqual((await buildModuleWorkspace({ ...common, layoutProvider: getLayoutProvider("simple-layered") })).fullGraph, full);
+  cache.clearDocument("doc-a");
+  assert.notEqual((await buildModuleWorkspace(common)).fullGraph, full);
+});
+
 test("module workspace preserves asynchronous provider boundaries", async () => {
   const provider = getLayoutProvider("simple-layered");
   const asyncProvider = {

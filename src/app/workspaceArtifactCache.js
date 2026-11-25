@@ -16,14 +16,24 @@ export function createWorkspaceArtifactCache({ capacity = 24, maximumWeight = 25
   const limit = normalizeCapacity(capacity);
   const weightLimit = normalizeCapacity(maximumWeight);
   const entries = new Map();
+  // An active workspace may still own a graph after it leaves the strong LRU.
+  const released = new Map();
   let totalWeight = 0;
   let hits = 0;
   let misses = 0;
   let evictions = 0;
 
-  function get(key) {
+  function get(key, { reuseWhileReferenced = false } = {}) {
     const normalized = normalizeKey(key);
     if (!entries.has(normalized)) {
+      if (reuseWhileReferenced) {
+        const value = released.get(normalized)?.ref.deref();
+        if (value !== undefined) {
+          hits += 1;
+          return value;
+        }
+        released.delete(normalized);
+      }
       misses += 1;
       return null;
     }
@@ -34,18 +44,31 @@ export function createWorkspaceArtifactCache({ capacity = 24, maximumWeight = 25
     return record.value;
   }
 
+  function release(key, value, metadata) {
+    if (!metadata.reuseWhileReferenced || !value || typeof value !== "object" || typeof WeakRef !== "function") return;
+    const { documentId, sessionId } = metadata;
+    released.set(key, { ref: new WeakRef(value), metadata: { documentId, sessionId } });
+    if (released.size > limit) released.delete(released.keys().next().value);
+  }
+
   function put(key, value, metadata = {}) {
     const normalized = normalizeKey(key);
     const weight = normalizeWeight(metadata.weight ?? estimateArtifactWeight(value));
     if (entries.has(normalized)) totalWeight -= entries.get(normalized).weight;
     entries.delete(normalized);
-    if (weight > weightLimit) return value;
+    released.delete(normalized);
+    if (weight > weightLimit) {
+      release(normalized, value, metadata);
+      return value;
+    }
     entries.set(normalized, { value, metadata: { ...metadata }, weight });
     totalWeight += weight;
     while (entries.size > limit || totalWeight > weightLimit) {
       const oldestKey = entries.keys().next().value;
-      totalWeight -= entries.get(oldestKey).weight;
+      const oldest = entries.get(oldestKey);
+      totalWeight -= oldest.weight;
       entries.delete(oldestKey);
+      release(oldestKey, oldest.value, oldest.metadata);
       evictions += 1;
     }
     return value;
@@ -53,6 +76,7 @@ export function createWorkspaceArtifactCache({ capacity = 24, maximumWeight = 25
 
   function clear() {
     entries.clear();
+    released.clear();
     totalWeight = 0;
   }
 
@@ -70,6 +94,11 @@ export function createWorkspaceArtifactCache({ capacity = 24, maximumWeight = 25
       if (!predicate(record)) continue;
       entries.delete(key);
       totalWeight -= record.weight;
+      removed += 1;
+    }
+    for (const [key, record] of released) {
+      if (!predicate(record)) continue;
+      released.delete(key);
       removed += 1;
     }
     return removed;
