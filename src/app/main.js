@@ -394,7 +394,7 @@ const workbenchUi = createWorkbenchUi({
   subscribe: (listener) => viewSessions.subscribe(listener),
   domainViewport: domainWorkbench.viewport,
   ...readWorkbenchViewContext(state, elements, domainWorkbench),
-  onPreferenceError: (error) => logProcess("warning", "persistence", "UI preferences unavailable; using this window only", { error })
+  logProcess
 });
 
 initializeWorkbench({

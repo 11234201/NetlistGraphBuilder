@@ -139,6 +139,17 @@ const report = await runBrowserTest(async ({ browser, url }) => {
     await panel.locator("[data-log-cell-timing]").click();
   };
   await inspectMissing("#schematicMount");
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: async () => { throw new Error("clipboard fixture unavailable"); } } }));
+  await page.locator("#selectionDetails [data-inspector-copy]").first().click();
+  assert.match(await page.locator("[data-inspector-copy-status]").innerText(), /Copy unavailable/);
+  await page.locator("#processLogPhaseFilter").selectOption("");
+  await waitForLog("Inspector name copy failed");
+  const copyRow = page.locator("#processLogList > *").filter({ hasText: "Inspector name copy failed" }).last();
+  await copyRow.locator("summary").click();
+  const displayedCopy = JSON.parse(await copyRow.locator("details[open] pre").innerText());
+  assert.equal(displayedCopy.operation, "inspector.copy");
+  assert.match(displayedCopy.error.stack, /clipboard fixture unavailable/);
   await page.locator("#compareButton").click();
   await waitForLog("left / LocalDesign_1of1, 1/2 cells annotated");
   await waitForLog("right / Peer, 0/1 cells annotated");
@@ -166,6 +177,8 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   let text = "";
   for await (const chunk of await download.createReadStream()) text += chunk.toString("utf8");
   const entries = text.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(entries.filter(entry => entry.details?.operation === "inspector.copy").map(entry =>
+    [entry.level, entry.details]), [["warning", displayedCopy]]);
   assert.deepEqual(entries.find((row) => row.details?.code === "netlist.parsed-with-warnings" &&
     row.details.fileName === "single-round.v").details, partial);
   assert.deepEqual(entries.find((row) => row.details?.code === "timing.parse-failed" &&

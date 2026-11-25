@@ -6,19 +6,21 @@ import { createWorkbenchContextController } from "../ui/workbench_context_contro
 
 export function createWorkbenchUi({
   document, windowTarget, readViews, readContext, subscribe, singleViewSession,
-  compareViewSessions, applyTransform, applyCompareTransforms, closeLog, onPreferenceError, domainViewport
+  compareViewSessions, applyTransform, applyCompareTransforms, closeLog, logProcess, domainViewport
 }) {
   const viewport = createWorkbenchViewportBridge({
     readViews, singleViewSession, compareViewSessions, applyTransform, applyCompareTransforms, windowTarget,
     commitView: domainViewport?.commit, previewView: domainViewport?.preview
   });
-  const preferences = createUiPreferencesStore({ windowTarget, onError: onPreferenceError });
+  const preferences = createUiPreferencesStore({ windowTarget, onError: (error) =>
+    logProcess("warning", "persistence", "UI preferences unavailable; using this window only", { error }) });
   const shell = createWorkbenchShell({ document, windowTarget, preferences, onViewportResize: viewport.onViewportResize });
   const inspector = createInspectorTabsController({
     container: document.querySelector("#selectionDetails"),
     sectionContent: { analysis: document.querySelector("#netlistAnalysisDetail") },
     summaryButton: document.querySelector("#selectionSummaryButton"),
     copyText: (text) => windowTarget.navigator.clipboard.writeText(text),
+    onCopyError: (details) => logProcess("warning", "export", "Inspector name copy failed", details),
     initialTab: shell.getPreferences().inspectorTab,
     onTabChange: shell.setInspectorTab
   });

@@ -145,14 +145,19 @@ test("analysis content retains its identity across selection changes and follows
 test("name copying uses the canonical text and handles a rejected clipboard promise", async () => {
   const view = fixture();
   const copied = [];
+  const failures = [];
+  const error = new Error("clipboard blocked");
   const controller = createInspectorTabsController({ container: view.container, MutationObserverClass: view.Observer,
-    copyText: async (text) => { copied.push(text); if (copied.length > 1) throw new Error("clipboard blocked"); } });
+    onCopyError: (details) => { failures.push(details); throw new Error("sink unavailable"); },
+    copyText: async (text) => { copied.push(text); if (copied.length > 1) throw error; } });
   const copy = element({ inspectorCopy: "top/escaped canonical[2]" });
   await view.click(copy, "[data-inspector-copy]");
   assert.equal(copied[0], "top/escaped canonical[2]");
   assert.equal(view.status.textContent, "Canonical name copied.");
   await view.click(copy, "[data-inspector-copy]");
   assert.match(view.status.textContent, /Copy unavailable/);
+  assert.deepEqual(failures, [{ operation: "inspector.copy", error, code: "CLIPBOARD_WRITE_FAILED",
+    selectionIdentity: view.summary().dataset.selectionIdentity }]);
   controller.dispose();
 });
 

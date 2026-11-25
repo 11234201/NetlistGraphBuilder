@@ -53,7 +53,15 @@ async function openFile(selector, file) {
 }
 async function exerciseViewport(aig) {
   await evaluate('document.getElementById("fitButton").click()');
-  const point = await evaluate('(()=>{const b=document.getElementById("canvas").getBoundingClientRect();return {x:b.x+5,y:b.y+5}})()');
+  const point = await evaluate(`(() => {
+    const mount = document.getElementById("schematicMount"), box = mount.getBoundingClientRect();
+    for (const x of [5, 20, 80, box.width / 2]) for (const y of [5, 20, 80, box.height / 2]) {
+      const point = { x: box.x + x, y: box.y + y }, hit = document.elementFromPoint(point.x, point.y);
+      if (mount.contains(hit) && !hit.closest("[data-node-id],[data-edge-id],[data-domain-object]")) return point;
+    }
+    return null;
+  })()`);
+  assert.ok(point, "The visible schematic must offer a blank pan origin");
   const transform = () => evaluate('document.querySelector(".schematic-content").getAttribute("transform")');
   const before = await transform();
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });

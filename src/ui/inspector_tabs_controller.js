@@ -14,6 +14,7 @@ export function createInspectorTabsController({
   summaryButton = null,
   scrollContainer = container,
   copyText,
+  onCopyError = () => {},
   initialTab = "connections",
   onTabChange = () => {},
   MutationObserverClass = globalThis.MutationObserver,
@@ -167,12 +168,16 @@ export function createInspectorTabsController({
     const copy = event.target.closest?.("[data-inspector-copy]");
     if (!copy || !container.contains(copy)) return;
     const status = container.querySelector("[data-inspector-copy-status]");
+    const selectionIdentity = identity;
     try {
       if (typeof copyText !== "function") throw new Error("Clipboard unavailable");
       await copyText(copy.dataset.inspectorCopy);
       if (status && container.contains(status)) status.textContent = "Canonical name copied.";
-    } catch {
+    } catch (error) {
+      if (disposed || selectionIdentity !== identity) return;
       if (status && container.contains(status)) status.textContent = "Copy unavailable. Select the name to copy it manually.";
+      try { onCopyError({ error, selectionIdentity, operation: "inspector.copy", code: "CLIPBOARD_WRITE_FAILED" }); }
+      catch { /* The manual-copy fallback also works when the diagnostic sink is unavailable. */ }
     }
   }
 
