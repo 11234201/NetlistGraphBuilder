@@ -401,6 +401,7 @@ Inspector 的 `Connections` 页签将连接关系清晰划分为两个独立区�
 
 - 若对象已在当前画布中绘制，仅调整视口并将其放大至稳定的阅读尺寸（单元约 `320px` 视觉宽度），不改变 roots；线网定位至可见连接路径。
 - 若该单元不在当前局部图中，系统会先以它为中心建立 `Focused` 局部图，随即将视口居中定位到该单元。
+- 在 Compare 中，选中可见端口后，`F` 或 `Zoom to selection` 也能定位到该端口。开启 `Center match on click` 时，两侧分别定位到匹配端口。关闭时只移动选中侧。
 
 ### 6.4 管理聚焦根节点（Focused roots）
 
@@ -846,7 +847,7 @@ NGB_LOG_DIR="$PWD/dc_runs/launcher_logs" bash tools/start-preview.sh --port 0 --
 | `Ctrl+Enter` / `Cmd+Enter` | 提交 `Paste netlist`、`Paste AIG`、`Paste timing` 或 `Paste levels` 文本 | 文本粘贴导入对话框打开时 |
 | `Ctrl+Z` / `Alt+Left` | 视图历史后退（View History Back） | 焦点不在文本输入框内 |
 | `Ctrl+Shift+Z` / `Ctrl+Y` / `Alt+Right` | 视图历史前进（View History Forward） | 焦点不在文本输入框内 |
-| `F` | Zoom to selection，定位当前选中单元或线网 | 焦点不在文本输入框内且存在可定位对象 |
+| `F` | Zoom to selection，定位选中的单元、线网或 Compare 端口 | 焦点不在文本输入框内且存在可定位对象 |
 | `ArrowUp` / `ArrowDown` | 在搜索下拉候选列表中上下切换 | 顶部搜索框获得焦点时 |
 | `Enter` | 激活并定位当前选中的搜索结果 | 顶部搜索框获得焦点时 |
 | `Esc` | 收起搜索候选、活动菜单、抽屉或对话框 | 对应界面处于打开状态时；菜单/抽屉关闭后归还触发按钮焦点 |

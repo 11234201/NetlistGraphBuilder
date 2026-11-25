@@ -129,6 +129,7 @@ export async function verifyRemoteNavigation({command,page,project,scratch}) {
   const originalModule = (await ok("design","info")).moduleName;
   await ok("compare","enter");
   await ok("compare","sync-viewport","off");
+  await ok("compare","sync-selection","off");
   await ok("compare","sync-roots","off");
   const left = (await ok("selection","set","cell:u1","--side","A")).selection;
   assert.equal(left.side,"A");
