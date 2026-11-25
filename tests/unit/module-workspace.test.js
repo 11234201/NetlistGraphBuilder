@@ -4,6 +4,8 @@ import test from "node:test";
 import { buildModuleWorkspace } from "../../src/app/moduleWorkspace.js";
 import { getLayoutProvider } from "../../src/layout/layoutProvider.js";
 import { parseVerilog } from "../../src/parser/verilogParser.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../../src/layout/providerDefaults.js";
+import { createWorkspaceArtifactCache } from "../../src/app/workspaceArtifactCache.js";
 
 const source = `module top (a, b, y); input a, b; output y; wire n;
 AND2X1 u0 (.A(a), .B(b), .Y(n)); BUF u1 (.A(n), .Y(y)); endmodule`;
@@ -40,6 +42,25 @@ test("module workspace composes graph, view, layout and manual overrides", () =>
       .map((node) => ({ x: node.x, y: node.y })),
     [{ x: 333, y: 222 }]
   );
+});
+
+test("cached positioned graphs reuse their scene only for matching geometry and presentation", async () => {
+  const module = parseVerilog(source).modules[0];
+  const common = {
+    module, moduleLibrary: [module], layoutProvider: getLayoutProvider(DEFAULT_LAYOUT_PROVIDER_ID),
+    artifactCache: createWorkspaceArtifactCache(), artifactIdentity: { documentId: "scene-cache", sourceRevision: 1 }
+  };
+  const first = await buildModuleWorkspace(common);
+  const warm = await buildModuleWorkspace({ ...common, presentationPolicy: { gateSymbolMode: "rectangle" } });
+  assert.equal(warm.scene, first.scene);
+  const policy = { gateSymbolMode: "conventional" };
+  const conventional = await buildModuleWorkspace({ ...common, presentationPolicy: policy });
+  assert.notEqual(conventional.scene, warm.scene);
+  assert.notDeepEqual(conventional.scene.readNodes(0, conventional.scene.nodeCount), warm.scene.readNodes(0, warm.scene.nodeCount));
+  const moved = await buildModuleWorkspace({ ...common, presentationPolicy: policy, nodePositions: new Map([["cell:u0", { x: 350, y: 100 }]]) });
+  assert.notEqual(moved.scene, conventional.scene);
+  assert.notDeepEqual(moved.scene.readNodes(0, moved.scene.nodeCount), conventional.scene.readNodes(0, conventional.scene.nodeCount));
+  assert.equal((await buildModuleWorkspace({ ...common, presentationPolicy: policy })).scene, conventional.scene);
 });
 
 test("module workspace preserves asynchronous provider boundaries", async () => {

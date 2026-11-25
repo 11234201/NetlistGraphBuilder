@@ -2,6 +2,10 @@ import { createProgressiveSvgSceneRenderPlan } from "./svg_scene_renderer.js";
 
 const DEFAULT_THRESHOLD = 400;
 const DEFAULT_BATCH_SIZE = 120;
+const TARGET_SLICE_MS = 8;
+const MAX_BATCH_SIZE = 1024;
+const VISIBLE_BATCH_INTERVAL_MS = 200;
+const MAX_BUFFERED_ITEMS = MAX_BATCH_SIZE * 4;
 const activeRenderIds = new WeakMap();
 
 export function cancelSchematicRender(mount) {
@@ -46,11 +50,17 @@ export function renderSvgSceneIntoMount(mount, scene, options = {}) {
     release();
     return Promise.reject(new Error("SVG render mount did not create edge and node groups"));
   }
-  const batchSize = normalizePositiveInteger(options.batchSize, DEFAULT_BATCH_SIZE);
+  let batchSize = normalizePositiveInteger(options.batchSize, DEFAULT_BATCH_SIZE);
+  const adaptive = options.batchSize === undefined;
+  const visibleStride = Math.max(DEFAULT_BATCH_SIZE, Math.min(MAX_BATCH_SIZE * 2, Math.ceil(total / 16)));
+  const edgeWriter = createBatchWriter(edgeGroup, adaptive);
+  const nodeWriter = createBatchWriter(nodeGroup, adaptive);
   options.onProgress?.({ phase: "render", rendered: 0, total });
   return new Promise((resolve, reject) => {
     let edgeIndex = 0;
     let nodeIndex = 0;
+    let nextCommitTime = 0;
+    let lastVisibleCount = 0;
     const renderBatch = () => {
       try {
         if (!isCurrent()) {
@@ -58,22 +68,46 @@ export function renderSvgSceneIntoMount(mount, scene, options = {}) {
           resolve({ progressive: true, cancelled: true });
           return;
         }
+        const started = performance.now();
         let remaining = batchSize;
         if (edgeIndex < plan.edgeCount) {
           const end = Math.min(plan.edgeCount, edgeIndex + remaining);
-          edgeGroup.insertAdjacentHTML("beforeend", plan.renderEdges(edgeIndex, end).join(""));
+          edgeWriter.write(plan.renderEdges(edgeIndex, end).join(""));
           remaining -= end - edgeIndex;
           edgeIndex = end;
         }
         if (remaining > 0 && nodeIndex < plan.nodeCount) {
           const end = Math.min(plan.nodeCount, nodeIndex + remaining);
-          nodeGroup.insertAdjacentHTML("beforeend", plan.renderNodes(nodeIndex, end).join(""));
+          nodeWriter.write(plan.renderNodes(nodeIndex, end).join(""));
           nodeIndex = end;
         }
+        if (!isCurrent()) {
+          release();
+          resolve({ progressive: true, cancelled: true });
+          return;
+        }
         const rendered = edgeIndex + nodeIndex;
-        options.onProgress?.({ phase: "render", rendered, total });
-        if (rendered < total) scheduleFrame(renderBatch);
-        else {
+        const pendingCount = rendered - lastVisibleCount;
+        if (!adaptive || !lastVisibleCount || rendered === total || pendingCount >= MAX_BUFFERED_ITEMS ||
+            (started >= nextCommitTime && pendingCount >= visibleStride)) {
+          edgeWriter.commit();
+          nodeWriter.commit();
+          options.onProgress?.({ phase: "render", rendered, total });
+          nextCommitTime = performance.now() + VISIBLE_BATCH_INTERVAL_MS;
+          lastVisibleCount = rendered;
+        }
+        if (rendered < total) {
+          // Cap both scripting time and the number of new SVG items. Avoid a
+          // paint after every tiny slice when materializing tens of thousands.
+          if (adaptive) {
+            const duration = Math.max(1, performance.now() - started);
+            batchSize = Math.max(32, Math.min(MAX_BATCH_SIZE, Math.round(batchSize * Math.min(2, TARGET_SLICE_MS / duration))));
+          }
+          // Decode the next slice as a separate task. Only a visible commit
+          // dirties the existing SVG, so paint can reuse the previous frame.
+          if (edgeWriter.buffered) setTimeout(renderBatch, 0);
+          else scheduleFrame(renderBatch);
+        } else {
           const cancelled = !isCurrent();
           release();
           resolve({ progressive: true, cancelled });
@@ -85,6 +119,21 @@ export function renderSvgSceneIntoMount(mount, scene, options = {}) {
     };
     scheduleFrame(renderBatch);
   });
+}
+
+function createBatchWriter(group, buffer) {
+  const document = group.ownerDocument;
+  if (!buffer || !document?.createRange) {
+    return { buffered: false, write: (html) => group.insertAdjacentHTML("beforeend", html), commit() {} };
+  }
+  const range = document.createRange();
+  range.selectNodeContents(group);
+  const pending = document.createDocumentFragment();
+  return {
+    buffered: true,
+    write(html) { pending.append(range.createContextualFragment(html)); },
+    commit() { if (pending.firstChild) group.append(pending); }
+  };
 }
 
 function scheduleFrame(callback) {

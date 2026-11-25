@@ -1,3 +1,4 @@
+import { forEachPerpendicularPair } from "./orthogonal_crossing_index.js";
 import { getRouteSegments } from "./orthogonalRouting.js";
 import {
   getNetGroupKey,
@@ -103,9 +104,14 @@ export function buildPhysicalWireRoute(netKey, edges, options = {}) {
   )
     .map((segment, index) => toSegmentRecord(segment, edge, index))
     .filter(Boolean));
-  const merged = mergeSegments(records);
-  const normalizedSegments = splitSegmentsAtJunctions(merged, options.measuredRoutes);
-  const tree = buildNetTreeSegments(normalizedSegments, sortedEdges, options);
+  // Tree routing derives ownership from the target paths. Computing the same
+  // large fanout membership on every candidate interval is only needed when
+  // disconnected input forces the original-geometry fallback.
+  const buildTree = (collectOwners) => buildNetTreeSegments(
+    splitSegmentsAtJunctions(mergeSegments(records, collectOwners), options.measuredRoutes), sortedEdges, options
+  );
+  let tree = buildTree(!options.measuredRoutes);
+  if (options.measuredRoutes && tree.treeFallback) tree = buildTree(true);
   const labelEdge = sortedEdges.find((edge) => edge.showLabel !== false && edge.label) ||
     sortedEdges.find((edge) => edge.label) || sortedEdges[0];
   const logicalEdgeIds = sortedEdges
@@ -117,11 +123,24 @@ export function buildPhysicalWireRoute(netKey, edges, options = {}) {
     ? labelEdge.labelPoint
     : chooseLabelPoint(tree.segments);
 
+  const encodedNetKey = encodeKey(netKey);
+  const segments = tree.segments.map((segment, index) => ({
+    id: `wire-segment:${encodedNetKey}:${index}`,
+    start: segment.start,
+    end: segment.end,
+    kind: segment.logicalEdgeIds.length > 1 ? "trunk" : "branch",
+    netGroupKey: netKey,
+    physicalOwner: netKey,
+    logicalEdgeIds: options.measuredRoutes && !tree.treeFallback
+      ? segment.logicalEdgeIds
+      : [...segment.logicalEdgeIds].sort((left, right) => left.localeCompare(right))
+  }));
   return {
-    id: `wire:${encodeKey(netKey)}`,
+    id: `wire:${encodedNetKey}`,
     netGroupKey: netKey,
     net: labelEdge?.net || labelEdge?.label || netKey,
     logicalEdgeIds,
+    ...(options.measuredRoutes ? { segmentHitMembership: true } : {}),
     sourceNodeId: uniqueSorted(sortedEdges.map((edge) => edge.source))[0] || null,
     sourceNodeIds: uniqueSorted(sortedEdges.map((edge) => edge.source)),
     targetNodeIds: uniqueSorted(sortedEdges.map((edge) => edge.target)),
@@ -130,20 +149,12 @@ export function buildPhysicalWireRoute(netKey, edges, options = {}) {
     componentCount: tree.componentCount,
     cycleCount: tree.cycleCount,
     reachableTargetCount: tree.reachableTargetCount,
-    segments: tree.segments.map((segment, index) => ({
-      id: `wire-segment:${encodeKey(netKey)}:${index}`,
-      start: segment.start,
-      end: segment.end,
-      kind: segment.logicalEdgeIds.length > 1 ? "trunk" : "branch",
-      netGroupKey: netKey,
-      physicalOwner: netKey,
-      logicalEdgeIds: [...segment.logicalEdgeIds].sort((left, right) => left.localeCompare(right))
-    })),
+    segments,
     // Junction markers describe the rendered physical tree, not provider
     // candidate geometry that was removed while selecting the tree. Using
     // the pre-tree segments can place dots on same-net crossings that are
     // not electrically connected in the final route.
-    junctions: findJunctions(tree.segments),
+    junctions: options.measuredRoutes ? findMeasuredJunctions(segments) : findJunctions(tree.segments),
     label: labelEdge?.label || labelEdge?.net || "",
     labelPoint,
     labelAnchor: labelEdge?.labelAnchor || "middle",
@@ -194,6 +205,25 @@ function isPointOnSegments(point, segments, allowLabelOffset) {
   });
 }
 
+function findMeasuredJunctions(segments) {
+  const byPoint = new Map();
+  for (const segment of segments) {
+    for (const point of [segment.start, segment.end]) {
+      const x = quantize(point.x), y = quantize(point.y);
+      const key = `${x}:${y}`;
+      const existing = byPoint.get(key);
+      if (!existing) {
+        byPoint.set(key, { x, y, owners: segment.logicalEdgeIds, count: 1, junction: false });
+      } else {
+        existing.count++;
+        existing.junction ||= existing.count >= 3 || !sameSortedIds(existing.owners, segment.logicalEdgeIds);
+      }
+    }
+  }
+  return [...byPoint.values()].filter((entry) => entry.junction)
+    .map(({ x, y }) => ({ x, y })).sort((a, b) => a.x - b.x || a.y - b.y);
+}
+
 function findJunctions(segments) {
   const points = new Map();
   const add = (point, segment) => {
@@ -225,17 +255,26 @@ function splitSegmentsAtJunctions(segments, measuredRoutes) {
   // index instead of comparing every pair in the physical net. This keeps
   // sparse large nets near O(S log S + I), while dense junctions still pay
   // only for the intersections that can actually create split points.
-  const segmentIndex = new SpatialHashIndex(128);
-  segments.forEach((segment, index) => segmentIndex.insert({ segment, index }, segmentBox(segment)));
-  for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
-    const left = segments[leftIndex];
-    for (const record of segmentIndex.query(segmentBox(left))) {
-      const rightIndex = record.index;
-      if (rightIndex <= leftIndex) continue;
-      const point = orthogonalIntersection(left, record.segment);
-      if (!point) continue;
-      splitPoints[leftIndex].push(point);
-      splitPoints[rightIndex].push(point);
+  if (measuredRoutes) {
+    forEachPerpendicularPair(segments, GEOMETRY_EPSILON, (horizontal, vertical) => {
+      const point = orthogonalIntersection(segments[horizontal], segments[vertical]);
+      if (!point) return;
+      splitPoints[horizontal].push(point);
+      splitPoints[vertical].push(point);
+    });
+  } else {
+    const segmentIndex = new SpatialHashIndex(128);
+    segments.forEach((segment, index) => segmentIndex.insert({ segment, index }, segmentBox(segment)));
+    for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
+      const left = segments[leftIndex];
+      for (const record of segmentIndex.query(segmentBox(left))) {
+        const rightIndex = record.index;
+        if (rightIndex <= leftIndex) continue;
+        const point = orthogonalIntersection(left, record.segment);
+        if (!point) continue;
+        splitPoints[leftIndex].push(point);
+        splitPoints[rightIndex].push(point);
+      }
     }
   }
   return segments.flatMap((segment, index) => {
@@ -306,7 +345,8 @@ function toSegmentRecord(segment, edge, index) {
   };
 }
 
-function mergeSegments(records) {
+function mergeSegments(records, collectOwners) {
+  const emptyOwners = new Set();
   const buckets = new Map();
   for (const record of records) {
     const key = `${record.orientation}:${quantize(record.coordinate)}`;
@@ -336,13 +376,13 @@ function mergeSegments(records) {
         startIndex += 1;
       }
       if (active.size === 0) continue;
-      const covering = [...active];
+      const first = active.values().next().value;
       merged.push({
-        orientation: covering[0].orientation,
-        coordinate: covering[0].coordinate,
+        orientation: first.orientation,
+        coordinate: first.coordinate,
         minimum,
         maximum,
-        logicalEdgeIds: new Set(covering.flatMap((record) => record.logicalEdgeIds))
+        logicalEdgeIds: collectOwners ? new Set([...active].flatMap((record) => record.logicalEdgeIds)) : emptyOwners
       });
     }
   }

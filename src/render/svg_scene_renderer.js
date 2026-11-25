@@ -27,7 +27,7 @@ export function createProgressiveSvgSceneRenderPlan(scene) {
     nodeCount: checked.nodeCount,
     renderEdges: (start, end) => checked.readEdges(start, end).map(serializeSvgPrimitive),
     renderNodes: (start, end) => checked.readNodes(start, end).map(serializeSvgPrimitive),
-    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttribute(checked.ariaLabel)}">
+    openSvg: `<svg class="schematic-svg" viewBox="0 0 ${width} ${height}" role="img"${checked.compositedOverview ? ` data-scene-nodes="${checked.nodeCount}"` : ""} aria-label="${escapeAttribute(checked.ariaLabel)}">
   <g class="schematic-content">
     <g class="edges">`,
     betweenGroups: `</g><g class="nodes">`,

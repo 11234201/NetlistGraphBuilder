@@ -240,3 +240,23 @@ test("a generation invalidated by small-scene progress cannot publish a successf
     { isCurrent: () => current, onProgress() { current = false; } });
   assert.equal(result.cancelled, true);
 });
+
+test("buffered scene fragments discard stale work and preserve decoding errors", async () => {
+  const commits = [];
+  let onDecode;
+  const document = {
+    createRange: () => ({ selectNodeContents() {}, createContextualFragment(html) { onDecode(); return html; } }),
+    createDocumentFragment: () => ({ firstChild: null, append(value) { this.firstChild = value; } })
+  };
+  const group = { ownerDocument: document, append(fragment) { commits.push(fragment.firstChild); } };
+  const mount = { querySelector: () => group, innerHTML: "" };
+  const scene = createNetlistScene(graph);
+  let current = true;
+  onDecode = () => { current = false; };
+  const result = await renderSvgSceneIntoMount(mount, scene, { threshold: 1, isCurrent: () => current });
+  assert.equal(result.cancelled, true);
+  const error = new Error("SVG fragment decoder failed", { cause: new Error("invalid markup") });
+  onDecode = () => { throw error; };
+  await assert.rejects(renderSvgSceneIntoMount(mount, scene, { threshold: 1 }), (caught) => caught === error);
+  assert.deepEqual(commits, []);
+});

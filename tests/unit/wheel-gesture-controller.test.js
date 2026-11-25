@@ -3,11 +3,11 @@ import test from "node:test";
 import { createWheelGestureController } from "../../src/ui/wheel_gesture_controller.js";
 import { createLatestFrameScheduler } from "../../src/ui/frameScheduler.js";
 
-function fixture({ onApply = () => {} } = {}) {
+function fixture({ onApply = () => {}, composited = false } = {}) {
   const frames = new Map(), timers = new Map(), applied = [], events = [], classes = new Set();
   let next = 0;
   const controller = createWheelGestureController({
-    canvas: { classList: {
+    canvas: { querySelector: () => composited, classList: {
       add(name) { classes.add(name); events.push("start"); },
       remove(name) { classes.delete(name); events.push("end"); }
     } },
@@ -98,4 +98,18 @@ test("a failed viewport apply releases preview styling and scheduled completion"
   assert.equal(f.classes.size, 0);
   assert.equal(f.frames.size + f.timers.size, 0);
   assert.deepEqual(f.events, ["start", "end"]);
+});
+
+test("composited wheel settlement yields to pending input and cancels an obsolete paint confirmation", () => {
+  const f = fixture({ composited: true });
+  f.queue(); f.frame(); f.frame(); f.idle(); f.frame();
+  assert.ok(f.classes.has("is-view-interacting"));
+  f.queue(); f.frame(); f.frame(); f.idle();
+  assert.ok(!f.events.includes("persist"));
+  f.frame(); f.frame();
+  assert.deepEqual(f.events, ["start", "apply", "apply", "end", "persist"]);
+  f.queue(); f.frame(); f.frame(); f.idle(); f.controller.cancel();
+  f.frame(); f.frame();
+  assert.equal(f.events.filter((event) => event === "persist").length, 1);
+  assert.equal(f.frames.size + f.timers.size, 0);
 });

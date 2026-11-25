@@ -1,13 +1,14 @@
 import { PhaseError,checkCancelled } from './protocol.js';
 import { SpatialHashIndex,RouteSegmentIndex } from '../spatialIndex.js';
 import { getRouteSegments,nodeBox,orthogonalSegmentIntersectsBox,collinearSegmentsOverlap,
-  parallelSegmentsOverlap,MINIMUM_FOREIGN_WIRE_SEPARATION } from '../orthogonalRouting.js';
+  parallelSegmentsOverlap,near,MINIMUM_FOREIGN_WIRE_SEPARATION } from '../orthogonalRouting.js';
 import {ROUTE_VALIDATION_TOLERANCE} from './policy.js';
 
 // Shared geometry predicates remain authoritative. Perpendicular crossings are
 // a soft objective; foreign collinear/visibly parallel overlaps are hard errors.
 export function validateRoutes(graph,{signal}={}){
-  const tolerance=ROUTE_VALIDATION_TOLERANCE,index=new SpatialHashIndex(),reservations=new RouteSegmentIndex();
+  const tolerance=ROUTE_VALIDATION_TOLERANCE,index=new SpatialHashIndex();
+  const horizontalRoutes = new RouteSegmentIndex(), verticalRoutes = new RouteSegmentIndex();
   const ports=new Map(graph.nodes.flatMap((node)=>node.ports.map((port)=>[port.id,{node,port}])));
   for(const node of graph.nodes){
     if(![node.x,node.y,node.width,node.height].every(Number.isFinite))throw new PhaseError('p5','non-finite-node',[node.id]);
@@ -31,11 +32,18 @@ export function validateRoutes(graph,{signal}={}){
         if(orthogonalSegmentIntersectsBox(start,end,nodeBox(node,-tolerance)))throw new PhaseError('p5','node-intersection',[edge.id,node.id]);
       }
       const padding=MINIMUM_FOREIGN_WIRE_SEPARATION;
-      if(reservations.countForeignBox({left:box.left-padding,right:box.right+padding,top:box.top-padding,bottom:box.bottom+padding},edge.physicalNetId,
-        (other)=>other.netGroupKey!==edge.physicalNetId&&(collinearSegmentsOverlap(segment,other)||parallelSegmentsOverlap(segment,other)),1)){
+      const padded = {left:box.left-padding,right:box.right+padding,top:box.top-padding,bottom:box.bottom+padding};
+      const overlaps = (other) => collinearSegmentsOverlap(segment,other) || parallelSegmentsOverlap(segment,other);
+      // Crossings between perpendicular wires are legal. Short segments can
+      // satisfy both shared orientation predicates, so index them in both.
+      const horizontal = near(start.y, end.y), vertical = near(start.x, end.x);
+      if (horizontal && horizontalRoutes.countForeignBox(padded,edge.physicalNetId,overlaps,1) ||
+          vertical && verticalRoutes.countForeignBox(padded,edge.physicalNetId,overlaps,1)) {
         throw new PhaseError('p5','foreign-wire-overlap',[edge.id]);
       }
-      reservations.push(Object.freeze(segment));
+      Object.freeze(segment);
+      if (horizontal) horizontalRoutes.push(segment);
+      if (vertical) verticalRoutes.push(segment);
     }
   }
   return graph;

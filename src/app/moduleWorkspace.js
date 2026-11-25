@@ -6,8 +6,24 @@ import { measureNetlistGraph } from "../domains/netlist/measure_graph.js";
 import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
 import { applyWorkspaceOverrides, layoutWorkspaceGraphAutomatically } from "./layoutWorkspace.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
+import { normalizeNetlistPresentationPolicy } from "../domains/netlist/netlist_presentation_policy.js";
 import { createWorkspaceArtifactKey, workspaceArtifactReference } from "./workspaceArtifactCache.js";
 import { DEFAULT_FOCUSED_VIEW_POLICY } from "../foundation/view_policy.js";
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
+
+// A cached positioned graph can outlive its canvas. Retain only a weak reference to the scene.
+const positionedScenes = new WeakMap();
+
+function workspaceScene(graph, presentationPolicy, reusable) {
+  if (!reusable || typeof WeakRef !== "function") return createNetlistScene(graph, { presentationPolicy });
+  const policyKey = createWorkspaceArtifactKey(normalizeNetlistPresentationPolicy(presentationPolicy));
+  const previous = positionedScenes.get(graph);
+  const scene = previous?.policyKey === policyKey ? previous.ref.deref() : null;
+  if (scene) return scene;
+  const next = createNetlistScene(graph, { presentationPolicy });
+  positionedScenes.set(graph, { policyKey, ref: new WeakRef(next) });
+  return next;
+}
 
 export function buildModuleWorkspace(options) {
   const {
@@ -96,6 +112,7 @@ export function buildModuleWorkspace(options) {
   const cachedPipeline = artifactCache && autoIdentity
     ? artifactCache.get(createWorkspaceArtifactKey(autoIdentity))
     : null;
+  const reuseScene = artifactCache && autoIdentity && layoutProvider?.id === DEFAULT_LAYOUT_PROVIDER_ID;
   if (cachedPipeline) {
     const graph = applyWorkspaceOverrides(cachedPipeline.autoGraph, {
       layoutPolicy,
@@ -116,7 +133,7 @@ export function buildModuleWorkspace(options) {
       sourceGraph: cachedPipeline.sourceGraph,
       autoGraph: cachedPipeline.autoGraph,
       graph,
-      scene: createNetlistScene(graph, { presentationPolicy })
+      scene: workspaceScene(graph, presentationPolicy, reuseScene)
     };
   }
   const pipeline = runViewPipeline({
@@ -147,9 +164,7 @@ export function buildModuleWorkspace(options) {
       layoutProvider, layoutPolicy, signal: options.signal, jobId: options.jobId
     }),
     applyOverrides: (autoGraph) => applyWorkspaceOverrides(autoGraph, { layoutPolicy, nodePositions, nodeSizes }),
-    createScene: (graph, request) => createNetlistScene(graph, {
-      presentationPolicy: request.presentationPolicy
-    })
+    createScene: (graph, request) => workspaceScene(graph, request.presentationPolicy, reuseScene)
   }, options);
   const finalize = (result) => {
     const cached = {

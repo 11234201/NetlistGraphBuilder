@@ -7,12 +7,16 @@ import { validateP4 } from './validate_p4.js';
 export function placeNodes(input, { signal, observe = true } = {}) {
   validateProperGraph(input);
   const context = buildNeighborhood(input), candidates = [];
+  let selected = null;
+  const retainCandidates = observe || !input.options.favorStraightEdges;
   for (const horizontal of ['RIGHT', 'LEFT']) for (const vertical of ['DOWN', 'UP']) {
     checkCancelled(signal);
-    candidates.push(compactBlocks(context, alignBlocks(context, horizontal, vertical)));
+    const candidate = compactBlocks(context, alignBlocks(context, horizontal, vertical));
+    if (retainCandidates) candidates.push(candidate);
+    if (candidate.feasible && (!selected || candidate.size < selected.size)) {
+      selected = retainCandidates ? candidate : { horizontal, vertical, size: candidate.size, nodeY: candidate.nodeY };
+    }
   }
-  let selected = candidates.filter((candidate) => candidate.feasible)
-    .reduce((best, candidate) => !best || candidate.size < best.size ? candidate : best, null);
   if (!selected) throw new PhaseError('p4', 'no-feasible-bk-candidate');
   if (!input.options.favorStraightEdges && input.nodes.length) {
     const bounds = candidates.map((candidate) => ({ minimum: Math.min(...candidate.nodeY.values()),

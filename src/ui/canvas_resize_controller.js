@@ -1,4 +1,5 @@
 import { createLatestFrameScheduler } from "./frameScheduler.js";
+import { paintSchematicViewport, schematicViewportRect } from "./schematic_viewport.js";
 import { formatViewportTransform, getResizedViewportTransform } from "./viewport.js";
 
 export function createCanvasResizeController({
@@ -60,7 +61,7 @@ export function createCanvasResizeController({
     // its box here forces pending SVG layout on every wheel/pan frame. Actual
     // resize, mount replacement and explicit rebase still measure the box.
     const bounds = !measureSize && previous && previous.svg === svg && previous.content === content &&
-      viewBox && sameViewBox(previous.viewBox, viewBox) ? previous.size : svg?.getBoundingClientRect();
+      viewBox && sameViewBox(previous.viewBox, viewBox) ? previous.size : schematicViewportRect(svg);
     const viewport = view.viewport;
     if (!content || !viewBox || !(bounds.width > 0 && bounds.height > 0) ||
         !(viewBox.width > 0 && viewBox.height > 0) ||
@@ -125,7 +126,7 @@ export function createCanvasResizeController({
       entry.display = next;
       entry.pending ||= changed;
       if (changed) {
-        current.content.setAttribute("transform", formatViewportTransform(next));
+        paintSchematicViewport(current.content, next);
         // A preview-aware consumer now exposes this value through readViews.
         // Keep the pending resize while recognizing our own published preview.
         if (preview && previewViewport?.(view.id, { ...next })) entry.authoritative = { ...next };

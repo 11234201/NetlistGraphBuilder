@@ -1,4 +1,5 @@
 import { createLatestFrameScheduler } from "./frameScheduler.js";
+import { setVectorGesturePreview } from "./schematic_viewport.js";
 import { finishCanvasPan } from "./canvas_pan_controller.js";
 import { registerCanvasGesture } from "./canvas_gesture_lifecycle.js";
 
@@ -9,6 +10,21 @@ export function createWheelGestureController({ canvas, apply, onSettled, settleD
   let generation = 0;
   let interacting = false;
   let releaseGesture = null;
+  function settle(token) {
+    if (token !== generation || pending) return;
+    frames.flush();
+    setInteracting(false);
+    releaseOwnership();
+    onSettled?.();
+  }
+  // A compositor stall can let an idle timer fire while the browser still has
+  // wheel events awaiting presentation. Allow queued input to supersede this
+  // settlement across the next paint before committing history and persistence.
+  const confirmPaint = schedulerFactory(({ token, presented }) => {
+    if (token !== generation) return;
+    if (presented) settle(token);
+    else confirmPaint.schedule({ token, presented: true });
+  });
   // Start the quiet interval after the last zoom frame has been presented. A
   // slow SVG frame must not spend the interval and restore details while the
   // next wheel input is already waiting to be dispatched.
@@ -17,10 +33,8 @@ export function createWheelGestureController({ canvas, apply, onSettled, settleD
     settleTimer = timers.setTimeout(() => {
       if (token !== generation) return;
       settleTimer = null;
-      frames.flush();
-      setInteracting(false);
-      releaseOwnership();
-      onSettled?.();
+      if (canvas.querySelector?.("svg[data-composited-viewport]")) confirmPaint.schedule({ token, presented: false });
+      else settle(token);
     }, settleDelay);
   });
   const frames = schedulerFactory((sample) => {
@@ -33,6 +47,7 @@ export function createWheelGestureController({ canvas, apply, onSettled, settleD
   function setInteracting(value) {
     if (interacting === value) return;
     interacting = value;
+    setVectorGesturePreview(canvas, "is-vector-zooming", value);
     canvas.classList[value ? "add" : "remove"]("is-view-interacting");
   }
 
@@ -41,6 +56,7 @@ export function createWheelGestureController({ canvas, apply, onSettled, settleD
     timers.clearTimeout(settleTimer);
     settleTimer = null;
     afterPaint.cancel();
+    confirmPaint.cancel();
   }
 
   function queue(sample) {

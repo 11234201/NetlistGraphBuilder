@@ -1,9 +1,10 @@
+import { schematicViewportRect } from "../ui/schematic_viewport.js";
 import { clientPointToViewBox, getAdaptiveMaxScale, getPannedTransform } from "../ui/viewport.js";
 import { invalid, number } from "./remote_object_queries.js";
 
 export function runViewportCommand(job, viewport, mount, commit, fit) {
   const svg = mount?.querySelector("svg");
-  const rect = svg?.getBoundingClientRect(), box = svg?.viewBox?.baseVal;
+  const rect = schematicViewportRect(svg), box = svg?.viewBox?.baseVal;
   if (job.name === "viewport fit") { fit(); return; }
   if (job.name === "viewport get") return { ...viewport, width:rect?.width || 0,height:rect?.height || 0,
     viewBox:box ? {x:box.x,y:box.y,width:box.width,height:box.height} : null };

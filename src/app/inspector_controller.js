@@ -1,3 +1,4 @@
+import { schematicViewportRect } from "../ui/schematic_viewport.js";
 import { renderInspectorStats, renderInspectorDiagnostics, signed, formatGateKinds } from "./inspector_summary.js";
 import { missingCellTimingDetails } from "../timing/timing_diagnostics.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
@@ -206,9 +207,9 @@ export function createInspectorController({ state, elements, services, netRoutin
       };
       const scale = getReadableObjectScale({
         viewBoxWidth: svg.viewBox.baseVal.width,
-        viewportWidth: svg.getBoundingClientRect().width,
+        viewportWidth: schematicViewportRect(svg).width,
         viewBoxHeight: svg.viewBox.baseVal.height,
-        viewportHeight: svg.getBoundingClientRect().height,
+        viewportHeight: schematicViewportRect(svg).height,
         objectWidth,
         currentScale: state.compare.transforms[side].scale
       });

@@ -1,4 +1,4 @@
-import { formatViewportTransform } from "../ui/viewport.js";
+import { paintSchematicViewport } from "../ui/schematic_viewport.js";
 import { cloneGraphOverrides } from "../domains/netlist/graph_overrides.js";
 import { normalizeLayoutPolicy } from "../layout/layoutPolicy.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
@@ -12,8 +12,8 @@ export function createStateCommandsController({ state, elements, services }) {
     if (!content) {
       return;
     }
-    const { x, y, scale } = state.transform;
-    content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
+    const { scale } = state.transform;
+    paintSchematicViewport(content, state.transform);
     elements.canvas.classList.toggle("is-low-detail", scale < 0.65);
     if (shouldPersist) services.persistSession();
   }

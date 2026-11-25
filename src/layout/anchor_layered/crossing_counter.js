@@ -17,7 +17,7 @@ class Fenwick {
   clearAt(position) { this.add(position, -this.counts[position]); }
 }
 
-export function crossingContext(graph) {
+export function crossingContext(graph, { cacheMutableQueries = true } = {}) {
   const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
   const incoming = new Map(), outgoing = new Map(), incident = new Map();
   for (const node of graph.nodes) for (const port of node.ports) {
@@ -30,6 +30,7 @@ export function crossingContext(graph) {
     if (edge.segmentKind === 'inter_layer') boundaries[nodes.get(edge.sourceNodeId).layer].push(edge);
   }
   const context={ nodes, incoming, outgoing, incident, boundaries };
+  if (!cacheMutableQueries) return context;
   const cache=new Map();
   for(const edges of boundaries)if(edges.every(staticEdge)){
     cache.set(edges,{members:[...edges],groups:buildBoundaryGroups(edges)});
@@ -88,19 +89,35 @@ function hyperedgeScore(left, right, edges, context) {
   for (const id of left) for (const port of context.nodes.get(id).ports) {
     if (topology.sources.has(port.id)) sourceRanks.set(port.id, sourceRanks.size);
   }
-  for (const id of right) for (const port of [...context.nodes.get(id).ports].reverse()) {
-    if (topology.targets.has(port.id)) targetRanks.set(port.id, targetRanks.size);
+  for (const id of right) {
+    const ports = context.nodes.get(id).ports;
+    for (let index = ports.length - 1; index >= 0; index--) {
+      const portId = ports[index].id;
+      if (topology.targets.has(portId)) targetRanks.set(portId, targetRanks.size);
+    }
   }
   const boxes = topology.groups.map((group) => {
-    const source=[...group.left].map((id)=>sourceRanks.get(id)),target=[...group.right].map((id)=>targetRanks.get(id));
-    return {key:group.key,upperLeft:Math.min(...source),lowerLeft:Math.max(...source),
-      upperRight:Math.min(...target),lowerRight:Math.max(...target)};
+    let upperLeft = Infinity, lowerLeft = -Infinity, upperRight = Infinity, lowerRight = -Infinity;
+    for (const id of group.left) {
+      const rank = sourceRanks.get(id);
+      upperLeft = Math.min(upperLeft, rank); lowerLeft = Math.max(lowerLeft, rank);
+    }
+    for (const id of group.right) {
+      const rank = targetRanks.get(id);
+      upperRight = Math.min(upperRight, rank); lowerRight = Math.max(lowerRight, rank);
+    }
+    return { key: group.key, upperLeft, lowerLeft, upperRight, lowerRight };
   });
+  return scoreBoxes(boxes, targetRanks.size);
+}
+
+function scoreBoxes(boxes, targetCount) {
   boxes.sort((a, b) => a.upperLeft - b.upperLeft || a.upperRight - b.upperRight || compareIds(a.key, b.key));
-  const tree = new Fenwick(targetRanks.size);
+  const tree = new Fenwick(targetCount);
   let score = 0;
   for (const box of boxes) { score += tree.size - tree.below(box.upperRight + 1); tree.add(box.upperRight, 1); }
   for (const side of ['Left', 'Right']) {
+    if (boxes.every((box) => box[`upper${side}`] === box[`lower${side}`])) continue;
     const corners = boxes.flatMap((box) => [
       { key: box.key, pos: box[`upper${side}`], other: box[`lower${side}`], lower: false },
       { key: box.key, pos: box[`lower${side}`], other: box[`upper${side}`], lower: true }]);
@@ -109,6 +126,59 @@ function hyperedgeScore(left, right, edges, context) {
     for (const corner of corners) { if (corner.lower) score += --open; else open++; }
   }
   return score;
+}
+
+// orderLayers owns this context throughout all of its synchronous sweeps. Only
+// layer order changes: ports and connected groups can therefore be indexed once.
+export function createSweepCrossingCounter(graph, context) {
+  const counters = context.boundaries.map((edges, index) => {
+    if (!edges.length) return () => 0;
+    const topology = boundaryGroupCache.get(context)?.get(edges)?.groups ?? buildBoundaryGroups(edges);
+    const leftGroup = new Map(), rightGroup = new Map();
+    topology.groups.forEach((group, ordinal) => {
+      for (const id of group.left) leftGroup.set(id, ordinal);
+      for (const id of group.right) rightGroup.set(id, ordinal);
+    });
+    const portGroups = (layer, groups, reverse) => {
+      const byNode = new Map();
+      for (const id of layer.nodeIds) {
+        const ordinals = [];
+        for (const port of context.nodes.get(id).ports) {
+          const ordinal = groups.get(port.id);
+          if (ordinal !== undefined) ordinals.push(ordinal);
+        }
+        byNode.set(id, reverse ? ordinals.reverse() : ordinals);
+      }
+      return byNode;
+    };
+    const leftByNode = portGroups(graph.layers[index], leftGroup, false);
+    const rightByNode = portGroups(graph.layers[index + 1], rightGroup, true);
+    return (left, right) => {
+      const boxes = topology.groups.map(({ key }) => ({
+        key, upperLeft: Infinity, lowerLeft: -Infinity, upperRight: Infinity, lowerRight: -Infinity
+      }));
+      let rank = 0;
+      for (const id of left) for (const ordinal of leftByNode.get(id)) {
+        const box = boxes[ordinal];
+        if (box.upperLeft === Infinity) box.upperLeft = rank;
+        box.lowerLeft = rank++;
+      }
+      rank = 0;
+      for (const id of right) for (const ordinal of rightByNode.get(id)) {
+        const box = boxes[ordinal];
+        if (box.upperRight === Infinity) box.upperRight = rank;
+        box.lowerRight = rank++;
+      }
+      return scoreBoxes(boxes, rank);
+    };
+  });
+  const hasInLayer = graph.edges.some((edge) => edge.segmentKind !== 'inter_layer');
+  return (layers) => {
+    let score = 0;
+    for (let i = 0; i < counters.length; i++) score += counters[i](layers[i], layers[i + 1]);
+    if (hasInLayer) for (const layer of layers) for (const side of ['WEST', 'EAST']) score += inLayerScore(layer, side, context);
+    return score;
+  };
 }
 
 function inLayerScore(layer, side, context) {

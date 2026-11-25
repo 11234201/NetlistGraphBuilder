@@ -8,7 +8,7 @@ export async function randomModuleUrl({sourceRng=false,graphModel=false}={}){
   const replace=(before,after)=>{assert.equal(source.split(before).length,2,'missing/ambiguous P3 anchor');source=source.replace(before,after);};
   source=`import {createSourceRandom} from '${new URL('./source_random.mjs',import.meta.url).href}';\n`+source;
   if(sourceRng){
-    const start=source.indexOf('function randomStream('),end=source.indexOf('\nfunction sortFreeLayer(',start);
+    const start=source.indexOf('function randomStream('),end=source.indexOf('\n}',start)+2;
     assert.ok(start>=0&&end>start);
     source=source.slice(0,start)+'function randomStream(digest,seed){return createSourceRandom(seed);}\n'+source.slice(end);
     replace('let forward = random() < 0.5;','let forward = random.boolean();');

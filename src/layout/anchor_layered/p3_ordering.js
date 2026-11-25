@@ -1,6 +1,6 @@
 import { compareIds, freezeRecord, checkCancelled, PhaseError } from './protocol.js';
 import { validateProperGraph } from './validate_proper.js';
-import { crossingContext, countCrossings } from './crossing_counter.js';
+import { crossingContext, createSweepCrossingCounter } from './crossing_counter.js';
 import { calculatePortRanks } from './port_ranks.js';
 import { resolveOrderConstraints } from './order_constraints.js';
 import {cohereBandIds,cohereLayoutUnits} from './group_sweep.js';
@@ -13,28 +13,52 @@ function randomStream(digest, seed) {
   return () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
 }
 
-function sortFreeLayer(layers, index, forward, first, model, context, random, constraints, groupContext, layoutUnits) {
-  const ids = layers[index], ranks = calculatePortRanks(layers[index + (forward ? -1 : 1)], context, forward, model);
-  const adjacency = forward ? context.incoming : context.outgoing;
+// Port order and within-layer dependencies are fixed throughout a P3 run.
+function prepareSweep(context, forward) {
+  const dependencies = forward ? context.incoming : context.outgoing;
+  const ranked = forward ? context.outgoing : context.incoming;
+  const sweep = new Map();
+  for (const node of context.nodes.values()) {
+    const rankPorts = [], neighbors = [];
+    let hasLocal = false;
+    for (const port of node.ports) {
+      if (ranked.get(port.id).length) rankPorts.push(port);
+      for (const edge of dependencies.get(port.id)) {
+        const other = forward ? edge.sourceNodeId : edge.targetNodeId;
+        const local = context.nodes.get(other).layer === node.layer;
+        neighbors.push({ local, id: local ? other : forward ? edge.sourcePortId : edge.targetPortId });
+        hasLocal ||= local;
+      }
+    }
+    sweep.set(node.id, { rankPorts, neighbors, hasLocal });
+  }
+  return sweep;
+}
+
+function sortFreeLayer(layers, index, forward, first, model, context, sweep, random, constraints, groupContext, layoutUnits) {
+  const ids = layers[index], ranks = calculatePortRanks(layers[index + (forward ? -1 : 1)], context, forward, model, sweep);
   const states = new Map(), visiting = new Set();
   const calculate = (id) => {
     if (states.has(id)) return states.get(id);
-    if (visiting.has(id)) throw new PhaseError('p3', 'in-layer-cycle', [id]);
-    visiting.add(id);
+    const { neighbors, hasLocal } = sweep.get(id);
+    if (hasLocal) {
+      if (visiting.has(id)) throw new PhaseError('p3', 'in-layer-cycle', [id]);
+      visiting.add(id);
+    }
     const state = { sum: 0, degree: 0, value: null };
-    for (const port of context.nodes.get(id).ports) for (const edge of adjacency.get(port.id)) {
-      const otherId = forward ? edge.sourceNodeId : edge.targetNodeId;
-      if (context.nodes.get(otherId).layer === index) {
-        const other = calculate(otherId); state.sum += other.sum; state.degree += other.degree;
+    for (const neighbor of neighbors) {
+      if (neighbor.local) {
+        const other = calculate(neighbor.id); state.sum += other.sum; state.degree += other.degree;
       } else {
-        state.sum += ranks.get(forward ? edge.sourcePortId : edge.targetPortId); state.degree++;
+        state.sum += ranks.get(neighbor.id); state.degree++;
       }
     }
     if (state.degree) {
       state.sum += (random() - 0.5) * BARYCENTER_PERTURBATION;
       state.value = state.sum / state.degree;
     }
-    visiting.delete(id); states.set(id, state); return state;
+    if (hasLocal) visiting.delete(id);
+    states.set(id, state); return state;
   };
   for (const id of ids) calculate(id);
   if (first) {
@@ -53,8 +77,8 @@ function sortFreeLayer(layers, index, forward, first, model, context, random, co
       previous = state.value;
     }
   }
-  const prior = new Map(ids.map((id, position) => [id, position]));
-  ids.sort((a, b) => states.get(a).value - states.get(b).value || prior.get(a) - prior.get(b) || compareIds(a, b));
+  // Stable sort preserves the preceding order for equal barycenters.
+  ids.sort((a, b) => states.get(a).value - states.get(b).value);
   const grouped=groupContext?(layoutUnits?cohereLayoutUnits:cohereBandIds)(ids,states,groupContext.bandsByRank.get(index)??[]):ids;
   layers[index] = resolveOrderConstraints(grouped, states, constraints);
 }
@@ -64,7 +88,10 @@ export function orderLayers(input, { signal, observe = true, orderingDigest, gro
   for (const node of input.nodes) for (const port of node.ports) {
     if (!['WEST', 'EAST'].includes(port.side)) throw new PhaseError('p3', 'unsupported-flat-port-side', [port.id]);
   }
-  const context = crossingContext(input), random = randomStream(orderingDigest ?? input.inputDigest, input.options.randomSeed);
+  const context = crossingContext(input, { cacheMutableQueries: false });
+  const random = randomStream(orderingDigest ?? input.inputDigest, input.options.randomSeed);
+  const sweeps = [prepareSweep(context, false), prepareSweep(context, true)];
+  const scoreLayers = createSweepCrossingCounter(input, context);
   const constraints = input.orderConstraints ?? [];
   for (const { before, after } of constraints) {
     if (!context.nodes.has(before) || !context.nodes.has(after)
@@ -75,7 +102,7 @@ export function orderLayers(input, { signal, observe = true, orderingDigest, gro
   let current = input.layers.map((layer) => [...layer.nodeIds]);
   current = current.map((ids) => resolveOrderConstraints(ids,
     new Map(ids.map((id, position) => [id, { sum: position, degree: 1, value: position }])), constraints));
-  let best = copyLayers(current), bestScore = countCrossings(input, current, context);
+  let best = copyLayers(current), bestScore = scoreLayers(current);
   const events = [];
   if (current.length > 1) for (let attempt = 0; attempt < input.options.thoroughness; attempt++) {
     checkCancelled(signal);
@@ -94,8 +121,8 @@ export function orderLayers(input, { signal, observe = true, orderingDigest, gro
     while (true) {
       checkCancelled(signal);
       for (let index = forward ? 1 : current.length - 2; forward ? index < current.length : index >= 0;
-        index += forward ? 1 : -1) sortFreeLayer(current, index, forward, first, model, context, random, constraints, groupContext, layoutUnits);
-      const score = countCrossings(input, current, context);
+        index += forward ? 1 : -1) sortFreeLayer(current, index, forward, first, model, context, sweeps[Number(forward)], random, constraints, groupContext, layoutUnits);
+      const score = scoreLayers(current);
       const improves = score < retainedScore;
       if (observe) events.push({ event: 'candidate', attempt, model, forward, crossings: score, retained: improves,
         layers: copyLayers(current) });

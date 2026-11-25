@@ -1,6 +1,7 @@
 import { createLatestFrameScheduler } from "./frameScheduler.js";
 import { hasPointerDragged } from "./pointerGesture.js";
 import { startPointerSession } from "./pointerSession.js";
+import { schematicViewportRect, setVectorGesturePreview } from "./schematic_viewport.js";
 import { getPannedTransform } from "./viewport.js";
 import { registerCanvasGesture } from "./canvas_gesture_lifecycle.js";
 
@@ -24,9 +25,10 @@ export function startCanvasPan({ event, target, svg, transform, readTransform, c
       start,
       point,
       svg.viewBox.baseVal,
-      svg.getBoundingClientRect()
+      schematicViewportRect(svg)
     ));
   });
+  setVectorGesturePreview(target, "is-vector-panning", true);
   const finish = startPointerSession({
     target,
     pointerId: event.pointerId,
@@ -40,6 +42,7 @@ export function startCanvasPan({ event, target, svg, transform, readTransform, c
       try { frames.flush(); }
       finally {
         if (activePans.get(target) === finish) activePans.delete(target);
+        setVectorGesturePreview(target, "is-vector-panning", false);
         releaseGesture?.();
       }
     },

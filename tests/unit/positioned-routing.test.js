@@ -2,6 +2,29 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyPositionedOverrides, canReusePositionedValidation } from "../../src/layout/positionedRouting.js";
 
+test("only identified measured layouts opt into measured wire reconstruction after moving a node", () => {
+  const graph = {
+    nodes: [
+      { id: "a", kind: "input", x: 0, y: 40, width: 92, height: 28 },
+      { id: "y", kind: "output", x: 500, y: 20, width: 92, height: 36 }
+    ],
+    edges: [{ id: "ay", source: "a", target: "y", net: "a", label: "a" }]
+  };
+  const nodePositions = new Map([["y", { x: 480, y: 120 }]]);
+  const rebuild = (layoutProvider) => applyPositionedOverrides({ ...graph, layoutProvider }, { nodePositions });
+  const unmarked = applyPositionedOverrides(graph, { nodePositions });
+  assert.equal(Object.hasOwn(unmarked.wireRoutes[0], "segmentHitMembership"), false);
+  for (const provider of ["simple-layered", "custom-provider"]) {
+    const result = rebuild(provider);
+    assert.deepEqual(result.wireRoutes, unmarked.wireRoutes);
+    assert.deepEqual(result.layoutDiagnostics, unmarked.layoutDiagnostics);
+    assert.deepEqual(result.validationMetrics, unmarked.validationMetrics);
+  }
+  for (const provider of ["native-layered", "elk-layered"]) {
+    assert.equal(rebuild(provider).wireRoutes[0].segmentHitMembership, true);
+  }
+});
+
 test("cached override validation is reused only when every rerouted edge succeeded", () => {
   const rerouted = new Set(["changed"]);
   assert.equal(canReusePositionedValidation({ validate: false }, [

@@ -59,7 +59,8 @@ export async function layoutGraph(input,{policy={},signal,onPhase,yieldControl,p
     }
     graph=await checkpoint(placeNodes(graph,phaseOptions),componentId);
     graph=await checkpoint(routeEdges(graph,{...phaseOptions,physicalAnchors:!!anchor}),componentId);
-    graph=restoreLogicalEdges(graph,{signal});validateRoutes(graph,{signal});
+    graph=restoreLogicalEdges(graph,{signal});
+    if (members.length > 1) validateRoutes(graph,{signal});
     results.push(graph);metrics.push({componentId,nodeCount:graph.nodes.length,edgeCount:graph.edges.length,
       layerCount:graph.layers.length,crossings:crossings??null,ranking});
   }

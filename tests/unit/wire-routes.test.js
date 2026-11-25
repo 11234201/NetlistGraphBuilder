@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { forEachPerpendicularPair } from "../../src/layout/orthogonal_crossing_index.js";
 import { buildWireRoutes, updateWireRoutes } from "../../src/layout/wireRoutes.js";
 import { buildNetTreeSegments } from "../../src/layout/netTreeRouter.js";
 import { validateLayoutGraph } from "../../src/layout/layoutValidator.js";
@@ -247,4 +248,69 @@ test("measured physical routes retain collision-free offset labels and report an
   assert.equal(empty[0].reachableTargetCount, 0);
   assert.ok(validateLayoutGraph({ wireRoutes: empty }).some((item) => item.code === "wire-route-disconnected"));
   assert.equal(buildWireRoutes([{ ...edge, points: [] }])[0].reachableTargetCount, 1);
+});
+
+test("measured routes publish all net members once and the exact membership of each hit segment", () => {
+  const edges = fanoutEdges();
+  const [route] = buildWireRoutes(edges, { measuredRoutes: true });
+  const svg = renderSchematicSvg({ moduleDisplayName: "fanout", width: 200, height: 180, nodes: [], edges, wireRoutes: [route] });
+  assert.equal((svg.match(/data-route-edge-ids="edge-a,edge-b"/g) || []).length, 1);
+  assert.deepEqual([...svg.matchAll(/ data-edge-ids="([^"]*)"/g)].map((match) => match[1]),
+    route.segments.map((segment) => segment.logicalEdgeIds.join(",")));
+  assert.equal((svg.match(/class="wire-hit-area"/g) || []).length, route.segments.length);
+});
+
+test("a disconnected measured route preserves the original segment ownership in its fallback", () => {
+  const edges = fanoutEdges();
+  edges.push({ ...edges[0], id: "edge-open", points: [{ x: 180, y: 180 }] });
+  const [route] = buildWireRoutes(edges, { measuredRoutes: true });
+  assert.equal(route.treeFallback, true);
+  assert.equal(route.reachableTargetCount, 2);
+  assert.deepEqual(route.segments.map(({ logicalEdgeIds }) => logicalEdgeIds), [["edge-a", "edge-b"], ["edge-a", "edge-b"], ["edge-b"]]);
+});
+
+test("measured trees retain ordered ownership for branch terminals and independent sources", () => {
+  const point = (x, y = 0) => ({ x, y });
+  const segments = [[point(0), point(10)], [point(10), point(20)], [point(20), point(30)],
+    [point(20), point(20, 10)], [point(60), point(70)]].map(([start, end]) => ({ start, end, logicalEdgeIds: [] }));
+  const edges = [
+    { source: "src", target: "mid", points: [point(0), point(20)] },
+    { id: "a", points: [point(0), point(30)] },
+    { id: "a", points: [point(0), point(30)] },
+    { id: "z", points: [point(0), point(20, 10)] },
+    { id: "solo", points: [point(60), point(70)] }
+  ];
+  const tree = buildNetTreeSegments(segments, edges, { measuredRoutes: true });
+  assert.equal(tree.topology, "forest");
+  assert.equal(tree.treeFallback, false);
+  assert.equal(tree.componentCount, 2);
+  assert.equal(tree.cycleCount, 0);
+  assert.equal(tree.reachableTargetCount, 5);
+  assert.deepEqual(tree.segments.map((segment) => segment.logicalEdgeIds), [
+    ["a", "src:mid", "z"], ["a", "src:mid", "z"], ["a"], ["z"], ["solo"]
+  ]);
+  assert.deepEqual(tree, buildNetTreeSegments(segments, edges.toReversed(), { measuredRoutes: true }));
+});
+
+test("measured crossing sweep respects sparse spans, endpoint ties and reversed input order", () => {
+  const tolerance = 0.01;
+  const segments = [
+    { key: "span", start: { x: 4e8, y: -11 }, end: { x: -4e8, y: -11 } },
+    { key: "short", start: { x: 3, y: 0 }, end: { x: 10, y: 0 } },
+    { key: "same-row", start: { x: 10, y: 0 }, end: { x: 30, y: 0 } },
+    { key: "far-row", start: { x: 3, y: 1e6 }, end: { x: 10, y: 1e6 } },
+    { key: "left", start: { x: 3, y: -12 }, end: { x: 3, y: 1 } },
+    { key: "tie", start: { x: 10, y: 1 }, end: { x: 10, y: -12 } },
+    { key: "near", start: { x: 10.005, y: 1 }, end: { x: 10.005, y: -12 } },
+    { key: "outside", start: { x: 31, y: 1 }, end: { x: 31, y: -12 } }
+  ];
+  const collect = (items) => {
+    const pairs = [];
+    forEachPerpendicularPair(items, tolerance, (h, v) => pairs.push(items[h].key + ":" + items[v].key));
+    return pairs.sort();
+  };
+  const expected = ["span:left", "span:tie", "span:near", "span:outside", "short:left", "short:tie",
+    "short:near", "same-row:tie", "same-row:near"].sort();
+  assert.deepEqual(collect(segments), expected);
+  assert.deepEqual(collect(segments.toReversed()), expected);
 });

@@ -3,6 +3,7 @@ import { compareIds, PhaseError } from './protocol.js';
 // Ordered weighted groups: a violated successor relation merges its two groups,
 // preserving required predecessor/successor order and recomputing the barycenter.
 export function resolveOrderConstraints(ids, states, constraints) {
+  if (!constraints.length) return ids;
   const members = new Set(ids);
   const local = constraints.filter(({ before, after }) => members.has(before) && members.has(after));
   if (!local.length) return ids;

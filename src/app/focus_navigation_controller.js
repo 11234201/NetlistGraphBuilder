@@ -1,3 +1,4 @@
+import { schematicViewportRect } from "../ui/schematic_viewport.js";
 import { findCompareNode } from "./compareWorkspace.js";
 import { getFocusedObjectTransform, getAdaptiveMaxScale } from "../ui/viewport.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
@@ -201,7 +202,7 @@ export function createFocusNavigationController({ state, elements, services }) {
     const svg = mount.querySelector("svg");
     if (!svg) return;
     cancelCanvasGestures(mount);
-    const viewport = svg.getBoundingClientRect();
+    const viewport = schematicViewportRect(svg);
     commit(getFocusedObjectTransform({
       viewBox: svg.viewBox.baseVal,
       viewportWidth: viewport.width,
@@ -224,7 +225,7 @@ export function createFocusNavigationController({ state, elements, services }) {
     const svg = mount.querySelector("svg");
     if (!point || !svg) return;
     cancelCanvasGestures(mount);
-    const viewport = svg.getBoundingClientRect();
+    const viewport = schematicViewportRect(svg);
     commit(getFocusedObjectTransform({
       viewBox: svg.viewBox.baseVal,
       viewportWidth: viewport.width,

@@ -41,6 +41,7 @@ export function createSchematicScene(graph, options = {}) {
     kind: SVG_SCENE_CONTRACT,
     bounds: { width: graph.width || 640, height: graph.height || 420 },
     ariaLabel: `${String(graph.moduleDisplayName || "Diagram")} schematic`,
+    compositedOverview: graph.layoutProvider === "native-layered",
     edgeCount: wireItems.length,
     nodeCount: graph.nodes.length,
     readEdges: (start, end) => renderRange(wireItems, start, end, (edge) =>
@@ -59,7 +60,9 @@ function createWireRenderItems(graph) {
     labelPoint: route.labelPoint || midpoint(segment.start, segment.end),
     labelAnchor: route.labelAnchor || "middle",
     showLabel: index === 0 && route.showLabel !== false,
-    logicalEdgeIds: route.logicalEdgeIds || segment.logicalEdgeIds || [],
+    logicalEdgeIds: (route.segmentHitMembership && segment.logicalEdgeIds) || route.logicalEdgeIds || segment.logicalEdgeIds || [],
+    routeEdgeIds: route.segmentHitMembership && index === 0 ? route.logicalEdgeIds : undefined,
+    primaryEdgeId: route.logicalEdgeIds?.[0],
     routeId: route.id,
     junctions: index === 0 ? route.junctions || [] : []
   })));
@@ -96,7 +99,8 @@ function createEdgePrimitive(edge, crossings) {
   }
   return svgElement("g", {
     class: "edge",
-    "data-edge-id": logicalEdgeIds[0] || edge.id,
+    "data-edge-id": edge.primaryEdgeId || logicalEdgeIds[0] || edge.id,
+    "data-route-edge-ids": edge.routeEdgeIds?.join(","),
     "data-edge-ids": logicalEdgeIds.join(","),
     "data-wire-route-id": edge.routeId || "",
     "data-net": edge.net

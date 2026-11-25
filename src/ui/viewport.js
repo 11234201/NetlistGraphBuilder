@@ -178,10 +178,15 @@ export function clientPointToViewBox(client, viewport, viewBox) {
 }
 
 export function formatViewportTransform(transform) {
+  const { scale, translatedX, translatedY } = svgViewportComponents(transform);
+  return `scale(${scale}) translate(${translatedX} ${translatedY})`;
+}
+
+export function svgViewportComponents(transform) {
   const scale = positiveNumber(transform?.scale, 1);
   const translatedX = finiteNumber(transform?.x, 0) / scale;
   const translatedY = finiteNumber(transform?.y, 0) / scale;
-  return `scale(${round(scale)}) translate(${round(translatedX)} ${round(translatedY)})`;
+  return { scale: round(scale), translatedX: round(translatedX), translatedY: round(translatedY) };
 }
 
 // The SVG itself uses xMidYMid meet. Preserve the world point at its centre

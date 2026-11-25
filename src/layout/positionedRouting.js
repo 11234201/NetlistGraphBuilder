@@ -73,6 +73,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
     const start = getConnectionPoint(source, edge.sourcePin, "source");
     const end = getConnectionPoint(target, edge.targetPin, "target");
     const route = selectLocalOrthogonalRoute({
+      reuseCandidateScores: positionedGraph.layoutProvider === DEFAULT_LAYOUT_PROVIDER_ID,
       source,
       target,
       start,

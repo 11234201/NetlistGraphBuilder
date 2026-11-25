@@ -1,3 +1,5 @@
+import { measuredTargetTree } from "./measured_tree_membership.js";
+
 const GEOMETRY_EPSILON = 0.01;
 
 /**
@@ -8,7 +10,7 @@ const GEOMETRY_EPSILON = 0.01;
  */
 export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
   const usable = segments
-    .map((segment, index) => toSegmentRecord(segment, index))
+    .map((segment, index) => toSegmentRecord(segment, index, options.measuredRoutes))
     .filter(Boolean);
   if (usable.length === 0) {
     return {
@@ -21,15 +23,20 @@ export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
     };
   }
 
-  const adjacency = buildAdjacency(usable);
+  const adjacency = buildAdjacency(usable, !options.measuredRoutes);
   const sourceKeys = uniquePointKeys(edges.map((edge) => edge?.points?.[0]));
-  const targetRecords = edges
-    .toSorted(compareEdges)
-    .map((edge) => ({
-      edgeId: String(edge?.id ?? `${edge?.source || ""}:${edge?.target || ""}`),
-      pointKey: pointKey(edge?.points?.at(-1))
-    }));
-  const shortestPaths = findMultiSourceTree(adjacency, sourceKeys);
+  const targetRecord = (edge) => ({
+    edgeId: String(edge?.id ?? ((edge?.source || "") + ":" + (edge?.target || ""))),
+    pointKey: pointKey(edge?.points?.at(-1))
+  });
+  const targetRecords = options.measuredRoutes
+    ? edges.map(targetRecord).sort((a, b) => a.edgeId.localeCompare(b.edgeId))
+    : edges.toSorted(compareEdges).map(targetRecord);
+  const shortestPaths = findMultiSourceTree(adjacency, sourceKeys, options.measuredRoutes);
+  if (options.measuredRoutes && sourceKeys.length) {
+    const tree = measuredTargetTree(usable, shortestPaths, targetRecords);
+    if (tree) return tree;
+  }
   // Intern only the completed tree's traversal identities. Dijkstra and its
   // string tie-breaking remain untouched; no arithmetic is recomputed here.
   const vertexIndex = new Map([...adjacency.keys()].map((key, index) => [key, index]));
@@ -62,8 +69,15 @@ export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
       const parent = parentsByVertex[cursor];
       if (!parent) break;
       selectedIndices[parent.segmentIndex] = 1;
-      if (!ownership[parent.segmentIndex]) ownership[parent.segmentIndex] = new Set();
-      ownership[parent.segmentIndex].add(target.edgeId);
+      if (options.measuredRoutes) {
+        // One visit per target per segment. Repeated logical IDs are adjacent
+        // in targetRecords, so the already-ordered ownership list is compact.
+        const owners = ownership[parent.segmentIndex] ??= [];
+        if (owners.at(-1) !== target.edgeId) owners.push(target.edgeId);
+      } else {
+        if (!ownership[parent.segmentIndex]) ownership[parent.segmentIndex] = new Set();
+        ownership[parent.segmentIndex].add(target.edgeId);
+      }
       cursor = parent.from;
     }
   }
@@ -77,7 +91,7 @@ export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
     ...record.segment,
     logicalEdgeIds: treeFallback
       ? [...record.segment.logicalEdgeIds]
-      : [...(ownership[record.index] || record.segment.logicalEdgeIds)]
+      : (options.measuredRoutes && ownership[record.index]) || [...(ownership[record.index] || record.segment.logicalEdgeIds)]
   }));
   const componentCount = countComponents(selected);
   const cycleCount = Math.max(0, selected.length - countVertices(selected) + componentCount);
@@ -91,7 +105,7 @@ export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
   };
 }
 
-function findMultiSourceTree(adjacency, sourceKeys) {
+function findMultiSourceTree(adjacency, sourceKeys, measuredRoutes) {
   const distance = new Map();
   const parent = new Map();
   const heap = new MinHeap(compareQueueItems);
@@ -110,14 +124,18 @@ function findMultiSourceTree(adjacency, sourceKeys) {
     const best = distance.get(current.nodeKey);
     if (!best || compareQueueItems(current, best) !== 0) continue;
     for (const neighbor of adjacency.get(current.nodeKey) || []) {
+      // Most reverse/tree-back edges cannot improve the known distance.
+      // Avoid allocating a candidate identity unless its tie-break may matter.
+      const candidateDistance = current.distance + neighbor.length;
+      const previous = distance.get(neighbor.to);
+      if (measuredRoutes && previous && candidateDistance > previous.distance) continue;
       const candidate = {
-        distance: current.distance + neighbor.length,
+        distance: candidateDistance,
         nodeKey: neighbor.to,
         parentKey: `${current.nodeKey}\u0000${neighbor.segmentIndex}`,
         segmentIndex: neighbor.segmentIndex,
         from: current.nodeKey
       };
-      const previous = distance.get(neighbor.to);
       if (previous && compareQueueItems(candidate, previous) >= 0) continue;
       distance.set(neighbor.to, candidate);
       parent.set(neighbor.to, {
@@ -131,7 +149,7 @@ function findMultiSourceTree(adjacency, sourceKeys) {
   return { distance, parent };
 }
 
-function buildAdjacency(records) {
+function buildAdjacency(records, orderNeighbors = true) {
   const adjacency = new Map();
   const add = (from, value) => {
     if (!adjacency.has(from)) adjacency.set(from, []);
@@ -144,8 +162,12 @@ function buildAdjacency(records) {
     add(startKey, { to: endKey, segmentIndex: record.index, length: record.length });
     add(endKey, { to: startKey, segmentIndex: record.index, length: record.length });
   }
-  for (const neighbors of adjacency.values()) {
-    neighbors.sort((left, right) => left.to.localeCompare(right.to) || left.segmentIndex - right.segmentIndex);
+  // Measured routes resolve equal-distance candidates using the heap's total
+  // order on parent vertex, segment ordinal and destination vertex.
+  if (orderNeighbors) {
+    for (const neighbors of adjacency.values()) {
+      neighbors.sort((left, right) => left.to.localeCompare(right.to) || left.segmentIndex - right.segmentIndex);
+    }
   }
   return adjacency;
 }
@@ -178,10 +200,14 @@ function countVertices(records) {
   ].filter(Boolean))).size;
 }
 
-function toSegmentRecord(segment, index) {
+function toSegmentRecord(segment, index, measuredRoutes) {
   const start = finitePoint(segment?.start);
   const end = finitePoint(segment?.end);
   if (!start || !end || pointKey(start) === pointKey(end)) return null;
+  if (measuredRoutes && segment.logicalEdgeIds instanceof Set) {
+    return { index, segment: { ...segment, start, end },
+      length: Math.abs(end.x - start.x) + Math.abs(end.y - start.y) };
+  }
   const logicalEdgeIds = segment.logicalEdgeIds instanceof Set
     ? [...segment.logicalEdgeIds]
     : Array.isArray(segment.logicalEdgeIds)

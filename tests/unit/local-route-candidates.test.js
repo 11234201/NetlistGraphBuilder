@@ -6,6 +6,7 @@ import {
   selectLocalOrthogonalRoute
 } from "../../src/layout/localOrthogonalRouter.js";
 import { createNodeSpatialIndex, RouteSegmentIndex } from "../../src/layout/spatialIndex.js";
+import { routeCandidateIsUsable } from "../../src/layout/routeCandidateValidation.js";
 
 const source = { id: "source", x: 0, y: 40, width: 80, height: 28 };
 const target = { id: "target", x: 200, y: 40, width: 100, height: 60 };
@@ -90,4 +91,32 @@ test("Adjust scoring chooses a local wire detour over a direct crossing", () => 
     Math.min(point.x, points[index + 1].x) < 140 &&
     Math.max(point.x, points[index + 1].x) > 140
   )));
+});
+
+test("a measured manual move scores each valid detour once when every route crosses a wire", () => {
+  class CountedReservations extends RouteSegmentIndex {
+    scoringQueries = 0;
+    countBox(...args) {
+      this.scoringQueries++;
+      return super.countBox(...args);
+    }
+  }
+  const enclosure = [{ x: -17, y: 9 }, { x: 139, y: 9 }, { x: 139, y: 103 }, { x: -17, y: 103 }];
+  const reservedSegments = new CountedReservations(enclosure.map((start, index) => ({
+    start, end: enclosure[(index + 1) % enclosure.length], net: "foreign"
+  })));
+  const context = {
+    source, target, start: { x: 80, y: 54 }, end: { x: 200, y: 54 }, margin: 16,
+    nodes: [source, target], nodeIndex: createNodeSpatialIndex([source, target]),
+    net: "candidate", reservedSegments
+  };
+  const eligible = [...iterateLocalRouteCandidates(context)].filter(({ points }) =>
+    routeCandidateIsUsable(points, context, { allowNodePaddingBoundary: true, rejectReservedOverlaps: true }));
+  const expectedQueries = eligible.reduce((sum, { points }) => sum + points.length - 1, 0);
+  assert.ok(eligible.length > 1);
+  const reference = selectLocalOrthogonalRoute(context);
+  assert.ok(reservedSegments.scoringQueries > expectedQueries);
+  reservedSegments.scoringQueries = 0;
+  assert.deepEqual(selectLocalOrthogonalRoute({ ...context, reuseCandidateScores: true }), reference);
+  assert.equal(reservedSegments.scoringQueries, expectedQueries);
 });

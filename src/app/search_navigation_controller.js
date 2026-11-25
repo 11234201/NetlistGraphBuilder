@@ -1,3 +1,4 @@
+import { schematicViewportRect } from "../ui/schematic_viewport.js";
 import { resolveSearchTargetAction, findSearchTargetNode } from "./searchLocatePolicy.js";
 import { getReadableObjectScale } from "../ui/viewport.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
@@ -185,7 +186,7 @@ export function createSearchNavigationController({ state, elements, services, co
     }
     cancelCanvasGestures(svg);
     const viewBox = svg.viewBox.baseVal;
-    const viewport = svg.getBoundingClientRect();
+    const viewport = schematicViewportRect(svg);
     const scale = getReadableObjectScale({
       viewBoxWidth: viewBox.width,
       viewportWidth: viewport.width,

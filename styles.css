@@ -1417,7 +1417,7 @@ body.is-dragging-files .drop-overlay {
   cursor: grab;
 }
 
-.canvas.is-panning {
+.schematic-svg.is-vector-panning {
   cursor: grabbing;
 }
 
@@ -1440,25 +1440,25 @@ body.is-dragging-files .drop-overlay {
 
 /* Translation can retain text layout. Reattaching thousands of SVG text
    layouts after a pan is more expensive than restoring their visibility. */
-.canvas.is-panning :is(.wire-label, .pin-label, .node-label, .node-meta,
+.schematic-svg.is-vector-panning :is(.wire-label, .pin-label, .node-label, .node-meta,
   .timing-badge, .gate-kind, .wire-bridge, .wire-bridge-cutout) {
   visibility: hidden;
 }
 
 /* Scaling must omit text layout, including the gate-type text that remains
    visible in a low-detail overview. The completed view restores every label. */
-.canvas.is-view-interacting .gate-kind,
-.canvas:is(.is-node-dragging, .is-view-interacting) .wire-label,
-.canvas:is(.is-node-dragging, .is-view-interacting) .pin-label,
-.canvas:is(.is-node-dragging, .is-view-interacting) .node-label,
-.canvas:is(.is-node-dragging, .is-view-interacting) .node-meta,
-.canvas:is(.is-node-dragging, .is-view-interacting) .timing-badge,
-.canvas:is(.is-node-dragging, .is-view-interacting) .wire-bridge,
-.canvas:is(.is-node-dragging, .is-view-interacting) .wire-bridge-cutout {
+.schematic-svg.is-vector-zooming .gate-kind,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .wire-label,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .pin-label,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .node-label,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .node-meta,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .timing-badge,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .wire-bridge,
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .wire-bridge-cutout {
   display: none;
 }
 
-.canvas:is(.is-node-dragging, .is-view-interacting) .wire-hit-area {
+:is(.canvas.is-node-dragging, .schematic-svg.is-vector-zooming) .wire-hit-area {
   pointer-events: none;
 }
 
@@ -1470,6 +1470,8 @@ body.is-dragging-files .drop-overlay {
   pointer-events: none;
   will-change: transform;
 }
+
+.schematic-mount:has(> svg[data-composited-viewport]) { contain: layout paint style; }
 
 .schematic-mount {
   width: 100%;
@@ -1485,6 +1487,13 @@ body.is-dragging-files .drop-overlay {
      from invalidating the style of every SVG descendant. */
   cursor: grab;
 }
+
+.schematic-svg[data-composited-viewport] {
+  transform-origin: 0 0;
+  will-change: transform;
+  overflow: visible;
+}
+.schematic-svg[data-composited-viewport] > .schematic-content { transform: none; }
 
 .canvas.is-calibrating .schematic-svg { cursor: default; }
 .canvas.is-node-dragging .schematic-svg { cursor: move; }
@@ -2001,7 +2010,7 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 .aig-node, .aig-edge { cursor: pointer; }
 /* Keep topology, inversion, analysis colors and selected/focused labels intact.
    Omit other label layout only during the gesture; restore the complete scene. */
-.canvas:is(.is-panning, .is-view-interacting) .aig-node:not(.is-selected):not(:focus) .aig-node-label {
+.schematic-svg:is(.is-vector-panning, .is-vector-zooming) .aig-node:not(.is-selected):not(:focus) .aig-node-label {
   display: none;
 }
 .aig-node:focus, .aig-edge:focus { outline: none; }
@@ -2026,7 +2035,7 @@ button:not(:disabled):hover { border-color: #91b7bd; }
 #schematicMount svg[data-aig-analysis-active="true"][data-aig-analysis-dim="true"] [data-domain-object]:not([data-aig-analysis-role]) { opacity: .22; }
 /* The directional halo already carries the curve and its inversion pattern.
    Draw it once during gestures, retaining the red centerline for critical edges. */
-.canvas:is(.is-panning, .is-view-interacting) .aig-edge[data-neighbor-role] {
+.schematic-svg:is(.is-vector-panning, .is-vector-zooming) .aig-edge[data-neighbor-role] {
   & > .aig-neighbor-halo { opacity: 1; stroke-width: 4; }
   & > .aig-edge-path:not([data-aig-critical]) { stroke: none; }
 }
@@ -2034,17 +2043,17 @@ button:not(:disabled):hover { border-color: #91b7bd; }
   filter: grayscale(1);
   opacity: .35;
 
-  /* Paint muted primitives directly while the viewport moves. Thousands of
-     individually filtered, translucent SVG groups are costly to composite. */
-  .canvas:is(.is-panning, .is-view-interacting) & {
-    filter: none;
-    opacity: 1;
+}
+#schematicMount svg[data-aig-cone-trace]:is(.is-vector-panning, .is-vector-zooming)
+[data-aig-object]:not(.is-selected):not([data-neighbor-role]) {
+  /* Paint muted primitives directly while the viewport moves. */
+  filter: none;
+  opacity: 1;
 
-    & .aig-node-shape, & .aig-block-label rect { fill: #f5f5f5; stroke: #b8b8b8; }
-    & .aig-node-label, & .aig-block-label text { fill: #aaa; }
-    & .aig-edge-path, & .aig-selection-halo { stroke: #c0c0c0; }
-    & .aig-edge-arrow { fill: #c0c0c0; stroke: #c0c0c0; }
-  }
+  & .aig-node-shape, & .aig-block-label rect { fill: #f5f5f5; stroke: #b8b8b8; }
+  & .aig-node-label, & .aig-block-label text { fill: #aaa; }
+  & .aig-edge-path, & .aig-selection-halo { stroke: #c0c0c0; }
+  & .aig-edge-arrow { fill: #c0c0c0; stroke: #c0c0c0; }
 }
 #schematicMount svg[data-aig-block-labels="false"] .aig-block-label { display: none; }
 .aig-analysis-status, .aig-analysis-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 10px 0; }

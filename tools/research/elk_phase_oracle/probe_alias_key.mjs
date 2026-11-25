@@ -9,13 +9,13 @@ export {splitImplicitEndpoints} from '../../../src/layout/anchor_layered/implici
 async function frozenLayout(referenceKeys){
   const p3Location=new URL('../../../src/layout/anchor_layered/p3_ordering.js',import.meta.url);
   let p3=await readFile(p3Location,'utf8');
-  const anchor='  const context = crossingContext(input), random = randomStream(orderingDigest ?? input.inputDigest, input.options.randomSeed);';
+  const anchor='  const random = randomStream(orderingDigest ?? input.inputDigest, input.options.randomSeed);';
   assert.equal(p3.split(anchor).length,2);
   p3=p3.replace(anchor,`  const referenceKeys = new Map(${JSON.stringify([...referenceKeys])});
   const componentKey = JSON.stringify(input.nodes.filter(node=>node.kind!=='long_edge').map(node=>node.id).toSorted());
   const perturbationDigest = referenceKeys.get(componentKey);
   if (!perturbationDigest) throw new PhaseError('research','component-key-mismatch');
-  const context = crossingContext(input), random = randomStream(perturbationDigest, input.options.randomSeed);`);
+  const random = randomStream(perturbationDigest, input.options.randomSeed);`);
   p3=p3.replace('perturbationKey: `${orderingDigest ?? input.inputDigest}:${input.options.randomSeed}`',
     'perturbationKey: `${perturbationDigest}:${input.options.randomSeed}`');
   p3=p3.replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,p3Location).href}'`);

@@ -35,6 +35,10 @@ export function scoreRouteCandidate(candidate, context = {}) {
 export function compareRouteCandidates(left, right, context = {}) {
   const leftScore = scoreRouteCandidate(left, context);
   const rightScore = scoreRouteCandidate(right, context);
+  return compareRouteScores(leftScore, rightScore);
+}
+
+export function compareRouteScores(leftScore, rightScore) {
   return leftScore.total - rightScore.total ||
     leftScore.crossings - rightScore.crossings ||
     leftScore.bends - rightScore.bends ||

@@ -6,7 +6,8 @@ import {
   toggleFocusedRootNodeId
 } from "./focusedSelection.js";
 import { startCanvasNodeDrag } from "../ui/canvas_node_drag_controller.js";
-import { getSteppedZoomedTransform, formatViewportTransform, clientPointToViewBox } from "../ui/viewport.js";
+import { getSteppedZoomedTransform, clientPointToViewBox } from "../ui/viewport.js";
+import { paintSchematicViewport, schematicViewportRect } from "../ui/schematic_viewport.js";
 import { buildAdjustedView } from "../application/adjusted_view.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { getLayoutProvider } from "../layout/layoutProvider.js";
@@ -125,7 +126,7 @@ export function createCompareCanvasController({ state, elements, services }) {
       const mount = sample.side === "left" ? elements.leftMount : elements.rightMount;
       const svg = mount.querySelector("svg");
       if (!svg) return;
-      const rect = svg.getBoundingClientRect();
+      const rect = schematicViewportRect(svg);
       const point = eventPointToSvg(svg, sample);
       setCompareTransform(sample.side, getSteppedZoomedTransform(
         state.compare.transforms[sample.side],
@@ -141,7 +142,7 @@ export function createCompareCanvasController({ state, elements, services }) {
     }
     const svg = getSvg();
     if (!svg) return;
-    const rect = svg.getBoundingClientRect();
+    const rect = schematicViewportRect(svg);
     const point = eventPointToSvg(svg, sample);
     services.setSingleTransform(getSteppedZoomedTransform(
       state.transform,
@@ -202,14 +203,14 @@ export function createCompareCanvasController({ state, elements, services }) {
       const mount = side === "left" ? elements.leftMount : elements.rightMount;
       const content = mount.querySelector(".schematic-content");
       if (!content) continue;
-      const { x, y, scale } = state.compare.transforms[side];
-      content.setAttribute("transform", formatViewportTransform({ x, y, scale }));
+      const { scale } = state.compare.transforms[side];
+      paintSchematicViewport(content, state.compare.transforms[side]);
       mount.closest(".compare-side")?.classList.toggle("is-low-detail", scale < 0.65);
     }
   }
 
   function eventPointToSvg(svg, event) {
-    const rect = svg.getBoundingClientRect();
+    const rect = schematicViewportRect(svg);
     return clientPointToViewBox(
       { x: event.clientX, y: event.clientY },
       rect,

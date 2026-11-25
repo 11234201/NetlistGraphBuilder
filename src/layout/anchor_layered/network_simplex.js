@@ -115,39 +115,58 @@ function initialDivergence(ids, edges) {
   return divergence;
 }
 
-function treeState(ids, baseDivergence, tree, edgeCount) {
-  // IDs are sorted ordinals supplied by optimizeIndexedRanks, including gaps
-  // left by peeling. Float64 stores their full numeric range without coercion.
-  const capacity=ids.at(-1)+1;
-  const incident=Array.from({length:capacity},()=>[]);
-  for(const edge of tree.values()){
-    incident[edge.sourceNodeId].push(edge);incident[edge.targetNodeId].push(edge);
-  }
-  const parent=new Float64Array(capacity).fill(-1),parentEdge=[],order=[],index=new Float64Array(capacity);
-  const stack = [ids[0]]; parent[ids[0]]=-2;
-  while (stack.length) {
-    const id = stack.pop(); index[id]=order.length; order.push(id);
-    for (let i = incident[id].length - 1; i >= 0; i--) {
-      const edge = incident[id][i], child = otherEnd(edge, id);
-      if(child===parent[id])continue;
-      if (parent[child]!==-1) throw new PhaseError('p2', 'tree-cycle');
-      parent[child]=id; parentEdge[child]=edge; stack.push(child);
+function createTreeState(ids, baseDivergence, tree, edgeCount) {
+  const capacity = ids.at(-1) + 1;
+  const incident = Array.from({ length: capacity }, () => []);
+  const connect = (edge) => {
+    incident[edge.sourceNodeId].push(edge);
+    incident[edge.targetNodeId].push(edge);
+  };
+  for (const edge of tree.values()) connect(edge);
+  const parent = new Int32Array(capacity), parentEdge = new Array(capacity);
+  const index = new Int32Array(capacity), size = new Int32Array(capacity);
+  const initial = new Float64Array(capacity), divergence = new Float64Array(capacity);
+  for (const [id, value] of baseDivergence) initial[id] = value;
+  const childByEdge = new Int32Array(edgeCount), cuts = new Map();
+  const stack = [], order = [];
+  function rebuild(leaving, entering) {
+    if (leaving) {
+      for (const id of [leaving.sourceNodeId, leaving.targetNodeId]) {
+        incident[id].splice(incident[id].indexOf(leaving), 1);
+      }
+      connect(entering);
+      cuts.delete(leaving.id);
+    }
+    parent.fill(-1);
+    parent[ids[0]] = -2;
+    order.length = 0;
+    stack.push(ids[0]);
+    while (stack.length) {
+      const id = stack.pop();
+      index[id] = order.length;
+      order.push(id);
+      for (let i = incident[id].length - 1; i >= 0; i--) {
+        const edge = incident[id][i], child = otherEnd(edge, id);
+        if (child === parent[id]) continue;
+        if (parent[child] !== -1) throw new PhaseError('p2', 'tree-cycle');
+        parent[child] = id;
+        parentEdge[child] = edge;
+        stack.push(child);
+      }
+    }
+    if (order.length !== ids.length) throw new PhaseError('p2', 'tree-not-spanning');
+    divergence.set(initial);
+    size.fill(1);
+    for (let i = order.length - 1; i > 0; i--) {
+      const id = order[i], edge = parentEdge[id], p = parent[id];
+      cuts.set(edge.id, edge.targetNodeId === id ? divergence[id] : -divergence[id]);
+      childByEdge[edge.id] = id;
+      size[p] += size[id];
+      divergence[p] += divergence[id];
     }
   }
-  if (order.length !== ids.length) throw new PhaseError('p2', 'tree-not-spanning');
-  // Edge weights and reduced topology are constant across pivots. Copy their
-  // original ordered sum; subtree accumulation still uses the exact DFS order.
-  const divergence = new Float64Array(capacity);
-  for(const [id,value] of baseDivergence)divergence[id]=value;
-  const size = new Float64Array(capacity).fill(1), cuts = new Map(), childByEdge = new Float64Array(edgeCount);
-  for (let i = order.length - 1; i > 0; i--) {
-    const id = order[i], edge = parentEdge[id], p = parent[id];
-    cuts.set(edge.id, edge.targetNodeId === id ? divergence[id] : -divergence[id]);
-    childByEdge[edge.id]=id;
-    size[p]+=size[id];
-    divergence[p]+=divergence[id];
-  }
-  return { cuts, inHead: (id, edge) => {
+  rebuild();
+  return { cuts, rebuild, inHead(id, edge) {
     const child = childByEdge[edge.id];
     const inSubtree = index[id] >= index[child] && index[id] < index[child] + size[child];
     return edge.targetNodeId === child ? inSubtree : !inSubtree;
@@ -188,26 +207,32 @@ function optimizeIndexedRanks(nodeIds, componentEdges, options, previousProfile 
   const iterationLimit = options.thoroughness * 4 * Math.floor(Math.sqrt(ids.length));
   const pivots = [];
   const baseDivergence = initialDivergence(reduced.ids, reduced.edges);
-  let state = treeState(reduced.ids, baseDivergence, tree, edges.length);
+  const state = createTreeState(reduced.ids, baseDivergence, tree, edges.length);
   while (true) {
     checkCancelled(signal);
-    const leaving = [...tree.values()].find((edge) => state.cuts.get(edge.id) < NEGATIVE_CUT_TOLERANCE);
+    let leaving;
+    for (const edge of tree.values()) {
+      if (state.cuts.get(edge.id) < NEGATIVE_CUT_TOLERANCE) { leaving = edge; break; }
+    }
     if (!leaving) break;
     // Like the pinned upstream bounded loop, retain the feasible tight-tree
     // solution at the budget. Do not claim optimality while negative cuts remain.
     if (pivots.length >= iterationLimit) break;
     let entering = null, minimum = Infinity;
-    for (const edge of reduced.edges) if (!tree.has(edge.id)
-      && state.inHead(edge.sourceNodeId, leaving) && !state.inHead(edge.targetNodeId, leaving)) {
+    // Only the leaving tree edge crosses this cut, and it points into the head.
+    // Every edge going from head to tail is already outside the tree.
+    for (const edge of reduced.edges) if (state.inHead(edge.sourceNodeId, leaving) && !state.inHead(edge.targetNodeId, leaving)) {
       const value = slack(edge, ranks);
       if (value < minimum) { entering = edge; minimum = value; }
     }
     if (!entering) throw new PhaseError('p2', 'negative-cut-without-entering-edge', [leaving.id]);
-    for (const id of reduced.ids) if (state.inHead(id, leaving)) ranks.set(id, ranks.get(id) + minimum);
+    if (minimum !== 0) for (const id of reduced.ids) {
+      if (state.inHead(id, leaving)) ranks.set(id, ranks.get(id) + minimum);
+    }
     pivots.push({ leaveEdgeId: leaving.id, enterEdgeId: entering.id,
       cutValue: state.cuts.get(leaving.id), shift: minimum });
     tree.delete(leaving.id); tree.set(entering.id, entering);
-    state = treeState(reduced.ids, baseDivergence, tree, edges.length);
+    state.rebuild(leaving, entering);
   }
   const balancingOrder = [...reduced.ids];
   for (const { nodeId, neighborId, edge } of [...reduced.peeled].reverse()) {
