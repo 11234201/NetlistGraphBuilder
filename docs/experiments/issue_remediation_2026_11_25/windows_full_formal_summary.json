@@ -1,0 +1,1119 @@
+{
+  "date": "2026-11-25",
+  "platform": "Windows x64",
+  "measurementVersion": 2,
+  "runner": "tests/e2e/frontend_interaction_performance.mjs",
+  "provider": "native-layered",
+  "method": "Same Windows Chrome, viewport and fixture, one unreported warmup then five measured rounds per scenario for each snapshot. Baseline and candidate series ran serially. Every round contains 20 real clicks and at least 3000 ms each of wheel and pan input.",
+  "statistics": "frameP95MedianMs is the median of five per-round active-frame P95s. finalRecoveryP95Ms is nearest-rank P95 over the five completed final-input recovery proxies. Blocking is the sum of long-task duration beyond 50ms during each gesture.",
+  "series": {
+    "baseline": {
+      "rawReportSha256": "488185f3abb88a951c7d1762e07528da9a0bcd289f2df41ab7604a910c1d1afa",
+      "rawReport": "dc_runs/remediation_geometry/windows_before/dc_runs/formal/report.json",
+      "browser": "157.0.8103.51",
+      "scenarios": {
+        "netlist_1024": {
+          "nodes": 1026,
+          "edges": 1025,
+          "domElements": 15376,
+          "viewBox": "0 0 213304 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "ca81a9f19ef71098e2c2cb745c44a670359fc7ac74db4c66ebe7c3f7bf3443de",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 42.5,
+              "zoom": {
+                "frameP95Ms": 11.7,
+                "finalRecoveryMs": 127.8,
+                "fromLastInputMs": 279.8,
+                "blockingMs": 0,
+                "maxInputGapMs": 63.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 29.4,
+                "finalRecoveryMs": 81.7,
+                "fromLastInputMs": 82.1,
+                "blockingMs": 0,
+                "maxInputGapMs": 65.5,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 39.5,
+              "zoom": {
+                "frameP95Ms": 11.8,
+                "finalRecoveryMs": 146.2,
+                "fromLastInputMs": 303,
+                "blockingMs": 0,
+                "maxInputGapMs": 73.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 41.1,
+                "finalRecoveryMs": 90.8,
+                "fromLastInputMs": 91.6,
+                "blockingMs": 1,
+                "maxInputGapMs": 69,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 45.1,
+              "zoom": {
+                "frameP95Ms": 6.5,
+                "finalRecoveryMs": 134.9,
+                "fromLastInputMs": 284.6,
+                "blockingMs": 0,
+                "maxInputGapMs": 70.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 35.2,
+                "finalRecoveryMs": 134.5,
+                "fromLastInputMs": 134.9,
+                "blockingMs": 15,
+                "maxInputGapMs": 77.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 42.1,
+              "zoom": {
+                "frameP95Ms": 11.8,
+                "finalRecoveryMs": 159.8,
+                "fromLastInputMs": 311.6,
+                "blockingMs": 0,
+                "maxInputGapMs": 64,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 30.5,
+                "finalRecoveryMs": 71,
+                "fromLastInputMs": 71.3,
+                "blockingMs": 0,
+                "maxInputGapMs": 88.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 43.2,
+              "zoom": {
+                "frameP95Ms": 11.8,
+                "finalRecoveryMs": 161.6,
+                "fromLastInputMs": 318.4,
+                "blockingMs": 0,
+                "maxInputGapMs": 71.2,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 29.4,
+                "finalRecoveryMs": 79.1,
+                "fromLastInputMs": 79.5,
+                "blockingMs": 0,
+                "maxInputGapMs": 73,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 42.5,
+            "zoom": {
+              "frameP95MedianMs": 11.8,
+              "finalRecoveryP95Ms": 161.6,
+              "finalRecoveryMedianMs": 146.2,
+              "fromLastInputMedianMs": 303,
+              "blockingMedianMs": 0
+            },
+            "pan": {
+              "frameP95MedianMs": 30.5,
+              "finalRecoveryP95Ms": 134.5,
+              "finalRecoveryMedianMs": 81.7,
+              "fromLastInputMedianMs": 82.1,
+              "blockingMedianMs": 0
+            }
+          }
+        },
+        "netlist_4096": {
+          "nodes": 4098,
+          "edges": 4097,
+          "domElements": 61456,
+          "viewBox": "0 0 852280 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "4d66d0046f661c9db1a5a25b933e816d72db66cb771a2d7df4fd88ee6778e536",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 134.3,
+              "zoom": {
+                "frameP95Ms": 164.7,
+                "finalRecoveryMs": 586.6,
+                "fromLastInputMs": 944.2,
+                "blockingMs": 1461,
+                "maxInputGapMs": 855.2,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 105.9,
+                "finalRecoveryMs": 287.2,
+                "fromLastInputMs": 287.5,
+                "blockingMs": 169,
+                "maxInputGapMs": 237.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 133,
+              "zoom": {
+                "frameP95Ms": 100,
+                "finalRecoveryMs": 682.6,
+                "fromLastInputMs": 872.9,
+                "blockingMs": 142,
+                "maxInputGapMs": 250,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 129.4,
+                "finalRecoveryMs": 349,
+                "fromLastInputMs": 350.2,
+                "blockingMs": 271,
+                "maxInputGapMs": 291.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 176.1,
+              "zoom": {
+                "frameP95Ms": 111.8,
+                "finalRecoveryMs": 568.8,
+                "fromLastInputMs": 755.6,
+                "blockingMs": 77,
+                "maxInputGapMs": 276.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 129.2,
+                "finalRecoveryMs": 338.7,
+                "fromLastInputMs": 339.1,
+                "blockingMs": 233,
+                "maxInputGapMs": 256.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 174.7,
+              "zoom": {
+                "frameP95Ms": 88.2,
+                "finalRecoveryMs": 590.7,
+                "fromLastInputMs": 806.6,
+                "blockingMs": 92,
+                "maxInputGapMs": 257.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 117.8,
+                "finalRecoveryMs": 343.4,
+                "fromLastInputMs": 343.6,
+                "blockingMs": 220,
+                "maxInputGapMs": 249.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 137.3,
+              "zoom": {
+                "frameP95Ms": 94,
+                "finalRecoveryMs": 548,
+                "fromLastInputMs": 740.3,
+                "blockingMs": 105,
+                "maxInputGapMs": 258.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 111.8,
+                "finalRecoveryMs": 309.4,
+                "fromLastInputMs": 309.8,
+                "blockingMs": 247,
+                "maxInputGapMs": 298.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 137.3,
+            "zoom": {
+              "frameP95MedianMs": 100,
+              "finalRecoveryP95Ms": 682.6,
+              "finalRecoveryMedianMs": 586.6,
+              "fromLastInputMedianMs": 806.6,
+              "blockingMedianMs": 105
+            },
+            "pan": {
+              "frameP95MedianMs": 117.8,
+              "finalRecoveryP95Ms": 349,
+              "finalRecoveryMedianMs": 338.7,
+              "fromLastInputMedianMs": 339.1,
+              "blockingMedianMs": 233
+            }
+          }
+        }
+      },
+      "snapshotSha256": "e5acdd837b9a13a70c16c5228f79dbde9fff08b3bf4b133c3d326328fbb748c2",
+      "snapshotFiles": 399
+    },
+    "candidate": {
+      "rawReportSha256": "9ee7dcf1b51665907d4e6f70291b11c03eaf02d36bff8a470412551f1b55a0a9",
+      "rawReport": "dc_runs/remediation_geometry/windows_weak_cache/dc_runs/formal/report.json",
+      "browser": "157.0.8103.51",
+      "scenarios": {
+        "netlist_1024": {
+          "nodes": 1026,
+          "edges": 1025,
+          "domElements": 15376,
+          "viewBox": "0 0 213304 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "ca81a9f19ef71098e2c2cb745c44a670359fc7ac74db4c66ebe7c3f7bf3443de",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 40,
+              "zoom": {
+                "frameP95Ms": 6.2,
+                "finalRecoveryMs": 10.3,
+                "fromLastInputMs": 166.1,
+                "blockingMs": 0,
+                "maxInputGapMs": 92,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 10.8,
+                "fromLastInputMs": 11.3,
+                "blockingMs": 0,
+                "maxInputGapMs": 46.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 31,
+              "zoom": {
+                "frameP95Ms": 6.2,
+                "finalRecoveryMs": 11.8,
+                "fromLastInputMs": 169.4,
+                "blockingMs": 0,
+                "maxInputGapMs": 112.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 9.7,
+                "fromLastInputMs": 10.5,
+                "blockingMs": 0,
+                "maxInputGapMs": 47.2,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 33.2,
+              "zoom": {
+                "frameP95Ms": 6.7,
+                "finalRecoveryMs": 13.2,
+                "fromLastInputMs": 162.9,
+                "blockingMs": 0,
+                "maxInputGapMs": 105.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 8.4,
+                "fromLastInputMs": 8.9,
+                "blockingMs": 0,
+                "maxInputGapMs": 45.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 36.7,
+              "zoom": {
+                "frameP95Ms": 6.3,
+                "finalRecoveryMs": 12.1,
+                "fromLastInputMs": 166.7,
+                "blockingMs": 0,
+                "maxInputGapMs": 96.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 15.6,
+                "fromLastInputMs": 16.2,
+                "blockingMs": 0,
+                "maxInputGapMs": 47.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 45.4,
+              "zoom": {
+                "frameP95Ms": 11.2,
+                "finalRecoveryMs": 10.8,
+                "fromLastInputMs": 162.7,
+                "blockingMs": 0,
+                "maxInputGapMs": 119.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 15.2,
+                "fromLastInputMs": 16,
+                "blockingMs": 0,
+                "maxInputGapMs": 41.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 36.7,
+            "zoom": {
+              "frameP95MedianMs": 6.3,
+              "finalRecoveryP95Ms": 13.2,
+              "finalRecoveryMedianMs": 11.8,
+              "fromLastInputMedianMs": 166.1,
+              "blockingMedianMs": 0
+            },
+            "pan": {
+              "frameP95MedianMs": 6.1,
+              "finalRecoveryP95Ms": 15.6,
+              "finalRecoveryMedianMs": 10.8,
+              "fromLastInputMedianMs": 11.3,
+              "blockingMedianMs": 0
+            }
+          }
+        },
+        "netlist_4096": {
+          "nodes": 4098,
+          "edges": 4097,
+          "domElements": 61456,
+          "viewBox": "0 0 852280 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "4d66d0046f661c9db1a5a25b933e816d72db66cb771a2d7df4fd88ee6778e536",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 118.1,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 9.6,
+                "fromLastInputMs": 173.2,
+                "blockingMs": 9,
+                "maxInputGapMs": 370.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 44.3,
+                "fromLastInputMs": 45.5,
+                "blockingMs": 0,
+                "maxInputGapMs": 64.2,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 150.7,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 11.8,
+                "fromLastInputMs": 172.5,
+                "blockingMs": 42,
+                "maxInputGapMs": 366.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 65.2,
+                "fromLastInputMs": 67.4,
+                "blockingMs": 16,
+                "maxInputGapMs": 71.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 126.7,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 12,
+                "fromLastInputMs": 176.3,
+                "blockingMs": 8,
+                "maxInputGapMs": 343.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 53.7,
+                "fromLastInputMs": 54.8,
+                "blockingMs": 4,
+                "maxInputGapMs": 77.4,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 122.7,
+              "zoom": {
+                "frameP95Ms": 41.5,
+                "finalRecoveryMs": 9.7,
+                "fromLastInputMs": 167.8,
+                "blockingMs": 48,
+                "maxInputGapMs": 374.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 42.2,
+                "fromLastInputMs": 43.1,
+                "blockingMs": 0,
+                "maxInputGapMs": 76.6,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 113.7,
+              "zoom": {
+                "frameP95Ms": 29.6,
+                "finalRecoveryMs": 10.5,
+                "fromLastInputMs": 174.8,
+                "blockingMs": 40,
+                "maxInputGapMs": 341.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 36.3,
+                "fromLastInputMs": 37.6,
+                "blockingMs": 0,
+                "maxInputGapMs": 53,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 122.7,
+            "zoom": {
+              "frameP95MedianMs": 35.3,
+              "finalRecoveryP95Ms": 12,
+              "finalRecoveryMedianMs": 10.5,
+              "fromLastInputMedianMs": 173.2,
+              "blockingMedianMs": 40
+            },
+            "pan": {
+              "frameP95MedianMs": 6,
+              "finalRecoveryP95Ms": 65.2,
+              "finalRecoveryMedianMs": 44.3,
+              "fromLastInputMedianMs": 45.5,
+              "blockingMedianMs": 0
+            }
+          }
+        }
+      },
+      "snapshotSha256": "b832dc70910fb89b476e9016056ba5d45a2c9daf0ad1ab607cd932276b6d24e7",
+      "snapshotFiles": 420
+    }
+  },
+  "finalTreeVerification": {
+    "runtimeCommit": "9ce8341",
+    "srcGitTree": "8c50843d92cae3b40787e32b584297de849e5c73",
+    "method": "Direct Windows rerun of both scenarios after the bounded weak native full-graph cache landed. The runner, observer and product sources used for this rerun match this runtime commit after line-ending normalization. Both Windows reports use the original unmodified baseline. The separate Chromium mount check also confirmed byte-identical SVGs between the previous and final candidates.",
+    "timedOperations": [
+      "node selection click",
+      "wheel zoom",
+      "blank-canvas pan"
+    ],
+    "mountedSvgComparisons": {
+      "netlist_1024": {
+        "nodes": 1026,
+        "edges": 1025,
+        "domElements": 15376,
+        "bytes": 1424918,
+        "viewBox": "0 0 213304 420",
+        "svgSha256": "837dbe1284a38a68dbe6519c2609b191954fd2655e29b6f9c902a579418350e7",
+        "geometrySha256": "c329c93ba3ea0e1725b7d68291b1b3572b2beb0ac91d69a0fdf21c558eada013"
+      },
+      "netlist_4096": {
+        "nodes": 4098,
+        "edges": 4097,
+        "domElements": 61456,
+        "bytes": 5790230,
+        "viewBox": "0 0 852280 420",
+        "svgSha256": "52a5a05c5b59dcd3a328ddb3908df5cfc650723a973f815d2e0a42d36a2dfd25",
+        "geometrySha256": "3db47e56379cb7f74265930b01a977c8cc2d9ed4cb2663e607aff275fecda3ac"
+      }
+    }
+  },
+  "historicalCandidate": {
+    "series": {
+      "rawReportSha256": "66033da4fd6c7cf93ae38a830a02e4b6a389757469ee86612923dfd04828754c",
+      "rawReport": "dc_runs/remediation_geometry/windows_formal/dc_runs/paint_confirm_formal/report.json",
+      "browser": "157.0.8103.51",
+      "scenarios": {
+        "netlist_1024": {
+          "nodes": 1026,
+          "edges": 1025,
+          "domElements": 15376,
+          "viewBox": "0 0 213304 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "ca81a9f19ef71098e2c2cb745c44a670359fc7ac74db4c66ebe7c3f7bf3443de",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 38.1,
+              "zoom": {
+                "frameP95Ms": 6.2,
+                "finalRecoveryMs": 7.9,
+                "fromLastInputMs": 170.4,
+                "blockingMs": 0,
+                "maxInputGapMs": 102.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 8.7,
+                "fromLastInputMs": 9.2,
+                "blockingMs": 0,
+                "maxInputGapMs": 47.6,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 37,
+              "zoom": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 11.5,
+                "fromLastInputMs": 167,
+                "blockingMs": 0,
+                "maxInputGapMs": 102.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 11.3,
+                "fromLastInputMs": 11.8,
+                "blockingMs": 0,
+                "maxInputGapMs": 47.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 38.5,
+              "zoom": {
+                "frameP95Ms": 6.4,
+                "finalRecoveryMs": 11.4,
+                "fromLastInputMs": 163.7,
+                "blockingMs": 0,
+                "maxInputGapMs": 111.6,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 12.1,
+                "fromLastInputMs": 12.5,
+                "blockingMs": 0,
+                "maxInputGapMs": 47,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 37.8,
+              "zoom": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 11.6,
+                "fromLastInputMs": 173.8,
+                "blockingMs": 0,
+                "maxInputGapMs": 90.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 11.4,
+                "fromLastInputMs": 12,
+                "blockingMs": 0,
+                "maxInputGapMs": 46.3,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 34.8,
+              "zoom": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 9.9,
+                "fromLastInputMs": 168.6,
+                "blockingMs": 0,
+                "maxInputGapMs": 118.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 14.4,
+                "fromLastInputMs": 15.1,
+                "blockingMs": 0,
+                "maxInputGapMs": 46.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 37.8,
+            "zoom": {
+              "frameP95MedianMs": 6.1,
+              "finalRecoveryP95Ms": 11.6,
+              "finalRecoveryMedianMs": 11.4,
+              "fromLastInputMedianMs": 168.6,
+              "blockingMedianMs": 0
+            },
+            "pan": {
+              "frameP95MedianMs": 6,
+              "finalRecoveryP95Ms": 14.4,
+              "finalRecoveryMedianMs": 11.4,
+              "fromLastInputMedianMs": 12,
+              "blockingMedianMs": 0
+            }
+          }
+        },
+        "netlist_4096": {
+          "nodes": 4098,
+          "edges": 4097,
+          "domElements": 61456,
+          "viewBox": "0 0 852280 420",
+          "canvas": {
+            "width": 1114,
+            "height": 788
+          },
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "devicePixelRatio": 1
+          },
+          "sourceSha256": "4d66d0046f661c9db1a5a25b933e816d72db66cb771a2d7df4fd88ee6778e536",
+          "panels": {
+            "inspector": "true",
+            "navigator": "false"
+          },
+          "rounds": [
+            {
+              "run": 1,
+              "selectionP95Ms": 131.4,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 9.6,
+                "fromLastInputMs": 173.5,
+                "blockingMs": 30,
+                "maxInputGapMs": 369.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 53.7,
+                "fromLastInputMs": 55.2,
+                "blockingMs": 4,
+                "maxInputGapMs": 66.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 2,
+              "selectionP95Ms": 140.4,
+              "zoom": {
+                "frameP95Ms": 29.6,
+                "finalRecoveryMs": 10.6,
+                "fromLastInputMs": 165.6,
+                "blockingMs": 21,
+                "maxInputGapMs": 361.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.3,
+                "finalRecoveryMs": 59.3,
+                "fromLastInputMs": 60.9,
+                "blockingMs": 10,
+                "maxInputGapMs": 81.7,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 3,
+              "selectionP95Ms": 151.7,
+              "zoom": {
+                "frameP95Ms": 41.2,
+                "finalRecoveryMs": 10.5,
+                "fromLastInputMs": 309.5,
+                "blockingMs": 11,
+                "maxInputGapMs": 364.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 46.8,
+                "fromLastInputMs": 49,
+                "blockingMs": 0,
+                "maxInputGapMs": 64.8,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 4,
+              "selectionP95Ms": 159.5,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 10.1,
+                "fromLastInputMs": 173.2,
+                "blockingMs": 48,
+                "maxInputGapMs": 397.6,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6,
+                "finalRecoveryMs": 53.1,
+                "fromLastInputMs": 54.3,
+                "blockingMs": 3,
+                "maxInputGapMs": 70.6,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            },
+            {
+              "run": 5,
+              "selectionP95Ms": 167,
+              "zoom": {
+                "frameP95Ms": 35.3,
+                "finalRecoveryMs": 11,
+                "fromLastInputMs": 273.2,
+                "blockingMs": 31,
+                "maxInputGapMs": 416.9,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              },
+              "pan": {
+                "frameP95Ms": 6.1,
+                "finalRecoveryMs": 51.7,
+                "fromLastInputMs": 53,
+                "blockingMs": 2,
+                "maxInputGapMs": 65.1,
+                "workerCalls": 0,
+                "svgReplacements": 0,
+                "savesDuringGesture": 0,
+                "savesBetweenInputs": 0
+              }
+            }
+          ],
+          "summary": {
+            "selectionP95MedianMs": 151.7,
+            "zoom": {
+              "frameP95MedianMs": 35.3,
+              "finalRecoveryP95Ms": 11,
+              "finalRecoveryMedianMs": 10.5,
+              "fromLastInputMedianMs": 173.5,
+              "blockingMedianMs": 30
+            },
+            "pan": {
+              "frameP95MedianMs": 6.1,
+              "finalRecoveryP95Ms": 59.3,
+              "finalRecoveryMedianMs": 53.1,
+              "fromLastInputMedianMs": 54.3,
+              "blockingMedianMs": 3
+            }
+          }
+        }
+      },
+      "snapshotSha256": "a7ba34e484b7a0e727aeffc340ced91eb16abe924cdbbfab983b0f3f5def4757",
+      "snapshotFiles": 419
+    },
+    "verification": {
+      "runtimeCommit": "2d89a15",
+      "srcGitTree": "9111a04e6ecf5f1a09058ce1c77b672b9ce1e0e6",
+      "method": "Both original Windows report and source-manifest SHA-256 values were recomputed. The following comparison used mounted SVGs in a separate Chromium run on Linux, with the original runner's Whole input, loading sequence and 1440 by 900 viewport. All mounted SVG bytes and geometry hashes matched between the measured candidate and final runtime.",
+      "timedOperations": [
+        "node selection click",
+        "wheel zoom",
+        "blank-canvas pan"
+      ],
+      "subsequentChanges": [
+        "wireRoutes.js and orthogonal_crossing_index.js changed the intersection search used while preparing physical wires before timing. Both scenarios produced identical full SVGs.",
+        "positionedRouting.js, localOrthogonalRouter.js and routeScoring.js changed manual node movement, which these three timed operations do not invoke. A separate 7-cell move comparison covered the default provider. Nine full-object comparisons on actual Simple layouts and moves matched the frozen baseline.",
+        "inspector_summary.js lost a trailing empty line. The benchmark runner, observer, gesture controllers, selection handlers, stylesheet and HTML matched after normalizing line endings. The benchmark uses the Node preview server independently of native release-packaging changes."
+      ],
+      "mountedSvgComparisons": {
+        "netlist_1024": {
+          "nodes": 1026,
+          "edges": 1025,
+          "domElements": 15376,
+          "bytes": 1424918,
+          "viewBox": "0 0 213304 420",
+          "svgSha256": "837dbe1284a38a68dbe6519c2609b191954fd2655e29b6f9c902a579418350e7",
+          "geometrySha256": "c329c93ba3ea0e1725b7d68291b1b3572b2beb0ac91d69a0fdf21c558eada013"
+        },
+        "netlist_4096": {
+          "nodes": 4098,
+          "edges": 4097,
+          "domElements": 61456,
+          "bytes": 5790230,
+          "viewBox": "0 0 852280 420",
+          "svgSha256": "52a5a05c5b59dcd3a328ddb3908df5cfc650723a973f815d2e0a42d36a2dfd25",
+          "geometrySha256": "3db47e56379cb7f74265930b01a977c8cc2d9ed4cb2663e607aff275fecda3ac"
+        }
+      }
+    }
+  }
+}
