@@ -6,7 +6,7 @@ import {tmpdir} from "node:os";
 import {createBroker, catalogue, parseCommand} from "../../tools/workbench_broker.mjs";
 import {createWorkbenchFiles} from "../../tools/workbench_files.mjs";
 import {privatePathGuard} from "../../tools/workbench_paths.mjs";
-import {workbenchCall} from "../../tools/workbench_ipc.mjs";
+import {linuxListenerInode, workbenchCall} from "../../tools/workbench_ipc.mjs";
 import {makeLauncherState, prepareLauncherState, writeLauncherState} from "../../tools/launcher-state.mjs";
 import {createAigCollection} from "../../src/app/aig_collection.js";
 import {createAigCollectionStorage} from "../../src/persistence/aig_collection_storage.js";
@@ -28,6 +28,18 @@ test("private state, lock, temporary files and session directories share canonic
   }
   const listing = await files.list(linked, "", 1);
   assert.equal(listing.entries.length, 0);
+});
+
+test("Linux control ownership follows the stream listener during concurrent requests", () => {
+  const path = "/private session/workbench.sock";
+  const accepted = "00000000: 00000003 00000000 00000000 0001 03 123 " + path;
+  const listener = "00000000: 00000002 00000000 00010000 0001 01 321 " + path;
+  for (const rows of [[accepted, listener], [listener, accepted]]) {
+    assert.equal(linuxListenerInode(rows.join("\n"), path), "321");
+  }
+  assert.equal(linuxListenerInode(accepted, path), null);
+  assert.equal(linuxListenerInode(listener, path + ".old"), null);
+  assert.equal(linuxListenerInode(listener + "\n" + listener.replace("321", "456"), path), null);
 });
 
 test("control calls require an expected PID and shutdown refuses new jobs", async () => {

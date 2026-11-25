@@ -56,6 +56,18 @@ export async function createControlServer(directory, dispatch) {
     identity === String(process.pid) ? key : null}, dispatch);
 }
 
+// Linux lists accepted stream sockets under the same pathname as their listener.
+export function linuxListenerInode(table, control) {
+  let found = null;
+  for (const line of table.split("\n")) {
+    const row = /^\S+:\s+\S+\s+\S+\s+00010000\s+0001\s+01\s+(\d+)\s+(.+)$/.exec(line);
+    if (row?.[2] !== control) continue;
+    if (found !== null) return null;
+    found = row[1];
+  }
+  return found;
+}
+
 async function verifyUnixSocket(state) {
   const dir = await lstat(dirname(state.control));
   const socket = await lstat(state.control);
@@ -69,8 +81,7 @@ async function verifyUnixSocket(state) {
   }
   if (process.platform !== "linux") throw mismatch();
   const unix = await readFile("/proc/net/unix","utf8");
-  const inode = unix.split("\n").map(line => /^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s+(.+)$/.exec(line.trim()))
-    .find(row => row?.[2] === state.control)?.[1];
+  const inode = linuxListenerInode(unix, state.control);
   if (!inode) throw mismatch();
   const folder = "/proc/" + state.pid + "/fd";
   const targets = await Promise.all((await readdir(folder)).map(fd => readlink(join(folder,fd)).catch(() => "")));
