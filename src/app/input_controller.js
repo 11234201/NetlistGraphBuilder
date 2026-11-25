@@ -13,6 +13,7 @@ import {
   resetDesignWorkspace,
   normalizeFocusedRootNodeIds
 } from "./appState.js";
+import { logDesignDiagnostics } from "./design_diagnostics.js";
 import { importDesignSource } from "./designInput.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
@@ -219,10 +220,7 @@ export function createInputController({ state, elements, services, restoreCompar
         module.name === restore.moduleName || module.displayName === restore.moduleName)) {
         throw new Error(`Startup module not found: ${restore.moduleName}`);
       }
-      services.logProcess("info", "parse", `Parsed ${design.modules.length} module(s)`, {
-        label: effectiveLabel, append: canAppend, compareSide,
-        fileCount: nextSourceFiles.length, diagnostics: design.diagnostics?.length || 0
-      });
+      logDesignDiagnostics(emitImportLog, design, effectiveLabel, nextSourceFiles.length, compareSide, canAppend);
 
       const prevCurrentSnapshot = snapshotModuleIdentity(state.currentModule);
       const prevLeftSnapshot = snapshotModuleIdentity(

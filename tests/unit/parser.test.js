@@ -79,3 +79,23 @@ test("parser supports packed ranges in ANSI-style module headers", () => {
     ["y", "output", { msb: 0, lsb: 1, width: 2 }]
   ]);
 });
+
+test("structural attributes and escaped keywords preserve neighboring declarations and instances", () => {
+  const [module, next] = parseVerilog([
+    '(* note = "*)" *) module \\wire  #(parameter W=8)(input \\reg , (* keep *) output \\signed );',
+    '(* keep *) wire \\input ; (* keep *) assign \\input = \\reg ;',
+    '(* keep *) \\endmodule \\wire (.A(\\input ), .Y(\\signed ));',
+    'wire a = b, c; reg x; logic z; supply0 g; supply1 v;',
+    'BUF positional(\\reg , \\signed ); endmodule', 'module next(); endmodule'
+  ].join("\n")).modules;
+  assert.equal(next.name, "next");
+  assert.deepEqual(module.ports.map((port) => port.name), ["reg", "signed"]);
+  assert.equal(module.cells.length, 1);
+  assert.equal(module.cells[0].type, "endmodule");
+  assert.equal(module.assigns[0].lhs, "input");
+  assert.ok(module.nets.some((net) => net.name === "c"));
+  assert.ok(!module.nets.some((net) => net.name === "b"));
+  assert.deepEqual(module.diagnostics.map((d) => d.code), ["unsupported-parameter-list",
+    "unsupported-inline-assignment", ...Array(4).fill("unsupported-declaration"), "unsupported-positional-ports"]);
+  assert.ok(module.diagnostics.every((d) => d.moduleName === "wire" && d.span.line && d.span.column));
+});

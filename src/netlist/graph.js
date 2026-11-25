@@ -1,7 +1,7 @@
 import { LIBERTY_LIMITS } from "../contracts/liberty.js";
 import { inferPinDirection } from "../infer/defaultCellRules.js";
 import { resolveCellSemantics } from "../infer/cell_semantics.js";
-import { getNetDisplayName, getPortDisplayName, getPinNetReferences } from "./model.js";
+import { getNetDisplayName, getPortDisplayName, getPinNetReferences, isExpandableRange, vectorRangeDiagnostic } from "./model.js";
 import { isInvertingOutputGate } from "../infer/defaultCellRules.js";
 import { getPinConnectionEndpoints } from "./pin_connections.js";
 
@@ -15,6 +15,15 @@ export function buildSchematicGraph(module, options = {}) {
         ? [...options.moduleLibrary.values()]
         : [];
   const moduleByName = normalizeModuleLibrary(options.moduleLibrary || options.design?.modules);
+  const sameFileModules = new Map();
+  if (module.sourceFile) {
+    for (const item of moduleList) {
+      if (item.sourceFile !== module.sourceFile) continue;
+      for (const key of [item.name, item.originalName]) {
+        if (key && !sameFileModules.has(key)) sameFileModules.set(key, item);
+      }
+    }
+  }
   const cellConfig = options.cellConfig || null;
   const graph = {
     moduleName: module.name,
@@ -37,9 +46,10 @@ export function buildSchematicGraph(module, options = {}) {
   const loads = new Map();
   const netKindByName = new Map(module.nets.map((net) => [net.name, net.declaredKind]));
   const referencedNets = collectReferencedNets(module);
+  const knownLimitNets = new Set(graph.diagnostics.filter((d) => d.code === "vector-width-limit").map((d) => d.net));
   const expandedPortsByName = new Map(module.ports.map((port) => [
     port.name,
-    expandPortEndpoints(port, referencedNets)
+    expandPortEndpoints(port, referencedNets, graph, knownLimitNets)
   ]));
   const nodeIdentityGroups = buildNodeIdentityGroups(module, expandedPortsByName, referencedNets);
   const makeNodeId = (prefix, value) => makeCollisionAwareId(prefix, value, nodeIdentityGroups);
@@ -102,7 +112,7 @@ export function buildSchematicGraph(module, options = {}) {
   }
 
   for (const cell of module.cells) {
-    const referencedModule = resolveReferencedModule(cell.type, module, moduleByName, moduleList);
+    const referencedModule = sameFileModules.get(cell.type) || moduleByName.get(cell.type);
     const { kind: cellKind, pinDirections, libraryCell, diagnostics } = resolveCellSemantics(cell, {
       moduleDefinition: referencedModule, cellConfig, cellLibrary: options.cellLibrary,
       overrides: overrides.cellPinDirections[cell.instance] || {}
@@ -233,9 +243,13 @@ function collectReferencedNets(module) {
   ].filter(Boolean));
 }
 
-function expandPortEndpoints(port, referencedNets) {
+function expandPortEndpoints(port, referencedNets, graph, knownLimitNets) {
   const range = port.range;
-  if (!range || !Number.isInteger(range.msb) || !Number.isInteger(range.lsb)) {
+  if (!range) return [port];
+  if (!isExpandableRange(range.msb, range.lsb)) {
+    if (!knownLimitNets.has(port.name)) {
+      graph.diagnostics.push(vectorRangeDiagnostic(graph.moduleName, port.name, range.msb, range.lsb, port.span));
+    }
     return [port];
   }
 
@@ -298,17 +312,6 @@ function normalizeModuleLibrary(value) {
   if (value instanceof Map) return value;
   const modules = Array.isArray(value) ? value : value?.modules || [];
   return new Map(modules.map((item) => [item.name, item]));
-}
-
-function resolveReferencedModule(typeName, ownerModule, moduleByName, moduleList) {
-  if (ownerModule?.sourceFile && Array.isArray(moduleList)) {
-    const localMatch = moduleList.find((item) =>
-      item.sourceFile === ownerModule.sourceFile &&
-      (item.originalName === typeName || item.name === typeName)
-    );
-    if (localMatch) return localMatch;
-  }
-  return moduleByName.get(typeName) || null;
 }
 
 function collectNetAttributes(module) {

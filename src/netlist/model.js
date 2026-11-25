@@ -5,6 +5,12 @@
   };
 }
 
+export const MAX_VECTOR_WIDTH = 65536;
+
+export function isExpandableRange(msb, lsb) {
+  return Number.isSafeInteger(msb) && Number.isSafeInteger(lsb) && Math.abs(msb - lsb) < MAX_VECTOR_WIDTH;
+}
+
 const moduleIndexes = new WeakMap();
 
 export function createModule(name, displayName = name, span = null) {
@@ -73,35 +79,54 @@ export function ensureNet(module, name, displayName = name, declaredKind = "impl
 export function addCell(module, cell) {
   module.cells.push(cell);
   for (const pin of cell.pins) {
-    for (const reference of getPinNetReferences(pin)) {
-      ensureNet(module, reference.name, reference.displayName, reference.literal ? "literal" : "implicit");
+    const references = getPinNetReferences(pin, (reference, msb, lsb) => {
+      module.diagnostics.push(vectorRangeDiagnostic(module.name, reference.name, msb, lsb, cell.span));
+    });
+    for (const reference of references) {
+      const net = ensureNet(module, reference.name, reference.displayName, reference.literal ? "literal" : "implicit");
+      if (reference.escaped) net.escaped = true;
     }
   }
 }
 
-export function getPinNetReferences(pin) {
+export function vectorRangeDiagnostic(moduleName, name, msb, lsb, span) {
+  return { code: "vector-width-limit", severity: "warning", moduleName, net: name,
+    msb, lsb, span, ...span, message: `Unexpanded vector '${name}' exceeds the supported width or integer range` };
+}
+
+export function getPinNetReferences(pin, onInvalidRange) {
   if (!pin.connection) {
+    const escaped = pin.escaped ?? pin.netDisplayName?.startsWith("\\");
     return pin.net ? expandReference({
       name: pin.net,
       displayName: pin.netDisplayName || pin.net,
+      ...(escaped ? { escaped: true } : {}),
       ...(pin.netKind === "literal" ? { literal: true } : {})
-    }) : [];
+    }, onInvalidRange) : [];
   }
   const references = [];
   const visit = (connection) => {
-    if (connection.kind === "reference") references.push(...expandReference(connection));
-    else if (connection.kind === "concat") connection.items.forEach(visit);
+    if (connection.kind === "reference") {
+      for (const ref of expandReference(connection, onInvalidRange)) references.push(ref);
+    } else if (connection.kind === "concat") connection.items.forEach(visit);
   };
   visit(pin.connection);
   return references;
 }
 
-function expandReference(reference) {
+function expandReference(reference, onInvalidRange) {
+  if (reference.escaped) return [reference];
   const match = String(reference.name).match(/^(.*)\[(-?\d+):(-?\d+)\]$/);
   if (!match) return [reference];
   const [, base, msbText, lsbText] = match;
   const displayBase = String(reference.displayName || reference.name).replace(/\[(-?\d+):(-?\d+)\]$/, "");
-  const msb = Number(msbText), lsb = Number(lsbText), step = msb <= lsb ? 1 : -1;
+  const msb = Number(msbText);
+  const lsb = Number(lsbText);
+  const step = msb <= lsb ? 1 : -1;
+  if (!isExpandableRange(msb, lsb)) {
+    onInvalidRange?.(reference, msb, lsb);
+    return [reference];
+  }
   const result = [];
   for (let bit = msb; ; bit += step) {
     result.push({ ...reference, name: `${base}[${bit}]`, displayName: `${displayBase}[${bit}]` });

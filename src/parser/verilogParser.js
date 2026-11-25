@@ -5,21 +5,25 @@
   createDesign,
   createModule,
   ensureNet,
-  ensurePort
+  ensurePort,
+  isExpandableRange,
+  vectorRangeDiagnostic
 } from "../netlist/model.js";
 import { parseAttributeComment } from "./netlistAttributes.js";
 
-const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}"]);
+const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}", "#"]);
 const DECLARATION_QUALIFIERS = new Set(["wire", "reg", "logic", "signed", "supply0", "supply1"]);
 
 export function parseVerilog(source) {
   const attributeComments = [];
-  const tokens = tokenize(source, attributeComments);
+  const diagnostics = [];
+  const tokens = tokenize(source, attributeComments, diagnostics);
   const parser = new StructuralParser(tokens, attributeComments);
+  parser.design.diagnostics = diagnostics;
   return parser.parseDesign();
 }
 
-export function tokenize(source, attributeComments = null) {
+export function tokenize(source, attributeComments = null, diagnostics = null) {
   const tokens = [];
   let index = 0;
   let line = 1;
@@ -88,6 +92,38 @@ export function tokenize(source, attributeComments = null) {
     const startLine = line;
     const startColumn = column;
 
+    if (char === "(" && source[index + 1] === "*") {
+      advance();
+      advance();
+      let quoted = false;
+      let depth = 1;
+      while (depth && index < source.length) {
+        const c = advance();
+        if (quoted && c === "\\") {
+          if (index < source.length) advance();
+        } else if (c === '"') quoted = !quoted;
+        else if (!quoted && c === "(" && source[index] === "*") {
+          advance();
+          depth++;
+        } else if (!quoted && c === "*" && source[index] === ")") {
+          advance();
+          depth--;
+        } else if (!quoted && c === "/" && source[index] === "/") {
+          while (index < source.length && source[index] !== "\n") advance();
+        } else if (!quoted && c === "/" && source[index] === "*") {
+          advance();
+          while (index < source.length) {
+            if (advance() === "*" && source[index] === "/") { advance(); break; }
+          }
+        } else if (!quoted && c === "\\") {
+          while (index < source.length && !/\s/.test(source[index])) advance();
+        }
+      }
+      if (depth) diagnostics?.push({ severity: "error", code: "unterminated-attribute",
+        line: startLine, column: startColumn, message: "Unterminated Verilog attribute block" });
+      continue;
+    }
+
     if (PUNCTUATION.has(char)) {
       pushToken("punctuation", char, char, startLine, startColumn);
       advance();
@@ -153,7 +189,7 @@ class StructuralParser {
   constructor(tokens, attributeComments = []) {
     this.tokens = tokens;
     this.attributeComments = attributeComments;
-    this.lastModuleEndLine = 0;
+    this.commentIndex = 0;
     this.position = 0;
     this.design = createDesign();
   }
@@ -185,23 +221,28 @@ class StructuralParser {
       column: moduleToken.column
     });
 
+    if (this.matchValue("#")) {
+      const token = this.tokens[this.position - 1];
+      warn(module, token, "unsupported-parameter-list", "Module parameter values are not evaluated");
+      if (this.matchValue("(")) this.skipParenthesized();
+    }
     if (this.matchValue("(")) {
       let headerDirection = "unknown";
       let headerRange = null;
       while (!this.isEof() && !this.matchValue(")")) {
         const token = this.consume();
-        if (token.kind !== "identifier" || token.value === ",") continue;
-        if (token.value === "input" || token.value === "output" || token.value === "inout") {
+        if (token.kind !== "identifier") continue;
+        if (!token.escaped && ["input", "output", "inout"].includes(token.value)) {
           headerDirection = token.value;
           headerRange = null;
           continue;
         }
-        if (isRangeToken(token.value)) {
+        if (!token.escaped && isRangeToken(token.value)) {
           headerRange = parseRangeToken(token.value);
           continue;
         }
-        if (DECLARATION_QUALIFIERS.has(token.value)) continue;
-        ensurePort(module, token.value, token.displayName, headerDirection, headerRange);
+        if (!token.escaped && DECLARATION_QUALIFIERS.has(token.value)) continue;
+        declareSignal(module, token, headerDirection, headerRange);
       }
     }
     this.matchValue(";");
@@ -214,6 +255,9 @@ class StructuralParser {
         this.parseDeclaration(module, "wire");
       } else if (value === "assign") {
         this.parseAssign(module);
+      } else if (["reg", "logic", "supply0", "supply1"].includes(value)) {
+        warn(module, this.peek(), "unsupported-declaration", "Skipped unsupported " + value + " declaration");
+        this.skipStatement();
       } else if (this.isCellInstanceStart()) {
         this.parseCellInstance(module);
       } else {
@@ -221,13 +265,13 @@ class StructuralParser {
       }
     }
 
-    const scopeStartLine = this.lastModuleEndLine + 1;
     const moduleStartLine = moduleToken.line;
     const matchedEnd = this.matchValue("endmodule");
     const endToken = matchedEnd ? this.tokens[this.position - 1] : this.peek();
     const moduleEndLine = endToken?.line ?? moduleStartLine;
-    this.lastModuleEndLine = moduleEndLine;
-    bindModuleAttributeComments(module, this.attributeComments, scopeStartLine, moduleStartLine, moduleEndLine);
+    const firstComment = this.commentIndex;
+    while (this.attributeComments[this.commentIndex]?.entries[0]?.line <= moduleEndLine) this.commentIndex++;
+    bindModuleAttributeComments(module, this.attributeComments.slice(firstComment, this.commentIndex));
     return module;
   }
 
@@ -241,18 +285,24 @@ class StructuralParser {
       if (token.kind !== "identifier") {
         continue;
       }
-      if (isRangeToken(token.value)) {
+      if (!token.escaped && isRangeToken(token.value)) {
         range = parseRangeToken(token.value);
         continue;
       }
-      if (DECLARATION_QUALIFIERS.has(token.value)) {
+      if (!token.escaped && DECLARATION_QUALIFIERS.has(token.value)) {
         continue;
       }
 
-      if (direction) {
-        ensurePort(module, token.value, token.displayName, direction, range);
-      } else {
-        ensureNet(module, token.value, token.displayName, "wire", range);
+      declareSignal(module, token, direction, range);
+      if (this.matchValue("=")) {
+        warn(module, token, "unsupported-inline-assignment", "Skipped inline net initializer");
+        let depth = 0;
+        while (!this.isEof() && this.peekValue() !== ";" && (depth || this.peekValue() !== ",")) {
+          const value = this.peekValue();
+          this.consume();
+          if (value === "(" || value === "{") depth++;
+          if (value === ")" || value === "}") depth--;
+        }
       }
     }
   }
@@ -314,8 +364,9 @@ class StructuralParser {
         continue;
       }
       if (!this.matchValue(".")) {
-        this.consume();
-        continue;
+        warn(module, this.peek(), "unsupported-positional-ports", "Skipped instance with unsupported positional port connections");
+        this.skipParenthesized();
+        return;
       }
 
       const pinToken = this.expectIdentifier("pin name");
@@ -335,6 +386,7 @@ class StructuralParser {
         pinDisplayName: pinToken.displayName,
         net: connection?.kind === "reference" ? connection.name : "",
         netDisplayName: connection?.kind === "reference" ? connection.displayName : "",
+        ...(connection?.kind === "reference" && connection.displayName.startsWith("\\") ? { escaped: connection.escaped } : {}),
         ...(connection?.literal ? { netKind: "literal" } : {}),
         ...(connection && connection.kind !== "reference" ? { connection } : {})
       });
@@ -355,16 +407,16 @@ class StructuralParser {
     const tokens = [];
 
     while (!this.isEof()) {
-      const token = this.peek();
-      if (token.value === ")" && depth === 0) {
+      const value = this.peekValue();
+      if (value === ")" && depth === 0) {
         break;
       }
-      if (token.value === "(") {
+      if (value === "(") {
         depth += 1;
         tokens.push(this.consume());
         continue;
       }
-      if (token.value === ")") {
+      if (value === ")") {
         depth -= 1;
         tokens.push(this.consume());
         continue;
@@ -387,12 +439,22 @@ class StructuralParser {
     return (
       this.peek(0).kind === "identifier" &&
       this.peek(1).kind === "identifier" &&
-      this.peek(2).value === "("
+      this.peekValue(2) === "("
     );
   }
 
+  skipParenthesized() {
+    let depth = 1;
+    while (depth && !this.isEof() && this.peekValue() !== ";") {
+      const value = this.peekValue();
+      this.consume();
+      if (value === "(") depth++;
+      if (value === ")") depth--;
+    }
+  }
+
   skipStatement() {
-    this.skipUntilValue(";");
+    while (!this.isEof() && this.peekValue() !== ";" && this.peekValue() !== "endmodule") this.consume();
     this.matchValue(";");
   }
 
@@ -442,7 +504,8 @@ class StructuralParser {
   }
 
   peekValue(offset = 0) {
-    return this.peek(offset).value;
+    const token = this.peek(offset);
+    return token.escaped ? null : token.value;
   }
 
   consume() {
@@ -457,12 +520,12 @@ class StructuralParser {
 function parseConnectionTokens(tokens) {
   if (tokens.length === 0) return null;
   const first = tokens[0];
-  if (first.value === "{" && tokens.at(-1).value === "}") {
+  if (first.kind === "punctuation" && first.value === "{" && tokens.at(-1).kind === "punctuation" && tokens.at(-1).value === "}") {
     const items = [];
     let start = 1;
     let depth = 0;
     for (let index = 1; index < tokens.length - 1; index += 1) {
-      const value = tokens[index].value;
+      const value = tokens[index].escaped ? null : tokens[index].value;
       if (value === "{") depth += 1;
       if (value === "}") depth -= 1;
       if (value === "," && depth === 0) {
@@ -479,10 +542,10 @@ function parseConnectionTokens(tokens) {
   const isReference = first.escaped ||
     /^[A-Za-z_$][A-Za-z0-9_$]*(?:\[-?\d+(?::-?\d+)?\])?$/.test(first.value) || literal;
   if (first.kind === "identifier" && isReference && (tokens.length === 1 ||
-      (tokens.length === 2 && /^\[(-?\d+)(:-?\d+)?\]$/.test(tokens[1].value)))) {
+      (tokens.length === 2 && !tokens[1].escaped && /^\[(-?\d+)(:-?\d+)?\]$/.test(tokens[1].value)))) {
     const suffix = tokens[1]?.value || "";
     return { kind: "reference", name: first.value + suffix,
-      displayName: first.displayName + suffix, escaped: first.escaped,
+      displayName: first.displayName + suffix, escaped: first.escaped && !suffix,
       ...(literal ? { literal: true } : {}) };
   }
   return { kind: "unsupported", text: tokens.map((token) => token.raw).join(" ") };
@@ -509,14 +572,27 @@ function parseRangeToken(value) {
   };
 }
 
-function bindModuleAttributeComments(module, comments, scopeStartLine, moduleStartLine, moduleEndLine) {
-  if (!Array.isArray(comments) || comments.length === 0) return;
-  const scoped = comments.filter((item) => {
-    const line = item.entries[0]?.line;
-    return Number.isInteger(line) && line >= scopeStartLine && line <= moduleEndLine;
-  });
-  if (scoped.length === 0) return;
+function warn(module, token, code, message) {
+  const span = { line: token.line, column: token.column };
+  module.diagnostics.push({ severity: "warning", code, moduleName: module.name, message, ...span, span });
+}
 
+function declareSignal(module, token, direction, range) {
+  const entity = direction
+    ? ensurePort(module, token.value, token.displayName, direction, range)
+    : ensureNet(module, token.value, token.displayName, "wire", range);
+  if (token.escaped) {
+    entity.escaped = true;
+    if (direction) ensureNet(module, token.value).escaped = true;
+  }
+  if (range && !isExpandableRange(range.msb, range.lsb)) {
+    module.diagnostics.push(vectorRangeDiagnostic(module.name, token.value, range.msb, range.lsb,
+      { line: token.line, column: token.column }));
+  }
+}
+
+function bindModuleAttributeComments(module, scoped) {
+  if (!scoped.length) return;
   const portByName = new Map(module.ports.map((port) => [port.name, port]));
   const netByName = new Map(module.nets.map((net) => [net.name, net]));
   const cellByInstance = new Map(module.cells.map((cell) => [cell.instance, cell]));
@@ -554,10 +630,10 @@ function bindModuleAttributeComments(module, comments, scopeStartLine, moduleSta
           ? comment.entries.map((entry) => ({ ...entry, bitTarget: t.targetName }))
           : comment.entries;
         addEntityAttributes(net, entries);
-      } else if (t.baseName || t.bitBaseName) {
+      } else if (!t.isBitTarget && (t.baseName || t.bitBaseName)) {
         const base = t.baseName || t.bitBaseName;
         for (const candidate of module.nets) {
-          if (t.isBitTarget ? candidate.name === t.targetName : candidate.name.startsWith(`${base}[`)) {
+          if (candidate.name.startsWith(`${base}[`)) {
             addEntityAttributes(candidate, comment.entries);
           }
         }

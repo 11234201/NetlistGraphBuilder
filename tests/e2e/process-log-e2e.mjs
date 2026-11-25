@@ -98,10 +98,18 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   });
   await upload("#fileInput", "single-round.v", `
     module LocalDesign_1of1(input a, output y);
-      wire n; BUF u_seen (.A(a), .Z(n)); BUF u_missing (.A(n), .Z(y));
+      wire n; reg skipped; (* keep *) BUF u_seen (.A(a), .Z(n)); BUF u_missing (.A(n), .Z(y));
     endmodule
     module Peer(input a, output y); BUF u_peer (.A(a), .Z(y)); endmodule`);
   await page.locator('#schematicMount [data-node-id="cell:u_seen"]').first().waitFor();
+  await page.locator("#processLogPhaseFilter").selectOption("parse");
+  const partialRow = page.locator("#processLogList li").filter({ hasText: "Parsed 2 module(s)" }).last();
+  await partialRow.locator("summary").click();
+  const partial = JSON.parse(await partialRow.locator("details[open] pre").innerText());
+  assert.equal(partial.code, "netlist.parsed-with-warnings");
+  assert.equal(partial.fileName, "single-round.v");
+  assert.equal(partial.diagnosticExamples[0].code, "unsupported-declaration");
+  assert.equal(partial.diagnosticExamples[0].moduleName, "LocalDesign_1of1");
   await page.locator("#processLogPhaseFilter").selectOption("timing");
   await upload("#timingInput", "single-round.txt",
     "@module LocalDesign_1of1\npoint at rt slack\nu_seen/Z 2 1 -1\nu_typo/Z 2 1 -1\nu_missing/Z invalid-private-value 1 -1");
@@ -137,6 +145,8 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   let text = "";
   for await (const chunk of await download.createReadStream()) text += chunk.toString("utf8");
   const entries = text.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(entries.find((row) => row.details?.code === "netlist.parsed-with-warnings" &&
+    row.details.fileName === "single-round.v").details, partial);
   const timingMatches = entries.filter((entry) => entry.details?.operation === "timing.match");
   const inspected = entries.filter((entry) => entry.details?.operation === "timing.inspect-cell");
   assert.deepEqual(inspected.map((entry) => [entry.details.side, entry.details.evidence["parse-invalid-number"].line]),
