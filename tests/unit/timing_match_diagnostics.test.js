@@ -215,6 +215,80 @@ test("a large parent-scoped report retains every record without exceeding the ar
   assert.equal(summary.diagnostics.annotatedCellCount, 1);
 });
 
+test("ancestor-scoped JSON resolves slash-bearing instances from live and restored occurrence paths", () => {
+  const library = parseVerilog(String.raw`
+    module \Leaf/copy (input a, output z);
+      BUF \u/buf (.\A/in (a), .Z(z)); endmodule
+    module Other(input a, output z); BUF different (.A(a), .Z(z)); endmodule
+    module Wrapper(input a, output z);
+      Other cone (.a(a), .z(dummy)); \Leaf/copy \cone/block (.a(a), .z(z)); endmodule
+    module Local(input a, output z); Wrapper w (.a(a), .z(z)); endmodule
+    module Global(input a, output z); BUF w (.A(a), .Z(z)); endmodule`).modules;
+  const json = (module, points) => importTimingSource(JSON.stringify({ module, points }), { name: module + ".json" }).timing;
+  const point = String.raw`w/cone\/block/u\/buf/A\/in`;
+  const local = json("Local", {
+    [point]: { kind: "pin", slack: -2 },
+    [String.raw`Local/w/cone\/block/u\/buf/Z`]: { slack: -1 },
+    [String.raw`w/cone/block/u\/buf/Z`]: { slack: 1 },
+    [String.raw`w/other\/block/u\/buf/Z`]: { slack: -90 }
+  });
+  const timing = mergeImportedTiming(json("Global", { [point]: { slack: -99 } }), local);
+  const build = (path, report = timing) => buildWorkspaceGraph(library[0], { moduleLibrary: library,
+    timing: report, occurrenceRootModuleName: "Local", occurrencePath: path });
+  for (const path of [[], ["w", "cone/block"], ["w", String.raw`cone\/block`],
+    ["w", "cone", "block"], ["w", "cone\\", "block"]]) {
+    const graph = build(path);
+    const { matchedRecordCount, diagnostics } = graph.timingSummary;
+    assert.equal(matchedRecordCount, 3, JSON.stringify(path));
+    assert.equal(diagnostics.annotatedCellCount, 1);
+    assert.deepEqual(diagnostics.excludedReasons, { "no-occurrence-under-scope": 1, "occurrence-path-mismatch": 1 });
+    const pins = graph.nodes.find((node) => node.kind === "cell").timing.pins;
+    assert.equal(pins["A/in"].slack, -2);
+    assert.equal(pins.Z.slack, -1);
+  }
+  const rooted = json(undefined, { [String.raw`Local/w/cone\/block/u\/buf/A\/in`]: { slack: -3 } });
+  assert.equal(build(["w", "cone", "block"], rooted).timingSummary.matchedRecordCount, 1);
+  const relative = json("Wrapper", { [String.raw`cone\/block/u\/buf/Z`]: { slack: -4 } });
+  const relativeGraph = buildWorkspaceGraph(library[0], {
+    moduleLibrary: library, timing: relative, occurrencePath: ["cone", "block"]
+  });
+  assert.equal(relativeGraph.timingSummary.matchedRecordCount, 1);
+  const invalid = build(["w", "missing", "block"]);
+  const log = createProcessLog();
+  createTimingMatchReporter()((level, phase, message, details) => log.append({ level, phase, message, details }),
+    invalid, timing, { requestId: 7 });
+  const { details } = JSON.parse(log.toJsonLines());
+  assert.equal(details.code, "timing.no-applicable-records");
+  assert.equal(details.excludedReasons["no-occurrence-under-scope"], 5);
+  assert.equal(details.excludedExamples[0].point, point);
+  assert.equal(details.occurrencePath, "w/missing/block");
+  const stale = json(undefined, { [String.raw`Local/w/missing/block/u\/buf/Z`]: { slack: -5 } });
+  assert.equal(build(["w", "missing", "block"], stale).timingSummary.diagnostics.excludedReasons["root-path-mismatch"], 1);
+});
+
+test("a slash inside an instance is distinct from a real hierarchy boundary with the same spelling", () => {
+  const library = parseVerilog(String.raw`
+    module Leaf(input a, output z); BUF u (.A(a), .Z(z)); endmodule
+    module Mid(input a, output z); Leaf b (.a(a), .z(z)); endmodule
+    module Top(input a, output z, output y);
+      Leaf \a/b (.a(a), .z(z)); Mid a (.a(a), .z(y)); endmodule`).modules;
+  for (const scope of ["Top", undefined]) {
+    const timing = importTimingSource(JSON.stringify({ module: scope, points: {
+      [String.raw`a\/b/u/A`]: { slack: -1 }, "a/b/u/Z": { slack: -2 }
+    } })).timing;
+    const build = (path) => buildWorkspaceGraph(library[0], { moduleLibrary: library, timing,
+      occurrenceRootModuleName: "Top", occurrencePath: path });
+    for (const [path, pin] of [[["a/b"], "A"], [["a", "b"], "Z"]]) {
+      const graph = build(path);
+      assert.equal(graph.timingSummary.matchedRecordCount, 1);
+      assert.deepEqual(Object.keys(graph.nodes.find((n) => n.kind === "cell").timing.pins), [pin]);
+    }
+    const ambiguous = build([]).timingSummary;
+    assert.equal(ambiguous.matchedRecordCount, 0);
+    assert.equal(ambiguous.ambiguousOccurrenceCount, 2);
+  }
+});
+
 test("a module-local pin and an unscoped hierarchy pin resolve to one cell in either import order", () => {
   const local = table("Kernel", ["u1/A", "u2/Z"]);
   const rooted = importTimingSource("point at rt slack\n" + top + "/k/u1/Z 3 1 -2").timing;

@@ -233,6 +233,7 @@ u_add_0/A1      pin     f       0.098    0.065    0.728    0.717   -0.011
      - 沿 `assign` 连续赋值别名链向上游回溯，找到真正的非 `assign` 物理驱动源（`input` Port 或 `cell` 输出 Pin），将该 Net 的 Source 时序挂载至该驱动端（若驱动端已有显式 Pin/Port 时序记录，则显式记录优先，不覆盖）。
 4. **Verilog 转义标识符（Escaped Identifier）兼容**：
    - 遵循 Verilog-2001 规范，剥离前导 `\` 与末尾空白进行归一化比对，同时保留原始显示名称；在列式文本中若 `point` 自身含空格，可使用双引号 `"..."` 包裹。
+   - 层次路径中的 `\/` 表示实例名内的斜杠。例如，解码后的 point `w/cone\/block/u/Z` 指向 `w` 下名为 `cone/block` 的实例，模块内的时序点是 `u/Z`。JSON 字符串中写作 `"w/cone\\/block/u/Z"`。如果网表中同时存在 `cone → block` 两级实例，用 `w/cone/block/u/Z` 选择这条层次路径。
 
 ---
 

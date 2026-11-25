@@ -280,10 +280,10 @@ function createHierarchyTimingContext(graph, targetModuleName, options = {}) {
           ? knownModuleNames.has(suffix)
           : (!text.startsWith("\\") && /^[A-Za-z_][\w$]*(?:\s+\[[^\]]+\])?(?:\s+#\d+)?$/.test(suffix));
         if (isModuleSuffix) {
-          return normalizeHierarchicalName(text.slice(0, colonIndex));
+          return normalizeOccurrenceInstance(text.slice(0, colonIndex));
         }
       }
-      return normalizeHierarchicalName(text);
+      return normalizeOccurrenceInstance(text);
     })
     .filter(Boolean);
 
@@ -323,11 +323,12 @@ function selectModuleRecords(timing, context, diagnostics) {
   if (context.hasExplicitOccurrence && hierarchyIndex && context.currentMod) {
     const roots = context.selectedRoot ? [context.selectedRoot] : context.explicitRootModuleName
       ? findMatchingScopeModules(context.explicitRootModuleName, hierarchyIndex.modules) : hierarchyIndex.startModules;
-    const occurrences = roots.map((root) => traceOccurrence(root, context.explicitPathSegments, hierarchyIndex, context.currentMod)).filter(Boolean);
-    context = { ...context, occurrences };
+    const occurrences = traceExplicitOccurrences(roots, context, hierarchyIndex);
+    if (occurrences.length || (roots.length && context.explicitRootModuleName)) context = { ...context, occurrences };
     if (occurrences.length === 1) {
       context.explicitRootModuleName = occurrences[0].rootModuleName;
       diagnostics.details.occurrenceRoot = timingNameSample(context.explicitRootModuleName);
+      diagnostics.details.occurrencePath = timingNameSample(formatOccurrencePath(occurrences[0].pathSegments));
     }
   }
 
@@ -368,9 +369,8 @@ function selectModuleRecords(timing, context, diagnostics) {
     const selected = [];
     // Reports can describe one physical instance from different ancestors.
     // Normalize its identity only when the loaded hierarchy proves the path.
-    const occurrence = context.hasExplicitOccurrence
-      ? (context.occurrences?.length === 1 ? context.occurrences[0] : null)
-      : Object.keys(scopes).length > 1 && hierarchyIndex ? identifySharedOccurrence(context, hierarchyIndex, diagnostics) : null;
+    const occurrence = !context.hasExplicitOccurrence && Object.keys(scopes).length > 1 && hierarchyIndex
+      ? identifySharedOccurrence(context, hierarchyIndex, diagnostics) : null;
     for (const [scopeKey, scopeRecords] of Object.entries(scopes)) {
       if (!Array.isArray(scopeRecords) || scopeRecords.length === 0) continue;
       for (const item of filterRecordsForScope(scopeRecords, scopeKey, context, hierarchyIndex, diagnostics, occurrence)) selected.push(item);
@@ -388,18 +388,65 @@ function identifySharedOccurrence(context, hierarchyIndex, diagnostics) {
   return traceOccurrence(paths[0].rootMod, paths[0].pathSegments, hierarchyIndex, context.currentMod);
 }
 
-function traceOccurrence(rootMod, segments, hierarchyIndex, targetModule) {
-  const startByModule = new Map();
-  let mod = rootMod;
-  for (const [i, segment] of segments.entries()) {
-    if (!mod || startByModule.has(mod)) return null;
-    startByModule.set(mod, i);
-    const cell = mod.cells?.find((cell) => normalizeHierarchicalName(cell.instance || cell.instanceDisplayName) === segment);
-    mod = cell && hierarchyIndex.resolveChild(cell.type, mod);
+function traceExplicitOccurrences(roots, context, hierarchyIndex) {
+  const segments = context.explicitPathSegments;
+  return roots.map((root) => {
+    const traced = traceOccurrence(root, segments, hierarchyIndex, context.currentMod);
+    if (traced || context.explicitRootModuleName || segments.length < 2) return traced;
+    const rootName = normalizeHierarchicalName(root.originalName || root.name);
+    return matchesRootIdentifier(rootName, segments[0])
+      ? traceOccurrence(root, segments.slice(1), hierarchyIndex, context.currentMod) : null;
+  }).filter(Boolean);
+}
+
+// A live path contains complete instance names. Older navigation state may
+// have split one of those names at a slash. Prefer the supplied boundaries
+// whenever they lead to the target, trying only prefixes present in the IR.
+function resolveOccurrenceSteps(rootMod, segments, hierarchyIndex, targetModule) {
+  const pending = [{ mod: rootMod, offset: 0 }];
+  const visited = new Map();
+  while (pending.length) {
+    const step = pending.pop();
+    if (step.offset === segments.length) {
+      if (!targetModule || step.mod === targetModule) return step;
+      continue;
+    }
+    if (!visited.has(step.mod)) visited.set(step.mod, new Set());
+    const offsets = visited.get(step.mod);
+    if (offsets.has(step.offset)) continue;
+    offsets.add(step.offset);
+    const { children, slashPrefixes } = hierarchyIndex.instancesByModule.get(step.mod);
+    const candidates = [];
+    let instance = segments[step.offset];
+    for (let i = step.offset + 1; ; i++) {
+      const child = children.get(instance);
+      if (child) candidates.push({ mod: child, offset: i, instance, parent: step });
+      const prefix = instance.replace(/\\+$/, "");
+      if (i === segments.length || !slashPrefixes.has(prefix)) break;
+      instance = prefix + "/" + segments[i];
+    }
+    for (let i = candidates.length - 1; i >= 0; i--) pending.push(candidates[i]);
   }
-  if (mod !== targetModule) return null;
+  return null;
+}
+
+function traceOccurrence(rootMod, segments, hierarchyIndex, targetModule) {
+  let step = resolveOccurrenceSteps(rootMod, segments, hierarchyIndex, targetModule);
+  if (!step) return null;
+  const steps = [];
+  while (step.parent) {
+    steps.push(step);
+    step = step.parent;
+  }
+  const startByModule = new Map();
+  const pathSegments = [];
+  for (const { instance, parent } of steps.reverse()) {
+    if (startByModule.has(parent.mod)) return null;
+    startByModule.set(parent.mod, pathSegments.length);
+    pathSegments.push(instance);
+  }
   const rootModuleName = normalizeHierarchicalName(rootMod.originalName || rootMod.name);
-  return { rootModuleName, pathSegments: segments, key: `${rootMod.name}::${segments.join("/")}`, startByModule };
+  return { rootMod, rootModuleName, pathSegments, key: `${rootMod.name}::${formatOccurrencePath(pathSegments)}`, startByModule };
 }
 
 function filterRecordsForScope(records, scopeKey, context, hierarchyIndex, diagnostics, occurrence) {
@@ -410,13 +457,17 @@ function filterRecordsForScope(records, scopeKey, context, hierarchyIndex, diagn
     ? findMatchingScopeModules(normScopeKey, hierarchyIndex.modules)
     : [];
 
+  if (context.occurrences?.length === 0) {
+    diagnostics.exclude(scopeModules.length ? "no-occurrence-under-scope" : "root-path-mismatch", records, null);
+    return [];
+  }
   if (scopeModules.length > 0) {
     return filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex, diagnostics, occurrence);
   }
 
   const knownRootPaths = resolveKnownRootPaths(context, hierarchyIndex, diagnostics);
   if (knownRootPaths.length > 0) {
-    return filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, diagnostics);
+    return filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, hierarchyIndex, diagnostics);
   }
 
   const alt = createModuleSegmentAlternation(normModule);
@@ -453,11 +504,14 @@ function findMatchingScopeModules(normScopeKey, modules) {
 }
 
 function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, context, hierarchyIndex, diagnostics, occurrence) {
-  const paths = occurrence
-    ? scopeModules.filter((mod) => occurrence.startByModule.has(mod))
-      .map((mod) => occurrence.pathSegments.slice(occurrence.startByModule.get(mod)))
-    : findOccurrencePathsToModule(scopeModules, hierarchyIndex, context, scopeModules, diagnostics)
-      .map((entry) => entry.pathSegments);
+  let occurrences = occurrence ? [occurrence] : context.occurrences;
+  if (!occurrences && context.hasExplicitOccurrence && context.currentMod && !context.explicitRootModuleName) {
+    occurrences = traceExplicitOccurrences(scopeModules, context, hierarchyIndex);
+  }
+  const paths = occurrences
+    ? occurrences.flatMap((owner) => scopeModules.filter((mod) => owner.startByModule.has(mod))
+      .map((mod) => ({ rootMod: mod, pathSegments: owner.pathSegments.slice(owner.startByModule.get(mod)), key: owner.key })))
+    : findOccurrencePathsToModule(scopeModules, hierarchyIndex, context, scopeModules, diagnostics);
   if (!paths.length) {
     diagnostics.exclude("no-occurrence-under-scope", records, null);
     return [];
@@ -465,53 +519,12 @@ function filterRecordsUnderScopeModules(records, normScopeKey, scopeModules, con
 
   const alt = createModuleSegmentAlternation(context.normModule);
   const modulePortPrefixPattern = new RegExp(`^(?:.*?/)??${MODULE_WRAPPER_PREFIX}${alt}${MODULE_WRAPPER_SUFFIX}__${PORT_PREFIX_TAIL}$`, "i");
-  const hasDirectChild = paths.some((segments) => segments.length === 1);
-  const pathStrings = [...new Set(paths.map((segments) => segments.join("/")))].sort(
-    (left, right) => right.length - left.length || left.localeCompare(right)
-  );
-  const scopeAlt = createModuleSegmentAlternation(normScopeKey);
-  const pathEntries = pathStrings.map((fullPath) => ({
-    fullPath,
-    occurrenceKey: occurrence?.key || `${normScopeKey}::${fullPath}`,
-    wrapperPattern: new RegExp(
-      `^((?:.*?/)??${MODULE_WRAPPER_PREFIX}${scopeAlt}${MODULE_WRAPPER_SUFFIX}/${escapeRegExp(fullPath)})/`,
-      "i"
-    )
-  }));
-
-  const matched = [];
-  for (const record of records) {
-    const normPoint = normalizeHierarchicalName(record.point);
-    const stripPrefixes = [];
-    const seenPrefixes = new Set();
-    const pushPrefix = (prefix, occurrenceKey) => {
-      if (!prefix || seenPrefixes.has(prefix)) return;
-      seenPrefixes.add(prefix);
-      stripPrefixes.push({ prefix, occurrenceKey });
-    };
-    for (const entry of pathEntries) {
-      if (normPoint.startsWith(`${entry.fullPath}/`)) {
-        pushPrefix(entry.fullPath, entry.occurrenceKey);
-      } else {
-        const match = normPoint.match(entry.wrapperPattern);
-        if (match?.[1]) {
-          pushPrefix(match[1], entry.occurrenceKey);
-        }
-      }
-    }
-    const allowPortPrefix = hasDirectChild && modulePortPrefixPattern.test(normPoint);
-    if (stripPrefixes.length > 0 || allowPortPrefix) {
-      matched.push({
-        record,
-        stripPrefixes,
-        allowModulePattern: false,
-        allowPortPrefix
-      });
-    } else {
-      diagnostics.exclude("occurrence-path-mismatch", record, pathStrings[0]);
-    }
-  }
-  return matched;
+  const pathEntries = paths.map((entry) =>
+    createOccurrencePrefixMatcher(entry, hierarchyIndex, normScopeKey, true)
+  ).sort((a, b) => b.fullPath.length - a.fullPath.length || a.fullPath.localeCompare(b.fullPath));
+  const hasDirectChild = paths.some(({ pathSegments }) => pathSegments.length === 1);
+  return matchOccurrencePrefixes(records, pathEntries, diagnostics, "occurrence-path-mismatch",
+    pathEntries[0].fullPath, hasDirectChild ? modulePortPrefixPattern : null);
 }
 
 function resolveKnownRootPaths(context, hierarchyIndex, diagnostics) {
@@ -526,66 +539,90 @@ function resolveKnownRootPaths(context, hierarchyIndex, diagnostics) {
   return findOccurrencePathsToModule(hierarchyIndex.startModules, hierarchyIndex, context, null, diagnostics);
 }
 
-function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, diagnostics) {
+function normalizeOccurrenceInstance(value) {
+  return unescapeSlashes(normalizeHierarchicalName(value));
+}
+
+function formatOccurrencePath(segments) {
+  return segments.map((name) => name.replaceAll("/", "\\/")).join("/");
+}
+
+function createOccurrencePrefixMatcher(entry, hierarchyIndex, rootName, allowBare) {
+  const fullPath = formatOccurrencePath(entry.pathSegments);
+  let mod = entry.rootMod;
+  const pathPattern = entry.pathSegments.map((name) => {
+    const children = hierarchyIndex?.instancesByModule.get(mod)?.children;
+    mod = children?.get(name);
+    if (!name.includes("/")) return escapeRegExp(name);
+    // If the plain spelling enters a sibling module, its slash is a hierarchy
+    // boundary. Only the escaped spelling selects the slash-bearing instance.
+    const [first, ...rest] = name.split("/");
+    let prefix = first;
+    let pattern = escapeRegExp(first);
+    for (const [i, part] of rest.entries()) {
+      const sibling = children?.get(prefix);
+      const nested = sibling && resolveOccurrenceSteps(sibling, rest.slice(i), hierarchyIndex);
+      pattern += (nested ? "\\\\+/" : "\\\\*/") + escapeRegExp(part);
+      prefix += "/" + part;
+    }
+    return pattern;
+  }).join("/");
+  const leadingPath = "(?:.*?(?<!\\\\)/)??";
+  const bare = allowBare ? new RegExp(`^(${pathPattern})/`) : null;
+  const rooted = rootName
+    ? new RegExp(`^(${leadingPath}${MODULE_WRAPPER_PREFIX}${createModuleSegmentAlternation(rootName)}${MODULE_WRAPPER_SUFFIX}/${pathPattern})/`, "i")
+    : new RegExp(`^(${leadingPath}${pathPattern})/`);
+  return {
+    fullPath,
+    occurrenceKey: entry.key || `${entry.rootMod?.name || rootName || ""}::${fullPath}`,
+    match(point) {
+      return bare?.exec(point)?.[1] || rooted.exec(point)?.[1];
+    }
+  };
+}
+
+function filterRecordsByKnownRootPaths(records, scopeKey, normScopeKey, knownRootPaths, hierarchyIndex, diagnostics) {
   const isDefaultScope = scopeKey === "__default__";
   const rootPatterns = knownRootPaths.map((entry) => {
-    const fullPath = entry.pathSegments.join("/");
-    const occurrenceKey = entry.key || `${entry.rootMod?.name || entry.rootModuleName || normScopeKey || scopeKey}::${fullPath}`;
-    if (entry.rootModuleName) {
-      const rootAlt = createModuleSegmentAlternation(entry.rootModuleName);
-      const regex = new RegExp(
-        `^((?:.*?/)??${MODULE_WRAPPER_PREFIX}${rootAlt}${MODULE_WRAPPER_SUFFIX}/${escapeRegExp(fullPath)})/`,
-        "i"
-      );
-      const allowBare = isDefaultScope || matchesRootIdentifier(normScopeKey, entry.rootModuleName);
-      return { kind: "rooted", fullPath, occurrenceKey, regex, allowBare };
-    }
-    return { kind: "unrooted", fullPath, occurrenceKey };
+    const allowBare = isDefaultScope || matchesRootIdentifier(normScopeKey, entry.rootModuleName);
+    return createOccurrencePrefixMatcher(entry, hierarchyIndex, entry.rootModuleName, allowBare);
   });
 
   const firstRoot = knownRootPaths[0];
-  const expectedPrefix = [firstRoot.rootModuleName, ...firstRoot.pathSegments].filter(Boolean).join("/");
+  const expectedPrefix = [firstRoot.rootModuleName, rootPatterns[0].fullPath].filter(Boolean).join("/");
+  return matchOccurrencePrefixes(records, rootPatterns, diagnostics, "root-path-mismatch", expectedPrefix);
+}
+
+function matchOccurrencePrefixes(records, patterns, diagnostics, mismatchReason, expectedPrefix, portPattern = null) {
   const matched = [];
   for (const record of records) {
     const normPoint = normalizeHierarchicalName(record.point);
     const stripPrefixes = [];
     const owners = new Map();
-    let ambiguousPrefix = null;
-    const pushPrefix = (prefix, occurrenceKey) => {
-      if (!prefix) return;
+    let ambiguous = false;
+    for (const pattern of patterns) {
+      const prefix = pattern.match(normPoint);
+      if (!prefix) continue;
       if (owners.has(prefix)) {
-        if (owners.get(prefix) !== occurrenceKey) ambiguousPrefix = prefix;
-        return;
+        if (owners.get(prefix) !== pattern.occurrenceKey) ambiguous = true;
+        continue;
       }
-      owners.set(prefix, occurrenceKey);
-      stripPrefixes.push({ prefix, occurrenceKey });
-    };
-    for (const pattern of rootPatterns) {
-      if (pattern.kind === "unrooted") {
-        if (normPoint.startsWith(`${pattern.fullPath}/`) || normPoint.includes(`/${pattern.fullPath}/`)) {
-          pushPrefix(pattern.fullPath, pattern.occurrenceKey);
-        }
-      } else {
-        const match = normPoint.match(pattern.regex);
-        if (match?.[1]) {
-          pushPrefix(match[1], pattern.occurrenceKey);
-        } else if (pattern.allowBare && normPoint.startsWith(`${pattern.fullPath}/`)) {
-          pushPrefix(pattern.fullPath, pattern.occurrenceKey);
-        }
-      }
+      owners.set(prefix, pattern.occurrenceKey);
+      stripPrefixes.push({ prefix, occurrenceKey: pattern.occurrenceKey });
     }
-    if (ambiguousPrefix) {
+    const allowPortPrefix = Boolean(portPattern?.test(normPoint));
+    if (ambiguous) {
       diagnostics.exclude("ambiguous-root-path", record, null);
-    } else if (stripPrefixes.length > 0) {
+    } else if (stripPrefixes.length > 0 || allowPortPrefix) {
       stripPrefixes.sort((left, right) => right.prefix.length - left.prefix.length || left.prefix.localeCompare(right.prefix));
       matched.push({
         record,
         stripPrefixes,
         allowModulePattern: false,
-        allowPortPrefix: false
+        allowPortPrefix
       });
     } else {
-      diagnostics.exclude("root-path-mismatch", record, expectedPrefix);
+      diagnostics.exclude(mismatchReason, record, expectedPrefix);
     }
   }
   return matched;
@@ -623,7 +660,7 @@ function findOccurrencePathsToModule(startModules, hierarchyIndex, context, scop
     }
     visits += 1;
     for (const cell of mod.cells || []) {
-      const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
+      const inst = normalizeOccurrenceInstance(cell.instance || cell.instanceDisplayName);
       if (!inst) continue;
       const nextPath = [...pathSegments, inst];
       const childMod = hierarchyIndex.resolveChild(cell.type, mod);
@@ -701,7 +738,7 @@ function resolveRelativeExplicitPathUnderScopes(hierarchyIndex, explicitRootModu
     if (stepIndex >= explicitPathSegments.length) return;
     const expectedInst = explicitPathSegments[stepIndex];
     for (const cell of mod.cells || []) {
-      const inst = normalizeHierarchicalName(cell.instance || cell.instanceDisplayName);
+      const inst = normalizeOccurrenceInstance(cell.instance || cell.instanceDisplayName);
       if (inst !== expectedInst) continue;
       const childMod = hierarchyIndex.resolveChild(cell.type, mod);
       if (childMod && !ancestry.has(childMod.name)) {
@@ -791,15 +828,26 @@ function indexModuleHierarchy(moduleLibrary) {
   };
 
   const instantiated = new Set();
+  const instancesByModule = new Map();
   for (const mod of modules) {
+    const children = new Map();
+    const slashPrefixes = new Set();
+    instancesByModule.set(mod, { children, slashPrefixes });
     for (const cell of mod.cells || []) {
       const child = resolveChild(cell.type, mod);
-      if (child) instantiated.add(child.name);
+      if (child) {
+        instantiated.add(child.name);
+        const instance = normalizeOccurrenceInstance(cell.instance || cell.instanceDisplayName);
+        children.set(instance, child);
+        for (let i = instance.indexOf("/"); i >= 0; i = instance.indexOf("/", i + 1)) {
+          slashPrefixes.add(instance.slice(0, i));
+        }
+      }
     }
   }
   const roots = modules.filter((mod) => !instantiated.has(mod.name));
   const startModules = roots.length > 0 ? roots : modules;
-  return { modules, moduleSet, startModules, resolveChild };
+  return { modules, moduleSet, startModules, resolveChild, instancesByModule };
 }
 
 function buildCellIndex(nodes) {
@@ -962,19 +1010,8 @@ function getPointCandidates(rawPoint, moduleMatcher, stripPrefixes = [], allowMo
     }
   };
 
-  for (const item of stripPrefixes) {
-    const prefix = typeof item === "string" ? item : item.prefix;
-    const occurrenceKey = typeof item === "string" ? "" : (item.occurrenceKey || "");
-    if (!prefix) continue;
-    if (normPoint.startsWith(`${prefix}/`)) {
-      addCandidate(normPoint.slice(prefix.length + 1), occurrenceKey);
-    } else {
-      const marker = `/${prefix}/`;
-      const markerIndex = normPoint.indexOf(marker);
-      if (markerIndex >= 0) {
-        addCandidate(normPoint.slice(markerIndex + marker.length), occurrenceKey);
-      }
-    }
+  for (const { prefix, occurrenceKey } of stripPrefixes) {
+    addCandidate(normPoint.slice(prefix.length + 1), occurrenceKey);
   }
 
   const normModule = moduleMatcher?.normModule || "";
