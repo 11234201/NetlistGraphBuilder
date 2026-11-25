@@ -5,9 +5,37 @@ import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {createBroker, catalogue, parseCommand} from "../../tools/workbench_broker.mjs";
 import {createWorkbenchFiles} from "../../tools/workbench_files.mjs";
+import {privatePathGuard} from "../../tools/workbench_paths.mjs";
+import {workbenchCall} from "../../tools/workbench_ipc.mjs";
 import {makeLauncherState, prepareLauncherState, writeLauncherState} from "../../tools/launcher-state.mjs";
 import {createAigCollection} from "../../src/app/aig_collection.js";
 import {createAigCollectionStorage} from "../../src/persistence/aig_collection_storage.js";
+
+test("private state, lock, temporary files and session directories share canonical protection", async t => {
+  const root = await mkdtemp(join(tmpdir(), "ngb-guard-"));
+  t.after(() => rm(root, {recursive:true, force:true}));
+  const actual = join(root, "actual"), linked = join(root, "linked"), session = join(actual, "session");
+  await mkdir(session, {recursive:true});
+  await symlink(actual, linked, process.platform === "win32" ? "junction" : "dir");
+  const state = join(actual, "state.json");
+  const guard = privatePathGuard(join(linked, "state.json"), join(linked, "session"), {contains: () => false});
+  const files = await createWorkbenchFiles([linked], guard);
+  for (const path of [state, state + ".lock", state + ".tmp." + process.pid, join(session, "private")]) {
+    await writeFile(path, "fixture");
+    await assert.rejects(files.read(path, true), {code:"ACCESS_DENIED"});
+    await assert.rejects(files.output(path, "fixture", true), {code:"ACCESS_DENIED"});
+    if (process.platform === "win32") assert.equal(guard(path.toUpperCase()), true);
+  }
+  const listing = await files.list(linked, "", 1);
+  assert.equal(listing.entries.length, 0);
+});
+
+test("control calls require an expected PID and shutdown refuses new jobs", async () => {
+  await assert.rejects(workbenchCall({pid:0, control:"unused"}, {}), {code:"OWNER_MISMATCH"});
+  const broker = createBroker({files:{roots:[]}, log:{}});
+  broker.close();
+  await assert.rejects(broker.handle({version:1, op:"command", argv:["pages"]}, true), {code:"SERVER_STOPPING"});
+});
 
 test("R02 starting a second service preserves a live session record during a control outage", async t => {
   const dir = await mkdtemp(join(tmpdir(), "ngb-state-test-"));

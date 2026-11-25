@@ -33,10 +33,13 @@ proc ::ngb::Start {binary stateFile args} {
         if {$option ni {--netlist --timing --cell-config --browse-root --module --focus --fanin-depth --fanout-depth}} {
             error "Unsupported ngb option: $option"
         }
-        if {$option in {--netlist --timing --cell-config}} { set value [file normalize $value] }
         # Tcl exec/open interprets these tokens as pipeline redirections even
         # inside a correctly constructed list. Never pass them as user values.
-        if {[regexp {^[<>|&]} $value]} { error "Unsafe Tcl pipeline argument" }
+        if {[regexp {^(2?>|[<|&])} $value]} { error "Unsafe Tcl pipeline argument" }
+        if {$option in {--netlist --timing --cell-config --browse-root}} {
+            set value [file normalize $value]
+        }
+        if {[regexp {^(2?>|[<|&])} $value]} { error "Unsafe Tcl pipeline argument" }
         lappend command $option $value
     }
     file mkdir [file dirname $stateFile]

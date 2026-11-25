@@ -346,6 +346,18 @@ async function check(adapter,s,dir,roots,t){
     assert.deepEqual(complete.entries.map(f=>f.name),["prefix-top.v"]);
     assert.equal((await stat(nested)).atimeMs,0,"completion enumerates the current level");
     const outside=await s.page(a,"list",{path:dir});assert.equal(outside.error.code,"ACCESS_DENIED");
+    const id = "unavailable-picker-fixture";
+    const missingPicker = await s.page(a, "picker-files", {id});
+    assert.ok(missingPicker.error.code);
+    const logs = join(dir,"logs-"+adapter);
+    const errors = (await Promise.all((await readdir(logs)).filter(name => name.endsWith(".error.jsonl"))
+      .map(name => readFile(join(logs,name),"utf8")))).flatMap(lines =>
+        lines.trim().split("\n").filter(Boolean).map(line => JSON.parse(line)));
+    const records = errors.filter(item => item.event === "workbench.files_failed" && item.details?.requestId === id);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].details.operation, "picker-files");
+    assert.equal(records[0].details.code, missingPicker.error.code);
+    assert.ok(records[0].details.error.message);
     const root=await s.page(a,"list",{path:roots[0]});
     const unreadable=root.entries.find(f=>f.name==="unreadable.v");
     assert.ok(unreadable?.handle);

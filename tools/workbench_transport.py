@@ -70,7 +70,7 @@ def handle_post(handler, admin=False):
         if isinstance(message,dict):
             data["requestId"] = message.get("id")
             data["page"] = message.get("page")
-            if message.get("op") == "list":
+            if message.get("op") in ("list", "picker-files") and detail["code"] != "CANCELLED":
                 handler.server.log.write("error","workbench.files_failed","File request failed",error=exc,
                                          operation=message["op"],code=detail["code"],page=message.get("page"),
                                          requestId=message.get("id"))

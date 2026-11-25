@@ -1,25 +1,35 @@
-import http from "node:http";
 import {randomUUID} from "node:crypto";
-import {readFile, mkdtemp, rm, chmod} from "node:fs/promises";
+import {mkdtemp, rm, chmod} from "node:fs/promises";
 import {tmpdir} from "node:os";
-import {join, resolve} from "node:path";
+import {basename, join} from "node:path";
 import {createInterface} from "node:readline";
 import {formatWorkbenchReply} from "./workbench_display.mjs";
-import {workbenchCall} from "./workbench_ipc.mjs";
+import {createControlServer, workbenchCall} from "./workbench_ipc.mjs";
+import {privatePathGuard} from "./workbench_paths.mjs";
+import {readLauncherState} from "./launcher-state.mjs";
 import {createBroker, parseCommand, errorInfo, optionValueCount} from "./workbench_broker.mjs";
 import {createWorkbenchFiles, failure} from "./workbench_files.mjs";
 
 const wait = ms => new Promise(resolveWait => setTimeout(resolveWait, ms));
-export async function remoteHost(options, log) {
+export async function remoteHost(options, log, onStop) {
   const dir = await mkdtemp(join(tmpdir(), "ngb-session-"));
   const socket = process.platform === "win32" ? "\\\\.\\pipe\\ngb-" + randomUUID() : join(dir, "control");
   const state = options.stateFile || join(dir, "state.json");
-  const guard = path => path === state || path === resolve(dir) ||
-      path.startsWith(resolve(dir) + (process.platform === "win32" ? "\\" : "/")) || log.contains(path);
-  let broker, identity;
+  let broker, identity, guard, control;
   try {
+    guard = privatePathGuard(state, dir, log);
     broker = createBroker({files: await createWorkbenchFiles(options.browseRoots || [], guard), log});
+    control = await createControlServer(dir, (req, res) => void route(req, res, true));
+    control.on("tlsClientError", error => log.error("workbench.access_denied", error,
+      {operation:"control.connect", code:"ACCESS_DENIED"}));
+    await new Promise((yes, no) => {
+      control.once("error", no);
+      control.listen(socket, yes);
+    });
+    if (process.platform !== "win32") await chmod(socket, 0o600);
   } catch (error) {
+    control?.close();
+    broker?.close();
     await rm(dir, {recursive: true, force: true});
     throw error;
   }
@@ -48,16 +58,22 @@ export async function remoteHost(options, log) {
       message = body;
       if (admin && body.version === 1 && body.op === "identity" && identity)
         data = identity;
+      else if (admin && body.version === 1 && body.op === "stop" && identity && body.owner === identity.owner) {
+        data = {version: 1, status: "stopped"};
+        res.once("finish", onStop);
+      }
       else
         data = await broker.handle(body, admin);
     } catch (error) {
-      status = 400;
+      status = error.code === "ACCESS_DENIED" ? 403 : 400;
       const id = typeof message?.id === "string" ? message.id : undefined;
       const page = typeof message?.page === "string" ? message.page : undefined;
       data = {version: 1, status: "failed", requestId: id, page, error: errorInfo(error)};
-      if (["list", "picker-files"].includes(message?.op))
+      if (["list", "picker-files"].includes(message?.op) && error.code !== "CANCELLED")
         log.error(
             "workbench.files_failed", error, {operation: message.op, code: error.code, requestId: id, page});
+      else if (status === 403)
+        log.error("workbench.access_denied", error, {operation:message?.op || "request", code:error.code, requestId:id, page});
     }
     const body = JSON.stringify(data);
     res.writeHead(status, {
@@ -67,13 +83,6 @@ export async function remoteHost(options, log) {
     });
     res.end(body);
   }
-  const control = http.createServer((req, res) => void route(req, res, true));
-  await new Promise((yes, no) => {
-    control.once("error", no);
-    control.listen(socket, yes);
-  });
-  if (process.platform !== "win32")
-    await chmod(socket, 0o600);
   return {
     socket,
     state,
@@ -83,6 +92,8 @@ export async function remoteHost(options, log) {
     route: (req, res) => route(req, res, false),
     run: b => broker.handle(b, true),
     identify(record) {
+      record.workbenchHost = "node";
+      if (process.platform === "win32") record.controlSession = basename(dir);
       identity = {version: 1, pid: record.pid, stateFile: record.stateFile, owner: record.owner};
     },
     async close() {
@@ -290,8 +301,8 @@ export async function cli(argv, log) {
     json ||= promptOptions(args).json;
     if (!path)
       throw failure("INVALID_ARGUMENT", "A state file is required");
-    const {control} = JSON.parse(await readFile(path, "utf8"));
-    if (!control)
+    const state = await readLauncherState(path);
+    if (!state.control)
       throw failure("NO_CONTROL", "Missing control socket");
     if (encoded) {
       if (args.length)
@@ -311,7 +322,7 @@ export async function cli(argv, log) {
     }
     const parsed = parseCommand(args);
     command = parsed.name;
-    reply = await execute(b => workbenchCall(control, b), args, {cwd: process.cwd()}, parsed);
+    reply = await execute(b => workbenchCall(state, b), args, {cwd: process.cwd()}, parsed);
   } catch (error) {
     reply = {version: 1, status: "failed", error: errorInfo(error)};
     log.error("workbench.client_failed", error, {operation:"cmd", code:reply.error.code});

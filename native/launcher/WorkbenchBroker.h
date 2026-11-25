@@ -385,6 +385,8 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         Json inputs = Json::array();
         size_t size = 0;
         for (size_t index = WorkbenchDefinition(c.m_name)->at("inputStart").get<size_t>(); index < c.m_args.size(); ++index) {
+            if (job.m_finished)
+                return Json::array();
             std::string name = c.m_args[index].get<std::string>();
             if (name.rfind("ngb-file:", 0) == 0) {
                 if (!browser)
@@ -744,7 +746,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
         if (admin && op == "identity")
             return {{"version", 1}, {"stateFile", statePath_}, {"owner", owner_}, {"pid", getpid()}};
         if (stopping_)
-            throw WorkbenchError("SERVICE_STOPPING", "Workbench is stopping");
+            throw WorkbenchError("SERVER_STOPPING", "Workbench is stopping");
         for (auto &kv : pages_)
             if (kv.second.m_online && !Active(kv.second))
                 Disconnect(kv.second);
@@ -799,7 +801,7 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             return ListForPage(p, b, lock);
         if (op == "import") {
             auto c = ParseWorkbench(b.at("argv"));
-            if (!FileCommand(c.m_name))
+            if (!FileCommand(c.m_name) || Field(c.m_options, "page", key) != key)
                 throw WorkbenchError("ACCESS_DENIED", "Invalid picker action");
             return Command(b, &p, lock);
         }
@@ -819,13 +821,14 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
             if (j.m_phase != "executing" || j.m_preparing || Field(j.m_payload, "name") != "files submit")
                 throw WorkbenchError("ACCESS_DENIED", "Picker job is not available for reading");
             const auto command = ParseWorkbench(b.at("argv"));
-            if (!FileCommand(command.m_name) || command.m_options.contains("text"))
+            if (!FileCommand(command.m_name) || command.m_options.contains("text") ||
+                Field(command.m_options, "page", key) != key)
                 throw WorkbenchError("ACCESS_DENIED", "Invalid picker action");
             j.m_preparing = true;
             try {
                 auto files = PrepareFiles(command, files_.Roots().at(0).get<std::string>(), &p, j, lock);
                 j.m_preparing = false;
-                if (j.m_finished)
+                if (j.m_finished || !p.m_online || p.m_connection != Field(b, "connection"))
                     throw WorkbenchError("CANCELLED", "Picker job is no longer active");
                 return {{"name", command.m_name},
                         {"args", command.m_args},
@@ -833,8 +836,6 @@ class WorkbenchBroker : public std::enable_shared_from_this<WorkbenchBroker> {
                         {"files", std::move(files)}};
             } catch (const std::exception &e) {
                 j.m_preparing = false;
-                if (!j.m_finished)
-                    LogFailure(j, command.m_name, e);
                 throw;
             }
         }

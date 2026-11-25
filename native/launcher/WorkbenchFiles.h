@@ -85,7 +85,8 @@ class WorkbenchFiles {
     std::vector<fs::path> roots_;
     fs::path state_, privateDir_, logDir_;
     bool Protected(const fs::path &path) const {
-        return path == state_ || path == state_.string() + ".lock" || Within(path, privateDir_) ||
+        return path == state_ || path == state_.string() + ".lock" ||
+               path == state_.string() + ".tmp." + std::to_string(getpid()) || Within(path, privateDir_) ||
                (!logDir_.empty() && Within(path, logDir_));
     }
     static bool Within(const fs::path &path, const fs::path &root) {

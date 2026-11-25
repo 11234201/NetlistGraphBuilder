@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { workbenchCall } from "../../tools/workbench_ipc.mjs";
 
 const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const pythonCommand = process.env.NGB_PYTHON || (process.platform === "win32" ? "python" : "python3");
@@ -22,7 +23,10 @@ await writeFile(configPath, JSON.stringify({
 await writeFile(badConfigPath, "{}", "utf8");
 
 try {
-  await verifyLauncher(process.execPath, ["tools/serve.mjs"], "node");
+  // Preserve the symlink in import.meta.url so this also tests a linked checkout.
+  const linkedRoot = join(scratch, "linked checkout");
+  await symlink(root, linkedRoot, process.platform === "win32" ? "junction" : "dir");
+  await verifyLauncher(process.execPath, ["--preserve-symlinks-main", join(linkedRoot, "tools/serve.mjs")], "node");
   await verifyLauncher(pythonCommand, ["tools/serve.py"], "python");
   await verifySessionLifecycle(process.execPath, ["tools/serve.mjs"], "node");
   await verifySessionLifecycle(pythonCommand, ["tools/serve.py"], "python");
@@ -63,6 +67,10 @@ async function verifyLauncher(command, prefix, label) {
     assert.equal(ready.startup.netlist, "design one.v");
     assert.equal(ready.startup.focus, "u0");
     assert.equal(JSON.stringify(ready).includes("module top"), false);
+    if (label === "node") {
+      for (const [path, expected] of [["/",200], ["/src/app/main.js",200], ["/package.json",403], ["/absent.txt",403]])
+        assert.equal((await fetch(new URL(path, ready.url))).status, expected);
+    }
     const response = await fetch(`http://127.0.0.1:${ready.port}/__ngb_startup__.json`);
     assert.equal(response.status, 200);
     const manifest = await response.json();
@@ -85,12 +93,21 @@ async function verifySessionLifecycle(command, prefix, label) {
   try {
     const ready = await waitForReady(child, `${label} session`);
     assert.ok(ready.port > 0);
+    const record = JSON.parse(await readFile(statePath, "utf8"));
+    if (label === "node") {
+      await assert.rejects(workbenchCall({...record, pid:process.pid}, {version:1, op:"identity"}));
+      const reply = await runLauncherCommand(command, prefix, ["cmd", "--state-file", statePath, "pages", "--json"]);
+      assert.equal(JSON.parse(reply.stdout).status, "committed");
+    }
     const status = await runLauncherCommand(command, prefix, ["status", "--state-file", statePath]);
     assert.match(status.stdout, /status=running/);
     const stop = await runLauncherCommand(command, prefix, ["stop", "--state-file", statePath]);
     assert.match(stop.stdout, /status=stopped/);
     await waitForExit(child);
     assert.equal(await pathExists(statePath), false);
+    if (record.controlSession) assert.equal(await pathExists(join(tmpdir(), record.controlSession)), false);
+    const after = await runLauncherCommand(command, prefix, ["status", "--state-file", statePath]);
+    assert.equal(after.stdout.trim(), "status=stopped");
   } finally {
     if (child.pid && child.exitCode === null && child.signalCode === null) {
       child.kill();

@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, realpathSync } from "node:fs";
 import { stat, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
@@ -24,7 +24,7 @@ import {
   writeLauncherState
 } from "./launcher-state.mjs";
 
-const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const root = realpathSync.native(fileURLToPath(new URL("..", import.meta.url)));
 const host = "127.0.0.1";
 const log = createTerminalLog("node");
 process.stderr.on("error", () => {});
@@ -82,7 +82,7 @@ const mimeTypes = new Map([
   [".sv", "text/plain; charset=utf-8"]
 ]);
 
-const workbench = await remoteHost(options, log);
+const workbench = await remoteHost(options, log, () => shutdown("control"));
 const server = createServer(async (request, response) => {
   if (request.url === "/__ngb/workbench") return workbench.route(request,response);
   const requestPath = (request.url || "/").split(/[?#]/, 1)[0];
@@ -117,13 +117,14 @@ const server = createServer(async (request, response) => {
       response.writeHead(403); response.end("Forbidden"); return;
     }
     const runtimeAsset = /^(?:index\.html$|styles\.css$|(?:src|vendor|examples)\/)/;
+    if (!runtimeAsset.test(pathname)) { response.writeHead(403); response.end("Forbidden"); return; }
     const canonical = await realpath(filePath);
-    if (!runtimeAsset.test(pathname) || !runtimeAsset.test(relative(root,canonical).split(sep).join("/")) || workbench.guard(canonical)) { response.writeHead(403); response.end("Forbidden"); return; }
-    const fileStat = await stat(filePath);
+    if (!runtimeAsset.test(relative(root,canonical).split(sep).join("/")) || workbench.guard(canonical)) { response.writeHead(403); response.end("Forbidden"); return; }
+    const fileStat = await stat(canonical);
     if (!fileStat.isFile()) { response.writeHead(404); response.end("Not found"); return; }
     response.setHeader("content-type", mimeTypes.get(extname(filePath)) || "application/octet-stream");
     if (request.method === "HEAD") { response.end(); return; }
-    stream = createReadStream(filePath);
+    stream = createReadStream(canonical);
     stream.on("error", fail);
     stream.pipe(response);
   } catch (error) { fail(error); }

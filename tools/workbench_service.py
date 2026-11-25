@@ -453,9 +453,6 @@ class WorkbenchService:
                 self.changed.release()
                 try:
                     files = self.inputs(job,row,name,args,opts,self.files.roots[0],p)
-                except Exception as error:
-                    self.record(job, name, error, "workbench.prepare_failed")
-                    raise
                 finally:
                     self.changed.acquire()
                 if job.finished or p.connection != b.get("connection"):

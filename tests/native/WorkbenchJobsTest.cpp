@@ -1,4 +1,4 @@
-#include "WorkbenchBroker.h"
+#include "WorkbenchTransport.h"
 #include <atomic>
 #include <cstdarg>
 #include <future>
@@ -104,6 +104,18 @@ int main(int argc, char **argv) {
         catalogue.assign(std::istreambuf_iterator<char>(input), {});
         Fixture fixture;
         auto &root = fixture.m_root;
+        const auto parseHeader = [](const std::string &fields, const std::string &body) {
+            return ngb::ReadWorkbenchRequest(-1, "POST / HTTP/1.1\r\nHost: localhost\r\nOrigin: http://localhost\r\n" +
+                fields + "\r\n" + body, false);
+        };
+        Require(parseHeader("Content-Type: application/json; charset=utf-8\r\nContent-Length: 2\r\n", "{}unused").empty(),
+                "JSON must stop at the declared byte length");
+        for (const std::string fields : {"Content-Type: text/plain\r\nContent-Length: 2\r\n",
+                 "Content-Type: application/json\r\nContent-Length: 2x\r\n",
+                 "Content-Type: application/json\r\nTransfer-Encoding: unknown\r\n"}) {
+            try { parseHeader(fields, "{}"); throw std::runtime_error("invalid test header accepted"); }
+            catch (const ngb::WorkbenchError &) {}
+        }
         auto broker = std::make_shared<ngb::WorkbenchBroker>(
             ngb::WorkbenchFiles({root.string()}, root / "state", root / "private", root / "logs"),
             (root / "state").string(), "test", +[] { return now.load(); });
@@ -119,6 +131,36 @@ int main(int argc, char **argv) {
                                    {"page",target.at("page")},{"cwd",root.string()}}, true);
         };
         const auto changing = root / "changing.v";
+        // A picker may disconnect while the I/O lock is released between two handles.
+        const auto picker = join();
+        const auto listed = page(picker, "list", {{"path",root.string()},{"filter","top.v"}});
+        const auto handle = listed.at("entries").at(0).at("handle");
+        cmd({"files","submit"}, "picker-read", picker);
+        page(picker,"poll");
+        page(picker,"grant",{{"id","picker-read"}});
+        try {
+            page(picker, "picker-files", {{"id","picker-read"},{"argv", {"design","add",handle,"--page",b.at("page")}}});
+            throw std::runtime_error("cross-page picker read accepted");
+        } catch (const ngb::WorkbenchError &error) {
+            Require(error.m_code == "ACCESS_DENIED", "unexpected picker page diagnostic");
+        }
+        reading.Arm();
+        auto batch = std::async(std::launch::async, [&] {
+            try {
+                page(picker, "picker-files", {{"id","picker-read"},{"argv", {"design","add",handle,handle}}});
+                return std::string("completed");
+            } catch (const ngb::WorkbenchError &error) { return error.m_code; }
+        });
+        reading.WaitForEntry();
+        page(picker, "leave");
+        reading.Release();
+        Require(batch.get() == "CANCELLED", "disconnected picker read must not return files or a stale handle error");
+        try {
+            page(a, "import", {{"argv", {"design","open","top.v","--page",b.at("page")}}});
+            throw std::runtime_error("cross-page import accepted");
+        } catch (const ngb::WorkbenchError &error) {
+            Require(error.m_code == "ACCESS_DENIED", "unexpected cross-page diagnostic");
+        }
         for (bool fromPage : {false, true}) {
             const auto owner = join();
             listing.Arm();
@@ -249,7 +291,7 @@ int main(int argc, char **argv) {
             join();
             throw std::runtime_error("shutdown must not accept new work");
         } catch (const ngb::WorkbenchError &error) {
-            Require(error.m_code == "SERVICE_STOPPING", "wrong shutdown diagnostic");
+            Require(error.m_code == "SERVER_STOPPING", "wrong shutdown diagnostic");
         }
         writing.Release();
         auto finalReceipt = acknowledged.get();

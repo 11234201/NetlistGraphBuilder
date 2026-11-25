@@ -8,7 +8,13 @@ set output [open $netlist w]
 puts $output {module top(input a, output z); assign z=a; endmodule}
 close $output
 set code [catch {
-    set url [::ngb::Start $binary $state --netlist $netlist --module top --fanin-depth 0]
+    foreach {option value} {--module 2> --focus 2>> --browse-root 2>@} {
+        if {![catch {::ngb::Start $binary $state $option $value} detail] ||
+            $detail ne "Unsafe Tcl pipeline argument" || [file exists $state]} {
+            error "Unsafe argument was not rejected during validation"
+        }
+    }
+    set url [::ngb::Start $binary $state --netlist $netlist --module top --fanin-depth 0 --browse-root .]
     if {![string match {http://127.0.0.1:*/?startup=1} $url]} {error "bad ready URL: $url"}
     if {![string match {*status=running*} [::ngb::Status $binary $state]]} {error "not running"}
     if {![catch {::ngb::Start $binary $state}]} {error "duplicate session accepted"}

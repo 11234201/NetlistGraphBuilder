@@ -78,7 +78,7 @@ def verify(command, label, root):
     try:
         port = server.ready["port"]
         assert request(port)[0] == 200
-        assert request(port, "/missing?token=must-not-log")[0] == 404
+        assert request(port, "/src/missing.js?token=must-not-log")[0] == 404
         assert request(port, "/styles.css")[0] == 200
         if label == "python":
             with urllib.request.urlopen("http://127.0.0.1:{}/index.html".format(port), timeout=5) as response:
@@ -224,12 +224,12 @@ def verify(command, label, root):
     server = Server(command, rolling, env={"NGB_LOG_MAX_BYTES": "1024"})
     try:
         for index in range(24):
-            assert request(server.ready["port"], "/absent-" + str(index))[0] == 404
+            assert request(server.ready["port"], "/src/absent-" + str(index))[0] == 404
     finally:
         server.close()
     assert list(rolling.glob("*.run.jsonl.1")), label
     assert all(path.stat().st_size <= 2048 for path in rolling.glob("*.jsonl*")), label
-    assert any(item["event"] == "http.response" and item["details"].get("path") == "/absent-23" for item in records(rolling))
+    assert any(item["event"] == "http.response" and item["details"].get("path") == "/src/absent-23" for item in records(rolling))
     server.stderr.close()
     print(label + ": ready-only stdout, request/error logs, exit status, unavailable storage, rotation passed")
 

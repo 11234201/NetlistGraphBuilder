@@ -46,6 +46,19 @@ function Get-AssetHash([string]$Path) {
   } finally { $algorithm.Dispose() }
 }
 
+function Start-DrainedProcess([System.Diagnostics.ProcessStartInfo]$Info) {
+  $Info.UseShellExecute = $false
+  $Info.CreateNoWindow = $true
+  $Info.RedirectStandardOutput = $true
+  $Info.RedirectStandardError = $true
+  $child = [System.Diagnostics.Process]::Start($Info)
+  return @{
+    Process = $child
+    Stdout = $child.StandardOutput.ReadToEndAsync()
+    Stderr = $child.StandardError.ReadToEndAsync()
+  }
+}
+
 if (-not $SkipTests) {
   $testFiles = Get-ChildItem (Join-Path $repoRoot "tests\unit\*.test.js")
   foreach ($testFile in $testFiles) {
@@ -159,19 +172,27 @@ $portProbe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopb
 $portProbe.Start()
 $smokePort = ([System.Net.IPEndPoint]$portProbe.LocalEndpoint).Port
 $portProbe.Stop()
+$streamProbe = New-Object System.Diagnostics.ProcessStartInfo
+$streamProbe.FileName = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+$streamProbe.Arguments = '-NoProfile -NonInteractive -Command "[Console]::Out.Write((''o'' * 32768)); [Console]::Error.Write((''e'' * 32768))"'
+$probe = Start-DrainedProcess $streamProbe
+try {
+  if (-not $probe.Process.WaitForExit(10000)) {
+    $probe.Process.Kill()
+    throw "Release smoke output streams failed to drain."
+  }
+  if ($probe.Process.ExitCode -ne 0 -or $probe.Stdout.Result.Length -ne 32768 -or $probe.Stderr.Result.Length -ne 32768) {
+    throw "Release smoke output streams were truncated."
+  }
+} finally {
+  $probe.Process.Dispose()
+}
 $processInfo = New-Object System.Diagnostics.ProcessStartInfo
 $processInfo.FileName = $exePath
 $processInfo.Arguments = "--no-browser --port $smokePort"
 $processInfo.WorkingDirectory = $packageRoot
-$processInfo.UseShellExecute = $false
-$processInfo.CreateNoWindow = $true
-$processInfo.RedirectStandardOutput = $true
-$processInfo.RedirectStandardError = $true
-$releaseProcess = New-Object System.Diagnostics.Process
-$releaseProcess.StartInfo = $processInfo
-if (-not $releaseProcess.Start()) {
-  throw "Could not start the release executable for its smoke test."
-}
+$smoke = Start-DrainedProcess $processInfo
+$releaseProcess = $smoke.Process
 $ready = $false
 try {
   for ($attempt = 0; $attempt -lt 30; $attempt++) {
@@ -203,7 +224,7 @@ try {
   }
 }
 if (-not $ready) {
-  $details = $releaseProcess.StandardError.ReadToEnd() + $releaseProcess.StandardOutput.ReadToEnd()
+  $details = $smoke.Stderr.GetAwaiter().GetResult() + $smoke.Stdout.GetAwaiter().GetResult()
   throw "Release smoke test failed. $details"
 }
 

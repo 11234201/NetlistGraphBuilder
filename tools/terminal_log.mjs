@@ -1,6 +1,7 @@
 import { appendFileSync, closeSync, mkdirSync, openSync, renameSync, constants } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve, relative, isAbsolute } from "node:path";
+import { join, resolve } from "node:path";
+import { canonicalPath, withinPath } from "./workbench_paths.mjs";
 import { sanitizeLogDetails, errorMessage } from "../src/foundation/log_details.js";
 import { cleanupTerminalLogs } from "./log_retention.mjs";
 
@@ -13,6 +14,7 @@ export function createTerminalLog(runtime, env = process.env) {
   const configured = Number(env.NGB_LOG_MAX_BYTES);
   const limit = Number.isInteger(configured) && configured >= 1024 && configured <= 67108864 ? configured : 2097152;
   let enabled = true;
+  let canonicalDirectory = directory;
   function terminal(record) {
     try {
       if (process.stderr.isTTY && enabled) {
@@ -33,6 +35,7 @@ export function createTerminalLog(runtime, env = process.env) {
   }
   try {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
+    canonicalDirectory = canonicalPath(directory);
     for (const file of Object.values(files)) closeSync(openSync(file, "wx", 0o600));
   } catch (error) { disable(error); }
   function write(level, event, message, details, consoleOutput = true) {
@@ -61,7 +64,7 @@ export function createTerminalLog(runtime, env = process.env) {
         method, path: String(path || "/").split(/[?#]/, 1)[0], status
       }, false);
     },
-    contains(path) { const rel = relative(directory, path); return !rel || !rel.startsWith("..") && !isAbsolute(rel); }
+    contains(path) { return withinPath(canonicalDirectory, path) || withinPath(directory, path); }
   };
   write("info", "log.ready", "Terminal logging initialized", files);
   if (enabled) {

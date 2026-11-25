@@ -94,9 +94,15 @@ class NativeLauncherTest(unittest.TestCase):
         self.assertIn(b"status=running", status.stdout)
         stopped = self.command("stop", "--state-file", str(self.state))
         self.assertEqual(stopped.returncode, 0, stopped.stderr)
+        record, status_line = stopped.stdout.splitlines()
+        self.assertRegex(json.loads(record)["owner"], "^[0-9a-f]{32}$")
+        self.assertEqual(status_line, b"status=stopped")
         child.wait(timeout=4)
         self.assertFalse(self.state.exists())
-        self.assertEqual(self.command("stop", "--state-file", str(self.state)).returncode, 0)
+        for operation in ("status", "stop"):
+            absent = self.command(operation, "--state-file", str(self.state))
+            self.assertEqual(absent.returncode, 0)
+            self.assertEqual(absent.stdout.strip(), b"status=stopped")
 
     def raw(self, port, request, fragment=False):
         with socket.create_connection(("127.0.0.1", port), timeout=4) as connection:

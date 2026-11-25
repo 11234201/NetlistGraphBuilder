@@ -309,14 +309,6 @@ std::string buildUrl(int port, bool hasStartup) {
     return output.str();
 }
 
-std::string makeOwnerToken() {
-    std::ostringstream output;
-    output << static_cast<long long>(getpid()) << '-'
-           << static_cast<long long>(std::time(0)) << '-'
-           << reinterpret_cast<std::uintptr_t>(&output);
-    return output.str();
-}
-
 std::string stateJson(const StateRecord& state) {
     std::ostringstream output;
     output << "{\"version\":1"
@@ -463,17 +455,22 @@ bool RemoveStateFile(const std::string& path) {
     return false;
 }
 
-int stopState(const std::string& statePath, bool force, bool quiet) {
+int stopState(const std::string& statePath, bool force, bool quiet, bool printReceipt = false) {
     StateRecord state;
     std::string error;
-    if (access(statePath.c_str(), F_OK) != 0 && errno == ENOENT) return 0;
+    if (access(statePath.c_str(), F_OK) != 0 && errno == ENOENT) {
+        if (printReceipt) std::cout << "status=stopped\n";
+        return 0;
+    }
     errno = 0;
     if (!readStateFile(statePath, &state, &error)) {
         if (!quiet) std::cerr << error << std::endl;
         return 2;
     }
     if (!processExists(state.pid)) {
-        return RemoveStateFile(statePath) ? 0 : 6;
+        if (!RemoveStateFile(statePath)) return 6;
+        if (printReceipt) std::cout << stateJson(state) << "status=stopped\n";
+        return 0;
     }
     if (!processBelongsToState(state)) {
         if (!quiet) {
@@ -499,6 +496,7 @@ int stopState(const std::string& statePath, bool force, bool quiet) {
     if (readStateFile(statePath, &current, 0) && current.owner == state.owner && current.pid == state.pid) {
         if (!RemoveStateFile(statePath)) return 6;
     }
+    if (printReceipt) std::cout << stateJson(state) << "status=stopped\n";
     return 0;
 }
 
@@ -629,8 +627,11 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context,
         const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
         if (remaining <= 0) break;
         pollfd ready = {descriptor, POLLIN, 0};
-        if (poll(&ready, 1, static_cast<int>(remaining)) <= 0) break;
+        const int available = poll(&ready, 1, static_cast<int>(remaining));
+        if (available < 0 && errno == EINTR) continue;
+        if (available <= 0) break;
         const ssize_t count = recv(descriptor, buffer, sizeof(buffer) - header.size(), 0);
+        if (count < 0 && errno == EINTR) continue;
         if (count <= 0) break;
         header.append(buffer, static_cast<std::size_t>(count));
     }
@@ -647,11 +648,26 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context,
     requestMethod = method;
     requestPath = target.substr(0, target.find_first_of("?#"));
     if (admin || target == "/__ngb/workbench") {
-        ngb::Json body; int status = 200;
+        ngb::Json body, message; int status = 200;
         try {
             if (method != "POST") throw ngb::WorkbenchError("ACCESS_DENIED","Invalid method");
-            body = context->workbench->Handle(ngb::ReadWorkbenchRequest(descriptor,header,admin),admin);
-        } catch (const std::exception& e) { status=400; body=ngb::WorkbenchFailure(e); }
+            message = ngb::ReadWorkbenchRequest(descriptor,header,admin);
+            body = context->workbench->Handle(message,admin);
+        } catch (const std::exception& e) {
+            body = ngb::WorkbenchFailure(e);
+            status = 400;
+            const auto op = ngb::Field(message, "op", "request");
+            const auto &error = body.at("error");
+            const auto code = ngb::Field(error, "code");
+            const bool files = op == "list" || op == "picker-files";
+            if (code != "CANCELLED" && (files || message.is_null() || code == "ACCESS_DENIED")) {
+                const ngb::Json details = {{"operation",op.substr(0,80)}, {"code",error.at("code")},
+                    {"requestId",ngb::Field(message,"id").substr(0,120)}, {"page",ngb::Field(message,"page").substr(0,80)},
+                    {"error",{{"code",code},{"message",ngb::Field(error,"message").substr(0,2048)}}}};
+                ngb::TerminalLog::Instance().Write("error", files ? "workbench.files_failed" : "workbench.request_failed",
+                    "Workbench request failed", details.dump(-1,' ',false,ngb::Json::error_handler_t::replace), false);
+            }
+        }
         sendResponse(descriptor,status,"application/json; charset=utf-8",body.dump(-1,' ',false,ngb::Json::error_handler_t::replace),false,true);
         close(descriptor); return;
     }
@@ -899,7 +915,7 @@ int runStart(const StartOptions& options) {
     state.stateFile = options.stateFile.empty() ? endpoint.Directory()+"/state.json" : options.stateFile;
     state.control = endpoint.Path();
     const auto logs = ngb::fs::weakly_canonical(ngb::TerminalLog::Instance().Directory());
-    state.owner = makeOwnerToken();
+    state.owner = ngb::WorkbenchToken();
     const auto broker = std::make_shared<ngb::WorkbenchBroker>(ngb::WorkbenchFiles(options.browseRoots,state.stateFile,endpoint.Directory(),logs),state.stateFile,state.owner);
     state.m_processStartTicks = ngb::ReadProcessStartTicks(state.pid);
     if (!state.stateFile.empty() && !writeStateFile(state, &error)) {
@@ -1015,6 +1031,10 @@ int runStart(const StartOptions& options) {
 }
 
 int runStatus(const std::string& statePath) {
+    if (access(statePath.c_str(), F_OK) != 0 && errno == ENOENT) {
+        std::cout << "status=stopped\n";
+        return 0;
+    }
     StateRecord state;
     std::string error;
     if (!readStateFile(statePath, &state, &error)) {
@@ -1078,7 +1098,7 @@ int runCommand(int argc, char** argv) {
         return 2;
     }
     if (command == "status") return runStatus(stateFile);
-    return stopState(stateFile, force, false);
+    return stopState(stateFile, force, false, true);
 }
 
 }  // namespace

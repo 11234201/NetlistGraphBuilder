@@ -139,9 +139,12 @@ try {
   assert.equal(stateConfig.pid,service.pid);
   await browser.close();
   browser = null;
-  assert.match((await exec(exe,["stop","--state-file",state],settings)).stdout,/status=stopped/);
+  const stopLines = (await exec(exe,["stop","--state-file",state],settings)).stdout.trim().split(/\r?\n/);
+  assert.equal(JSON.parse(stopLines[0]).pid, stateConfig.pid);
+  assert.equal(stopLines[1], "status=stopped");
   assert.equal((await exit)[0],0);
   await assert.rejects(access(state), {code:"ENOENT"});
+  assert.equal((await exec(exe,["status","--state-file",state],settings)).stdout.trim(), "status=stopped");
   await assert.rejects(fetch(ready.url));
   await unlink(base);
   await unlink(target);

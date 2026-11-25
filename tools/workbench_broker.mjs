@@ -72,7 +72,7 @@ export function errorInfo(error) {
 }
 export function createBroker({files, log}) {
   const pair = randomUUID(), pages = new Map(), jobs = new Map(), expired = new Set();
-  let serial = 0, waiting = 0;
+  let serial = 0, waiting = 0, stopping = false;
   const active = p => p.online && Date.now() - p.seen < 45000;
   const describe = p => ({id: p.id, name: p.name, online: active(p), ...p.context});
   const done = (result, page = null) => ({version:1,protocolVersion:1,status:"committed",page,pageId:page,result});
@@ -430,6 +430,8 @@ export function createBroker({files, log}) {
   async function handle(b, admin) {
     if (b.version !== 1)
       throw failure("PROTOCOL_VERSION", "Expected protocol version 1");
+    if (stopping)
+      throw failure("SERVER_STOPPING", "Workbench is stopping");
     if (admin) {
       if (b.op === "command") {
         const response = await command(b);
@@ -562,6 +564,7 @@ export function createBroker({files, log}) {
   }, 5000);
   sweep.unref();
   return {pair,handle,close() {
+    stopping = true;
     clearInterval(sweep);
     for (const page of pages.values()) if (page.online) disconnect(page);
   }};

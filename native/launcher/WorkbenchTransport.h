@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iostream>
 #include <functional>
+#include <limits>
 #include "WorkbenchLineEditor.h"
 
 namespace ngb {
@@ -59,47 +60,63 @@ inline Json ReadWorkbenchRequest(int fd, const std::string &request, bool admin)
     std::map<std::string, std::string> fields;
     while (std::getline(header, line)) {
         auto colon = line.find(':');
-        if (colon == std::string::npos)
-            continue;
+        if (colon == std::string::npos || colon == 0)
+            throw WorkbenchError("INVALID_ARGUMENT", "Malformed HTTP header");
         auto key = line.substr(0, colon);
         std::transform(key.begin(), key.end(), key.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         auto value = line.substr(colon + 1);
         while (!value.empty() && (value[0] == ' ' || value[0] == '\t'))
             value.erase(0, 1);
-        if (!value.empty() && value.back() == '\r')
+        while (!value.empty() && (value.back() == '\r' || value.back() == ' ' || value.back() == '\t'))
             value.pop_back();
-        fields[key] = value;
+        if (key.find_first_of(" \t") != std::string::npos || !fields.emplace(key, value).second)
+            throw WorkbenchError("INVALID_ARGUMENT", "Invalid or repeated HTTP header");
     }
-    if (!admin && (fields["origin"] != "http://" + fields["host"] ||
-                   fields["content-type"].find("application/json") != 0))
+    if (fields.count("transfer-encoding"))
+        throw WorkbenchError("INVALID_ARGUMENT", "Transfer encoding is unsupported");
+    auto type = fields["content-type"].substr(0, fields["content-type"].find(';'));
+    type.erase(type.find_last_not_of(" \t") + 1);
+    std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (!admin && (fields["host"].empty() || fields["origin"] != "http://" + fields["host"] ||
+                   type != "application/json"))
         throw WorkbenchError("ACCESS_DENIED", "Invalid request origin or method");
-    if (!fields.count("content-length"))
-        throw WorkbenchError("INVALID_ARGUMENT", "Content length required");
-    size_t n = std::stoull(fields["content-length"]);
-    if (n > 32 * 1024 * 1024)
-        throw WorkbenchError("REQUEST_LIMIT", "Request too large");
-    std::string body = request.substr(end + 4);
+    const auto &digits = fields["content-length"];
+    if (digits.empty() || digits.find_first_not_of("0123456789") != std::string::npos)
+        throw WorkbenchError("INVALID_ARGUMENT", "Invalid content length");
+    size_t n = 0;
+    for (char digit : digits) {
+        n = n * 10 + (digit - '0');
+        if (n > 32 * 1024 * 1024)
+            throw WorkbenchError("REQUEST_LIMIT", "Request too large");
+    }
+    std::string body = request.substr(end + 4, n);
     char buf[32768];
     while (body.size() < n) {
         auto cnt = recv(fd, buf, std::min(sizeof(buf), n - body.size()), 0);
+        if (cnt < 0 && errno == EINTR)
+            continue;
         if (cnt <= 0)
             throw WorkbenchError("READ_FAILED", "Incomplete request");
         body.append(buf, cnt);
     }
-    return Json::parse(body);
+    auto parsed = Json::parse(body, nullptr, false);
+    if (!parsed.is_object())
+        throw WorkbenchError("INVALID_ARGUMENT", "Expected a JSON object");
+    return parsed;
 }
-inline Json WorkbenchCall(const std::string &path, const Json &body, int expectedPid = 0) {
+inline Json WorkbenchCall(const std::string &path, const Json &body, int expectedPid) {
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-    if (path.size() >= sizeof(addr.sun_path))
-        throw WorkbenchError("NO_CONTROL", "Control path is too long");
+    if (expectedPid <= 0 || path.empty() || path.front() != '/' || path.size() >= sizeof(addr.sun_path) ||
+        path.find('\0') != std::string::npos)
+        throw WorkbenchError("NO_CONTROL", "Invalid control endpoint");
     std::strcpy(addr.sun_path, path.c_str());
     int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     try {
         if (fd < 0 || connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)))
             throw WorkbenchError("NO_CONTROL", "Cannot connect to session control socket");
-        if (expectedPid) {
+        {
             struct ucred peer;
             socklen_t length = sizeof(peer);
             if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peer, &length) || peer.pid != expectedPid ||
@@ -114,6 +131,8 @@ inline Json WorkbenchCall(const std::string &path, const Json &body, int expecte
         size_t sent = 0;
         while (sent < req.size()) {
             auto n = send(fd, req.data() + sent, req.size() - sent, MSG_NOSIGNAL);
+            if (n < 0 && errno == EINTR)
+                continue;
             if (n <= 0)
                 throw WorkbenchError("WRITE_FAILED", "Control write failed");
             sent += n;
@@ -122,6 +141,8 @@ inline Json WorkbenchCall(const std::string &path, const Json &body, int expecte
         char buf[16384];
         for (;;) {
             auto n = recv(fd, buf, sizeof(buf), 0);
+            if (n < 0 && errno == EINTR)
+                continue;
             if (!n)
                 break;
             if (n < 0 || raw.size() > 32 * 1024 * 1024)
@@ -310,9 +331,14 @@ inline int WorkbenchCli(int argc, char **argv) {
         Json cfg;
         input >> cfg;
         auto path = Field(cfg, "control");
+        if (!cfg.contains("pid") || !cfg.at("pid").is_number_unsigned() ||
+            cfg.at("pid") == 0 || cfg.at("pid") > std::numeric_limits<int>::max())
+            throw WorkbenchError("NO_CONTROL", "Invalid control process identity");
+        const auto expectedPid = cfg.at("pid").get<int>();
         const auto parsed = ParseWorkbench(args);
         command = parsed.m_name;
-        reply = ExecuteWorkbench([&](const Json &b) { return WorkbenchCall(path, b); }, args, parsed, page, cwd);
+        reply = ExecuteWorkbench([&](const Json &b) { return WorkbenchCall(path, b, expectedPid); },
+                                 args, parsed, page, cwd);
     } catch (const std::exception &e) {
         reply = WorkbenchFailure(e);
         const auto &error = reply.at("error");
