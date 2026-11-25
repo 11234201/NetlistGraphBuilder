@@ -1,6 +1,6 @@
 # SSH 远程文件、EDA 工作台命令与多 AIG 开发计划
 
-2026-11-22，首版 R01–R13 与完整版 R14–R24 均已实现。启动器、命令和性能数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版现场验收](remote_workbench_full_results.md)。第 3 节是公开命令的唯一清单。加入 `level open` 后共 181 条，另有 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
+2026-11-22，首版 R01–R13 与完整版 R14–R24 均已实现。启动器、命令和性能数据见[首版 A1–A6](remote_workbench_v1_results.md)与[完整版现场验收](remote_workbench_full_results.md)。第 3 节是公开命令的唯一清单。目录共 182 条，另有 5 个简写。本文的运行示例用于开发验收。首版开发前，npm 与 Linux 单文件启动器能在启动时读取指定网表、时序和 Cell Config，现有 Tcl 提供 `::ngb::Start`、`::ngb::Status`、`::ngb::Stop`。
 
 开发任务 R01–R24、依赖、逐项通过条件和首版现场脚本见[开发需求与验收标准](remote_workbench_acceptance.md)。
 
@@ -226,6 +226,7 @@ compare clear-timing <A|B>                   清除该侧专用时序，恢复�
 compare split <horizontal|vertical>          左右 / 上下分屏
 compare sync-viewport <on|off>               Sync pan / zoom
 compare sync-roots <on|off>                  Sync Focus roots
+compare sync-selection <on|off>              Center match on click
 compare outputs                              列举两侧共有输出
 compare cone <输出|--whole> [--depth <N>]    选取或清除 Output cone
 compare cone-depth <N>                       单独修改现有输出锥深度
@@ -406,7 +407,7 @@ ngb[p3]> module open g1
 
 | 批次 | 依赖 | 开发内容 | 可观察的退出条件 |
 | --- | --- | --- | --- |
-| P0　固定命令契约 | 第 3–4 节 | 为 181 个动词建立目录和按动作分组的 UI 映射。为每个动词登记拥有者、参数、目标、能力门控、返回类型和完成条件。固定别名、结构化错误、版本协商、限额配置位置及公共请求/回执样例 | 自动对照目录恰好 181 条、5 个简写。命令无重名，无效参数和协议版本在读文件或改状态前报错。UI 新增动作时可定位其对应的命令和用例 |
+| P0　固定命令契约 | 第 3–4 节 | 为 182 个动词建立目录和按动作分组的 UI 映射。为每个动词登记拥有者、参数、目标、能力门控、返回类型和完成条件。固定别名、结构化错误、版本协商、限额配置位置及公共请求/回执样例 | 自动对照目录恰好 182 条、5 个简写。命令无重名，无效参数和协议版本在读文件或改状态前报错。UI 新增动作时可定位其对应的命令和用例 |
 | P1　Node、页面路由与 Netlist 最短流程 | P0 | 实现服务注册、配对、每页队列、连接代次、TTY 提示与路径补全、跨进程 cmd 和 job 回执。首先接入 design open/add、timing open/add、必要的查询与日志，浏览器直接调用原导入用例 | 真实两页分别打开不同设计。终端向 p1 追加模块和时序后从 p1 查到新对象，p2 的模块、选区与视口保持原值。独立 CLI 能读取相同结果。无页/多页/目标页关闭均收到准确回执 |
 | P2　Linux ELF 与 EDA Tcl 对等 | P0、P1 | 在 native 实现同一控制协议、TTY 和 cmd。使 Tcl 的 Connect/Cmd 连接两种服务，参数以 list 传递，支持含空格文件名和稳定失败分类。扩展 CMake 内嵌及集成测试 | 同一份 Tcl 脚本分别驱动 Node 服务和 ELF，执行相同查询、追加、错误和取消，并比较规范化结果。单独部署 ELF 和现有 Tcl 脚本即可运行 |
 | P3　同页多 AIG | P0，可先做领域工作，远程验收依赖 P1/P2 | 按第 4 节实现集合、稳定图 ID、原子追加、切图、每图状态、v1/v2 迁移。本机文件、粘贴、Add 菜单与通用 add 路由接入。检查 Graphviz 缓存及结构分析任务释放 | DOT 与 BLIF 在同一页并存。重复文件名和节点名可消歧。追加非活动图 Graphviz 零新增调用。切图、回切、刷新、取消、故障后旧图正确。相同 request ID 不重复追加 |
@@ -414,7 +415,7 @@ ngb[p3]> module open g1
 | P5　Netlist 浏览、校准与 Compare | P1，文件类动作承接 P4 | 完成 §3.3–3.5 全部动作。按导航、显示、实例覆盖、类型定义、侧设置拆分提交。保留 Compare 草稿/Apply、同步策略、历史和共享时序策略，复用对象和实例引用 | 通过 UI 与命令分别完成跨父层定位、Focused、拖动等价提交、独立侧时序、双侧 Fit/Reset、Golden 往返等流程，关键状态和导出结果一致。两个真实同名层次实例可准确区分 |
 | P6　路径、结构分析、AIG 与工作台外壳 | P3、P5 | 完成 §3.6–3.8。以草稿和报告对象接入 Show Path，网表及 AIG 域分别贡献可用分析。接入 AIG 名称/高亮、面板、分页、文本编辑器、详情、Diagnostics 和 Log。补齐 §3.1/3.2 其余查询和导出 | UI、REPL、cmd、Tcl 均可得到同样的指定起点距离、结构结果、当前图及 SVG。只在某域或某状态可用的动作返回实际限制。命令驱动路径能读到和浏览器相同的结构化失败详情 |
 | P7　Python 与 Windows 离线适配 | P0、P2，整体验收依赖 P6 | Python 回退及 Windows 离线启动器实现相同服务、文件与控制协议。接入 tty/非 tty、自包含资源和关闭清理。复用公共请求样例及前端 | 同版目录、帮助、JSON 回执及错误分类通过四启动器对照。Windows 离线包实际启动完成多页和多 AIG 用例，资源与许可证齐全。Python 回退可在无 Node 的服务环境运行 |
-| P8　全链路回归与交付 | P4–P7 | 合并每批 UI 映射和测试证据，执行第 7 节的端到端、性能与发布验收。更新使用指南、Linux/Tcl 集成说明、Windows 说明和已变更的架构契约 | 181 条均能定位到实现和用例，所有适用入口均覆盖。有界、部分、取消、失败和失效目标的回执可查。交付记录列明版本、平台、实际运行的测试和产物 |
+| P8　全链路回归与交付 | P4–P7 | 合并每批 UI 映射和测试证据，执行第 7 节的端到端、性能与发布验收。更新使用指南、Linux/Tcl 集成说明、Windows 说明和已变更的架构契约 | 182 条均能定位到实现和用例，所有适用入口均覆盖。有界、部分、取消、失败和失效目标的回执可查。交付记录列明版本、平台、实际运行的测试和产物 |
 
 ## 7. 验证计划
 
@@ -439,6 +440,6 @@ ngb[p3]> module open g1
 
 **首个可用版本验收 P0–P4。** 用 npm 启动 SSH 服务，页面 1 打开网表并追加模块和时序，页面 2 从服务器打开 AIG，再追加另一张包含同名节点的图。终端和已有 EDA Tcl 均可列页、选页、列图、切图并查询结果。刷新后两页各自恢复。在同一台服务器把启动入口换成 Linux ELF，重复这份脚本得到相同业务结果。
 
-**完整版本验收 P5–P8。** 交付可运行的启动器、兼容的 Tcl 辅助脚本、远程文件选择器、多 AIG 工作区、181 条命令的在线帮助和完整 UI 覆盖清单。随版本提供 SSH 转发与 Tcl 示例、协议版本和错误码说明、平台测试报告及离线包核验结果。按批次合入时只在界面和 `commands --available` 中启用已实现且适用于该页的能力。功能失败时保留原有本机文件入口和可用工作区。
+**完整版本验收 P5–P8。** 交付可运行的启动器、兼容的 Tcl 辅助脚本、远程文件选择器、多 AIG 工作区、182 条命令的在线帮助和完整 UI 覆盖清单。随版本提供 SSH 转发与 Tcl 示例、协议版本和错误码说明、平台测试报告及离线包核验结果。按批次合入时只在界面和 `commands --available` 中启用已实现且适用于该页的能力。功能失败时保留原有本机文件入口和可用工作区。
 
 核对入口见 [前端工作台](../../index.html)、[通用事件绑定](../../src/app/workbench_event_bindings.js)、[导入与粘贴](../../src/ui/quick_input_controller.js)、[Show Path](../../src/ui/show_path_controller.js)、[Netlist 重收敛](../../src/ui/netlist_reconvergence_panel.js)、[AIG 面板](../../src/ui/aig_panels.js)、[AIG 结构详情](../../src/ui/aig_structure_panels.js)、[用户指南](../USER_GUIDE.md)、[Node 启动器](../../tools/serve.mjs)、[Linux 单文件启动器说明](../LINUX_SINGLE_FILE_LAUNCHER.md)和 [EDA Tcl 接口](../../tools/eda/ngb.tcl)。

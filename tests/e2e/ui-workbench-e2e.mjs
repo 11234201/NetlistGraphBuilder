@@ -521,6 +521,92 @@ async function analysisWorkflow(browser, url) {
   });
 }
 
+async function compareSyncControls(browser, url) {
+  await checkCase("compare-independent-sync-controls", async () => {
+    const { context, page } = await openPage(browser, url);
+    const mount = (side) => page.locator(`#${side}SchematicMount`);
+    const object = (side, id) => mount(side).locator(`[data-node-id="${id}"]`);
+    const transform = (side) => mount(side).locator("#schematicContent").getAttribute("transform");
+    async function settings(panZoom, selection, roots) {
+      for (const [id, checked] of [["syncCompareInput", panZoom], ["syncCompareSelectionInput", selection], ["syncCompareFocusInput", roots]]) {
+        const input = page.locator(`#${id}`);
+        await revealDisclosure(input);
+        await input.setChecked(checked);
+      }
+      await page.keyboard.press("Escape");
+    }
+    async function expectCentered(side, id) {
+      const box = await object(side, id).locator(".node-shape").first().boundingBox();
+      const svg = await mount(side).locator("svg").boundingBox();
+      assert.ok(box && svg, `${side} displays ${id}`);
+      const dx = box.x + box.width / 2 - svg.x - svg.width / 2;
+      const dy = box.y + box.height / 2 - svg.y - svg.height / 2;
+      assert.ok(Math.hypot(dx, dy) < 2, `${side} centers ${id}, offset (${dx}, ${dy})`);
+    }
+    async function wheelRight() {
+      const before = await transform("right");
+      await mount("right").locator("svg").hover();
+      await page.mouse.wheel(0, 120);
+      await page.waitForFunction((before) => document.querySelector("#rightSchematicMount #schematicContent").getAttribute("transform") !== before, before);
+      await page.waitForFunction(() => !document.querySelector("#canvas").classList.contains("is-view-interacting"));
+    }
+    try {
+      await importDesign(page, workflowSource.replace("OR2 u_second", "OR2 peer_only"));
+      await click(page, "#compareButton");
+      await page.locator("#leftModuleSelect").selectOption("top");
+      await page.locator("#rightModuleSelect").selectOption("peer");
+      await click(page, "#applyCompareButton");
+      await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Compare ready"));
+      await object("right", "cell:peer_only").waitFor();
+      await object("left", "cell:u_first").locator(".node-shape").first().click();
+      await settings(false, true, false);
+      await click(page, "#fitButton");
+      await object("left", "input:a").locator(".node-shape").click();
+      await expectCentered("left", "input:a");
+      await expectCentered("right", "input:a");
+      assert.equal(await mount("right").locator(".is-compare-counterpart").getAttribute("data-node-id"), "input:a");
+      const leftOnInput = await transform("left");
+      await wheelRight();
+      assert.equal(await transform("left"), leftOnInput, "Independent wheel leaves the other side in place");
+
+      await click(page, "#fitButton");
+      const leftBeforeUnmatched = await transform("left");
+      await object("right", "cell:peer_only").locator(".node-shape").first().click();
+      assert.equal(await transform("left"), leftBeforeUnmatched, "An unmatched instance keeps the peer viewport");
+      assert.equal(await mount("left").locator(".is-compare-counterpart").count(), 0);
+
+      await settings(true, false, true);
+      await click(page, "#fitButton");
+      const leftBeforeSelection = await transform("left");
+      await object("right", "cell:u_first").locator(".node-shape").first().click();
+      await expectCentered("right", "cell:u_first");
+      assert.equal(await transform("left"), leftBeforeSelection, "Linked pan/zoom leaves independent selection alone");
+      assert.equal(await mount("left").locator(".is-compare-counterpart").getAttribute("data-node-id"), "cell:u_first");
+      assert.equal(await mount("left").locator(".node.is-selected").getAttribute("data-node-id"), "input:a");
+      await wheelRight();
+      const leftAfterWheel = await transform("left");
+      assert.notEqual(leftAfterWheel, leftBeforeSelection, "Linked wheel moves the peer viewport");
+      const rightBeforeFocus = await transform("right");
+      await page.keyboard.press("f");
+      assert.notEqual(await transform("right"), rightBeforeFocus, "F zooms the active selection");
+      await expectCentered("right", "cell:u_first");
+      assert.equal(await transform("left"), leftAfterWheel, "F keeps the peer viewport when click centering is off");
+
+      await click(page, "#fitButton");
+      const rootOnSide = (side) => mount(side).locator('.focused-root[data-node-id="cell:u_first"]');
+      await object("right", "cell:u_first").locator(".node-shape").first().click({ modifiers: ["Shift"] });
+      await rootOnSide("right").waitFor();
+      await rootOnSide("left").waitFor();
+      await settings(false, true, false);
+      await object("right", "cell:u_first").locator(".node-shape").first().click({ modifiers: ["Shift"] });
+      await mount("right").locator('[data-node-id="cell:u_first"]:not(.focused-root)').waitFor();
+      assert.equal(await rootOnSide("left").count(), 1, "Removing an independent root keeps the peer root");
+      return { checkedObjects: ["input:a", "cell:u_first", "cell:peer_only"] };
+    } catch (error) { await captureFailure(page, error); throw error; }
+    finally { await context.close(); }
+  });
+}
+
 async function boundedInspector(browser, url) {
   await checkCase("long-names-bounded-connections", async () => {
     const { context, page } = await openPage(browser, url);
@@ -668,6 +754,7 @@ try {
   await runBrowserTest(async ({ browser, url }) => {
     await layoutCases(browser, url);
     await analysisWorkflow(browser, url);
+    await compareSyncControls(browser, url);
     await boundedInspector(browser, url);
     await searchFirst(browser, url);
     await compactCases(browser, url);

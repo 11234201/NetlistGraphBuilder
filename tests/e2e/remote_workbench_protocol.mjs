@@ -218,23 +218,24 @@ async function check(adapter,s,dir,roots,t){
     await s.page(b,"poll",{context:{mode:"Compare",pickerState:"open"}});
     const aigNames=names(await available("--page",a.page));
     for(const name of ["aig add","level open","module open","files browse"]) assert.ok(aigNames.includes(name));
-    for(const name of ["timing open","timing show","golden load","files choose","files submit"])
+    for(const name of ["timing open","timing show","golden load","files choose","files submit","compare sync-selection"])
       assert.ok(!aigNames.includes(name));
     assert.equal((await available("--page",a.page,"--side","B")).error.code,"INVALID_SIDE");
     const compareNames=names(await available("--page",b.page));
     assert.ok(!compareNames.includes("level open"));
     assert.ok(compareNames.includes("files choose"));
+    assert.ok(compareNames.includes("compare sync-selection"));
     assert.ok(!compareNames.includes("files submit"));
     assert.ok(!compareNames.includes("svg export"));
     const sideNames=names(await available("--page",b.page,"--side","A"));
     for(const name of ["timing add","svg export","timing show"]) assert.ok(sideNames.includes(name));
-    for(const name of ["aig add","module open","fs ls"]) assert.ok(!sideNames.includes(name));
+    for(const name of ["aig add","module open","fs ls","compare sync-selection"]) assert.ok(!sideNames.includes(name));
     await s.page(b,"poll",{context:{mode:"Compare",pickerState:"selected"}});
     assert.ok(names(await available("--page",b.page)).includes("files submit"));
     await s.page(a,"poll",{context:{mode:"Single",pickerState:"closed"}});
     assert.ok(!names(await available("--page",a.page)).includes("level open"));
     const full=await s.admin("command",{argv:["commands","--page","missing"]});
-    assert.equal(full.result.length,181);
+    assert.equal(full.result.length,182);
     const logs=join(dir,"logs-"+adapter);
     const files=(await readdir(logs)).filter(name=>name.endsWith(".error.jsonl"));
     const records=(await Promise.all(files.map(name=>readFile(join(logs,name),"utf8"))))
@@ -262,7 +263,7 @@ async function check(adapter,s,dir,roots,t){
     await readFile(sentinel);
     assert.ok((await stat(sentinel)).atimeMs>0,"fixture filesystem must record a real read");
     const rows=(await command("catalogue","commands")).result;
-    assert.equal(new Set(rows.map(row=>row.name)).size,181);
+    assert.equal(new Set(rows.map(row=>row.name)).size,182);
     assert.ok(rows.every(row=>row.syntax && row.capability && row.target && row.completion));
   });
   await t.test(adapter+" R03/R04 queue, cancellation at receive and commit gate, deduplication and unknown outcome",async()=>{

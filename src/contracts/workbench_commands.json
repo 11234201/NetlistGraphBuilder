@@ -119,6 +119,7 @@
 {"name":"compare split","syntax":"compare split <horizontal|vertical>","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"enums":{"0":["horizontal","vertical"]},"modes":["Compare"]},
 {"name":"compare sync-viewport","syntax":"compare sync-viewport <on|off>","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"enums":{"0":["on","off"]},"modes":["Compare"]},
 {"name":"compare sync-roots","syntax":"compare sync-roots <on|off>","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"enums":{"0":["on","off"]},"modes":["Compare"]},
+{"name":"compare sync-selection","syntax":"compare sync-selection <on|off>","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"enums":{"0":["on","off"]},"modes":["Compare"]},
 {"name":"compare outputs","syntax":"compare outputs","target":"page","capability":"v1","completion":"workspace-result","arguments":[0,0],"modes":["Compare"]},
 {"name":"compare cone","syntax":"compare cone <输出|--whole> [--depth <N>]","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"options":["whole","depth"],"alternative":"whole","modes":["Compare"]},
 {"name":"compare cone-depth","syntax":"compare cone-depth <N>","target":"page","capability":"v1","completion":"workspace-result","arguments":[1,1],"modes":["Compare"]},

@@ -9,6 +9,7 @@ import {
 } from "./viewHistory.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { resolveCompareWorkspaceInputs } from "./compareWorkspace.js";
+import { normalizeCompareSyncSettings } from "./compare_sync_settings.js";
 import { createNetlistScene } from "../domains/netlist/netlist_scene.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { errorMessage, readErrorField } from "../foundation/log_details.js";
@@ -182,6 +183,7 @@ export function createHistoryController({ state, elements, services, refreshComp
     elements.coneDepthInput.value = String(state.coneDepth);
     elements.faninDepthInput.value = String(state.faninDepth);
     elements.fanoutDepthInput.value = String(state.fanoutDepth);
+    Object.assign(state.compare, normalizeCompareSyncSettings(compare));
     state.compare.focusedRootsSynchronized = compare.focusedRootsSynchronized !== false;
     services.compareViewSessions.importNavigation(compare);
     const query = services.singleViewSession.readQuery();
@@ -191,6 +193,8 @@ export function createHistoryController({ state, elements, services, refreshComp
       focusedRootNodeIds: state.compare.focusedRootNodeIds, forceWhole: state.compare.wholeRequested
     }));
     elements.compareLayoutSelect.value = state.compare.layout;
+    elements.syncCompareInput.checked = state.compare.synchronized;
+    elements.syncCompareSelectionInput.checked = state.compare.selectionSynchronized;
     elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized;
     elements.comparePanel.hidden = false;
     elements.compareMount.hidden = false;
@@ -359,7 +363,7 @@ export const historyPorts = Object.freeze({
     "compareLayoutSelect", "compareMount", "comparePanel", "coneDepthInput", "faninDepthInput",
     "fanoutDepthInput", "leftModuleSelect", "leftMount",
     "moduleBackButton", "moduleForwardButton", "mount", "rightModuleSelect", "rightMount",
-    "syncCompareFocusInput"
+    "syncCompareInput", "syncCompareSelectionInput", "syncCompareFocusInput"
   ],
   services: [
     "readCellLibrary",

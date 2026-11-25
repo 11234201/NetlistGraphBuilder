@@ -99,6 +99,8 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     elements.compareButton.title = "退出双 module 对比视图";
     elements.compareButton.setAttribute("aria-pressed", "true");
     elements.compareLayoutSelect.value = state.compare.layout;
+    elements.syncCompareInput.checked = state.compare.synchronized;
+    elements.syncCompareSelectionInput.checked = state.compare.selectionSynchronized;
     elements.syncCompareFocusInput.checked = state.compare.focusedRootsSynchronized !== false;
     applyCompareLayout();
     updateCompareSideTimingControls();
@@ -458,7 +460,8 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     setDepth:depth => services.singleViewSession.dispatch({type:"view.coneDepth.set",coneDepth:depth}), summary:() => state.compare.analysis,
     read:() => ({active:state.compare.active, applied:{A:state.compare.leftModuleName,B:state.compare.rightModuleName},
       draft:{A:elements.leftModuleSelect.value,B:elements.rightModuleSelect.value},side:({left:"A",right:"B"})[state.compare.activeSide] || null,
-      split:state.compare.layout,syncViewport:state.compare.synchronized,syncRoots:state.compare.focusedRootsSynchronized,
+      split:state.compare.layout,syncViewport:state.compare.synchronized,syncSelection:state.compare.selectionSynchronized,
+      syncRoots:state.compare.focusedRootsSynchronized,
       timing:{A:state.compare.sideTimingLabels.left || null,B:state.compare.sideTimingLabels.right || null},
       output:state.compare.outputName,depth:state.coneDepth})
   });
@@ -484,7 +487,7 @@ export const compareWorkspacePorts = Object.freeze({
     "compareButton", "compareLayoutSelect", "compareLeftClearTimingButton", "compareLeftTimingStatus",
     "compareMount", "compareOutputSelect", "comparePanel", "compareRightClearTimingButton",
     "compareRightTimingStatus", "coneDepthInput", "leftModuleSelect", "leftMount", "mount",
-    "rightModuleSelect", "rightMount", "syncCompareFocusInput"
+    "rightModuleSelect", "rightMount", "syncCompareInput", "syncCompareSelectionInput", "syncCompareFocusInput"
   ],
   services: [
     "singleViewSession",

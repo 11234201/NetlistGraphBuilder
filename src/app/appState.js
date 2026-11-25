@@ -6,6 +6,7 @@ import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedVi
 import { resolveFocusedRootState } from "./focusedSelection.js";
 import { createViewHistory } from "./viewHistory.js";
 import { createWorkspaceArtifactCache } from "./workspaceArtifactCache.js";
+import { normalizeCompareSyncSettings } from "./compare_sync_settings.js";
 
 export function createAppState(layoutPolicy) {
   return {
@@ -67,7 +68,7 @@ export function createAppState(layoutPolicy) {
   };
 }
 
-export function createCompareState() {
+export function createCompareState(syncSettings) {
   return Object.preventExtensions({
     active: false,
     leftModuleName: null,
@@ -80,7 +81,7 @@ export function createCompareState() {
       left: { x: 0, y: 0, scale: 1 },
       right: { x: 0, y: 0, scale: 1 }
     },
-    synchronized: true,
+    ...normalizeCompareSyncSettings(syncSettings),
     focusedRootsSynchronized: true,
     layout: "horizontal",
     selectedName: null,
@@ -108,9 +109,9 @@ export function createCompareState() {
   });
 }
 
-export function resetDesignWorkspace(state, resetNavigation = (value) => Object.assign(state, value)) {
+export function resetDesignWorkspace(state, resetNavigation = (value) => Object.assign(state, value), compareSync) {
   state.compare?.layoutAbortController?.abort();
-  state.compare = createCompareState();
+  state.compare = createCompareState(compareSync);
   state.sourceFiles = [];
   resetModuleWorkspace(state, resetNavigation);
   state.fullGraph = null;

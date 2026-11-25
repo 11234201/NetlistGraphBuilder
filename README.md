@@ -36,7 +36,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 | 能力领域 | 入口位置 | 当前行为说明 |
 | --- | --- | --- |
-| **SSH 工作台与多页/多 AIG** | `File → Open from server…`、启动终端、`cmd`、`ngb.tcl`、顶栏图选择器 | 四种启动器共用 181 条命令与 5 个简写；单个后端可配对多个浏览器页（`pages` / `use`），单页可通过 `aig add` / `Add AIG file(s)…` 保留并切换多份 AIG。 |
+| **SSH 工作台与多页/多 AIG** | `File → Open from server…`、启动终端、`cmd`、`ngb.tcl`、顶栏图选择器 | 四种启动器共用 182 条命令与 5 个简写；单个后端可配对多个浏览器页（`pages` / `use`），单页可通过 `aig add` / `Add AIG file(s)…` 保留并切换多份 AIG。 |
 | **AIG Level 层级与裕量报告** | `File → AIG + Level → Open levels…` / `Paste levels…`、`level open` | 支持主输入初始 `at_level` 偏移向下游传播拓扑层级与关键路径，以及逐点 AT / RT / Slack 报告（`Inspector → Analysis`）；Level 附件按所属 AIG 绑定并在切图与刷新后恢复。[格式规范](docs/design/aig_level_format_spec.md) |
 | **多文件合并、注释属性与 Compare 侧文件** | `File → Netlist + Timing`、Compare `A files` / `B files`、`Inspector → Attributes` | 支持 `Add design/timing file(s)…` 叠加导入（同名模块按 `[filename]` 消歧）、Compare 两侧独立加载网表与时序，以及结构化 Verilog 注释属性（`module`/`port`/`net`/`instance`）解析。 |
 | **Show Path 路径级数** | 上下文栏 `Show Path` / `Navigator → Path → Apply → Path information` | 在 Starts 查看每个输入到所选 Ends 的最短和最长级数。仅指定起点时，使用报告中的 Auto ends。在 Ends 查看从查询起点到指定终点的级数（From start）。[教程与 BLIF 示例](docs/USER_GUIDE.md#show-path-路径与逻辑级数) |
@@ -83,7 +83,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 - **便捷多格式输入**：`File` 菜单顶部提供 `Open design…`（可单选主文件，也可将 Verilog + Timing 或 AIG + Level 一同选中导入），下方按 `Netlist + Timing` 与 `AIG + Level` 分组提供追加文件（`Add design/timing/AIG file(s)…`）与专用粘贴对话框（`Paste netlist / timing / AIG / levels…`）。页面同时支持任意位置拖放与非输入框 `Ctrl+V` 全局粘贴，自动识别 Liberty 库、Verilog 网表、ABC AIG DOT / 两输入组合 BLIF、AIG `.level`、Layout Golden 与时序日志。
 - **自定义单元配置（Cell Config）**：支持在界面内编辑、浏览器本地持久化及 JSON 导入/导出未知单元类型的逻辑门种类与引脚方向。
 - **过程日志与终端日志（Process & Terminal Log）**：底部可折叠 `Log` 面板支持按阶段（Phase）和级别（Level）过滤、一键复制与脱敏导出 JSONL；各平台终端启动器自动按约 2 MiB 轮转运行/错误 JSONL 日志，并在启动时清理超过 14 天的已退出进程旧日志。
-- **跨平台 EDA 启动与远程命令接口**：Node.js、Python、Windows 离线版与 Linux 单文件启动器共享统一的启动参数、状态文件生命周期与 181 条远程工作台命令（含 `cmd` 子命令与交互式终端 REPL）；配套 `ngb.tcl` 同时提供 `Start/Status/Stop` 与 `Connect/Cmd` 接口。
+- **跨平台 EDA 启动与远程命令接口**：Node.js、Python、Windows 离线版与 Linux 单文件启动器共享统一的启动参数、状态文件生命周期与 182 条远程工作台命令（含 `cmd` 子命令与交互式终端 REPL）；配套 `ngb.tcl` 同时提供 `Start/Status/Stop` 与 `Connect/Cmd` 接口。
 
 ## 运行方式
 
@@ -196,7 +196,7 @@ node tools/serve.mjs stop --state-file ./results/ngb-session.json
 
 ## SSH 工作台
 
-通过 SSH 转发打开 `ready.pairUrl`，本地网页的 **File → Open from server…** 可选择服务器文件（既可单选主文件，也可同时勾选 Verilog + Timing 或 AIG + Level 配对导入，或选 `level open` 为当前 AIG 补载 Level）。一个后端可配对多个页面。在启动终端输入 `pages` 查看页号，`use p1` 指定页面，随后用 `add`、`timing add`、`aig add`、`level open` 或 `files import` 增量加载。页内图选择器和 `module open` 均可切换该页保留的 AIG（每张图各自保留其 Level 附件、选区与视口）。npm、Linux ELF、Python 和 Windows 离线包共用 181 条命令与 5 个简写。`commands --available` 列出当前页适用的命令，`help <命令>` 显示参数。[启动、转发和 Tcl 示例](docs/LINUX_SINGLE_FILE_LAUNCHER.md#6-在-ssh-转发的页面中追加文件) · [完整命令表](docs/plans/remote_workbench_commands.md)
+通过 SSH 转发打开 `ready.pairUrl`，本地网页的 **File → Open from server…** 可选择服务器文件（既可单选主文件，也可同时勾选 Verilog + Timing 或 AIG + Level 配对导入，或选 `level open` 为当前 AIG 补载 Level）。一个后端可配对多个页面。在启动终端输入 `pages` 查看页号，`use p1` 指定页面，随后用 `add`、`timing add`、`aig add`、`level open` 或 `files import` 增量加载。页内图选择器和 `module open` 均可切换该页保留的 AIG（每张图各自保留其 Level 附件、选区与视口）。npm、Linux ELF、Python 和 Windows 离线包共用 182 条命令与 5 个简写。`commands --available` 列出当前页适用的命令，`help <命令>` 显示参数。[启动、转发和 Tcl 示例](docs/LINUX_SINGLE_FILE_LAUNCHER.md#6-在-ssh-转发的页面中追加文件) · [完整命令表](docs/plans/remote_workbench_commands.md)
 
 ## 快速上手指南
 
@@ -253,7 +253,7 @@ node tools/generate-large-example.mjs
 3. 在画布上方的 Compare 配置行分别指定 `A` 与 `B`，点击 `Apply` 应用草稿组合。A 始终对应左侧/上方，B 对应右侧/下方。
 4. 点击顶部 `Single` 或 `Sync & cone > Return to Single` 返回单图模式（保持各自视口，不强制 Fit）。
 5. 分屏方向（`Split`）默认为 `Left / Right`（左右分屏），可切换为 `Top / Bottom`（上下分屏），切换后两侧视图自动适配窗口。
-6. `Sync & cone > Sync pan / zoom` 默认开启：一侧缩放或平移时同步另一侧；关闭后两侧独立。上下文栏 `Fit view` 始终适配两侧。
+6. 在 `Sync & cone` 中，`Sync pan / zoom` 联动拖动和滚轮，`Center match on click` 在单击端口、cell 或 net 时居中另一侧的同名对象。两项默认开启，可分别切换。上下文栏 `Fit view` 始终适配两侧。
 7. 单击任一侧的同名端口、线网或匹配单元，两侧画布会同步高亮对应对象，且端口与单元会自动居中聚焦。
 8. `Sync & cone > Sync Focus roots` 默认开启：根操作会同步另一侧匹配单元；关闭后根操作独立，但 Fanin/Fanout 深度仍共享。Inspector 明确显示活动对象来自 A 或 B；`Whole` 清除两侧 roots 与 Output cone。
 9. 在 `Sync & cone > Output cone` 中选择共有输出端口（如 `sco_891`），同步对比扇入逻辑锥；调整 `Output depth` 控制层数，选择 `Whole module` 返回整图对比。
@@ -298,7 +298,7 @@ npm run test:mapped-cases
 - `npm test`：运行完整单元测试，覆盖语法解析（含注释属性）、Liberty 与无库推断、图模型提取、多文件合并、布局与正交布线、AIG 解析/Level 层级传播/分析/Graphviz 几何、时序标注与漏配诊断、远程工作台协议与命令目录、搜索、锥体分析、别名折叠、模块对比、会话持久化及 SVG 渲染。
 - `npm run test:aig` / `npm run test:liberty`：专项运行 AIG（DOT/BLIF 解析、Level 层级与裕量、多图集合、分析面板与 Graphviz 适配器）或 Liberty 库语义单元测试。
 - `npm run test:aig-browser` / `npm run test:aig-structure` / `npm run test:aig-views`：在已配置浏览器驱动的测试环境中运行 AIG 工作台与 Level 导入、结构分析、Standard / Logic View 切换的真实浏览器回归；测试依赖不属于离线运行时。
-- `npm run test:remote-protocol` / `npm run test:remote-workbench` / `npm run test:remote-full`：验证 SSH 远程工作台控制协议、多页/多 AIG 会话与 181 条远程命令的端到端行为。
+- `npm run test:remote-protocol` / `npm run test:remote-workbench` / `npm run test:remote-full`：验证 SSH 远程工作台控制协议、多页/多 AIG 会话与 182 条远程命令的端到端行为。
 - `npm run benchmark:aig-structure`：测量深链、高扇出、重汇聚、奇偶链和 MUX 链的分析耗时及截断状态，不包含 Graphviz 布局时间。
 - `npm run test:architecture`：基于离线 Acorn AST 校验全仓模块依赖方向、跨层边界与无环约束。
 - `npm run test:docs`：校验核心文档与教程中的所有相对路径链接有效性。
@@ -319,7 +319,7 @@ src/analysis/         逻辑锥（cone）、别名规范化、对象连接查询
 src/app/              浏览器入口组装、领域工作台桥接、多 AIG 集合与远程命令执行器
 src/application/      Document/ViewSession 状态存储、命令总线、任务协调与领域会话
 src/bootstrap/        静态领域注册（Netlist / AIG）与工作台依赖组装
-src/contracts/        ObjectRef、领域接口、查询、视图与 181 条工作台命令契约定义
+src/contracts/        ObjectRef、领域接口、查询、视图与 182 条工作台命令契约定义
 src/diagram/          领域中性的显示图模型、共享视图流水线与几何测量契约
 src/domains/aig/      AIG 领域特性：DOT / BLIF 导入、Level 层级传播与报告、重汇聚/逻辑块分析与场景投影
 src/domains/netlist/  Netlist 领域特性、多文件合并、图投影、时序/单元配置/Golden 业务用例

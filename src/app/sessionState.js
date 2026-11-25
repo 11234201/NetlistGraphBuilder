@@ -1,4 +1,5 @@
 import { createViewHistoryEntry } from "./viewHistory.js";
+import { normalizeCompareSyncSettings } from "./compare_sync_settings.js";
 import { normalizeFocusedRootNodeIds as normalizePolicyRoots } from "./focusedViewPolicy.js";
 export { SESSION_STATE_KEY, LEGACY_SESSION_STATE_KEY, loadSessionState, saveSessionState } from "../persistence/session_storage.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
@@ -38,6 +39,7 @@ export function createSessionSnapshot(state, compareEntry = comparePathSnapshot(
     sourceLabel: state.currentSourceLabel,
     ...(state.sourceFiles?.length > 1 ? { sourceFiles: state.sourceFiles.map(({ name, text }) => ({ name, text })) } : {}),
     moduleName: state.currentModule?.name || null,
+    compareSync: normalizeCompareSyncSettings(state.compare),
     ...(compareEntry ? { comparePathView: compareEntry } : {}),
     showPath: state.showPath, occurrenceContext: state.occurrenceContext,
     viewMode: state.viewMode,

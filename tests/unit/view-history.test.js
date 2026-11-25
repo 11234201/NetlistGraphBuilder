@@ -118,6 +118,19 @@ test("compare snapshots keep side-specific layout overrides", () => {
   assert.deepEqual(entry.compare.overrides.right.nodePositions, [["cell:right", { x: 30, y: 40 }]]);
 });
 
+test("Compare click-to-locate can be undone independently and older history inherits viewport sync", () => {
+  const compare = { active: true, synchronized: false };
+  let history = pushViewHistory(createViewHistory(), createViewHistoryEntry(state("top", { compare })));
+  compare.selectionSynchronized = true;
+  history = pushViewHistory(history, createViewHistoryEntry(state("top", { compare })));
+  const undone = stepViewHistory(history, -1);
+  assert.equal(undone.entry.compare.selectionSynchronized, false);
+  assert.equal(undone.entry.compare.synchronized, false);
+  const redone = stepViewHistory(undone.history, 1);
+  assert.equal(redone.entry.compare.selectionSynchronized, true);
+  assert.equal(redone.entry.compare.synchronized, false);
+});
+
 test("view history snapshots layout overrides without retaining graph or scene objects", () => {
   const entry = createViewHistoryEntry(state("top", {
     nodePositions: new Map([["cell:u1", { x: 10, y: 20 }]]),

@@ -246,7 +246,7 @@ export function createInspectorController({ state, elements, services, netRoutin
   }
 
   function focusCompareSelection(kind, name) {
-    const sides = state.compare.synchronized ? ["left", "right"] : [state.compare.selectedSide];
+    const sides = state.compare.selectionSynchronized ? ["left", "right"] : [state.compare.selectedSide];
     for (const side of sides) {
       const graph = state.compare.graphs[side];
       const svg = (side === "left" ? elements.leftMount : elements.rightMount).querySelector("svg");

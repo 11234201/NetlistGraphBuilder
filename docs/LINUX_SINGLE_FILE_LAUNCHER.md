@@ -180,7 +180,7 @@ if {[catch {::ngb::Cmd $state --page p1 --timeout 1000 aig add /work/eco.blif} m
 }
 ```
 
-`commands` 列出完整目录（共 181 条命令与 5 个简写），`help aig add` 或 `help level open` 查询参数。`commands --available` 依据网页最近报告的模式和文件选择器状态列出可执行命令。尚未连接网页时只列启动器和服务命令，单页时自动选择，多页时使用 `--page <ID>` 或终端已选的页面。在 Compare 页加 `--side A` 或 `--side B` 可查询适用于该侧的命令，包括导出 SVG 和查看时序。
+`commands` 列出完整目录（共 182 条命令与 5 个简写），`help aig add` 或 `help level open` 查询参数。`commands --available` 依据网页最近报告的模式和文件选择器状态列出可执行命令。尚未连接网页时只列启动器和服务命令，单页时自动选择，多页时使用 `--page <ID>` 或终端已选的页面。在 Compare 页加 `--side A` 或 `--side B` 可查询适用于该侧的命令，包括导出 SVG 和查看时序。
 
 ## 7. EDA Tcl 辅助脚本（`ngb.tcl`）
 
@@ -200,7 +200,7 @@ puts [::ngb::Status $ngb_bin $ngb_state]
 ```
 
 - **`::ngb::Start`**：在后台打开非阻塞管道并保持持有，最多等待 10 秒直至读取到合法的 `ready` JSON 后才向调用方返回 URL；若子进程提前退出、等待超时或目标 `stateFile` 已被占用，均会直接抛出 Tcl 错误。默认自动附加 `--port 0`、`--no-open` 与 `--parent-death`，并支持传入 `--netlist`、`--timing`、`--cell-config`、`--browse-root`、`--module`、`--focus`、`--fanin-depth`、`--fanout-depth` 键值对。
-- **`::ngb::Connect` 与 `::ngb::Cmd`**：连接已运行的服务会话并发送 181 条工作台命令（返回值直接解析为 UTF-8 Tcl 字典回执，业务错误在 `-errorcode` 中携带 `NGB <CODE>` 并在 `-ngbreceipt` 中附带完整回执）。
+- **`::ngb::Connect` 与 `::ngb::Cmd`**：连接已运行的服务会话并发送 182 条工作台命令（返回值直接解析为 UTF-8 Tcl 字典回执，业务错误在 `-errorcode` 中携带 `NGB <CODE>` 并在 `-ngbreceipt` 中附带完整回执）。
 - **`::ngb::Status` 与 `::ngb::Stop`**：不同 `stateFile` 路径可并行管理多个独立会话，不会隐式覆盖既有会话。`Stop` 委托给原生 `ngb stop` 进行安全校验终止，不会吞掉错误，也不会直接强杀 Tcl 管道 PID。
 - **防注入与编码安全**：所有命令参数均通过 Tcl 列表（List）直接传递，不经过任何 Shell 字符串拼接，完整支持含空格或中文字符的文件路径。由于 Tcl `open "|..."` 原生语法会解析管道与重定向符号，脚本会显式拒绝以 `<`、`>`、`|`、`&` 开头的非路径参数值。若上层 EDA 脚本使用 `catch` 捕获异常，请务必将错误真实报告给用户，切勿将失败伪报为启动成功。
 

@@ -20,6 +20,7 @@ const businessControls = {
   showPathButton:"path open",fitButton:"viewport fit",adjustLayoutButton:"adjust mode",compareButton:"compare enter",
   leftModuleSelect:"compare module",rightModuleSelect:"compare module",applyCompareButton:"compare apply",exitCompareButton:"compare exit",
   compareLayoutSelect:"compare split",syncCompareInput:"compare sync-viewport",syncCompareFocusInput:"compare sync-roots",
+  syncCompareSelectionInput:"compare sync-selection",
   compareOutputSelect:"compare cone",coneDepthInput:"compare cone-depth",compareLeftNetlistInput:"compare design",compareRightNetlistInput:"compare design",
   compareLeftTimingInput:"timing open",compareRightTimingInput:"timing open",compareLeftClearTimingButton:"compare clear-timing",
   compareRightClearTimingButton:"compare clear-timing",addFocusedRootButton:"focus add",setFocusedRootButton:"focus replace",

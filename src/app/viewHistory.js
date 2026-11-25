@@ -2,6 +2,7 @@ import { cloneObjectRefs } from "../contracts/object_ref.js";
 import { normalizeFocusedRootNodeIds } from "./focusedViewPolicy.js";
 import { cloneGraphOverrides } from "../domains/netlist/graph_overrides.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
+import { normalizeCompareSyncSettings } from "./compare_sync_settings.js";
 
 import { createHistoryOperations } from "../foundation/view_history.js";
 export { createViewHistory, DEFAULT_VIEW_HISTORY_LIMIT } from "../foundation/view_history.js";
@@ -58,6 +59,8 @@ export function createViewHistoryEntry(state, metadata = {}) {
         left: state.compare.activeFocusedRootNodeId?.left || null,
         right: state.compare.activeFocusedRootNodeId?.right || null
       },
+      synchronized: state.compare.synchronized,
+      selectionSynchronized: state.compare.selectionSynchronized,
       focusedRootsSynchronized: state.compare.focusedRootsSynchronized !== false,
       selectedName: state.compare.selectedName || null,
       selectedKind: state.compare.selectedKind || null,
@@ -138,6 +141,7 @@ function cloneEntry(entry = {}) {
         left: entry.compare.activeFocusedRootNodeId?.left || null,
         right: entry.compare.activeFocusedRootNodeId?.right || null
       },
+      ...normalizeCompareSyncSettings(entry.compare),
       focusedRootsSynchronized: entry.compare.focusedRootsSynchronized !== false,
       selectedName: entry.compare.selectedName || null,
       selectedKind: entry.compare.selectedKind || null,

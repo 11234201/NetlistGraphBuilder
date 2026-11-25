@@ -8,20 +8,7 @@ import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 export function createFocusNavigationController({ state, elements, services }) {
   function focusSelectedCell() {
     if (state.compare.active) {
-      if (state.compare.selectedKind === "net" && state.compare.selectedName) {
-        const side = state.compare.selectedSide || "left";
-        const graph = state.compare.graphs[side];
-        const edge = graph?.edges.find((item) => item.net === state.compare.selectedName);
-        const mount = side === "left" ? elements.leftMount : elements.rightMount;
-        if (edge) {
-          focusPositionedEdge(edge, mount, state.compare.transforms[side], (transform) => services.setCompareTransform(side, transform));
-          services.applyCompareTransforms();
-        }
-        services.recordViewHistory();
-        services.setStatus(`Focused compare net ${state.compare.selectedName}`);
-        return;
-      }
-      focusSelectedCompareCell();
+      zoomToCompareSelection();
       return;
     }
     if (state.selectedNet) {
@@ -180,21 +167,26 @@ export function createFocusNavigationController({ state, elements, services }) {
     return a.length === b.length && a.every((segment, index) => segment === b[index]);
   }
 
-  function focusSelectedCompareCell() {
-    if (state.compare.selectedKind !== "cell" || !state.compare.selectedName) return;
+  function zoomToCompareSelection() {
+    const { selectedKind, selectedName } = state.compare;
+    if (!["cell", "net"].includes(selectedKind) || !selectedName) return;
     const activeSide = state.compare.selectedSide || "left";
-    const sides = state.compare.synchronized ? ["left", "right"] : [activeSide];
+    const sides = state.compare.selectionSynchronized ? ["left", "right"] : [activeSide];
     for (const side of sides) {
-      const node = findCompareNode(state.compare.graphs[side], "cell", state.compare.selectedName);
-      if (!node) continue;
+      const graph = state.compare.graphs[side];
       const mount = side === "left" ? elements.leftMount : elements.rightMount;
-      focusPositionedCell(node, mount, state.compare.transforms[side], (transform) => {
-        services.setCompareTransform(side, transform);
-      });
+      const commit = transform => services.setCompareTransform(side, transform, false);
+      if (selectedKind === "net") {
+        const edge = graph?.edges.find(item => item.net === selectedName);
+        if (edge) focusPositionedEdge(edge, mount, state.compare.transforms[side], commit);
+      } else {
+        const node = findCompareNode(graph, "cell", selectedName);
+        if (node) focusPositionedCell(node, mount, state.compare.transforms[side], commit);
+      }
     }
     services.applyCompareTransforms();
     services.recordViewHistory();
-    services.setStatus(`Focused compare cell ${state.compare.selectedName}`);
+    services.setStatus(`Focused compare ${selectedKind} ${selectedName}`);
   }
 
   function focusPositionedCell(node, mount, currentTransform, commit) {
@@ -242,7 +234,7 @@ export function createFocusNavigationController({ state, elements, services }) {
     }));
   }
 
-  return Object.freeze({ focusSelectedCell, selectStartupModule, focusStartupCell, focusStartupCells, normalizeStartupFocusTarget, sameOccurrencePath, focusSelectedCompareCell, focusPositionedCell, focusPositionedEdge });
+  return Object.freeze({ focusSelectedCell, selectStartupModule, focusStartupCell, focusStartupCells, normalizeStartupFocusTarget, sameOccurrencePath, focusPositionedCell, focusPositionedEdge });
 }
 
 export const focusNavigationPorts = Object.freeze({

@@ -249,7 +249,8 @@ export function createInputController({ state, elements, services, restoreCompar
           operation: "show-path.restore", code: "show-path.source-mismatch", moduleName: restore.moduleName, documentId: state.document.documentId });
         restore = { ...restore, showPath: null, comparePathView: null, occurrenceContext: null };
       }
-      resetDesignWorkspace(state, () => services.singleViewSession.resetNavigation());
+      const compareSync = restore?.compareSync ?? restore?.comparePathView?.compare ?? (canAppend ? state.compare : null);
+      resetDesignWorkspace(state, () => services.singleViewSession.resetNavigation(), compareSync);
       state.sourceFiles = nextSourceFiles;
       services.compareViewSessions.resetState();
       state.currentModule = null;

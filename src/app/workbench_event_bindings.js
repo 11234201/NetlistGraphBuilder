@@ -27,9 +27,8 @@ export function bindWorkbenchEvents({ elements, commands, compare, search, windo
   elements.applyCompareButton.addEventListener("click", applyCompareSelection);
   elements.exitCompareButton.addEventListener("click", exitCompareView);
   elements.syncCompareInput.addEventListener("change", (event) => { compare.setSynchronized(event.target.checked); });
-  elements.syncCompareFocusInput.addEventListener("change", (event) => {
-    runViewHistoryTransaction({ label: "Synchronize Focused roots" }, () => compare.setRootsSynchronized(event.target.checked));
-  });
+  elements.syncCompareSelectionInput.addEventListener("change", (event) => compare.setSelectionSynchronized(event.target.checked));
+  elements.syncCompareFocusInput.addEventListener("change", (event) => compare.setRootsSynchronized(event.target.checked));
   elements.compareLayoutSelect.addEventListener("change", (event) => runViewHistoryTransaction({ label: "Compare orientation" }, () => {
     compare.setLayout(event.target.value);
     applyCompareLayout();

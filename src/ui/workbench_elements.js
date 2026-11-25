@@ -50,6 +50,7 @@ export function createWorkbenchElements(document) {
     applyCompareButton: document.querySelector("#applyCompareButton"),
     exitCompareButton: document.querySelector("#exitCompareButton"),
     syncCompareInput: document.querySelector("#syncCompareInput"),
+    syncCompareSelectionInput: document.querySelector("#syncCompareSelectionInput"),
     compareLayoutSelect: document.querySelector("#compareLayoutSelect"),
     compareOutputSelect: document.querySelector("#compareOutputSelect"),
     moduleHierarchyTree: document.querySelector("#moduleHierarchyTree"),

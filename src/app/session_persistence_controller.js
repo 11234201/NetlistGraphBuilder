@@ -23,7 +23,7 @@ export function createSessionPersistenceController({ state, services, canPersist
 }
 
 export const sessionPersistencePorts = Object.freeze({
-  state: ["currentSource", "currentSourceLabel", "sourceFiles", "sourceIdentity", "document", "currentModule", "occurrenceContext",
+  state: ["currentSource", "currentSourceLabel", "sourceFiles", "sourceIdentity", "document", "currentModule", "occurrenceContext", "compare",
     "showPath", "viewMode", "coneRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "activeFocusedRootNodeId", "coneDepth",
     "faninDepth", "fanoutDepth", "transform", "showAliases", "layoutProviderId", "layoutFallbackFromProviderId",
     "layoutPolicy", "presentationPolicy", "useFanoutHubs", "graphOverrides", "timing", "timingDisplayPolicy", "searchQuery"],

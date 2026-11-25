@@ -2,6 +2,12 @@ import {resolveNetlistObject, invalid} from "./remote_object_queries.js";
 import {getTimingBadgeChoices, getNormalizedNodePins, isTimingBadgePosition, updateTimingBadgeChoices} from "../ui/timingPanel.js";
 import {missingCellTimingDetails} from "../timing/timing_diagnostics.js";
 
+const compareSyncSettings = new Map([
+  ["compare sync-viewport", "syncViewport"],
+  ["compare sync-roots", "syncRoots"],
+  ["compare sync-selection", "syncSelection"]
+]);
+
 export function createRemoteDesignCommands({readTimingView, updateBadges, settings, actions, getElements, completed, logTiming}) {
   function timingObject(job) {
     const view = readTimingView(job.opts.side);
@@ -41,7 +47,8 @@ export function createRemoteDesignCommands({readTimingView, updateBadges, settin
     }
     if (["timing log-details","timing badge","timing badge-position","timing reset-badges"].includes(name)) return timingObject(job);
     if (!name.startsWith("compare ") || name === "compare design") return undefined;
-    if (["compare split","compare sync-viewport","compare sync-roots","compare cone-depth"].includes(name)) {
+    const syncSetting = compareSyncSettings.get(name);
+    if (syncSetting || name === "compare split" || name === "compare cone-depth") {
       if (!settings().active()) throw invalid("DOMAIN_MISMATCH","Enter Compare first");
       const el = getElements();
       if (name === "compare split") {
@@ -53,9 +60,7 @@ export function createRemoteDesignCommands({readTimingView, updateBadges, settin
         el.coneDepthInput.value = String(n);
         actions.handleConeDepthChange({target:el.coneDepthInput});
       } else {
-        const viewport = name === "compare sync-viewport", enabled = args[0] === "on";
-        (viewport ? el.syncCompareInput : el.syncCompareFocusInput).checked = enabled;
-        (viewport ? settings().syncViewport : settings().syncRoots)(enabled);
+        settings()[syncSetting](args[0] === "on");
       }
       return actions.runCompareCommand({...job,name:"compare status"});
     }

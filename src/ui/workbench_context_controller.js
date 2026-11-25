@@ -35,7 +35,11 @@ export function createWorkbenchContextController({ document, windowTarget, readC
     for (const side of document.querySelectorAll("[data-compare-side]")) side.classList.toggle("is-active-side", compare && side.dataset.compareSide === context.selectedSide);
     const draft = compare && (get("leftModuleSelect").value !== context.leftModuleName || get("rightModuleSelect").value !== context.rightModuleName);
     text("compareDraftStatus", draft ? "Not applied" : "");
-    text("compareSyncSummary", `${get("syncCompareInput").checked ? "Pan/zoom linked" : "Pan/zoom independent"} · ${get("syncCompareFocusInput").checked ? "Roots linked" : "Roots independent"}`);
+    const linked = [];
+    if (get("syncCompareInput").checked) linked.push("pan/zoom");
+    if (get("syncCompareSelectionInput").checked) linked.push("click");
+    if (get("syncCompareFocusInput").checked) linked.push("roots");
+    text("compareSyncSummary", linked.length ? `Linked: ${linked.join(", ")}` : "Independent views");
     const diagnostics = get("diagnosticsList");
     const count = /no diagnostics/i.test(diagnostics.textContent) ? 0 : diagnostics.children.length;
     text("diagnosticsCount", String(count));

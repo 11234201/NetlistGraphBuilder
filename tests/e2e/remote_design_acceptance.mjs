@@ -46,6 +46,21 @@ export async function verifyDesignCommands({run,page,dir}) {
   await ok("cell-config","import",config);
   await fail("CONFIRM_REQUIRED","cell-config","reset");
   await ok("cell-config","reset","--confirm");
+  const wrongMode = await run("compare","sync-selection","off");
+  assert.equal(wrongMode.error?.code,"DOMAIN_MISMATCH");
+  const matchesRequest = entry => entry.level === "error" && entry.details?.requestId === wrongMode.requestId;
+  const logged = (await ok("log","list","--level","error")).filter(matchesRequest);
+  assert.equal(logged.length,1);
+  const {details} = await ok("log","detail",String(logged[0].sequence));
+  assert.equal(details.operation,"compare sync-selection");
+  assert.equal(details.code,"DOMAIN_MISMATCH");
+  assert.equal(details.page,wrongMode.page);
+  assert.ok(details.error.stack);
+  const logPath = join(dir,"compare-sync-log.jsonl");
+  await ok("log","export","--out",logPath,"--overwrite");
+  const exported = (await readFile(logPath,"utf8")).trim().split("\n").map(line => JSON.parse(line)).filter(matchesRequest);
+  assert.equal(exported.length,1);
+  assert.equal(exported[0].details.error.stack,details.error.stack);
   await ok("compare","enter");
   const before = (await ok("compare","status")).applied;
   const other = before.B === "third" ? "alt" : "third";
@@ -59,7 +74,17 @@ export async function verifyDesignCommands({run,page,dir}) {
   await ok("compare","split","vertical");
   await ok("compare","sync-viewport","off");
   await ok("compare","sync-roots","off");
-  assert.equal(await page.locator("#syncCompareInput").isChecked(),false);
+  for (const value of ["on","off"]) {
+    const status = await ok("compare","sync-selection",value);
+    assert.equal(status.syncSelection,value === "on");
+    assert.equal((await ok("compare","status")).syncSelection,value === "on");
+    assert.equal(await page.locator("#syncCompareSelectionInput").isChecked(),value === "on");
+    await page.waitForFunction(expected => document.querySelector("#compareSyncSummary").textContent === expected,
+      value === "on" ? "Linked: click" : "Independent views");
+    assert.deepEqual([status.syncViewport,status.syncRoots],[false,false]);
+    assert.equal(await page.locator("#syncCompareInput").isChecked(),false);
+    assert.equal(await page.locator("#syncCompareFocusInput").isChecked(),false);
+  }
   assert.ok((await ok("compare","outputs")).some(x=>x.id==="y"));
   await ok("compare","cone","y","--depth","2");
   assert.equal((await ok("compare","cone-depth","3")).depth,3);

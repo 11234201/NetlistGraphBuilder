@@ -27,13 +27,13 @@ module open g2
 level open /work/run/eco.level
 ```
 
-四种启动器（npm、Python、Linux 单文件 `ngb` 与 Windows 离线版）共用 181 条工作台命令与 5 个简写。在当前页输入 `commands --available` 查适用操作，`commands` 列出完整命令目录。例如在 Compare 中可以用 `timing show a --side B` 查看 B 侧时序。查命令参数用 `help timing show`。需要持续运行的分析可加 `--async`，另一个终端用 `job wait <requestId>` 读取最终结果。使用独立 CLI 或 EDA Tcl 时，可用 `--page` 指定页面。[启动器与 Tcl 示例](LINUX_SINGLE_FILE_LAUNCHER.md)
+四种启动器（npm、Python、Linux 单文件 `ngb` 与 Windows 离线版）共用 182 条工作台命令与 5 个简写。在当前页输入 `commands --available` 查适用操作，`commands` 列出完整命令目录。例如在 Compare 中可以用 `timing show a --side B` 查看 B 侧时序。查命令参数用 `help timing show`。需要持续运行的分析可加 `--async`，另一个终端用 `job wait <requestId>` 读取最终结果。使用独立 CLI 或 EDA Tcl 时，可用 `--page` 指定页面。[启动器与 Tcl 示例](LINUX_SINGLE_FILE_LAUNCHER.md)
 
 ## 近期核心功能速览
 
 | 功能特性 | 使用入口 | 核心要点 |
 | --- | --- | --- |
-| **SSH 远程工作台与多页/多 AIG** | `File → Open from server…`、终端 REPL、`cmd`、`ngb.tcl`、顶栏图选择器 | 四种启动器共用 181 条命令与 5 个简写；单个后端可控制多个浏览器页面（`pages` / `use`），单页可通过 `aig add` / `Add AIG file(s)…` 追加并切换多份 AIG。 |
+| **SSH 远程工作台与多页/多 AIG** | `File → Open from server…`、终端 REPL、`cmd`、`ngb.tcl`、顶栏图选择器 | 四种启动器共用 182 条命令与 5 个简写；单个后端可控制多个浏览器页面（`pages` / `use`），单页可通过 `aig add` / `Add AIG file(s)…` 追加并切换多份 AIG。 |
 | **AIG Level 层级与裕量报告** | `File → AIG + Level → Open levels…` / `Paste levels…`、配对导入、`level open` | 支持主输入初始到达层级（`at_level`）向下游传播拓扑层级与关键路径，以及逐点 AT / RT / Slack 报告（`Inspector → Analysis`）；Level 附件随所属 AIG 独立保存与恢复。[格式规范](design/aig_level_format_spec.md) |
 | **多文件合并、注释属性与 Compare 侧文件** | `File → Netlist + Timing`、Compare `A files` / `B files`、`Inspector → Attributes` | 支持 `Add design/timing file(s)…` 合并多份网表与时序（同名模块按 `[filename]` 区分）、Compare 两侧独立载入网表与时序，以及结构化 Verilog 注释属性解析。 |
 | **Show Path** | 上下文栏 `Show Path` / `Navigator → Path → Apply → Path information` | 设置单个或多个起点/终点，查看各输入和内部节点到终点的最短/最长逻辑级数。Focused 视图仍可识别画面外端点。 |
@@ -705,15 +705,12 @@ u0/ZN        0.825   0.814   -0.011   0.097   0.042   r      pin
 
 - **分屏方向（`Split`）**：默认 `Left / Right`（左右分屏），可切换为 `Top / Bottom`（上下分屏），切换后自动适配两侧视口。
 - **同步缩放平移（`Sync & cone > Sync pan / zoom`）**：默认开启，在任意一侧画布滚动缩放或拖拽平移时，另一侧画布实时同步执行相同变换；取消勾选后两侧可独立缩放和平移。
+- **点击同步定位（`Sync & cone > Center match on click`）** 默认开启。在 A 或 B 侧单击端口、cell 或 net，另一侧会将当前图中的同名对象居中。关闭后，同名对象仍会高亮，对侧视口保持原位。需要独立缩放又能点击对照时，只勾选点击定位即可。
 - **上下文栏 `Fit view`**：同时将 A/B 两侧画布重置适配至各自的可视区域。
 
 ### 13.3 跨侧联动选择与结构差异高亮
 
-单击任一侧画布中的端口、线网或单元时，系统会自动尝试在另一侧查找并高亮对应对象：
-
-- **Port（端口）**：按规范化名称相同且端口方向一致进行匹配。
-- **Net（线网）**：按规范化线网名称相同进行匹配。
-- **Cell（单元）**：按推断出的逻辑门类别（`gate kind`）建立基础分类对应。
+单击时，另一侧按端口名、线网名或 cell 实例名查找并高亮当前图中的对应对象。两侧布局可以不同，开启点击同步定位后会按各自对象的位置居中。图上的结构差异着色另外考虑端口方向和逻辑门类别（`gate kind`）。
 
 **高亮颜色语义**：
 - **绿色实线**：表示该对象在两侧能够建立上述基础结构对应关系。
@@ -915,7 +912,7 @@ NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 | `--no-open` | 仅启动服务，不自动唤起系统浏览器 |
 | `--no-browser` | `--no-open` 的向后兼容别名 |
 
-> **安全约定**：当文件路径包含空格时，请按当前 Shell 规范加引号；所有启动器始终仅绑定本地回环地址 `127.0.0.1`，不向局域网或公网暴露端口。四种启动器均支持 `<launcher> cmd --state-file <path> [--page ID] <command> [args...]` 子命令，可在独立终端或脚本中向已配对页面发送 181 条工作台命令并获取结构化 JSON 回执。
+> **安全约定**：当文件路径包含空格时，请按当前 Shell 规范加引号；所有启动器始终仅绑定本地回环地址 `127.0.0.1`，不向局域网或公网暴露端口。四种启动器均支持 `<launcher> cmd --state-file <path> [--page ID] <command> [args...]` 子命令，可在独立终端或脚本中向已配对页面发送 182 条工作台命令并获取结构化 JSON 回执。
 
 交互启动时，终端分别显示可打开的工作台链接和状态文件路径。在 `ngb>` 中输入 `help fs` 可逐行查看文件命令的用法，`pages` 列出已连接的页面。按 ↑ / ↓ 浏览本次终端会话最近的 100 条命令，可以修改后按 Enter 再次执行。`text set` 和带 `--text` 的内联文本命令跳过历史记录。
 

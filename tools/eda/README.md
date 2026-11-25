@@ -3,7 +3,7 @@
 在 **Tcl 8.5+** 环境中加载 `ngb.tcl`，即可通过 `::ngb::Start binary stateFile ?option value ...?` 拉起本地网表预览服务：
 
 - **启动与就绪等待**：`::ngb::Start` 会在后台保持非阻塞管道，最多等待 10 秒直至读取到合法的 `ready` 消息后才返回 `http://127.0.0.1:<port>/...` 访问地址；默认自动启用 `--parent-death`、`--port 0` 与 `--no-open`，并支持 `--browse-root` 等启动参数。
-- **远程工作台命令控制**：使用 `::ngb::Connect launcherArgv stateFile` 连接运行中的服务（支持 Linux `ngb`、Node、Python 与 Windows 启动器），随后通过 `::ngb::Cmd stateFile ?--page p1? <command> ?args...?` 执行 181 条工作台命令（含网表/时序追加、同页多份 AIG 切换、AIG `.level` 导入、Compare 控制、Show Path 与结构分析查询），直接返回 UTF-8 Tcl 字典回执。
+- **远程工作台命令控制**：使用 `::ngb::Connect launcherArgv stateFile` 连接运行中的服务（支持 Linux `ngb`、Node、Python 与 Windows 启动器），随后通过 `::ngb::Cmd stateFile ?--page p1? <command> ?args...?` 执行 182 条工作台命令（含网表/时序追加、同页多份 AIG 切换、AIG `.level` 导入、Compare 控制、Show Path 与结构分析查询），直接返回 UTF-8 Tcl 字典回执。
 - **状态查询与关闭**：使用 `::ngb::Status binary stateFile` 查询会话状态，使用 `::ngb::Stop binary stateFile` 安全停止服务；所有底层错误均会向宿主 EDA 解释器真实抛出，绝不静默吞错。
 - **诊断分流**：启动器的日志转发到宿主 `stderr`，不混入 `ready` 或状态返回值。`Status` / `Stop` 依据子进程退出状态传播失败，避免 Tcl 将成功命令的诊断输出误判为失败；终端日志文件位置见 [用户指南](../../docs/USER_GUIDE.md)。
 - **零外部依赖与安全边界**：无需安装第三方 `Tcllib`，不经过 Shell 字符串拼接，也不直接强杀 Tcl 管道 PID；完整支持包含空格或中文（Unicode）字符的文件路径，并显式拦截以 Tcl 管道/重定向字符（`<`、`>`、`|`、`&`）开头的非法参数值。

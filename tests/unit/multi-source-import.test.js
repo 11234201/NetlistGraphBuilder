@@ -260,6 +260,26 @@ test("quick input controller routes multi-file selections, Add inputs, and Compa
   assert.equal(calls[3].compareSide, "right");
 });
 
+test("Compare interaction settings survive session restore independently without an active path", async () => {
+  const source = "module top(input a, output y); BUF u0(.A(a),.Y(y)); endmodule";
+  const state = createHarnessState();
+  const { controller } = createInputHarness(state);
+  await controller.loadDesign(source, "top.v");
+  assert.equal(state.compare.selectionSynchronized, true);
+  state.compare.synchronized = false;
+  const saved = decodeSessionSnapshot(encodeSessionSnapshot(createSessionSnapshot(state)));
+  assert.equal(saved.comparePathView, undefined);
+  state.compare.selectionSynchronized = false;
+  await controller.loadDesign(source, "top.v", saved);
+  assert.equal(state.compare.synchronized, false);
+  assert.equal(state.compare.selectionSynchronized, true);
+
+  delete saved.compareSync.selectionSynchronized;
+  await controller.loadDesign(source, "top.v", saved);
+  assert.equal(state.compare.selectionSynchronized, false);
+  assert.equal(state.compare.synchronized, false);
+});
+
 test("multi-file session round-trip, malformed sourceFiles restore guard, batch failure reset, and Compare timing selection refresh", async () => {
   assert.ok(sessionPersistencePorts.state.includes("sourceFiles"));
 

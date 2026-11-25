@@ -146,11 +146,13 @@
         <button id="applyCompareButton" class="mini-button primary-action" type="button">Apply</button><span id="compareDraftStatus" class="help-text" role="status"></span>
         <label class="compare-orientation"><span>Split</span><select id="compareLayoutSelect"><option value="horizontal">Left / Right</option><option value="vertical">Top / Bottom</option></select></label>
         <details id="compareOptionsMenu" class="toolbar-menu compact-menu"><summary>Sync & cone</summary><div class="toolbar-menu-popover settings-popover">
-          <label class="alias-toggle"><input id="syncCompareInput" type="checkbox" checked>Sync pan / zoom</label><label class="alias-toggle"><input id="syncCompareFocusInput" type="checkbox" checked>Sync Focus roots</label>
+          <label class="alias-toggle" title="Pan and zoom both canvases together"><input id="syncCompareInput" type="checkbox" checked>Sync pan / zoom</label>
+          <label class="alias-toggle" title="Center the matching object in the other canvas when you select a port, cell or net"><input id="syncCompareSelectionInput" type="checkbox" checked>Center match on click</label>
+          <label class="alias-toggle"><input id="syncCompareFocusInput" type="checkbox" checked>Sync Focus roots</label>
           <label class="panel-field"><span>Output cone</span><select id="compareOutputSelect"><option value="">Whole module</option></select></label><label class="panel-field"><span>Output depth</span><input id="coneDepthInput" type="number" min="1" max="99" step="1" value="3"></label>
           <p class="help-text">Whole clears roots on both sides. Focused acts on the active side, with shared depths. Differences are structural hints, not equivalence proof.</p>
           <button id="exitCompareButton" class="mini-button" type="button">Return to Single</button>
-        </div></details><span id="compareSyncSummary" class="context-note">Pan/zoom + roots synced</span>
+        </div></details><span id="compareSyncSummary" class="context-note">Linked: pan/zoom, click, roots</span>
       </section>
       <section class="workspace">
         <aside id="navigatorPanel" class="side-panel navigation-panel" aria-label="Navigator">

@@ -101,7 +101,6 @@ const {
   focusStartupCells,
   normalizeStartupFocusTarget,
   sameOccurrencePath,
-  focusSelectedCompareCell,
   focusPositionedCell,
   focusPositionedEdge,
   handleGraphSimplificationChange,
@@ -215,6 +214,7 @@ const {
   clamp,
   round
 } = createWorkbenchControllers({ state, getElements: () => elements, routeAction: domainRouter.route, services: {
+  refreshWorkbenchContext: () => workbenchUi.refresh(),
   get SEARCH_FIRST_NODE_THRESHOLD() { return SEARCH_FIRST_NODE_THRESHOLD; },
   get applyCompareHighlights() { return applyCompareHighlights; },
   get applyCompareLayout() { return applyCompareLayout; },

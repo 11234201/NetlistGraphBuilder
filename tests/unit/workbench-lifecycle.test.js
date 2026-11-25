@@ -174,7 +174,7 @@ test("entering Compare cancels Single computation before starting Compare work",
     leftModuleSelect: { value: "left" }, rightModuleSelect: { value: "right" },
     comparePanel: {}, mount: {}, compareMount: { classList: { toggle: noOp } },
     compareButton: { classList: { add: noOp }, setAttribute: noOp }, compareLayoutSelect: {},
-    syncCompareFocusInput: {}, coneDepthInput: {}
+    syncCompareInput: {}, syncCompareSelectionInput: {}, syncCompareFocusInput: {}, coneDepthInput: {}
   };
   const services = new Proxy({
     ...createTestViewBridges(state),
@@ -230,8 +230,11 @@ test("Compare history restores query depths and cancellation always releases his
   state.compare.leftModuleName = "left";
   state.compare.rightModuleName = "right";
   state.coneDepth = state.faninDepth = state.fanoutDepth = 2;
+  state.compare.selectionSynchronized = false;
   const entry = createViewHistoryEntry(state);
   state.coneDepth = state.faninDepth = state.fanoutDepth = 7;
+  state.compare.selectionSynchronized = true;
+  state.compare.synchronized = false;
   let renderOptions;
   const noOp = () => {};
   const elements = new Proxy({}, { get: (target, key) => target[key] ||= {} });
@@ -243,6 +246,10 @@ test("Compare history restores query depths and cancellation always releases his
   const controller = createHistoryController({ state, elements, services });
   controller.restoreViewHistoryEntry(entry);
   assert.deepEqual([state.coneDepth, state.faninDepth, state.fanoutDepth], [2, 2, 2]);
+  assert.equal(state.compare.selectionSynchronized, false);
+  assert.equal(state.compare.synchronized, true);
+  assert.equal(elements.syncCompareSelectionInput.checked, false);
+  assert.equal(elements.syncCompareInput.checked, true);
   assert.equal(state.restoringViewHistory, true);
   renderOptions.onCancelled();
   assert.equal(state.restoringViewHistory, false);

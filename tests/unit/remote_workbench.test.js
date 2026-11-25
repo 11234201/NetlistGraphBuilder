@@ -96,9 +96,9 @@ test("R01 published grammar matches the eight command groups and five aliases", 
         .map(line => line.trim().split(/\s{2,}/)[0])
         .filter(line => /^[a-z]/.test(line));
   });
-  assert.deepEqual(groups.map(g => g.length), [16, 26, 34, 33, 15, 24, 7, 26]);
+  assert.deepEqual(groups.map(g => g.length), [16, 26, 34, 33, 16, 24, 7, 26]);
   assert.deepEqual(catalogue.commands.map(c => c.syntax), groups.flat());
-  assert.equal(new Set(catalogue.commands.map(c => c.name)).size, 181);
+  assert.equal(new Set(catalogue.commands.map(c => c.name)).size, 182);
   assert.deepEqual(catalogue.aliases, {
     pages: "page list",
     use: "page use",
@@ -108,6 +108,9 @@ test("R01 published grammar matches the eight command groups and five aliases", 
   });
   assert.ok(catalogue.commands.every(c => c.target && c.capability && c.completion));
   assert.throws(() => parseCommand(["aig", "open", "a", "b"]), {code: "INVALID_ARGUMENT"});
+  assert.deepEqual(parseCommand(["compare","sync-selection","off"]).args, ["off"]);
+  assert.throws(() => parseCommand(["compare","sync-selection","toggle"]), {code:"INVALID_ARGUMENT"});
+  assert.throws(() => parseCommand(["compare","sync-selection","on","--side","A"]), {code:"INVALID_SIDE"});
 });
 
 test("Level commands accept a single attachment or an explicit paste editor", () => {

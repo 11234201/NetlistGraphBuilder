@@ -256,12 +256,20 @@ export function createWorkbenchControllers({ state, getElements, services, route
         actions[name] = (...args) => renderCompletion.observe(routeAction(name, invoke, args));
     }
   }
+  function setCompareSync(field, input, label, enabled) {
+    services.runViewHistoryTransaction({ label }, () => {
+      state.compare[field] = enabled;
+      getElements()[input].checked = enabled;
+      services.refreshWorkbenchContext();
+    });
+  }
   const compareSettings = {active:() => state.compare.active,
-    syncViewport:value => { state.compare.synchronized = value; },
-    syncRoots:value => { state.compare.focusedRootsSynchronized = value; },
+    syncViewport:value => setCompareSync("synchronized", "syncCompareInput", "Synchronize pan / zoom", value),
+    syncSelection:value => setCompareSync("selectionSynchronized", "syncCompareSelectionInput", "Center match on click", value),
+    syncRoots:value => setCompareSync("focusedRootsSynchronized", "syncCompareFocusInput", "Synchronize Focused roots", value),
     layout:value => { state.compare.layout = value; }};
   actions.compareSettings = { isActive:compareSettings.active, setSynchronized:compareSettings.syncViewport,
-    setRootsSynchronized:compareSettings.syncRoots, setLayout:compareSettings.layout };
+    setSelectionSynchronized:compareSettings.syncSelection, setRootsSynchronized:compareSettings.syncRoots, setLayout:compareSettings.layout };
   actions.runRemoteDesign = createRemoteDesignCommands({getElements, actions, completed:renderCompletion.run,
     settings:() => ({...compareSettings,timing:services.timingDisplayController}),
     readTimingView(target) {
@@ -293,7 +301,7 @@ const ALL_COMPARE_FIELDS = Object.freeze([
   "active", "showPath", "activeFocusedRootNodeId", "analysis", "autoGraphs", "focusedRootNodeIds", "focusedRootRefs",
   "focusedRootsSynchronized", "fullGraphs", "graphOverrides", "graphs", "layout", "layoutAbortController",
   "leftModuleName", "nodePositions", "nodeSizes", "outputName", "rightModuleName", "scenes", "selectedKind",
-  "activeSide", "selectedName", "selectedSide", "selectedObjectRefs", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
+  "activeSide", "selectedName", "selectedSide", "selectedObjectRefs", "selectionSynchronized", "sideTiming", "sideTimingLabels", "singleWorkspaceInvalidated", "synchronized", "timingBadgeChoices",
   "timingBadgePositions", "transforms", "wholeRequested", "workspaceIdentity"
 ]);
 
@@ -302,16 +310,17 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "cell-config": ["active"],
   "compare-canvas": ["autoGraphs", "focusedRootNodeIds", "focusedRootsSynchronized", "fullGraphs", "graphs", "nodePositions", "nodeSizes", "scenes", "synchronized", "transforms"],
   "compare-workspace": ALL_COMPARE_FIELDS,
-  "focus-navigation": ["active", "graphs", "selectedKind", "selectedName", "selectedSide", "synchronized", "transforms"],
+  "focus-navigation": ["active", "graphs", "selectedKind", "selectedName", "selectedSide", "selectionSynchronized", "transforms"],
   "focused-roots": ["active", "activeFocusedRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "focusedRootsSynchronized", "fullGraphs", "graphs", "outputName", "selectedKind", "selectedName", "selectedSide", "transforms"],
   "golden": ["active", "scenes", "workspaceIdentity", "graphs", "selectedKind", "selectedName", "selectedSide", "singleWorkspaceInvalidated"],
   "helpers": ["graphOverrides", "nodePositions", "nodeSizes"],
   "history": ALL_COMPARE_FIELDS,
-  "input": ["active", "layoutAbortController", "leftModuleName", "rightModuleName", "sideTiming", "sideTimingLabels"],
-  "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "synchronized", "timingBadgeChoices", "timingBadgePositions", "transforms"],
+  "input": ["active", "layoutAbortController", "leftModuleName", "rightModuleName", "selectionSynchronized", "sideTiming", "sideTimingLabels", "synchronized"],
+  "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "selectionSynchronized", "timingBadgeChoices", "timingBadgePositions", "transforms"],
   "module-navigation": ["active"],
   "presentation": ["active", "graphs", "scenes"],
   "selection-navigation": ["active", "graphs", "selectedSide"],
+  "session-persistence": ["synchronized", "selectionSynchronized"],
   "state-commands": ["graphOverrides", "nodePositions", "nodeSizes"],
   "view-controls": ["active", "activeSide", "focusedRootNodeIds", "outputName", "selectedKind", "selectedName", "wholeRequested"],
   "workspace-render": ["active", "singleWorkspaceInvalidated"]

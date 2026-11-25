@@ -70,7 +70,7 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 ### 4. Compare 作用域
 
 - A/B 为稳定身份：A 对应上方或左侧，B 对应下方或右侧；`Split` 只改变分屏方向。配置草稿在 `Apply` 后生效，Inspector 标明实际选中对象所属侧与模块。
-- 两侧 roots、选择、视口和实例覆盖独立；`Sync pan / zoom` 与 `Sync Focus roots` 分别控制视口及根同步，不互相代替。
+- 两侧分别保存 roots、选择、视口和实例覆盖。`Sync pan / zoom` 联动平移和缩放，`Center match on click` 在选择对象时居中对侧当前图中的同名对象，`Sync Focus roots` 联动匹配 cell 的根操作。三个开关各自生效。
 - `Focused` 以活动侧为起点，Fanin/Fanout 深度为两侧共享设置；`Whole` 清除两侧 roots 和 Output cone，`Fit view` 适配两侧，`Reset view overrides` 清除两侧覆盖。
 - `File > Export SVG` 与 `Save Golden` 仅在 Single 可用；加载 Golden 会退出 Compare 并恢复对应的 Single 工作区。
 
