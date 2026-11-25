@@ -19,6 +19,18 @@ function createFixture({ roots, refs, nodes = [], compare = false, services = {}
   return { state, elements, controller };
 }
 
+test("Compare port selection cannot replace, add or remove a cell root with the same name", () => {
+  for (const [command, roots] of [["setSelectedCompareAsFocusedRoot", []], ["addSelectedCompareAsFocusedRoot", []],
+    ["removeSelectedCompareFocusedRoot", ["cell:q"]]]) {
+    const { controller, state } = createFixture({ compare: true, roots, refs: [], nodes: [
+      { id: "output:q", kind: "output", label: "q" }, { id: "cell:q", kind: "cell", label: "q" }
+    ] });
+    Object.assign(state.compare, { selectedKind: "port", selectedName: "q" });
+    controller[command]();
+    assert.deepEqual(state.compare.focusedRootNodeIds.right, roots);
+  }
+});
+
 test("all 32 Focused roots remain reachable when filtering the bounded list", () => {
   const roots = Object.freeze(Array.from({ length: 32 }, (_, index) => `cell:u${String(index).padStart(2, "0")}`));
   const nodes = roots.map((id) => ({ id, label: id.slice(5) }));

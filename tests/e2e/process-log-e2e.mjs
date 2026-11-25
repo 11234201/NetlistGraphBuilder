@@ -243,13 +243,32 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   assert.equal(failure.code, "layout.provider-failed");
   assert.equal(failure.error.code, 42);
   assert.match(failure.error.cause.stack, /native_layout_worker/);
-  const workerDownload = workerPage.waitForEvent("download");
-  await workerPage.locator("#exportProcessLogButton").click();
-  let workerJsonl = "";
-  for await (const chunk of await (await workerDownload).createReadStream()) workerJsonl += chunk.toString("utf8");
-  assert.deepEqual(workerJsonl.trim().split("\n").map(JSON.parse)
-    .filter((entry) => entry.details?.operation === "layout.provider").map((entry) => entry.details), [failure]);
+  await assertExportedFailure(workerPage, failure);
   await workerPage.close();
+
+  const renderPage = await browser.newPage();
+  await renderPage.addInitScript(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    Object.defineProperty(Element.prototype, "innerHTML", { ...descriptor, set(markup) {
+      if (this.id === "schematicMount" && String(markup).includes('<svg class="schematic-svg"')) {
+        throw new Error("fixture mount failed", { cause: new TypeError("SVG write rejected") });
+      }
+      descriptor.set.call(this, markup);
+    } });
+  });
+  await renderPage.goto(url);
+  const renderRow = renderPage.locator("#processLogList li").filter({ hasText: "Render failed: fixture mount failed" }).first();
+  await renderRow.locator("summary").click();
+  const renderFailure = JSON.parse(await renderRow.locator("details[open] pre").innerText());
+  assert.equal(renderFailure.operation, "render.mount");
+  assert.equal(renderFailure.code, "render.mount-failed");
+  assert.equal(renderFailure.view, "single");
+  assert.ok(Number.isInteger(renderFailure.requestId));
+  assert.match(renderFailure.error.cause.stack, /SVG write rejected/);
+  assert.equal(await renderPage.locator("#layoutProviderSelect").inputValue(), "native-layered");
+  const rows = await assertExportedFailure(renderPage, renderFailure);
+  assert.ok(!rows.some(row => row.details?.operation === "layout.provider"));
+  await renderPage.close();
   await page.locator("#clearProcessLogButton").click();
   assert.equal(await page.locator("#processLogCount").textContent(), "0");
   return { workflow: "restore-storage-recovery-config-export-global-errors-filter-jsonl", expectedPageErrors: errors, entries: entries.length };
@@ -259,3 +278,13 @@ const report = await runBrowserTest(async ({ browser, url }) => {
     ["--no-browser", "--port", "0"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }) } : {})
 });
 console.log(JSON.stringify({ ...report, cleanup: "passed" }));
+
+async function assertExportedFailure(page, failure) {
+  const download = page.waitForEvent("download");
+  await page.locator("#exportProcessLogButton").click();
+  let jsonl = "";
+  for await (const chunk of await (await download).createReadStream()) jsonl += chunk.toString("utf8");
+  const rows = jsonl.trim().split("\n").map(JSON.parse);
+  assert.deepEqual(rows.filter(row => row.details?.operation === failure.operation).map(row => row.details), [failure]);
+  return rows;
+}

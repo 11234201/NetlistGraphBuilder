@@ -30,6 +30,7 @@ try {
   await verifyLauncher(pythonCommand, ["tools/serve.py"], "python");
   await verifySessionLifecycle(process.execPath, ["tools/serve.mjs"], "node");
   await verifySessionLifecycle(pythonCommand, ["tools/serve.py"], "python");
+  await verifyForceStop();
   await verifyInvalidConfig(process.execPath, ["tools/serve.mjs"], "node");
   await verifyInvalidConfig(pythonCommand, ["tools/serve.py"], "python");
   console.log("Launcher end-to-end checks passed for Node and Python.");
@@ -68,7 +69,8 @@ async function verifyLauncher(command, prefix, label) {
     assert.equal(ready.startup.focus, "u0");
     assert.equal(JSON.stringify(ready).includes("module top"), false);
     if (label === "node") {
-      for (const [path, expected] of [["/",200], ["/src/app/main.js",200], ["/package.json",403], ["/absent.txt",403]])
+      for (const [path, expected] of [["/",200], ["/src/app/main.js?tag=%2f",200], ["/package.json",403], ["/absent.txt",403],
+        ["/src%2Fapp/main.js",403], ["/src%2fmissing.js",403], ["/examples%5Clabel.v",403]])
         assert.equal((await fetch(new URL(path, ready.url))).status, expected);
     }
     const response = await fetch(`http://127.0.0.1:${ready.port}/__ngb_startup__.json`);
@@ -132,6 +134,48 @@ function runLauncherCommand(command, prefix, args) {
       else resolveCommand({ stdout, stderr });
     });
   });
+}
+
+async function verifyForceStop() {
+  const state = join(scratch, "blocked.json");
+  const preload = join(scratch, "blocked.cjs");
+  const trigger = join(scratch, "block"), entered = join(scratch, "blocked");
+  await writeFile(preload, `
+    const fs = require("node:fs");
+    setInterval(() => {
+      if (fs.existsSync(${JSON.stringify(trigger)})) {
+        fs.writeFileSync(${JSON.stringify(entered)}, "");
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
+      }
+    }, 15).unref();`);
+  const child = spawn(process.execPath, ["--require", preload, "tools/serve.mjs", "start",
+    "--port", "0", "--state-file", state, "--no-open"], {cwd:root,windowsHide:true,stdio:["ignore","pipe","pipe"]});
+  try {
+    const ready = await waitForReady(child, "force-stop session");
+    const record = JSON.parse(await readFile(state, "utf8"));
+    await writeFile(trigger, "");
+    const end = Date.now() + 5000;
+    while (!(await pathExists(entered)) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 15));
+    assert.ok(await pathExists(entered), "test service entered its blocked event loop");
+    // A mismatched registration must leave our own test process untouched.
+    await writeFile(state, JSON.stringify({...record,owner:"unmatched-test-registration"}));
+    await assert.rejects(runLauncherCommand(process.execPath, ["tools/serve.mjs"], ["stop","--force","--state-file",state]),
+      /owner does not match/);
+    assert.equal(child.exitCode, null);
+    await writeFile(state, JSON.stringify(record));
+    const result = await runLauncherCommand(process.execPath, ["tools/serve.mjs"], ["stop","--force","--state-file",state]);
+    assert.match(result.stdout, /status=stopped/);
+    await waitForExit(child);
+    if (process.platform !== "win32") assert.equal(child.signalCode, "SIGKILL");
+    assert.equal(await pathExists(state), false);
+    assert.equal(await pathExists(join(tmpdir(), record.forceSession)), false);
+    await assert.rejects(fetch(ready.url));
+  } finally {
+    if (child.pid && child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+      await waitForExit(child);
+    }
+  }
 }
 
 function waitForExit(child) {

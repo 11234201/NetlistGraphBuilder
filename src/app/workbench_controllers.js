@@ -340,7 +340,7 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "session-persistence": ["focusedRootsSynchronized", "selectionSynchronized", "synchronized"],
   "state-commands": ["graphOverrides", "nodePositions", "nodeSizes"],
   "view-controls": ["active", "activeSide", "focusedRootNodeIds", "focusedRootsSynchronized", "outputName", "selectedKind", "selectedName", "synchronized", "wholeRequested"],
-  "workspace-render": ["active", "singleWorkspaceInvalidated"]
+  "workspace-render": ["active", "leftModuleName", "rightModuleName", "singleWorkspaceInvalidated"]
 });
 
 const OBJECT_SERVICE_KEYS = new Set([

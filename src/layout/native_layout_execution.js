@@ -13,39 +13,42 @@ export function executeNativeLayout(input, options = {}, workerFactory = default
   return new Promise((resolve, reject) => {
     let worker;
     let settled = false;
-    const finish = (error, result) => {
+    const finish = (settle, value) => {
       if (settled) return;
       settled = true;
-      options.signal?.removeEventListener("abort", abort);
-      if (worker) {
-        worker.onmessage = worker.onerror = worker.onmessageerror = null;
-        worker.terminate();
+      try {
+        options.signal?.removeEventListener("abort", abort);
+        if (worker) {
+          worker.onmessage = worker.onerror = worker.onmessageerror = null;
+          worker.terminate();
+        }
+      } finally {
+        settle(value);
       }
-      if (error) reject(error); else resolve(result);
     };
     const abort = () => {
       const error = new Error("Layout cancelled");
       error.name = "AbortError";
-      finish(error);
+      finish(reject, error);
     };
     try {
       worker = workerFactory();
       options.signal?.addEventListener("abort", abort, { once: true });
       if (options.signal?.aborted) { abort(); return; }
       worker.onmessage = ({ data }) => {
-        if (data?.error && typeof data.error.message === "string") finish(restoreWorkerError(data.error));
-        else if (data?.result && typeof data.result === "object") finish(null, data.result);
-        else finish(new Error("Invalid native layout worker response"));
+        if (data?.error && typeof data.error.message === "string") finish(reject, restoreWorkerError(data.error));
+        else if (data?.result && typeof data.result === "object") finish(resolve, data.result);
+        else finish(reject, new Error("Invalid native layout worker response"));
       };
       worker.onerror = (event) => {
         const error = new Error(event.message || "Native layout worker failed", { cause: event.error });
         error.diagnostic = { filename: event.filename, line: event.lineno, column: event.colno };
-        finish(error);
+        finish(reject, error);
       };
-      worker.onmessageerror = () => finish(new Error("Invalid native layout worker response"));
+      worker.onmessageerror = () => finish(reject, new Error("Invalid native layout worker response"));
       const { signal, onPhase, yieldControl, ...parameters } = options;
       worker.postMessage({ input, options: parameters });
-    } catch (error) { finish(error); }
+    } catch (error) { finish(reject, error); }
   });
 }
 

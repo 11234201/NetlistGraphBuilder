@@ -19,6 +19,7 @@ import {
   normalizeTimingDisplayPolicy
 } from "../../src/timing/timingAnnotation.js";
 import { parseTimingLog, mergeTimingDatasets } from "../../src/timing/timingParser.js";
+import { annotateTimingBadges } from "../../src/timing/timing_badges.js";
 import { renderNetTimingPanel, renderTimingPanel } from "../../src/ui/timingPanel.js";
 
 test("tabular timing parser supports simple 4-column, missing values, and slack auto-inference", () => {
@@ -1076,6 +1077,58 @@ test("timing lexical rules preserve escaped identifiers and quoted CSV fields", 
   const json = parseTimingLog('# header\n// generated\n{"points":{"a":[2,3]},"modules":{"bad":{"points":[]}}}');
   assert.equal(json.records[0].point, "a");
   assert.equal(json.diagnostics[0].code, "invalid-points");
+});
+
+test("compact CSV after an escaped point retains column alignment and invalid-field attribution", () => {
+  const timing = parseTimingLog([
+    "@module nested", "point,at,rt,slack",
+    "\\u_dp_add_0/w_gen_1207,0.000,0.250,0.250",
+    "u_stage1/\\u_leaf$0/A, 0.120, 0.280, 0.160",
+    "\\n,1 /A,1,2,3 # literal comma in the escaped name",
+    "\\foo#pin,4,5,1 // trailing comment",
+    "\\bad/A,1,broken,2",
+    "\\n,1 , 1, 2, 3",
+    "\\mixed/A,0.125 , 0.250 , 0.125"
+  ].join("\n"));
+  assert.deepEqual(timing.records.map(({ point, at, rt, slack }) => [point, at, rt, slack]), [
+    ["\\u_dp_add_0/w_gen_1207", 0, 0.25, 0.25],
+    ["u_stage1/\\u_leaf$0/A", 0.12, 0.28, 0.16],
+    ["\\n,1/A", 1, 2, 3], ["\\foo#pin", 4, 5, 1],
+    ["\\n,1", 1, 2, 3], ["\\mixed/A", 0.125, 0.25, 0.125]
+  ]);
+  assert.deepEqual(timing.diagnostics.map(({ code, point, module, field, line }) =>
+    [code, point, module, field, line]), [["invalid-number", "\\bad/A", "nested", "rt", 7]]);
+});
+
+test("unit conversion rounds timing metrics equally within and across reports", () => {
+  for (const [first, second, value, expected] of [["ps", "ns", 0.29, 290], ["ns", "ps", 123.4, 0.1234]]) {
+    const prefix = "@unit " + first + "\npoint at rt slack delay slew\na 0 0 0 0 0\n";
+    const row = "@unit " + second + "\npoint at rt slack delay slew\nb " + Array(5).fill(value).join(" ");
+    for (const dataset of [parseTimingLog(prefix + row), mergeTimingDatasets([parseTimingLog(prefix), parseTimingLog(row)])]) {
+      const { at, rt, slack, delay, slew } = dataset.records[1];
+      assert.deepEqual([at, rt, slack, delay, slew], Array(5).fill(expected));
+    }
+  }
+});
+
+test("rejected timing datasets cannot set the unit, format or stage of a merge", () => {
+  const good = { ...parseTimingLog("@unit ps\n@stage pre_map\npoint slack\na 3"), fileName: "good" };
+  const bad = { ...good, format: "json", stage: "post_layout", unit: "ticks", fileName: "bad" };
+  for (const inputs of [[good, bad], [bad, good]]) {
+    const merged = mergeTimingDatasets(inputs);
+    assert.deepEqual([merged.unit, merged.format, merged.stage], ["ps", "tabular", "pre_map"]);
+    assert.deepEqual(merged.records.map(({ fileName }) => fileName), ["good"]);
+    assert.deepEqual(merged.diagnostics.map(({ code, fileName }) => [code, fileName]), [["incompatible-timing-units", "bad"]]);
+  }
+});
+
+test("badge lookup handles absent pins and resolves canonical pin names before an empty key", () => {
+  const node = { ref: { pins: [{ pin: "Z" }] }, pinDirections: { Z: { direction: "output" } } };
+  const annotate = (pins) => annotateTimingBadges({ pins }, undefined, undefined, node, {});
+  assert.deepEqual(annotate(null).badges, []);
+  assert.deepEqual(annotate(undefined).badges, []);
+  const timing = annotate({ "": { pin: "", slack: -2 }, Z: { pin: "Z", slack: -1 } });
+  assert.deepEqual(timing.badges.map(({ pin, value }) => [pin, value]), [["Z", -1]]);
 });
 
 test("alias timing and prototype-shaped names resolve identically in reversed report order", () => {

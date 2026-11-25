@@ -1,3 +1,4 @@
+import { compactElkPoints, getElkEdgePoints } from "../../src/layout/elk_edge_sections.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Elk from "../../vendor/elkjs-0.11.1/lib/elk.bundled.js";
@@ -231,4 +232,50 @@ test("a displaced source attachment does not change an already aligned target se
   const result = await provider.layoutMeasured(measured);
   assert.deepEqual(result.edges[0].points.slice(-3), [{ x: 200, y: 80 }, { x: 200, y: 24 }, { x: 240, y: 24 }]);
   assertExactEndpoints(result);
+});
+
+test("ELK joins closed and oppositely directed sections without losing geometry", () => {
+  const point = (x, y) => ({ x, y });
+  const loop = [
+    { startPoint: point(0, 0), bendPoints: [point(20, 0)], endPoint: point(20, 20) },
+    { startPoint: point(20, 20), bendPoints: [point(0, 20)], endPoint: point(0, 0) }
+  ];
+  const sharedStart = [
+    { startPoint: point(20, 0), endPoint: point(0, 0) },
+    { startPoint: point(20, 0), bendPoints: [point(40, 0)], endPoint: point(40, 20) }
+  ];
+  for (const sections of [loop, sharedStart]) {
+    const snapshot = structuredClone(sections);
+    const expected = getElkEdgePoints({ id: "test", sections }, point(0, 0));
+    assert.equal(expected.status, "routed");
+    assert.deepEqual(expected.points[0], point(0, 0));
+    assert.deepEqual(getElkEdgePoints({ id: "test", sections: sections.toReversed() }, point(0, 0)), expected);
+    assert.deepEqual(sections, snapshot);
+  }
+  assert.deepEqual(getElkEdgePoints({ sections: loop }, point(0, 0)).points,
+    [point(0, 0), point(20, 0), point(20, 20), point(0, 20), point(0, 0)]);
+  const disconnected = getElkEdgePoints({ id: "broken", sections: [...loop,
+    { startPoint: point(100, 100), endPoint: point(200, 100) }] });
+  assert.equal(disconnected.status, "unroutable");
+  assert.equal(disconnected.diagnostics[0].edgeId, "broken");
+});
+
+test("ELK compaction retains collinear turnarounds through section joining and attachment", () => {
+  const points = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 10, y: 0 }];
+  const sections = [
+    { startPoint: points[1], endPoint: points[0] },
+    { startPoint: points[1], endPoint: points[2] }
+  ];
+  assert.deepEqual(getElkEdgePoints({ sections }, points[0]).points, points);
+  assert.deepEqual(compactElkPoints(points), points);
+  const closed = [points[0], points[1], points[0]];
+  assert.deepEqual(compactElkPoints(closed), closed);
+  assert.deepEqual(compactElkPoints([points[0], points[2], points[1]]), [points[0], points[1]]);
+  const bends = Array.from({ length: 140000 }, (_, x) => ({ x: x + 1, y: 0 }));
+  const large = [
+    { startPoint: points[0], bendPoints: bends, endPoint: { x: 140001, y: 0 } },
+    { startPoint: { x: 140001, y: 0 }, endPoint: { x: 140001, y: 10 } }
+  ];
+  assert.deepEqual(getElkEdgePoints({ sections: large }, points[0]).points,
+    [points[0], { x: 140001, y: 0 }, { x: 140001, y: 10 }]);
 });

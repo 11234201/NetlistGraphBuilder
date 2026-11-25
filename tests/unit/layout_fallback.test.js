@@ -24,6 +24,7 @@ for(const compare of [false,true]){
   test(`shared failure handler degrades AnchorLayered -> ELK -> Simple once, compare=${compare}`,async()=>{
     const state=createAppState(DEFAULT_LAYOUT_POLICY);
     state.compare.active=compare;
+    Object.assign(state.compare, { leftModuleName: "design-A", rightModuleName: "design-B" });
     state.currentModule={name:'top',displayName:'top'};
     state.design={modules:[state.currentModule]};
     const calls=[],logs=[],elements={layoutProviderSelect:{}};
@@ -46,6 +47,11 @@ for(const compare of [false,true]){
       assert.equal(details.error, failure);
       assert.equal(details.requestId, 17);
       assert.equal(details.view, compare ? 'compare' : 'single');
+      if (compare) {
+        assert.equal(details.leftModule, "design-A");
+        assert.equal(details.rightModule, "design-B");
+        assert.equal(details.moduleName, undefined);
+      } else assert.equal(details.moduleName, "top");
       assert.equal(state.layoutProviderId,expected);
       assert.equal(elements.layoutProviderSelect.value,expected);
       assert.equal(state.layoutFallbackFromProviderId,DEFAULT_LAYOUT_PROVIDER_ID);
@@ -57,3 +63,26 @@ for(const compare of [false,true]){
     assert.match(failures.at(-1)[2],/no fallback remains/);
   });
 }
+
+test("provider rejection retains its original value when reporting fails", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.compare.active = true;
+  const statuses = [], attempts = [];
+  const services = {
+    setStatus: message => statuses.push(message),
+    logProcess(level, phase, message, details) {
+      attempts.push(details);
+      throw new Error("log unavailable");
+    },
+    renderCompareGraphs() { attempts.push(state.layoutProviderId); }
+  };
+  const controller = createWorkspaceRenderController({ state, elements: { layoutProviderSelect: {} }, services });
+  controller.handleLayoutFailure(null, { requestId: 7 });
+  assert.deepEqual(attempts.map(value => value?.code || value), ["layout.provider-failed", "elk-layered"]);
+  assert.equal(attempts[0].error, null);
+  assert.match(statuses[0], /null/);
+  state.layoutProviderId = "simple-layered";
+  controller.handleLayoutFailure("provider stopped", { onFailed: value => attempts.push(value) });
+  assert.equal(attempts.at(-1), "provider stopped");
+  assert.match(statuses.at(-1), /provider stopped/);
+});

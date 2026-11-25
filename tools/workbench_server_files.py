@@ -1,6 +1,7 @@
 """Pinned file reads, bounded directory listings and atomic output publication."""
 import os
 import stat
+import sys
 import tempfile
 from contextlib import contextmanager
 
@@ -88,7 +89,20 @@ class WorkbenchFiles:
 
     def protected(self, path):
         path = canonical(path)
-        return path == self.state or path.startswith(self.state + ".tmp.") or inside(path, self.private) or self.log.contains(path)
+        if self.log.contains(path):
+            return True
+        state, private = self.state, self.private
+        if sys.platform == "darwin":
+            import unicodedata
+            try:
+                if os.path.samefile(path, state):
+                    return True
+            except FileNotFoundError:
+                pass
+            except PermissionError:
+                return True
+            path, state, private = (unicodedata.normalize("NFD", p).casefold() for p in (path, state, private))
+        return path in (state, state + ".lock") or path.startswith(state + ".tmp.") or inside(path, private)
 
     def check(self, path, browser):
         path = os.path.realpath(os.path.abspath(path))

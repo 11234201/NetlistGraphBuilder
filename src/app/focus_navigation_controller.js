@@ -3,6 +3,7 @@ import { findCompareNode } from "./compareWorkspace.js";
 import { getFocusedObjectTransform, getAdaptiveMaxScale } from "../ui/viewport.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
+import { findModuleByName } from "./design_source_identity.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -56,9 +57,7 @@ export function createFocusNavigationController({ state, elements, services }) {
   }
 
   function selectStartupModule(moduleName) {
-    const module = state.design?.modules.find(
-      (item) => item.name === moduleName || item.displayName === moduleName
-    );
+    const module = findModuleByName(state.design?.modules, moduleName);
     if (!module) return Promise.reject(new Error(`Startup module not found: ${moduleName}`));
     if (state.currentModule?.name === module.name) return Promise.resolve();
     return new Promise((resolve, reject) => services.selectModule(module.name, {

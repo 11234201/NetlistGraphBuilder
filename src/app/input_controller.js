@@ -1,6 +1,7 @@
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
 import { writeProcessLogSafely } from "./processLog.js";
 import { assignCompareSideTiming } from "./compare_side_timing.js";
-import { prepareDesignSources, sourcePayloadForIdentity, snapshotModuleIdentity, remapModule, pickAddedCompareModule } from "./design_source_identity.js";
+import { prepareDesignSources, sourcePayloadForIdentity, snapshotModuleIdentity, findModuleByName, remapModule, pickAddedCompareModule } from "./design_source_identity.js";
 import { fetchStartupManifest, executeStartupManifest } from "./startupController.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 import { sampleTiming } from "./sampleTiming.js";
@@ -19,6 +20,7 @@ import { importDesignSource } from "./designInput.js";
 import { createSourceIdentity } from "../persistence/source_identity.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { writeTimingLog } from "./timing_match_log.js";
+import { remapHistoryAfterAppend } from "./viewHistory.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
@@ -41,11 +43,11 @@ export function createInputController({ state, elements, services, restoreCompar
         if (session?.comparePathView && !session.pathSourceUnverified && request.isCurrent() && session.sourceIdentity?.fingerprint === state.sourceIdentity?.fingerprint) await restoreComparePath?.(session.comparePathView);
         return;
       }
-      services.logProcess("info", "launcher", "Applying EDA startup manifest");
+      emitImportLog("info", "launcher", "Applying EDA startup manifest");
       await executeStartupManifest(manifest, createStartupHandlers(), { signal: request.signal });
     } catch (error) {
-      if (!request.isCurrent() || error?.name === "AbortError") return;
-      if (!restoringSession) services.logProcess("error", "launcher", `Startup failed: ${error.message}`, {
+      if (!request.isCurrent() || readErrorField(error, "name") === "AbortError") return;
+      if (!restoringSession) emitImportLog("error", "launcher", `Startup failed: ${errorMessage(error)}`, {
         operation: "startup.apply", code: "startup.failed", error
       });
       if (!state.currentModule) await loadDesign(sampleNetlist, "built-in sample");
@@ -64,7 +66,7 @@ export function createInputController({ state, elements, services, restoreCompar
       },
       loadCellConfig(input) {
         state.cellConfig = parseCellConfig(input.text);
-        services.logProcess("info", "launcher", `Applied Cell Config ${input.name}`, {
+        emitImportLog("info", "launcher", `Applied Cell Config ${input.name}`, {
           definitionCount: Object.keys(state.cellConfig.cells).length
         });
       },
@@ -90,7 +92,7 @@ export function createInputController({ state, elements, services, restoreCompar
         };
         globalThis.__NGB_STARTUP_READY__ = detail;
         globalThis.dispatchEvent?.(new CustomEvent("ngb-startup-ready", { detail }));
-        services.logProcess("info", "launcher", `EDA startup ready: ${detail.module}`, detail);
+        emitImportLog("info", "launcher", `EDA startup ready: ${detail.module}`, detail);
       }
     };
   }
@@ -120,7 +122,7 @@ export function createInputController({ state, elements, services, restoreCompar
     try {
       imported = importTimingSource(text, { name: label });
     } catch (error) {
-      writeTimingLog(services.logProcess, "error", `Timing parse failed: ${error.message}`,
+      writeTimingLog(services.logProcess, "error", `Timing parse failed: ${errorMessage(error)}`,
         { ...context, code: "timing.parse-failed", error });
       throw error;
     }
@@ -194,7 +196,7 @@ export function createInputController({ state, elements, services, restoreCompar
     const revision = (state.document?.sourceRevision || 0) + 1;
 
     function reportRestoreFailure(error) {
-      emitImportLog("error", "persistence", `Stored design could not be restored: ${error.message}`, {
+      emitImportLog("error", "persistence", `Stored design could not be restored: ${errorMessage(error)}`, {
         operation: "session.restore", code: "session.restore-failed", fileCount: nextSourceFiles.length,
         moduleName: restore?.moduleName, error
       });
@@ -206,19 +208,19 @@ export function createInputController({ state, elements, services, restoreCompar
         : importDesignSource(source, { name: label, documentId: "document:primary", sourceRevision: revision });
     } catch (error) {
       if (restoreMulti) reportRestoreFailure(error);
-      else emitImportLog("error", "parse", `Design parse failed: ${error.message}`, {
+      else emitImportLog("error", "parse", `Design parse failed: ${errorMessage(error)}`, {
         operation: canAppend ? "import.merge-netlist" : "import.netlist",
         code: canAppend ? "netlist.merge-parse-failed" : "netlist.parse-failed",
         fileName: label, domainId: "netlist", compareSide, append: canAppend, error
       });
-      services.setStatus(`Parse failed: ${error.message}`);
+      services.setStatus(`Parse failed: ${errorMessage(error)}`);
       throw error;
     }
 
     try {
       const design = documentEnvelope.model;
-      if (restore?.moduleName && !design.modules.some((module) =>
-        module.name === restore.moduleName || module.displayName === restore.moduleName)) {
+      const restoredModule = findModuleByName(design.modules, restore?.moduleName);
+      if (restore?.moduleName && !restoredModule) {
         throw new Error(`Startup module not found: ${restore.moduleName}`);
       }
       onDesignParsed?.();
@@ -281,8 +283,7 @@ export function createInputController({ state, elements, services, restoreCompar
       }
       services.renderModuleOptions();
       const firstModule = (canAppend && remapModule(design.modules, prevCurrentSnapshot))
-        || state.design.modules.find((module) =>
-          module.name === restore?.moduleName || module.displayName === restore?.moduleName)
+        || restoredModule
         || state.design.modules[0];
       const readyMessage = state.timing
         ? `Loaded ${effectiveLabel}: ${state.design.modules.length} module(s), timing: ${state.timing.instanceCount} instance(s)`
@@ -293,7 +294,7 @@ export function createInputController({ state, elements, services, restoreCompar
         try { validateSavedPath?.(restore.showPath, firstModule, restore.occurrenceContext); }
         catch (error) {
           emitImportLog("warning", "persistence", "Saved Show Path could not be restored", {
-            operation: "show-path.restore", code: error.code, error, documentId: state.document.documentId, moduleName: firstModule.name });
+            operation: "show-path.restore", code: readErrorField(error, "code"), error, documentId: state.document.documentId, moduleName: firstModule.name });
           restore = { ...restore, showPath: null };
         }
       }
@@ -344,10 +345,10 @@ export function createInputController({ state, elements, services, restoreCompar
       return completion;
     } catch (error) {
       if (restoreMulti) reportRestoreFailure(error);
-      else emitImportLog("error", "import", `Load failed: ${error.message}`, {
+      else emitImportLog("error", "import", `Load failed: ${errorMessage(error)}`, {
         operation: "import.netlist", code: "netlist.load-failed", label, fileName: label, error
       });
-      services.setStatus(`Load failed: ${error.message}`);
+      services.setStatus(`Load failed: ${errorMessage(error)}`);
       throw error;
     }
   }
@@ -359,6 +360,7 @@ export function createInputController({ state, elements, services, restoreCompar
     if (state.document?.documentId) services.workspaceJobs.cancelDocument(state.document.documentId);
     state.document = services.documents.open(documentEnvelope);
     services.viewSessions.closeByDocument(documentEnvelope.documentId);
+    state.viewHistory = remapHistoryAfterAppend(state.viewHistory, state.design.modules, design.modules);
     state.design = design;
     state.sourceFiles = nextSourceFiles;
     state.currentSource = null;
@@ -383,33 +385,28 @@ export function createInputController({ state, elements, services, restoreCompar
     }
     const readyMessage = `Loaded ${effectiveLabel}: ${design.modules.length} module(s)`;
 
-    if (compareSideActions?.applyMergedCompareModules) {
-      return new Promise((resolve, reject) => compareSideActions.applyMergedCompareModules({
-        leftModuleName: leftModule?.name || null,
-        rightModuleName: rightModule?.name || null,
-        signal,
-        readyMessage,
+    return new Promise((resolve, reject) => {
+      const callbacks = {
+        signal, readyMessage,
         onCommitted: (graphs) => {
           services.renderStats();
           services.setStatus(readyMessage);
+          services.commitViewHistory({ label: "Merge Compare design" });
           resolve(graphs);
         },
         onFailed: reject,
         onCancelled: () => reject(createStartupCancellationError("Compare merge render was cancelled"))
-      }));
-    }
-    if (leftModule) state.compare.leftModuleName = leftModule.name;
-    if (rightModule) state.compare.rightModuleName = rightModule.name;
-    services.renderStats();
-    return new Promise((resolve, reject) => services.renderCompareGraphs({
-      signal,
-      onCommitted: (graphs) => {
-        services.setStatus(readyMessage);
-        resolve(graphs);
-      },
-      onFailed: reject,
-      onCancelled: () => reject(createStartupCancellationError("Compare merge render was cancelled"))
-    }));
+      };
+      if (compareSideActions?.applyMergedCompareModules) {
+        compareSideActions.applyMergedCompareModules({
+          ...callbacks, leftModuleName: leftModule?.name || null, rightModuleName: rightModule?.name || null
+        });
+        return;
+      }
+      if (leftModule) state.compare.leftModuleName = leftModule.name;
+      if (rightModule) state.compare.rightModuleName = rightModule.name;
+      services.renderCompareGraphs(callbacks);
+    });
   }
 
   return Object.freeze({ initializeApplication, createStartupHandlers, loadQuickInputText, loadTimingText, loadDesign });
@@ -439,7 +436,7 @@ export const inputPorts = Object.freeze({
     "compareViewSessions",
     "clearSearch", "documents", "focusStartupCell", "focusStartupCells", "importRequests",
     "singleViewSession", "exitCompareView", "handleSearchInput", "loadLayoutGolden", "logProcess", "netlistFeature", "renderCompareGraphs",
-    "recordViewHistory", "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
+    "commitViewHistory", "recordViewHistory", "renderCurrentModuleGraph", "renderModuleOptions", "renderStats", "rerenderPreservingView",
     "selectModule", "selectStartupModule", "setSingleOverrides", "setSingleTransform", "setStatus", "viewSessions",
     "workspaceJobs"
   ]

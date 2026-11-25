@@ -12,21 +12,27 @@ export function snapshotModuleIdentity(module) {
   return {
     name: module.name,
     originalName: module.originalName || module.name,
-    sourceFile: module.sourceFile || null
+    sourceFile: module.sourceFile || null,
+    span: module.span || null
   };
+}
+
+export function findModuleByName(modules, name) {
+  if (!name) return null;
+  return modules?.find(module => module.name === name)
+    || modules?.find(module => module.displayName === name) || null;
 }
 
 export function remapModule(modules, snapshot) {
   if (!snapshot) return null;
   const exact = modules.find((item) => item.name === snapshot.name);
   if (exact) return exact;
-  if (snapshot.sourceFile) {
-    const bySource = modules.find((item) =>
-      item.sourceFile === snapshot.sourceFile
-      && (item.originalName || item.name) === snapshot.originalName);
-    if (bySource) return bySource;
-  }
-  return modules.find((item) => (item.originalName || item.name) === snapshot.originalName) || null;
+  const matchesName = item => (item.originalName || item.name) === snapshot.originalName;
+  const matchesSource = item => matchesName(item) && (!snapshot.sourceFile || item.sourceFile === snapshot.sourceFile);
+  // Appending preserves the preceding source texts and their declaration locations.
+  const declaration = snapshot.span && modules.find(item => matchesSource(item)
+    && item.span?.line === snapshot.span.line && item.span?.column === snapshot.span.column);
+  return declaration || modules.find(matchesSource) || modules.find(matchesName) || null;
 }
 
 export function pickAddedCompareModule(addedModules, peerModule) {

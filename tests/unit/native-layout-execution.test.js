@@ -103,3 +103,41 @@ test("worker failure transport retains error chains and bounds arbitrary thrown 
   await assert.rejects(pending, (error) => error.cause === outer && error.diagnostic.line === 123 &&
     error.diagnostic.column === 4 && error.diagnostic.filename === "layout.js");
 });
+
+test("native worker startup and send preserve falsy rejection reasons", async () => {
+  for (const reason of [null, 0]) {
+    const worker = workerStub();
+    worker.postMessage = () => { throw reason; };
+    for (const factory of [() => { throw reason; }, () => worker]) {
+      const pending = executeNativeLayout({}, {}, factory);
+      await pending.then(() => assert.fail("worker failure resolved as a layout"), error => assert.equal(error, reason));
+    }
+    assert.equal(worker.terminated, true);
+  }
+});
+
+test("worker cleanup exceptions cannot leave a completed layout pending", async () => {
+  for (const outcome of ["success", "failure", "transport", "cancel"]) {
+    let abort;
+    const signal = { aborted: false, addEventListener(_type, listener) { abort = listener; }, removeEventListener() {} };
+    const worker = workerStub();
+    const cleanup = new Error("terminate failed");
+    worker.terminate = () => { throw cleanup; };
+    const pending = executeNativeLayout({}, { signal }, () => worker);
+    const error = new Error("original failure");
+    if (outcome === "success") {
+      assert.throws(() => worker.onmessage({ data: { result: { nodes: [] } } }), cleanup);
+      assert.deepEqual(await pending, { nodes: [] });
+    } else if (outcome === "failure") {
+      assert.throws(() => worker.onerror({ message: error.message, error }), cleanup);
+      await assert.rejects(pending, value => value.cause === error);
+    } else if (outcome === "cancel") {
+      assert.throws(() => abort(), cleanup);
+      await assert.rejects(pending, { name: "AbortError" });
+    } else {
+      assert.throws(() => worker.onmessageerror(), cleanup);
+      await assert.rejects(pending, /Invalid native layout worker response/);
+    }
+    assert.equal(worker.onmessage, null);
+  }
+});

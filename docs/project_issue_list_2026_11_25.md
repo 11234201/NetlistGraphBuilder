@@ -244,7 +244,7 @@
   - 位置：[dp_020_mapped.v](../tests/fixtures/mapped/datapath/dp_020_mapped.v)、[code_review_2026_11_08_algorithms.md](./code_review_2026_11_08_algorithms.md#L10)
   - 现象：实测 `dp_020_mapped.v`（3,762 cells / 5,695 nodes / 11,398 edges）在默认 `AnchorLayered` 下耗时 **20,393 ms**、峰值堆 **1,592 MiB**（较历史记录的 578 MiB 显著上涨），且 network simplex 达到 2,100 次迭代上限提前中止，交叉数高达 460 万。
 
-  - 修复实测见 [dp_020 分阶段内存与用时](experiments/issue_remediation_2026_11_25/dp_020_profile_summary.json)。该文件分别记录了校验后的堆读数、GC 前最高观测值和进程 RSS。
+  - 修复实测见 [验收记录](plans/issue_remediation_acceptance_2026_11_25.md)。原始报告在忽略目录 `dc_runs/issue_remediation_2026_11_25/dp_020_profile_summary.json`，分别记录校验后的堆读数、GC 前最高观测值和进程 RSS。
 
 - [x] **P02 · [High] 4K 全图前端交互恢复验收未通过，且 `sop_015` 浏览器首帧挂载超时**
   - 位置：[frontend_interaction_performance_2026_11.md](./plans/frontend_interaction_performance_2026_11.md#L277)、[L330-L352](./plans/frontend_interaction_performance_2026_11.md#L330-L352)

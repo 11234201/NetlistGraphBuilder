@@ -81,6 +81,32 @@ export function createViewHistoryEntry(state, metadata = {}) {
 
 export const { pushViewHistory, replaceCurrentViewHistory, stepViewHistory, canStepViewHistory } = createHistoryOperations(cloneEntry, sameEntry);
 
+export function remapHistoryAfterAppend(history, previousModules, mergedModules) {
+  // Appending re-parses the old sources in place before reading the new source.
+  const renamed = new Map();
+  previousModules.forEach((module, index) => {
+    if (module.name !== mergedModules[index].name) renamed.set(module.name, mergedModules[index].name);
+  });
+  if (!renamed.size || !history.entries.length) return history;
+  const name = value => renamed.get(value) ?? value;
+  const ref = value => renamed.has(value?.unitId) ? { ...value, unitId: name(value.unitId) } : value;
+  const refs = values => values?.map(ref);
+  const sides = (values, change) => values && { left: change(values.left), right: change(values.right) };
+  return { ...history, entries: history.entries.map(entry => ({
+    ...entry,
+    moduleName: name(entry.moduleName),
+    occurrenceContext: entry.occurrenceContext && { ...entry.occurrenceContext, rootModuleName: name(entry.occurrenceContext.rootModuleName) },
+    focusedRootRefs: refs(entry.focusedRootRefs),
+    compare: entry.compare && {
+      ...entry.compare,
+      leftModuleName: name(entry.compare.leftModuleName),
+      rightModuleName: name(entry.compare.rightModuleName),
+      focusedRootRefs: sides(entry.compare.focusedRootRefs, refs),
+      selectedObjectRefs: sides(entry.compare.selectedObjectRefs, ref)
+    }
+  })) };
+}
+
 function sameEntry(left, right) {
   return JSON.stringify(stripEntryMetadata(left)) === JSON.stringify(stripEntryMetadata(right));
 }

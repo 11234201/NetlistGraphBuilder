@@ -60,6 +60,8 @@ def handle_post(handler, admin=False):
         if size <= 0 or size > MAX_BODY or handler.headers.get("Transfer-Encoding"):
             raise CommandError("REQUEST_LIMIT","Expected a bounded JSON request")
         message = json.loads(handler.rfile.read(size).decode("utf8"))
+        if not isinstance(message,dict):
+            raise CommandError("INVALID_ARGUMENT","Expected a JSON object")
         data = handler.server.dispatch(message, admin)
         status = 200
     except Exception as exc:
@@ -74,7 +76,14 @@ def handle_post(handler, admin=False):
                 handler.server.log.write("error","workbench.files_failed","File request failed",error=exc,
                                          operation=message["op"],code=detail["code"],page=message.get("page"),
                                          requestId=message.get("id"))
-        status = 400
+            elif detail["code"] == "ACCESS_DENIED":
+                handler.server.log.write("error","workbench.access_denied","Workbench request denied",error=exc,
+                                         operation=message.get("op","request"),code=detail["code"],
+                                         page=message.get("page"),requestId=message.get("id"))
+        else:
+            handler.server.log.write("error","workbench.request_failed","Invalid workbench request",error=exc,
+                                     operation="request",code=detail["code"])
+        status = 403 if detail["code"] == "ACCESS_DENIED" else 400
     body = encode(data)
     handler.send_response(status)
     handler.send_header("Content-Type","application/json")

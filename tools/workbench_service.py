@@ -352,15 +352,18 @@ class WorkbenchService:
                     raise CommandError("FILE_LIMIT","Input batch too large")
                 inputs.append(source)
             except Exception as error:
-                detail = error_info(error)
-                if name == "files import" and detail["code"] not in ("ACCESS_DENIED","FILE_LIMIT"):
-                    self.record(job, name, error, "workbench.read_failed", fileName=names[index])
-                    inputs.append({"name":names[index],"error":detail})
-                elif name == "aig add" or (name == "design add" and job.page.context.get("mode") == "AIG"):
-                    raise CommandError(detail["code"],detail["message"],files=[
-                        {"name":basename,"status":"failed" if i == index else "uncommitted"} for i,basename in enumerate(names)]) from error
-                else:
-                    raise
+                with self.changed:
+                    if job.finished:
+                        break
+                    detail = error_info(error)
+                    if name == "files import" and detail["code"] not in ("ACCESS_DENIED","FILE_LIMIT"):
+                        self.record(job, name, error, "workbench.read_failed", fileName=names[index])
+                        inputs.append({"name":names[index],"error":detail})
+                    elif name == "aig add" or (name == "design add" and job.page.context.get("mode") == "AIG"):
+                        raise CommandError(detail["code"],detail["message"],files=[
+                            {"name":basename,"status":"failed" if i == index else "uncommitted"} for i,basename in enumerate(names)]) from error
+                    else:
+                        raise
         return inputs
 
     def check_document(self, job, p):
@@ -455,8 +458,8 @@ class WorkbenchService:
                     files = self.inputs(job,row,name,args,opts,self.files.roots[0],p)
                 finally:
                     self.changed.acquire()
-                if job.finished or p.connection != b.get("connection"):
-                    raise CommandError("PAGE_UNAVAILABLE","Page connection expired")
+                    if job.finished or p.connection != b.get("connection"):
+                        raise CommandError("CANCELLED","Picker job is no longer active")
                 return self.payload(job,name,args,opts,files)
             if op == "ack":
                 if job.phase == "writing":

@@ -1,3 +1,4 @@
+import { compactElkPoints, getElkEdgePoints } from "./elk_edge_sections.js";
 import {
   computeBoundsWithRoutes,
   computeSafeLayoutExtent,
@@ -7,7 +8,6 @@ import {
 } from "./nodeGeometry.js";
 import { materializeMeasuredGraph } from "./measured_geometry.js";
 import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
-import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
 import { ELK_WIRE_LABEL_OFFSET } from "./wireLabelPolicy.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
@@ -59,9 +59,10 @@ export class MeasuredElkLayoutProvider {
     const elkEdgeById = new Map((result.edges || []).map((edge) => [edge.id, edge]));
     const positionedNodeById = new Map(positionedNodes.map((node) => [node.id, node]));
     const routedEdges = graph.edges.map((edge) => {
-      const rawRoute = getEdgePoints(elkEdgeById.get(edge.id));
       const source = positionedNodeById.get(edge.source);
       const target = positionedNodeById.get(edge.target);
+      const rawRoute = getElkEdgePoints(elkEdgeById.get(edge.id),
+        source && getConnectionPoint(source, edge.sourcePin, "source"));
       if (rawRoute.status === "unroutable") {
         return {
           ...edge,
@@ -237,7 +238,7 @@ function attachToExactPorts(points, start, end, sourceSide = "right", targetSide
   const targetBridge = targetMatches
     ? []
     : [rawEnd, ...alignEscapeToPoint(rawEnd, targetEscape, targetSide), targetEscape];
-  return compactOrthogonalPoints([
+  return compactElkPoints([
     sourceMatches ? rawStart : start,
     ...sourceBridge,
     ...points.slice(1, -1),
@@ -277,53 +278,4 @@ function alignEscapeToPoint(from, to, side) {
     return [{ x: from.x, y: from.y }, { x: to.x, y: from.y }];
   }
   return [{ x: from.x, y: from.y }, { x: from.x, y: to.y }];
-}
-
-function getEdgePoints(edge) {
-  const sections = edge?.sections;
-  if (!sections?.length || sections.some((section) =>
-    !finitePoint(section?.startPoint) || !finitePoint(section?.endPoint))) {
-    return {
-      points: [],
-      status: "unroutable",
-      diagnostics: [{
-        code: "elk-edge-section-missing",
-        edgeId: edge?.id
-      }]
-    };
-  }
-  if (!sections.every((section) => (section.bendPoints || []).every(finitePoint))) {
-    return {
-      points: [],
-      status: "unroutable",
-      diagnostics: [{
-        code: "elk-edge-section-invalid-point",
-        edgeId: edge?.id
-      }]
-    };
-  }
-  if (sections.length === 1) {
-    const section = sections[0];
-    return { points: [section.startPoint, ...(section.bendPoints || []), section.endPoint],
-      status: "routed", diagnostics: [] };
-  }
-  const key = (point) => JSON.stringify([point.x, point.y]);
-  const byStart = new Map(sections.map((section) => [key(section.startPoint), section]));
-  const ends = new Set(sections.map((section) => key(section.endPoint)));
-  let section = sections.find((part) => !ends.has(key(part.startPoint)));
-  const points = section ? [section.startPoint] : [];
-  let count = 0;
-  while (section && byStart.delete(key(section.startPoint))) {
-    for (const point of section.bendPoints || []) points.push(point);
-    points.push(section.endPoint);
-    count++;
-    section = byStart.get(key(section.endPoint));
-  }
-  if (count !== sections.length) return { points: [], status: "unroutable",
-    diagnostics: [{ code: "elk-edge-sections-disconnected", edgeId: edge.id }] };
-  return { points: compactOrthogonalPoints(points), status: "routed", diagnostics: [] };
-}
-
-function finitePoint(point) {
-  return Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y));
 }

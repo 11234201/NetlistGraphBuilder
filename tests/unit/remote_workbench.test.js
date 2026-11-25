@@ -8,6 +8,7 @@ import {createWorkbenchFiles} from "../../tools/workbench_files.mjs";
 import {privatePathGuard} from "../../tools/workbench_paths.mjs";
 import {linuxListenerInode, workbenchCall} from "../../tools/workbench_ipc.mjs";
 import {makeLauncherState, prepareLauncherState, writeLauncherState} from "../../tools/launcher-state.mjs";
+import {remoteHost} from "../../tools/workbench_terminal.mjs";
 import {createAigCollection} from "../../src/app/aig_collection.js";
 import {createAigCollectionStorage} from "../../src/persistence/aig_collection_storage.js";
 
@@ -40,6 +41,51 @@ test("Linux control ownership follows the stream listener during concurrent requ
   assert.equal(linuxListenerInode(accepted, path), null);
   assert.equal(linuxListenerInode(listener, path + ".old"), null);
   assert.equal(linuxListenerInode(listener + "\n" + listener.replace("321", "456"), path), null);
+});
+
+test("protected export names also match macOS case and normalization aliases", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "ngb-private-"));
+  t.after(() => rm(dir,{recursive:true,force:true}));
+  const state = join(dir,"état.json");
+  const session = join(dir, "private");
+  await mkdir(session);
+  await writeFile(state, "fixture");
+  const guard = privatePathGuard(state, session, {contains:()=>false}, "darwin");
+  assert.equal(guard(join(dir,"ÉTAT.JSON".normalize("NFD"))), true);
+  assert.equal(guard(join(dir,"ÉTAT.JSON.LOCK")), true);
+  assert.equal(guard(join(dir,"PRIVATE","document")), true);
+  assert.equal(guard(join(dir,"ordinary.json")), false);
+});
+
+test("remote host requires a callable shutdown boundary before creating endpoints", async () => {
+  await assert.rejects(remoteHost({}, {}, null), /shutdown callback/);
+});
+
+test("pending picker reads discard late success or failure when their page disconnects", async t => {
+  for (const readFails of [false, true]) {
+    const logs = [];
+    let enter, finish;
+    const started = new Promise(resolve => { enter = resolve; });
+    const files = {roots:["/tmp"], read() {
+      enter();
+      return new Promise((resolve, reject) => {
+        finish = () => readFails ? reject(new Error("late read")) : resolve({name:"one.v", text:"fixture"});
+      });
+    }};
+    const broker = createBroker({files,log:{error:(...args) => logs.push(args)}});
+    t.after(broker.close);
+    const page = await broker.handle({version:1,op:"join",token:broker.pair},false);
+    const send = (op,fields={}) => broker.handle({version:1,...page,op,...fields},false);
+    const {requestId:id} = await broker.handle({version:1,op:"command",argv:["files","submit"],page:page.page},true);
+    await send("poll");
+    assert.equal((await send("grant",{id})).granted,true);
+    const read = send("picker-files",{id,argv:["files","import","one.v","two.v"]});
+    await started;
+    await send("leave");
+    finish();
+    await assert.rejects(read,{code:"CANCELLED"});
+    assert.deepEqual(logs, []);
+  }
 });
 
 test("control calls require an expected PID and shutdown refuses new jobs", async () => {

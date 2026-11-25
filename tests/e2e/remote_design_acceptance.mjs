@@ -98,8 +98,19 @@ export async function verifyDesignCommands({run,page,dir}) {
   await ok("compare","clear-timing","B");
   assert.equal((await ok("compare","status")).timing.B,null);
   const added = join(dir,"side design.v");
-  await writeFile(added,"module extra(input a,output y); assign y=a; endmodule");
+  await writeFile(added,`module extra(input a,output y); assign y=a; endmodule
+    module ${other}(input a,output y); assign y=a; endmodule`);
   await ok("compare","design","B",added);
+  const mergedPair = (await ok("compare","status")).applied;
+  await page.waitForFunction(() => JSON.parse(sessionStorage.getItem("netlistGraphBuilder.session.v2"))?.sourceFiles?.length === 2);
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(name => document.querySelector("#rightModuleSelect").value === name &&
+    document.querySelector("#statusBar").textContent.includes("Compare ready"), `${other} [dual.v]`);
+  assert.deepEqual((await ok("compare","status")).applied, { A: before.A, B: `${other} [dual.v]` });
+  await page.keyboard.press("Control+Shift+z");
+  await page.waitForFunction(name => document.querySelector("#rightModuleSelect").value === name &&
+    document.querySelector("#statusBar").textContent.includes("Compare ready"), mergedPair.B);
+  assert.deepEqual((await ok("compare","status")).applied, mergedPair);
   await ok("compare","split","horizontal");
   await ok("compare","split","vertical");
   await page.keyboard.press("Control+z");

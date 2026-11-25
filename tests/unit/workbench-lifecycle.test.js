@@ -10,10 +10,12 @@ import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { createHistoryController } from "../../src/app/history_controller.js";
 import { createViewHistoryEntry } from "../../src/app/viewHistory.js";
 import { createInputController } from "../../src/app/input_controller.js";
+import { createDomainViewCommands } from "../../src/app/domain_view_commands.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
 import { createGoldenController } from "../../src/app/golden_controller.js";
 import { createSearchNavigationController } from "../../src/app/search_navigation_controller.js";
 import { createViewControlsController } from "../../src/app/view_controls_controller.js";
+import { parseVerilog } from "../../src/parser/verilogParser.js";
 import { createSvgScene } from "../../src/render/svg_scene_renderer.js";
 
 test("import cancellation settles a progressive mount before its next animation frame", async () => {
@@ -186,6 +188,7 @@ test("entering Compare cancels Single computation before starting Compare work",
   assert.throws(() => controller.applyCompareSelectionImpl(), /stop after view transition/);
   assert.deepEqual(cancelled, ["single:primary"]);
   assert.equal(state.compare.active, true);
+  assert.equal(elements.compareButton.title, "Return to Single");
 });
 
 test("obsolete Single success and failure callbacks cannot affect an active Compare view", () => {
@@ -441,6 +444,7 @@ test("exiting Compare rebuilds a Single workspace that was cancelled on entry", 
   createCompareWorkspaceController({ state, elements, services }).exitCompareView();
   assert.equal(renders, 1);
   assert.equal(state.compare.singleWorkspaceInvalidated, true);
+  assert.equal(elements.compareButton.title, "Compare two modules");
 });
 
 test("design restore applies state before one final render and preserves its completion callback", () => {
@@ -717,4 +721,111 @@ test("activating an unavailable port search result preserves the current selecti
   controller.activateSearchResult({ moduleName: "top", kind: "port", label: "a", target: { kind: "port", name: "a", direction: "input" } });
   assert.equal(selected, "cell:keep");
   assert.match(status, /unavailable/);
+});
+
+test("small-scene decode failure reaches the render callback with the original cause", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const error = new Error("invalid drawing", { cause: new Error("node decoding failed") });
+  const scene = createSvgScene({ kind: "svg-scene.v1", bounds: { width: 100, height: 100 },
+    edgeCount: 0, nodeCount: 1, readEdges: () => [], readNodes() { throw error; } });
+  const entries = [], statuses = [], failures = [];
+  const services = new Proxy({
+    renderGeneration: createRenderGeneration(),
+    setStatus: message => statuses.push(message),
+    logProcess(level, phase, message, details) {
+      entries.push({ level, phase, message, details });
+      throw new Error("log unavailable");
+    }
+  }, { get: (target, key) => target[key] || (() => {}) });
+  const renderer = createWorkspaceRenderController({ state, elements: { mount: {} }, services });
+  renderer.commitCurrentGraph({}, {}, { scene, onFailed: failure => failures.push(failure) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(failures, [error]);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].details.error, error);
+  assert.equal(entries[0].details.operation, "render.mount");
+  assert.equal(entries[0].details.view, "single");
+  assert.match(statuses.at(-1), /invalid drawing/);
+});
+
+test("obsolete Compare jobs cannot replace a new workspace or trigger its layout fallback", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.design = parseVerilog("module a(input x); endmodule module b(input x); endmodule");
+  Object.assign(state.compare, { active: true, leftModuleName: "a", rightModuleName: "b" });
+  const generation = createRenderGeneration();
+  const failures = [], completions = [];
+  let execution;
+  const services = {
+    ...createTestViewBridges(state), renderGeneration: generation,
+    getCurrentLayoutProvider: () => ({ id: "native-layered" }),
+    workspaceExecution: { execute(request) { execution = request; } },
+    handleLayoutFailure(error) { failures.push(error); }
+  };
+  const controller = createCompareWorkspaceController({ state, services, elements: {} });
+  function closePendingView() {
+    state.compare.active = true;
+    controller.renderCompareGraphs({ onCancelled: () => completions.push("cancelled") });
+    assert.ok(execution);
+    generation.begin();
+    state.compare.active = false;
+  }
+  closePendingView();
+  execution.onError(new Error("old Compare job failed"));
+  assert.deepEqual(failures, []);
+  assert.deepEqual(completions, ["cancelled"]);
+  closePendingView();
+  // Both sides finished before the old view was closed and queued its commit.
+  const result = { status: "committed", artifact: { value: { graph: { nodes: [], edges: [] } } } };
+  execution.onCommit([result, result]);
+  execution.onSettled([result, result]);
+  assert.deepEqual(completions, ["cancelled", "cancelled"]);
+  assert.equal(state.compare.graphs.left, null);
+});
+
+test("timing reports retry a failed sink once per Single and Compare session", async () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  const attempts = new Map();
+  const module = { name: "top", ports: [] };
+  const graph = { moduleName: "top", nodes: [], edges: [], timingSummary: {
+    scopedRecordCount: 1, matchedRecordCount: 1, unmatchedRecordCount: 0,
+    diagnostics: { reportRecordCount: 1, annotatedCellCount: 1, cellCount: 1 }
+  } };
+  const sides = { left: graph, right: graph };
+  state.fullGraph = graph;
+  state.timing = {};
+  const elements = { mount: {}, compareMount: { querySelector: () => null }, compareOutputSelect: {} };
+  const services = new Proxy({
+    renderGeneration: createRenderGeneration(), renderGraphMount: async () => ({}),
+    getCurrentLayoutProvider: () => ({ label: "Native" }),
+    logProcess(_level, _phase, _message, details) {
+      if (details?.operation !== "timing.match") return;
+      const id = details.sessionId;
+      attempts.set(id, (attempts.get(id) || 0) + 1);
+      if (attempts.get(id) === 1) throw new Error("sink unavailable");
+    }
+  }, { get: (target, key) => target[key] || (() => {}) });
+  const single = createWorkspaceRenderController({ state, elements, services });
+  const compare = createCompareWorkspaceController({ state, elements, services });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise((resolve, reject) => single.commitCurrentGraph(graph, graph, {
+      alreadyMounted: true, onRendered: resolve, onFailed: reject
+    }));
+    await new Promise((resolve, reject) => compare.commitCompareWorkspace({
+      fullGraphs: sides, autoGraphs: sides, graphs: sides, scenes: {}
+    }, module, module, { onCommitted: resolve, onFailed: reject }));
+  }
+  assert.deepEqual(Object.fromEntries(attempts), { single: 2, "compare:left": 2, "compare:right": 2 });
+});
+
+test("a routed netlist import retains its parsed callback and leaves the current domain after validation", () => {
+  const calls = [];
+  const router = createDomainViewCommands({ readWorkspace: () => ({}), leave: () => calls.push("leave") });
+  for (const name of ["loadDesign", "loadQuickInputText"]) {
+    const opts = { kind: "netlist", onDesignParsed: () => calls.push("parsed") };
+    const args = name === "loadDesign" ? ["text", "top.v", null, opts] : ["text", opts];
+    router.routeCommand(name, (...routed) => routed.at(-1).onDesignParsed(), args);
+    assert.deepEqual(calls.splice(0), ["parsed", "leave"]);
+    assert.throws(() => router.routeCommand(name, () => { throw new Error("parse failed"); }, args), /parse failed/);
+    assert.deepEqual(calls, []);
+  }
 });

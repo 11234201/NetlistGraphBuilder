@@ -11,8 +11,9 @@
 } from "../netlist/model.js";
 import { parseAttributeComment } from "./netlistAttributes.js";
 
-const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}", "#"]);
+const PUNCTUATION = new Set(["(", ")", ";", ",", ".", "=", "{", "}", "#", "@"]);
 const DECLARATION_QUALIFIERS = new Set(["wire", "reg", "logic", "signed", "supply0", "supply1"]);
+const PORT_DIRECTIONS = new Set(["input", "output", "inout"]);
 
 export function parseVerilog(source) {
   const attributeComments = [];
@@ -50,6 +51,19 @@ export function tokenize(source, attributeComments = null, diagnostics = null) {
       line: startLine,
       column: startColumn
     });
+  };
+
+  const readRange = () => {
+    const start = index;
+    let parentheses = 0;
+    while (index < source.length) {
+      const next = source[index];
+      if (next === ";" || (next === ")" && parentheses === 0)) break;
+      if (next === "(") parentheses++;
+      if (next === ")") parentheses--;
+      if (advance() === "]") break;
+    }
+    return source.slice(start, index);
   };
 
   while (index < source.length) {
@@ -92,7 +106,7 @@ export function tokenize(source, attributeComments = null, diagnostics = null) {
     const startLine = line;
     const startColumn = column;
 
-    if (char === "(" && source[index + 1] === "*") {
+    if (char === "(" && source[index + 1] === "*" && source[index + 2] !== ")" && tokens.at(-1)?.raw !== "@") {
       advance();
       advance();
       let quoted = false;
@@ -131,12 +145,7 @@ export function tokenize(source, attributeComments = null, diagnostics = null) {
     }
 
     if (char === "[") {
-      let raw = "";
-      while (index < source.length) {
-        const rangeChar = advance();
-        raw += rangeChar;
-        if (rangeChar === "]") break;
-      }
+      const raw = readRange();
       pushToken(
         "identifier",
         raw.replace(/\s+/g, ""),
@@ -161,16 +170,22 @@ export function tokenize(source, attributeComments = null, diagnostics = null) {
       continue;
     }
 
-    let raw = "";
+    const start = index;
+    let value = "";
     while (
       index < source.length &&
       !/\s/.test(source[index]) &&
       !PUNCTUATION.has(source[index]) &&
       !(source[index] === "/" && (source[index + 1] === "/" || source[index + 1] === "*"))
     ) {
-      raw += advance();
+      if (source[index] === "[") {
+        if (PORT_DIRECTIONS.has(value) || DECLARATION_QUALIFIERS.has(value)) break;
+        value += readRange().replace(/\s+/g, "");
+      } else {
+        value += advance();
+      }
     }
-    pushToken("identifier", raw, raw, startLine, startColumn);
+    pushToken("identifier", value, source.slice(start, index), startLine, startColumn);
   }
 
   tokens.push({
@@ -232,13 +247,13 @@ class StructuralParser {
       while (!this.isEof() && !this.matchValue(")")) {
         const token = this.consume();
         if (token.kind !== "identifier") continue;
-        if (!token.escaped && ["input", "output", "inout"].includes(token.value)) {
+        if (!token.escaped && PORT_DIRECTIONS.has(token.value)) {
           headerDirection = token.value;
           headerRange = null;
           continue;
         }
-        if (!token.escaped && isRangeToken(token.value)) {
-          headerRange = parseRangeToken(token.value);
+        if (!token.escaped && token.value.startsWith("[")) {
+          headerRange = parseRangeToken(module, token);
           continue;
         }
         if (!token.escaped && DECLARATION_QUALIFIERS.has(token.value)) continue;
@@ -249,7 +264,7 @@ class StructuralParser {
 
     while (!this.isEof() && this.peekValue() !== "endmodule") {
       const value = this.peekValue();
-      if (value === "input" || value === "output" || value === "inout") {
+      if (PORT_DIRECTIONS.has(value)) {
         this.parseDeclaration(module, value);
       } else if (value === "wire") {
         this.parseDeclaration(module, "wire");
@@ -285,8 +300,8 @@ class StructuralParser {
       if (token.kind !== "identifier") {
         continue;
       }
-      if (!token.escaped && isRangeToken(token.value)) {
-        range = parseRangeToken(token.value);
+      if (!token.escaped && token.value.startsWith("[")) {
+        range = parseRangeToken(module, token);
         continue;
       }
       if (!token.escaped && DECLARATION_QUALIFIERS.has(token.value)) {
@@ -377,8 +392,7 @@ class StructuralParser {
       this.matchValue(")");
 
       if (connection?.kind === "unsupported") {
-        module.diagnostics.push({ severity: "warning", message: "Unsupported pin connection expression",
-          line: pinToken.line, column: pinToken.column });
+        warn(module, pinToken, "unsupported-pin-expression", "Unsupported pin connection expression");
       }
 
       pins.push({
@@ -556,12 +570,9 @@ function isLiteralToken(value) {
     /^'[01xXzZ]$/.test(value) || /^-?\d+$/.test(value);
 }
 
-function isRangeToken(value) {
-  return value.startsWith("[") && value.endsWith("]");
-}
-
-function parseRangeToken(value) {
-  const match = String(value).match(/^\[(-?\d+):(-?\d+)\]$/);
+function parseRangeToken(module, token) {
+  if (!token.value.endsWith("]")) warn(module, token, "unterminated-range", "Unterminated packed range");
+  const match = token.value.match(/^\[(-?\d+):(-?\d+)\]$/);
   if (!match) return null;
   const msb = Number(match[1]);
   const lsb = Number(match[2]);

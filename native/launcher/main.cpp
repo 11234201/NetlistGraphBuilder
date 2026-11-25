@@ -655,10 +655,10 @@ void handleClient(int descriptor, const std::shared_ptr<ServerContext>& context,
             body = context->workbench->Handle(message,admin);
         } catch (const std::exception& e) {
             body = ngb::WorkbenchFailure(e);
-            status = 400;
             const auto op = ngb::Field(message, "op", "request");
             const auto &error = body.at("error");
             const auto code = ngb::Field(error, "code");
+            status = code == "ACCESS_DENIED" ? 403 : 400;
             const bool files = op == "list" || op == "picker-files";
             if (code != "CANCELLED" && (files || message.is_null() || code == "ACCESS_DENIED")) {
                 const ngb::Json details = {{"operation",op.substr(0,80)}, {"code",error.at("code")},

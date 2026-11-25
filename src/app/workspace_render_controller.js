@@ -1,3 +1,6 @@
+import { reportWorkspaceRenderFailure } from "./workspace_render_failure.js";
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
+import { writeProcessLogSafely } from "./processLog.js";
 import { preparePathCandidate, renderSearchFirstPlaceholder } from "./path_candidate_render.js";
 import { createSingleWorkspaceInput } from "./workspace_inputs.js";
 import { buildModuleWorkspace } from "./moduleWorkspace.js";
@@ -13,6 +16,7 @@ import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createWorkspaceRenderController({ state, elements, services, mounted }) {
   const reportTiming = createTimingMatchReporter();
+  const log = (...entry) => writeProcessLogSafely(services.logProcess, ...entry);
   function renderCurrentModuleGraph(options = {}) {
     if (options.signal?.aborted) { options.onCancelled?.(); return; }
     cancelCanvasGestures(elements.mount);
@@ -37,7 +41,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     if (!options.commitPath) state.singleWorkspaceIdentity = null;
     const requestId = request.id;
     const layoutProvider = services.getCurrentLayoutProvider();
-    services.logProcess("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
+    log("debug", "graph", `Building ${state.currentModule?.displayName || "module"} graph`, {
       viewMode: state.viewMode,
       provider: layoutProvider.id
     });
@@ -59,7 +63,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         })
       }],
       onStarted([job]) {
-        services.logProcess("info", "layout", `Layout started (${layoutProvider.label})`, { requestId, jobId: job.context.jobId });
+        log("info", "layout", `Layout started (${layoutProvider.label})`, { requestId, jobId: job.context.jobId });
         services.setStatus(`Layout (${layoutProvider.label})…`);
       },
       onCommit: ([result], presentation) => {
@@ -86,7 +90,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     state.fullGraph = workspace.fullGraph;
     services.singleViewSession.refreshNavigation();
     state.scene = workspace.scene;
-    services.logProcess("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
+    log("info", "layout", `Layout completed: ${workspace.graph.nodes.length} node(s), ${workspace.graph.edges.length} edge(s)`, {
       fullNodes: workspace.fullGraph.nodes.length,
       viewMode: workspace.graph.view?.mode || state.viewMode
     });
@@ -116,25 +120,23 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         options.onCancelled?.();
         return;
       }
-      services.logProcess("error", "render", `Render failed: ${error.message}`, {
-        error, view: "single", moduleName: state.currentModule?.name, requestId: renderRequest.id
-      });
-      services.setStatus(`Render failed: ${error.message}`);
-      options.onFailed?.(error);
+      reportWorkspaceRenderFailure(error, {
+        view: "single", moduleName: state.currentModule?.name, requestId: renderRequest.id
+      }, services, options.onFailed);
     });
     services.updateCalibrationControls();
     services.updateViewControls();
     services.persistSession();
   }
 
-  function renderGraphMount(mount, graph, renderOptions = {}) {
+  async function renderGraphMount(mount, graph, renderOptions = {}) {
     const request = services.renderGeneration.current();
     const isCurrent = () => request.isCurrent() && !renderOptions.signal?.aborted;
-    if (!isCurrent()) return Promise.resolve({ cancelled: true });
+    if (!isCurrent()) return { cancelled: true };
     cancelCanvasGestures(mount);
     if (renderOptions.alreadyMounted) {
       mounted?.(mount);
-      return Promise.resolve({ cancelled: false });
+      return { cancelled: false };
     }
     if (graph?.view?.mode === "search-first") {
       cancelSchematicRender(mount);
@@ -142,7 +144,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
       return Promise.resolve().then(() => { if (isCurrent()) mounted?.(mount); return { cancelled: !isCurrent() }; });
     }
     if (!renderOptions.scene) {
-      return Promise.reject(new Error("Graph mount requires a prepared scene"));
+      throw new Error("Graph mount requires a prepared scene");
     }
     const rendering = renderSvgSceneIntoMount(mount, renderOptions.scene, {
       ...renderOptions,
@@ -152,7 +154,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
         const { phase, rendered, total } = progress;
         if (phase === "render") {
           services.setStatus(`Rendering ${rendered}/${total}…`);
-          services.logProcess("debug", "render", `Rendering ${rendered}/${total}`, { rendered, total }, { progressKey: "svg-batch" });
+          log("debug", "render", `Rendering ${rendered}/${total}`, { rendered, total }, { progressKey: "svg-batch" });
         }
         renderOptions.onProgress?.(progress);
       }
@@ -196,12 +198,16 @@ export function createWorkspaceRenderController({ state, elements, services, mou
   }
 
   function handleLayoutFailure(error, options = {}) {
-    if (error?.name === "AbortError") { options.onCancelled?.(); return; }
-    if (typeof error?.code === "string" && error.code.startsWith("show-path.")) {
-      const message = `Show Path query failed: ${error.message}`;
-      services.logProcess(error.code === "show-path.budget" ? "warning" : "error", "graph", message, {
-        error, ...error.pathContext, operation: "show-path.query", code: error.code,
-        moduleName: state.currentModule?.name, view: state.compare.active ? "compare" : "single", requestId: options.requestId });
+    if (readErrorField(error, "name") === "AbortError") { options.onCancelled?.(); return; }
+    const reason = errorMessage(error);
+    const code = readErrorField(error, "code");
+    const context = state.compare.active
+      ? { view: "compare", leftModule: state.compare.leftModuleName, rightModule: state.compare.rightModuleName }
+      : { view: "single", moduleName: state.currentModule?.name };
+    if (typeof code === "string" && code.startsWith("show-path.")) {
+      const message = `Show Path query failed: ${reason}`;
+      log(code === "show-path.budget" ? "warning" : "error", "graph", message, {
+        ...readErrorField(error, "pathContext"), ...context, error, operation: "show-path.query", code, requestId: options.requestId });
       services.setStatus(message);
       options.onFailed?.(error);
       return;
@@ -210,20 +216,19 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     const nextProviderId = getNextLayoutProviderId(state.layoutProviderId);
     const details = { error, operation: "layout.provider", code: "layout.provider-failed",
       provider: failedProvider.id, fallbackProvider: nextProviderId,
-      view: state.compare.active ? "compare" : "single", moduleName: state.currentModule?.name,
-      requestId: options.requestId };
+      ...context, requestId: options.requestId };
     if (!nextProviderId) {
-      services.logProcess("error", "layout", `${failedProvider.label} failed; no fallback remains: ${error.message}`, details);
-      services.setStatus(`Layout failed: ${error.message}`);
+      log("error", "layout", `${failedProvider.label} failed; no fallback remains: ${reason}`, details);
+      services.setStatus(`Layout failed: ${reason}`);
       options.onFailed?.(error);
       return;
     }
     const nextProvider = getLayoutProvider(nextProviderId);
-    services.logProcess("error", "layout", `${failedProvider.label} failed; falling back to ${nextProvider.label}: ${error.message}`, details);
+    log("error", "layout", `${failedProvider.label} failed; falling back to ${nextProvider.label}: ${reason}`, details);
     state.layoutFallbackFromProviderId ||= state.layoutProviderId;
     state.layoutProviderId = nextProviderId;
     elements.layoutProviderSelect.value = state.layoutProviderId;
-    services.setStatus(`Layout failed; trying ${nextProvider.label}: ${error.message}`);
+    services.setStatus(`Layout failed; trying ${nextProvider.label}: ${reason}`);
     if (state.compare.active) services.renderCompareGraphs(options);
     else renderCurrentModuleGraph(options);
   }

@@ -9,13 +9,23 @@ function stripDirectory(name) {
   return parts[parts.length - 1] || text;
 }
 
-function makeUniqueSourceLabels(entries) {
-  const seenCounts = new Map();
+function makeSourceLabels(entries) {
+  const used = new Set();
+  const byBase = new Map();
   return entries.map((entry, index) => {
     const base = stripDirectory(entry.name) || `design-${index + 1}.v`;
-    const nextCount = (seenCounts.get(base) || 0) + 1;
-    seenCounts.set(base, nextCount);
-    return nextCount === 1 ? base : `${base} (${nextCount})`;
+    const counter = byBase.get(base) || { count: 0, nextSuffix: 2 };
+    counter.count += 1;
+    // Persisted module and occurrence IDs use the original per-basename numbering.
+    const moduleKeyLabel = counter.count === 1 ? base : `${base} (${counter.count})`;
+    let label = base;
+    while (used.has(label)) {
+      label = `${base} (${counter.nextSuffix})`;
+      counter.nextSuffix += 1;
+    }
+    used.add(label);
+    byBase.set(base, counter);
+    return { label, moduleKeyLabel };
   });
 }
 
@@ -28,11 +38,14 @@ function makeUniqueModuleName(baseName, sourceLabel, usedNames) {
 }
 
 export function formatMergedSourceLabel(sourceEntries = []) {
-  const labels = makeUniqueSourceLabels(sourceEntries);
+  return formatSourceLabels(makeSourceLabels(sourceEntries));
+}
+
+function formatSourceLabels(labels) {
   if (labels.length === 0) return "Verilog";
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} + ${labels[1]}`;
-  return `${labels[0]} + ${labels.length - 1} files`;
+  if (labels.length === 1) return labels[0].label;
+  if (labels.length === 2) return `${labels[0].label} + ${labels[1].label}`;
+  return `${labels[0].label} + ${labels.length - 1} files`;
 }
 
 /**
@@ -52,23 +65,23 @@ export function mergeNetlistSources(sourceEntries = [], context = {}) {
     text: entry.text,
     mediaType: entry.mediaType || "text/plain"
   }));
-  const sourceLabels = makeUniqueSourceLabels(normalized);
+  const sourceLabels = makeSourceLabels(normalized);
 
   if (normalized.length === 1) {
     const doc = netlistFeature.importSource(
-      { ...normalized[0], name: sourceLabels[0] },
+      { ...normalized[0], name: sourceLabels[0].label },
       context
     );
     return doc;
   }
 
   const parsedGroups = normalized.map((entry, index) => {
-    const sourceLabel = sourceLabels[index];
+    const { label: sourceLabel, moduleKeyLabel } = sourceLabels[index];
     const parsed = parseVerilog(entry.text);
     if (!parsed.modules || parsed.modules.length === 0) {
       throw new Error(`No module declarations found in ${sourceLabel}`);
     }
-    return { entry, sourceLabel, parsed };
+    return { entry, sourceLabel, moduleKeyLabel, parsed };
   });
 
   const nameCounts = new Map();
@@ -83,7 +96,7 @@ export function mergeNetlistSources(sourceEntries = [], context = {}) {
   const mergedDiagnostics = [];
   let totalSize = 0;
 
-  for (const { entry, sourceLabel, parsed } of parsedGroups) {
+  for (const { entry, sourceLabel, moduleKeyLabel, parsed } of parsedGroups) {
     totalSize += entry.text.length;
     for (const diag of parsed.diagnostics || []) {
       mergedDiagnostics.push({ ...diag, sourceFile: diag.sourceFile || sourceLabel });
@@ -95,7 +108,7 @@ export function mergeNetlistSources(sourceEntries = [], context = {}) {
       module.originalName = rawName;
       module.sourceFile = sourceLabel;
       if (collides) {
-        module.name = makeUniqueModuleName(rawName, sourceLabel, usedNames);
+        module.name = makeUniqueModuleName(rawName, moduleKeyLabel, usedNames);
         module.displayName = `${rawDisplayName} [${sourceLabel}]`;
       }
       usedNames.add(module.name);
@@ -103,7 +116,7 @@ export function mergeNetlistSources(sourceEntries = [], context = {}) {
     }
   }
 
-  const combinedName = formatMergedSourceLabel(normalized);
+  const combinedName = formatSourceLabels(sourceLabels);
   const documentId = context.documentId || `netlist:${encodeURIComponent(combinedName)}`;
 
   return createDocumentEnvelope({

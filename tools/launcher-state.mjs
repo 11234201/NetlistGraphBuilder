@@ -1,6 +1,7 @@
 import { mkdir, readFile, link, rm, writeFile, readlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { workbenchCall } from "./workbench_ipc.mjs";
+import { cleanForcedSession, forceNodeSession } from "./workbench_force_stop.mjs";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -91,11 +92,16 @@ export async function stopLauncherState(stateFile, { force = false, quiet = fals
     await removeOwnedState(state);
     return { status: "stopped", state };
   }
-  if (!(await belongsToLauncherState(state))) {
+  const forceNode = force && state.workbenchHost === "node";
+  const registered = forceNode && !!state.forceSession;
+  if (!registered && !(await belongsToLauncherState(state))) {
     throw new Error(`Refusing to stop PID ${state.pid}: it does not match the Netlist Graph Builder state file`);
   }
+  let forcedDirectory;
   try {
-    if (state.workbenchHost === "node" || process.platform === "win32") {
+    if (forceNode) {
+      forcedDirectory = await forceNodeSession(state, !registered);
+    } else if (process.platform === "win32" || state.workbenchHost === "node") {
       const reply = await workbenchCall(state, {version:1, op:"stop", owner:state.owner});
       if (reply.status !== "stopped") throw new Error("Control endpoint refused shutdown");
     } else {
@@ -110,6 +116,7 @@ export async function stopLauncherState(stateFile, { force = false, quiet = fals
   }
   if (isProcessAlive(state.pid)) return { status: "running", state };
   await removeOwnedState(state);
+  await cleanForcedSession(forcedDirectory);
   return { status: "stopped", state };
 }
 

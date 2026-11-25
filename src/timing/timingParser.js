@@ -62,7 +62,8 @@ function parseTimingTabular(source) {
   let defaultModule = null;
   let currentModule = null;
   let stage = "post_map";
-  let unit = "ns";
+  let currentUnit = "ns";
+  let datasetUnit = null;
   let activeColumns = DEFAULT_COLUMNS;
   let headerSeen = false;
   let directiveSeen = false;
@@ -87,14 +88,14 @@ function parseTimingTabular(source) {
       } else if (key === "stage") {
         stage = normalizeStage(value, diagnostics, lineIndex + 1);
       } else if (key === "unit") {
-        unit = normalizeUnit(value, diagnostics, lineIndex + 1);
+        currentUnit = normalizeUnit(value, diagnostics, lineIndex + 1, currentModule);
       } else {
         diagnostics.push({ line: lineIndex + 1, severity: "warning", code: "unknown-directive", message: `Unknown timing directive @${key}` });
       }
       continue;
     }
 
-    const tokens = tokenizeTimingLine(line);
+    const tokens = tokenizeTimingLine(line, headerSeen ? activeColumns.length : 0);
     if (tokens.length === 0) continue;
 
     const headerColumns = detectHeaderColumns(tokens);
@@ -110,6 +111,8 @@ function parseTimingTabular(source) {
       contextual: headerSeen || directiveSeen
     });
     if (rowResult.record) {
+      datasetUnit ??= currentUnit;
+      convertTimingMetrics(rowResult.record, currentUnit, datasetUnit);
       records.push(rowResult.record);
     } else if (rowResult.diagnostic) {
       diagnostics.push({ ...rowResult.diagnostic, module: currentModule });
@@ -120,7 +123,7 @@ function parseTimingTabular(source) {
     format: "tabular",
     module: defaultModule,
     stage,
-    unit,
+    unit: datasetUnit || currentUnit,
     records,
     diagnostics
   });
@@ -416,7 +419,7 @@ export function mergeTimingDatasets(datasets = []) {
   const valid = (Array.isArray(datasets) ? datasets : [datasets])
     .filter((dataset) => dataset && Array.isArray(dataset.records));
   if (valid.length === 0) return null;
-  const targetUnit = valid[0].unit || "ns";
+  const targetUnit = valid.find(({ unit }) => !unit || VALID_UNITS.has(unit))?.unit || "ns";
 
   const records = [];
   const diagnostics = [];
@@ -425,16 +428,15 @@ export function mergeTimingDatasets(datasets = []) {
   const modules = new Set();
 
   for (const dataset of valid) {
-    if (dataset.format) formats.add(dataset.format);
-    if (dataset.stage) stages.add(dataset.stage);
     const unit = dataset.unit || targetUnit;
     const mixed = unit !== targetUnit;
-    if (mixed && (!VALID_UNITS.has(unit) || !VALID_UNITS.has(targetUnit))) {
+    if (!VALID_UNITS.has(unit)) {
       diagnostics.push({ severity: "error", code: "incompatible-timing-units", fileName: dataset.fileName,
         units: [targetUnit, unit], message: "Cannot convert " + unit + " to " + targetUnit });
       continue;
     }
-    const scale = !mixed ? 1 : unit === "ps" ? 0.001 : 1000;
+    if (dataset.format) formats.add(dataset.format);
+    if (dataset.stage) stages.add(dataset.stage);
     for (const warning of dataset.diagnostics || []) {
       diagnostics.push(dataset.fileName && !warning.fileName ? { ...warning, fileName: dataset.fileName } : warning);
     }
@@ -442,11 +444,9 @@ export function mergeTimingDatasets(datasets = []) {
       const moduleName = record.module === undefined ? dataset.module || null : record.module;
       if (moduleName) modules.add(moduleName);
       const fileName = record.fileName || dataset.fileName;
-      if (scale !== 1 || (moduleName && !record.module) || (fileName && !record.fileName)) {
+      if (mixed || (moduleName && !record.module) || (fileName && !record.fileName)) {
         const next = { ...record, module: moduleName, ...(fileName ? { fileName } : {}) };
-        if (scale !== 1) {
-          for (const metric of NUMERIC_COLUMNS) if (Number.isFinite(next[metric])) next[metric] *= scale;
-        }
+        convertTimingMetrics(next, unit, targetUnit);
         records.push(next);
       } else {
         records.push(record);
@@ -465,6 +465,14 @@ export function mergeTimingDatasets(datasets = []) {
   return valid.length === 1 ? { ...valid[0], ...result } : result;
 }
 
+function convertTimingMetrics(record, from, to) {
+  if (from === to) return;
+  const scale = from === "ps" ? 0.001 : 1000;
+  for (const metric of NUMERIC_COLUMNS) {
+    if (Number.isFinite(record[metric])) record[metric] = roundTiming(record[metric] * scale);
+  }
+}
+
 function getSubjectKey(point, kind) {
   if (kind === "port" || kind === "net") return point;
   const slashIndex = findLastUnescapedSlash(point);
@@ -474,8 +482,8 @@ function getSubjectKey(point, kind) {
   return point;
 }
 
-export function tokenizeTimingLine(line) {
-  const { commas } = scanTimingLine(line);
+export function tokenizeTimingLine(line, columnCount = 0) {
+  const { commas } = scanTimingLine(line, columnCount);
   if (commas.length) {
     let start = 0;
     return [...commas, line.length].map((end) => {
@@ -505,30 +513,55 @@ export function tokenizeTimingLine(line) {
   return coalesced;
 }
 
-function scanTimingLine(line) {
+function scanTimingLine(line, columnCount = 0) {
   const commas = [];
+  const ambiguousCommas = [];
+  let comment = line.length;
   let quote = "";
-  let identifier = false;
   let backslashes = 0;
   for (let index = 0; index < line.length; index++) {
     const c = line[index];
-    if (identifier) {
-      if (!/\s/.test(c)) continue;
-      identifier = false;
-    }
     if (quote) {
       if (c === quote && backslashes % 2 === 0) quote = "";
       backslashes = c === "\\" ? backslashes + 1 : 0;
     } else if (c === "\\" && (index === 0 || /[\s,/]/.test(line[index - 1]))) {
-      identifier = true;
+      index = escapedTimingNameEnd(line, index, ambiguousCommas) - 1;
     } else if (c === '"' || c === "'") {
       quote = c;
       backslashes = 0;
     } else if (c === "#" || (c === "/" && line[index + 1] === "/")) {
-      return { commas, comment: index };
+      comment = index;
+      break;
     } else if (c === ",") commas.push(index);
   }
-  return { commas, comment: line.length };
+  const missing = columnCount - commas.length - 1;
+  if (missing > 0 && missing <= ambiguousCommas.length) {
+    return { commas: commas.concat(ambiguousCommas.slice(-missing)).sort((a, b) => a - b), comment };
+  }
+  return { commas, comment };
+}
+
+function escapedTimingNameEnd(line, start, ambiguousCommas) {
+  let end = start + 1;
+  let firstComma = -1;
+  while (end < line.length && !/\s/.test(line[end])) {
+    if (line[end] === "," && firstComma < 0) firstComma = end;
+    end++;
+  }
+  if (firstComma < 0) return end;
+  let next = end;
+  while (next < line.length && /\s/.test(line[next])) next++;
+  // A whitespace-terminated Verilog name can contain commas before a pin path or CSV delimiter.
+  if (line[next] === ",") {
+    // Resolve delimiters before padded numeric fields against the declared CSV column count.
+    for (let index = firstComma; index < end; index++) {
+      if (line[index] === ",") ambiguousCommas.push(index);
+    }
+    return end;
+  }
+  if (line[next] === "[" || (line[next] === "/" && !line.startsWith("//", next))) return end;
+  if (next === line.length || line[end - 1] === "," || line[next] === "#" || line.startsWith("//", next)) return firstComma;
+  return end;
 }
 
 function unquoteToken(value) {
@@ -568,13 +601,14 @@ function normalizeStage(value, diagnostics, line) {
   return "post_map";
 }
 
-function normalizeUnit(value, diagnostics, line) {
+function normalizeUnit(value, diagnostics, line, module = null) {
   const normalized = String(value || "").trim().toLowerCase();
   if (VALID_UNITS.has(normalized)) return normalized;
   diagnostics?.push({
     line,
     severity: "warning",
     code: "unknown-unit",
+    module,
     message: `Unknown @unit '${value}', unsupported time unit`
   });
   return "ns";

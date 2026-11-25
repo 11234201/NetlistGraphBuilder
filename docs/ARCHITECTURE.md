@@ -140,7 +140,7 @@ LayoutProvider
 - `src/render/progressiveSvgRenderer.js` 仅负责将渲染计划（render plan）按帧分批提交至 DOM，不参与任何几何布局或图拓扑分析。
 - SVG 跨线桥（wire-bridge）检测统一使用共享线段空间索引（spatial index），严禁在任意边数阈值处从空间索引退化为全图两两扫描（all-pairs scan）。
 - 交互拖拽预览帧允许临时省略装饰性跨线桥以提升帧率，但手势结束后的完成态渲染必须完整恢复全部几何路径、跨线桥、文本标签与点击热区。
-- `src/analysis/fanoutHub.js` 与 `src/analysis/groupCollapse.js`（兼容保留）均为布局前的纯函数派生显示图变换，绝不原地修改源 Netlist IR。
+- `src/analysis/fanoutHub.js` 提供布局前的纯函数派生显示图变换。已退役的分组折叠仅在旧会话和 Layout Golden 解码边界保留字段兼容。
 - `src/app/sessionState.js` 负责会话快照的序列化边界；用户导入的网表文本仅保存在当前浏览器标签页的 `sessionStorage` 中。
 
 #### AnchorLayered 产品路径（2026-10-15）

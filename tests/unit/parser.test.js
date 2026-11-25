@@ -80,6 +80,25 @@ test("parser supports packed ranges in ANSI-style module headers", () => {
   ]);
 });
 
+test("packed declarations, bit selects and escaped names are insensitive to optional whitespace", () => {
+  const [module] = parseVerilog([
+    "module packed(input[3:0]a, output wire[0:1]y);",
+    "wire[3:0]w; wire \\literal[2] ;",
+    "BUF u(.A(a[ 2 ]), .Y(w[2]));",
+    "assign y[0] = \\literal[2] ;",
+    "wire[200000:0]oversize;",
+    "endmodule"
+  ].join("\n")).modules;
+  assert.deepEqual(module.ports.map(({ name, direction, range }) => [name, direction, range?.width]),
+    [["a", "input", 4], ["y", "output", 2]]);
+  assert.equal(module.nets.find(({ name }) => name === "w")?.range?.width, 4);
+  assert.ok(module.nets.find(({ name }) => name === "literal[2]")?.escaped);
+  assert.deepEqual(module.cells[0].pins.map(({ net }) => net), ["a[2]", "w[2]"]);
+  assert.deepEqual(module.assigns.map(({ lhs, rhs }) => [lhs, rhs]), [["y[0]", "literal[2]"]]);
+  assert.deepEqual(module.diagnostics.map(({ code, moduleName, net, span }) => [code, moduleName, net, span]),
+    [["vector-width-limit", "packed", "oversize", { line: 5, column: 15 }]]);
+});
+
 test("structural attributes and escaped keywords preserve neighboring declarations and instances", () => {
   const [module, next] = parseVerilog([
     '(* note = "*)" *) module \\wire  #(parameter W=8)(input \\reg , (* keep *) output \\signed );',
@@ -98,4 +117,50 @@ test("structural attributes and escaped keywords preserve neighboring declaratio
   assert.deepEqual(module.diagnostics.map((d) => d.code), ["unsupported-parameter-list",
     "unsupported-inline-assignment", ...Array(4).fill("unsupported-declaration"), "unsupported-positional-ports"]);
   assert.ok(module.diagnostics.every((d) => d.moduleName === "wire" && d.span.line && d.span.column));
+});
+
+test("an unterminated bit select preserves the next pin, instance and module", () => {
+  const [first, next] = parseVerilog([
+    "module first(input a, output y);",
+    "BUF broken(.A(a[0), .Y(y));",
+    "wire[3:0;", "BUF good(.A(a), .Y(y)); endmodule",
+    "module next(); endmodule"
+  ].join("\n")).modules;
+  assert.equal(next?.name, "next");
+  assert.deepEqual(first.cells.map(({ instance }) => instance), ["broken", "good"]);
+  assert.equal(first.cells[0].pins[1].net, "y");
+  assert.deepEqual(first.diagnostics.map(({ code, moduleName, span }) => [code, moduleName, span]),
+    [["unsupported-pin-expression", "first", { line: 2, column: 13 }],
+      ["unterminated-range", "first", { line: 3, column: 5 }]]);
+});
+
+test("attached ranges retain structural instance names and do not change the next wire declaration", () => {
+  const [module] = parseVerilog([
+    "module top(input x, output y);",
+    "wire bank[3:0], scalar;",
+    "BUF b[1:0](.A(x),.Y(y)), c[3:2](.A(x),.Y(scalar));",
+    "endmodule"
+  ].join("\n")).modules;
+  assert.deepEqual(module.cells.map(({ instance, instanceDisplayName, pins }) =>
+    [instance, instanceDisplayName, pins.map(({ net }) => net)]),
+    [["b[1:0]", "b[1:0]", ["x", "y"]], ["c[3:2]", "c[3:2]", ["x", "scalar"]]]);
+  assert.ok(module.nets.some(({ name }) => name === "bank[3:0]"));
+  assert.equal(module.nets.find(({ name }) => name === "scalar").range ?? null, null);
+});
+
+test("wildcard event controls preserve subsequent cells, modules and attribute diagnostics", () => {
+  const diagnostics = [];
+  assert.deepEqual(tokenize("(*)", [], diagnostics).slice(0, -1).map(token => token.value), ["(", "*", ")"]);
+  assert.deepEqual(diagnostics, []);
+  const design = parseVerilog([
+    "module proc(input a, output y);",
+    "always@(*) q = a;",
+    "always @ /* sensitivity */ (* ) r = a;",
+    '(* keep = "true" *) BUF b(.A(a),.Y(y)); endmodule',
+    "module next(); endmodule", "(* unclosed"
+  ].join("\n"));
+  assert.deepEqual(design.modules.map(({ name }) => name), ["proc", "next"]);
+  assert.deepEqual(design.modules[0].cells.map(({ instance }) => instance), ["b"]);
+  assert.deepEqual(design.diagnostics.map(({ code, line, column }) => [code, line, column]),
+    [["unterminated-attribute", 6, 1]]);
 });

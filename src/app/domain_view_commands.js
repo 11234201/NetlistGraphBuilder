@@ -45,7 +45,11 @@ export function createDomainViewCommands({ readWorkspace, readRequest, readAnaly
         // The importer calls this after validating the candidate and before mounting its canvas.
         const optionsIndex = name === "loadDesign" ? 3 : 1;
         const routed = [...args];
-        routed[optionsIndex] = { ...args[optionsIndex], onDesignParsed: leave };
+        const options = args[optionsIndex];
+        routed[optionsIndex] = { ...options, onDesignParsed(...values) {
+          options?.onDesignParsed?.(...values);
+          leave();
+        } };
         return action(...routed);
       }
       if (!workspace || passthrough.has(name)) return action(...args);

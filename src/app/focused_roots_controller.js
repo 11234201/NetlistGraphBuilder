@@ -1,6 +1,6 @@
 import { resetCompareRootViewport } from "./compare_sync_settings.js";
 import { createFocusedRootList } from "../ui/focused_root_list.js";
-import { resolveFocusedRootContext } from "./focused_root_context.js";
+import { resolveFocusedRootContext, selectedCompareRootCell } from "./focused_root_context.js";
 import {
   normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots,
   resolveFocusedRootState,
@@ -140,7 +140,7 @@ export function createFocusedRootsController({ state, elements, services }) {
       services.setStatus(`Focused compare ${context.side} view around net ${state.compare.selectedName}`);
       return;
     }
-    const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+    const node = selectedCompareRootCell(context.fullGraph, state.compare);
     if (!node) return;
     const results = [setCompareFocusedRootNodeIds(context.side, [node.id], node.id)];
     const matchedNode = syncCompareFocusedRootNode(context.side, node.id, "replace", results);
@@ -182,7 +182,7 @@ export function createFocusedRootsController({ state, elements, services }) {
       services.setStatus(`Added net ${state.compare.selectedName} to Compare ${context.side} Focused roots`);
       return;
     }
-    const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+    const node = selectedCompareRootCell(context.fullGraph, state.compare);
     if (!node || context.roots.includes(node.id)) return;
     const action = resolveFocusedRootAction({ rootNodeIds: context.roots }, { type: "add", nodeId: node.id });
     if (action.rejected) { services.setStatus("Focused root limit reached"); return; }
@@ -223,7 +223,7 @@ export function createFocusedRootsController({ state, elements, services }) {
         : `Cleared Compare ${context.side} Focused roots`);
       return;
     }
-    const node = findCompareNode(context.fullGraph, "cell", state.compare.selectedName);
+    const node = selectedCompareRootCell(context.fullGraph, state.compare);
     if (!node || !context.roots.includes(node.id)) return;
     const roots = context.roots.filter((nodeId) => nodeId !== node.id);
     const results = [setCompareFocusedRootNodeIds(context.side, roots)];

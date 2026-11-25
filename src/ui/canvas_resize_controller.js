@@ -125,12 +125,13 @@ export function createCanvasResizeController({
       entry.size = current.size;
       entry.display = next;
       entry.pending ||= changed;
-      if (changed) {
+      // The retained layer's pixel origin follows xMidYMid letterboxing even
+      // when the fit scale (and therefore the world viewport) stays constant.
+      if (changed || current.svg.hasAttribute?.("data-composited-viewport")) {
         paintSchematicViewport(current.content, next);
-        // A preview-aware consumer now exposes this value through readViews.
-        // Keep the pending resize while recognizing our own published preview.
-        if (preview && previewViewport?.(view.id, { ...next })) entry.authoritative = { ...next };
       }
+      // Keep the pending resize while recognizing our own published preview.
+      if (changed && preview && previewViewport?.(view.id, { ...next })) entry.authoritative = { ...next };
       if (!preview && entry.pending) commits.push([view.id, entry]);
     }
     // Gather both Compare views before an adapter reapplies either shared DOM.

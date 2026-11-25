@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCanvasResizeController } from "../../src/ui/canvas_resize_controller.js";
+import { paintSchematicViewport } from "../../src/ui/schematic_viewport.js";
 import { formatViewportTransform, getResizedViewportTransform } from "../../src/ui/viewport.js";
 
 test("resize preserves world centre and physical magnification through either meet axis", () => {
@@ -89,6 +90,33 @@ test("window resize uses cached old dimensions even when before arrives after br
   assert.equal(fixture.commits.length, 0);
   fixture.flushTimers();
   assert.deepEqual(fixture.commits, [["single", { x: -300, y: -150, scale: 4 }]]);
+  controller.dispose();
+});
+
+test("resizing letterbox whitespace repositions a composited overview without publishing a viewport change", () => {
+  const fixture = createFixture();
+  const { mount, viewport } = fixture.views[0];
+  const svg = mount.querySelector("svg");
+  const flags = new Set();
+  Object.assign(svg, {
+    dataset: { sceneNodes: "1024" },
+    viewBox: { baseVal: { x: 0, y: 0, width: 200000, height: 1000 } },
+    parentElement: { get clientWidth() { return fixture.size.width; }, get clientHeight() { return fixture.size.height; },
+      getBoundingClientRect: () => ({ ...fixture.size }) },
+    style: {}, classList: { remove() {} },
+    hasAttribute: (key) => flags.has(key), setAttribute: (key) => flags.add(key)
+  });
+  fixture.content.ownerSVGElement = svg;
+  paintSchematicViewport(fixture.content, viewport);
+  assert.equal(svg.style.transform, "matrix(2,0,0,2,0.5,-297.25)");
+  const observers = createObserverHarness();
+  const controller = fixture.create({ ...observers.options, previewViewport: () => assert.fail("unexpected preview") });
+  fixture.size.height += 200;
+  observers.notifyResize();
+  observers.flushFrames();
+  assert.equal(svg.style.transform, "matrix(2,0,0,2,0.5,-397.25)");
+  fixture.flushTimers();
+  assert.deepEqual(fixture.commits, []);
   controller.dispose();
 });
 

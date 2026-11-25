@@ -5,6 +5,7 @@ import {basename, join} from "node:path";
 import {createInterface} from "node:readline";
 import {formatWorkbenchReply} from "./workbench_display.mjs";
 import {createControlServer, workbenchCall} from "./workbench_ipc.mjs";
+import {registerForceIdentity} from "./workbench_force_stop.mjs";
 import {privatePathGuard} from "./workbench_paths.mjs";
 import {readLauncherState} from "./launcher-state.mjs";
 import {createBroker, parseCommand, errorInfo, optionValueCount} from "./workbench_broker.mjs";
@@ -12,6 +13,7 @@ import {createWorkbenchFiles, failure} from "./workbench_files.mjs";
 
 const wait = ms => new Promise(resolveWait => setTimeout(resolveWait, ms));
 export async function remoteHost(options, log, onStop) {
+  if (typeof onStop !== "function") throw new TypeError("A workbench shutdown callback is required");
   const dir = await mkdtemp(join(tmpdir(), "ngb-session-"));
   const socket = process.platform === "win32" ? "\\\\.\\pipe\\ngb-" + randomUUID() : join(dir, "control");
   const state = options.stateFile || join(dir, "state.json");
@@ -55,6 +57,8 @@ export async function remoteHost(options, log, onStop) {
       } catch {
         throw failure("INVALID_ARGUMENT", "Malformed workbench JSON");
       }
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        throw failure("INVALID_ARGUMENT", "Expected a JSON object");
       message = body;
       if (admin && body.version === 1 && body.op === "identity" && identity)
         data = identity;
@@ -74,6 +78,8 @@ export async function remoteHost(options, log, onStop) {
             "workbench.files_failed", error, {operation: message.op, code: error.code, requestId: id, page});
       else if (status === 403)
         log.error("workbench.access_denied", error, {operation:message?.op || "request", code:error.code, requestId:id, page});
+      else if (!message)
+        log.error("workbench.request_failed", error, {operation:"request", code:error.code});
     }
     const body = JSON.stringify(data);
     res.writeHead(status, {
@@ -94,6 +100,7 @@ export async function remoteHost(options, log, onStop) {
     identify(record) {
       record.workbenchHost = "node";
       if (process.platform === "win32") record.controlSession = basename(dir);
+      registerForceIdentity(dir, record);
       identity = {version: 1, pid: record.pid, stateFile: record.stateFile, owner: record.owner};
     },
     async close() {

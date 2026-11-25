@@ -1,4 +1,9 @@
 import { normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots } from "./focusedSelection.js";
+import { findCompareNode } from "../domains/netlist/compare_objects.js";
+
+export function selectedCompareRootCell(graph, compare) {
+  return compare.selectedKind === "cell" ? findCompareNode(graph, "cell", compare.selectedName) : null;
+}
 
 export function resolveFocusedRootContext(state, requestedSide) {
   if (state.compare.active) {

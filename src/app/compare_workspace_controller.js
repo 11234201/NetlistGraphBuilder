@@ -1,10 +1,12 @@
+import { reportWorkspaceRenderFailure } from "./workspace_render_failure.js";
+import { writeProcessLogSafely } from "./processLog.js";
 import { createCompareCommands } from "./remote_compare_commands.js";
 import { preparePathCandidate } from "./path_candidate_render.js";
 import { recommendModulePair, compareModules } from "../analysis/moduleCompare.js";
 import { saveCompareWorkspace, restoreCompareWorkspace } from "./appState.js";
 import { createCompareWorkspaceIdentity } from "./workspace_identity.js";
 import { prepareCompareWorkspace, buildCompareSideWorkspace } from "./compareWorkspace.js";
-import { escapeAttr, escapeHtml } from "../ui/html.js";
+import { renderModuleChoices, renderCompareOutputChoices } from "../ui/compare_module_options.js";
 import { cancelSchematicRender } from "../render/progressiveSvgRenderer.js";
 import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 import { createCompareSideTiming } from "./compare_side_timing.js";
@@ -14,16 +16,10 @@ import { createTimingMatchReporter } from "./timing_match_log.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createCompareWorkspaceController({ state, elements, services }) {
   const reportTiming = createTimingMatchReporter();
+  const log = (...entry) => writeProcessLogSafely(services.logProcess, ...entry);
   function renderCompareModuleOptions() {
-    for (const select of [elements.leftModuleSelect, elements.rightModuleSelect]) {
-      select.innerHTML = "";
-      for (const module of state.design.modules) {
-        const option = document.createElement("option");
-        option.value = module.name;
-        option.textContent = module.displayName;
-        select.append(option);
-      }
-    }
+    renderModuleChoices(elements.leftModuleSelect, state.design.modules);
+    renderModuleChoices(elements.rightModuleSelect, state.design.modules);
   }
 
   function handleCompareOutputChange(event) {
@@ -96,7 +92,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     elements.compareMount.hidden = false;
     elements.compareButton.classList.add("is-active");
     elements.compareButton.textContent = "Single";
-    elements.compareButton.title = "退出双 module 对比视图";
+    elements.compareButton.title = "Return to Single";
     elements.compareButton.setAttribute("aria-pressed", "true");
     elements.compareLayoutSelect.value = state.compare.layout;
     elements.syncCompareInput.checked = state.compare.synchronized;
@@ -131,7 +127,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     elements.mount.hidden = false;
     elements.compareButton.classList.remove("is-active");
     elements.compareButton.textContent = "Compare";
-    elements.compareButton.title = "进入双 module 对比视图";
+    elements.compareButton.title = "Compare two modules";
     elements.compareButton.setAttribute("aria-pressed", "false");
     services.updateViewControls();
     services.renderStats();
@@ -159,12 +155,14 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     const layoutController = new AbortController();
     state.compare.layoutAbortController = layoutController;
     const request = services.renderGeneration.begin();
+    const isCurrent = () => request.isCurrent() && state.compare.active && !layoutController.signal.aborted && !options.signal?.aborted;
     const onCancelled = options.onCancelled;
     const onFailed = options.onFailed;
     function retainPrevious() {
       if (!options.commitPath || state.compare.layoutAbortController !== layoutController) return;
       layoutController.abort();
       state.compare.layoutAbortController = null;
+      if (!request.isCurrent() || !state.compare.active) return;
       updateCompareSideStatus("left", leftModule, "ready");
       updateCompareSideStatus("right", rightModule, "ready");
     }
@@ -191,7 +189,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     } };
     const requestId = request.id;
     const compareLayoutProvider = services.getCurrentLayoutProvider();
-    services.logProcess("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
+    log("debug", "graph", `Building Compare workspace: ${leftModule.displayName} / ${rightModule.displayName}`, {
       provider: compareLayoutProvider.id
     });
     const query = services.singleViewSession.readQuery();
@@ -236,7 +234,12 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       }
     };
     const workspaceIdentity = createCompareWorkspaceIdentity(state, services.readCellLibrary?.());
-    const renderOptions = { ...options, layoutController, workspaceIdentity };
+    const renderOptions = { ...options, requestId, layoutController, workspaceIdentity };
+    function handleFailure(error) {
+      if (!isCurrent()) options.onCancelled();
+      else if (options.commitPath) options.onFailed(error);
+      else services.handleLayoutFailure(error, renderOptions);
+    }
     try {
       // Full graphs and comparison inputs are a light, shared preparation step;
       // layout/override/Scene work then runs under one JobCoordinator boundary
@@ -260,7 +263,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         sideSignal: contextSignal
       });
       const commitResults = (results, presentation) => {
-        if (results.some((result) => result.status !== "committed")) return;
+        if (!isCurrent() || results.some((result) => result.status !== "committed")) return;
         const [leftResult, rightResult] = results;
         const value = {
           fullGraphs: prepared.fullGraphs,
@@ -277,28 +280,25 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         signal: options.signal,
         preparePresentation: options.commitPath && ((results) => preparePathCandidate(
           sides.map((side, index) => ({ target: side === "left" ? elements.leftMount : elements.rightMount, workspace: results[index].artifact.value })),
-          () => request.isCurrent() && state.compare.active && !layoutController.signal.aborted && !options.signal?.aborted && options.pathCurrent())),
+          () => isCurrent() && options.pathCurrent())),
         tasks: sides.map((side) => ({
           beginComputation: () => services.compareViewSessions.beginComputation(side),
           kind: `compare-${side}-workspace`,
           run: (context) => buildSide(side, context.signal)
         })),
         onStarted(jobs) {
-          jobs.forEach((job, index) => services.logProcess("info", "layout", `Compare ${sides[index]} layout started (${compareLayoutProvider.label})`, {
+          jobs.forEach((job, index) => log("info", "layout", `Compare ${sides[index]} layout started (${compareLayoutProvider.label})`, {
             requestId, side: sides[index], jobId: job.context.jobId
           }));
           services.setStatus(`Compare layout (${compareLayoutProvider.label})…`);
         },
         onCommit: commitResults,
         onSettled: (results) => {
-          if (results.some((result) => result.status !== "committed")) renderOptions.onCancelled?.();
+          if (!isCurrent() || results.some((result) => result.status !== "committed")) options.onCancelled();
         },
-        onError: (error) => options.commitPath ? options.onFailed(error) : services.handleLayoutFailure(error, renderOptions)
+        onError: handleFailure
       });
-    } catch (error) {
-      if (options.commitPath) options.onFailed(error);
-      else services.handleLayoutFailure(error, renderOptions);
-    }
+    } catch (error) { handleFailure(error); }
   }
 
   function commitCompareWorkspace(workspace, leftModule, rightModule, options = {}) {
@@ -316,7 +316,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
     const renderRequest = services.renderGeneration?.current?.() || { isCurrent: () => true };
     services.renderStats();
     services.renderDiagnostics();
-    services.logProcess("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
+    log("info", "layout", `Compare layout completed: ${workspace.graphs.left.nodes.length} / ${workspace.graphs.right.nodes.length} node(s)`, {
       leftModule: leftModule.name,
       rightModule: rightModule.name
     });
@@ -338,7 +338,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       state.compare.workspaceIdentity = options.pathCandidate ? createCompareWorkspaceIdentity(state, services.readCellLibrary?.()) : options.workspaceIdentity || null;
       services.applyCompareHighlights();
       services.applyCompareTransforms();
-      services.logProcess("info", "render", "Compare render completed", {
+      log("info", "render", "Compare render completed", {
         leftNodes: state.compare.graphs.left.nodes.length,
         rightNodes: state.compare.graphs.right.nodes.length
       });
@@ -348,11 +348,10 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       if (options.signal?.aborted || !renderRequest.isCurrent() || (options.workspaceIdentity && !state.compare.active)) {
         options.onCancelled?.(); return;
       }
-      services.logProcess("error", "render", `Compare render failed: ${error.message}`, {
-        error, view: "compare", leftModule: state.compare.leftModuleName, rightModule: state.compare.rightModuleName
-      });
-      services.setStatus(`Compare render failed: ${error.message}`);
-      options.onFailed?.(error);
+      reportWorkspaceRenderFailure(error, {
+        view: "compare", requestId: renderRequest.id,
+        leftModule: state.compare.leftModuleName, rightModule: state.compare.rightModuleName
+      }, services, options.onFailed);
     });
   }
 
@@ -381,12 +380,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
   }
 
   function renderCompareOutputOptions(left, right) {
-    const selected = state.compare.outputName || "";
-    const rightOutputs = new Set(right.ports.filter((port) => port.direction === "output").map((port) => port.name));
-    const outputs = left.ports.filter((port) => port.direction === "output" && rightOutputs.has(port.name));
-    elements.compareOutputSelect.innerHTML = `<option value="">Whole module</option>${outputs.map((port) =>
-      `<option value="${escapeAttr(port.name)}">${escapeHtml(port.displayName)}</option>`).join("")}`;
-    elements.compareOutputSelect.value = selected;
+    renderCompareOutputChoices(elements.compareOutputSelect, left, right, state.compare.outputName);
   }
 
   function getCompareModule(side) {

@@ -248,9 +248,10 @@ function findOutputTimingPin(timing, node) {
 }
 
 function findTimingPin(timing, pin) {
+  if (!timing.pins) return null;
   for (const raw of [pin.pinDisplayName, pin.pin]) {
     const key = normalizePinName(raw);
-    if (Object.hasOwn(timing.pins, key)) return key;
+    if (key && Object.hasOwn(timing.pins, key)) return key;
   }
   return null;
 }

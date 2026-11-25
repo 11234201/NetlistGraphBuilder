@@ -226,6 +226,7 @@ export function createBroker({files, log}) {
           throw failure("FILE_LIMIT", "Input batch too large");
         inputs.push(file);
       } catch (error) {
+        if (job.finished) break;
         if (name === "files import" && error.code !== "ACCESS_DENIED" && error.code !== "FILE_LIMIT") {
           log.error(
               "workbench.read_failed", error,
@@ -428,7 +429,7 @@ export function createBroker({files, log}) {
     return receipt(j);
   }
   async function handle(b, admin) {
-    if (b.version !== 1)
+    if (b?.version !== 1)
       throw failure("PROTOCOL_VERSION", "Expected protocol version 1");
     if (stopping)
       throw failure("SERVER_STOPPING", "Workbench is stopping");
@@ -517,6 +518,8 @@ export function createBroker({files, log}) {
       if (!inputCommands.has(c.name) || c.opts.text !== undefined || c.opts.page && c.opts.page !== p.id)
         throw failure("ACCESS_DENIED", "Invalid file picker action");
       const inputs = await prepareInputs(c, p, files.roots[0], j);
+      if (j.finished || !p.online || p.connection !== b.connection)
+        throw failure("CANCELLED", "Picker job is no longer active");
       return payload(j.id, c.name, c.args, c.opts, inputs);
     }
     if (b.op === "grant") {

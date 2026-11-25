@@ -103,6 +103,9 @@ const server = createServer(async (request, response) => {
   }
   try {
     if (!["GET", "HEAD"].includes(request.method)) { response.writeHead(405); response.end("Method not allowed"); return; }
+    if (/%(?:2f|5c)/i.test(requestPath) || requestPath.includes("\\")) {
+      response.writeHead(403); response.end("Forbidden"); return;
+    }
     const url = new URL(request.url || "/", `http://${request.headers.host || `${host}:${options.port}`}`);
     if (url.pathname === STARTUP_ENDPOINT) {
       const body = JSON.stringify(startupManifest);
@@ -117,7 +120,7 @@ const server = createServer(async (request, response) => {
       response.writeHead(403); response.end("Forbidden"); return;
     }
     const runtimeAsset = /^(?:index\.html$|styles\.css$|(?:src|vendor|examples)\/)/;
-    if (!runtimeAsset.test(pathname)) { response.writeHead(403); response.end("Forbidden"); return; }
+    if (!runtimeAsset.test(relativePath.split(sep).join("/"))) { response.writeHead(403); response.end("Forbidden"); return; }
     const canonical = await realpath(filePath);
     if (!runtimeAsset.test(relative(root,canonical).split(sep).join("/")) || workbench.guard(canonical)) { response.writeHead(403); response.end("Forbidden"); return; }
     const fileStat = await stat(canonical);

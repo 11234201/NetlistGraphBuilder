@@ -26,7 +26,7 @@ const limitedExec = [
   "os.execv(sys.argv[2],sys.argv[2:])"
 ].join("\n");
 
-function post(address, payload) {
+function post(address, payload, includeStatus = false) {
   const body = JSON.stringify(payload);
   return new Promise((resolvePost,reject) => {
     const headers = {"Content-Type":"application/json","Content-Length":Buffer.byteLength(body)};
@@ -36,7 +36,10 @@ function post(address, payload) {
       res.on("data",chunk=>parts.push(chunk));
       res.on("error",reject);
       res.on("end",()=>{
-        try { resolvePost(JSON.parse(Buffer.concat(parts).toString())); }
+        try {
+          const data = JSON.parse(Buffer.concat(parts).toString());
+          resolvePost(includeStatus ? {status:res.statusCode, data} : data);
+        }
         catch (error) { reject(error); }
       });
     });
@@ -72,6 +75,7 @@ async function start(adapter, dir, roots, defaultState=false) {
     const admin=(op,fields={})=>post({socketPath:state.control,path:"/"},{version:1,op,...fields});
     const page=(identity,op,fields={})=>post({hostname:"127.0.0.1",port:ready.port,path:"/__ngb/workbench"},{version:1,op,...identity,...fields});
     const register=()=>page({},"join",{token});
+    const browserResponse=payload=>post({hostname:"127.0.0.1",port:ready.port,path:"/__ngb/workbench"},payload,true);
     async function stop() {
       if(child.exitCode!==null || child.signalCode!==null)return;
       await run(app[0],[...app.slice(1),"stop","--state-file",stateFile],options);
@@ -83,7 +87,7 @@ async function start(adapter, dir, roots, defaultState=false) {
     }
     const status=()=>run(app[0],[...app.slice(1),"status","--state-file",stateFile],options);
     const cleanup=async()=>{if(child.exitCode===null && child.signalCode===null){child.kill();await done;}};
-    return {admin,page,register,stop,stateFile,status,cleanup};
+    return {admin,page,register,browserResponse,stop,stateFile,status,cleanup};
   }catch(e){child.kill();await done;throw e;}
 }
 
@@ -98,6 +102,14 @@ async function check(adapter,s,dir,roots,t){
     assert.equal((await available("--page","missing")).error.code,"PAGE_UNAVAILABLE");
   });
   const a=await s.register();
+  await t.test(adapter+" rejects non-object requests and uses HTTP 403 for denied pairing",async()=>{
+    const malformed=await s.browserResponse(null);
+    assert.equal(malformed.status,400);
+    assert.equal(malformed.data.error.code,"INVALID_ARGUMENT");
+    const denied=await s.browserResponse({version:1,op:"join",token:"expired-test-pair"});
+    assert.equal(denied.status,403);
+    assert.equal(denied.data.error.code,"ACCESS_DENIED");
+  });
   await s.page(a,"poll",{context:{mode:"Single",pickerState:"closed"}});
   assert.equal((await available()).page,a.page);
   const b=await s.register();
@@ -426,6 +438,8 @@ test("Linux workbench launcher protocol",{timeout:120000},async t=>{
     if (adapters.includes("elf")) {
       await copyFile(binary,join(dir,"deploy/ngb"));await chmod(join(dir,"deploy/ngb"),0o700);
     }
+    if (adapters.includes("python")) await t.test("Python picker cancellation suppresses file and transport errors",
+      () => run(python,[join(project,"tests/e2e/workbench_picker_disconnect.py")]));
     await writeFile(join(roots[0],"probe.v"),"// probe-private-marker");
     await writeFile(join(roots[0],"unreadable.v"),"unreadable-private-marker",{mode:0});
     await mkdir(join(roots[1],"child"));

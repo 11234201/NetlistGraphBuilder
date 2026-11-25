@@ -68,15 +68,37 @@ export function linuxListenerInode(table, control) {
   return found;
 }
 
-async function verifyUnixSocket(state) {
+// Apple lsof suppresses -F T fields for AF_UNIX. In its normal -Tfq report
+// the kernel socket options follow the pathname in the same descriptor row.
+// XNU's only AF_UNIX protocol supporting SO_ACCEPTCONN is SOCK_STREAM.
+export function darwinHasUnixListener(table, {pid, control}, uid) {
+  // lsof runs in the C locale and escapes non-printable pathname bytes.
+  const escaped = Buffer.from(control).reduce((name, byte) => {
+    if (byte >= 32 && byte < 127) return name + (byte === 92 ? "\\\\" : String.fromCharCode(byte));
+    const special = {8:"\\b", 9:"\\t", 10:"\\n", 12:"\\f", 13:"\\r"};
+    if (byte < 32) return name + (special[byte] ?? "^" + String.fromCharCode(64 + byte));
+    return name + "\\x" + byte.toString(16).padStart(2, "0");
+  }, "");
+  return table.split("\n").some(line => {
+    const row = /^\S+\s+(\d+)\s+(\d+)\s+\d+[rwu]?\s+unix\s+\S+\s+\d+\s+(.+) \(([^()]*)\)$/.exec(line);
+    if (!row || row[1] !== String(pid) || row[2] !== String(uid) || row[3] !== escaped) return false;
+    const options = row[4].split(" ").find(field => field.startsWith("SO="));
+    return options?.slice(3).split(",").includes("ACCEPTCONN");
+  });
+}
+
+export async function verifyUnixSocket(state) {
   const dir = await lstat(dirname(state.control));
   const socket = await lstat(state.control);
   if (!dir.isDirectory() || dir.uid !== process.getuid() || (dir.mode & 0o077) ||
       !socket.isSocket() || socket.uid !== process.getuid()) throw mismatch();
   if (process.platform === "darwin") {
-    const {stdout} = await run("/usr/sbin/lsof", ["-a", "-nP", "-p", String(state.pid), "-U", "-F0un"]);
-    const fields = stdout.split("\0").map(field => field.replace(/^\n/, ""));
-    if (!fields.includes("u" + process.getuid()) || !fields.includes("n" + state.control)) throw mismatch();
+    let output;
+    try {
+      ({stdout:output} = await run("/usr/sbin/lsof", ["-a", "-nP", "-l", "-s", "-p", String(state.pid), "-U", "-Tfq"],
+        {env:{...process.env, LC_ALL:"C"}, timeout:5000}));
+    } catch (error) { throw mismatch(error); }
+    if (!darwinHasUnixListener(output, state, process.getuid())) throw mismatch();
     return;
   }
   if (process.platform !== "linux") throw mismatch();

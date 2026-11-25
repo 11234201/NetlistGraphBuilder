@@ -13,6 +13,11 @@ import { recommendModulePair } from "../../src/analysis/moduleCompare.js";
 import { createAppState } from "../../src/app/appState.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { createInputController } from "../../src/app/input_controller.js";
+import { createHistoryController } from "../../src/app/history_controller.js";
+import { stepViewHistory } from "../../src/app/viewHistory.js";
+import { createFocusNavigationController } from "../../src/app/focus_navigation_controller.js";
+import { sourcePayloadForIdentity } from "../../src/app/design_source_identity.js";
+import { createSourceIdentity } from "../../src/persistence/source_identity.js";
 import { prepareCompareWorkspace } from "../../src/app/compareWorkspace.js";
 import { createDocumentStore } from "../../src/application/document_store.js";
 import { createImportRequests } from "../../src/application/import_requests.js";
@@ -153,6 +158,93 @@ test("mergeNetlistSources keeps unique modules intact and disambiguates collidin
   assert.equal(tcAfterGraph.nodes.find((n) => n.id === "cell:sub").referencedModuleName, "leaf [after.v]");
 
   assert.equal(recommendModulePair(modules, "tc [before.v]")?.name, "tc [after.v]");
+});
+
+test("appending sources keeps filename suffixes distinct for hierarchy and parse failures", async () => {
+  const state = createHarnessState();
+  const { controller, events } = createInputHarness(state);
+  const names = ["rev.v", "dir/rev.v", "rev.v (2)", "rev.v (3)", "third/rev.v"];
+  const labels = ["rev.v", "rev.v (2)", "rev.v (2) (2)", "rev.v (3)", "rev.v (4)"];
+  for (const [index, name] of names.entries()) {
+    const text = `module top${index}(); child u(); endmodule module child(); endmodule`;
+    await controller.loadDesign(text, name, null, { append: index > 0 });
+  }
+  const hierarchy = buildModuleHierarchy(state.design);
+  assert.equal(hierarchy.length, names.length);
+  for (const [index, label] of labels.entries()) {
+    const root = hierarchy.find(node => node.moduleName === `top${index}`);
+    const child = state.design.modules.find(module => module.name === root.children[0].moduleName);
+    assert.equal(child.sourceFile, label);
+    assert.equal(child.displayName, `child [${label}]`);
+  }
+  const previousDocument = state.document;
+  const message = "No module declarations found in rev.v (5)";
+  assert.throws(() => controller.loadDesign("invalid", "next/rev.v", null, { append: true }), { message });
+  assert.equal(state.document, previousDocument);
+  const failures = events.filter(entry => entry.level === "error");
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].details.code, "netlist.merge-parse-failed");
+  assert.equal(failures[0].details.error.message, message);
+});
+
+test("appending a design preserves the selected declaration among same-file duplicates", async () => {
+  const state = createHarnessState();
+  const { controller, services } = createInputHarness(state);
+  const text = "module tc(); BUF m1(); endmodule module tc(); BUF m2(); endmodule";
+  await controller.loadDesign(text, "before.v");
+  services.selectModule("tc #2");
+  state.compare.active = true;
+  state.compare.leftModuleName = "tc #1";
+  state.compare.rightModuleName = "tc #2";
+  await controller.loadDesign(text, "after.v", null, { append: true });
+  assert.equal(state.currentModule.sourceFile, "before.v");
+  assert.equal(state.currentModule.cells[0].instance, "m2");
+  const left = state.design.modules.find(module => module.name === state.compare.leftModuleName);
+  assert.equal(left.cells[0].instance, "m1");
+  assert.equal(left.sourceFile, "before.v");
+  assert.equal(state.compare.rightModuleName, state.currentModule.name);
+});
+
+test("legacy module keys restore the same source when another file now displays that key", async () => {
+  const sourceFiles = ["rev.v", "dir/rev.v", "rev.v (2)", "rev.v (2) (2)"].map((name, index) => ({
+    name, text: `module top${index}(); child u(); endmodule module child(); BUF marker${index}(); endmodule`
+  }));
+  const leftKey = "child [rev.v (2)] #2";
+  const rightKey = "child [rev.v (2) (2)]";
+  const saved = decodeSessionSnapshot(encodeSessionSnapshot({
+    sourceFiles, moduleName: rightKey, occurrenceContext: { rootModuleName: "top3", occurrencePath: ["u"] },
+    sourceIdentity: createSourceIdentity("rev.v + 3 files", sourcePayloadForIdentity(sourceFiles)),
+    comparePathView: { kind: "compare", compare: { leftModuleName: leftKey, rightModuleName: rightKey } }
+  }));
+  const state = createHarnessState();
+  const { elements, services } = createInputHarness(state);
+  let comparePath;
+  const controller = createInputController({
+    state, elements, services, restoreComparePath: entry => { comparePath = entry; }
+  });
+  await controller.initializeApplication(saved);
+  assert.equal(state.currentModule.cells[0].instance, "marker3");
+  const modules = state.design.modules;
+  const { leftModuleName, rightModuleName } = comparePath.compare;
+  const left = modules.find(module => module.name === leftModuleName);
+  const right = modules.find(module => module.name === rightModuleName);
+  assert.equal(left.displayName, right.name);
+  const compared = prepareCompareWorkspace({ leftModule: left, rightModule: right, moduleLibrary: modules });
+  assert.ok(compared.fullGraphs.left.nodes.some(node => node.id === "cell:marker2"));
+  assert.ok(compared.fullGraphs.right.nodes.some(node => node.id === "cell:marker3"));
+  const occurrence = buildModuleHierarchy(state.design).find(node => node.moduleName === saved.occurrenceContext.rootModuleName);
+  assert.equal(occurrence.children[0].moduleName, rightKey);
+  assert.deepEqual(occurrence.children[0].canonicalOccurrencePath, saved.occurrenceContext.occurrencePath);
+  const focus = createFocusNavigationController({ state, elements: {}, services: {
+    selectModule(name, options) { services.selectModule(name); options.onRendered(); }
+  } });
+  await focus.selectStartupModule(leftKey);
+  assert.equal(state.currentModule, left);
+  await focus.selectStartupModule(rightKey);
+  assert.equal(state.currentModule, right);
+  await focus.selectStartupModule(leftKey);
+  await focus.selectStartupModule(right.displayName);
+  assert.equal(state.currentModule, right);
 });
 
 test("mergeTimingDatasets and mergeImportedTiming isolate scopes across files and preserve module matching", () => {
@@ -437,4 +529,86 @@ test("a failed import log sink cannot replace the original parse error or discar
   await assert.rejects(async () => controller.loadQuickInputText("no modules",
     { kind: "netlist", label: "invalid.v" }), (error) => error === failure && error !== sinkError);
   assert.equal(state.currentModule.name, "accepted");
+});
+
+test("startup logger failures allow both manifest import and recovery from a non-Error rejection", async () => {
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, "location");
+  const originalFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "location", { configurable: true, value: { search: "?startup=1" } });
+  try {
+    for (const valid of [true, false]) {
+      const state = createHarnessState();
+      const { controller, services, elements } = createInputHarness(state);
+      elements.layoutProviderSelect = {};
+      const logs = [];
+      services.logProcess = (level, phase, message, details) => {
+        logs.push({ level, phase, message, details });
+        throw new Error("log unavailable");
+      };
+      globalThis.fetch = async () => {
+        if (!valid) throw null;
+        return { ok: true, json: () => ({ version: 1,
+          inputs: { netlist: { text: "module remote(); endmodule", name: "remote.v" } }, target: {} }) };
+      };
+      await controller.initializeApplication(null);
+      assert.equal(state.currentSourceLabel, valid ? "remote.v" : "built-in sample");
+      const errors = logs.filter(entry => entry.level === "error" && entry.phase === "launcher");
+      assert.equal(errors.length, valid ? 0 : 1);
+      if (!valid) {
+        assert.equal(errors[0].details.error, null);
+        assert.match(errors[0].message, /null/);
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocation) Object.defineProperty(globalThis, "location", originalLocation);
+    else delete globalThis.location;
+  }
+});
+
+test("Compare design merge commits one undoable module pair and persists only after render success", async () => {
+  for (const useSideAction of [false, true]) {
+    const state = createHarnessState();
+    const { elements, services } = createInputHarness(state);
+    let render, saves = 0;
+    const history = createHistoryController({ state, elements: { moduleBackButton: {}, moduleForwardButton: {} },
+      services: { persistSession: () => saves++ } });
+    services.recordViewHistory = history.recordViewHistory;
+    services.commitViewHistory = history.commitViewHistory;
+    services.renderCompareGraphs = options => { render = options; };
+    const controller = createInputController({ state, elements, services, compareSideActions: useSideAction ? {
+      applyMergedCompareModules(options) {
+        state.compare.leftModuleName = options.leftModuleName;
+        state.compare.rightModuleName = options.rightModuleName;
+        render = options;
+      }
+    } : null });
+    await controller.loadDesign("module a(); endmodule module b(); endmodule", "before.v");
+    Object.assign(state.compare, { active: true, leftModuleName: "a", rightModuleName: "b" });
+    const ref = { documentId: state.document.documentId, unitId: "b", kind: "cell", localId: "u" };
+    state.compare.focusedRootRefs.right = [ref];
+    state.compare.selectedObjectRefs = { left: null, right: ref };
+    history.recordViewHistory({ label: "Compare" });
+    const previousCount = state.viewHistory.entries.length;
+    const pending = controller.loadDesign("module b(); endmodule", "after.v", null, { compareSide: "right" });
+    assert.equal(saves, 0);
+    render.onCommitted({});
+    await pending;
+    assert.equal(saves, 1);
+    assert.equal(state.viewHistory.entries.length, previousCount + 1);
+    const undo = stepViewHistory(state.viewHistory, -1);
+    assert.equal(undo.entry.compare.leftModuleName, "a");
+    assert.equal(undo.entry.compare.rightModuleName, "b [before.v]");
+    assert.equal(undo.entry.compare.focusedRootRefs.right[0].unitId, "b [before.v]");
+    assert.equal(undo.entry.compare.selectedObjectRefs.right.unitId, "b [before.v]");
+    assert.equal(stepViewHistory(undo.history, 1).entry.compare.rightModuleName, "b [after.v]");
+    for (const failure of ["cancelled", "failed"]) {
+      const attempt = controller.loadDesign(`module ${failure}(); endmodule`, failure, null, { compareSide: "right" });
+      if (failure === "cancelled") render.onCancelled();
+      else render.onFailed(new Error(failure));
+      await assert.rejects(attempt);
+    }
+    assert.equal(saves, 1);
+    assert.equal(state.viewHistory.entries.length, previousCount + 1);
+  }
 });
