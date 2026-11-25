@@ -272,13 +272,6 @@ test("ambiguous module occurrences expose an explicit chooser wired to selectMod
   assert.match(handler, /occurrencePath/);
 });
 
-test("focused net chips retain the active occurrence path", async () => {
-  const source = await readWorkbenchSource();
-  const handler = source.match(/function renderFocusedRootList\(\) \{([\s\S]*?)\n  \}\n\n  function updateFocusSelectedControl/)?.[1] || "";
-  assert.match(handler, /netName && !context\.compare/);
-  assert.match(handler, /state\.occurrenceContext\?\.occurrencePath/);
-});
-
 test("compound view actions commit one history transaction", async () => {
   const source = await readWorkbenchSource();
   assert.match(source, /createViewHistoryTransaction\(\{[\s\S]*commit: \(metadata\) => commitViewHistory\(metadata\)/);

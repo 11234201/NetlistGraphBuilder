@@ -142,7 +142,6 @@ function cloneEntry(entry = {}) {
         right: entry.compare.activeFocusedRootNodeId?.right || null
       },
       ...normalizeCompareSyncSettings(entry.compare),
-      focusedRootsSynchronized: entry.compare.focusedRootsSynchronized !== false,
       selectedName: entry.compare.selectedName || null,
       selectedKind: entry.compare.selectedKind || null,
       selectedSide: entry.compare.selectedSide || null,

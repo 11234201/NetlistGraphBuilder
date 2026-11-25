@@ -1,3 +1,4 @@
+import { resetCompareRootViewport } from "./compare_sync_settings.js";
 import { normalizeSingleViewMode } from "./singleViewMode.js";
 import { normalizeFocusedRootNodeIds } from "./appState.js";
 import { findCompareNode } from "./compareWorkspace.js";
@@ -75,7 +76,7 @@ export function createViewControlsController({ state, elements, services }) {
       services.setStatus(`Compare ${context.side} Focused: fanin ${state.faninDepth}, fanout ${state.fanoutDepth}`);
       return executeViewEffects(result, {
         requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
-        beforeCompute: () => services.setCompareTransform(context.side, { x: 0, y: 0, scale: 1 }),
+        beforeCompute: () => resetCompareRootViewport(state.compare, context.side, services.setCompareTransform),
         compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
         render: updateViewControls
       });

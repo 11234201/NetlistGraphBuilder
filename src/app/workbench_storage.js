@@ -1,11 +1,15 @@
+import { writeProcessLogSafely } from "./processLog.js";
 import { loadStoredCellConfigResult } from "../persistence/cell_config_storage.js";
 import { loadSessionStateResult, saveSessionStateResult } from "../persistence/session_storage.js";
-import { errorMessage } from "../foundation/log_details.js";
+import { errorMessage, readErrorField } from "../foundation/log_details.js";
 
 // Bootstrap and unload storage lifecycle; all state access stays in narrow callbacks.
 export function restoreWorkbenchStorage({ windowTarget, logProcess, setCellConfig, getSessionSnapshot }) {
-  function report(error, operation, message) {
-    logProcess("error", "persistence", `${message}: ${errorMessage(error)}`, { error, operation });
+  function report(error, operation, message, context = {}) {
+    writeProcessLogSafely(logProcess, "error", "persistence", `${message}: ${errorMessage(error)}`, {
+      operation, code: readErrorField(error, "code") || `persistence.${operation}-failed`,
+      fileCount: readErrorField(error, "fileCount"), moduleName: readErrorField(error, "moduleName"), ...context, error
+    });
   }
 
   const cellConfig = loadStoredCellConfigResult();
@@ -15,15 +19,17 @@ export function restoreWorkbenchStorage({ windowTarget, logProcess, setCellConfi
   if (!session.ok) report(session.error, "load-session", "Stored session could not be restored");
 
   windowTarget.addEventListener("beforeunload", () => {
-    let result;
+    let result, snapshot;
     try {
-      const snapshot = getSessionSnapshot();
+      snapshot = getSessionSnapshot();
       if (!snapshot) return;
       result = saveSessionStateResult(snapshot);
     } catch (error) {
       result = { ok: false, error };
     }
-    if (!result.ok) report(result.error, "save-session-on-unload", "Session could not be saved before closing");
+    if (!result.ok) report(result.error, "save-session-on-unload", "Session could not be saved before closing", {
+      fileCount: snapshot?.sourceFiles?.length, moduleName: snapshot?.moduleName
+    });
   });
   return session.value;
 }

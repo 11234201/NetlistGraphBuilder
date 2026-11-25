@@ -1,3 +1,4 @@
+import { resetCompareRootViewport } from "./compare_sync_settings.js";
 import { getCompareNodeName } from "./compareWorkspace.js";
 import { startCanvasPan } from "../ui/canvas_pan_controller.js";
 import {
@@ -76,7 +77,7 @@ export function createCompareCanvasController({ state, elements, services }) {
     const nextRoots = toggleFocusedRootNodeId(roots, nodeId);
     services.setCompareFocusedRootNodeIds(side, nextRoots, nextRoots.includes(nodeId) ? nodeId : null);
     const matchedNode = services.syncCompareFocusedRootNode(side, nodeId, nextRoots.includes(nodeId) ? "add" : "remove");
-    setCompareTransform(side, { x: 0, y: 0, scale: 1 });
+    resetCompareRootViewport(state.compare, side, setCompareTransform);
     services.updateViewControls();
     services.renderCompareGraphs();
     const node = state.compare.fullGraphs?.[side]?.nodes.find((item) => item.id === nodeId);

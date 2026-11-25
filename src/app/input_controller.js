@@ -1,3 +1,5 @@
+import { writeProcessLogSafely } from "./processLog.js";
+import { prepareDesignSources, sourcePayloadForIdentity, snapshotModuleIdentity, remapModule, pickAddedCompareModule } from "./design_source_identity.js";
 import { fetchStartupManifest, executeStartupManifest } from "./startupController.js";
 import { sampleNetlist } from "./sampleNetlist.js";
 import { sampleTiming } from "./sampleTiming.js";
@@ -5,9 +7,7 @@ import { DEFAULT_LAYOUT_PROVIDER_ID } from "../layout/providerDefaults.js";
 import { parseCellConfig } from "../infer/cellConfig.js";
 import { getLayoutGoldenState } from "../domains/netlist/layout_golden.js";
 import { importTimingSource, mergeImportedTiming } from "../domains/netlist/timing_import.js";
-import { mergeNetlistSources, formatMergedSourceLabel } from "../domains/netlist/design_merge.js";
-import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
-import { recommendModulePair } from "../analysis/moduleCompare.js";
+import { mergeNetlistSources } from "../domains/netlist/design_merge.js";
 import {
   resetTimingPresentation,
   resetDesignWorkspace,
@@ -23,16 +23,19 @@ import { writeTimingLog } from "./timing_match_log.js";
 export function createInputController({ state, elements, services, restoreComparePath, validateSavedPath, compareSideActions = null }) {
   async function initializeApplication(session) {
     const request = services.importRequests.begin();
+    let restoringSession = false;
     try {
       const manifest = await fetchStartupManifest(globalThis.location?.search || "", undefined, { signal: request.signal });
       if (!request.isCurrent()) return;
       if (!manifest) {
+        restoringSession = Boolean(session);
         const firstRestoredFile = Array.isArray(session?.sourceFiles)
           ? session.sourceFiles.find((entry) => entry && typeof entry.text === "string")
           : null;
         const startupSource = firstRestoredFile?.text || session?.source || sampleNetlist;
         const startupLabel = firstRestoredFile?.name || session?.sourceLabel || "built-in sample";
         await loadDesign(startupSource, startupLabel, session);
+        restoringSession = false;
         if (session?.comparePathView && !session.pathSourceUnverified && request.isCurrent() && session.sourceIdentity?.fingerprint === state.sourceIdentity?.fingerprint) await restoreComparePath?.(session.comparePathView);
         return;
       }
@@ -40,7 +43,9 @@ export function createInputController({ state, elements, services, restoreCompar
       await executeStartupManifest(manifest, createStartupHandlers(), { signal: request.signal });
     } catch (error) {
       if (!request.isCurrent() || error?.name === "AbortError") return;
-      services.logProcess("error", "launcher", `Startup failed: ${error.message}`, { error });
+      if (!restoringSession) services.logProcess("error", "launcher", `Startup failed: ${error.message}`, {
+        operation: "startup.apply", code: "startup.failed", error
+      });
       if (!state.currentModule) await loadDesign(sampleNetlist, "built-in sample");
     }
   }
@@ -176,34 +181,33 @@ export function createInputController({ state, elements, services, restoreCompar
     return Promise.resolve(null);
   }
 
+  function emitImportLog(level, phase, message, details) {
+    writeProcessLogSafely(services.logProcess, level, phase, message, details);
+  }
+
   function loadDesign(source, label, restore = null, { signal, append = false, compareSide = null } = {}) {
-    services.logProcess("info", "import", `Loading design ${label}`);
-    const validRestoredFiles = Array.isArray(restore?.sourceFiles)
-      ? restore.sourceFiles.filter((entry) => entry && typeof entry.text === "string")
-      : [];
-    const restoreMulti = validRestoredFiles.length > 1;
-    const canAppend = Boolean(!restoreMulti && (append || compareSide) && state.design && state.currentSourceLabel !== "built-in sample");
-    const existingFiles = state.sourceFiles?.length
-      ? state.sourceFiles
-      : (state.currentSource ? [{ name: state.currentSourceLabel || "Verilog", text: state.currentSource }] : []);
-    const nextSourceFiles = restoreMulti
-      ? validRestoredFiles.map((entry) => ({ name: entry.name || "Verilog", text: entry.text }))
-      : canAppend
-        ? [...existingFiles, { name: label, text: source }]
-        : [{ name: label, text: source }];
-    const effectiveLabel = nextSourceFiles.length > 1 ? formatMergedSourceLabel(nextSourceFiles) : label;
+    emitImportLog("info", "import", `Loading design ${label}`);
+    const { nextSourceFiles, restoreMulti, canAppend, effectiveLabel } =
+      prepareDesignSources(state, source, label, restore, append, compareSide);
     const revision = (state.document?.sourceRevision || 0) + 1;
 
+    function reportRestoreFailure(error) {
+      emitImportLog("error", "persistence", `Stored design could not be restored: ${error.message}`, {
+        operation: "session.restore", code: "session.restore-failed", fileCount: nextSourceFiles.length,
+        moduleName: restore?.moduleName, error
+      });
+    }
     let documentEnvelope;
     try {
       documentEnvelope = nextSourceFiles.length > 1
         ? mergeNetlistSources(nextSourceFiles, { documentId: "document:primary", sourceRevision: revision })
         : importDesignSource(source, { name: label, documentId: "document:primary", sourceRevision: revision });
     } catch (error) {
-      services.logProcess("error", "parse", `Design parse failed: ${error.message}`, {
+      if (restoreMulti) reportRestoreFailure(error);
+      else emitImportLog("error", "parse", `Design parse failed: ${error.message}`, {
         operation: canAppend ? "import.merge-netlist" : "import.netlist",
         code: canAppend ? "netlist.merge-parse-failed" : "netlist.parse-failed",
-        label, compareSide, append: canAppend, error
+        fileName: label, domainId: "netlist", compareSide, append: canAppend, error
       });
       services.setStatus(`Parse failed: ${error.message}`);
       throw error;
@@ -245,7 +249,7 @@ export function createInputController({ state, elements, services, restoreCompar
       state.currentSourceLabel = effectiveLabel;
       state.sourceIdentity = createSourceIdentity(effectiveLabel, sourcePayloadForIdentity(nextSourceFiles, source));
       if ((restore?.showPath || restore?.comparePathView) && (restore.pathSourceUnverified || restore.sourceIdentity?.fingerprint !== state.sourceIdentity.fingerprint)) {
-        services.logProcess("warning", "persistence", "Source changed; saved Show Path endpoints cleared", {
+        emitImportLog("warning", "persistence", "Source changed; saved Show Path endpoints cleared", {
           operation: "show-path.restore", code: "show-path.source-mismatch", moduleName: restore.moduleName, documentId: state.document.documentId });
         restore = { ...restore, showPath: null, comparePathView: null, occurrenceContext: null };
       }
@@ -265,7 +269,7 @@ export function createInputController({ state, elements, services, restoreCompar
           const imported = importTimingSource(sampleTiming, { name: "built-in sample timing" });
           state.timing = imported.timing;
         } catch (error) {
-          services.logProcess("warning", "timing", "Built-in sample timing could not be loaded", { error });
+          emitImportLog("warning", "timing", "Built-in sample timing could not be loaded", { error });
           state.timing = null;
         }
       }
@@ -288,7 +292,7 @@ export function createInputController({ state, elements, services, restoreCompar
       if (restore?.showPath) {
         try { validateSavedPath?.(restore.showPath, firstModule, restore.occurrenceContext); }
         catch (error) {
-          services.logProcess("warning", "persistence", "Saved Show Path could not be restored", {
+          emitImportLog("warning", "persistence", "Saved Show Path could not be restored", {
             operation: "show-path.restore", code: error.code, error, documentId: state.document.documentId, moduleName: firstModule.name });
           restore = { ...restore, showPath: null };
         }
@@ -339,7 +343,10 @@ export function createInputController({ state, elements, services, restoreCompar
       services.renderStats();
       return completion;
     } catch (error) {
-      services.logProcess("error", "import", `Load failed: ${error.message}`, { label, error });
+      if (restoreMulti) reportRestoreFailure(error);
+      else emitImportLog("error", "import", `Load failed: ${error.message}`, {
+        operation: "import.netlist", code: "netlist.load-failed", label, fileName: label, error
+      });
       services.setStatus(`Load failed: ${error.message}`);
       throw error;
     }
@@ -417,48 +424,6 @@ function assignFallbackSideTiming(state, side, timing, label, append) {
     state.compare.sideTimingLabels[side] = append && prev && prevLabel ? `${prevLabel} + ${label}` : label;
   }
   return next;
-}
-
-function sourcePayloadForIdentity(sourceFiles, singleSource) {
-  if (sourceFiles.length <= 1) return singleSource;
-  return sourceFiles.map((entry) => `${entry.name}\u0000${entry.text}`).join("\u0001");
-}
-
-function snapshotModuleIdentity(module) {
-  if (!module) return null;
-  return {
-    name: module.name,
-    originalName: module.originalName || module.name,
-    sourceFile: module.sourceFile || null
-  };
-}
-
-function remapModule(modules, snapshot) {
-  if (!snapshot) return null;
-  const exact = modules.find((item) => item.name === snapshot.name);
-  if (exact) return exact;
-  if (snapshot.sourceFile) {
-    const bySource = modules.find((item) =>
-      item.sourceFile === snapshot.sourceFile
-      && (item.originalName || item.name) === snapshot.originalName);
-    if (bySource) return bySource;
-  }
-  return modules.find((item) => (item.originalName || item.name) === snapshot.originalName) || null;
-}
-
-function pickAddedCompareModule(addedModules, peerModule) {
-  if (!Array.isArray(addedModules) || addedModules.length === 0) return null;
-  if (addedModules.length === 1) return addedModules[0];
-  if (peerModule) {
-    const peerRaw = peerModule.originalName || peerModule.name;
-    const sameRaw = addedModules.find((m) => (m.originalName || m.name) === peerRaw);
-    if (sameRaw) return sameRaw;
-    const paired = recommendModulePair([peerModule, ...addedModules], peerModule.name);
-    if (paired && addedModules.includes(paired)) return paired;
-  }
-  const hierarchy = buildModuleHierarchy({ modules: addedModules });
-  const rootName = hierarchy[0]?.moduleName;
-  return addedModules.find((m) => m.name === rootName) || addedModules[0];
 }
 
 function createStartupCancellationError(message = "Startup render was cancelled") {

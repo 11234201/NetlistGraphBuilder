@@ -142,3 +142,13 @@ test("removed roots move keyboard focus to a visible neighbor or the empty-list 
   restore();
   assert.deepEqual(fixture.focused, ["summary"]);
 });
+
+test("a net chip without an explicit occurrence uses the active path only in Single", () => {
+  for (const compare of [false, true]) {
+    const { controller, state, elements } = createFixture({ roots: ["net:clk"], refs: [], compare });
+    state.occurrenceContext = { occurrencePath: ["u_top", "leaf"] };
+    controller.renderFocusedRootList();
+    assert.ok(elements.focusedRootsList.innerHTML.includes("net clk"));
+    assert.equal(elements.focusedRootsList.innerHTML.includes("u_top/leaf"), !compare);
+  }
+});

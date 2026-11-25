@@ -1,3 +1,4 @@
+import { hasLoadedDesignSource } from "./appState.js";
 import { createViewHistoryTransaction } from "./viewHistoryTransaction.js";
 import { isEditableInputTarget } from "../ui/quick_input_controller.js";
 import {
@@ -36,13 +37,19 @@ export function createHistoryController({ state, elements, services, refreshComp
     if (current) state.viewHistory = replaceCurrentViewHistory(state.viewHistory, createViewHistoryEntry(state, current));
   }
 
-  function reportHistoryRenderFailure(error, view, isCurrent, endRestore) {
+  function logRestoreFailure(error, view, code, moduleName = state.currentModule?.name) {
+    if (readErrorField(error, "name") === "AbortError") return;
+    const message = `${view === "compare" ? "Compare history" : "History"} restore failed: ${errorMessage(error)}`;
     try {
-      if (isCurrent() && readErrorField(error, "name") !== "AbortError") {
-        const message = `${view === "compare" ? "Compare history" : "History"} render failed: ${errorMessage(error)}`;
-        services.logProcess("error", "navigation", message, { error, view });
-      }
-    } finally { endRestore(); }
+      services.logProcess("error", "navigation", message, {
+        error, view, operation: "history.restore", code, moduleName,
+        fileCount: state.sourceFiles?.length, documentId: state.document?.documentId
+      });
+    } catch { /* Diagnostics must preserve the restore failure. */ }
+  }
+  function reportHistoryRenderFailure(error, view, isCurrent, endRestore) {
+    if (isCurrent()) logRestoreFailure(error, view, "history.render-failed");
+    endRestore();
   }
   function handleModuleHistoryShortcut(event) {
     if (!event.altKey || event.ctrlKey || event.metaKey || isEditableInputTarget(event.target)) return;
@@ -71,11 +78,24 @@ export function createHistoryController({ state, elements, services, refreshComp
       updateViewHistoryControls();
       return;
     }
-    state.viewHistory = result.history;
-    restoreViewHistoryEntry(result.entry);
+    restoreViewHistoryEntry(result.entry, result.history);
   }
 
-  function restoreViewHistoryEntry(entry) {
+  function restoreViewHistoryEntry(entry, nextHistory) {
+    const view = entry.kind === "compare" && entry.compare ? "compare" : "single";
+    const modules = state.document?.model?.modules;
+    if (modules) {
+      const requested = view === "compare" ? [entry.compare.leftModuleName, entry.compare.rightModuleName] : [entry.moduleName];
+      for (const name of requested) {
+        if (modules.some(module => module.name === name)) continue;
+        const error = new Error(`History module is unavailable: ${name || "(unspecified)"}`);
+        logRestoreFailure(error, view, "history.module-unavailable", name);
+        services.setStatus(error.message);
+        return;
+      }
+    }
+    const previousHistory = state.viewHistory;
+    if (nextHistory) state.viewHistory = nextHistory;
     unchangedContinuation = null;
     transactions.invalidate();
     const restoreId = nextRestoreId++;
@@ -88,11 +108,23 @@ export function createHistoryController({ state, elements, services, refreshComp
       updateViewHistoryControls();
       services.persistSession();
     };
-    if (entry.kind === "compare" && entry.compare) {
-      try { restoreCompareViewHistoryEntry(entry, endRestore, () => activeRestoreId === restoreId); }
-      catch (error) { endRestore(); throw error; }
-      return;
+    const isCurrent = () => activeRestoreId === restoreId;
+    try {
+      if (view === "compare") restoreCompareViewHistoryEntry(entry, endRestore, isCurrent);
+      else restoreSingleViewHistoryEntry(entry, endRestore, isCurrent);
+    } catch (error) {
+      if (isCurrent()) {
+        logRestoreFailure(error, view, "history.restore-failed", entry.moduleName);
+        if (nextHistory) state.viewHistory = previousHistory;
+        activeRestoreId = 0;
+        state.restoringViewHistory = false;
+        updateViewHistoryControls();
+      }
+      throw error;
     }
+  }
+
+  function restoreSingleViewHistoryEntry(entry, endRestore, isCurrent) {
     if (state.compare.active) services.exitCompareView({ deferSingleRender: true });
     const previousPresentationPolicy = JSON.stringify(state.presentationPolicy || {});
     const previousWorkspaceIdentity = createSingleWorkspaceHistoryIdentity();
@@ -116,7 +148,7 @@ export function createHistoryController({ state, elements, services, refreshComp
         state.singleWorkspaceIdentity === createSingleWorkspaceHistoryIdentity()
       );
       const finishRestore = () => {
-        if (activeRestoreId !== restoreId) return;
+        if (!isCurrent()) return;
         const nextGraph = state.graph || graph;
         if (entry.selectedNet && (nextGraph?.edges.some((edge) => edge.net === entry.selectedNet) || nextGraph?.unroutedNets?.includes(entry.selectedNet))) services.setSelectedNet(entry.selectedNet);
         else if (entry.selectedNodeId && nextGraph?.nodes.some((node) => node.id === entry.selectedNodeId)) services.setSelectedNode(entry.selectedNodeId);
@@ -133,7 +165,7 @@ export function createHistoryController({ state, elements, services, refreshComp
         services.renderGraphMount(elements.mount, state.graph, { scene: state.scene }).then((result) => {
           if (result?.cancelled) { endRestore(); return; }
           finishRestore();
-        }).catch((error) => reportHistoryRenderFailure(error, "single", () => activeRestoreId === restoreId, endRestore));
+        }).catch((error) => reportHistoryRenderFailure(error, "single", isCurrent, endRestore));
         return;
       }
       services.renderCurrentModuleGraph({
@@ -145,15 +177,11 @@ export function createHistoryController({ state, elements, services, refreshComp
         onFailed: endRestore
       });
     };
-    try {
-      if (entry.moduleName && state.currentModule.name !== entry.moduleName) {
-        // Apply the history entry before rendering the destination module. Rendering
-        // its saved workspace first can briefly commit an empty/stale Focused graph
-        // and doubles the most expensive part of Back/Forward navigation.
-        services.selectModule(entry.moduleName, { historyMode: "restore", deferRender: true });
-      }
-      finish(state.graph);
-    } catch (error) { endRestore(); throw error; }
+    if (entry.moduleName && state.currentModule.name !== entry.moduleName) {
+      // Restore the destination before rendering to avoid committing its stale Focused graph.
+      services.selectModule(entry.moduleName, { historyMode: "restore", deferRender: true });
+    }
+    finish(state.graph);
   }
 
   function createSingleWorkspaceHistoryIdentity() {
@@ -184,7 +212,6 @@ export function createHistoryController({ state, elements, services, refreshComp
     elements.faninDepthInput.value = String(state.faninDepth);
     elements.fanoutDepthInput.value = String(state.fanoutDepth);
     Object.assign(state.compare, normalizeCompareSyncSettings(compare));
-    state.compare.focusedRootsSynchronized = compare.focusedRootsSynchronized !== false;
     services.compareViewSessions.importNavigation(compare);
     const query = services.singleViewSession.readQuery();
     services.compareViewSessions.importQuery(query, resolveCompareWorkspaceInputs({
@@ -279,7 +306,7 @@ export function createHistoryController({ state, elements, services, refreshComp
         affectedSessionIds: metadata.affectedSessionIds || pendingCommand.affectedSessionIds
       }
       : metadata;
-    if (!state.currentSource || !state.currentModule || state.restoringViewHistory) return;
+    if (!hasLoadedDesignSource(state) || !state.currentModule || state.restoringViewHistory) return;
     if (transactions.capture(mergedMetadata)) return;
     if (!mergedMetadata.transactionId) transactions.invalidate();
     const affectedSessionIds = mergedMetadata.affectedSessionIds || (state.compare.active
@@ -350,7 +377,7 @@ export const historyPorts = Object.freeze({
   state: [
     "activeFocusedRootNodeId", "activeSearchResult", "autoGraph", "cellConfig", "compare",
     "compareWorkspaces", "coneDepth", "coneRootNodeId", "currentModule", "currentSource",
-    "currentSourceLabel", "document", "expandedGroupIds", "faninDepth", "fanoutDepth",
+    "currentSourceLabel", "sourceFiles", "document", "expandedGroupIds", "faninDepth", "fanoutDepth",
     "focusedRootNodeIds", "focusedRootRefs", "fullGraph", "graph", "showPath", "graphOverrides",
     "layoutFallbackFromProviderId", "layoutPolicy", "layoutProviderId", "moduleWorkspaces",
     "nodePositions", "nodeSizes", "occurrenceContext", "pendingViewCommandMetadata",

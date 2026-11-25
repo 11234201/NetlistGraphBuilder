@@ -565,6 +565,12 @@ async function compareSyncControls(browser, url) {
       await expectCentered("left", "input:a");
       await expectCentered("right", "input:a");
       assert.equal(await mount("right").locator(".is-compare-counterpart").getAttribute("data-node-id"), "input:a");
+      assert.equal(await page.locator("#addFocusedRootButton").isEnabled(), false);
+      assert.equal(await page.locator("#focusSelectedButton").isEnabled(), true);
+      await click(page, "#fitButton");
+      await page.keyboard.press("f");
+      await expectCentered("left", "input:a");
+      await expectCentered("right", "input:a");
       const leftOnInput = await transform("left");
       await wheelRight();
       assert.equal(await transform("left"), leftOnInput, "Independent wheel leaves the other side in place");
@@ -597,9 +603,16 @@ async function compareSyncControls(browser, url) {
       await object("right", "cell:u_first").locator(".node-shape").first().click({ modifiers: ["Shift"] });
       await rootOnSide("right").waitFor();
       await rootOnSide("left").waitFor();
-      await settings(false, true, false);
+      await settings(true, false, false);
+      await wheelRight();
+      const peerBeforeChip = await transform("left");
+      await click(page, '[data-focused-root-activate="cell:u_first"]');
+      assert.equal(await transform("left"), peerBeforeChip, "Root activation preserves the peer viewport");
+      await expectCentered("right", "cell:u_first");
+      const peerBeforeRemove = await transform("left");
       await object("right", "cell:u_first").locator(".node-shape").first().click({ modifiers: ["Shift"] });
       await mount("right").locator('[data-node-id="cell:u_first"]:not(.focused-root)').waitFor();
+      assert.equal(await transform("left"), peerBeforeRemove, "Removing a local root preserves the peer viewport");
       assert.equal(await rootOnSide("left").count(), 1, "Removing an independent root keeps the peer root");
       return { checkedObjects: ["input:a", "cell:u_first", "cell:peer_only"] };
     } catch (error) { await captureFailure(page, error); throw error; }

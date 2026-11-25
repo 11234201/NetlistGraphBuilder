@@ -169,20 +169,28 @@ export function createFocusNavigationController({ state, elements, services }) {
 
   function zoomToCompareSelection() {
     const { selectedKind, selectedName } = state.compare;
-    if (!["cell", "net"].includes(selectedKind) || !selectedName) return;
+    if (!["cell", "net", "port"].includes(selectedKind) || !selectedName) return;
     const activeSide = state.compare.selectedSide || "left";
     const sides = state.compare.selectionSynchronized ? ["left", "right"] : [activeSide];
+    let located = false;
     for (const side of sides) {
       const graph = state.compare.graphs[side];
       const mount = side === "left" ? elements.leftMount : elements.rightMount;
-      const commit = transform => services.setCompareTransform(side, transform, false);
+      const commit = (transform) => {
+        services.setCompareTransform(side, transform, false);
+        located = true;
+      };
       if (selectedKind === "net") {
         const edge = graph?.edges.find(item => item.net === selectedName);
         if (edge) focusPositionedEdge(edge, mount, state.compare.transforms[side], commit);
       } else {
-        const node = findCompareNode(graph, "cell", selectedName);
+        const node = findCompareNode(graph, selectedKind, selectedName);
         if (node) focusPositionedCell(node, mount, state.compare.transforms[side], commit);
       }
+    }
+    if (!located) {
+      services.setStatus(`Compare ${selectedKind} ${selectedName} is unavailable in this view`);
+      return;
     }
     services.applyCompareTransforms();
     services.recordViewHistory();

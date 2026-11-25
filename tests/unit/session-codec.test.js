@@ -1,3 +1,4 @@
+import { restoreWorkbenchStorage } from "../../src/app/workbench_storage.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { decodeSessionSnapshot, encodeSessionSnapshot, SESSION_CODEC_VERSION } from "../../src/persistence/session_codec.js";
@@ -102,4 +103,29 @@ test("session storage access errors are contained even when the global getter th
 test("session storage reports failure when no writable storage is available", () => {
   assert.equal(saveSessionState({ domainId: "netlist" }, null), false);
   assert.equal(saveSessionState({ domainId: "netlist" }, {}), false);
+});
+
+test("corrupt multi-source archives report the module and file count without including source text", () => {
+  assert.throws(() => decodeSessionSnapshot({
+    version: 2, moduleName: "top", sourceFiles: [{ name: "one.v", text: "private source" }, null]
+  }), error => {
+    assert.equal(error.code, "session.invalid-files");
+    assert.equal(error.fileCount, 2);
+    assert.equal(error.moduleName, "top");
+    assert.doesNotMatch(error.message, /private source/);
+    return true;
+  });
+});
+
+test("a closing workspace retains its snapshot failure when the log sink throws", () => {
+  const failure = new Error("snapshot unavailable");
+  let close, receivedError;
+  restoreWorkbenchStorage({
+    windowTarget: { addEventListener(_name, callback) { close = callback; } },
+    setCellConfig() {},
+    logProcess(_level, _phase, _message, details) { receivedError = details.error; throw new Error("sink unavailable"); },
+    getSessionSnapshot() { throw failure; }
+  });
+  assert.doesNotThrow(() => close());
+  assert.equal(receivedError, failure);
 });

@@ -8,6 +8,10 @@ import { createViewHistory } from "./viewHistory.js";
 import { createWorkspaceArtifactCache } from "./workspaceArtifactCache.js";
 import { normalizeCompareSyncSettings } from "./compare_sync_settings.js";
 
+export function hasLoadedDesignSource(state) {
+  return Boolean(state?.currentSource || state?.sourceFiles?.length);
+}
+
 export function createAppState(layoutPolicy) {
   return {
     design: null,
@@ -82,7 +86,6 @@ export function createCompareState(syncSettings) {
       right: { x: 0, y: 0, scale: 1 }
     },
     ...normalizeCompareSyncSettings(syncSettings),
-    focusedRootsSynchronized: true,
     layout: "horizontal",
     selectedName: null,
     selectedKind: null,
@@ -184,7 +187,7 @@ export function restoreCompareWorkspace(state, leftModuleName, rightModuleName, 
   Object.assign(state.compare, value);
 }) {
   const saved = state.compareWorkspaces.get(compareWorkspaceKey(leftModuleName, rightModuleName));
-  const fresh = saved || createCompareState();
+  const fresh = saved || createCompareState(state.compare);
   state.compare.outputName = fresh.outputName || null;
   state.compare.wholeRequested = fresh.wholeRequested === true;
   state.compare.timingBadgeChoices = {

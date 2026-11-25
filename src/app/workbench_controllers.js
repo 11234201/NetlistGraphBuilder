@@ -267,7 +267,12 @@ export function createWorkbenchControllers({ state, getElements, services, route
     syncViewport:value => setCompareSync("synchronized", "syncCompareInput", "Synchronize pan / zoom", value),
     syncSelection:value => setCompareSync("selectionSynchronized", "syncCompareSelectionInput", "Center match on click", value),
     syncRoots:value => setCompareSync("focusedRootsSynchronized", "syncCompareFocusInput", "Synchronize Focused roots", value),
-    layout:value => { state.compare.layout = value; }};
+    layout: (value, fit = false) => services.runViewHistoryTransaction({ label: "Compare orientation" }, () => {
+      state.compare.layout = value;
+      getElements().compareLayoutSelect.value = value;
+      actions.applyCompareLayout();
+      if (fit) actions.fitToView();
+    }) };
   actions.compareSettings = { isActive:compareSettings.active, setSynchronized:compareSettings.syncViewport,
     setSelectionSynchronized:compareSettings.syncSelection, setRootsSynchronized:compareSettings.syncRoots, setLayout:compareSettings.layout };
   actions.runRemoteDesign = createRemoteDesignCommands({getElements, actions, completed:renderCompletion.run,
@@ -311,18 +316,18 @@ const COMPARE_FIELDS_BY_CONTROLLER = Object.freeze({
   "compare-canvas": ["autoGraphs", "focusedRootNodeIds", "focusedRootsSynchronized", "fullGraphs", "graphs", "nodePositions", "nodeSizes", "scenes", "synchronized", "transforms"],
   "compare-workspace": ALL_COMPARE_FIELDS,
   "focus-navigation": ["active", "graphs", "selectedKind", "selectedName", "selectedSide", "selectionSynchronized", "transforms"],
-  "focused-roots": ["active", "activeFocusedRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "focusedRootsSynchronized", "fullGraphs", "graphs", "outputName", "selectedKind", "selectedName", "selectedSide", "transforms"],
+  "focused-roots": ["active", "activeFocusedRootNodeId", "focusedRootNodeIds", "focusedRootRefs", "focusedRootsSynchronized", "fullGraphs", "graphs", "outputName", "selectedKind", "selectedName", "selectedSide", "synchronized", "transforms"],
   "golden": ["active", "scenes", "workspaceIdentity", "graphs", "selectedKind", "selectedName", "selectedSide", "singleWorkspaceInvalidated"],
   "helpers": ["graphOverrides", "nodePositions", "nodeSizes"],
   "history": ALL_COMPARE_FIELDS,
-  "input": ["active", "layoutAbortController", "leftModuleName", "rightModuleName", "selectionSynchronized", "sideTiming", "sideTimingLabels", "synchronized"],
+  "input": ["active", "focusedRootsSynchronized", "layoutAbortController", "leftModuleName", "rightModuleName", "selectionSynchronized", "sideTiming", "sideTimingLabels", "synchronized"],
   "inspector": ["active", "analysis", "fullGraphs", "graphs", "leftModuleName", "rightModuleName", "selectedKind", "selectedName", "selectedSide", "selectionSynchronized", "timingBadgeChoices", "timingBadgePositions", "transforms"],
   "module-navigation": ["active"],
   "presentation": ["active", "graphs", "scenes"],
   "selection-navigation": ["active", "graphs", "selectedSide"],
-  "session-persistence": ["synchronized", "selectionSynchronized"],
+  "session-persistence": ["focusedRootsSynchronized", "selectionSynchronized", "synchronized"],
   "state-commands": ["graphOverrides", "nodePositions", "nodeSizes"],
-  "view-controls": ["active", "activeSide", "focusedRootNodeIds", "outputName", "selectedKind", "selectedName", "wholeRequested"],
+  "view-controls": ["active", "activeSide", "focusedRootNodeIds", "focusedRootsSynchronized", "outputName", "selectedKind", "selectedName", "synchronized", "wholeRequested"],
   "workspace-render": ["active", "singleWorkspaceInvalidated"]
 });
 

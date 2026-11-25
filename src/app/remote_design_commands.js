@@ -52,8 +52,7 @@ export function createRemoteDesignCommands({readTimingView, updateBadges, settin
       if (!settings().active()) throw invalid("DOMAIN_MISMATCH","Enter Compare first");
       const el = getElements();
       if (name === "compare split") {
-        el.compareLayoutSelect.value = args[0];
-        settings().layout(args[0]); actions.applyCompareLayout();
+        settings().layout(args[0]);
       } else if (name === "compare cone-depth") {
         const n = Number(args[0]);
         if (!Number.isInteger(n) || n < 1 || n > 99) throw invalid("INVALID_ARGUMENT","Depth must be between 1 and 99");

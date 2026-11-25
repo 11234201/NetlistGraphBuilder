@@ -8,7 +8,7 @@ import { createInputController } from "../../src/app/input_controller.js";
 import { createAppState } from "../../src/app/appState.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
 import { createHistoryController } from "../../src/app/history_controller.js";
-import { createViewHistoryEntry } from "../../src/app/viewHistory.js";
+import { createViewHistoryEntry, pushViewHistory } from "../../src/app/viewHistory.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "../../src/app/workspace_identity.js";
 
 function logging() {
@@ -20,6 +20,59 @@ function logging() {
 }
 
 for (const compare of [false, true]) {
+  test(`history keeps the active module and cursor when the requested module is missing; compare=${compare}`, () => {
+    const state = createAppState(DEFAULT_LAYOUT_POLICY);
+    state.currentModule = { name: "active" };
+    state.document = { documentId: "doc", model: { modules: [state.currentModule] } };
+    state.sourceFiles = [{ name: "left.v" }, { name: "right.v" }];
+    const current = createViewHistoryEntry(state);
+    const target = compare
+      ? { ...current, kind: "compare", compare: { leftModuleName: "active", rightModuleName: "gone" } }
+      : { ...current, moduleName: "gone" };
+    state.viewHistory = pushViewHistory(pushViewHistory(state.viewHistory, target), current);
+    const { log, statuses, services } = logging();
+    createHistoryController({ state, elements: {}, services }).navigateViewHistory(-1);
+    assert.equal(state.currentModule.name, "active");
+    assert.equal(state.compare.active, false);
+    assert.equal(state.viewHistory.index, 1);
+    assert.equal(state.restoringViewHistory, false);
+    assert.match(statuses[0], /gone/);
+    const [saved] = log.entries({ phase: "navigation", level: "error" });
+    assert.equal(log.size, 1);
+    assert.equal(saved.details.operation, "history.restore");
+    assert.equal(saved.details.code, "history.module-unavailable");
+    assert.equal(saved.details.moduleName, "gone");
+    assert.equal(saved.details.fileCount, 2);
+    assert.match(saved.details.error.stack, /gone/);
+  });
+
+  test(`a synchronous history failure releases the cursor and preserves its original cause; compare=${compare}`, () => {
+    const state = createAppState(DEFAULT_LAYOUT_POLICY);
+    state.currentModule = { name: "active" };
+    state.document = { model: { modules: [state.currentModule, { name: "other" }] } };
+    state.sourceFiles = [{ name: "left.v" }, { name: "right.v" }];
+    const current = createViewHistoryEntry(state);
+    const target = compare
+      ? { ...current, kind: "compare", compare: { leftModuleName: "active", rightModuleName: "other" } }
+      : { ...current, moduleName: "other" };
+    state.viewHistory = pushViewHistory(pushViewHistory(state.viewHistory, target), current);
+    const { log, services } = logging();
+    const error = new Error("cannot replay", { cause: new Error("invalid module") });
+    const fail = () => { throw error; };
+    const controller = createHistoryController({ state, elements: {
+      leftModuleSelect: {}, rightModuleSelect: {}, moduleBackButton: {}, moduleForwardButton: {}
+    }, services: { ...services, selectModule: fail, applyCompareSelection: fail } });
+    assert.throws(() => controller.navigateViewHistory(-1), actual => actual === error);
+    assert.equal(state.viewHistory.index, 1);
+    assert.equal(state.restoringViewHistory, false);
+    const [saved] = log.entries({ phase: "navigation", level: "error" });
+    assert.equal(log.size, 1);
+    assert.equal(saved.details.code, "history.restore-failed");
+    assert.equal(saved.details.fileCount, 2);
+    assert.equal(saved.details.error.stack, error.stack);
+    assert.equal(saved.details.error.cause.message, error.cause.message);
+  });
+
   for (const failure of [new Error("cannot mount scene"), null, "plain rejection"]) {
     test(`presentation failures include render context and diagnostics; compare=${compare}; reason=${String(failure)}`, async () => {
       const state = createAppState(DEFAULT_LAYOUT_POLICY);

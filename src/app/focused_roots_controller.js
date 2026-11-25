@@ -1,3 +1,6 @@
+import { resetCompareRootViewport } from "./compare_sync_settings.js";
+import { createFocusedRootList } from "../ui/focused_root_list.js";
+import { resolveFocusedRootContext } from "./focused_root_context.js";
 import {
   normalizeFocusedRootNodeIds as normalizeFocusedSelectionRoots,
   resolveFocusedRootState,
@@ -9,16 +12,19 @@ import {
 } from "./focusedSelection.js";
 import { findCompareNode, getCompareNodeName } from "./compareWorkspace.js";
 import { shouldUseSearchFirst } from "./graphWorkspace.js";
-import { escapeAttr, escapeHtml } from "../ui/html.js";
 import { handleFocusShortcut } from "../ui/focus_shortcut.js";
-import { captureFocusedRootsFocus } from "../ui/focused_roots_focus.js";
 import { runFocusedViewCommand } from "../application/focused_view_command.js";
 import { executeViewEffects, mergeViewEffects } from "../application/view_effects.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
 export function createFocusedRootsController({ state, elements, services }) {
-  let focusedRootsQuery = "";
+  const getFocusedRootContext = (side) => resolveFocusedRootContext(state, side);
+  const { renderFocusedRootList, handleFocusedRootsFilter } = createFocusedRootList({
+    elements, readContext: getFocusedRootContext, netNameForRoot: focusedNetName,
+    readRefs: (side) => side ? state.compare.focusedRootRefs?.[side] : state.focusedRootRefs,
+    readOccurrence: () => state.occurrenceContext?.occurrencePath
+  });
 
   function runSingleFocusedCommand(command, options = {}) {
     return runFocusedViewCommand({
@@ -47,28 +53,6 @@ export function createFocusedRootsController({ state, elements, services }) {
     ) || null;
   }
 
-  function getFocusedRootContext(requestedSide) {
-    if (state.compare.active) {
-      const side = requestedSide || state.compare.selectedSide || "left";
-      return {
-        compare: true,
-        side,
-        fullGraph: state.compare.fullGraphs?.[side] || state.compare.graphs?.[side],
-        graph: state.compare.graphs?.[side],
-        roots: normalizeFocusedSelectionRoots(state.compare.focusedRootNodeIds?.[side]),
-        activeRootNodeId: state.compare.activeFocusedRootNodeId?.[side] || null
-      };
-    }
-    return {
-      compare: false,
-      side: null,
-      fullGraph: state.fullGraph,
-      graph: state.graph,
-      roots: normalizeFocusedSelectionRoots(state.focusedRootNodeIds),
-      activeRootNodeId: state.activeFocusedRootNodeId
-    };
-  }
-
   function setCompareFocusedRootNodeIds(side, value, activeRootNodeId = null) {
     const resolved = resolveFocusedRootState(value, activeRootNodeId, state.compare.activeFocusedRootNodeId[side]);
     const mirrored = services.compareViewSessions.replaceRoots(side, resolved.rootNodeIds, resolved.activeRootNodeId);
@@ -81,7 +65,7 @@ export function createFocusedRootsController({ state, elements, services }) {
   function applyCompareFocusedEffects(side, results) {
     return executeViewEffects({ effects: mergeViewEffects(...results.map((result) => result?.effects)) }, {
       requireReady: true, isReady: () => services.compareViewSessions.isWorkspaceReady(),
-      beforeCompute: () => services.setCompareTransform(side, { x: 0, y: 0, scale: 1 }),
+      beforeCompute: () => resetCompareRootViewport(state.compare, side, services.setCompareTransform),
       compute: ({ onRendered, ...callbacks }) => services.renderCompareGraphs({ ...callbacks, onCommitted: onRendered }),
       render: () => services.updateViewControls()
     });
@@ -368,7 +352,7 @@ export function createFocusedRootsController({ state, elements, services }) {
           if (!edge) return;
           const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
           services.focusPositionedEdge(edge, mount, state.compare.transforms[context.side], (transform) => {
-            services.setCompareTransform(context.side, transform);
+            services.setCompareTransform(context.side, transform, false);
           });
           services.applyCompareTransforms();
           services.selectCompareObject("net", netName, false, context.side);
@@ -389,7 +373,7 @@ export function createFocusedRootsController({ state, elements, services }) {
         if (!node) return;
         const mount = context.side === "left" ? elements.leftMount : elements.rightMount;
         services.focusPositionedCell(node, mount, state.compare.transforms[context.side], (transform) => {
-          services.setCompareTransform(context.side, transform);
+          services.setCompareTransform(context.side, transform, false);
         });
         services.applyCompareTransforms();
         services.selectCompareObject("cell", getCompareNodeName(node), false, context.side);
@@ -398,51 +382,14 @@ export function createFocusedRootsController({ state, elements, services }) {
     });
   }
 
-  function handleFocusedRootsFilter(event) {
-    focusedRootsQuery = String(event.target.value || "").trim().toLocaleLowerCase();
-    renderFocusedRootList();
-  }
-
-  function renderFocusedRootList() {
-    if (!elements.focusedRootsList || !elements.focusedRootCount) return;
-    const restoreFocus = captureFocusedRootsFocus(elements.focusedRootsList);
-    const context = getFocusedRootContext();
-    const roots = context.roots;
-    elements.focusedRootCount.value = String(roots.length);
-    elements.focusedRootCount.textContent = String(roots.length);
-    if (roots.length === 0) {
-      elements.focusedRootsList.textContent = "No roots";
-      restoreFocus();
-      return;
-    }
-    elements.focusedRootsList.innerHTML = roots.map((nodeId, rootIndex) => {
-      const rootRef = context.compare
-        ? state.compare.focusedRootRefs?.[context.side]?.[rootIndex]
-        : state.focusedRootRefs?.[rootIndex];
-      const netName = focusedNetName(nodeId);
-      const node = context.fullGraph?.nodes.find((item) => item.id === nodeId);
-      const canonicalNetName = rootRef?.kind === "net" ? rootRef.localId : netName;
-      const localLabel = canonicalNetName ? `net ${canonicalNetName}` : node?.label || rootRef?.localId || nodeId.replace(/^cell:/, "");
-      const occurrencePath = rootRef?.occurrencePath?.join("/") || node?.ref?.occurrencePath?.join("/") ||
-        (netName && !context.compare ? state.occurrenceContext?.occurrencePath?.join("/") : "") || "";
-      const label = occurrencePath ? `${occurrencePath} · ${localLabel}` : localLabel;
-      if (focusedRootsQuery && !`${nodeId} ${label}`.toLocaleLowerCase().includes(focusedRootsQuery)) return "";
-      const activeClass = nodeId === context.activeRootNodeId ? " is-active" : "";
-      const sideLabel = context.compare ? `${context.side === "left" ? "A" : "B"}: ` : "";
-      const title = `${sideLabel}${occurrencePath ? `${occurrencePath} / ` : ""}${localLabel}`;
-      return `<span class="focused-root-chip${activeClass}" title="${escapeAttr(title)}"><button type="button" class="focused-root-activate" aria-pressed="${nodeId === context.activeRootNodeId}" data-focused-root-activate="${escapeAttr(nodeId)}"><span>${sideLabel}${escapeHtml(label)}</span></button><button type="button" aria-label="Remove ${escapeAttr(label)} from Focused roots" data-focused-root-remove="${escapeAttr(nodeId)}">×</button></span>`;
-    }).join("") || "No matching roots";
-    restoreFocus();
-  }
-
   function updateFocusSelectedControl() {
     const singleCell = !state.compare.active && state.fullGraph?.nodes.some(
       (node) => node.id === state.selectedNodeId && node.kind === "cell"
     );
     const singleNet = !state.compare.active && Boolean(state.selectedNet);
-    const compareCell = state.compare.active && state.compare.selectedKind === "cell" && Boolean(state.compare.selectedName);
-    const compareNet = state.compare.active && state.compare.selectedKind === "net" && Boolean(state.compare.selectedName);
-    elements.focusSelectedButton.disabled = !(singleCell || singleNet || compareCell || compareNet);
+    const compareObject = state.compare.active && ["cell", "net", "port"].includes(state.compare.selectedKind)
+      && Boolean(state.compare.selectedName);
+    elements.focusSelectedButton.disabled = !(singleCell || singleNet || compareObject);
   }
 
   function handleFocusSelectedShortcut(event) {

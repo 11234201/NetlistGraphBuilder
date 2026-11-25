@@ -14,7 +14,7 @@ export function decodeSessionSnapshot(value) {
     try {
       parsed = JSON.parse(value);
     } catch (error) {
-      throw new Error(`Invalid session JSON: ${error.message}`);
+      throw new Error(`Invalid session JSON: ${error.message}`, { cause: error });
     }
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -40,6 +40,13 @@ function migrateVersion1(value) {
 }
 
 function normalizeVersion2(value) {
+  if (value.sourceFiles != null && (!Array.isArray(value.sourceFiles)
+      || value.sourceFiles.some(file => !file || typeof file.text !== "string"))) {
+    throw Object.assign(new Error("Saved design contains an invalid source file"), {
+      code: "session.invalid-files", fileCount: Array.isArray(value.sourceFiles) ? value.sourceFiles.length : 0,
+      moduleName: optionalString(value.moduleName)
+    });
+  }
   return {
     ...value,
     ...((value.showPath || value.comparePathView) && !value.sourceIdentity?.fingerprint ? { pathSourceUnverified: true } : {}),

@@ -1,4 +1,5 @@
 import { createDebouncedPersistence } from "../application/debounced_persistence.js";
+import { hasLoadedDesignSource } from "./appState.js";
 import { createSessionSnapshot } from "./sessionState.js";
 import { saveSessionStateResult } from "../persistence/session_storage.js";
 import { errorMessage } from "../foundation/log_details.js";
@@ -14,12 +15,12 @@ export function createSessionPersistenceController({ state, services, canPersist
     }),
     onFailure: (error) => {
       services.logProcess("error", "persistence", `Session could not be saved: ${errorMessage(error)}`, {
-        error, operation: "save-session", moduleName: state.currentModule?.name
+        error, operation: "save-session", code: "session.save-failed", fileCount: state.sourceFiles?.length, moduleName: state.currentModule?.name
       });
       services.setStatus("Session save failed; changes may not survive a refresh");
     }
   });
-  return Object.freeze({ persistSession() { if (state.currentSource || state.sourceFiles?.length) persistence.request(); } });
+  return Object.freeze({ persistSession() { if (hasLoadedDesignSource(state)) persistence.request(); } });
 }
 
 export const sessionPersistencePorts = Object.freeze({

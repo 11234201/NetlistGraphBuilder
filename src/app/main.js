@@ -1,3 +1,4 @@
+import { readWorkbenchViewContext } from "./workbench_view_context.js";
 import { createWorkbenchElements, createProcessLogElements } from "../ui/workbench_elements.js";
 import { createWorkbenchControllers, createViewSessionBridges } from "./workbench_controllers.js";
 import { DEFAULT_LAYOUT_POLICY } from "../layout/layoutPolicy.js";
@@ -14,7 +15,7 @@ import { createCanvasControls } from "./workbench_canvas_controls.js";
 import { buildModuleHierarchy } from "../domains/netlist/module_hierarchy.js";
 
 import { createBrowserDownload } from "../platform/browser_download.js";
-import { createAppState } from "./appState.js";
+import { createAppState, hasLoadedDesignSource } from "./appState.js";
 import { createSessionSnapshot } from "./sessionState.js";
 import { initializeWorkbench } from "./workbench_startup.js";
 import { createProcessLogController } from "../ui/process_log_controller.js";
@@ -368,8 +369,8 @@ const remoteInput = bindWorkbenchInput({
 const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
   elements, windowTarget: window,
   commands: {
-  runViewHistoryTransaction, navigateViewHistory, handleLayoutProviderChange, exitCompareView,
-  enterCompareView, applyCompareSelection, applyCompareLayout,
+  navigateViewHistory, handleLayoutProviderChange, exitCompareView,
+  enterCompareView, applyCompareSelection,
   fitToView: () => { fitToView(); workbenchUi.refreshViewport(); }, handleCompareOutputChange, activateSearchResult,
   addSearchResultToFocus, handleSelectionNavigationClick, handleOccurrenceChoiceClick,
   setViewMode, handleConeDepthChange, scheduleFocusedDepthChange,
@@ -392,27 +393,14 @@ const workbenchUi = createWorkbenchUi({
   applyTransform, applyCompareTransforms, closeLog: () => processLogController.toggle(false),
   subscribe: (listener) => viewSessions.subscribe(listener),
   domainViewport: domainWorkbench.viewport,
-  readViews: () => domainWorkbench.viewport.read() || [
-    { id: "single", mount: elements.mount, viewport: state.transform },
-    { id: "left", mount: elements.leftMount, viewport: state.compare.transforms.left },
-    { id: "right", mount: elements.rightMount, viewport: state.compare.transforms.right }
-  ],
-  readContext: () => ({
-    compareActive: state.compare.active, selectedSide: state.compare.selectedSide,
-    moduleLabel: elements.moduleHierarchyCurrent.textContent || state.currentModule?.displayName || "Workspace",
-    sourceLabel: state.currentSourceLabel || "Sample", viewMode: state.graph?.view?.mode || state.viewMode,
-    leftModuleName: state.compare.leftModuleName, rightModuleName: state.compare.rightModuleName,
-    pathEnabled: Boolean(state.graph?.path), leftPath: Boolean(state.compare.graphs.left?.path), rightPath: Boolean(state.compare.graphs.right?.path),
-    leftMode: state.compare.graphs.left?.view?.mode, rightMode: state.compare.graphs.right?.view?.mode,
-    ...domainWorkbench.context()
-  }),
+  ...readWorkbenchViewContext(state, elements, domainWorkbench),
   onPreferenceError: (error) => logProcess("warning", "persistence", "UI preferences unavailable; using this window only", { error })
 });
 
 initializeWorkbench({
   windowTarget: window, logProcess,
   setCellConfig: (bundle) => { state.cellConfig = bundle; },
-  getSessionSnapshot: () => state.currentSource ? createSessionSnapshot(state) : null,
+  getSessionSnapshot: () => hasLoadedDesignSource(state) ? createSessionSnapshot(state) : null,
   applySessionPreferences, renderLayoutProviderOptions, initializeDomain: domainWorkbench.initialize,
   initializeApplication, updateCalibrationControls
 }).then(remoteInput);

@@ -267,17 +267,22 @@ test("Compare interaction settings survive session restore independently without
   await controller.loadDesign(source, "top.v");
   assert.equal(state.compare.selectionSynchronized, true);
   state.compare.synchronized = false;
+  state.compare.focusedRootsSynchronized = false;
   const saved = decodeSessionSnapshot(encodeSessionSnapshot(createSessionSnapshot(state)));
   assert.equal(saved.comparePathView, undefined);
   state.compare.selectionSynchronized = false;
+  state.compare.focusedRootsSynchronized = true;
   await controller.loadDesign(source, "top.v", saved);
   assert.equal(state.compare.synchronized, false);
   assert.equal(state.compare.selectionSynchronized, true);
+  assert.equal(state.compare.focusedRootsSynchronized, false);
 
   delete saved.compareSync.selectionSynchronized;
+  delete saved.compareSync.focusedRootsSynchronized;
   await controller.loadDesign(source, "top.v", saved);
   assert.equal(state.compare.selectionSynchronized, false);
   assert.equal(state.compare.synchronized, false);
+  assert.equal(state.compare.focusedRootsSynchronized, true);
 });
 
 test("multi-file session round-trip, malformed sourceFiles restore guard, batch failure reset, and Compare timing selection refresh", async () => {
@@ -292,6 +297,11 @@ test("multi-file session round-trip, malformed sourceFiles restore guard, batch 
   const encoded = encodeSessionSnapshot(createSessionSnapshot(state));
   const decoded = decodeSessionSnapshot(encoded);
   assert.equal(decoded.sourceFiles.length, 2);
+  const restoredState = createHarnessState();
+  const restored = createInputHarness(restoredState);
+  await restored.controller.loadDesign(decoded.sourceFiles[0].text, decoded.sourceFiles[0].name, decoded);
+  assert.deepEqual(restoredState.design.modules.map(module => module.name), ["m1", "m2"]);
+  assert.deepEqual(restoredState.sourceFiles, state.sourceFiles);
 
   await controller.loadDesign("module fallback_m(input a, output y); BUF u2(.A(a), .Y(y)); endmodule", "clean.v", {
     sourceFiles: [null, { name: "bad" }, { name: "clean.v", text: "module fallback_m(input a, output y); BUF u2(.A(a), .Y(y)); endmodule" }]
@@ -389,4 +399,25 @@ test("single-source duplicate module names disambiguate cleanly and multi-file 2
     }
   );
   assert.ok(leafGateInspection.hierarchyConnections.some((conn) => conn.target?.moduleName === "mid [before.v]"));
+});
+
+test("a missing module in a multi-file session retains the old design and logs the cause once", async () => {
+  const state = createHarnessState();
+  const { controller, events } = createInputHarness(state);
+  const sourceFiles = [
+    { name: "left.v", text: "module left(); endmodule" },
+    { name: "right.v", text: "module right(); endmodule" }
+  ];
+  await controller.loadDesign(sourceFiles[0].text, "left.v");
+  const previous = state.document;
+  assert.throws(() => controller.loadDesign(sourceFiles[0].text, "left.v", { sourceFiles, moduleName: "gone" }), /gone/);
+  assert.equal(state.document, previous);
+  const errors = events.filter(entry => entry.level === "error");
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].phase, "persistence");
+  assert.equal(errors[0].details.code, "session.restore-failed");
+  assert.equal(errors[0].details.operation, "session.restore");
+  assert.equal(errors[0].details.fileCount, 2);
+  assert.equal(errors[0].details.moduleName, "gone");
+  assert.match(errors[0].details.error.stack, /gone/);
 });

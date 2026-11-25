@@ -8,6 +8,11 @@ export const PROCESS_LOG_PHASES = Object.freeze([
 const LEVEL_SET = new Set(PROCESS_LOG_LEVELS);
 const PHASE_SET = new Set(PROCESS_LOG_PHASES);
 
+// An unavailable diagnostic sink must never replace an operation's result.
+export function writeProcessLogSafely(log, level, phase, message, details) {
+  try { log(level, phase, message, details); } catch { /* Preserve the original operation. */ }
+}
+
 export function createProcessLog(options = {}) {
   const capacity = normalizeCapacity(options.capacity);
   const clock = options.clock || (() => new Date());
