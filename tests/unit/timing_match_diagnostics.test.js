@@ -402,3 +402,22 @@ test("Process Log samples stay bounded and repeat renders deduplicate independen
   assert.equal(details.documentRevision, 3);
   assert.doesNotThrow(() => report(() => { throw Error("sink unavailable"); }, graph, timing, { ...context, side: null }));
 });
+
+test("root paths respect instance case and slash parity", () => {
+  const opt = { occurrenceRootModuleName: top, occurrencePath: ["k"] };
+  const slash = "\\";
+  const rows = [top + "/k/u1/Z", top + "/K/u2/Z",
+    "wrapped" + slash.repeat(2) + "/" + top + "/k/u1/A", "wrapped" + slash + "/" + top + "/k/u2/A"];
+  const graph = project(table(top, rows), kernel, opt);
+  assert.equal(graph.timingSummary.matchedRecordCount, 2);
+  assert.equal(graph.nodes.find((n) => n.id === "cell:u2").timing, undefined);
+});
+
+test("driver records rejected for an ambiguous cell have accounted diagnostics", () => {
+  const timing = importTimingSource("@module Kernel\npoint slack kind\nleft/u1/Z 1 pin\nright/u1/Z 2 pin\nn 3 net").timing;
+  const graph = project(timing);
+  const summary = graph.timingSummary;
+  assert.equal(summary.candidateMatchedRecordCount, 3);
+  assert.equal(summary.matchedRecordCount, 0);
+  assert.equal(summary.diagnostics.unresolvedPins.reasons["ambiguous-cell-path"], 3);
+});

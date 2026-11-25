@@ -6,7 +6,7 @@ import { DEFAULT_FOCUSED_VIEW_POLICY } from "../../src/foundation/view_policy.js
 import { createDomainWorkspaceDiagnostics } from "../../src/app/domain_workspace_diagnostics.js";
 
 test("high fanout remains bounded, shows real cut polarity and stays stable under source permutations", () => {
-  const pi = { id: "pi", label: "driver", sourceRefs: [], kind: "pi", level: 0 };
+  const pi = { id: "pi", label: "driver", primaryNameMapping: { signalId: "n8", name: "rtl/driver" }, sourceRefs: [], kind: "pi", level: 0 };
   const outputs = Array.from({ length: 800 }, (_, id) => ({ id: `po${id}`, kind: "po", level: 0, label: `output ${id}`, sourceRefs: [] }));
   const edges = outputs.map((node, id) => ({ id: `e${id}`, slot: 0, source: "pi", target: node.id, inverted: id % 2 === 0, sourceRefs: [] }));
   const model = { nodes: [pi, ...outputs], edges };
@@ -20,6 +20,7 @@ test("high fanout remains bounded, shows real cut polarity and stays stable unde
   const cuts = view.model.nodes.filter((node) => node.kind === "boundary");
   assert.equal(cuts.length, 2);
   for (const node of cuts) {
+    assert.match(node.label, /rtl\/driver/);
     assert.match(node.description, /budget boundary/);
     assert.match(node.label, /driver ×\d+/);
     const edge = view.model.edges.find((edge) => edge.target === node.id);

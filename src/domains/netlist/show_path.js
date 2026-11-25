@@ -175,8 +175,8 @@ export function addPathSideInputs(full, graph, path) {
     if (!id) {
       id = "path-input:" + key;
       boundaries.set(key, id);
-      nodes.push({ id, kind: "focus-input", label: edge.net, title: "PATH INPUT", subtitle: "Show Path boundary",
-        boundaryDirection: "in", ref: { name: edge.net, displayName: edge.net } });
+      nodes.push({ id, kind: "focus-input", label: edge.label || edge.net, title: "PATH INPUT", subtitle: "Show Path boundary",
+        boundaryDirection: "in", ref: { name: edge.net, displayName: edge.label || edge.net } });
     }
     edges.push({ ...edge, id: "path-input:" + edge.id, source: id, sourcePin: edge.net });
   }

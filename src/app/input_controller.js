@@ -102,7 +102,7 @@ export function createInputController({ state, elements, services, restoreCompar
     const compareSide = options.compareSide || null;
     if (signal?.aborted) return Promise.reject(createStartupCancellationError("Input cancelled"));
     if (kind === "netlist") {
-      return loadDesign(text, label, null, { signal, append, compareSide }).then(() => kind);
+      return loadDesign(text, label, null, { signal, append, compareSide, onDesignParsed: options.onDesignParsed }).then(() => kind);
     }
     if (kind === "golden") {
       return Promise.resolve(services.loadLayoutGolden(getLayoutGoldenState(text), label)).then(() => kind);
@@ -186,7 +186,7 @@ export function createInputController({ state, elements, services, restoreCompar
     writeProcessLogSafely(services.logProcess, level, phase, message, details);
   }
 
-  function loadDesign(source, label, restore = null, { signal, append = false, compareSide = null } = {}) {
+  function loadDesign(source, label, restore = null, { signal, append = false, compareSide = null, onDesignParsed } = {}) {
     emitImportLog("info", "import", `Loading design ${label}`);
     const { nextSourceFiles, restoreMulti, canAppend, effectiveLabel } =
       prepareDesignSources(state, source, label, restore, append, compareSide);
@@ -220,6 +220,7 @@ export function createInputController({ state, elements, services, restoreCompar
         module.name === restore.moduleName || module.displayName === restore.moduleName)) {
         throw new Error(`Startup module not found: ${restore.moduleName}`);
       }
+      onDesignParsed?.();
       logDesignDiagnostics(emitImportLog, design, effectiveLabel, nextSourceFiles.length, compareSide, canAppend);
 
       const prevCurrentSnapshot = snapshotModuleIdentity(state.currentModule);

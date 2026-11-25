@@ -117,6 +117,7 @@ export function parseDotSource(text, options = {}) {
 }
 
 function tokenize(text, source) {
+  const bareId = /(?:[A-Za-z_\u0080-\uFFFF][A-Za-z_0-9\u0080-\uFFFF]*|-?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?))/y;
   const tokens = [];
   let index = 0;
   let line = 1;
@@ -163,10 +164,12 @@ function tokenize(text, source) {
     } else {
       // HTML IDs may contain arbitrary markup. The ABC writer does not emit them.
       if (character === "<") throw aigError("HTML labels are outside the ABC AIG DOT format", source, token);
-      const match = text.slice(index).match(/^(?:[A-Za-z_\u0080-\uFFFF][A-Za-z_0-9\u0080-\uFFFF]*|-?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?))/);
+      bareId.lastIndex = index;
+      const match = bareId.exec(text);
       requireAig(Boolean(match), `Unexpected DOT character '${character}'`, source, token);
       token.kind = "id"; token.value = match[0];
-      for (let count = 0; count < token.value.length; count++) advance();
+      index += token.value.length;
+      column += token.value.length;
     }
     tokens.push(token);
     requireAig(tokens.length <= AIG_IMPORT_LIMITS.tokens, "DOT token count exceeds the import limit", source, token);

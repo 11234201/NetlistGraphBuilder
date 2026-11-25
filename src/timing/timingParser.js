@@ -1,3 +1,4 @@
+import { findLastUnescapedSlash } from "./timing_names.js";
 export { annotateGraphTiming } from "./timingAnnotation.js";
 
 const DEFAULT_COLUMNS = Object.freeze([
@@ -45,21 +46,14 @@ const VALID_STAGES = new Set(["pre_map", "post_map", "post_layout"]);
 const VALID_UNITS = new Set(["ns", "ps"]);
 const VALID_KINDS = new Set(["port", "pin", "net"]);
 
-export function parseTimingLog(text) {
+export function parseTimingLog(text, { onParseError } = {}) {
   const source = String(text || "");
-  if (startsWithJsonObject(source)) {
-    return parseTimingJson(source);
+  // Preserve original line numbers and columns for JSON.parse diagnostics.
+  const prefix = /^(?:[ \t]*(?:(?:#|\/\/)[^\r\n]*)?\r?\n)*[ \t\r\n]*/.exec(source)[0];
+  if (source[prefix.length] === "{") {
+    return parseTimingJson(prefix.replace(/[^\r\n]/g, " ") + source.slice(prefix.length), onParseError);
   }
   return parseTimingTabular(source);
-}
-
-function startsWithJsonObject(source) {
-  for (const rawLine of source.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#") || line.startsWith("//")) continue;
-    return line.startsWith("{");
-  }
-  return false;
 }
 
 function parseTimingTabular(source) {
@@ -132,14 +126,18 @@ function parseTimingTabular(source) {
   });
 }
 
-function parseTimingJson(source) {
+function parseTimingJson(source, onParseError) {
   const diagnostics = [];
   let parsed;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
+    onParseError?.(error);
     const location = error.message.match(/line (\d+) column (\d+)/i);
-    diagnostics.push({ line: location ? Number(location[1]) : null, column: location ? Number(location[2]) : null,
+    const offset = Number(error.message.match(/position (\d+)/i)?.[1] ?? source.length);
+    const prefix = location ? null : source.slice(0, offset).split("\n");
+    diagnostics.push({ line: location ? Number(location[1]) : prefix.length,
+      column: location ? Number(location[2]) : prefix.at(-1).length + 1,
       severity: "error", code: "invalid-json", message: `Invalid timing JSON: ${error.message}` });
     return buildTimingDataset({ format: "json", module: null, stage: "post_map", unit: "ns", records: [], diagnostics });
   }
@@ -154,17 +152,15 @@ function parseTimingJson(source) {
   const topModule = parsed.module ? cleanPointIdentifier(String(parsed.module)) : null;
   const records = [];
 
-  if (parsed.points && typeof parsed.points === "object" && !Array.isArray(parsed.points)) {
+  if (Object.hasOwn(parsed, "points")) {
     extractJsonPoints(parsed.points, topModule, records, diagnostics);
   }
 
   if (parsed.modules && typeof parsed.modules === "object" && !Array.isArray(parsed.modules)) {
     for (const [modKey, modValue] of Object.entries(parsed.modules)) {
       const modName = cleanPointIdentifier(modKey) || topModule;
-      const pointsObj = modValue?.points && typeof modValue.points === "object" ? modValue.points : modValue;
-      if (pointsObj && typeof pointsObj === "object" && !Array.isArray(pointsObj)) {
-        extractJsonPoints(pointsObj, modName, records, diagnostics);
-      }
+      const pointsObj = modValue && Object.hasOwn(modValue, "points") ? modValue.points : modValue;
+      extractJsonPoints(pointsObj, modName, records, diagnostics);
     }
   }
 
@@ -179,6 +175,11 @@ function parseTimingJson(source) {
 }
 
 function extractJsonPoints(pointsObj, moduleName, records, diagnostics) {
+  if (!pointsObj || typeof pointsObj !== "object" || Array.isArray(pointsObj)) {
+    diagnostics.push({ severity: "warning", code: "invalid-points", module: moduleName,
+      message: "Timing points must be an object keyed by point name" });
+    return;
+  }
   for (const [rawPoint, rawValue] of Object.entries(pointsObj)) {
     const point = cleanPointIdentifier(rawPoint);
     if (!point) continue;
@@ -415,19 +416,25 @@ export function mergeTimingDatasets(datasets = []) {
   const valid = (Array.isArray(datasets) ? datasets : [datasets])
     .filter((dataset) => dataset && Array.isArray(dataset.records));
   if (valid.length === 0) return null;
-  if (valid.length === 1) return valid[0];
+  const targetUnit = valid[0].unit || "ns";
 
   const records = [];
   const diagnostics = [];
   const formats = new Set();
   const stages = new Set();
-  const units = new Set();
   const modules = new Set();
 
   for (const dataset of valid) {
     if (dataset.format) formats.add(dataset.format);
     if (dataset.stage) stages.add(dataset.stage);
-    if (dataset.unit) units.add(dataset.unit);
+    const unit = dataset.unit || targetUnit;
+    const mixed = unit !== targetUnit;
+    if (mixed && (!VALID_UNITS.has(unit) || !VALID_UNITS.has(targetUnit))) {
+      diagnostics.push({ severity: "error", code: "incompatible-timing-units", fileName: dataset.fileName,
+        units: [targetUnit, unit], message: "Cannot convert " + unit + " to " + targetUnit });
+      continue;
+    }
+    const scale = !mixed ? 1 : unit === "ps" ? 0.001 : 1000;
     for (const warning of dataset.diagnostics || []) {
       diagnostics.push(dataset.fileName && !warning.fileName ? { ...warning, fileName: dataset.fileName } : warning);
     }
@@ -435,22 +442,27 @@ export function mergeTimingDatasets(datasets = []) {
       const moduleName = record.module === undefined ? dataset.module || null : record.module;
       if (moduleName) modules.add(moduleName);
       const fileName = record.fileName || dataset.fileName;
-      if ((moduleName && !record.module) || (fileName && !record.fileName)) {
-        records.push({ ...record, module: moduleName, ...(fileName ? { fileName } : {}) });
+      if (scale !== 1 || (moduleName && !record.module) || (fileName && !record.fileName)) {
+        const next = { ...record, module: moduleName, ...(fileName ? { fileName } : {}) };
+        if (scale !== 1) {
+          for (const metric of NUMERIC_COLUMNS) if (Number.isFinite(next[metric])) next[metric] *= scale;
+        }
+        records.push(next);
       } else {
         records.push(record);
       }
     }
   }
 
-  return buildTimingDataset({
+  const result = buildTimingDataset({
     format: formats.size === 1 ? [...formats][0] : "merged",
     module: modules.size === 1 ? [...modules][0] : null,
     stage: stages.size === 1 ? [...stages][0] : ([...stages].join(", ") || null),
-    unit: units.size === 1 ? [...units][0] : (valid[0].unit || null),
+    unit: targetUnit,
     records,
     diagnostics
   });
+  return valid.length === 1 ? { ...valid[0], ...result } : result;
 }
 
 function getSubjectKey(point, kind) {
@@ -462,21 +474,15 @@ function getSubjectKey(point, kind) {
   return point;
 }
 
-function findLastUnescapedSlash(text) {
-  for (let index = text.length - 1; index > 0; index -= 1) {
-    if (text[index] !== "/") continue;
-    let backslashes = 0;
-    for (let j = index - 1; j >= 0 && text[j] === "\\"; j -= 1) {
-      backslashes += 1;
-    }
-    if (backslashes % 2 === 0) return index;
-  }
-  return -1;
-}
-
 export function tokenizeTimingLine(line) {
-  if (hasUnquotedComma(line)) {
-    return splitCsvLine(line);
+  const { commas } = scanTimingLine(line);
+  if (commas.length) {
+    let start = 0;
+    return [...commas, line.length].map((end) => {
+      const field = unquoteToken(line.slice(start, end));
+      start = end + 1;
+      return field;
+    });
   }
   const rawTokens = [];
   const tokenPattern = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|(\S+)/g;
@@ -499,36 +505,30 @@ export function tokenizeTimingLine(line) {
   return coalesced;
 }
 
-function hasUnquotedComma(line) {
-  let inQuotes = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === "\"" && line[index - 1] !== "\\") {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      return true;
+function scanTimingLine(line) {
+  const commas = [];
+  let quote = "";
+  let identifier = false;
+  let backslashes = 0;
+  for (let index = 0; index < line.length; index++) {
+    const c = line[index];
+    if (identifier) {
+      if (!/\s/.test(c)) continue;
+      identifier = false;
     }
+    if (quote) {
+      if (c === quote && backslashes % 2 === 0) quote = "";
+      backslashes = c === "\\" ? backslashes + 1 : 0;
+    } else if (c === "\\" && (index === 0 || /[\s,/]/.test(line[index - 1]))) {
+      identifier = true;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      backslashes = 0;
+    } else if (c === "#" || (c === "/" && line[index + 1] === "/")) {
+      return { commas, comment: index };
+    } else if (c === ",") commas.push(index);
   }
-  return false;
-}
-
-function splitCsvLine(line) {
-  const tokens = [];
-  let current = "";
-  let inQuotes = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === "\"" && line[index - 1] !== "\\") {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      tokens.push(unquoteToken(current.trim()));
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  tokens.push(unquoteToken(current.trim()));
-  return tokens;
+  return { commas, comment: line.length };
 }
 
 function unquoteToken(value) {
@@ -543,27 +543,7 @@ function unquoteToken(value) {
 }
 
 function stripInlineComment(line) {
-  let inQuotes = false;
-  let quoteChar = "";
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if ((char === '"' || char === "'") && line[index - 1] !== "\\") {
-      if (!inQuotes) {
-        inQuotes = true;
-        quoteChar = char;
-      } else if (char === quoteChar) {
-        inQuotes = false;
-      }
-    } else if (!inQuotes) {
-      if (char === "#") {
-        return line.slice(0, index).trim();
-      }
-      if (char === "/" && line[index + 1] === "/") {
-        return line.slice(0, index).trim();
-      }
-    }
-  }
-  return line;
+  return line.slice(0, scanTimingLine(line).comment).trimEnd();
 }
 
 function cleanPointIdentifier(value) {
@@ -595,7 +575,7 @@ function normalizeUnit(value, diagnostics, line) {
     line,
     severity: "warning",
     code: "unknown-unit",
-    message: `Unknown @unit '${value}', defaulting to 'ns'`
+    message: `Unknown @unit '${value}', unsupported time unit`
   });
   return "ns";
 }

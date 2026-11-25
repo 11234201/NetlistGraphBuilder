@@ -1048,3 +1048,51 @@ test("timing annotation is invariant to record order and scales boundedly for 10
     reverseGraph.nodes.find((n) => n.id === "cell:u_cell_500")?.timing?.worstSlack
   );
 });
+
+test("known timing units convert all metrics and preserve individual file attribution", () => {
+  const ns = { ...parseTimingLog('@module top\n@unit ns\npoint at rt slack delay slew\na 2 3 1 4 5'), fileName: "first" };
+  const ps = { ...parseTimingLog('@module top\n@unit ps\npoint at rt slack delay slew\nb 250 750 500 40 30'), fileName: "second" };
+  const merged = mergeTimingDatasets([ns, ps]);
+  assert.equal(merged.unit, "ns");
+  assert.deepEqual(["at", "rt", "slack", "delay", "slew"].map((k) => merged.records[1][k]), [.25, .75, .5, .04, .03]);
+  assert.equal(ps.records[0].slack, 500);
+  assert.deepEqual(merged.records.map((r) => r.fileName), ["first", "second"]);
+  assert.equal(mergeTimingDatasets([ps]).records[0].fileName, "second");
+  const mixed = mergeTimingDatasets([ns, { ...ps, unit: "unknown" }]);
+  assert.equal(mixed.records.length, 1);
+  assert.equal(mixed.diagnostics[0].code, "incompatible-timing-units");
+  assert.equal(mixed.diagnostics[0].fileName, "second");
+});
+
+test("timing lexical rules preserve escaped identifiers and quoted CSV fields", () => {
+  const timing = parseTimingLog([
+    '@module top', 'point,slack',
+    '\\u_mux#0 /Y,1 # trail', '\\n,1 /A,2', "'quoted,part',3",
+    '"foo\\\\",4', '\\quote"# /Q 5'
+  ].join("\n"));
+  assert.deepEqual(timing.records.map((r) => [r.point, r.slack]), [
+    ["\\u_mux#0/Y", 1], ["\\n,1/A", 2], ["quoted,part", 3], ["foo\\\\", 4], ['\\quote"#/Q', 5]
+  ]);
+  const json = parseTimingLog('# header\n// generated\n{"points":{"a":[2,3]},"modules":{"bad":{"points":[]}}}');
+  assert.equal(json.records[0].point, "a");
+  assert.equal(json.diagnostics[0].code, "invalid-points");
+});
+
+test("alias timing and prototype-shaped names resolve identically in reversed report order", () => {
+  const mod = parseVerilog("module aliases(input toString,output y); wire constructor,valueOf;" +
+    " assign constructor=toString; assign valueOf=toString; BUF u(.A(valueOf),.Y(y)); endmodule").modules[0];
+  const rows = ["constructor -1 net", "valueOf -3 net", "toString -3 net"];
+  const build = (rows) => buildWorkspaceGraph(mod, { showAssigns: true, timing:
+    parseTimingLog("@module aliases\npoint slack kind\n" + rows.join("\n")) });
+  const [first, reverse] = [build(rows), build(rows.toReversed())];
+  assert.deepEqual(reverse.netTiming, first.netTiming);
+  assert.equal(first.netTiming.toString.slack, -3);
+  assert.equal(first.netTiming.toString.point, "toString");
+});
+
+test("multiple cell drivers produce a bounded ambiguity diagnostic and no arbitrary timing assignment", () => {
+  const mod = parseVerilog("module many(input a,output y); BUF u(.A(a),.Y(y)); BUF v(.A(a),.Y(y)); endmodule").modules[0];
+  const graph = buildWorkspaceGraph(mod, { timing: parseTimingLog("@module many\npoint slack kind\ny 1 net") });
+  assert.equal(graph.timingSummary.diagnostics.unresolvedPins.reasons["multiple-net-drivers"], 1);
+  assert.equal(graph.timingSummary.matchedRecordCount, 0);
+});

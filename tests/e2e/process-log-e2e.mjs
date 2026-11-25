@@ -137,6 +137,17 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   await waitForLog("right / Peer, 1/1 cells annotated");
   await upload("#compareRightTimingInput", "invalid-right.txt", "@module Peer\npoint at rt slack\nu_peer/Z private-invalid 1 -1");
   await waitForLog("Timing parse failed");
+  const priorBadge = await page.locator("#rightSchematicMount .timing-badge").first().textContent();
+  await upload("#compareRightTimingInput", "broken.json", '# header\n{"points":}');
+  const malformed = page.locator("#processLogList li").filter({ hasText: "Timing parse failed" }).last();
+  await page.waitForFunction(() => [...document.querySelectorAll("#processLogList li pre")]
+    .some((pre) => pre.textContent.includes("broken.json") && pre.textContent.includes("invalid-json")));
+  await malformed.locator("summary").click();
+  const displayedJson = JSON.parse(await malformed.locator("details[open] pre").innerText());
+  assert.equal(displayedJson.fileName, "broken.json");
+  assert.equal(displayedJson.error.cause.name, "SyntaxError");
+  assert.equal(displayedJson.error.diagnostic.diagnosticExamples[0].line, 2);
+  assert.equal(await page.locator("#rightSchematicMount .timing-badge").first().textContent(), priorBadge);
   await page.locator("#processLogPhaseFilter").selectOption("");
   const downloaded = page.waitForEvent("download");
   await page.locator("#exportProcessLogButton").click();
@@ -147,6 +158,8 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   const entries = text.trim().split("\n").map((line) => JSON.parse(line));
   assert.deepEqual(entries.find((row) => row.details?.code === "netlist.parsed-with-warnings" &&
     row.details.fileName === "single-round.v").details, partial);
+  assert.deepEqual(entries.find((row) => row.details?.code === "timing.parse-failed" &&
+    row.details.fileName === "broken.json").details, displayedJson);
   const timingMatches = entries.filter((entry) => entry.details?.operation === "timing.match");
   const inspected = entries.filter((entry) => entry.details?.operation === "timing.inspect-cell");
   assert.deepEqual(inspected.map((entry) => [entry.details.side, entry.details.evidence["parse-invalid-number"].line]),

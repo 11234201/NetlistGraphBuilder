@@ -400,3 +400,12 @@ function shuffled(values, seed) {
   }
   return result;
 }
+
+test("normalization rejects inconsistent alias and constant arity at the source object", () => {
+  const raw = adaptAndNotBlif(parseBlifSource(blif(".names a b y\n11 1")));
+  const y = raw.nodes.find((node) => node.id === "y");
+  for (const kind of ["alias", "constant"]) {
+    const input = { ...raw, nodes: raw.nodes.map((n) => n === y ? { ...n, kind } : n) };
+    assert.throws(() => normalizeAig(input), /literal/i);
+  }
+});

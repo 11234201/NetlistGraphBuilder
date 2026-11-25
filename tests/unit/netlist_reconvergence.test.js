@@ -234,3 +234,16 @@ test("AIG blocks require both visible fanins of each internal AND", () => {
     assert.equal(analyzeAigStructure({ ...model, edges: model.edges.filter((edge) => edge.id !== missing) }).blocks.results.length, 0);
   }
 });
+
+test("uninitialized reconvergence worker returns the original error with its job ID", async (t) => {
+  const previous = globalThis.onmessage;
+  const reply = globalThis.postMessage;
+  t.after(() => { globalThis.onmessage = previous; globalThis.postMessage = reply; });
+  let message;
+  globalThis.postMessage = (data) => { message = data; };
+  await import("../../src/domains/netlist/reconvergence_worker.js");
+  globalThis.onmessage({ data: { type: "query", id: "early" } });
+  assert.equal(message.id, "early");
+  assert.equal(message.error.message, "Analysis worker has no source model");
+  assert.match(message.error.stack, /reconvergence_worker/);
+});

@@ -646,8 +646,12 @@ export function createDomainWorkbench({ document, windowTarget, registry, docume
       sourceLabel: workspace.document.source.name, viewMode: session().viewMode, pathEnabled: Boolean(workspace.path), providerLabel: "Graphviz" } : {},
     routeCommand(name, action, args) {
       if (name === "loadDesign" || name === "loadQuickInputText" && args[1]?.kind === "netlist") {
-        if (workspace) registry.require("netlist").importSource({ text: args[0], name: args[1]?.label || args[1] });
-        leave(); return action(...args);
+        if (!workspace) { leave(); return action(...args); }
+        // The importer calls this after validating the candidate and before mounting its canvas.
+        const optionsIndex = name === "loadDesign" ? 3 : 1;
+        const routed = [...args];
+        routed[optionsIndex] = { ...args[optionsIndex], onDesignParsed: leave };
+        return action(...routed);
       }
       if (!workspace || passthrough.has(name)) return action(...args);
       const commands = {

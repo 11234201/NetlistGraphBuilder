@@ -1,3 +1,4 @@
+import { PriorityQueue } from "../../foundation/priority_queue.js";
 import { inferCellKind } from "../../infer/defaultCellRules.js";
 import { getPinNetReferences } from "../../netlist/model.js";
 
@@ -46,15 +47,19 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
     range: port.range ? { ...port.range } : null
   }));
   const portByName = new Map(ports.map((port) => [port.name, port]));
+  const childPorts = new Map();
   const cells = [...(module?.cells || [])].toSorted(compareNamed).map((cell) => {
     const childModule = (module?.sourceFile && sameSourceMap?.get(`${module.sourceFile}::${cell.type}`))
       || moduleByName.get(cell.type) || null;
+    if (childModule && !childPorts.has(childModule)) {
+      childPorts.set(childModule, new Map(childModule.ports.map((port) => [port.name, port])));
+    }
     const semantics = resolveCellSemantics(cell, { ...options, moduleDefinition: childModule,
       overrides: options.graphOverrides?.cellPinDirections?.[cell.instance] || {} });
     const pins = [...(cell.pins || [])].flatMap((pin) => {
       const pinName = pin.pin;
       if (["power", "internal"].includes(semantics.pinDirections[pin.pinDisplayName || pinName]?.role)) return [];
-      const childPort = childModule ? childModule.ports?.find((port) => port.name === pinName) : null;
+      const childPort = childPorts.get(childModule)?.get(pinName);
       const direction = normalizeDirection(semantics.pinDirections[pin.pinDisplayName || pinName]?.direction);
       const references = getPinNetReferences(pin);
       return (references.length ? references : [{ name: "", displayName: "" }]).map((reference) => ({
@@ -65,7 +70,7 @@ export function createModuleConnectivityTemplate(module, moduleByName = new Map(
         direction,
         childPortName: childPort?.name || null
       }));
-    }).toSorted(compareNamed);
+    }).toSorted((left, right) => compareNamed(left, right) || compareValues(left.net, right.net));
     return {
       instance: cell.instance,
       displayName: cell.instanceDisplayName || cell.instance,
@@ -188,16 +193,18 @@ export function analyzeHierarchicalCone(design, root, options = {}) {
   }
 
   const directions = normalizeDirections(options.direction);
-  const queues = [];
+  const queues = new PriorityQueue(compareStates);
   seedRoot(result, queues, context, root, directions, limits, templates);
   const visited = new Map();
 
-  while (queues.length > 0) {
-    queues.sort(compareStates);
-    const state = queues.shift();
+  while (queues.size > 0) {
+    const state = queues.pop();
     const visitKey = `${state.occurrenceKey}|${state.net}|${state.direction}`;
     const previousDepth = visited.get(visitKey);
-    if (previousDepth !== undefined && previousDepth <= state.depth) continue;
+    if (previousDepth !== undefined && previousDepth <= state.depth) {
+      connectContinuation(result, state, result.nodeById.get(nodeKeyFromState(state)));
+      continue;
+    }
     visited.set(visitKey, state.depth);
     if (state.depth > state.depthLimit) {
       addBoundary(result, state, "depth-limit");
@@ -250,7 +257,7 @@ export function projectHierarchicalCone(result, options = {}) {
   }));
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = (result?.links || []).filter((link) => nodeIds.has(link.source) && nodeIds.has(link.target)).map((link) => ({
-    id: `${link.source}->${link.target}`,
+    id: JSON.stringify([link.source, link.target, link.relation]),
     source: link.source,
     target: link.target,
     relation: link.relation,
@@ -274,10 +281,9 @@ export function projectHierarchicalCone(result, options = {}) {
 export function projectHierarchicalRenderGraph(result, options = {}) {
   const projection = projectHierarchicalCone(result, options);
   const renderId = (node) => {
-    const path = node.occurrencePath?.join("/") || "top";
-    if (node.kind === "cell") return path === "top" ? `cell:${node.localId}` : `cell:${path}/${node.localId}`;
-    if (node.kind === "net") return `hub:${path}/${node.localId}`;
-    return `${node.kind}:${path}/${node.localId}`;
+    const path = (node.occurrencePath || []).map(encodeURIComponent);
+    const id = [...path, encodeURIComponent(node.localId)].join("/");
+    return (node.kind === "net" ? "hub" : node.kind) + ":" + id;
   };
   const idMap = new Map(projection.nodes.map((node) => [node.id, renderId(node)]));
   const nodes = projection.nodes.map((node) => {
@@ -317,9 +323,9 @@ export function projectHierarchicalRenderGraph(result, options = {}) {
   });
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const edges = projection.edges.map((edge) => {
-    const source = nodeById.get(edge.source);
-    const target = nodeById.get(edge.target);
-    const net = source?.kind === "hub" ? source.label : target?.kind === "hub" ? target.label : edge.id;
+    const source = nodeById.get(idMap.get(edge.source));
+    const target = nodeById.get(idMap.get(edge.target));
+    const net = source?.kind === "hub" ? source.label : target.label;
     return {
       id: edge.id,
       source: idMap.get(edge.source),
@@ -527,8 +533,8 @@ function followPortEndpoint(result, queues, state, context, endpoint, templates,
   const parentPath = context.occurrencePath.slice(0, -1);
   const parentContext = resolveOccurrenceContext(templates, state.rootModuleName, parentPath);
   const parentInstance = parentContext?.template.cellByInstance.get(context.occurrencePath.at(-1));
-  const pin = parentInstance?.pins.find((item) => item.name === endpoint.localId);
-  if (!parentContext || !parentInstance || !pin || !pin.net) {
+  const pins = parentInstance?.pins.filter((item) => item.name === endpoint.localId && item.net);
+  if (!pins?.length) {
     addBoundary(result, state, "missing-parent-port", endpoint.localId);
     return;
   }
@@ -537,29 +543,32 @@ function followPortEndpoint(result, queues, state, context, endpoint, templates,
     if (endpoint.direction === "unknown") addBoundary(result, state, "unknown-boundary-direction", endpoint.localId);
     return;
   }
-  const parentEndpoint = {
-    kind: "cell",
-    localId: parentInstance.instance,
-    terminalId: pin.name,
-    pin: pin.name,
-    direction: pin.direction,
-    childModuleName: parentInstance.childModuleName,
-    childPortName: pin.childPortName
-  };
-  addNode(result, parentContext, "cell", parentEndpoint.localId, parentEndpoint.terminalId, parentEndpoint);
-  enqueue(queues, result, parentContext, pin.net, state.direction, state.depth, state.depthLimit, {
-    from: nodeKey(context, endpoint.kind, endpoint.localId, endpoint.terminalId),
-    relation: "module-boundary",
-    moduleAncestry: state.moduleAncestry.slice(0, -1)
-  });
+  for (const pin of pins) {
+    const parentEndpoint = {
+      kind: "cell",
+      localId: parentInstance.instance,
+      terminalId: pin.name,
+      pin: pin.name,
+      direction: pin.direction,
+      childModuleName: parentInstance.childModuleName,
+      childPortName: pin.childPortName
+    };
+    addNode(result, parentContext, "cell", parentEndpoint.localId, parentEndpoint.terminalId, parentEndpoint);
+    enqueue(queues, result, parentContext, pin.net, state.direction, state.depth, state.depthLimit, {
+      from: nodeKey(context, endpoint.kind, endpoint.localId, endpoint.terminalId),
+      relation: "module-boundary",
+      moduleAncestry: state.moduleAncestry.slice(0, -1)
+    });
+  }
 }
 
 function enqueue(queues, result, context, net, direction, depth, depthLimit, link = {}) {
   if (!net) return;
-  if (queues.length >= result.limits.maximumFrontier) {
+  if (queues.size >= result.limits.maximumFrontier) {
     result.truncated = true;
     result.hiddenNodeCount += 1;
-    result.diagnostics.push(diagnostic("frontier-limit", `Frontier limit reached at ${net}`));
+    if (!result.boundaryKeys.has("frontier-limit")) result.diagnostics.push(diagnostic("frontier-limit", `Frontier limit reached at ${net}`));
+    result.boundaryKeys.add("frontier-limit");
     return;
   }
   queues.push({
@@ -582,6 +591,10 @@ function addNode(result, context, kind, localId, terminalId = null, extra = {}) 
   if (result.nodes.length >= result.limits.maximumVisibleNodes) {
     result.truncated = true;
     result.hiddenNodeCount += 1;
+    if (!result.boundaryKeys.has("node-limit")) {
+      result.boundaryKeys.add("node-limit");
+      result.diagnostics.push(diagnostic("node-limit", "Visible node limit reached in " + context.moduleName));
+    }
     return null;
   }
   const node = Object.freeze({
@@ -636,7 +649,7 @@ function resolveOccurrenceContext(templates, rootModuleName, occurrencePath) {
     template,
     moduleName: template.moduleName,
     occurrencePath: [...occurrencePath],
-    occurrenceKey: `${rootModuleName}:${occurrencePath.join("/") || "$"}`,
+    occurrenceKey: JSON.stringify([rootModuleName, ...occurrencePath]),
     moduleAncestry
   };
 }
@@ -777,7 +790,9 @@ function compareDiagnostic(left, right) {
 }
 
 function compareStates(left, right) {
-  return compareValues(`${left.depth}:${left.occurrenceKey}:${left.net}:${left.direction}`, `${right.depth}:${right.occurrenceKey}:${right.net}:${right.direction}`);
+  return left.depth - right.depth || compareValues(left.occurrenceKey, right.occurrenceKey)
+    || compareValues(left.net, right.net) || compareValues(left.direction, right.direction)
+    || compareValues(left.from || "", right.from || "") || compareValues(left.relation || "", right.relation || "");
 }
 
 function compareValues(left, right) {

@@ -304,17 +304,18 @@ function isRecord(value) {
 }
 
 function finiteNumber(value) {
+  if (typeof value !== "number" && !(typeof value === "string" && value.trim())) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
 function positiveInteger(value) {
-  const number = Number(value);
+  const number = finiteNumber(value);
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
 function nonNegativeInteger(value) {
-  const number = Number(value);
+  const number = finiteNumber(value);
   return Number.isInteger(number) && number >= 0 ? Math.min(99, number) : null;
 }
 

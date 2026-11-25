@@ -1,3 +1,4 @@
+import { addPathSideInputs } from "../../src/domains/netlist/show_path.js";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
@@ -256,4 +257,12 @@ test("AIG mapped endpoints, cut polarity, output and start distances, archive id
   assert.deepEqual(decodeDomainWorkspace(JSON.stringify(archive)).focus.showPath, showPath);
   archive.source.text += "\n# revised";
   assert.ok(decodeDomainWorkspace(JSON.stringify(archive)).pathSourceMismatch);
+});
+
+test("side input projections use escaped display names while retaining the canonical net", () => {
+  const edge = { id: "e", net: "a/b", label: "\\\\a/b", target: "c", targetPin: "A" };
+  const path = { sideInputPins: new Set([JSON.stringify(["pin", "c", "A"])]), edgeIds: new Set() };
+  const display = addPathSideInputs({ edges: [edge] }, { nodes: [{ id: "c" }], edges: [] }, path);
+  assert.equal(display.nodes[1].label, edge.label);
+  assert.deepEqual(display.nodes[1].ref, { name: edge.net, displayName: edge.label });
 });

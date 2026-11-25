@@ -175,3 +175,52 @@ test("hierarchical boundary continuation keeps parent cell connected to child po
   assert.ok(childNet);
   assert.ok(result.links.some((link) => link.source === childNet.id && link.target === parent.id));
 });
+
+test("a child named top traces every parent concat net and projects distinct named edges", () => {
+  const child = module("leaf", [port("data", "input")]);
+  const root = module("root", [port("data", "input"), port("b", "input")],
+    [cell("leaf", "top", [{ pin: "data", connection: { kind: "concat", items: [
+      { kind: "reference", name: "data" }, { kind: "reference", name: "b" }
+    ] } }])]);
+  const design = { modules: [root, child] };
+  const query = () => projectHierarchicalRenderGraph(analyzeHierarchicalCone(design,
+    { rootModuleName: "root", moduleName: "leaf", occurrencePath: ["top"], kind: "net", localId: "data" },
+    { direction: "fanin" }));
+  const first = query();
+  const hubs = first.nodes.filter((n) => n.kind === "hub");
+  assert.deepEqual(hubs.map((n) => n.label).sort(), ["b", "data", "data"]);
+  assert.equal(new Set(hubs.map((n) => n.id)).size, 3);
+  assert.ok(first.edges.every((edge) => ["data", "b"].includes(edge.net)));
+  assert.equal(new Set(first.edges.map((e) => e.id)).size, first.edges.length);
+  design.modules.reverse();
+  root.ports.reverse();
+  assert.deepEqual(query(), first);
+});
+
+test("a node limit retains both depth-nine branches before depth eleven, in either input order", () => {
+  const cells = ["a", "z"].flatMap((prefix) => Array.from({ length: 13 }, (_, index) =>
+    cell("BUF", prefix + index, [pin("A", index ? prefix + "n" + index : "in"), pin("Y", prefix + "n" + (index + 1))])));
+  const root = module("root", [port("in", "input")], cells);
+  const run = () => analyzeHierarchicalCone({ modules: [root] }, { rootModuleName: "root", kind: "net", localId: "in" },
+    { direction: "fanout", fanoutDepth: 13, maximumVisibleNodes: 41 });
+  const first = run();
+  assert.ok(first.nodes.some((n) => n.localId === "z9"));
+  assert.ok(!first.nodes.some((n) => n.localId === "a11"));
+  assert.ok(first.diagnostics.some((entry) => entry.code === "node-limit"));
+  cells.reverse();
+  assert.deepEqual(run(), first);
+});
+
+test("a 600-way frontier stays bounded and independent of instance order", () => {
+  const cells = Array.from({ length: 600 }, (_, i) =>
+    cell("BUF", "g" + i, [pin("A", "in"), pin("Y", "n" + i)]));
+  const root = module("wide", [port("in", "input")], cells);
+  const run = () => analyzeHierarchicalCone({ modules: [root] }, { rootModuleName: "wide", kind: "net", localId: "in" },
+    { direction: "fanout", fanoutDepth: 2, maximumFrontier: 550, maximumVisibleNodes: 1800 });
+  const first = run();
+  assert.ok(first.truncated);
+  assert.equal(first.diagnostics.filter((d) => d.code === "frontier-limit").length, 1);
+  assert.equal(first.nodes.filter((node) => node.kind === "net").length, 551);
+  cells.reverse();
+  assert.deepEqual(run(), first);
+});

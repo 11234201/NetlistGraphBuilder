@@ -48,10 +48,13 @@ export function normalizeAig(raw, options = {}) {
     let signal;
     if (node.kind === "pi") signal = { vertex: vertex({ kind: "pi", label: node.label, level: 0 }), inverted: false };
     else if (node.kind === "constant") {
+      requireAig(literals.length === 0, "Constant cannot have literal fanins: " + node.id, context, node);
       constant ||= vertex({ kind: "constant", label: "0", level: 0 });
       signal = { vertex: constant, inverted: Boolean(node.value) };
-    } else if (node.kind === "alias") signal = { vertex: literals[0].vertex, inverted: literals[0].inverted };
-    else {
+    } else if (node.kind === "alias") {
+      requireAig(literals.length === 1, "Alias requires exactly one literal: " + node.id, context, node);
+      signal = { vertex: literals[0].vertex, inverted: literals[0].inverted };
+    } else {
       requireAig(node.kind === "and" && literals.length === 2, `Invalid AND object '${node.id}'`, context, node);
       const result = vertex({ kind: "and", level: 1 + Math.max(...literals.map((literal) => literal.vertex.level)) });
       for (const literal of literals) connect(literal.vertex, result, literal.inverted, literal.sourceRef);
@@ -79,6 +82,7 @@ export function normalizeAig(raw, options = {}) {
     connect(signal.vertex, result, Boolean(signal.inverted !== output.inverted), { id: output.source, targetId: output.id, slot: 0, sourceInverted: output.inverted, line: output.line, column: output.column });
   }
   const active = vertices.filter((node) => node !== constant || node.outgoing.length > 0);
+  for (const node of active) node.sourceRefs = sortRefs(node.sourceRefs);
   const order = canonicalOrder(active, context);
   const identities = new Map();
   let nodeNumber = 1;
@@ -88,7 +92,7 @@ export function normalizeAig(raw, options = {}) {
   const edges = [];
   for (const node of order) {
     const id = identities.get(node.index);
-    nodes.push({ id, kind: node.kind, label: node.kind === "and" ? id.slice(1) : node.label, level: node.level, sourceRefs: sortRefs(node.sourceRefs) });
+    nodes.push({ id, kind: node.kind, label: node.kind === "and" ? id.slice(1) : node.label, level: node.level, sourceRefs: node.sourceRefs });
     const incoming = [...node.incoming].sort((first, second) => compare(identities.get(first.source), identities.get(second.source)) || Number(first.inverted) - Number(second.inverted));
     incoming.forEach((edge, slot) => edges.push({ id: `${id}:${slot}`, source: identities.get(edge.source), target: id, slot, inverted: edge.inverted, sourceRefs: [{ ...edge.sourceRef, inverted: edge.inverted }] }));
   }

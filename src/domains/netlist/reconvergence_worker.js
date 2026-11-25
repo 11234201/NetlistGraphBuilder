@@ -7,6 +7,7 @@ let index;
 globalThis.onmessage = ({ data }) => {
   try {
     if (data.type === "initialize") { index = createNetlistStructureIndex(data.model); return; }
+    if (!index) throw new Error("Analysis worker has no source model");
     const policy = normalizeStructurePolicy(data.policy);
     const result = data.type === "detail" ? readReconvergenceDetail(index, data.result, policy)
       : analyzeNetlistReconvergence(index, policy);

@@ -209,3 +209,16 @@ test("Focused Golden without a usable root cannot retain stale focused state", (
   assert.deepEqual(state.focusedRootNodeIds, []);
   assert.equal(state.activeFocusedRootNodeId, null);
 });
+
+test("Golden missing and nonnumeric fields never coerce to coordinates or zero depth", () => {
+  const golden = { kind: "netlist-layout-golden", version: 2, moduleName: "top",
+    sourceIdentity: { size: false },
+    nodes: [{ id: "b", x: 0, y: 1 }, { id: "a", x: null, y: 4, width: false, height: " " }],
+    layoutOptions: { display: { faninDepth: null, fanoutDepth: "  " } } };
+  const result = getLayoutGoldenState(JSON.stringify(golden));
+  assert.equal(result.nodePositions.has("a"), false);
+  assert.equal(result.identity.sourceIdentity.size, null);
+  assert.equal(result.nodeSizes.size, 0);
+  assert.equal(result.display.faninDepth, null);
+  assert.equal(result.display.fanoutDepth, null);
+});

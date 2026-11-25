@@ -110,6 +110,14 @@ async function openPage(browser, url) {
       await route.abort();
     } else await route.continue();
   });
+  await context.route("**/parser/verilogParser.js", async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    const signature = "export function parseVerilog(source) {";
+    assert.ok(original.includes(signature));
+    await route.fulfill({ response, body: original.replace(signature,
+      signature + " globalThis.__parseVerilogCalls = (globalThis.__parseVerilogCalls || 0) + 1;") });
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
   page.on("pageerror", (error) => report.errors.push({ case: currentCase, message: error.message }));
@@ -507,8 +515,15 @@ try {
         assert.equal(await page.locator("#domainInspector").isVisible(), true);
         await screenshot(page, "compact-inspector");
         await page.keyboard.press("Escape");
+        const saved = await storage(page);
+        await page.locator("#fileInput").setInputFiles(file("invalid.v", "module ; endmodule"));
+        await page.waitForFunction(() => document.querySelector("#processLogList").textContent.includes("Design parse failed"));
+        assert.deepEqual(await storage(page), saved);
+        assert.equal(await page.locator("#domainToolbar").isVisible(), true);
+        const parseCount = await page.evaluate(() => globalThis.__parseVerilogCalls);
         await page.locator("#fileInput").setInputFiles(file("after.v", netlist));
         await page.locator('#schematicMount [data-node-id="cell:u_and"]').waitFor();
+        assert.equal(await page.evaluate(() => globalThis.__parseVerilogCalls), parseCount + 1);
         assert.equal(await page.locator("#domainToolbar").isVisible(), false);
         assert.equal(await page.locator("#compareButton").isVisible(), true);
         await page.locator("#settingsMenu > summary").click();
