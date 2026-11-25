@@ -52,7 +52,7 @@ await runBrowserTest(async ({ browser, url }) => {
     assert.equal(await result.count(), 1);
     const tab = (name) => page.locator(`#selectionDetails [data-inspector-tab="${name}"]`);
     assert.equal(await tab("connections").getAttribute("aria-selected"), "true");
-    const viewport = () => page.locator("#schematicMount #schematicContent").getAttribute("transform");
+    const viewport = () => page.locator("#schematicMount .schematic-content").getAttribute("transform");
     const before = await viewport();
     await result.click();
     await page.waitForFunction(() => /Connections between endpoints\s*complete/.test(document.querySelector("#netlistAnalysisDetail").textContent));

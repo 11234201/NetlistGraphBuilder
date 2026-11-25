@@ -4,6 +4,8 @@ import { buildModuleFullGraph } from "./moduleWorkspace.js";
 import { normalizeShowPath } from "../contracts/show_path.js";
 import { comparePathSnapshot } from "./sessionState.js";
 import { copyBrowserText } from "../platform/browser_clipboard.js";
+import { paintSchematicSelection } from "../ui/schematic_selection_controller.js";
+import { withSchematicExportHighlights } from "../ui/schematic_export_highlights.js";
 import { bindShowPath } from "../ui/show_path_controller.js";
 import { netlistPathContext } from "./show_path_context.js";
 import { netPathKey } from "../domains/netlist/show_path.js";
@@ -105,7 +107,12 @@ export function createWorkbenchControllers({ state, getElements, services, route
         dispatch: (command) => bridge.dispatch(side, command), ready: bridge.isWorkspaceReady,
         rebuild: (options) => actions.renderCompareGraphs({ ...options, onCommitted: options.onRendered }) };
     } } : {}),
-    ...(owner === "golden" ? { validateSavedPath, markExport: (markup, side) => structure?.markExport(markup, side) ?? markup } : {}),
+    ...(owner === "golden" ? { validateSavedPath,
+      exportScene(scene, side) {
+        const elements = getElements();
+        return withSchematicExportHighlights(scene, side === "left" ? elements.leftMount : side === "right" ? elements.rightMount : elements.mount);
+      },
+      markExport: (markup, side) => structure?.markExport(markup, side) ?? markup } : {}),
     ...(owner === "input" ? { validateSavedPath,
       compareSideActions: {
         setCompareSideTiming: (side, timing, label, opts) => actions.setCompareSideTiming(side, timing, label, opts),
@@ -136,7 +143,12 @@ export function createWorkbenchControllers({ state, getElements, services, route
       logCellTiming: (side, details) => writeTimingLog(services.logProcess, "info", `Missing timing for ${details.instance}`,
         { operation: "timing.inspect-cell", code: "timing.cell-without-timing", view: side ? "compare" : "single", side, ...details }),
       inspectAnalysis: (side, id) => structure?.inspect(side, id) } : {}),
-    ...(owner === "workspace-render" ? { mounted: (mount) => structure?.refresh(mount) } : {}),
+    ...(owner === "workspace-render" ? { mounted(mount) {
+      if (mount === getElements().mount && !state.compare.active) {
+        paintSchematicSelection(mount, state.selectedNodeId, state.selectedNet);
+      }
+      structure?.refresh(mount);
+    } } : {}),
     ...(owner === "cell-config" ? { present: (action) => routeAction("presentCellConfig", action, []) } : {})
   });
   const controllers = [

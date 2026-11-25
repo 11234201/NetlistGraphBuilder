@@ -37,7 +37,7 @@ function dragMount(nodeId) {
   return {
     querySelector(selector) {
       if (selector === "svg") return svg;
-      if (selector === "#schematicContent") return { getScreenCTM: () => matrix };
+      if (selector === ".schematic-content") return { getScreenCTM: () => matrix };
       return null;
     },
     querySelectorAll(selector) {

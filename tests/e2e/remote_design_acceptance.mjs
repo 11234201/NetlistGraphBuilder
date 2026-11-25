@@ -1,3 +1,4 @@
+import { verifyStandaloneSvgStyles } from "./standalone_svg_styles.mjs";
 import assert from "node:assert/strict";
 import {join} from "node:path";
 import {readFile,writeFile} from "node:fs/promises";
@@ -106,6 +107,20 @@ export async function verifyDesignCommands({run,page,dir}) {
   await page.keyboard.press("Control+Shift+z");
   await page.waitForFunction(() => document.querySelector("#compareLayoutSelect").value === "vertical");
   await ok("--side", "B", "selection", "set", "input:a");
+  for (const [side, mount, selected] of [["A", "#leftSchematicMount", ".is-compare-counterpart"],
+    ["B", "#rightSchematicMount", ".is-selected"]]) {
+    const path = join(dir, side + "-selected.svg");
+    await ok("--side", side, "svg", "export", "--out", path);
+    await verifyStandaloneSvgStyles(page, await readFile(path, "utf8"), mount, [
+      ".node" + selected + " .node-selection-outline", ".node.input .node-shape", ".edge .wire"
+    ]);
+  }
+  const compareLayout = await page.evaluate(() => ({
+    labels: [...document.querySelectorAll("#comparePanel > label")].map(label => getComputedStyle(label).display),
+    content: document.querySelectorAll("#compareMount .schematic-content").length,
+    duplicateIds: [...document.querySelectorAll("#compareMount [id]")].filter(el => document.querySelectorAll("#" + CSS.escape(el.id)).length > 1).map(el => el.id)
+  }));
+  assert.deepEqual(compareLayout, { labels: ["flex", "flex", "flex"], content: 2, duplicateIds: [] });
   assert.equal(await page.locator("#focusSelectedButton").isEnabled(), true);
   assert.equal(await page.locator("#addFocusedRootButton").isEnabled(), false);
   const peerViewport = await ok("--side", "A", "viewport", "get");

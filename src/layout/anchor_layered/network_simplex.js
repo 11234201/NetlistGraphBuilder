@@ -165,9 +165,9 @@ function balance(ids, edges, ranks, previousProfile) {
     // Weighted equality is required for objective preservation when priorities differ.
     if (incoming.reduce((sum, edge) => sum + edge.weight, 0)
       !== outgoing.reduce((sum, edge) => sum + edge.weight, 0)) continue;
-    const lower = Math.max(0, ...incoming.map((edge) => ranks.get(edge.sourceNodeId) + edge.minimumLength));
-    const upper = Math.min(count.length - 1,
-      ...outgoing.map((edge) => ranks.get(edge.targetNodeId) - edge.minimumLength));
+    let lower = 0, upper = count.length - 1;
+    for (const edge of incoming) lower = Math.max(lower, ranks.get(edge.sourceNodeId) + edge.minimumLength);
+    for (const edge of outgoing) upper = Math.min(upper, ranks.get(edge.targetNodeId) - edge.minimumLength);
     const from = ranks.get(id);
     let to = from;
     for (let rank = lower; rank <= upper; rank++) if (count[rank] < count[to]) to = rank;
@@ -214,7 +214,8 @@ function optimizeIndexedRanks(nodeIds, componentEdges, options, previousProfile 
     ranks.set(nodeId, ranks.get(neighborId) + (edge.targetNodeId === nodeId ? edge.minimumLength : -edge.minimumLength));
     balancingOrder.push(nodeId);
   }
-  const minimumRank = Math.min(...ranks.values());
+  let minimumRank = Infinity;
+  for (const rank of ranks.values()) minimumRank = Math.min(minimumRank, rank);
   for (const [id, rank] of ranks) ranks.set(id, rank - minimumRank);
   const balancing = options.balanceLayers ? balance(balancingOrder, edges, ranks, previousProfile) : [];
   const objectiveWeightedSpan = edges.reduce((sum, edge) => sum + edge.weight

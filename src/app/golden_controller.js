@@ -1,3 +1,4 @@
+import { writeProcessLogSafely } from "./processLog.js";
 import { pathDisplayBoundaries } from "./show_path_context.js";
 import { sanitizeDownloadFileName } from "../platform/browser_download.js";
 import { createStandaloneSvg } from "../render/svgExport.js";
@@ -11,7 +12,7 @@ import { errorMessage } from "../foundation/log_details.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createGoldenController({ state, elements, services, markExport = (markup) => markup, validateSavedPath }) {
+export function createGoldenController({ state, elements, services, exportScene = (scene) => scene, markExport = (markup) => markup, validateSavedPath }) {
   function exportCurrentSvg(requestedSide, capture = false) {
     const side = state.compare.active && ["left", "right"].includes(requestedSide) ? requestedSide : null;
     if (!side && (state.compare.active || state.compare.singleWorkspaceInvalidated)) {
@@ -30,7 +31,7 @@ export function createGoldenController({ state, elements, services, markExport =
     const viewSuffix = side ? side + "-" + mode : mode === "whole" ? "whole" : mode + "-depth-" + state.coneDepth;
     const fileName = `${sanitizeDownloadFileName(unit)}-${viewSuffix}.svg`;
     try {
-      const scene = renderSvgScene(side ? state.compare.scenes[side] : state.scene);
+      const scene = renderSvgScene(exportScene(side ? state.compare.scenes[side] : state.scene, side));
       const display = graph.path ? { boundaries: pathDisplayBoundaries(graph), visible: new Set(graph.nodes.map((n) => n.id)), truncated: graph.view?.truncated } : {};
       const svg = createStandaloneSvg(markExport(scene, side), graph.path, [unit, side, mode].filter(Boolean).join(" · "), display);
       if (capture) return {name:fileName,text:svg,mime:"image/svg+xml"};
@@ -171,8 +172,8 @@ export function createGoldenController({ state, elements, services, markExport =
 
   function reportExportFailure(error, operation, fileName, scope = {}) {
     const message = `${operation === "export-svg" ? "SVG" : "Layout Golden"} export failed: ${errorMessage(error)}`;
-    services.logProcess("error", "export", message, {
-      error, operation, fileName, moduleName: state.currentModule?.name, view: state.viewMode, ...scope
+    writeProcessLogSafely(services.logProcess, "error", "export", message, {
+      error, operation, code: operation === "export-svg" ? "svg.export-failed" : "golden.export-failed", fileName, moduleName: state.currentModule?.name, view: state.viewMode, ...scope
     });
     services.setStatus(message);
   }

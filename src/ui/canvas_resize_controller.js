@@ -52,7 +52,7 @@ export function createCanvasResizeController({
 
   function snapshot(view, measureSize = true) {
     const svg = view.mount?.querySelector("svg");
-    const content = svg?.querySelector("#schematicContent");
+    const content = svg?.querySelector(".schematic-content");
     const raw = svg?.viewBox?.baseVal;
     const viewBox = raw ? { x: raw.x, y: raw.y, width: raw.width, height: raw.height } : null;
     const previous = cached.get(view.id);

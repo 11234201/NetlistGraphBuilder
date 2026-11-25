@@ -140,6 +140,7 @@ export class RouteSegmentIndex {
   replaceOwner(owner, segments = []) {
     this.ownerReplacements += 1;
     this.removeOwner(owner);
+    if (this.inactiveSegments.size > Math.max(64, this.items.length)) this.compact();
     this.pushUnique(...segments.map((segment) => ({ ...segment, physicalOwner: owner })));
     return this.items.length;
   }

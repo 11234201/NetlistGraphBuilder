@@ -91,7 +91,7 @@ await runBrowserTest(async ({ browser, url }) => {
   await page.locator("#fitButton").click();
   await page.waitForTimeout(200);
   const zoomResize = await page.evaluate(async () => {
-    const content = document.querySelector("#schematicContent"), canvas = document.querySelector("#canvas");
+    const content = document.querySelector(".schematic-content"), canvas = document.querySelector("#canvas");
     const box = canvas.getBoundingClientRect();
     const anchor = new DOMPoint(box.x + box.width / 4, box.y + box.height / 3);
     const anchorBefore = anchor.matrixTransform(content.getScreenCTM().inverse());
@@ -116,7 +116,7 @@ await runBrowserTest(async ({ browser, url }) => {
   await page.locator("#fitButton").click();
   await page.waitForTimeout(200);
   const panResize = await page.evaluate(async () => {
-    const content = document.querySelector("#schematicContent"), svg = content.ownerSVGElement;
+    const content = document.querySelector(".schematic-content"), svg = content.ownerSVGElement;
     const read = () => {
       const rect = svg.getBoundingClientRect();
       const point = new DOMPoint(rect.x + rect.width / 2, rect.y + rect.height / 2).matrixTransform(content.getScreenCTM().inverse());
@@ -153,7 +153,7 @@ await runBrowserTest(async ({ browser, url }) => {
   await page.setViewportSize({ width: 1600, height: 1200 });
   const resizeZoom = await page.evaluate(async () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const content = document.querySelector("#schematicContent"), rect = content.ownerSVGElement.getBoundingClientRect();
+    const content = document.querySelector(".schematic-content"), rect = content.ownerSVGElement.getBoundingClientRect();
     const before = content.getScreenCTM().a;
     const pending = JSON.parse(sessionStorage.getItem("ngb.domain-workspace.v1")).viewport.scale !== content.transform.baseVal.getItem(0).matrix.a;
     document.querySelector("#canvas").dispatchEvent(new WheelEvent("wheel", { deltaY: -100,

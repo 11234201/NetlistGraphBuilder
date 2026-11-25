@@ -10,7 +10,10 @@ export function serializeWorkerError(reason) {
 export function restoreWorkerError(snapshot) {
   const error = new Error(snapshot.message);
   for (const key of ["name", "stack", "cause", "code", "diagnostic", "diagnostics", "span", "line", "column", "errors"]) {
-    if (Object.hasOwn(snapshot, key)) error[key] = snapshot[key];
+    if (!Object.hasOwn(snapshot, key)) continue;
+    const value = snapshot[key];
+    error[key] = key === "cause" && value && typeof value.stack === "string" && typeof value.message === "string"
+      ? restoreWorkerError(value) : value;
   }
   return error;
 }

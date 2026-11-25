@@ -38,7 +38,9 @@ function sortFreeLayer(layers, index, forward, first, model, context, random, co
   };
   for (const id of ids) calculate(id);
   if (first) {
-    const maximum = Math.max(0, ...[...states.values()].map((state) => state.value ?? 0)) + 2;
+    let maximum = 0;
+    for (const state of states.values()) maximum = Math.max(maximum, state.value ?? 0);
+    maximum += 2;
     for (const id of ids) if (states.get(id).value === null) states.get(id).value = random() * maximum - 1;
   } else {
     // Suffix next-known table preserves ELK's interpolation without quadratic forward scans.

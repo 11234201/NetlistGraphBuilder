@@ -13,7 +13,7 @@ export function createDomainCanvas({ canvas, mount, readViewport, writeViewport,
   const read = () => preview || readViewport();
   const paint = (viewport) => {
     preview = viewport;
-    getSvg()?.querySelector("#schematicContent")?.setAttribute("transform", formatViewportTransform(viewport));
+    getSvg()?.querySelector(".schematic-content")?.setAttribute("transform", formatViewportTransform(viewport));
   };
   const settle = () => { if (preview) writeViewport(preview); preview = null; save(); };
   const wheel = createWheelGestureController({ canvas, onSettled: settle, apply(sample) {

@@ -1,6 +1,8 @@
 import { layoutGraph } from "./anchor_layered/index.js";
 import { checkCancelled } from "./anchor_layered/protocol.js";
 
+import { restoreWorkerError } from "../foundation/worker_error.js";
+
 // Browser jobs own a dedicated worker so abort can interrupt a synchronous
 // phase. CLI/research callers retain phase hooks and an in-process fallback.
 export function executeNativeLayout(input, options = {}, workerFactory = defaultWorkerFactory) {
@@ -31,15 +33,15 @@ export function executeNativeLayout(input, options = {}, workerFactory = default
       options.signal?.addEventListener("abort", abort, { once: true });
       if (options.signal?.aborted) { abort(); return; }
       worker.onmessage = ({ data }) => {
-        if (data.error) {
-          const error = new Error(data.error.message);
-          error.name = data.error.name;
-          if (typeof data.error.stack === "string") error.stack = data.error.stack;
-          if (data.error.diagnostic) error.diagnostic = data.error.diagnostic;
-          finish(error);
-        } else finish(null, data.result);
+        if (data?.error && typeof data.error.message === "string") finish(restoreWorkerError(data.error));
+        else if (data?.result && typeof data.result === "object") finish(null, data.result);
+        else finish(new Error("Invalid native layout worker response"));
       };
-      worker.onerror = (event) => finish(new Error(event.message || "Native layout worker failed"));
+      worker.onerror = (event) => {
+        const error = new Error(event.message || "Native layout worker failed", { cause: event.error });
+        error.diagnostic = { filename: event.filename, line: event.lineno, column: event.colno };
+        finish(error);
+      };
       worker.onmessageerror = () => finish(new Error("Invalid native layout worker response"));
       const { signal, onPhase, yieldControl, ...parameters } = options;
       worker.postMessage({ input, options: parameters });

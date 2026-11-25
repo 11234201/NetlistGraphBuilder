@@ -235,3 +235,16 @@ test("layout quality reports logical fanout duplication removed from rendered ge
   assert.equal(quality.treeFallbackCount, 0);
   assert.equal(quality.cycleCount, 0);
 });
+
+test("measured physical routes retain collision-free offset labels and report an empty tree", () => {
+  const edge = { id: "ab", source: "a", target: "b", net: "n", label: "n",
+    points: [{ x: 0, y: 100 }, { x: 200, y: 100 }], labelPoint: { x: 100, y: 118 } };
+  const options = { measuredRoutes: true };
+  const [route] = buildWireRoutes([edge], options);
+  assert.deepEqual(route.labelPoint, edge.labelPoint);
+  assert.deepEqual(updateWireRoutes([edge], [route], new Set(), options)[0].labelPoint, edge.labelPoint);
+  const empty = buildWireRoutes([{ ...edge, points: [] }], options);
+  assert.equal(empty[0].reachableTargetCount, 0);
+  assert.ok(validateLayoutGraph({ wireRoutes: empty }).some((item) => item.code === "wire-route-disconnected"));
+  assert.equal(buildWireRoutes([{ ...edge, points: [] }])[0].reachableTargetCount, 1);
+});

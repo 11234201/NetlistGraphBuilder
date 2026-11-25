@@ -170,7 +170,7 @@ await runBrowserTest(async ({ browser, url }) => {
         .every((element) => getComputedStyle(element).display !== "none" && getComputedStyle(element).visibility === "visible") &&
       [...document.querySelectorAll(`${mount} .wire-hit-area`)].every((element) => getComputedStyle(element).pointerEvents === "stroke"), mount);
   }
-  function transform(mount) { return page.locator(`${mount} #schematicContent`).getAttribute("transform"); }
+  function transform(mount) { return page.locator(`${mount} .schematic-content`).getAttribute("transform"); }
   function geometry(mount) { return page.locator(`${mount} svg`).evaluate((svg) => [...svg.querySelectorAll("[d],[points],[x],[y],[cx]")]
     .map((element) => [element.tagName, ...["d", "points", "x", "y", "cx", "cy", "width", "height"].map((key) => element.getAttribute(key))])); }
   async function openMenus(target) {

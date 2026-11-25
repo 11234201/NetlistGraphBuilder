@@ -7,6 +7,7 @@ import { createCellConfigController } from "../../src/app/cell_config_controller
 import { createInputController } from "../../src/app/input_controller.js";
 import { createAppState } from "../../src/app/appState.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { createGoldenController } from "../../src/app/golden_controller.js";
 import { createHistoryController } from "../../src/app/history_controller.js";
 import { createViewHistoryEntry, pushViewHistory } from "../../src/app/viewHistory.js";
 import { createSingleWorkspaceIdentity, createCompareWorkspaceIdentity } from "../../src/app/workspace_identity.js";
@@ -189,4 +190,24 @@ test("timing and design import failures preserve diagnostics, and post-parse set
   const [entry] = log.entries({ phase: "import", level: "error" });
   assert.equal(entry.details.label, "top.v");
   assert.match(entry.details.error.message, /Startup module not found/);
+});
+
+test("SVG export records the committed side and original error once, including its cause", () => {
+  const state = createAppState(DEFAULT_LAYOUT_POLICY);
+  state.compare.active = true;
+  state.compare.workspaceIdentity = {};
+  state.compare.graphs.left = { moduleName: "left_top", nodes: [], edges: [] };
+  const error = new Error("cannot project export highlights", { cause: new TypeError("mount unavailable") });
+  const { log, services } = logging();
+  const controller = createGoldenController({ state, elements: {}, services, exportScene() { throw error; } });
+  controller.exportCurrentSvg("left");
+  const [entry] = log.entries({ phase: "export", level: "error" });
+  assert.equal(log.size, 1);
+  assert.equal(entry.details.operation, "export-svg");
+  assert.equal(entry.details.code, "svg.export-failed");
+  assert.equal(entry.details.moduleName, "left_top");
+  assert.equal(entry.details.side, "left");
+  assert.equal(entry.details.fileName, "left_top-left-whole.svg");
+  assert.equal(entry.details.error.stack, error.stack);
+  assert.equal(entry.details.error.cause.message, "mount unavailable");
 });

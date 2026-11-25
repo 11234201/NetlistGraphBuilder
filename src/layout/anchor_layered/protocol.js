@@ -5,6 +5,7 @@ export class PhaseError extends Error {
   constructor(phase, invariant, entityIds = [], detail = '') {
     super(`${phase}: ${invariant}${detail ? ` (${detail})` : ''}`);
     this.name = 'AnchorLayeredPhaseError';
+    this.code = invariant;
     this.diagnostic = Object.freeze({ phase, invariant,
       entityIds: Object.freeze([...entityIds].sort(compareIds)), detail });
   }

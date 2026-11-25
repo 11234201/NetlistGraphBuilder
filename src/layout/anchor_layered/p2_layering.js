@@ -21,7 +21,9 @@ export function assignLayers(input, { signal } = {}) {
     }
   }
   const nodes = input.nodes.map((node) => ({ ...node, layer: ranks.get(node.id) }));
-  const layers = Array.from({ length: nodes.length ? Math.max(...ranks.values()) + 1 : 0 },
+  let layerCount = 0;
+  for (const rank of ranks.values()) layerCount = Math.max(layerCount, rank + 1);
+  const layers = Array.from({ length: layerCount },
     (_, index) => ({ index, nodeIds: [] }));
   for (const node of nodes) layers[node.layer].nodeIds.push(node.id);
   const result = { ...input, phase: 'p2', nodes, layers, phaseData: {

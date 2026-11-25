@@ -1,3 +1,4 @@
+import { verifyStandaloneSvgStyles } from "./standalone_svg_styles.mjs";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {join} from "node:path";
@@ -59,6 +60,8 @@ export async function verifyTimingPresentation({run,page,dir}) {
     const file = join(dir,"r16-" + label + ".svg");
     await ok("svg","export","--out",file);
     const text = await readFile(file,"utf8");
+    await verifyStandaloneSvgStyles(page, text, "#schematicMount", [".timing-badge", ".pin-critical, .pin-timing",
+      ".node.is-selected .node-shape", ".node.is-selected .node-selection-outline"]);
     return page.evaluate(svg => {
       const xml = new DOMParser().parseFromString(svg,"image/svg+xml");
       const match = xml.querySelector('[data-node-id="cell:u_first"] .timing-badge');
@@ -105,6 +108,14 @@ export async function verifyTimingPresentation({run,page,dir}) {
   assert.equal(saved.gateKind,"BUF");
   await ok("cell-config","delete",type);
   await ok("liberty","unload");
+  const shapeDesign = "module shapes(input a, output z); wire n; CUSTOM_MACRO unknown(.A(missing),.B(1'b0),.Y(z)); " +
+    Array.from({ length: 12 }, (_, i) => "BUF u" + i + "(.A(a),.Y(o" + i + "));").join(" ") + " endmodule";
+  await ok("design", "open", "--text", shapeDesign, "--name", "export-shapes.v");
+  const shapeFile = join(dir, "shapes.svg");
+  await ok("svg", "export", "--out", shapeFile);
+  await verifyStandaloneSvgStyles(page, await readFile(shapeFile, "utf8"), "#schematicMount", [
+    ".node.blackbox .node-shape", ".node.constant .node-shape", ".node.implicit .node-shape", ".node.hub .node-shape"
+  ]);
   return {libraryPin:"Y input",pinBadge:"Y slew 0.120",exportMatches:true,
     instances:2,instanceOverrideIsolated:true,pinsAfterOrphanEdit:Object.keys(saved.pins).sort()};
 }

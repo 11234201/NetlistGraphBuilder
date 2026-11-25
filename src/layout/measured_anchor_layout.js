@@ -1,8 +1,9 @@
 import { PhaseError } from './anchor_layered/index.js';
 import { executeNativeLayout } from './native_layout_execution.js';
-import { getPort,getConnectionPoint,computeBoundsWithRoutes,computeSafeLayoutExtent } from './nodeGeometry.js';
+import { getConnectionPoint,computeBoundsWithRoutes,computeSafeLayoutExtent } from './nodeGeometry.js';
 import { materializeMeasuredGraph } from './measured_geometry.js';
-import { createNativePortIdEncoder } from './native_port_ids.js';
+import { createMeasuredNativePorts } from './native_measured_ports.js';
+import { normalizePolicy } from './anchor_layered/policy.js';
 import { MEASURED_GRAPH_CONTRACT } from '../contracts/measured_graph.js';
 import { getNetGroupKey } from './layoutTopology.js';
 import { buildWireRoutes } from './wireRoutes.js';
@@ -31,33 +32,21 @@ export class MeasuredAnchorLayoutProvider{
     const spacing=options.layoutPolicy?.spacing??{},cellSpacing=spacing.cellSpacing??8;
     const measured=graph.nodes;
     const nodeById=new Map(measured.map((node)=>[node.id,node]));
-    // A concat's A{ordinal} terminals share rawPin A but are distinct endpoints.
-    const portId=createNativePortIdEncoder(measured);
-    const endpoint=(node,port,role)=>{
-      // Local coordinates use the same addition order as getConnectionPoint,
-      // without copying a full node just to replace its frame with (0, 0).
-      const offset=node.connectionOffsets[role];
-      const point={x:(0+(port?.x??(role==='source'?node.width:0)))+offset.x,
-        y:(0+(port?.y??node.height/2))+offset.y};
-      return {id:portId(node.id,port,role),side:port?
-        {left:'WEST',right:'EAST',top:'NORTH',bottom:'SOUTH'}[port.side]:role==='source'?'EAST':'WEST',
-        x:point.x,y:point.y,width:0,height:0,borderOffset:port?.side==='left'?-point.x:
-          port?.side==='right'?point.x-node.width:0};
-    };
+    const policy = normalizePolicy({ nodeNodeSpacing:40+cellSpacing,nodeNodeBetweenLayers:72+cellSpacing,
+      ...options.nativeLayered?.policy });
+    const { portsByNode, endpoint } = createMeasuredNativePorts(measured, policy);
     const input={nodes:measured.map((node)=>({id:node.id,displayName:node.label??node.id,width:node.width,height:node.height,
-      ports:node.ports.length?node.ports.map((port)=>endpoint(node,port,port.direction==='output'?'source':'target')):
-        [endpoint(node,null,'source'),endpoint(node,null,'target')]})),edges:graph.edges.map((edge)=>{
+      ports: portsByNode.get(node.id)})),edges:graph.edges.map((edge)=>{
       const sourceNode=nodeById.get(edge.source),targetNode=nodeById.get(edge.target);
       if(!sourceNode||!targetNode)throw new PhaseError('adapter','missing-endpoint-node',[edge.id]);
-      const source=endpoint(sourceNode,getPort(sourceNode,edge.sourcePin,'source'),'source'),
-        target=endpoint(targetNode,getPort(targetNode,edge.targetPin,'target'),'target');
+      const source=endpoint(sourceNode,edge.sourcePin,'source').native,
+        target=endpoint(targetNode,edge.targetPin,'target').native;
       return {id:edge.id,physicalNetId:getNetGroupKey(edge),sourcePortId:source.id,targetPortId:target.id,
         minimumLength:edge.minimumLength??1};
     })};
     const result=await executeNativeLayout(input,{profile:this.profile,
       orderGroups:isAnchorProfile(this.profile)?measuredGraph.measurements.orderGroups:[],
-      policy:{nodeNodeSpacing:40+cellSpacing,nodeNodeBetweenLayers:72+cellSpacing,
-      ...(options.nativeLayered?.policy??{})},signal:options.signal,onPhase:options.nativeLayered?.onPhase,
+      policy,signal:options.signal,onPhase:options.nativeLayered?.onPhase,
       yieldControl:options.nativeLayered?.yieldControl});
     const nodePositions=new Map(result.nodes.map((node)=>[node.id,node])),edgeRoutes=new Map(result.edges.map((edge)=>[edge.id,edge]));
     const margin=spacing.margin??32;
@@ -68,11 +57,20 @@ export class MeasuredAnchorLayoutProvider{
       // Project port anchors from the emitted node frame, not (x + port) +
       // margin: floating addition is not associative. This is DTO/frame
       // conversion only; intermediate bends and layer/node positions stay fixed.
-      points[0]=getConnectionPoint(positionedById.get(edge.source),edge.sourcePin,'source');
-      points[points.length-1]=getConnectionPoint(positionedById.get(edge.target),edge.targetPin,'target');
+      const source = positionedById.get(edge.source), target = positionedById.get(edge.target);
+      const first = getConnectionPoint(source, edge.sourcePin, 'source');
+      const last = getConnectionPoint(target, edge.targetPin, 'target');
+      if (endpoint(source, edge.sourcePin, 'source').projected) {
+        points[0].x = first.x;
+        points.unshift(first);
+      } else points[0] = first;
+      if (endpoint(target, edge.targetPin, 'target').projected) {
+        points.at(-1).x = last.x;
+        points.push(last);
+      } else points[points.length - 1] = last;
       return {...edge,points,routeKind:'anchor-layered-orthogonal',routeStatus:'routed'};
     });
-    const edges=placeWireLabels(routed,nodes),wireRoutes=buildWireRoutes(edges);
+    const edges=placeWireLabels(routed,nodes),wireRoutes=buildWireRoutes(edges, { measuredRoutes: true });
     const bounds=computeBoundsWithRoutes(nodes,edges,wireRoutes),extent=computeSafeLayoutExtent(bounds,margin);
     return finalizeLayoutGraph({...graph,nodes,edges,wireRoutes,width:extent.width,height:extent.height,layoutProvider:this.id,
       providerDiagnostics:result.phaseData.components.filter((component)=>!component.ranking.optimal).map((component)=>

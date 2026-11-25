@@ -1,5 +1,6 @@
 
 :root {
+  --danger: #b91c1c;
   color-scheme: light;
   --bg: #eef1f4;
   --panel: #f9fafb;
@@ -631,7 +632,7 @@ body.is-dragging-files .drop-overlay {
   padding: 0 10px;
 }
 
-.compare-panel label:not(.alias-toggle) {
+:where(.compare-panel) label:where(:not(.alias-toggle)) {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   align-items: center;

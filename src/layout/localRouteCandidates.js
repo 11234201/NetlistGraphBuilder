@@ -54,18 +54,19 @@ export function* iterateLocalRouteCandidates(context) {
     }
   }
 
+  const verticalBounds = context.verticalBounds || getNodeVerticalBounds(nodes);
   yield* iterateLocalDetours(
     start,
     routeEnd,
     end,
     target,
-    nodes,
+    verticalBounds,
     nodeIndex,
     reservedSegments,
     net,
     netGroupKey
   );
-  yield* iterateOuterLanes(start, routeEnd, end, source, target, nodes, margin);
+  yield* iterateOuterLanes(start, routeEnd, end, source, target, verticalBounds, margin);
 }
 
 function* iterateLocalDetours(
@@ -73,7 +74,7 @@ function* iterateLocalDetours(
   end,
   finalEnd,
   target,
-  nodes,
+  verticalBounds,
   nodeIndex,
   reservedSegments,
   net,
@@ -88,7 +89,7 @@ function* iterateLocalDetours(
   const targetLaneX = end.x - targetInset;
   const minRouteX = Math.min(sourceLaneX, targetLaneX);
   const maxRouteX = Math.max(sourceLaneX, targetLaneX);
-  const [minNodeY, maxNodeY] = getNodeVerticalBounds(nodes);
+  const [minNodeY, maxNodeY] = verticalBounds;
   const relevantNodes = nodeIndex.query({
     left: minRouteX - padding,
     right: maxRouteX + padding,
@@ -129,8 +130,8 @@ function* iterateLocalDetours(
   }
 }
 
-function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin) {
-  const [minY, maxY] = getNodeVerticalBounds(nodes);
+function* iterateOuterLanes(start, end, finalEnd, source, target, verticalBounds, margin) {
+  const [minY, maxY] = verticalBounds;
   // A fixed outer sample is part of the routing contract. Scaling retries by
   // node count makes manual-adjust routing degrade quadratically on large
   // focused views without adding new geometric information.
@@ -156,7 +157,7 @@ function* iterateOuterLanes(start, end, finalEnd, source, target, nodes, margin)
   }
 }
 
-function getNodeVerticalBounds(nodes) {
+export function getNodeVerticalBounds(nodes) {
   if (!nodes || nodes.length === 0) return [0, 0];
   let minimum = Infinity;
   let maximum = -Infinity;

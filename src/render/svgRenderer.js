@@ -86,7 +86,7 @@ function createEdgePrimitive(edge, crossings) {
       class: "wire-junction", cx: round(point.x), cy: round(point.y), r: 2.8
     }))
   ];
-  if (edge.showLabel !== false) {
+  if (edge.showLabel !== false && edge.labelPoint) {
     children.push(svgElement("text", {
       class: "wire-label",
       x: round(edge.labelPoint.x),

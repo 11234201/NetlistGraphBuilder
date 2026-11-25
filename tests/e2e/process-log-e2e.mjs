@@ -202,6 +202,29 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   }
   assert.ok(entries.some((entry) => entry.message.startsWith("Liberty import failed") && entry.details.error.stack));
   assert.deepEqual(errors.sort(), ["injected rejection", "injected runtime failure"].sort());
+  const workerPage = await browser.newPage();
+  await workerPage.route("**/native_layout_worker.js", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace("import { layoutGraph } from \"./anchor_layered/index.js\";",
+      `function layoutGraph() { throw Object.assign(new Error("native fixture failed", {
+        cause: new TypeError("worker fixture cause") }), { code: 42 }); }`);
+    await route.fulfill({ response, body });
+  });
+  await workerPage.goto(url);
+  const workerRow = workerPage.locator("#processLogList li").filter({ hasText: "native fixture failed" }).first();
+  await workerRow.locator("summary").click();
+  const failure = JSON.parse(await workerRow.locator("details[open] pre").innerText());
+  assert.equal(failure.operation, "layout.provider");
+  assert.equal(failure.code, "layout.provider-failed");
+  assert.equal(failure.error.code, 42);
+  assert.match(failure.error.cause.stack, /native_layout_worker/);
+  const workerDownload = workerPage.waitForEvent("download");
+  await workerPage.locator("#exportProcessLogButton").click();
+  let workerJsonl = "";
+  for await (const chunk of await (await workerDownload).createReadStream()) workerJsonl += chunk.toString("utf8");
+  assert.deepEqual(workerJsonl.trim().split("\n").map(JSON.parse)
+    .filter((entry) => entry.details?.operation === "layout.provider").map((entry) => entry.details), [failure]);
+  await workerPage.close();
   await page.locator("#clearProcessLogButton").click();
   assert.equal(await page.locator("#processLogCount").textContent(), "0");
   return { workflow: "restore-storage-recovery-config-export-global-errors-filter-jsonl", expectedPageErrors: errors, entries: entries.length };

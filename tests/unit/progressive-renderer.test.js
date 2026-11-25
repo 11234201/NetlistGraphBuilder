@@ -63,7 +63,7 @@ test("progressive render plan produces the same item markup lazily", () => {
 
   assert.equal(eager.nodes.length, graph.nodes.length);
   assert.equal(eager.edges.length, graph.edges.length);
-  assert.match(eager.openSvg, /schematicContent/);
+  assert.match(eager.openSvg, /schematic-content/);
   assert.equal(progressive.edgeCount, eager.edges.length);
   assert.equal(progressive.nodeCount, eager.nodes.length);
   assert.deepEqual(progressive.renderEdges(0, 1), eager.edges);
@@ -221,4 +221,22 @@ test("render options are preserved in synchronous and progressive paths", async 
     wireBridges: false
   });
   assert.doesNotMatch(progressiveInsertions.map((item) => item.html).join(""), /wire-bridge/);
+});
+
+test("a stale small scene cannot write the mount or supersede an active owner", async () => {
+  const mount = { innerHTML: "current" };
+  const result = await renderSchematicIntoMount(mount, graph, { isCurrent: () => false });
+  assert.deepEqual(result, { progressive: false, cancelled: true });
+  assert.equal(mount.innerHTML, "current");
+  const withoutLabels = { ...graph, edges: graph.edges.map(({ labelPoint, ...edge }) => edge) };
+  await renderSchematicIntoMount(mount, withoutLabels);
+  assert.match(mount.innerHTML, /class="schematic-content"/);
+  assert.doesNotMatch(mount.innerHTML, /class="wire-label"|id="schematicContent"/);
+});
+
+test("a generation invalidated by small-scene progress cannot publish a successful render", async () => {
+  let current = true;
+  const result = await renderSchematicIntoMount({ innerHTML: "" }, graph,
+    { isCurrent: () => current, onProgress() { current = false; } });
+  assert.equal(result.cancelled, true);
 });

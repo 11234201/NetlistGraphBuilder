@@ -6,7 +6,7 @@ const GEOMETRY_EPSILON = 0.01;
  * tree is a union of shortest paths through the provider segments, so node
  * obstacle validation remains authoritative on the original logical routes.
  */
-export function buildNetTreeSegments(segments = [], edges = []) {
+export function buildNetTreeSegments(segments = [], edges = [], options = {}) {
   const usable = segments
     .map((segment, index) => toSegmentRecord(segment, index))
     .filter(Boolean);
@@ -17,7 +17,7 @@ export function buildNetTreeSegments(segments = [], edges = []) {
       treeFallback: false,
       componentCount: 0,
       cycleCount: 0,
-      reachableTargetCount: edges.length
+      reachableTargetCount: options.measuredRoutes ? 0 : edges.length
     };
   }
 

@@ -36,7 +36,7 @@ export function routeEdges(input,{signal,observe=true,physicalAnchors=false}={})
     capture('dependencies',boundary.segments,dependencyResult.dependencies);
     const split=splitCriticalCycles(boundary.segments,dependencyResult.dependencies,boundary.criticalThreshold,options.edgeEdgeSpacing,{signal});
     capture('after-critical',split.segments,split.dependencies,{splits:split.splits,decisions:split.decisions});
-    const acyclic=removeRegularCycles(split.segments,split.dependencies,{signal});
+    const acyclic=removeRegularCycles(split.segments,split.dependencies,{signal,observe});
     capture('acyclic',split.segments,acyclic.dependencies,{decisions:acyclic.decisions});
     const slotResult=assignRoutingSlots(split.segments,acyclic.dependencies,{signal});
     for(const segment of split.segments)segment.routingSlot=slotResult.slots.get(segment.id);

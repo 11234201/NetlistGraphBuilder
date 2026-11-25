@@ -78,7 +78,7 @@ export function startCanvasNodeDrag({
 
 function clientPointToContent(mount, event) {
   const svg = mount.querySelector?.("svg");
-  const matrix = mount.querySelector?.("#schematicContent")?.getScreenCTM?.();
+  const matrix = mount.querySelector?.(".schematic-content")?.getScreenCTM?.();
   if (!svg || !matrix) return null;
   const point = svg.createSVGPoint();
   const client = clientPoint(event);

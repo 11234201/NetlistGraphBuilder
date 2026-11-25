@@ -7,6 +7,8 @@ export function createNativePortIdEncoder(nodes) {
   // On validated nodes, a suffix without a leading ':' or an internal '::'
   // is recoverable after the last '::'. Virtual suffixes also obey this rule.
   // The usual schematic IDs need no temporary strings or collision Set.
+  // Split role-specific coordinates without reserving a suffix in user IDs.
+  if (nodes.some((node) => node.ports.some((port) => port.direction === "inout"))) return tuplePortId;
   if (!hasAmbiguousPortSuffix(nodes)) return legacyPortId;
   const ids = new Set();
   for (const node of nodes) {
@@ -39,5 +41,6 @@ function legacyPortId(nodeId, port, role) {
 }
 
 function tuplePortId(nodeId, port, role) {
+  if (port?.direction === "inout") return JSON.stringify([nodeId, "inout", port.id, role]);
   return JSON.stringify([nodeId, port ? "port" : "virtual", port ? port.id : role]);
 }

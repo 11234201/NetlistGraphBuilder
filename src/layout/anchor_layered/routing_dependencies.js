@@ -86,44 +86,36 @@ export function buildDependencies(segments,criticalThreshold,edgeSpacing,{signal
   const serializedOrder=active.map((_,index)=>index).sort((a,b)=>compareIds(serialized[a],serialized[b]));
   const serializedRank=[];
   serializedOrder.forEach((index,rank)=>{serializedRank[index]=rank;});
-  const pairs=[], seen=new Map(), queryIntervals=createIntervalQuery(active);
-  const collect=(a,b)=> {
-    let first=ordinal.get(a),second=ordinal.get(b);
-    if(first===second)return;
-    if(first>second)[first,second]=[second,first];
-    let targets=seen.get(first);
-    if(!targets){targets=new Set();seen.set(first,targets);}
-    if(!targets.has(second)){targets.add(second);pairs.push([first,second]);}
-  };
-  const incoming=active.flatMap((segment)=>segment.incoming.map((value)=>({value,segment})))
-    .sort((a,b)=>a.value-b.value||compareIds(a.segment.id,b.segment.id));
-  const incomingValues=incoming.map(({value})=>value);
-  const outgoing=focusIds?active.flatMap((segment)=>segment.outgoing.map((value)=>({value,segment})))
-    .sort((a,b)=>a.value-b.value||compareIds(a.segment.id,b.segment.id)):[];
-  const outgoingValues=outgoing.map(({value})=>value);
-  const padding=Math.max(criticalThreshold,edgeSpacing*profile.conflictThresholdFactor);
-  // Every candidate is either interval overlap (possible crossing), or opposite-side proximity (possible conflict).
-  // No graph-size retry or unconditional segment-pair scan; work is output-sensitive to exact interaction candidates.
-  for(const segment of active) {
-    if(focusIds&&!focusIds.has(segment.id))continue;
+  const queryIntervals = createIntervalQuery(active);
+  const endpoints = (side) => active.flatMap((segment) => segment[side].map((value) => ({ value, segment })))
+    .sort((a, b) => a.value - b.value);
+  const incoming = endpoints('incoming'), outgoing = endpoints('outgoing');
+  const incomingValues = incoming.map((point) => point.value), outgoingValues = outgoing.map((point) => point.value);
+  const padding = Math.max(criticalThreshold, edgeSpacing * profile.conflictThresholdFactor);
+  const dependencies = [];
+  let candidatePairCount = 0;
+  // Emit each canonical pair immediately. Only the current segment's hits need
+  // deduplication, even when the interval index discovers a dense boundary.
+  for (const first of serializedOrder) {
     checkCancelled(signal);
-    queryIntervals(segment.start,segment.end,(other)=>collect(segment,other));
-    for(const coordinate of segment.outgoing) {
-      const start=lowerBound(incomingValues,coordinate-padding,true), end=lowerBound(incomingValues,coordinate+padding);
-      for(let index=start;index<end;index++)collect(segment,incoming[index].segment);
-    }
-    if(focusIds)for(const coordinate of segment.incoming) {
-      const start=lowerBound(outgoingValues,coordinate-padding,true),end=lowerBound(outgoingValues,coordinate+padding);
-      for(let index=start;index<end;index++)collect(segment,outgoing[index].segment);
+    const segment = active[first], hits = new Set();
+    const collect = (other) => {
+      const second = ordinal.get(other);
+      if (second > first && (!focusIds || focusIds.has(segment.id) || focusIds.has(other.id))) hits.add(second);
+    };
+    queryIntervals(segment.start, segment.end, collect);
+    const collectNearby = (coordinates, values, points) => {
+      for (const value of coordinates) {
+        const end = lowerBound(values, value + padding);
+        for (let i = lowerBound(values, value - padding, true); i < end; i++) collect(points[i].segment);
+      }
+    };
+    collectNearby(segment.incoming, outgoingValues, outgoing);
+    collectNearby(segment.outgoing, incomingValues, incoming);
+    candidatePairCount += hits.size;
+    for (const second of [...hits].sort((a, b) => serializedRank[a] - serializedRank[b])) {
+      dependencies.push(...pairDependencies(segment, active[second], criticalThreshold, edgeSpacing));
     }
   }
-  const dependencies=[];
-  // JSON string tokens include their closing quote, so token ordering exactly
-  // preserves ordering of the former JSON.stringify([firstId,secondId]) keys.
-  for(const [first,second] of pairs.sort((a,b)=>serializedRank[a[0]]-serializedRank[b[0]]
-    ||serializedRank[a[1]]-serializedRank[b[1]])) {
-    checkCancelled(signal);
-    dependencies.push(...pairDependencies(active[first],active[second],criticalThreshold,edgeSpacing));
-  }
-  return { dependencies,candidatePairCount:pairs.length,segmentCount:segments.length };
+  return { dependencies, candidatePairCount, segmentCount: segments.length };
 }

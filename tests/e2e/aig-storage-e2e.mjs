@@ -86,7 +86,7 @@ try {
       await page.waitForTimeout(200);
       await page.evaluate(async (storageKey) => {
         const canvas = document.querySelector("#canvas");
-        const content = document.querySelector("#schematicContent");
+        const content = document.querySelector(".schematic-content");
         const inspect = () => {
           const box = canvas.getBoundingClientRect();
           const matrix = content.getScreenCTM();
@@ -117,7 +117,7 @@ try {
         const record = JSON.parse(sessionStorage.getItem("aig-storage-wheel-observation"));
         sessionStorage.removeItem("aig-storage-wheel-observation");
         const box = document.querySelector("#canvas").getBoundingClientRect();
-        const content = document.querySelector("#schematicContent");
+        const content = document.querySelector(".schematic-content");
         const matrix = content.getScreenCTM();
         return { ...record, restored: { transform: content.getAttribute("transform"), physicalScale: Math.hypot(matrix.a, matrix.b),
           canvas: { x: box.x, y: box.y, width: box.width, height: box.height },

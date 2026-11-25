@@ -221,7 +221,7 @@ async function blankPoint(page) {
   });
 }
 
-function transform(page) { return page.locator("#schematicMount #schematicContent").getAttribute("transform"); }
+function transform(page) { return page.locator("#schematicMount .schematic-content").getAttribute("transform"); }
 function geometrySignature(page) { return page.locator("#schematicMount svg").evaluate((svg) => [...svg.querySelectorAll("[d], [points], [x], [y], [cx]")]
   .map((node) => [node.tagName, ...["d", "points", "x", "y", "cx", "cy", "width", "height"].map((name) => node.getAttribute(name))])); }
 function stats(values) {

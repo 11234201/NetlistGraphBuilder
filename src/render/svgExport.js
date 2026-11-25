@@ -9,30 +9,48 @@ const EXPORT_CSS = `
 .wire-bridge-cutout { fill: none; stroke: #f4f6f8; stroke-width: 5; stroke-linecap: round; }
 .wire-label { font-size: 11px; fill: #475569; paint-order: stroke; stroke: #f8fafc; stroke-width: 4px; stroke-linejoin: round; }
 .wire-junction { fill: var(--wire); }
-.node-shape { fill: #fff; stroke: #334155; stroke-width: 1.4; }
+.node-shape { fill: #fdfefe; stroke: #334155; stroke-width: 1.4; }
 .node.gate-conventional .node-shape { stroke-linejoin: round; }
 .gate-extra-shape { fill: none; stroke: #334155; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .gate-port-lead { stroke: #334155; stroke-width: 1.4; }
+.node.is-compare-match .node-shape { stroke: #0f766e; stroke-width: 2.2; }
+.node.is-compare-unmatched .node-shape { stroke: #dc2626; stroke-width: 2.2; stroke-dasharray: 5 3; }
+.edge.is-compare-match .wire { stroke: #0f766e; stroke-width: 2.2; }
+.edge.is-compare-unmatched .wire { stroke: #dc2626; stroke-width: 2.2; stroke-dasharray: 5 3; }
 .node.input .node-shape { fill: #e7f3f4; stroke: #1f7a8c; }
-.node.output .node-shape { fill: #f8ecd8; stroke: #a15c00; }
+.node.output .node-shape { fill: #fff7e6; stroke: #b7791f; }
 .node.focus-input .node-shape, .node.focus-output .node-shape { fill: #f5f3ff; stroke: #7c3aed; stroke-dasharray: 5 3; }
+.gate-kind { font-size: 12px; font-weight: 700; fill: #111827; }
+.node-label { font-size: 11px; fill: #475569; }
+.node-meta { font-size: 8px; fill: #687789; }
+.pin-label { font-size: 9px; fill: #64748b; }
+.pin-dot { fill: #fff; stroke: #334155; stroke-width: 1.2; }
+.pin-bubble { fill: #fff; stroke: #111827; stroke-width: 1.3; }
+.pin-dot.pin-timing, .pin-bubble.pin-timing { stroke: #2563eb; }
+.pin-dot.pin-critical, .pin-bubble.pin-critical { fill: #fee2e2; stroke: #b91c1c; }
+.timing-badge { font-size: 9px; font-weight: 700; fill: #b91c1c; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.node.constant .node-shape, .node.implicit .node-shape { fill: #f1f5f9; stroke: #64748b; stroke-dasharray: 4 3; }
+.node.blackbox .node-shape { fill: #f8fafc; stroke: #475569; stroke-dasharray: 6 3; }
+.node.timing-annotated .node-shape { stroke: #2563eb; }
+.node.timing-critical .node-shape { stroke: #b91c1c; }
 .node.focused-root .node-shape { stroke: #7c3aed; stroke-width: 2.8; }
 .node.focused-root-active .node-shape { stroke: #5b21b6; stroke-width: 4; }
+.node.assign .node-shape { fill: #edf7ed; stroke: #2f855a; }
+.node.hub .node-shape { fill: #dbeafe; stroke: #2563eb; }
+.node.group .node-shape { fill: #f3e8ff; stroke: #7e22ce; stroke-width: 2; stroke-dasharray: 7 3; }
+.node:is(.is-selected,.is-compare-counterpart) .node-shape { stroke-opacity: 0; }
+.node:is(.is-selected,.is-compare-counterpart) .node-selection-outline { visibility: visible; }
+.node.is-compare-unmatched .node-selection-outline { stroke-dasharray: 5 3; }
+.node.gate-conventional .node-selection-outline { stroke-linejoin: round; }
+.node.blackbox .node-selection-outline { stroke-dasharray: 6 3; }
+.node.constant .node-selection-outline, .node.implicit .node-selection-outline { stroke-dasharray: 4 3; }
+.node.focus-input .node-selection-outline, .node.focus-output .node-selection-outline { stroke-dasharray: 5 3; }
+.edge:is(.is-selected,.is-compare-counterpart) .wire, .wire.is-selected { stroke: var(--selected); stroke-width: 2.6; }
 [data-recon-role="a"] { --recon-color: #1776c8; }
 [data-recon-role="b"] { --recon-color: #b45a16; }
 [data-recon-role="shared"] { --recon-color: #833fa4; }
 [data-recon-role="region"] { --recon-color: #368577; }
 .node[data-recon-role] .node-shape, .edge[data-recon-role] .wire { stroke: var(--recon-color); stroke-width: 3.2; }
-.gate-kind { font-size: 12px; font-weight: 700; fill: #111827; }
-.node-label { font-size: 11px; fill: #475569; }
-.node-meta { font-size: 8px; fill: #687789; }
-.pin-label { font-size: 9px; fill: #64748b; }
-.pin-dot { fill: #334155; }
-.pin-bubble { fill: #fff; stroke: #334155; stroke-width: 1.4; }
-.timing-badge rect { fill: #fff7ed; stroke: #c2410c; }
-.timing-badge text { font-size: 9px; fill: #9a3412; }
-.node.timing-critical .node-shape { stroke: #b91c1c; stroke-width: 2.4; }
-.pin-critical { fill: #b91c1c; stroke: #b91c1c; }
 `;
 
 export function createStandaloneSvg(svgMarkup, path, scope = "", display = {}) {

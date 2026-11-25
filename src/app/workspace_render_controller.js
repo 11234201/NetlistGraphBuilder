@@ -197,7 +197,7 @@ export function createWorkspaceRenderController({ state, elements, services, mou
 
   function handleLayoutFailure(error, options = {}) {
     if (error?.name === "AbortError") { options.onCancelled?.(); return; }
-    if (error?.code?.startsWith("show-path.")) {
+    if (typeof error?.code === "string" && error.code.startsWith("show-path.")) {
       const message = `Show Path query failed: ${error.message}`;
       services.logProcess(error.code === "show-path.budget" ? "warning" : "error", "graph", message, {
         error, ...error.pathContext, operation: "show-path.query", code: error.code,
@@ -208,7 +208,8 @@ export function createWorkspaceRenderController({ state, elements, services, mou
     }
     const failedProvider = getLayoutProvider(state.layoutProviderId);
     const nextProviderId = getNextLayoutProviderId(state.layoutProviderId);
-    const details = { error, provider: failedProvider.id, fallbackProvider: nextProviderId,
+    const details = { error, operation: "layout.provider", code: "layout.provider-failed",
+      provider: failedProvider.id, fallbackProvider: nextProviderId,
       view: state.compare.active ? "compare" : "single", moduleName: state.currentModule?.name,
       requestId: options.requestId };
     if (!nextProviderId) {

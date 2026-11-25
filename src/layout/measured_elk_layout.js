@@ -9,6 +9,7 @@ import { materializeMeasuredGraph } from "./measured_geometry.js";
 import { MEASURED_GRAPH_CONTRACT } from "../contracts/measured_graph.js";
 import { compactOrthogonalPoints } from "./orthogonalRouting.js";
 import { applyPositionedOverrides } from "./positionedRouting.js";
+import { ELK_WIRE_LABEL_OFFSET } from "./wireLabelPolicy.js";
 import { placeWireLabels } from "./wireLabelPlacement.js";
 import { buildWireRoutes } from "./wireRoutes.js";
 import { finalizeLayoutGraph } from "./layoutValidator.js";
@@ -92,11 +93,11 @@ export class MeasuredElkLayoutProvider {
     const positionedEdges = placeWireLabels(routedEdges, positionedNodes, {
       order: "longest",
       minimumPadding: 32,
-      baselineOffsets: [-5],
+      baselineOffsets: [ELK_WIRE_LABEL_OFFSET],
       checkCollisions: false,
       includeEmpty: true
     });
-    const wireRoutes = buildWireRoutes(positionedEdges);
+    const wireRoutes = buildWireRoutes(positionedEdges, { measuredRoutes: true });
     const bounds = computeBoundsWithRoutes(positionedNodes, positionedEdges, wireRoutes);
     translateLayoutGeometry(positionedNodes, positionedEdges, wireRoutes, {
       x: Math.max(0, -bounds.left),
@@ -279,8 +280,9 @@ function alignEscapeToPoint(from, to, side) {
 }
 
 function getEdgePoints(edge) {
-  const section = edge?.sections?.[0];
-  if (!section || !finitePoint(section.startPoint) || !finitePoint(section.endPoint)) {
+  const sections = edge?.sections;
+  if (!sections?.length || sections.some((section) =>
+    !finitePoint(section?.startPoint) || !finitePoint(section?.endPoint))) {
     return {
       points: [],
       status: "unroutable",
@@ -290,8 +292,7 @@ function getEdgePoints(edge) {
       }]
     };
   }
-  const rawPoints = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
-  if (!rawPoints.every(finitePoint)) {
+  if (!sections.every((section) => (section.bendPoints || []).every(finitePoint))) {
     return {
       points: [],
       status: "unroutable",
@@ -301,14 +302,26 @@ function getEdgePoints(edge) {
       }]
     };
   }
-  const points = rawPoints.map((point) => ({ x: point.x, y: point.y }));
-  return points.length >= 2
-    ? { points, status: "routed", diagnostics: [] }
-    : {
-      points: [],
-      status: "unroutable",
-      diagnostics: [{ code: "elk-edge-section-empty", edgeId: edge?.id }]
-    };
+  if (sections.length === 1) {
+    const section = sections[0];
+    return { points: [section.startPoint, ...(section.bendPoints || []), section.endPoint],
+      status: "routed", diagnostics: [] };
+  }
+  const key = (point) => JSON.stringify([point.x, point.y]);
+  const byStart = new Map(sections.map((section) => [key(section.startPoint), section]));
+  const ends = new Set(sections.map((section) => key(section.endPoint)));
+  let section = sections.find((part) => !ends.has(key(part.startPoint)));
+  const points = section ? [section.startPoint] : [];
+  let count = 0;
+  while (section && byStart.delete(key(section.startPoint))) {
+    for (const point of section.bendPoints || []) points.push(point);
+    points.push(section.endPoint);
+    count++;
+    section = byStart.get(key(section.endPoint));
+  }
+  if (count !== sections.length) return { points: [], status: "unroutable",
+    diagnostics: [{ code: "elk-edge-sections-disconnected", edgeId: edge.id }] };
+  return { points: compactOrthogonalPoints(points), status: "routed", diagnostics: [] };
 }
 
 function finitePoint(point) {

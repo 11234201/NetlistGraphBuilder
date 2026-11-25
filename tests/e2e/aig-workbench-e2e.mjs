@@ -269,7 +269,7 @@ try {
         const svg = await readFile(await download.path(), "utf8");
         const exported = await page.evaluate((markup) => {
           const document = new DOMParser().parseFromString(markup, "image/svg+xml");
-          return { transform: document.querySelector("#schematicContent").getAttribute("transform"),
+          return { transform: document.querySelector(".schematic-content").getAttribute("transform"),
             nodes: document.querySelectorAll("[data-aig-node]").length, edges: document.querySelectorAll("[data-aig-edge]").length };
         }, svg);
         assert.equal(exported.transform, null, "SVG export contains the full graph, independent of the interactive viewport");
@@ -449,7 +449,7 @@ try {
         for (const action of ["fit", "focus"]) {
           const result = await page.evaluate(async (action) => {
             const canvas = document.querySelector("#canvas");
-            const content = document.querySelector("#schematicContent");
+            const content = document.querySelector(".schematic-content");
             const box = canvas.getBoundingClientRect();
             canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, clientX: box.x + box.width / 2,
               clientY: box.y + box.height / 2, bubbles: true, cancelable: true }));

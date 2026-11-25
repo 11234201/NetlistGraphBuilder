@@ -1,3 +1,5 @@
+import { DEFAULT_LAYOUT_PROVIDER_ID } from "./providerDefaults.js";
+import { getNodeVerticalBounds } from "./localRouteCandidates.js";
 import { selectLocalOrthogonalRoute } from "./localOrthogonalRouter.js";
 import {
   buildNodePorts,
@@ -32,6 +34,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const nodes = applyNodeOverrides(positionedGraph.nodes, nodePositions, nodeSizes, cellPinPitch);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const nodeIndex = createNodeSpatialIndex(nodes);
+  const verticalBounds = getNodeVerticalBounds(nodes);
   const changedNodeIds = new Set([...nodePositions.keys(), ...nodeSizes.keys()]);
   const changedNodes = nodes.filter((node) => changedNodeIds.has(node.id));
   const initialRerouteEdgeIds = collectRerouteEdgeIds(
@@ -76,6 +79,7 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
       end,
       nodes,
       nodeIndex,
+      verticalBounds,
       margin,
       net: edge.net,
       netGroupKey: getNetGroupKey(edge),
@@ -104,7 +108,9 @@ export function applyPositionedOverrides(positionedGraph, options = {}) {
   const wireRoutes = updateWireRoutes(
     edges,
     positionedGraph.wireRoutes,
-    affectedNetGroupKeys
+    affectedNetGroupKeys,
+    { measuredRoutes: positionedGraph.layoutProvider === DEFAULT_LAYOUT_PROVIDER_ID ||
+        positionedGraph.layoutProvider === "elk-layered" }
   );
   const bounds = computeBoundsWithRoutes(nodes, edges, wireRoutes);
   translateLayoutGeometry(nodes, edges, wireRoutes, {

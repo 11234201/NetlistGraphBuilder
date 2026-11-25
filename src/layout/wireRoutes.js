@@ -4,6 +4,7 @@ import {
   getPhysicalNetKey as getCanonicalPhysicalNetKey
 } from "./layoutTopology.js";
 import { buildNetTreeSegments } from "./netTreeRouter.js";
+import { WIRE_LABEL_BASELINE_OFFSETS } from "./wireLabelPolicy.js";
 import { SpatialHashIndex } from "./spatialIndex.js";
 
 const GEOMETRY_EPSILON = 0.01;
@@ -15,7 +16,7 @@ const GEOMETRY_EPSILON = 0.01;
  * route is grouped by net and its collinear segments are unioned so a shared
  * fanout trunk is painted once instead of once per sink.
  */
-export function buildWireRoutes(edges = []) {
+export function buildWireRoutes(edges = [], options = {}) {
   const groups = new Map();
   for (const edge of edges) {
     const netKey = getPhysicalNetKey(edge);
@@ -25,7 +26,7 @@ export function buildWireRoutes(edges = []) {
 
   return [...groups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([netKey, groupEdges]) => buildPhysicalWireRoute(netKey, groupEdges));
+    .map(([netKey, groupEdges]) => buildPhysicalWireRoute(netKey, groupEdges, options));
 }
 
 /**
@@ -41,11 +42,12 @@ export function buildWireRoutes(edges = []) {
 export function updateWireRoutes(
   edges = [],
   previousWireRoutes = [],
-  affectedNetGroupKeys = null
+  affectedNetGroupKeys = null,
+  options = {}
 ) {
   if (!Array.isArray(previousWireRoutes) || previousWireRoutes.length === 0 ||
       !(affectedNetGroupKeys instanceof Set)) {
-    return buildWireRoutes(edges);
+    return buildWireRoutes(edges, options);
   }
 
   const groups = new Map();
@@ -64,9 +66,9 @@ export function updateWireRoutes(
         .sort((left, right) => left.localeCompare(right));
       if (previous && !affectedNetGroupKeys.has(netKey) &&
           sameSortedIds(previous.logicalEdgeIds, edgeIds)) {
-        return refreshWireRouteLabels(previous, groupEdges);
+        return refreshWireRouteLabels(previous, groupEdges, options);
       }
-      return buildPhysicalWireRoute(netKey, groupEdges);
+      return buildPhysicalWireRoute(netKey, groupEdges, options);
     });
 }
 
@@ -92,7 +94,7 @@ export function shiftWireRoutes(wireRoutes = [], delta = {}) {
   }));
 }
 
-export function buildPhysicalWireRoute(netKey, edges) {
+export function buildPhysicalWireRoute(netKey, edges, options = {}) {
   const sortedEdges = [...edges].sort(compareEdges);
   const records = sortedEdges.flatMap((edge) => getRouteSegments(
     edge.points || [],
@@ -102,8 +104,8 @@ export function buildPhysicalWireRoute(netKey, edges) {
     .map((segment, index) => toSegmentRecord(segment, edge, index))
     .filter(Boolean));
   const merged = mergeSegments(records);
-  const normalizedSegments = splitSegmentsAtJunctions(merged);
-  const tree = buildNetTreeSegments(normalizedSegments, sortedEdges);
+  const normalizedSegments = splitSegmentsAtJunctions(merged, options.measuredRoutes);
+  const tree = buildNetTreeSegments(normalizedSegments, sortedEdges, options);
   const labelEdge = sortedEdges.find((edge) => edge.showLabel !== false && edge.label) ||
     sortedEdges.find((edge) => edge.label) || sortedEdges[0];
   const logicalEdgeIds = sortedEdges
@@ -111,7 +113,7 @@ export function buildPhysicalWireRoute(netKey, edges) {
     .filter((id) => id !== undefined && id !== null)
     .map(String)
     .sort((left, right) => left.localeCompare(right));
-  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, tree.segments)
+  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, tree.segments, options.measuredRoutes)
     ? labelEdge.labelPoint
     : chooseLabelPoint(tree.segments);
 
@@ -154,13 +156,13 @@ function sameSortedIds(left = [], right = []) {
   return left.every((value, index) => String(value) === right[index]);
 }
 
-function refreshWireRouteLabels(route, edges) {
+function refreshWireRouteLabels(route, edges, options) {
   const sortedEdges = [...edges].sort(compareEdges);
   const labelEdge = sortedEdges.find((edge) => edge.showLabel !== false && edge.label) ||
     sortedEdges.find((edge) => edge.label) || sortedEdges[0];
-  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, route.segments)
+  const labelPoint = isPointOnSegments(labelEdge?.labelPoint, route.segments, options.measuredRoutes)
     ? labelEdge.labelPoint
-    : isPointOnSegments(route.labelPoint, route.segments)
+    : isPointOnSegments(route.labelPoint, route.segments, options.measuredRoutes)
       ? route.labelPoint
       : chooseLabelPoint(route.segments);
   return {
@@ -173,12 +175,14 @@ function refreshWireRouteLabels(route, edges) {
   };
 }
 
-function isPointOnSegments(point, segments) {
+function isPointOnSegments(point, segments, allowLabelOffset) {
   if (!point || !Array.isArray(segments)) return false;
   return segments.some((segment) => {
     const horizontal = Math.abs(segment.start.y - segment.end.y) <= GEOMETRY_EPSILON;
     const vertical = Math.abs(segment.start.x - segment.end.x) <= GEOMETRY_EPSILON;
-    if (horizontal && Math.abs(point.y - segment.start.y) <= GEOMETRY_EPSILON) {
+    if (horizontal && (Math.abs(point.y - segment.start.y) <= GEOMETRY_EPSILON ||
+        allowLabelOffset && WIRE_LABEL_BASELINE_OFFSETS.some((offset) =>
+          Math.abs(point.y - segment.start.y - offset) <= GEOMETRY_EPSILON))) {
       return point.x >= Math.min(segment.start.x, segment.end.x) - GEOMETRY_EPSILON &&
         point.x <= Math.max(segment.start.x, segment.end.x) + GEOMETRY_EPSILON;
     }
@@ -212,7 +216,7 @@ function findJunctions(segments) {
     .sort((left, right) => left.x - right.x || left.y - right.y);
 }
 
-function splitSegmentsAtJunctions(segments) {
+function splitSegmentsAtJunctions(segments, measuredRoutes) {
   const splitPoints = segments.map(() => []);
   if (segments.length < 2) return segments;
 
@@ -235,8 +239,9 @@ function splitSegmentsAtJunctions(segments) {
     }
   }
   return segments.flatMap((segment, index) => {
+    const horizontal = measuredRoutes && Math.abs(segment.start.y - segment.end.y) <= GEOMETRY_EPSILON;
     const points = [segment.start, ...splitPoints[index], segment.end]
-      .sort((left, right) => segment.orientation === "horizontal"
+      .sort((left, right) => horizontal
         ? left.x - right.x
         : left.y - right.y)
       .filter((point, pointIndex, list) => pointIndex === 0 ||

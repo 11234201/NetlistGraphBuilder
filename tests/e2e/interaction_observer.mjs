@@ -44,7 +44,7 @@ export function installInteractionObserver() {
       if (!active) return;
       for (const record of records) {
         if (record.target === mount && record.type === "childList") active.svgReplacements++;
-        if (record.target.id === "schematicContent" && record.attributeName === "transform") active.transformChanges++;
+        if (record.target.classList?.contains("schematic-content") && record.attributeName === "transform") active.transformChanges++;
       }
     }).observe(mount, { childList: true, subtree: true, attributes: true, attributeFilter: ["transform"] });
     const canvas = document.querySelector("#canvas");

@@ -11,21 +11,28 @@ export function createSchematicSelectionController({ container, onNodeSelection,
 
   function selectNode(nodeId) {
     clearDomSelection();
-    if (nodeId) {
-      container.querySelector(`[data-node-id="${cssEscape(nodeId)}"]`)?.classList.add("is-selected");
-    }
+    paintSchematicSelection(container, nodeId, null);
     onNodeSelection(nodeId || null);
   }
 
   function selectNet(netName) {
     clearDomSelection();
-    for (const edgeElement of container.querySelectorAll(".edge")) {
-      if (edgeElement.dataset.net === netName) edgeElement.classList.add("is-selected");
-    }
+    paintSchematicSelection(container, null, netName);
     onNetSelection(netName || null);
   }
 
   return Object.freeze({ selectNode, selectNet, clearDomSelection });
+}
+
+// A committed re-render replaces the SVG subtree. Reapply the visual state
+// without dispatching another selection command or recording history.
+export function paintSchematicSelection(container, nodeId, netName) {
+  if (nodeId) container.querySelector(`[data-node-id="${cssEscape(nodeId)}"]`)?.classList.add("is-selected");
+  if (netName) {
+    for (const edge of container.querySelectorAll(".edge")) {
+      if (edge.dataset.net === netName) edge.classList.add("is-selected");
+    }
+  }
 }
 
 function cssEscape(value) {

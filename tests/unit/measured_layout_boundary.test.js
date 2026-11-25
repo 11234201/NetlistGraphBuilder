@@ -187,3 +187,31 @@ for (const fixture of [
   assert.deepEqual(permuted.nodes.toSorted((a, b) => a.id.localeCompare(b.id)), result.nodes.toSorted((a, b) => a.id.localeCompare(b.id)));
   assert.deepEqual(permuted.edges, result.edges);
 });
+
+test("Anchor preserves vertical and distinct inout role anchors", async () => {
+  const { diagram, nodes } = neutralMeasurement();
+  nodes.get("a").ports = [{ id: "exit", direction: "inout", side: "bottom", x: 31, y: 47 }];
+  nodes.get("a").connectionOffsets = { source: { x: 4, y: 2 }, target: { x: 0, y: 0 } };
+  nodes.get("b").ports = [{ id: "entry", direction: "input", side: "top", x: 23, y: 0 }];
+  const result = await new MeasuredAnchorLayoutProvider().layoutMeasured(createMeasuredGraph(diagram, { nodes }));
+  assert.deepEqual(result.layoutDiagnostics, []);
+  const points = result.edges[0].points;
+  assert.equal(points[0].x, points[1].x);
+  assert.ok(points[1].y > points[0].y);
+  assert.equal(points.at(-1).x, points.at(-2).x);
+  assert.ok(points.at(-2).y < points.at(-1).y);
+});
+
+test("ELK assembles an unordered continuous section chain and diagnoses a gap", async () => {
+  const { measured } = neutralMeasurement();
+  const layout = (gap) => new MeasuredElkLayoutProvider({ elkFactory: () => ({ layout: async (input) => ({
+    ...input, children: input.children.map((node, i) => ({ ...node, x: i * 200, y: 30 })),
+    edges: [{ ...input.edges[0], sections: [
+      { startPoint: { x: 125 + gap, y: 41 }, endPoint: { x: 200, y: 41 } },
+      { startPoint: { x: 83, y: 47 }, bendPoints: [{ x: 125, y: 47 }], endPoint: { x: 125, y: 41 } }
+    ] }]
+  }) }) }).layoutMeasured(measured);
+  assert.deepEqual((await layout(0)).edges[0].points.map(({ x, y }) => [x, y]),
+    [[83, 47], [125, 47], [125, 41], [200, 41]]);
+  assert.equal((await layout(1)).edges[0].routeDiagnostics[0].code, "elk-edge-sections-disconnected");
+});

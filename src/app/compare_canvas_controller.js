@@ -200,7 +200,7 @@ export function createCompareCanvasController({ state, elements, services }) {
   function applyCompareTransforms() {
     for (const side of ["left", "right"]) {
       const mount = side === "left" ? elements.leftMount : elements.rightMount;
-      const content = mount.querySelector("#schematicContent");
+      const content = mount.querySelector(".schematic-content");
       if (!content) continue;
       const { x, y, scale } = state.compare.transforms[side];
       content.setAttribute("transform", formatViewportTransform({ x, y, scale }));

@@ -12,21 +12,36 @@ export function feedbackDependencies(segments,dependencies,criticalOnly=false,{s
   const incoming=new Map(segments.map((segment)=>[segment.id,[]])),outgoing=new Map(segments.map((segment)=>[segment.id,[]]));
   for(const edge of dependencies) {
     if(!state.has(edge.source)||!state.has(edge.target))throw new PhaseError('p5','missing-dependency-segment');
-    incoming.get(edge.target).push(edge);outgoing.get(edge.source).push(edge);
     if(criticalOnly&&edge.type!=='CRITICAL')continue;
+    incoming.get(edge.target).push(edge);outgoing.get(edge.source).push(edge);
     state.get(edge.source).outgoing+=edge.weight;state.get(edge.target).incoming+=edge.weight;
     if(edge.type==='CRITICAL') {state.get(edge.source).criticalOutgoing+=edge.weight;state.get(edge.target).criticalIncoming+=edge.weight;}
   }
   const byId=(a,b)=>compareIds(a.id,b.id);
   const sources=new PriorityQueue(byId),sinks=new PriorityQueue(byId),critical=new PriorityQueue(byId);
-  const maxFlow=new PriorityQueue((a,b)=>b.flow-a.flow||byId(a,b));
+  const activeNodes = new Set(state.values());
+  const maxFlowOrder = (a,b) => b.flow-a.flow || byId(a,b);
+  const flowEntry = (node) => ({id:node.id,version:node.version,flow:node.outgoing-node.incoming});
+  let maxFlow = null;
+  const rebuildMaxFlow = () => {
+    maxFlow = new PriorityQueue(maxFlowOrder);
+    for (const node of activeNodes) maxFlow.push(flowEntry(node));
+  };
   const refresh=(node)=> {
     node.version++;
-    const item={id:node.id,version:node.version,flow:node.outgoing-node.incoming};
-    maxFlow.push(item);
-    if(node.outgoing<=0)sinks.push(item);
-    else if(node.incoming<=0)sources.push(item);
-    if(node.criticalOutgoing>0&&node.criticalIncoming<=0)critical.push(item);
+    if (maxFlow) {
+      if (maxFlow.size > 3 * activeNodes.size + 32) rebuildMaxFlow();
+      else maxFlow.push(flowEntry(node));
+    }
+    // Degrees only decrease. Each node can enter each of these states once.
+    if (node.outgoing <= 0 && !node.queuedSink) {
+      sinks.push(node); node.queuedSink = true;
+    } else if (node.incoming <= 0 && node.outgoing > 0 && !node.queuedSource) {
+      sources.push(node); node.queuedSource = true;
+    }
+    if (!criticalOnly && node.criticalOutgoing > 0 && node.criticalIncoming <= 0 && !node.queuedCritical) {
+      critical.push(node); node.queuedCritical = true;
+    }
   };
   for(const node of state.values())refresh(node);
   const take=(queue,predicate)=> {
@@ -37,7 +52,7 @@ export function feedbackDependencies(segments,dependencies,criticalOnly=false,{s
   const first=[],last=[];
   let remaining=segments.length;
   const remove=(node,right)=> {
-    node.active=false;remaining--;(right?last:first).push(node.id);
+    node.active=false;activeNodes.delete(node);remaining--;(right?last:first).push(node.id);
     for(const edge of outgoing.get(node.id)) {
       if(criticalOnly&&edge.type!=='CRITICAL'||edge.weight<=0)continue;
       const target=state.get(edge.target);
@@ -56,7 +71,10 @@ export function feedbackDependencies(segments,dependencies,criticalOnly=false,{s
     while((node=take(sources,(entry)=>entry.incoming<=0&&entry.outgoing>0)))remove(node,false);
     if(remaining) {
       node=!criticalOnly?take(critical,(entry)=>entry.criticalOutgoing>0&&entry.criticalIncoming<=0):null;
-      node??=take(maxFlow,()=>true);
+      if (!node) {
+        if (!maxFlow) rebuildMaxFlow();
+        node = take(maxFlow,()=>true);
+      }
       remove(node,false);
     }
   }
@@ -70,7 +88,7 @@ export function feedbackDependencies(segments,dependencies,criticalOnly=false,{s
 export function removeRegularCycles(segments,dependencies,options) {
   const {order,feedback}=feedbackDependencies(segments,dependencies,false,options);
   const selected=new Set(feedback);
-  const decisions=feedback.map((edge)=>({action:edge.weight===0?'remove':'reverse',dependency:{...edge}}));
+  const decisions=options?.observe === false ? [] : feedback.map((edge)=>({action:edge.weight===0?'remove':'reverse',dependency:{...edge}}));
   return {order,decisions,dependencies:dependencies.filter((edge)=>!selected.has(edge)||edge.weight>0)
-    .map((edge)=>selected.has(edge)?{...edge,source:edge.target,target:edge.source}:{...edge}).sort(dependencyOrder)};
+    .map((edge)=>selected.has(edge)?{...edge,source:edge.target,target:edge.source}:edge).sort(dependencyOrder)};
 }

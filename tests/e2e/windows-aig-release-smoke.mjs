@@ -54,7 +54,7 @@ async function openFile(selector, file) {
 async function exerciseViewport(aig) {
   await evaluate('document.getElementById("fitButton").click()');
   const point = await evaluate('(()=>{const b=document.getElementById("canvas").getBoundingClientRect();return {x:b.x+5,y:b.y+5}})()');
-  const transform = () => evaluate('document.querySelector("#schematicContent").getAttribute("transform")');
+  const transform = () => evaluate('document.querySelector(".schematic-content").getAttribute("transform")');
   const before = await transform();
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
   await send("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", buttons: 1, clickCount: 1 });
@@ -67,7 +67,7 @@ async function exerciseViewport(aig) {
   if (aig) assert.ok(await evaluate('[...document.querySelectorAll(".aig-node-label")].every(e=>getComputedStyle(e).display!=="none" && getComputedStyle(e).visibility==="visible")'));
   const panned = await transform();
   await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -40 });
-  await waitFor(`document.querySelector("#schematicContent").getAttribute("transform") !== ${JSON.stringify(panned)}`);
+  await waitFor(`document.querySelector(".schematic-content").getAttribute("transform") !== ${JSON.stringify(panned)}`);
   await waitFor('!document.getElementById("canvas").classList.contains("is-view-interacting")');
   if (aig) assert.ok(await evaluate('[...document.querySelectorAll(".aig-node-label")].every(e=>getComputedStyle(e).display!=="none" && getComputedStyle(e).visibility==="visible")'));
   else {

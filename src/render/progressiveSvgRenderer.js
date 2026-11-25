@@ -10,30 +10,40 @@ export function cancelSchematicRender(mount) {
 
 export function renderSvgSceneIntoMount(mount, scene, options = {}) {
   const renderId = Symbol("schematic-render");
+  if (options.isCurrent?.() === false) {
+    return Promise.resolve({ progressive: false, cancelled: true });
+  }
   activeRenderIds.set(mount, renderId);
+  const isCurrent = () => activeRenderIds.get(mount) === renderId && options.isCurrent?.() !== false;
+  const release = () => { if (activeRenderIds.get(mount) === renderId) activeRenderIds.delete(mount); };
   let plan;
   try {
     plan = createProgressiveSvgSceneRenderPlan(scene);
   } catch (error) {
-    activeRenderIds.delete(mount);
+    release();
     throw error;
   }
   const total = plan.edgeCount + plan.nodeCount;
   const threshold = normalizePositiveInteger(options.threshold, DEFAULT_THRESHOLD);
   if (total < threshold) {
-    mount.innerHTML = `${plan.openSvg}${plan.renderEdges(0, plan.edgeCount).join("")}${plan.betweenGroups}${plan.renderNodes(0, plan.nodeCount).join("")}${plan.closeSvg}`;
+    const html = `${plan.openSvg}${plan.renderEdges(0, plan.edgeCount).join("")}${plan.betweenGroups}${plan.renderNodes(0, plan.nodeCount).join("")}${plan.closeSvg}`;
+    if (!isCurrent()) {
+      release();
+      return Promise.resolve({ progressive: false, cancelled: true });
+    }
+    mount.innerHTML = html;
     options.onProgress?.({ phase: "complete", rendered: total, total });
     return Promise.resolve().then(() => {
-      if (activeRenderIds.get(mount) !== renderId) return { progressive: false, cancelled: true };
-      activeRenderIds.delete(mount);
-      return { progressive: false };
+      const cancelled = !isCurrent();
+      release();
+      return cancelled ? { progressive: false, cancelled } : { progressive: false };
     });
   }
   mount.innerHTML = `${plan.openSvg}${plan.betweenGroups}${plan.closeSvg}`;
   const edgeGroup = mount.querySelector(".edges");
   const nodeGroup = mount.querySelector(".nodes");
   if (!edgeGroup || !nodeGroup) {
-    activeRenderIds.delete(mount);
+    release();
     return Promise.reject(new Error("SVG render mount did not create edge and node groups"));
   }
   const batchSize = normalizePositiveInteger(options.batchSize, DEFAULT_BATCH_SIZE);
@@ -43,8 +53,8 @@ export function renderSvgSceneIntoMount(mount, scene, options = {}) {
     let nodeIndex = 0;
     const renderBatch = () => {
       try {
-        if (activeRenderIds.get(mount) !== renderId || options.isCurrent?.() === false) {
-          if (activeRenderIds.get(mount) === renderId) activeRenderIds.delete(mount);
+        if (!isCurrent()) {
+          release();
           resolve({ progressive: true, cancelled: true });
           return;
         }
@@ -64,11 +74,12 @@ export function renderSvgSceneIntoMount(mount, scene, options = {}) {
         options.onProgress?.({ phase: "render", rendered, total });
         if (rendered < total) scheduleFrame(renderBatch);
         else {
-          activeRenderIds.delete(mount);
-          resolve({ progressive: true, cancelled: false });
+          const cancelled = !isCurrent();
+          release();
+          resolve({ progressive: true, cancelled });
         }
       } catch (error) {
-        activeRenderIds.delete(mount);
+        release();
         reject(error);
       }
     };

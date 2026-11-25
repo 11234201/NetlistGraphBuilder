@@ -14,6 +14,7 @@ import {
 } from "../../src/app/appState.js";
 import { parseDesignSource } from "../../src/app/designInput.js";
 import { DEFAULT_LAYOUT_POLICY } from "../../src/layout/layoutPolicy.js";
+import { withSchematicExportHighlights } from "../../src/ui/schematic_export_highlights.js";
 import { renderAdjustPanel } from "../../src/ui/adjustPanel.js";
 import {
   renderCellDefinitionEditor
@@ -337,4 +338,16 @@ test("Cell Definition editor can start from built-in inference rules", () => {
 test("pasted design input rejects text without a module", () => {
   assert.equal(parseDesignSource("module m(input a, output y); assign y = a; endmodule").modules[0].name, "m");
   assert.throws(() => parseDesignSource("this is not a netlist"), /No module declarations found/);
+});
+
+test("standalone SVG copies only highlights from the requested mount without changing the scene", () => {
+  const primitive = { attributes: { class: "node", "data-node-id": "cell:x" } };
+  const scene = { readNodes: () => [primitive], readEdges: () => [] };
+  const mount = (name) => ({ querySelectorAll: () => name ? [{ dataset: { nodeId: "cell:x" },
+    classList: { contains: candidate => candidate === name } }] : [] });
+  assert.equal(withSchematicExportHighlights(scene, mount(null)), scene);
+  for (const name of ["is-selected", "is-compare-counterpart", "is-compare-unmatched"]) {
+    assert.equal(withSchematicExportHighlights(scene, mount(name)).readNodes(0, 1)[0].attributes.class, "node " + name);
+    assert.equal(scene.readNodes(0, 1)[0].attributes.class, "node");
+  }
 });

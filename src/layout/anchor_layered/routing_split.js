@@ -1,6 +1,6 @@
 import { compareIds, checkCancelled, PhaseError } from './protocol.js';
 import { ORTHOGONAL_ROUTING_PROFILE as profile } from './policy.js';
-import { buildDependencies, connectionCrossings, lowerBound } from './routing_dependencies.js';
+import { createIntervalQuery, pairDependencies, connectionCrossings, lowerBound } from './routing_dependencies.js';
 import { feedbackDependencies } from './routing_cycles.js';
 
 const extent=(incoming,outgoing)=>({incoming,outgoing,start:Math.min(...incoming,...outgoing),end:Math.max(...incoming,...outgoing)});
@@ -8,7 +8,7 @@ const crossings=(left,right)=>connectionCrossings(left.outgoing,right)+connectio
 
 export function splitCriticalCycles(sourceSegments,sourceDependencies,criticalThreshold,edgeSpacing,{signal}={}) {
   const segments=sourceSegments.map((segment)=>({...segment,incoming:[...segment.incoming],outgoing:[...segment.outgoing]}));
-  let dependencies=sourceDependencies.map((edge)=>({...edge}));
+  let dependencies=sourceDependencies;
   const byId=new Map(segments.map((segment)=>[segment.id,segment]));
   const {feedback}=feedbackDependencies(segments,dependencies,true,{signal});
   if(!feedback.length)return {segments,dependencies,decisions:[],splits:[]};
@@ -26,12 +26,26 @@ export function splitCriticalCycles(sourceSegments,sourceDependencies,criticalTh
     selected.set(split.id,cause.id);
   }
   const ordered=[...selected].sort(([a],[b])=>byId.get(a).end-byId.get(a).start-(byId.get(b).end-byId.get(b).start)||compareIds(a,b));
+  // Each half is contained by its original segment's interval. Index those
+  // immutable envelopes once, then resolve a hit to the current halves.
+  const envelopes = segments.map(({ id, start, end }) => ({ id, start, end }));
+  const query = createIntervalQuery(envelopes);
+  const halves = new Map();
+  const allEdges = new Set(dependencies);
+  const incident = new Map(segments.map(({ id }) => [id, new Set()]));
+  const addDependency = (edge) => {
+    allEdges.add(edge);
+    incident.get(edge.source).add(edge);
+    incident.get(edge.target).add(edge);
+  };
+  for (const edge of dependencies) addDependency(edge);
+  const padding = Math.max(criticalThreshold, edgeSpacing * profile.conflictThresholdFactor);
   const splits=[];
   // Each selected original segment is split at most once; no repair/retry loop over product size.
   for(const [id,causeId] of ordered) {
     checkCancelled(signal);
     const segment=byId.get(id),cause=byId.get(causeId);
-    const adjacent=dependencies.filter((edge)=>edge.source===id||edge.target===id)
+    const adjacent=[...incident.get(id)]
       .map((edge)=>byId.get(edge.source===id?edge.target:edge.source));
     const rate=(area)=> {
       const center=(area.start+area.end)/2;
@@ -66,20 +80,32 @@ export function splitCriticalCycles(sourceSegments,sourceDependencies,criticalTh
       splitPartner:id,splitBy:null,routingSlot:0};
     Object.assign(segment,extent(segment.incoming,[position]),{splitPartner:partnerId,splitBy:causeId});
     segments.push(partner);byId.set(partnerId,partner);
-    dependencies=dependencies.filter((edge)=>edge.source!==id&&edge.target!==id);
-    dependencies.push({source:id,target:causeId,type:'CRITICAL',weight:profile.criticalWeight},
-      {source:causeId,target:partnerId,type:'CRITICAL',weight:profile.criticalWeight});
-    // Rebuild only interactions touching either split half, discovered by the exact shared index.
-    const rebuilt=buildDependencies(segments,criticalThreshold,edgeSpacing,
-      {signal,focusIds:new Set([id,partnerId])}).dependencies;
-    for(const edge of rebuilt) {
-      if(![id,partnerId].includes(edge.source)&&![id,partnerId].includes(edge.target))continue;
-      const other=[id,partnerId].includes(edge.source)?edge.target:edge.source;
-      if(other===id||other===partnerId||other===causeId)continue;
-      dependencies.push(edge);
+    incident.set(partnerId, new Set());
+    for (const edge of incident.get(id)) {
+      allEdges.delete(edge);
+      incident.get(edge.source).delete(edge);
+      incident.get(edge.target).delete(edge);
     }
+    addDependency({source:id,target:causeId,type:'CRITICAL',weight:profile.criticalWeight});
+    addDependency({source:causeId,target:partnerId,type:'CRITICAL',weight:profile.criticalWeight});
+    halves.set(id, partner);
+    const rebuilt = [];
+    for (const part of [segment, partner]) {
+      query(part.start - padding, part.end + padding, (envelope) => {
+        if (envelope.id === id) return;
+        for (const other of [byId.get(envelope.id), halves.get(envelope.id)]) {
+          if (!other || other.id === causeId) continue;
+          const [first, second] = compareIds(part.id, other.id) < 0 ? [part, other] : [other, part];
+          const edges = pairDependencies(first, second, criticalThreshold, edgeSpacing);
+          if (edges.length) rebuilt.push({ key: JSON.stringify([first.id, second.id]), edges });
+        }
+      });
+    }
+    rebuilt.sort((left, right) => compareIds(left.key, right.key));
+    for (const { edges } of rebuilt) for (const edge of edges) addDependency(edge);
     splits.push({segment:id,causedBy:causeId,partner:partnerId,position,rating:bestRating,remainingFreeAreas:areas.map((area)=>({...area}))});
   }
+  dependencies = [...allEdges];
   if(feedbackDependencies(segments,dependencies,true,{signal}).feedback.length)throw new PhaseError('p5','critical-split-did-not-resolve-cycle');
   return {segments,dependencies,decisions,splits};
 }

@@ -8,7 +8,7 @@ import { focusedNetName } from "./focusedSelection.js";
 // by the composition root; peer actions are explicit, late-bound services.
 export function createStateCommandsController({ state, elements, services }) {
   function applyTransform(shouldPersist = true) {
-    const content = elements.mount.querySelector("#schematicContent");
+    const content = elements.mount.querySelector(".schematic-content");
     if (!content) {
       return;
     }

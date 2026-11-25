@@ -229,3 +229,14 @@ test("route segment owner removal tombstones buckets until bounded compaction", 
   assert.equal(index.compact(), 2);
   assert.equal(index.metrics.uniqueSegments, 2);
 });
+
+test("a long-lived replacing owner bounds inactive bucket entries", () => {
+  const index = new RouteSegmentIndex();
+  for (let i = 0; i < 1000; i++) index.replaceOwner("a", [
+    { start: { x: 0, y: i }, end: { x: 10, y: i } }
+  ]);
+  const records = [...index.horizontalBuckets.values()].reduce((total, bucket) => total + bucket.length, 0);
+  assert.ok(records < 100);
+  assert.equal(index.items.length, 1);
+  assert.equal(index.metrics.ownerReplacements, 1000);
+});

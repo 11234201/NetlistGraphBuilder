@@ -102,12 +102,12 @@ try {
         await page.locator("#aigFileInput").setInputFiles(file("current.blif", blif));
         await page.waitForFunction(() => document.querySelector("#statusBar").textContent.includes("Loaded current.blif"));
         const before = await page.evaluate(() => ({ status: document.querySelector("#statusBar").textContent,
-          scene: document.querySelector("#schematicContent").innerHTML,
+          scene: document.querySelector(".schematic-content").innerHTML,
           config: localStorage.getItem("netlistGraphBuilder.cellConfig.v1") }));
         await page.evaluate(() => window.releaseCellConfig());
         await page.waitForFunction(() => document.querySelector("#cellConfigInput").value === "");
         const after = await page.evaluate(() => ({ status: document.querySelector("#statusBar").textContent,
-          scene: document.querySelector("#schematicContent").innerHTML,
+          scene: document.querySelector(".schematic-content").innerHTML,
           config: localStorage.getItem("netlistGraphBuilder.cellConfig.v1") }));
         assert.equal(after.status, before.status, "late Netlist configuration work must preserve the current AIG status");
         assert.equal(after.scene, before.scene);

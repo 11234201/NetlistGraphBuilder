@@ -201,7 +201,7 @@ async function expectFullWidthCanvas(page) {
 async function readingPosition(page) {
   return page.locator("#schematicMount svg").evaluate((svg) => {
     const bounds = svg.getBoundingClientRect();
-    const matrix = svg.querySelector("#schematicContent").getScreenCTM();
+    const matrix = svg.querySelector(".schematic-content").getScreenCTM();
     const center = new DOMPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2).matrixTransform(matrix.inverse());
     const svgMatrix = svg.getScreenCTM();
     return { x: center.x, y: center.y, scale: Math.hypot(matrix.a, matrix.b), svgFit: Math.hypot(svgMatrix.a, svgMatrix.b) };
@@ -526,7 +526,7 @@ async function compareSyncControls(browser, url) {
     const { context, page } = await openPage(browser, url);
     const mount = (side) => page.locator(`#${side}SchematicMount`);
     const object = (side, id) => mount(side).locator(`[data-node-id="${id}"]`);
-    const transform = (side) => mount(side).locator("#schematicContent").getAttribute("transform");
+    const transform = (side) => mount(side).locator(".schematic-content").getAttribute("transform");
     async function settings(panZoom, selection, roots) {
       for (const [id, checked] of [["syncCompareInput", panZoom], ["syncCompareSelectionInput", selection], ["syncCompareFocusInput", roots]]) {
         const input = page.locator(`#${id}`);
@@ -547,7 +547,7 @@ async function compareSyncControls(browser, url) {
       const before = await transform("right");
       await mount("right").locator("svg").hover();
       await page.mouse.wheel(0, 120);
-      await page.waitForFunction((before) => document.querySelector("#rightSchematicMount #schematicContent").getAttribute("transform") !== before, before);
+      await page.waitForFunction((before) => document.querySelector("#rightSchematicMount .schematic-content").getAttribute("transform") !== before, before);
       await page.waitForFunction(() => !document.querySelector("#canvas").classList.contains("is-view-interacting"));
     }
     try {

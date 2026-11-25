@@ -219,7 +219,7 @@ function createFixture() {
   const makeSvg = () => ({
     viewBox: { baseVal: { x: 0, y: 0, width: 1000, height: 500 } },
     getBoundingClientRect: () => { measurementCount++; return { ...size }; },
-    querySelector: (selector) => selector === "#schematicContent" ? content : null
+    querySelector: (selector) => selector === ".schematic-content" ? content : null
   });
   let svg = makeSvg();
   const mount = { querySelector: (selector) => selector === "svg" ? svg : null };

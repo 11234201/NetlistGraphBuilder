@@ -1,0 +1,3 @@
+export const DEFAULT_WIRE_LABEL_OFFSETS = Object.freeze([-8, 18, -26, 36]);
+export const ELK_WIRE_LABEL_OFFSET = -5;
+export const WIRE_LABEL_BASELINE_OFFSETS = Object.freeze([...DEFAULT_WIRE_LABEL_OFFSETS, ELK_WIRE_LABEL_OFFSET]);

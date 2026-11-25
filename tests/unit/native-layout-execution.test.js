@@ -71,3 +71,35 @@ test("offline worker entry returns the same AnchorLayered geometry across the st
   await assert.rejects(executeNativeLayout({ nodes: [], edges: input.edges }, { profile: "anchor" }, factory),
     (error) => error.name === "AnchorLayeredPhaseError" && !!error.diagnostic && /anchor_layered\//.test(error.stack));
 });
+
+test("worker failure transport retains error chains and bounds arbitrary thrown values", async () => {
+  const { serializeWorkerError } = await import("../../src/foundation/worker_error.js");
+  const cause = Object.assign(new Error("inner"), { code: "ORIGINAL" });
+  const outer = new Error("outer", { cause });
+  outer.diagnostic = { callback() {}, cyclic: outer };
+  for (const thrown of [outer, "primitive", null]) {
+    const worker = workerStub();
+    const pending = executeNativeLayout({}, {}, () => worker);
+    worker.onmessage({ data: { error: structuredClone(serializeWorkerError(thrown)) } });
+    await assert.rejects(pending, (error) => {
+      if (thrown !== outer) return error.message === String(thrown);
+      assert.equal(error.cause.code, cause.code);
+      assert.equal(error.cause.stack, cause.stack);
+      assert.equal(error.stack, outer.stack);
+      assert.equal(error.diagnostic.cyclic, "[Circular]");
+      return true;
+    });
+  }
+  for (const data of [undefined, null, {}, { error: null }]) {
+    const worker = workerStub();
+    const pending = executeNativeLayout({}, {}, () => worker);
+    worker.onmessage({ data });
+    await assert.rejects(pending, /Invalid native layout worker/);
+    assert.equal(worker.terminated, true);
+  }
+  const worker = workerStub();
+  const pending = executeNativeLayout({}, {}, () => worker);
+  worker.onerror({ error: outer, message: "worker died", filename: "layout.js", lineno: 123, colno: 4 });
+  await assert.rejects(pending, (error) => error.cause === outer && error.diagnostic.line === 123 &&
+    error.diagnostic.column === 4 && error.diagnostic.filename === "layout.js");
+});

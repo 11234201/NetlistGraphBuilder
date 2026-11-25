@@ -7,6 +7,7 @@ import {
   createNodeSpatialIndex,
   SpatialHashIndex
 } from "./spatialIndex.js";
+import { DEFAULT_WIRE_LABEL_OFFSETS } from "./wireLabelPolicy.js";
 import { compareGraphEdges } from "./layoutTopology.js";
 import {
   createEdgeRouteSegmentIndex,
@@ -121,7 +122,7 @@ function findClearLabelPlacement(edge, collisionIndexes, options) {
   const labelWidth = estimateWireLabelWidth(label);
   const minimumPadding = options.minimumPadding ?? 16;
   const candidates = getHorizontalCandidates(edge, labelWidth + minimumPadding, options.order);
-  const baselineOffsets = options.baselineOffsets || [-8, 18, -26, 36];
+  const baselineOffsets = options.baselineOffsets || DEFAULT_WIRE_LABEL_OFFSETS;
 
   if (options.preferExisting && edge.labelPoint) {
     const anchor = edge.labelAnchor || "start";
