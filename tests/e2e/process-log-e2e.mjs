@@ -10,7 +10,9 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    sessionStorage.setItem("netlistGraphBuilder.session.v2", '{"version":99}');
+    sessionStorage.setItem("netlistGraphBuilder.session.v2", JSON.stringify({
+      version: 2, moduleName: "lost-module", sourceFiles: [{ name: "one.v", text: "private-netlist-contents" }, null]
+    }));
     localStorage.setItem("netlistGraphBuilder.cellConfig.v1", '{"version":99}');
   });
   await page.goto(url);
@@ -25,6 +27,14 @@ const report = await runBrowserTest(async ({ browser, url }) => {
   };
   await waitForLog("Stored session could not be restored");
   await waitForLog("Stored Cell Config could not be loaded");
+  const restoreRow = page.locator("#processLogList li").filter({ hasText: "Stored session could not be restored" });
+  await restoreRow.locator("summary").click();
+  const restoreDetails = JSON.parse(await restoreRow.locator("details[open] pre").innerText());
+  assert.equal(restoreDetails.code, "session.invalid-files");
+  assert.equal(restoreDetails.moduleName, "lost-module");
+  assert.equal(restoreDetails.fileCount, 2);
+  assert.ok(restoreDetails.error.stack);
+
   await page.locator("#libertyInput").setInputFiles({ name: "broken.lib", mimeType: "text/plain", buffer: Buffer.from("invalid liberty") });
   await waitForLog("Liberty import failed");
   assert.equal(await page.locator("#toggleProcessLogButton").getAttribute("aria-expanded"), "true");
@@ -160,6 +170,8 @@ const report = await runBrowserTest(async ({ browser, url }) => {
     row.details.fileName === "single-round.v").details, partial);
   assert.deepEqual(entries.find((row) => row.details?.code === "timing.parse-failed" &&
     row.details.fileName === "broken.json").details, displayedJson);
+  assert.deepEqual(entries.filter(row => row.details?.code === "session.invalid-files").map(row => row.details), [restoreDetails]);
+  assert.doesNotMatch(text, /private-netlist-contents/);
   const timingMatches = entries.filter((entry) => entry.details?.operation === "timing.match");
   const inspected = entries.filter((entry) => entry.details?.operation === "timing.inspect-cell");
   assert.deepEqual(inspected.map((entry) => [entry.details.side, entry.details.evidence["parse-invalid-number"].line]),

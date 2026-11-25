@@ -421,3 +421,20 @@ test("a missing module in a multi-file session retains the old design and logs t
   assert.equal(errors[0].details.moduleName, "gone");
   assert.match(errors[0].details.error.stack, /gone/);
 });
+
+test("a failed import log sink cannot replace the original parse error or discard a valid design", async () => {
+  const state = createHarnessState();
+  const { controller, services } = createInputHarness(state);
+  const sinkError = new Error("log sink unavailable");
+  let failure;
+  services.logProcess = (_level, phase, _message, details) => {
+    if (phase === "parse" && details.error) failure = details.error;
+    throw sinkError;
+  };
+  await controller.loadQuickInputText("module accepted(input a); reg unsupported; endmodule",
+    { kind: "netlist", label: "accepted.v" });
+  assert.equal(state.currentModule.name, "accepted");
+  await assert.rejects(async () => controller.loadQuickInputText("no modules",
+    { kind: "netlist", label: "invalid.v" }), (error) => error === failure && error !== sinkError);
+  assert.equal(state.currentModule.name, "accepted");
+});
