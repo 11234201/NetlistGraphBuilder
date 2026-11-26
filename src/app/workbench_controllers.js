@@ -44,6 +44,8 @@ import { objectRefToNodeId } from "../domains/netlist/graph_object_refs.js";
 import { createRemoteRenderCompletion } from "./remote_render_completion.js";
 import { createRemoteDesignCommands } from "./remote_design_commands.js";
 import { createNavigationPort } from "./remote_navigation_port.js";
+import { createWorkbenchSearchScope } from "./workbench_search_scope.js";
+import { createCompareSearchNavigation } from "./compare_search_navigation.js";
 
 export function createViewSessionBridges(state, sessions, onDispatch) {
   const options = { state, sessions, onDispatch, getDocumentId: () => state.document?.documentId || null };
@@ -53,6 +55,26 @@ export function createViewSessionBridges(state, sessions, onDispatch) {
 // Declarative composition. Each adapter owns its explicit legacy capabilities.
 export function createWorkbenchControllers({ state, getElements, services, routeAction = (_name, action, args) => action(...args) }) {
   const actions = Object.create(null);
+  const searchScope = createWorkbenchSearchScope({
+    readContext: () => ({ document: state.document, active: state.compare.active,
+      modules: { left: state.compare.leftModuleName, right: state.compare.rightModuleName },
+      graphs: state.compare.graphs, fullGraphs: state.compare.fullGraphs, singleGraph: state.graph,
+      outputName: state.compare.outputName, syncRoots: state.compare.focusedRootsSynchronized,
+      activeSide: state.compare.activeSide, syncSelection: state.compare.selectionSynchronized,
+      syncViewport: state.compare.synchronized }),
+    subscribe: (listener) => queueMicrotask(() => services.viewSessions.subscribe(listener))
+  });
+  actions.scopeSearchIndex = searchScope.scopeSearchIndex;
+  actions.readSearchGraph = searchScope.readSearchGraph;
+  const compareSearch = createCompareSearchNavigation({
+    scope: searchScope, readBridge: () => services.compareViewSessions,
+    select: (...args) => actions.selectCompareObject(...args), clearSelection: (side) => actions.clearCompareSelection(side),
+    rebuild: (options) => actions.renderCompareGraphs(options),
+    commitFocus: () => { state.compare.outputName = null; },
+    updateControls: () => actions.updateViewControls(),
+    setStatus: (...args) => services.setStatus(...args), logProcess: (...args) => services.logProcess(...args),
+    hideResults: () => { getElements().searchResults.hidden = true; }
+  });
   const renderCompletion = createRemoteRenderCompletion();
   let structure, pathCommand;
   actions.runPathCommand = job => pathCommand(job);
@@ -95,18 +117,7 @@ export function createWorkbenchControllers({ state, getElements, services, route
     elements: createLegacyPort(getElements, ports.elements),
     services: createLegacyPort(() => services, ports.services),
     ...(owner === "history" ? { refreshCompareSelection: () => actions.refreshCompareSelection() } : {}),
-    ...(owner === "search-navigation" ? { comparePathScope(result) {
-      if (!state.compare.active) return null;
-      const side = [state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result?.moduleName);
-      const graph = state.compare.graphs[side];
-      if (!graph?.path) return null;
-      const bridge = services.compareViewSessions;
-      const target = result.target;
-      const ref = bridge.objectRef(side, target.kind === "port" ? target.direction : target.kind, target.name);
-      return { graph, ref, select: () => actions.selectCompareObject(target.kind, target.name, true, side),
-        dispatch: (command) => bridge.dispatch(side, command), ready: bridge.isWorkspaceReady,
-        rebuild: (options) => actions.renderCompareGraphs({ ...options, onCommitted: options.onRendered }) };
-    } } : {}),
+    ...(owner === "search-navigation" ? { compareSearch } : {}),
     ...(owner === "golden" ? { validateSavedPath,
       exportScene(scene, side) {
         const elements = getElements();
@@ -184,9 +195,13 @@ export function createWorkbenchControllers({ state, getElements, services, route
       copyText: (text) => copyBrowserText(text, elementTarget.pathPanel.ownerDocument.defaultView.navigator.clipboard),
       async navigateResult(result, preferred) {
         if (!result?.target || !result.moduleName) return preferred;
+        if (result.searchScope !== undefined && !searchScope.accepts(result)) {
+          actions.setStatus("Search scope changed. Search again in the applied Compare modules.");
+          return null;
+        }
         const switchModule = state.currentModule?.name !== result.moduleName;
         if (state.compare.active) {
-          const side = [preferred, state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result.moduleName);
+          const side = [result.side, preferred, state.compare.selectedSide, "left", "right"].find((s) => s && state.compare.graphs[s]?.moduleName === result.moduleName);
           if (side) return side;
           actions.exitCompareView({ deferSingleRender: true });
         } else if (!switchModule) return undefined;

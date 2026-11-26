@@ -17,8 +17,8 @@ export function getCompareNodeName(node) {
     return null;
   }
   return node.kind === "cell"
-    ? node.ref?.instance || node.label
-    : node.ref?.name || node.label;
+    ? node.ref?.instance || node.ref?.localId || node.label
+    : node.ref?.name || node.ref?.localId || node.label;
 }
 
 export function compareSelectionId(graph, ref) {

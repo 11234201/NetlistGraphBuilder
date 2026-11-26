@@ -199,12 +199,12 @@ export function createCompareWorkspaceController({ state, elements, services }) 
       layoutProvider: compareLayoutProvider,
       layoutPolicy: state.layoutPolicy,
       showPath: { ...state.compare.showPath, ...options.pathCandidate },
-      outputName: state.compare.outputName,
+      outputName: options.focusCandidate ? options.focusCandidate.outputName : state.compare.outputName,
       coneDepth: query.coneDepth,
       faninDepth: query.faninDepth,
       fanoutDepth: query.fanoutDepth,
-      focusedRootNodeIds: state.compare.focusedRootNodeIds,
-      activeFocusedRootNodeId: state.compare.activeFocusedRootNodeId,
+      focusedRootNodeIds: options.focusCandidate?.focusedRootNodeIds || state.compare.focusedRootNodeIds,
+      activeFocusedRootNodeId: options.focusCandidate?.activeFocusedRootNodeId || state.compare.activeFocusedRootNodeId,
       showAliases: state.showAliases,
       presentationPolicy: state.presentationPolicy,
       timing: state.timing,
@@ -335,7 +335,7 @@ export function createCompareWorkspaceController({ state, elements, services }) 
         reportTiming(services.logProcess, workspace.fullGraphs[side], state.compare.sideTiming?.[side] || state.timing,
           { document: state.document, side, requestId: renderRequest.id });
       }
-      state.compare.workspaceIdentity = options.pathCandidate ? createCompareWorkspaceIdentity(state, services.readCellLibrary?.()) : options.workspaceIdentity || null;
+      state.compare.workspaceIdentity = options.pathCandidate || options.focusCandidate ? createCompareWorkspaceIdentity(state, services.readCellLibrary?.()) : options.workspaceIdentity || null;
       services.applyCompareHighlights();
       services.applyCompareTransforms();
       log("info", "render", "Compare render completed", {

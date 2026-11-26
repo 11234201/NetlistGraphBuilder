@@ -158,8 +158,8 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.reload(); await page.locator('#rightSchematicMount [data-node-id="cell:g3"]').waitFor();
     assert.equal(await page.locator('#leftSchematicMount [data-node-id="cell:isolated"]').count(), 0);
     assert.equal(await page.locator('#rightSchematicMount [data-node-id="input:a"]').count(), 0);
-    // Leave Compare through a search hit in the prior Single module. The mount
-    // may have been interrupted when Compare opened and must be rebuilt.
+    // Compare search is scoped to its applied A/B pair. Return explicitly to
+    // Single before searching the third module; its interrupted mount rebuilds.
     await page.locator("#fileInput").setInputFiles(file("three.v", source +
       "\nmodule spare(input k,output o); BUF spareGate(.A(k),.Y(o)); endmodule"));
     await page.locator('#schematicMount [data-node-id="cell:isolated"]').waitFor();
@@ -169,6 +169,7 @@ await runBrowserTest(async ({ browser, url }) => {
     await page.locator("#applyCompareButton").click();
     await page.locator('#leftSchematicMount [data-node-id="cell:spareGate"]').waitFor();
     await page.locator("#schematicMount svg").evaluate((svg) => svg.dataset.beforeReturn = "true");
+    await page.locator("#compareButton").click();
     await page.locator("#searchInput").fill("isolated");
     const singleHit = page.locator(".search-result").filter({ hasText: "isolated" }).first();
     await singleHit.locator("[data-search-actions]").click();

@@ -89,22 +89,24 @@ export function createSearchControls({ elements, getIndex, onActivate, onAdd, on
 
     elements.searchResults.hidden = false;
     if (state.searchResults.length === 0) {
-      elements.searchResults.innerHTML = `<div class="search-empty">No matches in the loaded design. Search by module, cell, cell type, net or port name.</div>`;
+      elements.searchResults.innerHTML = `<div class="search-empty">No matches in the current search scope. Search by module, cell, cell type, net or port name.</div>`;
       return;
     }
 
     elements.searchResults.innerHTML = state.searchResults
       .map((result, index) => {
         const active = index === state.activeSearchResult;
+        const side = result.side === "left" ? "A" : result.side === "right" ? "B" : "";
+        const sideAttribute = side ? ` data-search-side="${escapeAttr(result.side)}"` : "";
         const context = result.kind === "module"
           ? result.detail
           : `${result.detail || ""}${result.moduleName ? ` / ${result.moduleName}` : ""}`;
         const addAction = result.canFocus || result.kind === "net" || result.target?.kind === "cell"
           ? `<button class="search-result-add" type="button" data-search-add-index="${escapeAttr(index)}" title="Add ${escapeAttr(result.label)} to Focused roots">Add to Focused</button>`
           : "";
-        return `<div class="search-result${active ? " is-active" : ""}" role="listitem" aria-current="${active}" title="${escapeAttr(result.label)}">
-          <button class="search-result-main" type="button" data-search-index="${escapeAttr(index)}">
-            <span class="search-result-kind">${escapeHtml(result.kind)}</span>
+        return `<div class="search-result${active ? " is-active" : ""}"${sideAttribute} role="listitem" aria-current="${active}" title="${escapeAttr(result.label)}">
+          <button class="search-result-main"${sideAttribute} type="button" data-search-index="${escapeAttr(index)}">
+            <span class="search-result-kind">${escapeHtml(side ? `${side} · ${result.kind}` : result.kind)}</span>
             <span class="search-result-label">${escapeHtml(result.label)}</span>
             <span class="search-result-context">${escapeHtml(context)}</span>
           </button>

@@ -6,24 +6,7 @@ import { cancelCanvasGestures } from "../ui/canvas_gesture_lifecycle.js";
 
 // Legacy workbench adapter. State and elements are restricted ports supplied
 // by the composition root; peer actions are explicit, late-bound services.
-export function createSearchNavigationController({ state, elements, services, comparePathScope = () => null }) {
-  function handleComparePath(result, add) {
-    const scope = comparePathScope(result);
-    if (!scope || result.kind === "module") return false;
-    const target = result.target;
-    if (!scope.graph.path.searchKeys.has(JSON.stringify([target.kind, target.name]))) {
-      services.setStatus("Outside Show Path · Add as start or end to edit the query.");
-      return true;
-    }
-    elements.searchResults.hidden = true;
-    if (!add && resolveSearchTargetAction(target, scope.graph) === "locate") scope.select();
-    else runFocusedViewCommand({
-      command: { type: "focus.add", objectRef: scope.ref }, dispatch: scope.dispatch,
-      readGraph: () => scope.graph, isReady: scope.ready, rebuild: scope.rebuild,
-      resetViewport: () => {}, onRendered: scope.select, onRejected: () => services.setStatus("Focused root limit reached")
-    });
-    return true;
-  }
+export function createSearchNavigationController({ state, elements, services, compareSearch }) {
 
   function outsidePath(result) {
     const path = state.graph?.moduleName === result?.moduleName && state.graph?.path;
@@ -32,7 +15,7 @@ export function createSearchNavigationController({ state, elements, services, co
   }
 
   function activateSearchResult(result) {
-    if (handleComparePath(result, false)) return;
+    if (compareSearch?.handle(result, false)) return;
     if (outsidePath(result)) { services.setStatus("Outside Show Path · Add as start or end to edit the query."); return; }
     if (!result) {
       return;
@@ -134,7 +117,7 @@ export function createSearchNavigationController({ state, elements, services, co
   }
 
   function addSearchResultToFocus(result) {
-    if (handleComparePath(result, true)) return;
+    if (compareSearch?.handle(result, true)) return;
     if (outsidePath(result)) { services.setStatus("Outside Show Path · Add as start or end to edit the query."); return; }
     if (!result || !["cell", "net"].includes(result.target?.kind)) return;
     if (state.currentModule?.name !== result.moduleName) {

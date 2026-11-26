@@ -130,9 +130,9 @@ const {
   replaceFocusWithSelectionTarget,
   focusSingleSelectionTarget,
   selectionTargetExists,
-  navigateCompareSelectionTarget,
+  scopeSearchIndex,
+  readSearchGraph,
   activateSearchResult,
-  revealSearchTarget,
   addSearchResultToFocus,
   centerGraphPoint,
   getEdgeCenter,
@@ -325,9 +325,7 @@ const SEARCH_FIRST_NODE_THRESHOLD = 500;
 const elements = createWorkbenchElements(document);
 const domainWorkbench = createDomainWorkbench({ document, windowTarget: window, registry: domainRegistry,
   documents, sessions: viewSessions, jobs: workspaceJobs, download: browserDownload,
-  netlistSearchGraph: (moduleName) => state.compare.active
-    ? [state.compare.graphs.left, state.compare.graphs.right].find((g) => g?.moduleName === moduleName)
-    : state.graph?.moduleName === moduleName ? state.graph : null,
+  netlistSearchGraph: readSearchGraph,
   importRequests, canStartAigCollection: () => !state.currentSourceLabel || state.currentSourceLabel === "built-in sample", clearSearch: () => clearSearch(),
   setStatus, logProcess, suspendLegacy: () => workspaceJobs.cancelDocument(state.document?.documentId) });
 domainRouter.connect(domainWorkbench.routeCommand);
@@ -351,7 +349,7 @@ const {cellConfigUseCases,libertyService,libertyController,loadCellConfig} = cre
   renderCompare:renderCompareGraphs, readCellConfig:() => state.cellConfig, writeCellConfig:value => { state.cellConfig = value; },
   setStatus, logProcess
 });
-const searchWorkspace = query => domainWorkbench.search(state.searchIndex,query);
+const searchWorkspace = query => domainWorkbench.search(scopeSearchIndex(state.searchIndex),query);
 const remoteInput = bindWorkbenchInput({
   elements, document, windowTarget: window, importRequests, imports: domainWorkbench.imports,
   loadNetlistText: loadQuickInputText, loadLibertyText: libertyController.load, domainWorkbench,
@@ -385,7 +383,7 @@ const { handleSearchInput, clearSearch } = bindWorkbenchEvents({
   handleViewHistoryShortcut, handleFocusSelectedShortcut,
   },
   compare:compareSettings,
-  search: { getIndex: () => state.searchIndex, search: domainWorkbench.search,
+  search: { getIndex: () => scopeSearchIndex(state.searchIndex), search: domainWorkbench.search,
     onChange: (search) => { state.searchQuery = search.searchQuery; } }
 });
 const workbenchUi = createWorkbenchUi({

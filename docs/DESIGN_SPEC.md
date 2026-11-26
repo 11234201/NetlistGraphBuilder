@@ -40,7 +40,7 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 
 ### 2. 搜索定位
 
-支持跨模块搜索以下五类对象：
+Single 支持跨模块搜索以下五类对象；Compare 的搜索范围为已 `Apply` 的 A/B 模块：
 - `module`（模块）
 - `port`（端口）
 - `net`（线网）
@@ -51,6 +51,8 @@ Compare 配置行仅在对比时显示，位于画布上方；Focused roots 与 
 - 高亮目标对象并将其居中显示于画布视口。
 - 在 Inspector 同步展示该对象的完整属性与连接详情。
 - 已绘制对象只定位；尚未绘制的 cell/net 按既有规则追加到 Focused roots。显式 `Add to Focused` 保留已有 roots，`Replace roots` 替换全部 roots；不得混淆这三种操作。
+- Compare 在排序和截取结果前限定 A/B 范围，结果标明侧别、模块和对象类型；名称展示与 canonical 对象身份分开。点击或 Enter 激活命中侧，沿用 `Center match on click` 和 `Sync Focus roots`，不隐式切换对比模块或修改隐藏的 Single 工作区。
+- Compare 的异步搜索聚焦先构建候选画布，成功后提交 roots、选区、视口与一条历史记录。失败保留原画布和查询；更换配对、文档或后续导航后，过期结果不得提交。Show Path 外的命中仍通过显式添加起终点修改查询。
 
 ### 3. 对象选择与多级高亮
 
