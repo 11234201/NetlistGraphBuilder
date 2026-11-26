@@ -4,6 +4,7 @@
 
 - **网表默认布局与降级**：默认使用 `AnchorLayered` 布局引擎；失败时按 `AnchorLayered → ELK → Simple` 顺序自动降级，临时降级不会覆盖已保存的用户首选项。
 - **独立 AIG 工作区**：使用本地离线 Graphviz（Viz.js / WASM）曲线布局，支持 ABC AIG DOT 与平坦两输入组合 BLIF、同页多份 AIG 切换、`.level` 层级与裕量报告、结构重汇聚与 XOR / XNOR / MUX 识别。
+- **通用源码单入口**：在仓库根目录直接执行 `./ngb`（Linux/macOS）或 `.\ngb.cmd`（Windows），无需 npm 自动探测 Node.js 18+ 或 Python 3.6+ 并原样透传参数，详见 [通用源码启动入口](UNIVERSAL_LAUNCHER.md)。
 - **Linux 单文件与构建**：关于 Linux 单文件二进制 `ngb`、CMake 嵌入构建与详细 Tcl 脚本说明，另见 [Linux 单文件启动器指南](LINUX_SINGLE_FILE_LAUNCHER.md)。
 
 ---
@@ -12,7 +13,7 @@
 
 | 分册 | 主题与涵盖功能 |
 | --- | --- |
-| [1. 安装、运行与界面总览](guide/01-getting-started.md) | 软件定位与能力边界、Windows/Linux/Node/Python/VS Code 运行方式、工作台界面分区、左右面板隐藏/恢复与调宽、窗口宽度偏好、快捷键一览 |
+| [1. 安装、运行与界面总览](guide/01-getting-started.md) | 软件定位与能力边界、通用单入口 `./ngb` / `.\ngb.cmd` 与四端运行方式、工作台界面分区、左右面板隐藏/恢复与调宽、窗口宽度偏好、快捷键一览 |
 | [2. 导入设计、多文件合并、Liberty 库与 Cell Config](guide/02-import-and-libraries.md) | `File` 菜单（`Netlist + Timing` / `AIG + Level`）、多文件追加与 `[filename]` 消歧、拖放与全局粘贴、批量导入顺序与失败保护、Verilog 语法与结构化注释属性、Liberty（`.lib`）标准单元库、Cell Config 单元类型配置 |
 | [3. 网表浏览、搜索、层次导航、Focused 与重收敛分析](guide/03-netlist-navigation-and-views.md) | 模块选择与层次树（`Hierarchy`）、双击 `hinst` 钻取、统一视图历史、顶部全局搜索、画布缩放平移与 `F` 居中、Inspector 五页签与跨父层连接、`Whole` / `Focused`（32 根）/ `Search-first` 大图流程、网表重收敛路径分析 |
 | [4. 布局引擎、显示选项、不布线 Net、Adjust 与导出恢复](guide/04-layout-routing-and-adjust.md) | `AnchorLayered` / `ELK` / `Simple` 布局与降级、Wire/Cell 间距与垂直引脚转角、`Show aliases` / `Fanout hubs` / `Gate symbols` / 渐进渲染、指定 Net 不布线（`Route net`）、`Adjust` 手工校准、SVG 导出、Layout Golden v3/v4、会话恢复与持久化范围 |
@@ -60,4 +61,5 @@
 
 - [NGB Timing Format v1.0 规范](design/timing_format_spec.md)
 - [AIG Level 格式规范](design/aig_level_format_spec.md)
+- [通用源码启动入口（`./ngb` / `.\ngb.cmd`）](UNIVERSAL_LAUNCHER.md)
 - [Linux 单文件启动器与 Tcl 指南](LINUX_SINGLE_FILE_LAUNCHER.md)

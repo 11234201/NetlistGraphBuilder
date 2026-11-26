@@ -30,7 +30,24 @@
 
 ## 1.2 运行方式
 
-四种正式启动器（Windows 离线版、Linux 单文件 `ngb`、Node.js、Python 3）共享同一套命令行参数与 182 条远程工作台命令，详见 [8. SSH 远程工作台与 EDA 集成](08-remote-workbench-and-eda.md)。
+仓库提供通用源码单入口（`./ngb` / `.\ngb.cmd`）以及四种底层运行时启动器（Windows 离线版、Linux 单文件 `ngb`、Node.js、Python 3），均共享同一套命令行参数与 182 条远程工作台命令，详见 [8. SSH 远程工作台与 EDA 集成](08-remote-workbench-and-eda.md) 与 [通用源码启动入口](../UNIVERSAL_LAUNCHER.md)。
+
+### 通用源码单入口（推荐，无需 npm）
+
+在仓库根目录直接运行统一入口，无需安装 npm 或第三方依赖，自动探测可用的 **Node.js 18+**，不可用时自动探测 **Python 3.6+**（Linux 顺序：`node` → `python3` → `python`；Windows 顺序：`node.exe` → `py.exe -3` → `python3.exe` → `python.exe`）：
+
+```bash
+./ngb --no-open --port 4173
+```
+
+Windows PowerShell 或 CMD 使用：
+
+```powershell
+.\ngb.cmd --no-open --port 4173
+```
+
+- 原样透传 `start`（默认）、`status`、`stop`、`cmd` 及全部启动参数，无需 `npm start --` 的 `--` 分隔符；所有相对路径始终相对于**调用时的工作目录**解析。
+- 可设置环境变量 `NGB_RUNTIME=auto|node|python`（默认 `auto`）固定会话所用的运行时；同一会话的 `start` / `status` / `cmd` / `stop` 请保持一致的运行时。
 
 ### Windows 离线版
 
@@ -45,31 +62,20 @@
 
 Release 提供 `NetlistGraphBuilder-v<version>-linux-x64` 单文件 ELF（已内嵌前端源码、vendored ELK、Graphviz/Viz.js WASM 与许可证），下载后 `chmod +x` 即可直接运行；也可通过 CMake 从源码构建。详见 [Linux 单文件启动器指南](../LINUX_SINGLE_FILE_LAUNCHER.md)。
 
-### Node.js 开发启动
-
-需要 Node.js 18 或更高版本（零第三方 npm 运行时依赖）：
+### 直接指定 Node.js 或 Python 3 后端
 
 ```powershell
+# Node.js 18+（默认监听 http://127.0.0.1:4173/）
 npm start
-```
-
-默认监听 `http://127.0.0.1:4173/`。自定义端口或禁止自动打开浏览器：
-
-```powershell
 node tools/serve.mjs --port 4210 --no-open
-```
 
-### Python 3 启动
-
-在不便于安装新版 Node.js 的环境中，可直接使用零第三方依赖的 Python 3 标准库服务：
-
-```bash
+# Python 3（零第三方库）
 python3 -u tools/serve.py
 ```
 
 ### VS Code 一键启动
 
-在本地或 Remote-SSH 工作区中打开仓库后，进入 `Run and Debug`（`Ctrl+Shift+D`），选择 `Netlist Graph Builder: Open View` 并按 `F5`，即可自动拉起预览服务并在右侧 Integrated Browser 中打开工作台（`tools/start-preview.sh` 会优先使用 `node`，不可用时自动回退至 `python3`）。
+在本地或 Remote-SSH 工作区中打开仓库后，进入 `Run and Debug`（`Ctrl+Shift+D`），选择 `Netlist Graph Builder: Open View` 并按 `F5`，即可自动拉起预览服务并在右侧 Integrated Browser 中打开工作台（`tools/start-preview.sh` 转发至通用入口 `./ngb`）。
 
 ---
 

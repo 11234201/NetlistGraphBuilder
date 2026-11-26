@@ -120,7 +120,7 @@ foreach ($relative in (@("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.
   Copy-Item -LiteralPath (Join-Path $repoRoot $relative) -Destination $destination
 }
 $guide = [IO.File]::ReadAllText((Join-Path $packageRoot "docs\USER_GUIDE.md"))
-$guide = $guide.Replace("](../examples/", "](examples/").Replace("](design/", "](docs/design/").Replace("](guide/", "](docs/guide/").Replace("](LINUX_SINGLE_FILE_LAUNCHER.md", "](docs/LINUX_SINGLE_FILE_LAUNCHER.md")
+$guide = $guide.Replace("](../examples/", "](examples/").Replace("](design/", "](docs/design/").Replace("](guide/", "](docs/guide/").Replace("](LINUX_SINGLE_FILE_LAUNCHER.md", "](docs/LINUX_SINGLE_FILE_LAUNCHER.md").Replace("](UNIVERSAL_LAUNCHER.md", "](docs/UNIVERSAL_LAUNCHER.md")
 [IO.File]::WriteAllText((Join-Path $packageRoot "USER_GUIDE.md"), $guide)
 # Development references outside the offline package point to this release's source.
 foreach ($relative in (@("README.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md") + $guideChapters)) {

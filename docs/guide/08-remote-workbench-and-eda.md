@@ -10,9 +10,10 @@
 
 1. 在远程 SSH 服务器上启动服务并指定可浏览的根目录（可重复传入多个 `--browse-root`，默认当前工作目录）：
    ```bash
-   npm start -- --no-open --port 4173 --browse-root /work/run
+   # 源码目录统一入口（自动探测 Node 18+ / Python 3.6+，无需 npm）：
+   ./ngb --no-open --port 4173 --browse-root /work/run
    # 或使用 Linux 单文件二进制：
-   ngb start --no-open --port 4173 --browse-root /work/run
+   /opt/eda/bin/ngb start --no-open --port 4173 --browse-root /work/run
    ```
 2. 将监听端口转发到本地（如 `ssh -L 4173:127.0.0.1:4173 user@host`）。
 3. 复制启动终端打印的配对链接（`pairUrl`），在本地浏览器打开（若映射到本地其他端口，替换端口并保留路径与片段）。
@@ -70,7 +71,21 @@ ngb cmd --state-file "$HOME/ngb.state" --page p1 --side B timing show a
 
 ### 常用启动示例
 
-**Node.js（PowerShell）**：
+**通用源码单入口（Linux/macOS `./ngb` 与 Windows `.\ngb.cmd`，自动探测 Node 18+ / Python 3.6+，相对路径相对于调用目录）**：
+
+```bash
+./ngb start --netlist "./results/design one.v" --module top --focus u0 --no-open
+# 自动化脚本可固定运行时（auto / node / python）：
+NGB_RUNTIME=python ./ngb start --state-file ./results/ngb.state --no-open
+```
+
+```powershell
+.\ngb.cmd --netlist "C:\EDA jobs\design one.v" --timing "C:\EDA jobs\timing one.txt" --module top --focus u0 --no-open
+```
+
+详细运行时选择与诊断说明见 [通用源码启动入口](../UNIVERSAL_LAUNCHER.md)。
+
+**直接调用 Node.js / Python 3 / Windows 离线版**：
 
 ```powershell
 node tools/serve.mjs `
@@ -78,18 +93,12 @@ node tools/serve.mjs `
   --timing "C:\EDA jobs\timing one.txt" `
   --cell-config "C:\EDA jobs\cells.json" `
   --module top --focus u0 --fanin-depth 1 --fanout-depth 2 --no-open
-```
 
-**Python 3（Bash）**：
+NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
+```
 
 ```bash
 python3 -u tools/serve.py --netlist "./results/design one.v" --module top --focus u0 --no-open
-```
-
-**Windows 离线版**：
-
-```powershell
-NetlistGraphBuilder.exe --netlist design.v --module top --focus u0
 ```
 
 ### 完整启动参数表
