@@ -126,6 +126,7 @@ try {
     await picker.locator("[data-count]").filter({hasText:"/"}).waitFor();
     assert.equal(await picker.locator("[data-action]").inputValue(), "files import");
     assert.equal(await picker.locator('option[value="level open"]:disabled').count(), 1);
+    await picker.locator("[data-edit-path]").click();
     await picker.locator("[data-path]").fill(examples);
     await picker.locator("[data-go]").click();
     await picker.getByLabel(filename, {exact:true}).check();

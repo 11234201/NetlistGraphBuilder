@@ -22,7 +22,22 @@ function errorRecord(error) {
 }
 
 export function createRemoteFileImport({ context, graphs, importRequests, loadText, loadCellConfig, priority, logFile }) {
-  return async function importFiles({ id, name, files, opts }) {
+  return async function importFiles({ id, name, files, opts, continuation }) {
+    if (continuation && (continuation.name !== name || continuation.side !== (opts.side || "") ||
+        continuation.documentVersion !== context().documentVersion)) {
+      throw commandFailure("STALE_DOCUMENT", "The previous import no longer belongs to this target");
+    }
+    const seen = new Set(continuation?.seenKinds || []);
+    function syncRetainedKinds() {
+      // Leaving AIG clears its collection; a later AIG must open before it can append.
+      if (context().mode !== "AIG") seen.delete("aig");
+    }
+    function recovery() {
+      syncRetainedKinds();
+      const targetContext = context();
+      return {targetContext, continuation:{name, side:opts.side || "", documentVersion:targetContext.documentVersion,
+        seenKinds:["netlist", "aig", "timing"].filter(kind => seen.has(kind))}};
+    }
     const mixed = name === "files import";
     const adding = name.endsWith(" add");
     const explicitAig = name === "aig add" || (name === "design add" && context().mode === "AIG");
@@ -43,6 +58,7 @@ export function createRemoteFileImport({ context, graphs, importRequests, loadTe
       }
       if (!mixed) {
         error.files = receipt();
+        if (seen.size || continuation) Object.assign(error, recovery());
         throw error;
       }
     }
@@ -94,10 +110,10 @@ export function createRemoteFileImport({ context, graphs, importRequests, loadTe
     sortQuickInputBatch(entries, priority);
     const hasNetlist = entries.some(e => e.kind === "netlist");
     const unidentifiedInput = entries.length !== files.length;
-    let designReady = adding;
-    const seen = new Set();
+    let designReady = adding || seen.has("netlist");
     const request = entries.length ? importRequests.begin() : null;
     for (const entry of entries) {
+      syncRetainedKinds();
       const {index, file, kind} = entry;
       if (attachedLevels.has(entry)) continue;
       const level = levelForAig.get(entry);
@@ -156,8 +172,10 @@ export function createRemoteFileImport({ context, graphs, importRequests, loadTe
     }
     const partial = results.some(item => item.status !== "committed");
     if (partial && !results.some(item => item.status === "committed")) {
-      throw commandFailure("IMPORT_FAILED", "No files were imported", { files: results, cause:firstFileError });
+      throw commandFailure("IMPORT_FAILED", "No files were imported", {
+        files:results, cause:firstFileError, ...(continuation ? recovery() : {})
+      });
     }
-    return { ...context(), files:results, partial };
+    return { ...context(), files:results, partial, ...(partial ? recovery() : {}) };
   };
 }

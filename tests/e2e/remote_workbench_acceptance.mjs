@@ -107,8 +107,9 @@ async function run(adapter) {
       const button=page.locator("#serverFiles");
       for(const menu of await button.locator("xpath=ancestor::details").all())if(!await menu.evaluate(e=>e.open))await menu.locator(":scope > summary").click();
       await button.click();const dlg=page.locator("dialog[open]").filter({has:page.locator("[data-action]")});
+      await dlg.locator("[data-advanced] > summary").click();
       await dlg.locator("[data-action]").selectOption(action);
-      for(const sub of path.split("/").slice(0,-1))await dlg.getByRole("button",{name:sub+"/",exact:true}).click();
+      for(const sub of path.split("/").slice(0,-1))await dlg.getByRole("button",{name:"Open folder "+sub,exact:true}).click();
       await dlg.getByLabel(path.split("/").at(-1),{exact:true}).check();
       if(submit) await dlg.locator("[data-submit]").click(); else await dlg.getByRole("button",{name:"Cancel",exact:true}).click();
       try { await dlg.waitFor({state:"hidden"}); }
@@ -191,7 +192,7 @@ async function run(adapter) {
     await graph.locator("#exportProcessLogButton").evaluate(button=>button.click());
     const logText=await readFile(await (await logDownload).path(),"utf8");
     const logs=logText.trim().split(/\r?\n/).map(row=>JSON.parse(row));
-    const stale=logs.filter(row=>row.details?.operation==="files.browse" && row.details.code==="STALE_DOCUMENT");
+    const stale=logs.filter(row=>row.details?.operation==="files.submit" && row.details.code==="STALE_DOCUMENT");
     assert.equal(stale.length,1);assert.equal(stale[0].details.page,pg);
     assert.equal(stale[0].details.graphId,base.id);assert.ok(stale[0].details.error.stack);
     const staleDetail=graph.locator("#processLogList li").filter({hasText:stale[0].message}).first();

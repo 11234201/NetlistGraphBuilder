@@ -5,6 +5,7 @@ import { copyBrowserText } from "../platform/browser_clipboard.js";
 import { createServerFilePicker } from "../ui/server_file_picker.js";
 
 const pendingStates = new Set(["reading", "queued", "delivered", "executing"]);
+const maxPendingPickerRetries = 64;
 const isCancellation = error => error?.name === "AbortError" || error?.code === "CANCELLED";
 const failureCode = error => typeof error?.code === "string" && error.code ? error.code : "COMMAND_FAILED";
 
@@ -58,7 +59,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       body:JSON.stringify({version:1, op, page:identity?.page, connection:identity?.connection, ...fields})
     });
     const result = await response.json();
-    if (!response.ok) throw commandFailure(result.error.code, result.error.message, result.error);
+    if (!response.ok) throw commandFailure(result.error.code, result.error.message, {...result.error, workbenchResponse:true});
     return result;
   }
   try {
@@ -75,10 +76,17 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
   const button = document.getElementById("serverFiles");
   label.hidden = button.hidden = false;
   label.textContent = identity.page;
-  const importFiles = createRemoteFileImport({
+  const runFileImport = createRemoteFileImport({
     context, graphs:domainWorkbench.graphs, loadText, importRequests, loadCellConfig, priority, logFile:log
   });
-  async function submit(action, paths, side, parentId) {
+  // Retry policy stays on this page; host protocols continue to carry ordinary file commands.
+  const pickerContinuations = new Map();
+  function importFiles(job) {
+    const continuation = pickerContinuations.get(job.id) || job.continuation;
+    pickerContinuations.delete(job.id);
+    return runFileImport({...job, continuation});
+  }
+  async function submit(action, paths, side, parentId, continuation) {
     const argv = [...action.split(" "), ...paths, ...(side ? ["--side", side] : [])];
     if (parentId) {
       const target = context().documentVersion;
@@ -86,13 +94,26 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       if (closing || target !== context().documentVersion) {
         throw commandFailure(closing ? "CANCELLED" : "STALE_DOCUMENT", "The file picker's target is no longer active");
       }
-      return importFiles({...job, id:parentId});
+      return importFiles({...job, id:parentId, continuation});
     }
-    let reply = await call("import", {argv});
-    while (!closing && pendingStates.has(reply.status)) {
-      await sleep(160);
-      reply = await call("status", {id:reply.requestId});
+    if (continuation && pickerContinuations.size >= maxPendingPickerRetries)
+      throw commandFailure("PICKER_RETRY_LIMIT", "Too many unconfirmed import retries. Reconnect this page before retrying.");
+    const id = continuation ? w.crypto.randomUUID() : undefined;
+    if (continuation) pickerContinuations.set(id, continuation);
+    let reply;
+    try {
+      reply = await call("import", {argv, ...(id && {id})});
+      while (!closing && pendingStates.has(reply.status)) {
+        await sleep(160);
+        reply = await call("status", {id:reply.requestId});
+      }
+    } catch (error) {
+      // A transport failure may follow enqueueing. Keep its policy until that job is consumed.
+      // Explicit host rejections cannot later execute and need no retained continuation.
+      if (error?.workbenchResponse) pickerContinuations.delete(id);
+      throw error;
     }
+    pickerContinuations.delete(id);
     if (reply.error) {
       const error = commandFailure(reply.error.code, reply.error.message, reply.error);
       // Parsing/layout errors have already been recorded by the command actor.
@@ -104,9 +125,11 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
   }
   picker = createServerFilePicker({
     document, context, list:(path, filter, number) => call("list", {path, filter, number}), submit,
-    report:error => {
-      if (!error.commandReceipt) log(error, "files.browse", undefined, {
-        graphId:error.graphId, documentId:error.documentId, documentVersion:error.documentVersion
+    report:(error, details = {}) => {
+      const original = error?.code === "IMPORT_FAILED" && error.files && error.cause ? error.cause : error;
+      if (!error?.commandReceipt) log(original, details.operation || "files.browse", details.requestId, {
+        graphId:error?.graphId, documentId:error?.documentId, documentVersion:error?.documentVersion,
+        ...details, code:original?.code || details.code
       });
     }
   });
@@ -119,6 +142,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
   }
   w.addEventListener("pagehide", () => {
     closing = true;
+    pickerContinuations.clear();
     void call("leave", {}, true).catch(() => {});
   });
   w.addEventListener("pageshow", event => { if (closing && event.persisted) w.location.reload(); });
@@ -168,7 +192,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
       case "aig cancel-import": return domainWorkbench.cancelImport();
       case "compare design": return importFiles({...job,name:"design add",opts:{...opts,side:args[0]}});
       case "files browse":
-        await picker.open(opts.action, opts.dir, opts.side);
+        await picker.open(opts.action, opts.dir, opts.side, job.id);
         return {opened:true};
       case "files choose":
         await picker.choose(args);
@@ -266,6 +290,7 @@ export async function bindRemoteWorkbench({ document, windowTarget: w, domainWor
                   target.documentVersion === context().documentVersion) setStatus(message);
               pending.ack = {error:{
                 code, message, candidates:error?.candidates, files:error?.files,
+                ...(error?.continuation && {continuation:error.continuation, targetContext:error.targetContext}),
                 details:sanitizeLogDetails({error,operation:job.name,code,requestId:job.id,page:identity.page,...scope})
               }};
             } finally { w.clearInterval(timer); }

@@ -7,6 +7,7 @@ import { createAigCollection } from "../../src/app/aig_collection.js";
 import { collectionLimits } from "../../src/persistence/aig_collection_storage.js";
 import { getQuickInputPriority } from "../../src/app/quickInput.js";
 import { createImportRequests } from "../../src/application/import_requests.js";
+import { makePickerDocument, descendants, eventOf } from "../helpers/server_picker_dom.js";
 
 function importer(loadText, initialMode = "Single", importRequests = createImportRequests()) {
   const errors = [], requests = [];
@@ -297,11 +298,8 @@ for (const [field,before,after] of [
     }
   };
   // Minimal browser chrome for a session that never opens the file chooser.
-  const element = { append(){}, add(){}, addEventListener(){}, querySelector:() => element };
+  const element = { append(){}, add(){}, setAttribute(){}, addEventListener(){}, querySelector:() => element };
   const document = {body:element, createElement:() => element, getElementById:() => element};
-  const originalOption = Object.getOwnPropertyDescriptor(globalThis, "Option");
-  Object.defineProperty(globalThis, "Option", {value:class {}, configurable:true});
-  t.after(() => { if (originalOption) Object.defineProperty(globalThis,"Option",originalOption); else delete globalThis.Option; });
   await bindRemoteWorkbench({
     document, windowTarget:w, domainWorkbench:{
       context:()=>graph ? {sourceLabel:"top.blif",graphId:"g2",documentId:"aig-2",sourceRevision:1} : {},
@@ -324,4 +322,150 @@ for (const [field,before,after] of [
     ["inputs","cancelled"],["inputs","valid"],["inputs","valid"],["grant","valid"],["ack","valid"],["ack","valid"],
     ["inputs","superseded"],["grant","superseded"],["ack","superseded"],["grant","graph-info"],["ack","graph-info"]
   ]);
+});
+
+async function untilMicrotask(predicate, description) {
+  for (let turn = 0; turn < 500; turn++) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  throw new Error("Did not settle: " + description);
+}
+
+// Exercise the real picker, import actor and receipt bridge against a minimal host queue.
+// The second import can fail before enqueueing or lose its HTTP response after enqueueing.
+async function pickerBridge(t, retryFailure) {
+  const dom = makePickerDocument(), chrome = new Map(), listeners = new Map();
+  const jobs = new Map(), receipts = new Map(), queue = [], loaded = [], attempts = [], logs = [];
+  let waitingPoll, delayedJob, importCalls = 0, uuid = 0, revision = 1, repaired = false;
+  const response = (body, ok = true) => ({ok, json:async () => body});
+  dom.document.getElementById = id => {
+    if (!chrome.has(id)) {
+      const node = dom.document.createElement("div");
+      const popover = dom.document.createElement("div");
+      popover.className = "toolbar-menu-popover";
+      node.append(popover); chrome.set(id, node);
+    }
+    return chrome.get(id);
+  };
+  function enqueue(job) {
+    if (waitingPoll) { const resolve = waitingPoll; waitingPoll = null; resolve(response({job})); }
+    else queue.push(job);
+  }
+  const windowTarget = {
+    sessionStorage:{getItem:() => null, setItem() {}},
+    location:{hash:"#ngb=token", pathname:"/", search:""},
+    history:{replaceState() {}}, performance:{getEntriesByType:() => []},
+    crypto:{randomUUID:() => "picker-retry-" + ++uuid},
+    setTimeout:callback => { queueMicrotask(callback); return 0; },
+    setInterval:() => 0, clearInterval() {},
+    addEventListener:(name, handler) => listeners.set(name, handler),
+    async fetch(_url, options) {
+      const body = JSON.parse(options.body);
+      if (body.op === "join") return response({page:"p1", resume:"r", connection:"c"});
+      if (body.op === "list") return response({path:"/work", roots:["/work"], number:1, total:2,
+        entries:["good.v", "bad.v"].map(name => ({name, handle:"ngb-file:" + name}))});
+      if (body.op === "poll") {
+        if (queue.length) return response({job:queue.shift()});
+        return new Promise(resolve => { waitingPoll = resolve; });
+      }
+      if (body.op === "import") {
+        importCalls++;
+        if (importCalls === 2 && retryFailure === "host")
+          return response({error:{code:"ACCESS_DENIED", message:"host rejected import"}}, false);
+        const id = body.id || "host-import-" + importCalls;
+        const job = {id, name:body.argv.slice(0, 2).join(" "), args:[], opts:{}, hasInputs:true,
+          handles:body.argv.slice(2)};
+        jobs.set(id, job);
+        if (importCalls === 2 && retryFailure === "network") {
+          delayedJob = job;
+          throw Object.assign(new Error("connection lost after enqueue"), {code:"ECONNRESET"});
+        }
+        enqueue(job);
+        return response({requestId:id, status:"queued"});
+      }
+      if (body.op === "inputs") return response({files:jobs.get(body.id).handles.map(handle => {
+        const name = handle.slice("ngb-file:".length);
+        return {name, text:name === "bad.v" && !repaired ? "broken" : "module valid; endmodule"};
+      })});
+      if (body.op === "grant") return response({granted:true});
+      if (body.op === "status") return response(receipts.get(body.id) || {requestId:body.id, status:"executing"});
+      if (body.op === "ack") {
+        receipts.set(body.id, {requestId:body.id, status:body.error ? "failed" : "committed", result:body.result, error:body.error});
+        return response({status:"committed"});
+      }
+      if (body.op === "leave" || body.op === "pulse") return response({});
+      throw new Error("Unexpected host operation " + body.op);
+    }
+  };
+  const binding = bindRemoteWorkbench({document:dom.document, windowTarget,
+    domainWorkbench:{context:() => ({}), graphs:{list:() => []}},
+    readNetlist:() => ({mode:"Single", documentId:"document:1", sourceRevision:revision, source:"current.v"}),
+    priority:getQuickInputPriority, importRequests:createImportRequests(),
+    loadText:async (text, options) => {
+      attempts.push({name:options.label, append:options.append});
+      if (text === "broken") throw Object.assign(new Error("invalid Verilog"), {code:"INVALID_INPUT"});
+      if (!options.append) loaded.length = 0;
+      loaded.push(options.label); revision++;
+      return "netlist";
+    },
+    logProcess:(...args) => logs.push(args), setStatus() {}
+  });
+  t.after(async () => {
+    listeners.get("pagehide")?.({});
+    waitingPoll?.(response({})); waitingPoll = null;
+    await binding;
+  });
+  await untilMicrotask(() => chrome.get("serverFiles")?.onclick, "pairing the picker");
+  await chrome.get("serverFiles").onclick();
+  for (const checkbox of descendants(dom.control("entries")).filter(node => node.type === "checkbox")) {
+    checkbox.checked = true; checkbox.onchange(eventOf("change"));
+  }
+  return {...dom, loaded, attempts, receipts, logs, jobs,
+    repair:() => { repaired = true; }, importCalls:() => importCalls,
+    releaseEnqueued:() => { assert.ok(delayedJob); enqueue(delayedJob); delayedJob = null; }};
+}
+
+test("a lost HTTP response with a network code keeps retry policy for the already enqueued UI import", async t => {
+  const h = await pickerBridge(t, "network");
+  await h.control("submit").onclick();
+  assert.deepEqual(h.loaded, ["good.v"]);
+  h.repair();
+  await h.control("submit").onclick();
+  assert.match(h.control("status").textContent, /connection lost/);
+  h.releaseEnqueued();
+  await untilMicrotask(() => h.receipts.has("picker-retry-1"), "the enqueued retry receipt");
+  assert.deepEqual(h.loaded, ["good.v", "bad.v"]);
+  assert.deepEqual(h.attempts.at(-1), {name:"bad.v", append:true});
+  assert.equal(h.importCalls(), 2);
+});
+
+test("an explicit host rejection does not import files and permits a later UI retry", async t => {
+  const h = await pickerBridge(t, "host");
+  await h.control("submit").onclick();
+  h.repair();
+  await h.control("submit").onclick();
+  assert.match(h.control("status").textContent, /host rejected/);
+  assert.deepEqual(h.loaded, ["good.v"]);
+  assert.equal(h.jobs.size, 1, "the rejected command never entered the actor queue");
+  await h.control("submit").onclick();
+  assert.deepEqual(h.loaded, ["good.v", "bad.v"]);
+  assert.deepEqual(h.attempts.at(-1), {name:"bad.v", append:true});
+  assert.equal(h.importCalls(), 3);
+});
+
+test("an explicit batch failure carries its recovery context through the host receipt to the UI", async t => {
+  const h = await pickerBridge(t);
+  h.control("action").value = "design open";
+  h.control("action").onchange(eventOf("change"));
+  await h.control("submit").onclick();
+  const receipt = h.receipts.get("host-import-1");
+  assert.equal(receipt.error.code, "INVALID_INPUT");
+  assert.ok(receipt.error.continuation);
+  assert.equal(receipt.error.targetContext.documentVersion, receipt.error.continuation.documentVersion);
+  assert.match(h.control("selection-count").textContent, /1 file/);
+  h.repair();
+  await h.control("submit").onclick();
+  assert.deepEqual(h.loaded, ["good.v", "bad.v"]);
+  assert.deepEqual(h.attempts.at(-1), {name:"bad.v", append:true});
 });
