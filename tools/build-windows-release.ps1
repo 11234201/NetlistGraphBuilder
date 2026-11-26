@@ -113,16 +113,17 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "examples") -Destination $packageRoo
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
 # Keep the repository layout for offline guide links, plus the traditional root guide.
-foreach ($relative in @("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md", "docs\design\aig_level_format_spec.md")) {
+$guideChapters = Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\guide") -Filter "*.md" | ForEach-Object { "docs\guide\$($_.Name)" }
+foreach ($relative in (@("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md", "docs\design\aig_level_format_spec.md") + $guideChapters)) {
   $destination = Join-Path $packageRoot $relative
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
   Copy-Item -LiteralPath (Join-Path $repoRoot $relative) -Destination $destination
 }
 $guide = [IO.File]::ReadAllText((Join-Path $packageRoot "docs\USER_GUIDE.md"))
-$guide = $guide.Replace("](../examples/", "](examples/").Replace("](design/", "](docs/design/").Replace("](LINUX_SINGLE_FILE_LAUNCHER.md", "](docs/LINUX_SINGLE_FILE_LAUNCHER.md")
+$guide = $guide.Replace("](../examples/", "](examples/").Replace("](design/", "](docs/design/").Replace("](guide/", "](docs/guide/").Replace("](LINUX_SINGLE_FILE_LAUNCHER.md", "](docs/LINUX_SINGLE_FILE_LAUNCHER.md")
 [IO.File]::WriteAllText((Join-Path $packageRoot "USER_GUIDE.md"), $guide)
 # Development references outside the offline package point to this release's source.
-foreach ($relative in @("README.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md")) {
+foreach ($relative in (@("README.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md") + $guideChapters)) {
   $page = Join-Path $packageRoot $relative
   $content = [regex]::Replace([IO.File]::ReadAllText($page), '(?<=\]\()([\w./-]+\.md)(?=[)#])', {
     param($link)

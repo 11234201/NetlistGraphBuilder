@@ -9,7 +9,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 - **v1.6.2** 修复多文件 Global/Local 与多层 occurrence 上下文的时序隔离及多实例歧义保护，支持父模块视图子模块 `hinst` 展示 `kind: "port"` 引脚时序与整线总线最差位高亮，并兼容 `LocalDesign`、`a_q\[33\]`、`\/` 与含 `:` 的转义实例名，同时索引化 cell 查找以保证顺序无关与大模块性能。
 - **v1.6.1** 新增 Verilog 注释属性解析与 Inspector 分页，支持多文件网表/时序合并及 Compare A/B 独立导入，默认左右对比与副本自动配对，并将 Show Path 整合至左侧 Navigator。
 - **默认布局引擎**：网表默认使用 `AnchorLayered`（物理锚点分层布局）；若布局失败，会依次自动降级至 `ELK`、`Simple`，若 `Simple` 仍失败则停止重试。自动降级不会覆盖用户保存的首选项；缺少首选项版本号的旧 `Simple` 会话会一次性迁移回 `AnchorLayered`，此后用户主动选择的 `Simple` 或 `ELK` 仍会正常保留。
-- **AIG 浏览**：从 `File → AIG + Level → Open AIG…`（或 `Open design…`）打开 ABC AIG DOT 或平坦两输入组合 BLIF，支持 `Add AIG file(s)…` 同页保留多份 AIG 并从顶栏切换；可同时或后续加载 `.level` 文件（`Open levels…` / `Paste levels…`）设定主输入初始层级并查看各点 AT / RT / Slack 层级报告。支持按映射名查找输入、输出和内部点，查看 XOR/XNOR 分解来源，并用多根 Focused 抽取局部逻辑。Standard、Logic View 和 SVG 导出共用当前展示范围。[AIG 使用说明](docs/USER_GUIDE.md#aig-图浏览)
+- **AIG 浏览**：从 `File → AIG + Level → Open AIG…`（或 `Open design…`）打开 ABC AIG DOT 或平坦两输入组合 BLIF，支持 `Add AIG file(s)…` 同页保留多份 AIG 并从顶栏切换；可同时或后续加载 `.level` 文件（`Open levels…` / `Paste levels…`）设定主输入初始层级并查看各点 AT / RT / Slack 层级报告。支持按映射名查找输入、输出和内部点，查看 XOR/XNOR 分解来源，并用多根 Focused 抽取局部逻辑。Standard、Logic View 和 SVG 导出共用当前展示范围。[AIG 使用说明](docs/guide/07-aig-workspace.md)
 - **零构建离线调用**：`AnchorLayered` 布局引擎可在克隆仓库后直接离线 `import` 调用，无需构建或安装步骤，详见 [AnchorLayered 静态包契约](docs/design/elk_anchor_package.md)。关于开发历程、失败试验、验收结论与已知限制，请参阅 [AnchorLayered 开发总结](docs/reports/anchor_development_summary.md)。
 - **验证记录说明**：验证结论需严格区分代码版本与运行环境：`v1.1.1` 在 Linux 环境下全图回归曾为 46/47（`DP020` 超过 45 秒门限）；2026-10-16 修复后的源码在 Linux（Node 24.16.0）下达到 47/47 通过、硬违规数为 0；`v1.5.0` 发布验收通过 1294 项单元测试、28 项 AIG 浏览器回归、9 项通用工作台回归及 47/47 映射网表严格门禁，历史记录见 [AIG 集成验收报告](docs/reports/aig_integration_acceptance.md)。`v1.5.2` 结构分析验收通过 1301 项单元测试，浏览器验证、映射回归首轮超时与复测、基准波动见 [结构分析验收记录](docs/plans/aig_structure_analysis.md)。后续通过记录不撤销历史超时记录，亦不承诺跨机器环境的性能绝对恒定。视觉验收仅限于已评审语料，不代表任意拓扑均与 ELK 视觉等价。已退役的早期 Native 算法已从工作树移除（历史追溯见 [retired_native_layered 说明](tests/reference/retired_native_layered/README.md)），不进入离线运行时。
 
@@ -19,7 +19,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 
 **让画布占满宽度**：点击左右面板标题旁的 `Hide`，或点击顶部 `Navigator` / `Inspector` 开关即可收起面板；两侧均隐藏后，中央画布占满工作区宽度。顶部开关始终保留，可随时分别恢复面板（高亮表示已展开）。收起和恢复面板均保持当前图中心与缩放倍率，不触发重新布局。
 
-首次使用时，1366/1440px 窗口默认停靠 Inspector、按需打开 Navigator 抽屉，1920px 窗口默认停靠两侧面板。停靠面板开关、宽度与最近页签会自动记忆；窄屏抽屉在刷新后默认关闭。详细步骤见 [面板隐藏与恢复](docs/USER_GUIDE.md#21-隐藏恢复与调整左右面板)，旧入口对照见 [新版入口速查](docs/USER_GUIDE.md#23-新版入口速查)。
+首次使用时，1366/1440px 窗口默认停靠 Inspector、按需打开 Navigator 抽屉，1920px 窗口默认停靠两侧面板。停靠面板开关、宽度与最近页签会自动记忆；窄屏抽屉在刷新后默认关闭。详细步骤见 [面板隐藏与恢复](docs/guide/01-getting-started.md#14-隐藏恢复与调整左右面板)，旧入口对照见 [新版入口速查](docs/USER_GUIDE.md#新版入口速查)。
 
 ## AIG 快速上手
 
@@ -30,7 +30,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 5. 在上下文栏用 `View` 切换 Standard / Logic View，用 `Highlight connections` 设置追踪深度。在 `Settings → AIG overlays` 设置逻辑块标签、关键路径和高扇出标记。
 6. 打开随包的 `examples/aig_structure_demo.blif`，在 `Show Path` 搜索 `y`，选 `po` 行的 `End +`，点 `Apply`。`Path information → Auto starts` 显示到 `y` 的级数为 `a = 4、b = 4、c = 4、s = 2`。用 `File → Export SVG` 保存当前图和端点报告。
 
-没有现成输入时，可直接打开 [结构分析示例](examples/aig_structure_demo.blif)，照着 [结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习) 查看 6 对重汇聚与 3 个逻辑块；想体验 BLIF 名称映射与 `.level` 报告可打开 [aig_mapped_names.blif](examples/aig_mapped_names.blif) 与 [aig_mapped_names.level](examples/aig_mapped_names.level)；只想熟悉反相边时可使用 [最小 BLIF 示例](docs/USER_GUIDE.md#aig-最小示例)。[点相关查询](docs/USER_GUIDE.md#aig-从节点查找相关结构) 已提供基础关联，尚不支持按节点周围 N 跳查询；完整操作与边界见 [AIG 教程](docs/USER_GUIDE.md#aig-图浏览)。
+没有现成输入时，可直接打开 [结构分析示例](examples/aig_structure_demo.blif)，照着 [结构分析练习](docs/guide/07-aig-workspace.md#78-动手练习与最小示例) 查看 6 对重汇聚与 3 个逻辑块；想体验 BLIF 名称映射与 `.level` 报告可打开 [aig_mapped_names.blif](examples/aig_mapped_names.blif) 与 [aig_mapped_names.level](examples/aig_mapped_names.level)；只想熟悉反相边时可使用 [最小 BLIF 示例](docs/guide/07-aig-workspace.md#最小可运行-blif-示例)。[点相关查询](docs/guide/07-aig-workspace.md#从节点查找相关结构点相关查询) 已提供基础关联，尚不支持按节点周围 N 跳查询；完整操作与边界见 [AIG 教程](docs/guide/07-aig-workspace.md)。
 
 ## 近期核心功能演进
 
@@ -39,7 +39,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 | **SSH 工作台与多页/多 AIG** | `File → Open from server…`、启动终端、`cmd`、`ngb.tcl`、顶栏图选择器 | 四种启动器共用 182 条命令与 5 个简写；单个后端可配对多个浏览器页（`pages` / `use`），单页可通过 `aig add` / `Add AIG file(s)…` 保留并切换多份 AIG。 |
 | **AIG Level 层级与裕量报告** | `File → AIG + Level → Open levels…` / `Paste levels…`、`level open` | 支持主输入初始 `at_level` 偏移向下游传播拓扑层级与关键路径，以及逐点 AT / RT / Slack 报告（`Inspector → Analysis`）；Level 附件按所属 AIG 绑定并在切图与刷新后恢复。[格式规范](docs/design/aig_level_format_spec.md) |
 | **多文件合并、注释属性与 Compare 侧文件** | `File → Netlist + Timing`、Compare `A files` / `B files`、`Inspector → Attributes` | 支持 `Add design/timing file(s)…` 叠加导入（同名模块按 `[filename]` 消歧）、Compare 两侧独立加载网表与时序，以及结构化 Verilog 注释属性（`module`/`port`/`net`/`instance`）解析。 |
-| **Show Path 路径级数** | 上下文栏 `Show Path` / `Navigator → Path → Apply → Path information` | 在 Starts 查看每个输入到所选 Ends 的最短和最长级数。仅指定起点时，使用报告中的 Auto ends。在 Ends 查看从查询起点到指定终点的级数（From start）。[教程与 BLIF 示例](docs/USER_GUIDE.md#show-path-路径与逻辑级数) |
+| **Show Path 路径级数** | 上下文栏 `Show Path` / `Navigator → Path → Apply → Path information` | 在 Starts 查看每个输入到所选 Ends 的最短和最长级数。仅指定起点时，使用报告中的 Auto ends。在 Ends 查看从查询起点到指定终点的级数（From start）。[教程与 BLIF 示例](docs/guide/06-show-path.md) |
 | **离线 AIG 工作区** | `File → AIG + Level`、Navigator → `Analysis` | 在 Whole 或 Focused 中查看 Standard / Logic View 曲线图、当前子图重收敛与 XOR / XNOR / MUX，支持多图切换、Level 层级报告、对象追踪、刷新恢复和 SVG 导出。 |
 | **网表重收敛** | Navigator → `Analysis` | 列出当前可见逻辑内的分叉、汇合及两条独立路径，支持高亮、定位和详情。Compare 两侧各自计算。 |
 | **可隐藏的左右面板** | 面板标题 `Hide`、上下文栏 `Navigator` / `Inspector` | 两侧可分别隐藏或恢复，中央画布使用腾出的空间；Single、Focused 与 Compare 共用，保留当前阅读位置与缩放倍率。 |
@@ -58,7 +58,7 @@ Linux 单文件启动器、CMake 构建及 EDA/Tcl 集成说明见 [LINUX_SINGLE
 ### 浏览与逻辑追踪
 
 - **结构化 Verilog 解析**：支持 `module`、`port`、`wire`、`assign`、单元实例（cell instance）、转义标识符（escaped identifier）、向量切片、拼接表达式（concatenation）以及结构化注释属性（`module`、`port`/`bus port`、`net`/`bus net`、`instance`）。
-- **可选 Liberty 库读取**：`Settings → Liberty`支持加载、替换、取消和卸载文本 `.lib`，使用库声明改善引脚方向及常见门识别；Single/Compare 共用，保留用户配置优先级。使用说明见 [Liberty 导入](docs/USER_GUIDE.md#35-liberty-库)。
+- **可选 Liberty 库读取**：`Settings → Liberty`支持加载、替换、取消和卸载文本 `.lib`，使用库声明改善引脚方向及常见门识别；Single/Compare 共用，保留用户配置优先级。使用说明见 [Liberty 导入](docs/guide/02-import-and-libraries.md#25-liberty-标准单元库lib)。
 - **无 `.lib` 智能推断**：在缺乏 Liberty 库文件时，根据单元与引脚命名自动推断逻辑门类型（gate kind）与引脚方向（pin direction）；未识别单元安全显示为黑盒（blackbox）。
 - **全局搜索与定位**：支持按 module、port、net、instance 及 cell type（AIG 模式下按对象名称或来源 ID）搜索并高亮定位目标对象；非编辑状态下按 `/` 聚焦搜索。
 - **层次化浏览**：在 `Navigator > Hierarchy` 查看和筛选实例层次路径，点击节点或双击画布中的子模块实例进入对应模块上下文。
@@ -207,7 +207,7 @@ node tools/serve.mjs stop --state-file ./results/ngb-session.json
 3. 用滚轮缩放、拖动空白处平移；需要重新展示整幅当前图时点击 `Fit view`。
 4. 选中对象后，点击顶部 `Inspector` 或对象名称摘要打开详情，再在 `Connections` / `Attributes` / `Analysis` / `Timing` / `Adjust`（AIG 模式下为 `Connections` / `Analysis` / `Source`）间切换。主动关闭的 Inspector 不会因再次选择对象而自动弹出。
 
-Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共用。需要对比统计时打开 `Navigator > Design`，需要对象详情时打开 Inspector，并核对其 A/B 来源。完整练习见 [放大画布并按需恢复详情](docs/USER_GUIDE.md#186-放大画布并按需恢复详情)。
+Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共用。需要对比统计时打开 `Navigator > Design`，需要对象详情时打开 Inspector，并核对其 A/B 来源。完整练习见 [放大画布并按需恢复详情](docs/guide/09-logging-workflows-and-faq.md#6-放大画布并按需恢复详情)。
 
 ### 快速输入与层次浏览
 
@@ -222,7 +222,7 @@ Compare 模式同样支持收起左右面板，腾出的空间由 A/B 画布共�
 
 仓库和 Windows 离线包的 `examples/` 目录提供了可直接打开的示例：
 
-- [examples/aig_structure_demo.blif](examples/aig_structure_demo.blif)：组合 XOR / XNOR / MUX 结构，默认分析得到 6 对重汇聚、3 个块候选；操作步骤见 [AIG 结构分析练习](docs/USER_GUIDE.md#aig-结构分析练习)。
+- [examples/aig_structure_demo.blif](examples/aig_structure_demo.blif)：组合 XOR / XNOR / MUX 结构，默认分析得到 6 对重汇聚、3 个块候选；操作步骤见 [AIG 结构分析练习](docs/guide/07-aig-workspace.md#78-动手练习与最小示例)。
 - [examples/aig_mapped_names.blif](examples/aig_mapped_names.blif) 与 [examples/aig_mapped_names.level](examples/aig_mapped_names.level)：带 `# <BLIF信号ID> <设计名称>` 注释映射的两输入组合 BLIF 及配套 AIG Level 层级与裕量报告示例。
 - `examples/two_equivalent_style_modules.v`：基础重综合（resyn / Flex）双模块对比示例。
 - `examples/hierarchical_escaped_compare.v`：包含转义层次化标识符（escaped hierarchical identifiers）与 Flex 配对模块的真实结构示例。
@@ -309,7 +309,7 @@ npm run test:mapped-cases
 
 ## 项目目录结构
 
-现行模块边界详见 [架构设计说明](docs/ARCHITECTURE.md)，多领域工作台演进设计见 [可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计记录见 [阶段 7 计划](docs/STAGE_7_PLAN.md)，跨层追踪、Cell/Net 聚焦、标准门符号与大图交互优化见 [阶段 8 计划](docs/STAGE_8_PLAN.md)；AIG 已在 v1.5.0 接入主界面，使用范围见 [AIG 图浏览](docs/USER_GUIDE.md#aig-图浏览)。
+现行模块边界详见 [架构设计说明](docs/ARCHITECTURE.md)，多领域工作台演进设计见 [可扩展工作台架构](docs/architecture_evolution.md)，迁移与审计记录见 [阶段 7 计划](docs/STAGE_7_PLAN.md)，跨层追踪、Cell/Net 聚焦、标准门符号与大图交互优化见 [阶段 8 计划](docs/STAGE_8_PLAN.md)；AIG 已在 v1.5.0 接入主界面，使用范围见 [AIG 图浏览](docs/guide/07-aig-workspace.md)。
 
 ```text
 docs/                 项目路线图、阶段计划、架构说明、设计规范与使用教程
