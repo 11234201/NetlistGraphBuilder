@@ -142,15 +142,18 @@ python3 --version
 
 ### 命令行直接启动
 
-常规源码开发推荐使用 Node.js 18 或更高版本（零外部 npm 依赖）：
+源码目录使用统一入口，自动选择可用的 Node.js 18+ 或 Python 3.6+，不需要 npm：
 
 ```bash
-npm start
+./ngb --no-open
 ```
 
-在缺少新版 Node.js 的 Linux 环境中，可直接使用 Python 3 启动：
+Windows 使用 `.\ngb.cmd --no-open`。已有的启动参数与 `start/status/stop/cmd` 子命令均可原样传入，相对路径保持相对于调用目录。运行时选择、会话控制与示例见 [通用源码启动入口](docs/UNIVERSAL_LAUNCHER.md)。
+
+也可直接指定已有后端：
 
 ```bash
+node tools/serve.mjs
 python3 -u tools/serve.py
 ```
 

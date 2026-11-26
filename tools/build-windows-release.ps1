@@ -114,7 +114,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $packageRo
 Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $packageRoot
 # Keep the repository layout for offline guide links, plus the traditional root guide.
 $guideChapters = Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\guide") -Filter "*.md" | ForEach-Object { "docs\guide\$($_.Name)" }
-foreach ($relative in (@("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\design\timing_format_spec.md", "docs\design\aig_level_format_spec.md") + $guideChapters)) {
+foreach ($relative in (@("docs\USER_GUIDE.md", "docs\LINUX_SINGLE_FILE_LAUNCHER.md", "docs\UNIVERSAL_LAUNCHER.md", "docs\design\timing_format_spec.md", "docs\design\aig_level_format_spec.md") + $guideChapters)) {
   $destination = Join-Path $packageRoot $relative
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
   Copy-Item -LiteralPath (Join-Path $repoRoot $relative) -Destination $destination

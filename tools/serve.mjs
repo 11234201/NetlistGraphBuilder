@@ -1,7 +1,8 @@
 import { createReadStream, realpathSync } from "node:fs";
 import { stat, realpath } from "node:fs/promises";
 import { createServer } from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTerminalLog } from "./terminal_log.mjs";
@@ -62,6 +63,23 @@ if (options.command === "stop" || options.command === "status") {
     process.exit(result.status === "running" && options.command === "stop" ? 1 : 0);
   } catch (error) {
     log.error("session.command_failed", error, { operation: options.command });
+    process.exit(1);
+  }
+}
+
+const parentPid = process.ppid;
+let callerPid = parentPid;
+if (options.parentDeath && process.platform === "win32" && process.env.NGB_LAUNCHER_CMD === "1") {
+  try {
+    const {stdout} = await promisify(execFile)(resolve(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"),
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", resolve(root, "tools/launcher_parent.ps1"), String(parentPid)],
+      {windowsHide:true, timeout:5000, maxBuffer:16384});
+    const identity = JSON.parse(stdout);
+    if (identity.error) throw new Error("Could not identify the launching process", {cause:identity.error});
+    if (!Number.isSafeInteger(identity.pid) || identity.pid < 0) throw new Error("Invalid launching process identity");
+    callerPid = identity.pid;
+  } catch (error) {
+    log.error("parent.watch_failed", error, {operation:"start", code:"PARENT_WATCH_FAILED"});
     process.exit(1);
   }
 }
@@ -188,9 +206,8 @@ server.listen(options.port, host, () => {
     if (interactive) terminal(workbench, () => shutdown("quit"), log);
     if (options.openBrowser) openBrowser(ready.pairUrl);
     if (options.parentDeath) {
-      const parentPid = process.ppid;
       parentCheck = setInterval(() => {
-        if (process.ppid !== parentPid || !isProcessAlive(parentPid)) shutdown("parent-exited");
+        if (process.ppid !== parentPid || !isProcessAlive(parentPid) || callerPid === 0 || !isProcessAlive(callerPid)) shutdown("parent-exited");
       }, 500);
     }
   };

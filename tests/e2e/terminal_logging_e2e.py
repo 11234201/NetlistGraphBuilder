@@ -254,7 +254,8 @@ def verify_stream_failure(root):
 def verify_bootstrap(root):
     path = root / "bootstrap-path"
     path.mkdir()
-    os.symlink(shutil.which("mkdir"), str(path / "mkdir"))
+    for utility in ("mkdir", "dirname", "readlink", "date"):
+        os.symlink(shutil.which(utility), str(path / utility))
     logs = root / "bash-missing"
     result = subprocess.run([shutil.which("bash"), str(ROOT / "tools/start-preview.sh")],
                             env=dict(os.environ, PATH=str(path), NGB_LOG_DIR=str(logs)),

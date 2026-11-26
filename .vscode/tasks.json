@@ -6,13 +6,15 @@
       "type": "process",
       "command": "bash",
       "args": [
-        "tools/start-preview.sh",
+        "ngb",
         "--no-open"
       ],
       "windows": {
-        "command": "node",
+        "command": "${env:ComSpec}",
         "args": [
-          "tools/serve.mjs",
+          "/d",
+          "/c",
+          "ngb.cmd",
           "--no-open"
         ]
       },

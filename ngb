@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Source-checkout launcher. The selected host owns parsing, serving and diagnostics.
+set -euo pipefail
+shopt -s execfail
+
+launcher="${BASH_SOURCE[0]}"
+while [[ -L "$launcher" ]]; do
+  directory="$(cd -P -- "$(dirname -- "$launcher")" && pwd)"
+  launcher="$(readlink -- "$launcher")"
+  [[ "$launcher" == /* ]] || launcher="$directory/$launcher"
+done
+project_root="$(cd -P -- "$(dirname -- "$launcher")" && pwd)"
+source "$project_root/tools/terminal_log.sh"
+
+requested="${NGB_RUNTIME:-auto}"
+case "$requested" in
+  [Aa][Uu][Tt][Oo]) requested=auto ;;
+  [Nn][Oo][Dd][Ee]) requested=node ;;
+  [Pp][Yy][Tt][Hh][Oo][Nn]) requested=python ;;
+  *) NgbLog error bootstrap.failed 'NGB_RUNTIME must be auto, node or python.' INVALID_RUNTIME; exit 2 ;;
+esac
+
+if [[ "$requested" != python ]] && command -v node >/dev/null 2>&1 &&
+  node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' >/dev/null 2>&1; then
+  NgbLog info runtime.selected 'Starting Node workbench server'
+  exec node "$project_root/tools/serve.mjs" "$@" || {
+    code=$?; NgbLog error bootstrap.failed 'Could not execute the selected Node runtime.' RUNTIME_EXEC_FAILED; exit "$code";
+  }
+fi
+
+if [[ "$requested" != node ]]; then
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+      "$candidate" -c 'import sys, http.server, socket, socketserver, threading, concurrent.futures, multiprocessing.connection; sys.exit(0 if sys.version_info >= (3, 6) else 1)' >/dev/null 2>&1; then
+      NgbLog info runtime.selected 'Starting Python workbench server'
+      exec "$candidate" -u "$project_root/tools/serve.py" "$@" || {
+        code=$?; NgbLog error bootstrap.failed 'Could not execute the selected Python runtime.' RUNTIME_EXEC_FAILED; exit "$code";
+      }
+    fi
+  done
+fi
+
+NgbLog error bootstrap.failed 'No compatible runtime: install working Node.js 18+ or Python 3.6+; check NGB_RUNTIME if set.' RUNTIME_UNAVAILABLE
+exit 1

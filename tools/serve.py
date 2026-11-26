@@ -9,6 +9,7 @@ import errno
 import json
 import os
 import signal
+import subprocess
 import sys
 import time
 import tempfile
@@ -398,6 +399,26 @@ def main(argv=None):
             print("status={}".format(status))
             return 1 if status == "running" else 0
         manifest = create_manifest(args)
+        parent_pid = os.getppid()
+        caller_pid = parent_pid
+        if args.parent_death and os.name == "nt" and not WINDOWS_PACKAGE and os.environ.get("NGB_LAUNCHER_CMD") == "1":
+            diagnostic = None
+            try:
+                shell = os.path.join(os.environ["SystemRoot"], "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+                output = subprocess.check_output([shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    os.path.join(ROOT, "tools", "launcher_parent.ps1"), str(parent_pid)], timeout=5,
+                    creationflags=0x08000000, stderr=subprocess.PIPE)  # CREATE_NO_WINDOW; also available on Python 3.6.
+                identity = json.loads(output.decode("utf8"))
+                diagnostic = identity.get("error")
+                if diagnostic:
+                    raise RuntimeError("Could not identify the launching process")
+                caller_pid = identity.get("pid")
+                if not isinstance(caller_pid, int) or caller_pid < 0:
+                    raise ValueError("Invalid launching process identity")
+            except Exception as error:
+                LOG.write("error", "parent.watch_failed", "Could not identify the launching process", error=error,
+                          operation="start", code="PARENT_WATCH_FAILED", diagnostic=diagnostic)
+                return 1
         if args.state_file and os.path.exists(args.state_file):
             if args.replace_existing:
                 _, status = stop_state(args.state_file)
@@ -487,7 +508,6 @@ def main(argv=None):
                 os.close(saved_stdout)
         except Exception as error:
             LOG.write("error", "browser.open_failed", "Default browser could not be opened", error=error, url=url)
-    parent_pid = os.getppid()
     stop_reason = ["shutdown"]
     def request_stop(signum, frame):
         global RUNNING
@@ -501,7 +521,8 @@ def main(argv=None):
     try:
         while RUNNING and not stop_event.is_set():
             server.handle_request()
-            if args.parent_death and (os.getppid() != parent_pid or not process_exists(parent_pid)):
+            if args.parent_death and (os.getppid() != parent_pid or not process_exists(parent_pid) or
+                                      caller_pid == 0 or not process_exists(caller_pid)):
                 RUNNING = False
                 stop_reason[0] = "parent-exited"
     except KeyboardInterrupt:
